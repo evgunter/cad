@@ -38,8 +38,9 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face_loops};
 use geom_brep::require_iso_rectangle;
-use geom_core::Sign;
-use geom_core::k_stats::{self, Probe, SampleOutcome};
+use geom_core::k_stats::MarginSample;
+use geom_core::k_stats::{self, Probe};
+use geom_core::test_support::twins::{Pairing, Streams, Twins, streams};
 
 // ---------------------------------------------------------------------
 // `props_rim_level` — the S58 iso-rectangle predicate (#714)
@@ -160,19 +161,51 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
     (surface, edges)
 }
 
-/// Runs the shape door at `Probe` and returns the definite-nonzero
-/// `props_rim_level` margins (absolute), plus whether it refused.
-fn rim_level_margins(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Vec<f64>, bool) {
+/// The shape door's samples on one rim at `Probe`, by predicate, and
+/// whether it refused.
+fn rim_level_streams(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Streams, bool) {
     k_stats::start_recording();
     let got = require_iso_rectangle(surface, edges, band());
-    let samples = k_stats::take_samples();
-    let margins = samples
+    (streams(k_stats::take_samples()), got.is_err())
+}
+
+/// [`rim_level_streams`]' nonzero `props_rim_level` margins (absolute),
+/// and whether the door refused.
+fn rim_level_margins(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Vec<f64>, bool) {
+    let (streams, refused) = rim_level_streams(surface, edges);
+    let margins = streams
+        .get("props_rim_level")
+        .map_or(&[][..], Vec::as_slice)
         .iter()
-        .filter(|s| s.predicate == "props_rim_level")
         .map(|s| s.margin.abs())
         .filter(|m| *m != 0.0)
         .collect();
-    (margins, got.is_err())
+    (margins, refused)
+}
+
+/// The decisive `props_rim_level` margin pairs of two twins of one rim,
+/// asserted to scale by `1e3` (rel `1e-12`); `what` names the rim.
+fn rim_level_scales_linearly(
+    what: &str,
+    rim: impl Fn(f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>),
+) {
+    let read = |scale| {
+        let (surface, edges) = rim(scale);
+        rim_level_streams(&surface, &edges).0
+    };
+    let (mm, m) = (read(1e-3), read(1.0));
+    let pairs = Twins::of("props_rim_level", &mm, &m).decisive_pairs(Pairing::Rank, |_| true);
+    assert!(
+        !pairs.is_empty(),
+        "{what}: the twins decide no props_rim_level margin"
+    );
+    for (a, b) in pairs {
+        let ratio = b / a;
+        assert!(
+            (ratio / 1e3 - 1.0).abs() < 1e-12,
+            "{what}: margin must scale linearly with the model: ratio {ratio:e}"
+        );
+    }
 }
 
 /// **Cone, mm scale.** The predicate's margin IS the slant separation
@@ -207,19 +240,7 @@ fn mm_scale_cone_rim_level_margin_is_the_slant_separation() {
 /// model. An arm-multiplied comparand answers 1e6 here.
 #[test]
 fn cone_rim_level_margin_scales_linearly_with_model_scale() {
-    let (mm, _) = rim_level_margins(
-        &cone_interior_rim(1e-3, 0.5).0,
-        &cone_interior_rim(1e-3, 0.5).1,
-    );
-    let (m, _) = rim_level_margins(
-        &cone_interior_rim(1.0, 0.5).0,
-        &cone_interior_rim(1.0, 0.5).1,
-    );
-    let ratio = m[0] / mm[0];
-    assert!(
-        (ratio / 1e3 - 1.0).abs() < 1e-12,
-        "margin must scale linearly with the model: ratio {ratio:e}"
-    );
+    rim_level_scales_linearly("the cone", |scale| cone_interior_rim(scale, 0.5));
 }
 
 /// **Sphere, mm scale and scale twins.** Sphere rims carry the full
@@ -263,19 +284,10 @@ fn mm_scale_sphere_rim_level_margin_is_the_direction_chord() {
         b.escalate()
     );
 
-    let (m, _) = rim_level_margins(
-        &sphere_interior_rim(1.0, 0.5).0,
-        &sphere_interior_rim(1.0, 0.5).1,
-    );
-    // The scale twin compares the CHORD margins — the largest of each
-    // run's population; the rounding-scale residuals are noise-floor
-    // values with no scale law of their own.
-    let big = |ms: &[f64]| ms.iter().copied().fold(f64::MIN, f64::max);
-    let ratio = big(&m) / big(&margins);
-    assert!(
-        (ratio / 1e3 - 1.0).abs() < 1e-12,
-        "margin must scale linearly with the model: ratio {ratio:e}"
-    );
+    // The scale twin compares the decisive CHORD margins; the
+    // rounding-scale residuals are decided Zero and have no scale law of
+    // their own.
+    rim_level_scales_linearly("the sphere", |scale| sphere_interior_rim(scale, 0.5));
 }
 
 /// **What ε buys, in metres.** The band is what separates an interior
@@ -443,53 +455,58 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
             vec![whole_rim(scale, 1.0, true), whole_rim(scale, 2.0, false)],
         ]
     };
-    let run = |scale: f64| -> Vec<(&'static str, f64)> {
+    let run = |scale: f64| -> Vec<MarginSample> {
         let s = surface(scale);
-        let mut out = Vec::new();
+        let mut samples = Vec::new();
         for face in faces(scale) {
             let loops: Vec<&[LoopEdge<Probe>]> = face.iter().map(Vec::as_slice).collect();
             k_stats::start_recording();
             let got = curved_face_loops(&s, &loops, true, band());
-            let samples = k_stats::take_samples();
+            samples.extend(k_stats::take_samples());
             got.unwrap_or_else(|e| panic!("a face at {scale:e} measures: {e:?}"));
-            out.extend(
-                samples
-                    .iter()
-                    .filter(|s| LENGTHS.contains(&s.predicate))
-                    .filter(|s| {
-                        matches!(
-                            s.outcome,
-                            SampleOutcome::Definite(Sign::Positive | Sign::Negative)
-                        )
-                    })
-                    .map(|s| (s.predicate, s.margin.abs())),
-            );
         }
-        out
+        samples
     };
     let (mm, m) = (run(1e-3), run(1.0));
-    for name in LENGTHS {
-        assert!(
-            mm.iter().any(|(p, _)| p == name),
-            "{name} decides nothing definite on these faces: {mm:?}"
-        );
-    }
+    // The faces decide in the same order at both scales, so the twins'
+    // length decisions interleave identically and pair by site: a swap of
+    // two sites' margins is a divergence.
+    let sequence = |l: &[MarginSample]| {
+        l.iter()
+            .filter(|s| LENGTHS.contains(&s.predicate))
+            .map(|s| (s.predicate, s.outcome))
+            .collect::<Vec<_>>()
+    };
     assert_eq!(
-        mm.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
-        m.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
+        sequence(&mm),
+        sequence(&m),
         "the twins decide the same sequence"
     );
+    assert!(
+        mm.iter()
+            .filter(|s| LENGTHS.contains(&s.predicate))
+            .all(|s| !s.reads_sign_only()),
+        "every length here is decided against the band, so every margin has a scale"
+    );
+    let (mm, m) = (streams(mm), streams(m));
     let escalate = band().escalate();
-    for ((name, a), (_, b)) in mm.iter().zip(&m) {
-        let ratio = b / a;
+    for name in LENGTHS {
+        let pairs = Twins::of(name, &mm, &m).decisive_pairs(Pairing::Site, |_| true);
         assert!(
-            (ratio / 1e3 - 1.0).abs() < 1e-9,
-            "{name}: margin must scale linearly with the model, ratio {ratio:e}"
+            !pairs.is_empty(),
+            "{name} decides nothing definite on these faces"
         );
-        assert!(
-            *a > escalate,
-            "{name}: margin {a:e} must clear this run's escalation threshold {escalate:e} at mm scale"
-        );
+        for (a, b) in pairs {
+            let ratio = b / a;
+            assert!(
+                (ratio / 1e3 - 1.0).abs() < 1e-9,
+                "{name}: margin must scale linearly with the model, ratio {ratio:e}"
+            );
+            assert!(
+                a > escalate,
+                "{name}: margin {a:e} must clear this run's escalation threshold {escalate:e} at mm scale"
+            );
+        }
     }
 }
 

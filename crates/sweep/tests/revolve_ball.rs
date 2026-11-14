@@ -41,8 +41,8 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     // Both band faces share ONE sphere surface (the only surface).
     assert_eq!(t.body.surfaces().count(), 1);
     // Every face lies on the unit sphere centered at the origin.
-    let (_, face) = t.body.faces().next().unwrap();
-    let Surface::Sphere { center, radius, .. } = *t.body.get_surface(face.surface).unwrap() else {
+    let (face, _) = t.body.faces().next().unwrap();
+    let Surface::Sphere { center, radius, .. } = *t.body.face_surface(face).unwrap() else {
         panic!("ball face is a sphere");
     };
     assert!(center.distance(geom_core::Point3::origin()).abs() < 1e-12);
@@ -122,4 +122,86 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         ],
     );
     assert!(v > 0.0, "ball volume {v}");
+}
+
+/// **A full revolve stores its two seam meridians in one plane**: the
+/// angle-π copy is the angle-0 meridian turned a half turn about the
+/// axis, which fixes its centre and its reference direction (both on the
+/// axis) and turns its plane normal over. So the two carriers share one
+/// centre, radius and reference direction, and their axes are each
+/// other's negation exactly, at `f64` and at `Interval`. Red if the
+/// angle-π copy is placed through the turned placement, whose `sin π`
+/// leaves its axis a rounding off the angle-0 one's.
+#[test]
+fn a_full_revolves_two_seam_meridians_share_one_frame() {
+    fn frames<T: geom_core::Decide + topo::AtRestPolicy>() -> [geom::Frame<T>; 2] {
+        let p = |y: f64, b: f64| {
+            (
+                Point2::new(T::from_f64(0.0), T::from_f64(y)),
+                T::from_f64(b),
+            )
+        };
+        let profile = profile::Profile::new(
+            profile::SketchPlane::<T>::xy(),
+            vec![bulge_loop(vec![p(0.6, 1.0), p(2.2, 0.0)])],
+        )
+        .validate(Tol::witness())
+        .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(T::zero(), T::zero()),
+            dir: geom_core::Vec2::new(T::zero(), T::one()),
+        };
+        let t = revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap();
+        let RevolvedKind::Full {
+            meridians,
+            pi_meridians,
+            ..
+        } = &t.kind
+        else {
+            panic!("full revolve");
+        };
+        let frame = |e: topo::EdgeKey| {
+            let curve = t.body.get_edge(e).unwrap().curve;
+            match t
+                .body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .carrier()
+            {
+                geom::Curve3::Circle(geom::Circle { frame, .. }) => *frame,
+                other => panic!("a meridian is a circle: {other:?}"),
+            }
+        };
+        [
+            frame(meridians[0][0].expect("the angle-0 meridian")),
+            frame(pi_meridians[0].expect("the angle-π meridian")),
+        ]
+    }
+    fn bits<T: geom_core::Bounds>(xs: [T; 9]) -> [(f64, f64); 9] {
+        xs.map(|x| (x.lo(), x.hi()))
+    }
+    fn of<T: geom_core::Real>(f: &geom::Frame<T>, flip: bool) -> [T; 9] {
+        let a = if flip {
+            geom_core::Vec3::zero() - f.axis
+        } else {
+            f.axis
+        };
+        [
+            f.origin.x, f.origin.y, f.origin.z, a.x, a.y, a.z, f.u_ref.x, f.u_ref.y, f.u_ref.z,
+        ]
+    }
+    let [zero, pi] = frames::<f64>();
+    assert_eq!(
+        bits(of(&pi, true)),
+        bits(of(&zero, false)),
+        "f64: one centre and reference, the axis turned over: {zero:?} {pi:?}"
+    );
+    let [zero, pi] = frames::<geom_core::Interval>();
+    assert_eq!(
+        bits(of(&pi, true)),
+        bits(of(&zero, false)),
+        "Interval: one centre and reference, the axis turned over: {zero:?} {pi:?}"
+    );
 }

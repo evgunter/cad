@@ -34,7 +34,7 @@ The torus arm already reads the pair's own coincidence
 ## Why it was not fixed in stage 3
 
 The ladder's answer carries more than the pose does:
-- the decided margin it hands the glue record (`CarrierReading`);
+- the decided margin it hands the glue record (`CarrierVerdict::One`);
 - the orientation bit (`outward`), for its `Same±` verdicts;
 - per-datum readings at a corner site.
 

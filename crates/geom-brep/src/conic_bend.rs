@@ -10,7 +10,7 @@
 //! [`conic_bend_side`] turns them into a side of a plane.
 
 use crate::enters::{EntersMaterial, ReferenceNormal};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 /// **How a conic edge bends off its departure tangent** at the vertex

@@ -89,10 +89,10 @@ fn halves<T: Decide>(body: &Body<T>, lp: LoopKey) -> Result<Vec<HalfEdgeKey>, Bl
 /// Every half-edge of `face`'s cycles.
 fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<HalfEdgeKey>, BlendError> {
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a consumed feature's face"))?;
     let mut all = Vec::new();
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lp, _, _) in f.loops() {
         all.extend(halves(body, lp)?);
     }
     Ok(all)

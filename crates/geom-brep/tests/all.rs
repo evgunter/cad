@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
+mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
@@ -246,6 +248,8 @@ mod periodic_chart_closure;
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
 mod r2_cert3_e2e;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
 #[path = "review_6092_delta_probes.rs"]
@@ -361,8 +365,6 @@ mod one_sum_differential;
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
-#[path = "span_reach_differential.rs"]
-mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]

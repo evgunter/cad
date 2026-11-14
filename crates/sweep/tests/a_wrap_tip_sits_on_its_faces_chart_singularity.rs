@@ -44,9 +44,13 @@ fn tol() -> Tol {
 }
 
 /// Whether the joint the mint stored at `he` (into `he` from its loop's
-/// predecessor) is a reset.
+/// predecessor) is one whole turn on the principal sheet: the face
+/// wrapping a singular point at an edge's tip.
 fn resets(body: &Body<f64>, he: HalfEdgeKey) -> bool {
-    body.joint(he).is_some_and(topo::JointElement::is_reset)
+    body.joint(he).is_some_and(|e| {
+        let deck = e.deck();
+        deck.u.abs() == 1 && deck.v == 0 && !deck.twin
+    })
 }
 
 /// **A meridian spur of the unit sphere** from the equator vertex at
@@ -308,8 +312,7 @@ fn a_lone_wrap_edge_has_two_tips() {
         .find(|&e| body.both_sides_face(e) == Some(Some(face)))
         .expect("the strut lies in the sphere face");
     let ends = {
-        let e = body.get_edge(strut).unwrap();
-        let mut ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+        let mut ends = <[_; 2]>::from(body.edge_vertices(strut).unwrap());
         ends.sort();
         ends
     };
@@ -351,10 +354,7 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(
-                body.get_surface(body.get_face(face)?.surface)?,
-                geom::Surface::Cylinder { .. }
-            );
+            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");
@@ -513,7 +513,7 @@ fn side_about(
 ) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
     let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
-    let mut surface = body.get_surface(f.surface).unwrap().clone();
+    let mut surface = body.face_surface(face).unwrap().clone();
     if let (Some(turned), geom::Surface::Sphere { axis, .. }) = (axis, &mut surface) {
         *axis = turned;
     }
@@ -603,7 +603,9 @@ fn a_small_tip_cap_reads_its_side_off_its_tip_and_measures() {
 #[test]
 fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     let (body, face, _) = small_tip_cap();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let got = topo::validate_geometric(&flipped, tol()).expect_err("flipped refuses");
     assert!(
         got.contains(&ValidationError::CurvedSenseInverted { face }),
@@ -630,11 +632,21 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     );
 
     let (body, face, _) = small_tip_cone();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
+    // The tip's strut is outside the flipped face, so the whole turn
+    // its loop takes at the apex is the wrong way round and the loop
+    // does not close.
     assert_eq!(
         topo::validate_geometric(&flipped, tol()),
-        Err(vec![ValidationError::CurvedSenseInverted { face }]),
-        "the cone flipped: the side reader alone"
+        Err(vec![
+            ValidationError::CurvedSenseInverted { face },
+            ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::LoopNotClosed { face },
+            },
+        ]),
+        "the cone flipped: the side reader, and the loop that no longer closes"
     );
 }
 

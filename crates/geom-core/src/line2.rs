@@ -76,10 +76,20 @@ impl<T: Real> Line2<T> {
     }
 
     /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
-    /// [`Self::param_within`].
+    /// [`Self::param_within`]. `p`'s distance from the span is
+    /// [`Self::distance_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point2<T>, span: (T, T)) -> Point2<T> {
         self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s distance from the span `(t0, t1)`**, `t0 ≤ t1`: its
+    /// distance from its [foot on the span](Self::foot_within). A segment
+    /// from `a` to `b` is the span `(0, 1)` of `Line2 { origin: a, dir: b
+    /// − a }`.
+    #[must_use]
+    pub fn distance_within(&self, p: Point2<T>, span: (T, T)) -> T {
+        (p - self.foot_within(p, span)).norm()
     }
 
     /// **`p`'s height along the line**: `(p − origin)·dir / |dir|`, metres

@@ -260,14 +260,14 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(eps() / 16.0)), None);
     macro_rules! same {
         ($t:ty) => {{
-            let d: Evaluation<$t> = evaluate(
+            let d: Evaluation<$t> = editor_core::test_support::evaluate_any(
                 &doc,
                 None,
                 &CancelToken::new(),
                 &EvalOptions::default(),
                 Tol::witness(),
             );
-            let e: Evaluation<$t> = evaluate(
+            let e: Evaluation<$t> = editor_core::test_support::evaluate_any(
                 &doc,
                 None,
                 &CancelToken::new(),
@@ -291,7 +291,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     same!(Dual64);
     same!(Interval);
     // And an unseeded dual carries an exactly zero tangent at the sink.
-    let unseeded: Evaluation<Dual64> = evaluate(
+    let unseeded: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
@@ -319,7 +319,7 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     for p in ["h1", "h2"] {
         let d = measured(
             &doc,
-            &evaluate(
+            &editor_core::test_support::evaluate_bound(
                 &doc,
                 None,
                 &CancelToken::new(),
@@ -369,21 +369,21 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
 #[test]
 fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
     let (doc, m) = stepped_shaft(1.0, 0.5, None, None);
-    let on_h1: Evaluation<Dual64> = evaluate(
+    let on_h1: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
         &opts(&doc, Some("h1")),
         Tol::witness(),
     );
-    let on_h2_fresh: Evaluation<Dual64> = evaluate(
+    let on_h2_fresh: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
         &opts(&doc, Some("h2")),
         Tol::witness(),
     );
-    let on_h2_threaded: Evaluation<Dual64> = evaluate(
+    let on_h2_threaded: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         Some(&on_h1),
         &CancelToken::new(),
@@ -968,7 +968,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
     let seeded = measured(
         &doc,
-        &evaluate(
+        &editor_core::test_support::evaluate_bound(
             &doc,
             None,
             &CancelToken::new(),

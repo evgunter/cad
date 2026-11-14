@@ -40,7 +40,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
     Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
     vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -776,12 +776,18 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
 }
 
-fn run_at<T: editor_core::EvalScalar>(
+fn run_at<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     prior: Option<&Evaluation<T>>,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        opts,
+        Tol::witness(),
+    )
 }
 
 /// **The corpus digest, per ε row**: every fault, space, solved pose
@@ -796,10 +802,13 @@ fn run_at<T: editor_core::EvalScalar>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
-const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb45f_83ac_32e6_ae67),
-    (1e-6, 0x1480_cddd_152c_b481),
-    (1e-12, 0xabc4_cdbd_523f_e822),
+// Re-measured when a placement came to read its body through a source
+// it mints (VARIABLES VR4): the digest feeds every node id, and one more
+// minted variable per placement moves the ids after it.
+const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
+    (1e-9, 0x529f_14cb_0a8f_1ab3),
+    (1e-6, 0xafcd_8634_c272_d78d),
+    (1e-12, 0xea59_9b09_734b_d9fd),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -830,7 +839,7 @@ fn each_seat_stands_on_what_it_is_seated_on() {
             poses
                 .placement(doc, instances[k])
                 .unwrap_or_else(|e| panic!("{label}'s copy {k} places: {e:?}"))
-                .affine::<f64>()
+                .affine()
         };
         let t = (at(onto).inverse() * at(mover)).translation;
         [t.x, t.y, t.z]
@@ -849,7 +858,8 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 }
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
-/// evaluations are byte-identical to the pre-generic tree's.
+/// evaluations hash to the pinned digest. It was first the pre-generic
+/// tree's.
 ///
 /// RE-BLESSED three times for the edge curve's `Debug` the digest feeds:
 /// when check 2's turn moved from the edge's `Certificate` onto the edge
@@ -859,14 +869,21 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// it spelled `Line { .. }`). Each time, with
 /// that `Debug` written in main's shape, every digest here reproduced
 /// main's value at all three ε rows, so nothing else moved.
+///
+/// RE-PINNED when a copy moved into another frame came to carry its
+/// source's edge certificates rather than re-deriving them, which moves
+/// the `max_residual` the digest's edge `Debug` feeds. The solved maps
+/// themselves are main's bits: every one is composed as motions, and
+/// `m10_p_fence`'s geometry and evaluation fences hold at all three ε
+/// rows, so no point moved.
 #[test]
-fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
+fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
-    let Some(&(_, main)) = MAIN_CORPUS_DIGEST
+    let Some(&(_, pinned)) = PINNED_CORPUS_DIGEST
         .iter()
         .find(|(e, _)| e.to_bits() == eps.to_bits())
     else {
-        panic!("no main digest was measured at ε = {eps:e}; measure one on main's tree")
+        panic!("no digest is pinned at ε = {eps:e}; measure one")
     };
     let mut h = Fnv::new();
     for (label, doc, opts) in corpus() {
@@ -874,7 +891,7 @@ fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
         solve_digest(&mut h, &doc, &opts);
     }
     assert_eq!(
-        h.0, main,
+        h.0, pinned,
         "the f64 solve moved on the mate corpus at ε = {eps:e}: {:#018x}",
         h.0
     );
@@ -1111,7 +1128,7 @@ fn assert_pose_encloses_corners(
         let truth = solve(&at, opts, Tol::witness())
             .relative(instance)
             .expect("posed at f64")
-            .affine::<f64>();
+            .affine();
         let truth = [
             truth.linear.c0,
             truth.linear.c1,
@@ -1558,7 +1575,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         solve(&set_value(doc.clone(), drift(), v), &opts, Tol::witness())
             .relative(bolt)
             .expect("posed at f64")
-            .affine::<f64>()
+            .affine()
     };
     let nominal = at(0.0);
     for v in [lo, hi, 1.0] {
@@ -1660,6 +1677,13 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
         );
         return true;
     }
+    // A dual lane is bound to its build of record (DUAL-DESIGN DL3): a
+    // bundle the record refused is refused at the dual by that refusal,
+    // and the record's own refusal there is the overconstraint.
+    if matches!(error.kind, editor_core::NodeErrorKind::RecordRefused) {
+        let record = run_at::<f64>(&s.doc, &s.opts.of_record(), None);
+        return overconstrained_or_escalates(&record, s, kind, &format!("{what}, its record"));
+    }
     assert!(
         matches!(
             &error.kind,
@@ -1680,9 +1704,11 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
 /// **A shaft in two coaxial bores is overconstrained in every lane**
 /// ([`shaft`]): the bundle holds two bores, a rest and a third bore
 /// beside one another (past the door, as a doctored save leaves them),
-/// and the placement refuses it naming both bores — at `f64`, at
-/// `Dual64` seeded on `rise` and on `idle`, and at `Interval` over a
-/// box on `rise` a fraction of ε wide. The rule reads the families,
+/// and the placement refuses it naming both bores — at `f64` and at
+/// `Interval` over a box on `rise` a fraction of ε wide; at `Dual64`
+/// seeded on `rise` and on `idle` it is refused by that `f64` record
+/// (`NodeErrorKind::RecordRefused`), as every dual node the record
+/// refused is. The rule reads the families,
 /// so no lane measures anything to escalate on ([`INTERVAL_ESCALATIONS`]
 /// holds no shaft row).
 ///
@@ -1825,6 +1851,40 @@ fn structure<T: editor_core::EvalScalar>(
         .collect()
 }
 
+/// A dual lane's structure read against its `f64` build of record
+/// (DUAL-DESIGN DL3), class by class. A placement the record refused
+/// (failed, not poisoned) is refused at the dual as `RecordRefused`,
+/// and only such a one: each reads as the record's own failure there.
+/// A placement poisoned at the record is poisoned at the dual, through
+/// the refused one, and every other entry is the dual's own.
+fn bound_structure(
+    doc: &ProfileDoc,
+    dual: &Evaluation<Dual64>,
+    record: &[(RecipeNodeId, String)],
+) -> Vec<(RecipeNodeId, String)> {
+    const BOUND: &str = "failed: RecordRefused";
+    let refused_at_record =
+        |theirs: &str| theirs.starts_with("failed: ") && theirs != "failed: Poisoned";
+    structure(doc, dual)
+        .into_iter()
+        .zip(record)
+        .map(|((id, said), (rid, theirs))| {
+            assert_eq!(id, *rid, "one placement order in both lanes");
+            assert_eq!(
+                said == BOUND,
+                refused_at_record(theirs),
+                "placement {id:?}: the dual says {said}, its record {theirs}: the dual is \
+                 refused by its record exactly where the record refused it"
+            );
+            if said == BOUND {
+                (id, theirs.clone())
+            } else {
+                (id, said)
+            }
+        })
+        .collect()
+}
+
 /// A failed result's class: the error kind's variant, and for a mate
 /// fault the fault's — never its numbers, which are the lane's.
 fn fault_class<T: topo::AtRestPolicy + geom_core::Decide>(r: &NodeResult<T>) -> String {
@@ -1949,7 +2009,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let d = run_at::<Dual64>(&doc, &opts, None);
         let i = run_at::<Interval>(&doc, &opts, None);
         let want = structure(&doc, &f);
-        assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
+        assert_eq!(
+            bound_structure(&doc, &d, &want),
+            want,
+            "{label}: Dual64's structure"
+        );
         assert_interval_structure(&doc, &f, &i, label);
         // Every free continuous variable is a seed; a defined one takes
         // none (its derivative is its inputs').
@@ -1965,7 +2029,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
                 ..opts.clone()
             };
             let d = run_at::<Dual64>(&doc, &o, None);
-            assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
+            assert_eq!(
+                bound_structure(&doc, &d, &want),
+                want,
+                "{label}: seeded {seed:?}"
+            );
             for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()

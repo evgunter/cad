@@ -157,7 +157,9 @@ fn props_flux_flips_with_the_rimless_band_sense() {
         honest.enclosure.volume
     );
 
-    let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
+    let flipped = b
+        .flipped_face_sense_for_tests(first_face(&b), geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, area) = per_face(&flipped);
     assert!(
@@ -205,7 +207,9 @@ fn offcentre_flipped_ball_still_cancels() {
         honest.enclosure.volume
     );
 
-    let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
+    let flipped = b
+        .flipped_face_sense_for_tests(first_face(&b), geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, _) = per_face(&flipped);
     assert!(
@@ -266,10 +270,12 @@ fn assembly_flip_is_wrong_but_nonzero() {
 
     let band_face = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
-    let flipped = body.flipped_face_sense_for_tests(band_face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(band_face, geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, _) = per_face(&flipped);
     assert!(
@@ -314,7 +320,9 @@ fn tier_three_refusal_is_surgical() {
         Ok(())
     );
     for (face, _) in body.faces() {
-        let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+        let flipped = body
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errs = topo::validate::validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(!errs.is_empty(), "face {face:?}: the flip must be refused");
         assert!(
@@ -572,11 +580,11 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 /// names both and a face can refuse once per loop.
 fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut out = Vec::new();
-    for (fk, f) in body.faces() {
-        if !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })) {
+    for (fk, _) in body.faces() {
+        if !matches!(body.face_surface(fk), Some(Surface::Plane { .. })) {
             continue;
         }
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        for (l, _, _) in body.face(fk).expect("a live face").loops() {
             let carriers = loop_carriers(body, l);
             if !carriers.is_empty()
                 && carriers.iter().all(|c| {
@@ -876,7 +884,7 @@ fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
     );
     let planar = |pred: fn(&geom::Curve3<f64>) -> bool| -> Vec<(FaceKey, topo::LoopKey)> {
         body.faces()
-            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
             .filter(|(_, f)| loop_carriers(&body, f.outer).iter().any(pred))
             .map(|(k, f)| (k, f.outer))
             .collect()
@@ -960,7 +968,7 @@ fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
 /// origin z, stored plane normal z)`.
 fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
     body.faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, f)| match body.face_surface(k) {
             Some(Surface::Plane { origin, normal, .. }) => Some((k, f.outer, origin.z, normal.z)),
             _ => None,
         })
@@ -1054,7 +1062,7 @@ fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
     .body;
     let mut outward: Vec<[f64; 3]> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match body.face_surface(fk) {
             Some(Surface::Plane { normal, .. }) => {
                 let n = if f.sense { *normal } else { -*normal };
                 Some([n.x, n.y, n.z])

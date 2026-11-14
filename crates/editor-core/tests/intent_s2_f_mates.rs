@@ -467,14 +467,16 @@ fn lifted_cube_measured(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [x, t, px])
 }
 
-/// **A selection of a family's members reads the family whole** (review
-/// R1, MAJOR-2: the door and `persist::save` agree). A mate's target
-/// reads the plane of a face of member 2 of the family, which a pose
-/// admits; the document saves. A measure reading that same selection by
-/// its variable is one measure of member 2's face, admitted at the door,
-/// and the document holding it saves too.
+/// **A selection of one member of a family reads that member**
+/// (REFERENCES DM3; review R1, MAJOR-2: the door and `persist::save`
+/// agree). A mate's target reads the plane of a face of member 2 of the
+/// family, `pattern[2]` by the member's own name, which a pose admits;
+/// the document saves. A measure reading that same selection by its
+/// variable is one measure of member 2's face — the read's written
+/// index reaches no index — admitted at the door, and the document
+/// holding it saves too.
 #[test]
-fn a_selection_of_a_familys_members_reads_the_family_whole() {
+fn a_selection_of_one_member_of_a_family_reads_that_member() {
     let mut store = PartStore::default();
     let (leg_ref, leg) = store.insert_part(cube_part("f-shared-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(cube_part("f-shared-top"), Tol::witness());
@@ -484,18 +486,13 @@ fn a_selection_of_a_familys_members_reads_the_family_whole() {
         crate::fixture::mated_instance(leg_ref),
         &with_resolver(store),
     );
-    let (doc, k, pattern) = crate::fixture::linear(doc, instance, [1.0, 0.0, 0.0], 2.0, 4);
+    let (doc, _k, pattern) = crate::fixture::linear(doc, instance, [1.0, 0.0, 0.0], 2.0, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = fixture::constrain(
         doc,
         fixture::rest(
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
-            fixture::head(fixture::in_copy(
-                pattern,
-                k,
-                2,
-                in_part(instance, leg, CapEnd::End),
-            )),
+            fixture::member_head(pattern, &[2], in_part(instance, leg, CapEnd::End)),
         ),
     );
     let target = fixture::constraint(&doc, mate).to;
@@ -533,7 +530,7 @@ fn a_selection_of_a_familys_members_reads_the_family_whole() {
             .node_reach(measured.measured.measures[0])
             .chain()
             .is_some_and(<[_]>::is_empty),
-        "the selection reads the family whole, so the measure is one measure"
+        "the selection reads one member at a written index, so the measure is one measure"
     );
     assert!(
         editor_core::persist::save(&measured.doc, &[], Tol::witness()).is_ok(),

@@ -161,7 +161,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{
     AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
-    SpiricLoops,
+    SectionUnbuilt,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -1881,13 +1881,13 @@ fn cone_station_circles<S: Scalar>(
     rho: f64,
 ) -> Vec<(pncad::topo::FaceKey, Circle)> {
     let mut out = Vec::new();
-    for (k, f) in body.faces() {
+    for (k, _) in body.faces() {
         let Some(&pncad::geom::Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(k)
         else {
             continue;
         };
@@ -1930,14 +1930,14 @@ struct TorusCarrier {
 /// split a torus wall onto two carriers the review row fails and this
 /// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
-    for (_, f) in body.faces() {
+    for (fk, _) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(fk)
         {
             return TorusCarrier {
                 centre: center.map(S::f),
@@ -2144,7 +2144,7 @@ fn wall<T, E: core::fmt::Debug>(
 pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, BooleanError> {
     let (zc, axis) = lantern
         .faces()
-        .find_map(|(_, f)| match lantern.get_surface(f.surface) {
+        .find_map(|(fk, _)| match lantern.face_surface(fk) {
             Some(&pncad::topo::Surface::Sphere { center, axis, .. }) => Some((center, axis)),
             _ => None,
         })
@@ -2322,7 +2322,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    axis. There is no ellipsoid surface and no non-uniform map —
     //    a body moves only by a `RigidMotion`, and a matrix becomes one
     //    only through the door that decides its rigidity.
-    let band = pncad::geom_core::Band::linear(tol).expect("the run's band");
     let stretch = Affine3::from_parts(
         Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
         v3(0.0, 0.0, 0.0),
@@ -2330,8 +2329,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        RigidMotion::check_rigid(&stretch, band)
-            .map(|stretch| pncad::topo::transform_rigid(lant, &stretch, tol)),
+        // The door is `f64`'s: a matrix becomes a motion there or nowhere,
+        // so a stretch refused there reaches no lane's body door.
+        RigidMotion::check_rigid(&stretch).map(|_| lant),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
         |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
@@ -2362,7 +2362,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(_, f)| lant.get_surface(f.surface).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Some(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -2397,7 +2397,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    neither of the zone's seam meridians: its section lies inside
     //    one half-band, which keeps it as a ring, and the mesher has no
     //    lane for a curved face with a ring
-    //    (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
+    //    (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
@@ -2470,39 +2470,58 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    0.105). The vertex-on-face pass reads the wall's outward normal
     //    at the chart point the sweep placed the pierce at, and mints the
     //    pierce's ring there with the wall's rows standing as found.
-    //    The join then frames the germ pair of the lower stem's torus
-    //    wall (A) against the leaf's lower cap (B), the cap the tube
-    //    crosses in two chords. That plane is tilted against the torus's axis, so it
-    //    cuts a general spiric quartic whose loops wind round the tube,
-    //    and C5 routes that section to its unbuilt general rung
-    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). It refuses
-    //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
-    //    Behind it is the section of the leaf's NURBS walls against the
-    //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
-    //    declared frontier stands the lily walls down before this one.
+    //
+    //    The join's germ mint then carries the germ pair of the lower
+    //    stem's torus wall (A) against the leaf's ridge wall (B), and
+    //    that pair's section is a torus × spline one, read whole over
+    //    the wall's chart. The section hugs the leaf's lower cap rim,
+    //    within a hundredth of the wall's chart of the root station
+    //    along the middle two thirds of the rim. The reading refuses at
+    //    its accounting, which exceeds the subdivision's 200000-cell
+    //    budget, and the section value hands that on as `Unaccounted`.
+    //    The cells go to the wall's corner at the margin of the root,
+    //    more than a centimetre outside the tube: the accounting clears a
+    //    cell by the torus's canonical quartic over the cell's box, and
+    //    on a torus this thin (ring/pipe ~83) that bound is far wider
+    //    than the form's own variation over the cell, so a cell there
+    //    clears only once it is under half a millimetre across
+    //    (`work/ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells.md`).
+    //    It refuses the same way at 1e-9 and 1e-6.
+    //
+    //    Past the germ mint, the join frames the torus wall against the
+    //    leaf's lower cap, the cap the tube crosses in two chords. That
+    //    plane is tilted against the torus's axis, so it cuts a general
+    //    spiric quartic whose loops wind round the tube, and C5 routes
+    //    that section to its unbuilt general rung
+    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
+    //    the lower stem's declared frontier stands the lily walls down
+    //    before this one.
     wall(
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            // The leaf's lower cap is its first loft station's plane:
-            // through the root, square to the sheath's direction there.
-            let (root, (sheath_dir, _, _), _, _) = leaf_a_spine(tol);
-            let lower_cap = |f| match leaf_a
-                .get_face(f)
-                .and_then(|d| leaf_a.get_surface(d.surface))
-            {
-                Some(pncad::topo::Surface::Plane { origin, normal, .. }) => {
-                    let n = Vec3::new(normal.x.f(), normal.y.f(), normal.z.f());
-                    let o = Point3::new(origin.x.f(), origin.y.f(), origin.z.f());
-                    n.cross(sheath_dir).norm() < 1e-9 && (o - root).dot(n).abs() < 1e-9
+            // The leaf's ridge wall: of its two NURBS walls, the one
+            // whose control points about the root stand on the ridge
+            // side of the root's chord, `+v` of the sheath's frame.
+            let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
+            let ridge_wall = |f| match leaf_a.face_surface(f) {
+                Some(pncad::topo::Surface::Nurbs(n)) => {
+                    let lean: f64 = n
+                        .control()
+                        .iter()
+                        .map(|c| Point3::new(c.x.f(), c.y.f(), c.z.f()))
+                        .filter(|c| (*c - root).norm() < 0.1)
+                        .map(|c| (c - root).dot(sheath_up))
+                        .sum();
+                    lean > 0.0
                 }
                 _ => false,
             };
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
-            let lower_tube = |f| match stem.get_face(f).and_then(|d| stem.get_surface(d.surface)) {
+            let lower_tube = |f| match stem.face_surface(f) {
                 Some(pncad::topo::Surface::Torus {
                     center,
                     major_radius,
@@ -2515,17 +2534,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             };
             matches!(
                 e,
-                BooleanError::GermSectionSpiric {
+                BooleanError::GermSectionUnbuilt {
                     a_face,
                     a_kind: SurfaceKind::Torus,
                     b_face,
-                    b_kind: SurfaceKind::Plane,
-                    loops: SpiricLoops::AroundTube,
-                    section: pncad::geom_brep::SectionError::RoutesToGeneralRung {
-                        pair: "plane×torus",
-                        ..
-                    },
-                } if lower_tube(*a_face) && lower_cap(*b_face)
+                    b_kind: SurfaceKind::Nurbs,
+                    why: SectionUnbuilt::Refused(
+                        pncad::geom_brep::SectionError::Unaccounted { cause }
+                    ),
+                } if lower_tube(*a_face) && ridge_wall(*b_face) && cause.contains("cell budget")
             )
         },
         "join the long leaf to the stem it grows from",

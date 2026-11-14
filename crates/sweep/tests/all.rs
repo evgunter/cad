@@ -58,6 +58,8 @@ mod seam_region_common;
 
 #[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
 mod a_blend_leaves_a_smooth_edge_as_it_is;
+#[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
+mod a_blend_reads_the_wedge_through_the_one_fold;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
@@ -72,6 +74,8 @@ mod a_curve_off_its_face_at_a_build_is_the_kernels;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
+mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -88,6 +92,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_groove_at_a_shafts_root_continues_its_wall.rs"]
+mod a_groove_at_a_shafts_root_continues_its_wall;
 #[path = "a_keel_on_a_bores_ruling.rs"]
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
@@ -208,6 +214,14 @@ mod an_inside_out_thin_tube_operand;
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
+#[path = "band_closed_mixed_chain.rs"]
+mod band_closed_mixed_chain;
+#[path = "band_closed_mixed_chain_shapes.rs"]
+mod band_closed_mixed_chain_shapes;
+#[path = "band_mixed_corner.rs"]
+mod band_mixed_corner;
+#[path = "band_mixed_rim_shared_supports.rs"]
+mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
@@ -455,8 +469,14 @@ mod band_co_requested_boundary;
 mod band_concave_bar;
 #[path = "band_dihedral_cups.rs"]
 mod band_dihedral_cups;
+#[path = "band_mixed_vertex.rs"]
+mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
+#[path = "band_open_mixed_chain.rs"]
+mod band_open_mixed_chain;
+#[path = "band_open_mixed_chain_shapes.rs"]
+mod band_open_mixed_chain_shapes;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
@@ -1352,14 +1372,20 @@ mod sphere_face_flips_are_refused;
 
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
+#[path = "a_boxed_motion_moves_a_finished_body.rs"]
+mod a_boxed_motion_moves_a_finished_body;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
 mod a_cylinder_through_a_hole_tangent_to_its_wall;
+#[path = "a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs"]
+mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
+#[path = "a_moved_body_keeps_its_verdict.rs"]
+mod a_moved_body_keeps_its_verdict;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
@@ -1410,3 +1436,14 @@ mod review_6020_seam_probes;
 mod review_r1_roots_split;
 #[path = "the_football_revolves.rs"]
 mod the_football_revolves;
+
+#[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
+mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_loops_lift_runs_through_its_poles.rs"]
+mod a_loops_lift_runs_through_its_poles;
+#[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
+mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
+#[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
+mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_station_frame_is_minted_to_its_floor.rs"]
+mod a_station_frame_is_minted_to_its_floor;

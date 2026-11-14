@@ -62,9 +62,10 @@
 //! `topo::coherence`'s `MeridianClosure` rather than here.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
-//! sampled): a pole/apex is always an edge **endpoint** (valence 2),
-//! the endpoint of a meridian. That is a premise about the loop, and
-//! how much of it is checked, and where, is three different answers:
+//! sampled): a pole/apex is always an edge **endpoint**, the endpoint
+//! of a meridian: of two (valence 2), or of one wrap edge, whose tip it
+//! is (valence 1). That is a premise about the loop, and how much of it
+//! is checked, and where, has these answers:
 //!
 //! - **a loop with no meridian at all** — a rim circle around a pole or
 //!   apex lying in the face's interior — is refused in every profile,
@@ -76,7 +77,9 @@
 //! - **a rim-free loop whose iso sides all open on one edge** is
 //!   refused in every profile by [`require_two_columns`], before the
 //!   band arm below runs
-//!   ([`TessellateError::SingleColumnCurvedFace`] carries the argument);
+//!   ([`TessellateError::SingleColumnCurvedFace`] carries the argument),
+//!   except the one-face ball's: one wrap edge walked from pole to pole
+//!   and back, whose two sides [`wrap_strip`] places a period apart;
 //! - **a meridian that stops short of the pole** — a spur into a face
 //!   whose pole is still interior — is not checked here at all. The
 //!   walk traces the spur as a column, and the face is refused
@@ -106,7 +109,9 @@
 //!   nearest `atan2(A·v_ref, A·u_ref)`.
 //!
 //!   `A` disambiguates the BRANCH; it says nothing about the extent,
-//!   which is [`require_two_columns`]' premise instead.
+//!   which is [`require_two_columns`]' premise instead. The wrap strip
+//!   walks one edge both ways and has no area; its columns are
+//!   [`wrap_strip`]'s.
 //!
 //!   Only `A`'s DIRECTION is read, and that direction is the band's own
 //!   only because the fold is anchored on the loop rather than on the
@@ -114,25 +119,24 @@
 //!   fixed anchor makes the branch pick a function of where the body
 //!   was placed, and the result is a wrong half-sphere, not a refusal.
 //!
-//!   That derivation is stated in the outward frame while `u_ref` /
-//!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
-//!   area vector is negated on a `sense: false` face before the
-//!   `atan2` — the one orientation-sense read in this crate. The old
-//!   "assumes outward-oriented shells (true of every M2 body)" caveat
-//!   is thereby discharged rather than restated: a reversed face
-//!   stores its loop the other way round, so `A` flips and an
-//!   unmultiplied azimuth would be π off, selecting the complementary
-//!   branch and meshing the wrong half of the sphere. This is the
-//!   direct analogue of `geom_brep::props::curved`'s rimless-sphere
-//!   `s_f` — the same face kind, the same missing bit, the same fix.
-//!   Every face this build mints has `sense: true`, so the multiply is
-//!   `· 1.0` and bitwise inert today.
+//!   That derivation is stated on the face's outward side while
+//!   `u_ref` / `v_ref` are the chart's, so the area vector is read
+//!   against the frame turned to the outward side
+//!   (`OutwardNormal::from_chart`): a reversed face stores its loop the
+//!   other way round, so `A` flips, and against the frame unturned its
+//!   azimuth would be π off, selecting the complementary branch and
+//!   meshing the wrong half of the sphere. This is the direct analogue
+//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. The walk's
+//!   other read of the sense is the wrap strip's orientation
+//!   ([`wrap_strip`]), through `geom_brep::PolygonOrientation`.
 
 use std::collections::HashMap;
 
 use geom::SurfaceKind;
+use geom_brep::{OutwardNormal, PolygonOrientation};
+use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -145,7 +149,7 @@ use crate::types::TessellateError;
 // non-iso carrier becomes, the band the separation test is read at,
 // the walk's rotation and pole handling, and the emission itself.
 use geom_core::period::Period;
-pub(crate) use topo::chart::{Chart, ChartKind};
+pub(crate) use topo::chart::Chart;
 pub(crate) use topo::chart_iso::{TAU, TravKind};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
@@ -158,6 +162,10 @@ pub(crate) struct Trav {
     /// The body edge this traversal walks, read by
     /// [`require_two_columns`] and by nothing else.
     pub edge: EdgeKey,
+    /// The half-edge this traversal walks, read by [`wrap_strip`].
+    pub half_edge: HalfEdgeKey,
+    /// The vertex this traversal starts at, read by the wrap strip.
+    pub start: VertexKey,
     /// Chord ids, traversal order (endpoints included).
     pub ids: Vec<u32>,
     /// Rim (`v = const`) or meridian (`u = const`) data.
@@ -216,7 +224,11 @@ pub(crate) fn traversals(
     lk: LoopKey,
 ) -> Result<Vec<Trav>, TessellateError> {
     let mut out = Vec::new();
-    for (ek, forward) in loop_edges(body, lk, face)? {
+    for (half_edge, ek, forward) in loop_half_edges(body, lk, face)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
         let edge = body
             .get_edge(ek)
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
@@ -237,6 +249,8 @@ pub(crate) fn traversals(
         let kind = classify(chart, curve, ek)?;
         out.push(Trav {
             edge: ek,
+            half_edge,
+            start,
             ids,
             kind,
         });
@@ -285,39 +299,6 @@ pub(crate) struct UvPoint {
     pub id: u32,
     /// Whether this entry is a pole/apex corner.
     pub pole: bool,
-}
-
-/// The ids that appear at two or more DISTINCT UV locations among
-/// `entries` — the "one mesh vertex, two parameter locations" state
-/// that both tessellation lanes have to reason about, with ONE home.
-///
-/// **"Distinct" means what SPADE means by it**, which is why this
-/// compares `f64`s and not their bits. Spade's vertex lookup is
-/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0` are
-/// ONE spade vertex and two bit patterns. A `to_bits` compare would
-/// report "apart" exactly where spade dedupes, which is an invariant
-/// restated in a spelling that disagrees with the module it is about.
-/// Two entries spade merges are one CDT vertex and cannot be fanned
-/// apart; two it keeps can.
-///
-/// Both callers used to carry their own copy of that rule against
-/// their own polygon type (`curved::identified_ids` over
-/// [`UvPoint`], `trimmed::id_repeats_apart` over `(u, v, id)`
-/// triples), one of them documenting itself AS a copy. The rule is
-/// spade's, not either lane's, so it lives once and both lanes hand it
-/// their entries.
-pub(crate) fn ids_at_two_uvs(
-    entries: impl IntoIterator<Item = (f64, f64, u32)>,
-) -> std::collections::HashSet<u32> {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    let mut repeated: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    for (u, v, id) in entries {
-        #[allow(clippy::float_cmp)]
-        if seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)) {
-            repeated.insert(id);
-        }
-    }
-    repeated
 }
 
 /// The undirected key of the edge `(a, b)`: endpoints ascending.
@@ -376,9 +357,10 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). A
-/// two-reference rule [`Period::near`] does not state, so it is not that
-/// door (`work/onecopy/held-angle-renames-the-angle-reads-sweep-left.md`).
+/// docs: the wire-band pole junction, meridians exactly π apart). Not
+/// [`Period::near`], which renames about one reference and breaks only an
+/// exact tie, to the upper copy: here a whole zone, a quarter turn either
+/// side of the tie, is placed by a second reference, `anchor`.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {
@@ -589,7 +571,7 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///
 /// Every chart singularity lies ON THE AXIS — a sphere's poles, a
 /// cone's apex — so `radial(junction) > eps` covers them with one
-/// comparison rather than a match on [`ChartKind`], and in particular
+/// comparison rather than a match on [`topo::chart::ChartKind`], and in particular
 /// without consulting [`Chart::poles`].
 ///
 /// "One comparison for all of them" is a claim about the DECISION MADE
@@ -855,8 +837,7 @@ fn closing_side(starts: &[bool]) -> usize {
 /// one that keeps every operand at the loop's own scale: a fixed
 /// anchor pays cancellation in proportion to the loop's distance from
 /// it, which the direction-only consumer in [`loop_polygon`] reads as
-/// a rotated — eventually reversed — area vector. Overflow-robust
-/// midpoint, the spelling `validate::signed_volume` uses.
+/// a rotated — eventually reversed — area vector.
 ///
 /// An empty cycle has no anchor and no area.
 fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
@@ -866,13 +847,143 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
     let (lo, hi) = pts
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo + (hi - lo) * 0.5;
+    let o = lo.mid(hi);
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];
         area = area + (*p - o).cross(q - o);
     }
     area
+}
+
+/// **The wrap strip**: where a loop walks one wrap edge from pole to pole
+/// and back (the one-face ball), how the walk places its two sides.
+#[derive(Clone, Copy, Debug)]
+struct WrapStrip {
+    /// The far side's column less the near side's: `±τ`.
+    period: f64,
+    /// The tip the far side opens at.
+    far: VertexKey,
+}
+
+/// [`WrapStrip`] for a rimless loop, or `None` where the loop is not the
+/// strip's. It reads, in order:
+///
+/// 1. the chart image of the half-edges `travs` walks
+///    (`topo::surface_boundary::chart_image`). The strip's loop is all
+///    spurs, so its image is empty. A loop whose image keeps a half-edge
+///    bounds area in the chart and is not the strip, whatever its spurs
+///    end on (`the_one_face_ball.rs`, the slit row).
+/// 2. the image's tips: exactly two, each a vertex on a different entry
+///    of `poles` ([`singular_point_at`]).
+/// 3. the near tip, `travs[0]`'s start, where the walk opens; the other
+///    tip is the far one.
+///
+/// The far side stands one period from the near side, across the
+/// polygon's region from it, and `orientation` is the one the face's
+/// polygon has (`PolygonOrientation::of_face`), which is how `curved`
+/// reads the face's side off it. The region is on the left of a counter-clockwise
+/// polygon's sides, so a near side rising to the far point (the far `v`
+/// above the near) has the far side at the smaller `u` there, and at the
+/// larger in a clockwise one. No turn at a tip and no area is read.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] where a key on the loop's walk does
+/// not resolve.
+fn wrap_strip(
+    body: &Body<f64>,
+    travs: &[Trav],
+    poles: &[(Point3<f64>, f64)],
+    band: Band,
+    orientation: PolygonOrientation,
+) -> Result<Option<WrapStrip>, TessellateError> {
+    let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
+    let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
+        TessellateError::MissingEntity {
+            what: "half-edge mate",
+        },
+    )?;
+    if !image.half_edges.is_empty() {
+        return Ok(None);
+    }
+    let &[a, b] = &image.tips[..] else {
+        return Ok(None);
+    };
+    let (Some(on_a), Some(on_b)) = (
+        singular_point_at(body, a, poles, band)?,
+        singular_point_at(body, b, poles, band)?,
+    ) else {
+        return Ok(None);
+    };
+    // Two tips on one singular point are two declared vertices within
+    // the band of each other, D2 addendum row 5's state, which the
+    // declared-vertex guard in `loop_polygon` re-derives; no strip is
+    // read off it.
+    let (near, far, far_tip) = match travs[0].start {
+        _ if on_a == on_b => return Ok(None),
+        t if t == a => (on_a, on_b, b),
+        t if t == b => (on_b, on_a, a),
+        _ => return Ok(None),
+    };
+    let rising = poles[far].1 > poles[near].1;
+    Ok(Some(WrapStrip {
+        period: if rising == orientation.interior_is_left() {
+            -TAU
+        } else {
+            TAU
+        },
+        far: far_tip,
+    }))
+}
+
+/// The entry of `poles` the vertex `vertex` lies on, read by the kernel's
+/// one incidence reading
+/// (`geom_brep::chart_singularity::vertex_at_singular_point`, at `band`),
+/// the reading the joint decision and tier 3's tip rule take. A distance the
+/// band cannot decide is not read as on: the loop is then not the strip,
+/// and is walked and refused as any other rimless loop.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] where the vertex or its point does
+/// not resolve.
+fn singular_point_at(
+    body: &Body<f64>,
+    vertex: VertexKey,
+    poles: &[(Point3<f64>, f64)],
+    band: Band,
+) -> Result<Option<usize>, TessellateError> {
+    let point = *body
+        .get_vertex(vertex)
+        .and_then(|v| body.get_point(v.point))
+        .ok_or(TessellateError::MissingEntity { what: "tip vertex" })?;
+    Ok(poles.iter().position(|&(pole, _)| {
+        geom_brep::chart_singularity::vertex_at_singular_point(point, pole, band) == Ok(true)
+    }))
+}
+
+/// The wrap strip's columns, traversal for traversal: the near side
+/// stands on `travs[0]`'s column, and every traversal from the far tip on
+/// one period over, on its own column's branch nearest there.
+fn strip_columns(travs: &[Trav], strip: WrapStrip) -> Vec<f64> {
+    let column = |t: &Trav| match t.kind {
+        TravKind::Meridian { u_raw } => u_raw,
+        TravKind::Rim { .. } => unreachable!("the wrap strip's loop has no rim"),
+    };
+    let first = column(&travs[0]);
+    let mut far = false;
+    travs
+        .iter()
+        .map(|t| {
+            far |= t.start == strip.far;
+            if far {
+                Period::<f64>::angle().near(column(t), first + strip.period)
+            } else {
+                first
+            }
+        })
+        .collect()
 }
 
 /// Walks a curved face's loop into its UV polygon (module docs: the
@@ -891,15 +1002,20 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
 ///    meridian. `starts[0]` is then forced `true`.
 /// 4. [`closing_side`] — the opening index of the LAST iso side, which
 ///    is what the closure rule and the pole-band seed key on.
-/// 5. [`require_two_columns`] — the rim-free arm's extent premise, on
-///    the openings step 2 computed. Ahead of the two D2-row-5
-///    re-derivations, which presuppose a walkable loop.
+/// 5. [`wrap_strip`], and [`require_two_columns`] on any other rimless
+///    loop — the rim-free arm's extent premise, on the openings step 2
+///    computed. Ahead of the two D2-row-5 re-derivations, which
+///    presuppose a walkable loop.
 /// 6. `band_u` — for a rimless pole-to-pole band only, every column
-///    precomputed from the loop's 3-D area vector.
+///    precomputed: the wrap strip's from its period, any other band's
+///    from the loop's 3-D area vector.
 /// 7. the emission loop — per traversal, take the run's coordinate (a
 ///    continuation repeats it bitwise, discarding its own) and unwrap
 ///    the other axis by continuity.
 /// 8. the closure assertion — a revert detector, not a runtime guard.
+// One parameter per input the walk reads: the body, its chart, the
+// shared mesh ids and points, the loop, and the two tolerances.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
@@ -908,17 +1024,14 @@ pub(crate) fn loop_polygon(
     face: FaceKey,
     lk: LoopKey,
     eps: Eps,
+    band: Band,
 ) -> Result<Vec<UvPoint>, TessellateError> {
     let mut travs = traversals(body, chart, chords, face, lk)?;
     let kinds = LoopKinds::of(&travs);
     let face_record = body
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let surface = body
-        .get_surface(face_record.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })?;
+    let surface = crate::tessellate::face_surface(body, face)?;
     let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
@@ -937,17 +1050,40 @@ pub(crate) fn loop_polygon(
     if let Some(first) = starts.first_mut() {
         *first = true;
     }
-    let closing_side = closing_side(&starts);
     let no_rim = !kinds.rim;
+    // The face's orientation sense (module docs, the pole-to-pole
+    // band): the side of the band's area vector, and through
+    // `PolygonOrientation::of_face` the orientation of the wrap strip.
+    let sense = face_record.sense;
+    let poles = chart.poles();
+    let strip = if no_rim {
+        wrap_strip(
+            body,
+            &travs,
+            &poles,
+            band,
+            PolygonOrientation::of_face(sense),
+        )?
+    } else {
+        None
+    };
+    // The strip's far side opens at its far tip, read off the tip and not
+    // off the junction's radial band. A tip read on its pole is within the
+    // band of the axis, so `iso_side_starts` already opens there on every
+    // body; this states the opening without resting on that agreement.
+    if let Some(strip) = strip {
+        for (opens, t) in starts.iter_mut().zip(&travs) {
+            *opens |= t.start == strip.far;
+        }
+    }
+    let closing_side = closing_side(&starts);
     // The rim-free arm's own premise, asked on the openings the emission
     // loop below will read, and ahead of the two D2-row-5 re-derivations
     // for [`require_a_meridian`]'s reason: those presuppose a loop this
-    // walk can walk.
-    require_two_columns(&travs, &starts, kinds, face, surface_kind)?;
-    // The face's S10 orientation sense (module docs, the pole-to-pole
-    // band). Consumed at exactly one site below, as a conditional
-    // negation of the loop's area vector.
-    let sense = face_record.sense;
+    // walk can walk. The wrap strip stands on one edge and is not a slit.
+    if strip.is_none() {
+        require_two_columns(&travs, &starts, kinds, face, surface_kind)?;
+    }
     // JUNCTIONS ONLY: `t.ids[0]` is a topology vertex's mesh id
     // (`chords::compute_chords` takes it from `vids`), so it is a
     // DECLARED vertex; `ids[1..len - 1]` are chord subdivision points,
@@ -997,7 +1133,6 @@ pub(crate) fn loop_polygon(
          numerical coincidence, so this is a kernel bug and not a re-declaration.",
         coincident_declared()
     );
-    let poles = chart.poles();
     // ONE home for the pole-membership find: the classification
     // (`pole_v`) and the row-5 guard below both consume this index,
     // so they cannot disagree about which pole a junction is
@@ -1088,10 +1223,14 @@ pub(crate) fn loop_polygon(
              so this is a kernel bug and not a near-pole vertex to admit."
         );
     }
-    // Pole-to-pole bands: precompute every column from the loop's 3-D
-    // area vector (module docs). Reached only for a loop whose openings
-    // stand on two distinct edges (`require_two_columns` above).
-    let band_u: Option<Vec<f64>> = if no_rim {
+    // Pole-to-pole bands: precompute every column, the wrap strip's from
+    // its first side and the period ([`wrap_strip`]), any other band's
+    // from the loop's 3-D area vector (module docs), which is reached
+    // only for a loop whose openings stand on two distinct edges
+    // (`require_two_columns` above).
+    let band_u: Option<Vec<f64>> = if let Some(strip) = strip {
+        Some(strip_columns(&travs, strip))
+    } else if no_rim {
         let pts: Vec<Point3<f64>> = travs
             .iter()
             .flat_map(|t| t.ids[..t.ids.len() - 1].iter())
@@ -1101,32 +1240,28 @@ pub(crate) fn loop_polygon(
         // loop-local anchor makes that direction the loop's own rather
         // than its placement's ([`loop_area`]).
         let area = loop_area(&pts);
-        // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
-        // points along the face's OUTWARD normal side — but it is read
-        // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
-        // pick which azimuth half the band occupies. Those two frames
-        // differ by exactly the sense: a reversed face stores its
-        // loop the other way round, `area` flips, and the raw `atan2`
-        // would land π off — selecting the complementary meridian
-        // branch and meshing the wrong half of the sphere. Negating on
-        // a reversed face recovers the chart-frame azimuth for either
-        // sense. This is
-        // NOT the double-count hazard that forbids a multiply in
-        // `planar`/`curved`: nothing downstream re-derives this sign
-        // from the winding — `mid_az` only chooses a `2πk` branch, and
-        // the polygon's own winding (which does flip with the sense) is
-        // consumed separately by `curved`'s `flip`.
-        let chart_area = if sense { area } else { -area };
+        // `area` is the loop's 3-D vector area, so it lies on the face's
+        // OUTWARD side, and it is read against the chart's normals
+        // turned to that side. A rim-free loop that opens two columns
+        // runs pole to pole, so its chart is a sphere's or a spindle
+        // sheet's, and on both `u_ref` and `v_ref` are exactly the chart
+        // normals on the equator at azimuths 0 and π/2.
+        // Read against the frame unturned, a `sense: false` band's
+        // azimuth lands π off and the complementary half of the sphere
+        // is meshed. Nothing downstream re-derives this side from the
+        // polygon's orientation: `mid_az` only chooses a `2πk` branch.
+        let frame = chart.frame();
+        let outward = |normal: Vec3<f64>| OutwardNormal::from_chart(normal, sense).vec();
         let mid_az = geom::Azimuth::of(
-            chart_area.dot(chart.frame().v_ref()),
-            chart_area.dot(chart.frame().u_ref),
+            area.dot(outward(frame.v_ref())),
+            area.dot(outward(frame.u_ref)),
         )
         .near(0.0);
         Some(
             travs
                 .iter()
                 .map(|t| match t.kind {
-                    TravKind::Meridian { u_raw } => Period::new(TAU).near(u_raw, mid_az),
+                    TravKind::Meridian { u_raw } => Period::<f64>::angle().near(u_raw, mid_az),
                     TravKind::Rim { .. } => f64::NAN,
                 })
                 .collect(),
@@ -1154,8 +1289,8 @@ pub(crate) fn loop_polygon(
         let jpole = pole_v(jid);
         match cur.kind {
             TravKind::Rim { v_raw } => {
-                let v_own = if chart.v_periodic() && k > 0 {
-                    Period::new(TAU).near(v_raw, prev_v)
+                let v_own = if chart.v_domain_wraps() && k > 0 {
+                    Period::<f64>::angle().near(v_raw, prev_v)
                 } else {
                     v_raw
                 };
@@ -1176,7 +1311,7 @@ pub(crate) fn loop_polygon(
                 let ju = if k == 0 {
                     chart.u_of(positions[jid as usize])
                 } else if prev_was_rim {
-                    Period::new(TAU).near(chart.u_of(positions[jid as usize]), prev_u)
+                    Period::<f64>::angle().near(chart.u_of(positions[jid as usize]), prev_u)
                 } else {
                     prev_u
                 };
@@ -1188,7 +1323,7 @@ pub(crate) fn loop_polygon(
                 });
                 prev_u = ju;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
-                    let u = Period::new(TAU).near(chart.u_of(positions[id as usize]), prev_u);
+                    let u = Period::<f64>::angle().near(chart.u_of(positions[id as usize]), prev_u);
                     out.push(UvPoint {
                         u,
                         v: v_edge,
@@ -1270,6 +1405,14 @@ pub(crate) fn loop_polygon(
                     prev_u
                 };
                 if let Some(vp) = jpole {
+                    // A horn's one pole is its cusp, at `v = ±π` alike
+                    // (`Chart::is_horn`): a face names the copy on the
+                    // side the meridian leaving it reads.
+                    let vp = if chart.is_horn() {
+                        vp.copysign(chart.v_of(positions[cur.ids[1] as usize]))
+                    } else {
+                        vp
+                    };
                     // Close the incoming column, open the outgoing one.
                     out.push(UvPoint {
                         u: prev_u,
@@ -1289,8 +1432,8 @@ pub(crate) fn loop_polygon(
                         prev_v
                     } else {
                         let v = chart.v_of(positions[jid as usize]);
-                        if chart.v_periodic() && k > 0 {
-                            Period::new(TAU).near(v, prev_v)
+                        if chart.v_domain_wraps() && k > 0 {
+                            Period::<f64>::angle().near(v, prev_v)
                         } else {
                             v
                         }
@@ -1306,8 +1449,8 @@ pub(crate) fn loop_polygon(
                 prev_u = ut;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
                     let v_raw_pt = chart.v_of(positions[id as usize]);
-                    let v = if chart.v_periodic() {
-                        Period::new(TAU).near(v_raw_pt, prev_v)
+                    let v = if chart.v_domain_wraps() {
+                        Period::<f64>::angle().near(v_raw_pt, prev_v)
                     } else {
                         v_raw_pt
                     };
@@ -1364,6 +1507,7 @@ pub(crate) fn loop_polygon(
 mod tests {
     use super::*;
     use geom::Surface;
+    use topo::chart::ChartKind;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {
@@ -1549,6 +1693,8 @@ mod tests {
     fn trav(kind: TravKind, ids: &[u32]) -> Trav {
         Trav {
             edge: EdgeKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            start: VertexKey::default(),
             ids: ids.to_vec(),
             kind,
         }
@@ -1817,9 +1963,9 @@ mod tests {
     }
 
     /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
-    /// pole-to-pole arm spells it. The sense fold is omitted because
-    /// it is a bitwise negation of `area`: it cannot change how well
-    /// conditioned the fold that produced `area` was.
+    /// pole-to-pole arm spells it. The frame's turn to the outward side
+    /// is omitted because it negates both dots bitwise: it cannot change
+    /// how well conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
         area.dot(chart.frame().v_ref())
@@ -2009,11 +2155,11 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords =
             crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
-        let (fk, face) = body
+        let (fk, _) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
-        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,
@@ -2023,6 +2169,7 @@ mod tests {
                 fk,
                 lk,
                 Eps::exactly(0.15),
+                Band::linear(tol).unwrap(),
             );
         }
         unreachable!("a loop of this face holds the in-band junction, so the guard fires");

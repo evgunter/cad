@@ -2,10 +2,12 @@
 id: a-selection-of-a-member-of-a-family-with-an-empty-member-refuses
 kind: issue
 title: A selection naming a body member of a family with an empty member refuses at read_named_body
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: E
+closed: 2026-11-10
+pr: 6555
 ---
 
 
@@ -17,3 +19,7 @@ A family whose members are each a body or a boolean's empty result evaluates to 
 `read_named_body` should read `NodeValue::member_bodies`: the member's body at its place, and `EmptyOperand` for an absent member. This is the selection path, which fork `selects-indexed-member` (PR 6555, `Select.body` becoming a `BodyRead`) is rewriting, so build it on that fork's result.
 
 **Status after `a-family-of-bodies-has-two-payloads` (2026-11-06).** The unification removes the cause. Such a family is now `Instances`, `None` at the empty member, so `placeable_operand` takes it and `read_named_body` reads the member's body at its place. At an empty member's place it refuses `EmptyOperand`. A name cannot reach that place in practice, because the family names nothing of its empty member. What is still open is the pin: a test of a `Member`-spelled selection over such a family. That selection path is the one fork `selects-indexed-member` (PR 6555) decides, so the pin belongs with it.
+
+## Closed
+
+Pinned in its new form by PR 6555 (`crates/editor-core/tests/select_member_read.rs`, `a_selection_of_an_empty_member_refuses_empty_operand`). The `Member`-spelled selection this row described, a selection over the family whole whose names carry the member, no longer exists: Ev's ruling on PR 6555 deleted it with every producer and consumer, `repetition::names_members` among them. A selection of one member reads it by index, `Select { body: xs[i], names }`. At a member that is a boolean's empty result it refuses `EmptyOperand` naming the family (`eval/wire.rs` `selection_table`, before any name resolves), as a seat reading one empty result refuses. The test reads `F[k] − F[1]`'s empty member 1 by a fillet of `cut[1]`.

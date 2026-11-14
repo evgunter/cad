@@ -23,6 +23,8 @@
 mod deny_unknown_fields_census;
 #[path = "hand_written_impl_census.rs"]
 mod hand_written_impl_census;
+#[path = "predicate_name_coverage.rs"]
+mod predicate_name_coverage;
 #[path = "reader_census.rs"]
 mod reader_census;
 

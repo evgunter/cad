@@ -334,7 +334,6 @@ fn fold_replace_face_error<T: Real>(
             edge,
             error: fold_iso_row_error(error, end),
         },
-        R::Structure { edge, error } => R::Structure { edge, error },
         // A disagreement as large as the bracket admits.
         R::VertexDisagreement { vertex, gap } => R::VertexDisagreement {
             vertex,

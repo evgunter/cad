@@ -148,7 +148,10 @@ fn gap_node(doc: &ProfileDoc, outer: &SitedRef, inner: &SitedRef) -> (ProfileDoc
     )
 }
 
-fn value<T: editor_core::EvalScalar>(doc: &ProfileDoc, m: RecipeNodeId) -> Result<T, String> {
+fn value<T: editor_core::test_support::AnyEvaluate>(
+    doc: &ProfileDoc,
+    m: RecipeNodeId,
+) -> Result<T, String> {
     let run = corpus::eval::<T>(doc);
     match run.nodes.get(&m) {
         Some(NodeResult::Ok(v)) => match &v.payload {

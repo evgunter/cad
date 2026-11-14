@@ -159,8 +159,8 @@ fn edge_face_surfaces(body: &Body<f64>, edge: EdgeKey) -> (topo::SurfaceKey, top
 /// chordal approximation on curved faces — the SIGN is the oracle.
 fn signed_volume(body: &Body<f64>) -> f64 {
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -181,14 +181,7 @@ fn cyclic_eq(a: &[Point3<f64>], b: &[Point3<f64>]) -> bool {
         return false;
     }
     let n = a.len();
-    (0..n).any(|s| {
-        (0..n).all(|i| {
-            let (p, q) = (a[(s + i) % n], b[i]);
-            p.x.to_bits() == q.x.to_bits()
-                && p.y.to_bits() == q.y.to_bits()
-                && p.z.to_bits() == q.z.to_bits()
-        })
-    })
+    (0..n).any(|s| (0..n).all(|i| a[(s + i) % n].same_bits(b[i])))
 }
 
 /// The 6-vertex all-line L (counterclockwise; canonical start (0,0)).

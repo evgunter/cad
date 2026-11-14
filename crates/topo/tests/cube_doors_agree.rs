@@ -229,9 +229,8 @@ fn assert_prism_shaped<T: Decide>(
     }
     let got_edges: Vec<(String, String)> = body
         .edges()
-        .map(|(_, e)| {
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            let end = body.half_edge_end(e.he_plus).unwrap();
+        .map(|(ek, _)| {
+            let (start, end) = body.edge_vertices(ek).unwrap();
             (point_of(start), point_of(end))
         })
         .collect();

@@ -513,7 +513,9 @@ fn vertices_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: &[[f64; 3]]) -> Vec
                 .iter()
                 .filter(|(n, _)| n.kind == EntityKind::Vertex)
                 .filter(|(n, _)| match fixture::key_of(t, "a vertex", n) {
-                    editor_core::EntityKey::Vertex(v) => fixture::point(b, v).to_array() == *p,
+                    editor_core::EntityKey::Vertex(v) => {
+                        fixture::point(b, v).equals_exactly(geom_core::Point3::from_array(*p))
+                    }
                     _ => false,
                 })
                 .map(|(n, _)| n.clone())

@@ -83,8 +83,8 @@ fn main() {
     );
 
     // Both bands share ONE sphere key, so the chart moves as a group.
-    let Some(sphere_key) = ball.faces().find_map(|(_, f)| {
-        matches!(ball.get_surface(f.surface), Some(Surface::Sphere { .. })).then_some(f.surface)
+    let Some(sphere_key) = ball.faces().find_map(|(fk, f)| {
+        matches!(ball.face_surface(fk), Some(Surface::Sphere { .. })).then_some(f.surface)
     }) else {
         println!("[M2] no sphere chart; nothing to measure");
         return;

@@ -15,7 +15,7 @@
 //! (`boolean::join`'s `nearer_along`, `bool_join_arc_travel`) — so the
 //! partner it takes is the neighbour along the walk, and each chord
 //! then takes the arc the paired germs leave along (`chord_join`'s
-//! `arc_leaving`). What the row holds is that arc: it goes red when a
+//! `arc_leaving_as`). What the row holds is that arc: it goes red when a
 //! chord reads its germ's direction reversed, or its partner's, or
 //! takes one arc regardless, and a chord that asked the divided face
 //! for its arc would find no window on this tilted section. The ranking
@@ -49,12 +49,8 @@ fn ball(axis: Vec3<f64>, turn: f64) -> AtRestBody<f64> {
         b
     } else {
         let t = Affine3::rotation_about_axis(Point3::origin(), axis, turn);
-        topo::transform_rigid(
-            &b,
-            &geom_core::test_support::rigid(&t, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("a rigid pose")
+        topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, Tol::witness()))
+            .expect("a rigid pose")
     };
     finished("the ball", b, Tol::witness())
 }

@@ -420,11 +420,7 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
             max_cell_pairs: budget,
         },
     };
-    let surface = |f: topo::FaceKey| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |f: topo::FaceKey| body.face_surface(f).unwrap().clone();
     let report = sweep.run(&windows, &windows, true, |candidate| {
         if !witnessed {
             return Err("no witness is offered".to_owned());
@@ -544,12 +540,7 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
             let wall = faces
                 .iter()
                 .copied()
-                .find(|&k| {
-                    matches!(
-                        body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
-                        Surface::Cylinder { .. }
-                    )
-                })
+                .find(|&k| matches!(body.face_surface(k).unwrap(), Surface::Cylinder { .. }))
                 .unwrap();
             for &cap in faces.iter().filter(|&&k| k != wall) {
                 let pair = (wall.min(cap), wall.max(cap));
@@ -769,12 +760,7 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
 fn walls<T: Real>(body: &Body<T>) -> Vec<topo::FaceKey> {
     body.faces()
         .map(|(k, _)| k)
-        .filter(|&k| {
-            matches!(
-                body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
-                Surface::Cylinder { .. }
-            )
-        })
+        .filter(|&k| matches!(body.face_surface(k).unwrap(), Surface::Cylinder { .. }))
         .collect()
 }
 

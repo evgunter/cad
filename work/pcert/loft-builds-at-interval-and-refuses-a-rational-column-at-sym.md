@@ -40,3 +40,22 @@ file. Close this by making the two lanes agree, then dropping the dial
 from that row.
 
 - 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).
+
+## A second witness, newly reachable (PR 6528's review, 2026-11-04)
+
+Since PR 6528 a refined interior arc rim is read (`Pcurve::IsoArc`'s
+`ends`), so degree-1 lofts that refused at their section rim now build,
+and one of them meets this row's split. A square whose +x side has
+bulges `[1, 0.2, 0, 0.7, 1]` at z = `0..4`, `loft_body` at v-degree 1,
+builds at `f64` and at `Interval`, and refuses at `Sym<f64>`
+(`SymBudget { max_terms: 4096, max_degree: 128 }`) with
+
+    the pcurve of half-edge HalfEdgeKey(36v1) failed certification:
+    pcurve certification: the iso-line lane refuses this class — a LINE
+    seam on a RATIONAL chart column: the Greville hull is a
+    linear-precision fact and the rational basis has none — …
+
+`[1, 0.2, 1]` builds at all three scalars. Measured with the reviewer's
+probe (`review/6528-full` at `5a1b5e4b88`,
+`crates/sweep/tests/rev6528_probes.rs::probe_refined_loft_at_each_scalar`).
+It is not pinned as a row: the `Sym` loft costs about five minutes.

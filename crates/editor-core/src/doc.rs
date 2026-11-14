@@ -1128,7 +1128,8 @@ impl<P> Doc<P> {
             crate::Operand::Output { node, port } => self.space_of(self.output(*node, *port)?),
             crate::Operand::Var(var) => self.space_of(*var),
             crate::Operand::Name(name) => self.space_of(self.var_named(name.as_str())?),
-            crate::Operand::Select { body, .. } => self.operand_space(body),
+            crate::Operand::Select { body, .. } => self.operand_space(&body.read),
+            crate::Operand::Source(body) => self.operand_space(&body.read),
             crate::Operand::Pick { placement, .. } => self.operand_space(placement),
             crate::Operand::Pose(def) => def
                 .reads()
@@ -1350,7 +1351,7 @@ impl<P> Doc<P> {
 
     /// The variables `var`'s definition reads, directly; none for a
     /// free variable.
-    pub(crate) fn definition_reads(&self, var: VarId) -> Vec<VarId> {
+    pub fn definition_reads(&self, var: VarId) -> Vec<VarId> {
         let mut reads = Vec::new();
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
@@ -1358,8 +1359,17 @@ impl<P> Doc<P> {
                 index.count.var_reads(&mut reads);
                 reads.extend(index.within.map(|within| (within, Dimension::Count)));
             }
-            Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Select(select)) => {
+                return core::iter::once(select.body.read)
+                    .chain(select.body.at.iter().copied())
+                    .collect();
+            }
             Some(VarDef::Pick(pick)) => return vec![pick.placement],
+            Some(VarDef::Source(body)) => {
+                return core::iter::once(body.read)
+                    .chain(body.at.iter().copied())
+                    .collect();
+            }
             Some(VarDef::Pose(def)) => {
                 let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 out.extend(def.scalars().into_iter().map(|(_, &s)| s));
@@ -1386,9 +1396,11 @@ impl<P> Doc<P> {
             // variable is: its reads and its scalars, so a walk in
             // definition order (`observed`, the bindings) meets each
             // after everything it reads.
+            // A source is ordered by the body it reads, so a source cycle
+            // is a definition cycle (VR3).
             if !matches!(
                 self.vars.get(&ids[at]).map(Var::def),
-                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_))
+                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_) | VarDef::Source(_))
             ) {
                 continue;
             }
@@ -1441,7 +1453,11 @@ impl<P> Doc<P> {
                 *readers.entry(var).or_default() += 1;
             }
         }
+        let own = self.own_source_selections();
         for var in self.vars.keys() {
+            if own.contains(var) {
+                continue;
+            }
             for read in self
                 .definition_reads(*var)
                 .into_iter()
@@ -1451,6 +1467,48 @@ impl<P> Doc<P> {
             }
         }
         readers
+    }
+
+    /// **The selections in a source that only that source's placements'
+    /// own `on` sides read** — a copy's mate side selecting its source
+    /// (`bracket.top`, VARIABLES VR2 and VR4). Each is part of the
+    /// placement's reading of its source, not a reader of its own, so an
+    /// anonymous source stays its one placement's own. Read at any other
+    /// seat — another node, the placement's own `to` side — it is a
+    /// reader. One pass over every seat, each selection it reaches given
+    /// its verdict there: a selection is exempt where every seat reaching
+    /// it is an own `on` side, and at least one does.
+    fn own_source_selections(&self) -> BTreeSet<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut verdict: BTreeMap<VarId, bool> = BTreeMap::new();
+        for (&id, node) in &self.nodes {
+            let copied = self.copied_read(id);
+            for (seat, read) in node.operand_rows() {
+                let on_side = matches!(
+                    seat,
+                    crate::OperandSlot::Side {
+                        side: crate::mate::MateSide::On,
+                        ..
+                    }
+                );
+                for var in crate::edit::seat_selections(self, read) {
+                    let Some(select) = self.selection(var) else {
+                        continue;
+                    };
+                    let own = on_side
+                        && self.source(select.body.read).is_some()
+                        && copied == Some(select.body.read);
+                    let held = verdict.entry(var).or_insert(true);
+                    *held = *held && own;
+                }
+            }
+        }
+        verdict
+            .into_iter()
+            .filter_map(|(var, own)| own.then_some(var))
+            .collect()
     }
 
     /// **The unnamed variables more than one reader reads**, in id
@@ -1936,12 +1994,101 @@ impl<P> Doc<P> {
     /// **The operation `var` is an output of** ([`Self::defined_by`]
     /// without the port).
     /// A pick ([`VarDef::Pick`]) is its placement's piece, so the
-    /// operation it depends on is the placement's.
+    /// operation it depends on is the placement's; a source
+    /// ([`VarDef::Source`]) reads its body, so it depends on the body's.
     pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
-        match self.pick(var) {
-            Some(pick) => self.operation_of(pick.placement),
-            None => self.defined_by(var).map(|(node, _)| node),
+        let mut at = var;
+        let mut seen = BTreeSet::new();
+        while seen.insert(at) {
+            if let Some(pick) = self.pick(at) {
+                at = pick.placement;
+            } else if self.source(at).is_some() {
+                at = self.source_root(at)?;
+            } else {
+                return self.defined_by(at).map(|(node, _)| node);
+            }
         }
+        None
+    }
+
+    /// **The body read the source `var` is defined by**, if it is one
+    /// ([`VarDef::Source`]).
+    pub fn source(&self, var: VarId) -> Option<&crate::BodyRead<VarId>> {
+        self.vars.get(&var)?.def().source()
+    }
+
+    /// **The sources a read passes through**, each with its definition, in
+    /// read order: `var` where it is a source, then each source its
+    /// definition reads, down to the first read that is no source (`spare
+    /// = bracket`, `bracket = B` gives `[spare, bracket]`). The one walk
+    /// down sources; every other answers from it. A source cycle is a
+    /// definition cycle (VR3), which the edit door and the load refuse;
+    /// the walk still ends where a source would repeat.
+    pub fn source_steps(&self, var: VarId) -> Vec<(VarId, &crate::BodyRead<VarId>)> {
+        let mut steps: Vec<(VarId, &crate::BodyRead<VarId>)> = Vec::new();
+        let mut at = var;
+        while let Some(body) = self.source(at) {
+            if steps.iter().any(|&(seen, _)| seen == at) {
+                break;
+            }
+            steps.push((at, body));
+            at = body.read;
+        }
+        steps
+    }
+
+    /// **The first read below `var`'s sources that is no source**: `var`
+    /// itself where it is none. `None` only where the walk repeats
+    /// ([`Self::source_steps`]).
+    pub fn source_root(&self, var: VarId) -> Option<VarId> {
+        match self.source_steps(var).last() {
+            None => Some(var),
+            Some(&(_, body)) => (self.source(body.read).is_none()).then_some(body.read),
+        }
+    }
+
+    /// **What a read reaches through sources**: `var` itself where it is
+    /// no source, else the body read the source reads, down every plain
+    /// read of a further source (`spare = bracket`, `bracket = B` reaches
+    /// `B`). A member read of a source stops there: it is that family's
+    /// member ([`Self::source_steps`]).
+    pub fn through_sources(&self, var: VarId) -> crate::BodyRead<VarId> {
+        self.source_holder(var)
+            .map_or_else(|| crate::BodyRead::plain(var), Clone::clone)
+    }
+
+    /// **The definition that holds what the source `var` reads**: the
+    /// first member read down its sources, or the last source's definition,
+    /// which reads a body that is no source ([`Self::source_steps`]). `None`
+    /// where `var` is no source.
+    pub fn source_holder(&self, var: VarId) -> Option<&crate::BodyRead<VarId>> {
+        let steps = self.source_steps(var);
+        steps
+            .iter()
+            .find(|(_, body)| body.is_indexed())
+            .or_else(|| steps.last())
+            .map(|&(_, body)| body)
+    }
+
+    /// **The body a selection's names are read in, through sources**: a
+    /// member read as written, a plain read as [`Self::through_sources`]
+    /// answers, so a mate's side selecting a source (`bracket.top`) reads
+    /// the body the source reads.
+    pub fn selected_body(&self, select: &crate::var::Select) -> crate::BodyRead<VarId> {
+        match select.body.is_indexed() {
+            true => select.body.clone(),
+            false => self.through_sources(select.body.read),
+        }
+    }
+
+    /// **The sources whose definitions read `var` directly**, in id
+    /// order: what re-pointing the placements of `var`'s body redefines.
+    pub fn sources_of(&self, var: VarId) -> Vec<VarId> {
+        self.vars
+            .iter()
+            .filter(|(_, held)| held.def().source().is_some_and(|body| body.read == var))
+            .map(|(&id, _)| id)
+            .collect()
     }
 
     /// **Whether the body `var` reads reaches an instance** — its
@@ -1988,7 +2135,7 @@ impl<P> Doc<P> {
             let Some(select) = var.select_mut() else {
                 continue;
             };
-            if select.body != body {
+            if select.body.read != body {
                 continue;
             }
             let mut here = 0usize;
@@ -2012,23 +2159,43 @@ impl<P> Doc<P> {
     /// `None` for a read this document does not resolve.
     pub fn read_operation(&self, var: VarId) -> Option<RecipeNodeId> {
         match self.selection(var) {
-            Some(select) => self.operation_of(select.body),
+            Some(select) => self.operation_of(select.body.read),
             None => self.operation_of(var),
         }
     }
 
+    /// **A selection's body read as it was written, over `read`**: a
+    /// member read's indices each the formula it was written as
+    /// ([`Self::written`]), so a selection authored afresh over another
+    /// read of its body reads the same member.
+    pub(crate) fn written_body(
+        &self,
+        body: &crate::BodyRead<VarId>,
+        read: crate::Operand,
+    ) -> crate::BodyRead<crate::Formula> {
+        crate::BodyRead::indexed(
+            read,
+            body.at
+                .iter()
+                .map(|&index| self.written(&crate::Expr::var(index, Dimension::Count)))
+                .collect(),
+        )
+    }
+
     /// **A read as it was written**: an anonymous selection as the
-    /// selection it is, an anonymous pose as its definition, each read
-    /// within written the same way and each scalar as the formula it
-    /// was written as; any other read by id.
+    /// selection it is, an anonymous pose as its definition, an anonymous
+    /// source as the read it is, each read within written the same way
+    /// and each scalar as the formula it was written as; any other read
+    /// by id.
     pub fn written_operand(&self, var: VarId) -> crate::Operand {
         if self.var_names.contains_key(&var) {
             return crate::Operand::Var(var);
         }
         match self.vars.get(&var).map(Var::def) {
-            Some(VarDef::Select(select)) => {
-                crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
-            }
+            Some(VarDef::Select(select)) => crate::Operand::select(
+                self.written_body(&select.body, crate::Operand::Var(select.body.read)),
+                select.names.clone(),
+            ),
             Some(VarDef::Pose(def)) => {
                 let written = def.try_map(
                     &mut |_, &read| Ok::<_, core::convert::Infallible>(self.written_operand(read)),
@@ -2040,6 +2207,13 @@ impl<P> Doc<P> {
                 );
                 let Ok(written) = written;
                 crate::Operand::Pose(Box::new(written))
+            }
+            // An anonymous source is its placement's own, written in place
+            // as a selection is: its read as written, a further source in
+            // place too where it is anonymous. A chain that repeats (which
+            // no door writes) is written by id, so the walk ends.
+            Some(VarDef::Source(body)) if self.source_root(var).is_some() => {
+                crate::Operand::source(self.written_body(body, self.written_operand(body.read)))
             }
             _ => crate::Operand::Var(var),
         }
@@ -2090,8 +2264,22 @@ impl<P> Doc<P> {
             // alone ([`Self::spaces_read`]).
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, port } => Some((*node, *port)),
-            VarDef::Select(select) => self.defined_by(select.body),
+            // A selection of a source reaches what the source reads, as
+            // a read of the source does: `shell(bracket.top)` depends on
+            // `bracket`'s body, so redefining `bracket` downstream of the
+            // shell is a cycle and the shell evaluates after the body.
+            VarDef::Select(select) if self.source(select.body.read).is_some() => {
+                self.push_read_ports(select.body.read, out, seen);
+                None
+            }
+            VarDef::Select(select) => self.defined_by(select.body.read),
             VarDef::Pick(pick) => self.defined_by(pick.placement),
+            // A source reaches what it reads: through another source, to
+            // the operation defining the body.
+            VarDef::Source(body) => {
+                self.push_read_ports(body.read, out, seen);
+                None
+            }
             VarDef::Pose(def) => {
                 for (_, &read, _, _) in def.reads() {
                     self.push_read_ports(read, out, seen);
@@ -2119,10 +2307,14 @@ impl<P> Doc<P> {
         match held.def() {
             VarDef::Output { .. } => self.operation_of(var).is_none().then_some(var),
             VarDef::Select(select) => self
-                .operation_of(select.body)
+                .operation_of(select.body.read)
                 .is_none()
-                .then_some(select.body),
+                .then_some(select.body.read),
             VarDef::Pick(pick) => self.unresolved_read(pick.placement),
+            VarDef::Source(_) => match self.source_root(var) {
+                Some(root) => self.unresolved_read(root),
+                None => Some(var),
+            },
             VarDef::Pose(def) => def
                 .reads()
                 .into_iter()
@@ -2209,12 +2401,34 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
+        // A source read where a family is read is one when what it reads
+        // reaches an index; a source whose body is gone is its readers'
+        // strand (VR7), which refuses at evaluation and is asked no kind at
+        // rest: a delete leaves it, and the load keeps what the delete left.
         let family = || {
             held.kind() == crate::VarKind::Body
                 && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
-                && !self.var_reach(var).is_none()
+                && (!self.var_reach(var).is_none()
+                    || (held.def().source().is_some() && self.unresolved_read(var).is_some()))
         };
         (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
+    }
+
+    /// **The rank a member read of `read` at `found` indices misses**:
+    /// the family's rank of indices where `found` is not it, `None` where
+    /// it is, where the read is whole, or where its body is gone (a strand,
+    /// VR7, asked no rank at rest). One rule for a node seat's member read
+    /// ([`crate::Node::input_fault`]) and a source's (`u = grid[0]`), at
+    /// both doors.
+    pub(crate) fn member_rank_fault(&self, read: VarId, found: usize) -> Option<usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        if found == 0 || self.unresolved_read(read).is_some() {
+            return None;
+        }
+        let rank = self.var_reach(read).chain().map_or(0, <[VarId]>::len);
+        (found != rank).then_some(rank)
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2241,7 +2455,7 @@ impl<P> Doc<P> {
                 let read = self
                     .var(var)
                     .and_then(|held| held.def().select())
-                    .map_or(var, |select| select.body);
+                    .map_or(var, |select| select.body.read);
                 let fed = out.entry(read).or_default();
                 for &output in &outputs {
                     if !fed.contains(&output) {
@@ -2259,6 +2473,23 @@ impl<P> Doc<P> {
         self.vars
             .iter()
             .filter_map(|(&id, var)| Some((id, var.def().output()?)))
+            .collect()
+    }
+
+    /// **Every source reading an output whole and that output's port**
+    /// (VARIABLES VR4): a source adds no name segment, so an evaluation
+    /// answers its table as the body's ([`crate::Evaluation::read_port`]).
+    pub(crate) fn source_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
+        self.vars
+            .iter()
+            .filter(|(_, var)| var.def().source().is_some())
+            .filter_map(|(&id, _)| {
+                let body = self.through_sources(id);
+                (!body.is_indexed())
+                    .then(|| self.defined_by(body.read))
+                    .flatten()
+                    .map(|port| (id, port))
+            })
             .collect()
     }
 
@@ -2362,7 +2593,11 @@ impl<P> Doc<P> {
                     crate::PortKind::Placed => match node {
                         // One shape's shape: a member read is a body.
                         Node::Place { source, .. } if !source.is_member() => {
-                            match self.vars.get(&source.read)?.kind() {
+                            match self
+                                .vars
+                                .get(&self.through_sources(source.read).read)?
+                                .kind()
+                            {
                                 crate::VarKind::Bodies => crate::VarKind::Bodies,
                                 _ => crate::VarKind::Body,
                             }
@@ -2768,6 +3003,7 @@ impl<P> Doc<P> {
                 | crate::VarDef::Select(_)
                 | crate::VarDef::Pose(_)
                 | crate::VarDef::Pick(_)
+                | crate::VarDef::Source(_)
                 | crate::VarDef::Index(_) => None,
             }
         })
@@ -3411,9 +3647,11 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         match held.def() {
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, .. } => self.node(*node),
-            VarDef::Select(select) => self.var(select.body),
-            // A piece of a copy is where the copy is.
+            VarDef::Select(select) => self.var(select.body.read),
+            // A piece of a copy is where the copy is, and a source where
+            // the body it reads is.
             VarDef::Pick(pick) => self.var(pick.placement),
+            VarDef::Source(_) => self.var(self.doc.source_root(var)?),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
             VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,

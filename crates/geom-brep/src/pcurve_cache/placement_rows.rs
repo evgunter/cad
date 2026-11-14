@@ -1170,7 +1170,7 @@ fn a_lifted_copy_never_certifies_at_any_whole_period_count() {
 }
 
 /// **A free channel carries no placement term.** The cone's `v` is a
-/// slant length, not an angle ([`super::angle_periods`]), so a row moved
+/// slant length, not an angle (`geom::Surface::angle_periods`), so a row moved
 /// along it has no lifted copy to read: the cone's focal-section row
 /// moved 4 m along `v` (past what half a turn would be, `π`) moves its
 /// point in space, and the lane's own 3-D envelope refuses it, never the

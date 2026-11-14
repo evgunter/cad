@@ -2,10 +2,12 @@
 id: main-red-the-aimed-ray-seam-split-census-misses-its-settle-floor
 kind: issue
 title: Main red at 898df16c: an_aimed_ray_from_far_reads_a_split_side_right::the_seam_split_census_reads_no_side_inside_out panics, its mass-properties settle Unmet{Floor}
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: M
+parent: nightly-reds-default-eps-behaviour-rows
+closed: 2026-11-14
 ---
 
 
@@ -26,3 +28,24 @@ The other main reds the same lane met at `898df16c` are already filed:
 - `kernel_sidecars` (measuredoor);
 - `mass_props_are_thread_count_invariant` (green, tilted_cut_upper);
 - `m10_p_fence` interval (green).
+
+## Closed
+
+Greened by GREEN's default-eps lane (`green/default-eps`, 2026-11-14),
+by a pin. Still red on main `b363f5fa` at ε 1e-9 with the message above;
+green at 1e-6 and 1e-12.
+
+- **Bisect.** First-parent, by running the test, from the merge of PR
+  6174 (which added the row): first bad `898df16c9`, the merge of PR 6478
+  (`spiricarm/rotational-lane-cylinder`); its parent `aef1e5892` is
+  green. So `898df16c` above is not just where it was met but where it
+  starts.
+- **What stops.** Four poses of the 384 (second azimuth, `ψ = 5e-7`,
+  both offsets, either normal): both sides build and pass tier 3, and
+  the sliver side's measure stops at `Stop::Floor` with a volume bracket
+  of ±7.0e-7 m³ about 2.67e-10 m³. The two sides' brackets still hold π.
+- **The pin.** `read` returns `Read::Unsettled` for such a pose and the
+  census holds the unsettled poses to exactly those four at ε 1e-9 and
+  to none at the other rows.
+- **The fix row** is SPIRICARM's:
+  `work/spiricarm/a-seam-split-slivers-measure-stops-at-its-floor-2600-volumes-wide-since-the-rotational-cylinder-lane.md`.

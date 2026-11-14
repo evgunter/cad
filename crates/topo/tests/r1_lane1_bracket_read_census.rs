@@ -3,7 +3,7 @@
 //!
 //! A reviewer probe. `geom-core/src/real.rs`'s `bounds_allowlist`
 //! entry for the certified at-rest validator discloses the file's
-//! bracket reads by NUMBER ("ONE `lo` call appears in `validate.rs`",
+//! bracket reads by NUMBER ("ONE `lo` and ONE `hi` call appear in `validate.rs`",
 //! and why that one is admissible). `scripts/gates/bounds-allowlist.sh`
 //! counts compound `Bounds` BOUNDS, not bracket READS, so a second
 //! `lo`/`hi` call in that file falsifies the disclosure with nothing
@@ -27,8 +27,9 @@ const SUBJECT: &str = "crates/topo/src/validate.rs";
 
 /// The disclosure's number: check 1's representability read,
 /// `geom_core::Bounds::lo` of a stored datum's convention margin
-/// compared with zero, and nothing else.
-const DISCLOSED_READS: usize = 1;
+/// compared with zero, and its `Bounds::hi`, which says only whether a
+/// margin not passed is outside or undecided (ONEHOME fork 259).
+const DISCLOSED_READS: usize = 2;
 
 /// The spellings a bracket read can take. `Bounds::lo(x)` is the
 /// qualified form this file uses; `.lo()`/`.hi()` are the method forms

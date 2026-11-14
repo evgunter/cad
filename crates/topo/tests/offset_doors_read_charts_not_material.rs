@@ -87,9 +87,9 @@ fn cap_area() -> f64 {
 
 /// The wedge's face on the plane z = 1, whichever way its chart faces.
 fn top(body: &Body<f64>) -> FaceKey {
-    let mut hits = body.faces().filter(|(_, f)| {
+    let mut hits = body.faces().filter(|(fk, _)| {
         matches!(
-            body.get_surface(f.surface),
+            body.face_surface(*fk),
             Some(Surface::Plane { origin, normal, .. })
                 if normal.z.abs() == 1.0 && origin.z == 1.0
         )
@@ -101,8 +101,7 @@ fn top(body: &Body<f64>) -> FaceKey {
 
 /// The top chart's stored normal's z.
 fn top_normal_z(body: &Body<f64>) -> f64 {
-    let f = body.get_face(top(body)).unwrap();
-    match body.get_surface(f.surface) {
+    match body.face_surface(top(body)) {
         Some(Surface::Plane { normal, .. }) => normal.z,
         other => panic!("the top chart is a plane, got {other:?}"),
     }

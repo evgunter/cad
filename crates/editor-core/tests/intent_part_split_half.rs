@@ -124,7 +124,7 @@ fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
         name.clone()
     };
     let on = |half: SplitHalf, end: CapEnd| Operand::Select {
-        body: Box::new(Operand::output(split, half.port())),
+        body: Box::new(Operand::output(split, half.port()).into()),
         names: vec![cap(end)],
     };
     let top = on(SplitHalf::Above, CapEnd::End);

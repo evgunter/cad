@@ -50,7 +50,7 @@ pub const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
 /// that two clicks one frame apart are still a double click.
 const FRAME_SECONDS: f64 = 0.05;
 
-/// How many frames [`settle`] paints before it calls the app stuck.
+/// How many frames [`settled`] paints before it calls the app stuck.
 const SETTLE_FRAMES: usize = 3000;
 
 /// **What one frame PAINTED and WHERE** — one entry per `Shape::Text`

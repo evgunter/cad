@@ -180,9 +180,7 @@ fn compose_two_quarter_arcs_is_the_exact_half_arc() {
     );
     for (index, (got, want)) in composed.control().iter().zip(half.control()).enumerate() {
         assert!(
-            got.x.to_bits() == want.x.to_bits()
-                && got.y.to_bits() == want.y.to_bits()
-                && got.z.to_bits() == want.z.to_bits(),
+            got.same_bits(*want),
             "control point {index} is not bit-identical: {got:?} vs {want:?}"
         );
     }
@@ -215,9 +213,7 @@ fn compose_two_half_arcs_is_the_exact_full_circle_chain() {
     assert_eq!(composed.weights(), full.weights(), "weights verbatim");
     for (index, (got, want)) in composed.control().iter().zip(full.control()).enumerate() {
         assert!(
-            got.x.to_bits() == want.x.to_bits()
-                && got.y.to_bits() == want.y.to_bits()
-                && got.z.to_bits() == want.z.to_bits(),
+            got.same_bits(*want),
             "control point {index} is not bit-identical: {got:?} vs {want:?}"
         );
     }

@@ -50,7 +50,7 @@ pub enum MeshError {
     ///
     /// **Why this validator names it, and `tessellate` does not.** A
     /// REFUSAL is decided on structure and reads no count: TESS-1
-    /// ruled that (`work/tess/TESS-1.md`, `## Closed` — "no float
+    /// ruled that (`work/tesslane/TESS-1.md`, `## Closed` — "no float
     /// decides it"; the spec itself is deleted) and
     /// [`crate::TessellateError::MeridianFreeCurvedFace`] is built that
     /// way. This is the other thing: a property RE-DERIVED from the
@@ -218,7 +218,7 @@ pub fn signed_volume(mesh: &Mesh) -> f64 {
         .positions
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo + (hi - lo) * 0.5;
+    let o = lo.mid(hi);
     let mut six_v = 0.0;
     for patch in &mesh.patches {
         for tri in &patch.triangles {

@@ -33,10 +33,11 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams, mixed rims) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
 | The carve that takes a feature wholly inside a straight band's material, removed or filled: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
+| A junction between links on different supports: its feet and section, the mate split, the retiring `kev` and its records, for the closed mixed rim and the open band alike | `crates/sweep/src/blend/junction.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## The band's reach (predicate 2)
@@ -281,12 +282,25 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The carry is a function of the `f64` path and the station count.**
-  It is computed once, its decisions taken there, and every scalar lane
-  composes it onto its own start plane; station 0 is the start plane
-  itself, and a step whose two tangents are equal bit for bit is the
-  identity with no rounding (the exact law's answer: its second
-  reflection is its first).
+- **The roll is chosen at `f64`, because the path is a constant of
+  the model** (DESIGN `[scalars]`: what a lane scalar takes from `f64`
+  is a choice, never a claim). Each station's roll is a continuous
+  value that depends on none of the document's variables, so it is a
+  choice; each station's frame is a claim, so every lane builds it. The
+  carry runs once at `f64` and chooses each station's roll as a
+  reference vector; every scalar lane mints each station's frame from
+  the path's tangent read at that scalar and that vector, and composes
+  it onto its own start plane. Station 0 is the start plane itself. A
+  station on one span, straight by its data, with its predecessor is
+  still where its tangent is checked at the lane scalar to be its
+  predecessor's: it reuses its predecessor's rotation, one expression,
+  and every other station is minted alone. A station's tangent is the
+  path's derivative read through its hodograph, at `f64` and at every
+  lane alike, so a frame minted at a point path is about 3.3e-14 wide,
+  75–150 ulps of its order-1 coordinates. A path held at a lane
+  scalar has a roll that depends on the variables, and the selection no
+  longer stands
+  (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
@@ -302,8 +316,11 @@ and a fixed reference direction would read the world axes.
   sweeps with more stations; a kink that doubles back on itself (a
   hairpin corner) refuses at every station count, and only smoothing
   it cures it. Each is decided under the band, with its in-band twin
-  `SkinError::PathUndecided`. A path whose end tangent is its start
-  tangent reversed is not one of these: a planar U-turn sweeps, its
+  `SkinError::PathUndecided`. A station whose frame has no roll at the
+  lane scalar (its reference along its tangent read there) refuses as
+  `SkinError::PathRollAlongTangent`, its in-band twin
+  `SkinError::PathUndecided` naming the roll. A path whose end tangent
+  is its start tangent reversed is not one of these: a planar U-turn sweeps, its
   end frame the start frame turned a half turn about the plane's
   normal, and so does a semicircle between two stations.
 - **A section sits at its station's path parameter**: station `i` at
@@ -389,10 +406,10 @@ lentil's convex equator loses material to it, a two-sphere snowman's
 waist gains it, through one surgery.
 
 **A requested smooth edge is left as it is.** Predicate 5 reads each
-requested edge's dihedral through the kernel's one edge-wedge door,
-`geom_brep::classify_edge_wedge`: convex, concave, or a sign decided
-Zero read for its material side. Zero with the outward normals aligned
-is a smooth seam, wedge π (a bore's straight cut between its two
+requested edge's wedge whole through the kernel's one edge-wedge door,
+`topo::edge_wedge` (the fold tier 3 accepts a body by): a crease,
+convex or concave, or faces that meet smoothly, read for their material
+side. Smooth with the outward normals aligned is a smooth seam, wedge π (a bore's straight cut between its two
 half-cylinders, a chart seam, a profile fillet's tangent join): a ball
 resting on both faces touches them along the edge itself, so the blend
 of that edge is the edge, and requesting it is a silent no-op. The
@@ -401,12 +418,12 @@ from there on, so the result is the same request's with that edge left
 out; a request every edge of which is smooth returns the operand as it
 is, key for key.
 
-**A knife edge is filleted where its ball is defined.** Zero with the
+**A knife edge is filleted where its ball is defined.** Smooth with the
 normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
-the jet's question, not the dihedral's: `battery::knife_end` reads the
+the jet's question, not the dihedral's: the same fold reads the
 relative transverse curvature signed into the plus face's outward frame
-(`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
-the end with) under `fillet3_knife_end`. A cusp's ball rests in the
+(`geom_brep::material_kappa_rel`) under `material_cusp_side` at every
+station. A cusp's ball rests in the
 material crescent between the supports, the side a convex edge's takes;
 a slit's rests in the void crescent, as a concave edge's does; and the
 link carries that convexity, so every later predicate reads it as it
@@ -428,6 +445,25 @@ clearance, ring and reach meters' to refuse, as on any other edge. The
 chamfer reaches no knife refusal of its own: its one arm is
 plane–plane, a knife's supports are never two planes on a valid body,
 and a knife meets `ChamferArmUnsupported` as any curved pair does.
+
+**A rim's ball is decided to exist before any arm reads it.** At a
+rim the ball's centre is the crossing of the supports' `r`-offsets that
+returns the rim as `r → 0`, and past some radius the offsets do not
+cross: a ball inside a sphere and resting on the plane through its
+centre has no path along the rim past half the sphere's radius, and
+two convex spheres' offsets part once the ball outgrows the lens
+between them. `fillet3_ball_room` decides the crossing when the link
+resolves, on the offsets' room in meters, each offset's radius signed
+by the ball's side (`arms::plane_sphere_room` for the plane–sphere
+arm; `arms::offset_room` in the sheet, the knife's margin too, where
+two straight traces cross at every radius of a definite wedge and are
+not asked), and a radius past it refuses `BlendError::BallDoesNotFit`.
+The decision mints the token the battery calls those arms with, so no
+arm takes the root of a negative number, and no later predicate — the
+clearance screen above all — is handed the poison such a root would
+carry. It is the knife's question asked of the other crossing; the
+two keep their own names and refusals because a knife's ball rests in
+the crescent its tangent faces open, and a rim's rolls in a wedge.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
@@ -500,13 +536,17 @@ vocabulary only); the ball-cap is the presumptive first pick when a
 consumer arrives.
 
 **Where a straight band ends, and where it turns.** One rule: a band
-ends where it meets the face it runs into. At a trivalent vertex of one
-convexity between planes the request decides which face that is, by how
-many of the vertex's three edges it names, and every answer is exact on
-stored kinds (plane, cylinder, line, circle, ellipse).
+ends where it meets the face it runs into. At a trivalent vertex between
+planes the request decides which face that is, by how many of the
+vertex's three edges it names, and every answer is exact on stored kinds
+(plane, cylinder, line, circle, ellipse). Only the corner patch needs
+the three edges to round one way; at a vertex where they mix, the ODD
+edge being the one that rounds unlike the other two, one requested edge
+and the other two alone end as below.
 
 - *All three* — the corner patch: the ball at rest (a sphere octant),
-  or the chamfer's plane through the three feet.
+  or the chamfer's plane through the three feet. Uniform convexity
+  only.
 - *One* — the CUT-OFF: the band ends in the end face's plane section of
   it (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`). A
   chamfer ends in a chord at any angle; a fillet in a circle when the
@@ -558,13 +598,134 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   `Blended::coincidences` carries the rows to the document's coincidence
   door. No ball rests at a turn, so the mitre is G0 between the bands;
   it never competes with the patch, because the request count decides.
+  Where the shared face's sector at the vertex is reflex, as for the two
+  edges that round alike at a mixed vertex, the bands extend past it and
+  the mitre is a join over the wedge their extensions overlap in (at
+  right angles `d³/3` for a chamfer, `(5/3 − π/2)·r³` for a fillet),
+  which it removes past a convex pair and fills past a concave one
+  (`band_mixed_vertex`).
+
+**A mixed corner with all three edges requested** — the odd edge the
+one whose convexity differs, the pair the other two, `E` the face the
+odd edge does not lie in — cuts the odd band off in `E` and runs the
+pair on through a link resting on `E` and on the odd band: a fillet's
+torus about the odd band's axis, centred `r` off `E`, major radius
+`2r`; a chamfer's strip mitred onto the pair's strips. The rule fixes
+that geometry, not a carve order, so it is carved as a corner station
+in the one pass: the link is the corner's patch, on each face the odd
+edge lies in its foot is where that face's two trimlines cross, and on
+`E` each pair band's trimline ends at its own foot, the link's arc on
+`E` running between the two, so `E` takes two struts and that arc and
+the fusion four struts. The patch meets each band along that band's
+section, a row of both charts. It builds where every link is
+plane–plane and `E` is square to the odd edge (`cap_transverse`'s
+circle); an oblique `E` refuses, the fillet `SpineUnsupported` (its
+link would be a canal surface) and the chamfer
+`UnsupportedCorner { MixedConvexity }`
+(`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
+as does a curved link at the corner. Each link's feet at the corner are
+metered in order against its other end's along its trimlines, as a
+junction's are (`junction::feet_clear`): a pair edge too short for the
+corner's feet and a turn's at its far end refuses there. An odd edge
+shorter than the size is refused before that by the support screen
+(`FaceClearanceUncertified`), the pair's trimlines standing `r` up the
+faces it lies in. The reach meters the corner as a uniform corner's
+(`reach::corner_reach`), so a short edge or a face near the corner
+refuses `FaceClearance` where the corner would clear: a chamfer of `0.1`
+with its odd edge `0.25` long, the bracket's fillet from `r = 0.149`
+(`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`).
+The bracket of the row, a plate with a boss flush with one side,
+fillets all round, and without its bore chamfers all round, each at its
+closed form (`band_mixed_corner`). Naming: the patch is `CornerFace { vertex }`,
+the three sections `EndArc { vertex, edge }`, the feet on the odd
+edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
+`E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
+pair edge whose band ends there.
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
 junction, not a condition on the request. It keeps its name and its
 place in the order, and still refuses at a junction involving a curved
-link. The planar band carves locally, as the ruled band does: the end
+link where it reads a definite turn. Where a tangent junction joins
+links on different supports (a line into an arc of a rounded outline)
+it reads the BANDS as well: the two links' balls at the junction rest
+in one section, margin the distance between their section centres.
+Zero is a section the two bands share and meet G1 along; definite is
+supports creasing there, refused `UnsupportedChain`; in band, escalated.
+
+**A closed chain of mixed links** — a rounded outline's lines and arcs,
+a cylinder band over each line and a torus band over each arc — is
+carved on the one face its links share, whose whole cycle (outer or a
+ring) it is, as the annulus rim is: at each junction the edge between
+the two mates splits at the mate foot, a strut reaches the host foot,
+each link's trims are cut and its arc excised, and the strut's `kev`
+re-bases the split piece into the SECTION, the ball's circle between
+the two feet. Each link keeps its own band face, and the section is
+described as the shared row of the two bands' charts (a cylinder's
+transverse circle, a torus's meridian;
+`geom_brep::analytic_shared_row`); a section whose row does not certify
+at the scalar refuses `UnsupportedGeometry` at its link. Each link's
+strip is read within its own window, the slab between a straight
+link's end normals or an arc's wedges (the union of its pieces', each
+under a half turn), by the support-boundary meter and
+by the reach. The meter clips a line or circle piece to each window's
+half-planes, a circle's to the arcs `φ ± acos(−k/A)`, and reads the
+level over the parts inside, each connected, so a piece that only
+passes the window's edges (a disc's wide arc, a hole's trim circle
+beside a corner) clears, and one whose part inside meets the strip
+refuses at that part's depth. A piece that may only graze a window's
+edge within the band is a touch, and escalates `RingClearance` only
+where it decides the read: where every definite reading on the face
+clears and the touch does not. Two links of one chain, closed or open, joined along it by
+links turning less than a half turn are not a clearance pair of the
+battery's support screen, their windows lying on either side of that
+run (which holds while every arc's radius exceeds twice the ball's, the
+spine bound predicate 3 enforces). On an open chain, an edge at either
+end that the chain does not hold (an end face's rim) is no screen pair
+either with each link the run to that end turns less than a half turn
+from: the plan meters it against those links' strips in closed form,
+each within its own window (arms (d) and (e) of the ring carry-through
+pass). A convex rim removes, and a concave
+one adds, the section `r²(1 − π/4)` along the path its centroid takes
+(`band_closed_mixed_chain`). A mate's rings stay on the mate the trim
+shrinks, each metered against its link's strip (a cross-drilled wall
+keeps its bore), and a ladder rim on the shared face (a round hole
+through the plate) carves in the same call, in either carve order
+(`band_mixed_rim_shared_supports`), a hole beside a corner arc
+included. An annulus rim sharing a support
+with a mixed rim refuses `UnsupportedChain` with the sequential
+recourse
+(`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
+A run of two links on one support pair
+inside such a chain and a chain sharing no one face refuse
+`UnsupportedChain`; a chamfer has no arm over an arc, so its rounded
+outlines refuse at the arc. The section is named `BandSection { vertex }`,
+after the junction vertex it replaces.
+
+**An open chain of mixed links** — a run of an outline's lines and arcs
+ending at cut-offs, turns or corners — is carved by the planar band
+below, a junction being one more station of each support beside the
+corner, the joint, the cut-off and the turn: on the face its two links
+share, a plane, a strut out to the host foot; on each link's other
+support, the foot on the edge between the two, split there. Each link
+keeps its own band face, a torus link's trims are its circles, and the
+junction's moves are the closed rim's, one home for both carves
+(`blend/junction.rs`). A torus link is carved only between two
+junctions; one at an end refuses `UnsupportedChain`, since its cut-off
+is a circle only in a plane through its axis
+(`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
+A straight link's two ends put their feet on each trimline in order,
+metered before any mutation under `fillet3_cut_off_feet` where one is a
+junction. A torus link's strips are metered within its own window, as a
+mixed rim's link is, and a joint inside an open mixed chain refuses. A
+request that stops where its edge runs on smoothly into one it does not
+name refuses `UnsupportedRunOut` at the battery, whatever the arm of the
+link that stops there, its recourse naming the whole smooth run
+(`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
+The teardrop's rim, which turns once, the L-plate's rounded corner run
+and a notch's rounded floor build at Pappus by pieces
+(`band_open_mixed_chain`). The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
@@ -625,8 +786,11 @@ for the ruling a cylinder band is. A self-closed
 link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
-shape: a curved end face (a fillet against a cylinder meets it in a
-quartic with no stored carrier); a foot that lands inside a support
+shape: a request that stops where its edge runs on smoothly into one it
+does not name, its end face tangent to the band's support
+(`PARTIAL_TANGENT_RUN`, read before any other end); a curved end face (a
+fillet against a cylinder meets it in a quartic with no stored
+carrier); a foot that lands inside a support
 rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
@@ -638,10 +802,11 @@ shared face reaches it, the other foot of `k`'s sliver landing inside a
 face (a short near edge at an obtuse shared-face angle, which refuses
 where the overrun itself fits); an end vertex of valence other than
 three. A vertex whose three edges do not round
-one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
-request names there: an edge cut off where its unrequested edges round
-the other way, a turn whose two edges round opposite ways, or one whose
-L does.
+one way refuses `UnsupportedCorner { MixedConvexity }` where the request
+names its odd edge together with one other of its edges. The fillet
+refuses there for good: the other edge's band would have to stop where
+that edge runs smoothly into the odd band's cut-off arc. The chamfer,
+the other strip cut off in the odd strip's plane, is not built.
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the
@@ -658,7 +823,9 @@ coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
 ends in band `k`'s face: a chamfer's is a plane, and it builds only
 where L's foot lands on the overrun edge, which takes a much smaller
-second setback; a fillet's is a cylinder, a curved end face. Every such
+second setback; a fillet's is a cylinder tangent to L's support, so L
+runs on there smoothly into the overrun arc and refuses as a tangent run
+requested in part (`PARTIAL_TANGENT_RUN`). Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 
@@ -768,6 +935,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full revolve emits each PLANAR wall as one face: a disc's centre is
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
+- **A sweep's carriers come from its frames** (`docs/DESIGN.md`
+  [intent.stored], nothing flows back toward the description; [scalars],
+  a frame is built from its own inputs). A cap is its station's frame:
+  its normal is ± the frame's normal, signed by the profile's winding,
+  its origin is the frame's origin moved by the sweep, and its
+  reference direction is the frame's first axis. A wall, a rim and a
+  strut each take the frame turning a direction the sketch holds
+  (`crates/profile/README.md`, the profile format). No sweep fits a
+  plane to vertices it placed, or divides the difference of two of them
+  by its own length.
 - **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
   extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes, and the gaps between a full

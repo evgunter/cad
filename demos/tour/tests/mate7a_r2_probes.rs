@@ -33,7 +33,7 @@ fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let arch = &finished("lily_arch", body_of(&pieces, "lily_arch").clone(), tol);
     let planes: Vec<_> = arch
         .faces()
-        .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+        .filter_map(|(k, _)| match arch.face_surface(k) {
             Some(&pncad::geom::Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
             _ => None,
         })
@@ -78,8 +78,7 @@ fn r2_which_pairs_survive_a_perfect_box() {
         idx.into_iter().map(|i| m.positions[i as usize]).collect()
     };
     let kind = |b: &Body<f64>, f: FaceKey| {
-        b.get_face(f)
-            .and_then(|x| b.get_surface(x.surface))
+        b.face_surface(f)
             .map(|s| {
                 format!("{s:?}")
                     .split_whitespace()

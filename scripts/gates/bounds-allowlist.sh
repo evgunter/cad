@@ -457,7 +457,7 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
-  'crates/topo/src/boolean/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
@@ -552,8 +552,12 @@ BOUNDS_ALLOWLIST=(
   # The third is `nary_boolean_apart`, `nary_boolean` with the member
   # pairs a placement's separation certificate certifies apart: it
   # forwards to `run_members` with those pairs and reads no bracket of
-  # its own. 2 + 1 = 3.
-  'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # its own. The fourth is `cut_by_material`, a cut whose tool's solids
+  # rest on each other (`crates/topo/README.md`, `[topo.cut-material]`):
+  # it runs the tool's fold through `run_members` and the cut through the
+  # boolean door (`boolean_op_given`), and reads no bracket of its own
+  # (without `Bounds` neither call compiles). 3 + 1 = 4.
+  'crates/topo/src/boolean/nary.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FIVE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
   # certificate is `Separation::apart`, every pair of placed copies the
@@ -718,7 +722,7 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `lift_boundary`, which lifts the boundary
-  # `clear_of_boundary` clears (that one now reads only the lift).
+  # `clear_of_boundary_as` clears (that one now reads only the lift).
   # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
   # the carrier's and the boundary's lifts in hand, so the sweep lifts
   # each window once and places a station at `T` only for a cell
@@ -742,8 +746,14 @@ BOUNDS_ALLOWLIST=(
   # walk does. Its `Question` impl (`Bracket`) asks the same two doors,
   # `RegionMemo::ask` and `station`, through `Bracket::outside` and
   # `Bracket::witness`, which the root pass shares; no new bracket read.
+  # 16 -> 18 (CLEAR's verdict door): `embedded`, the yes/no door bounded
+  # on certification rights, which asks `Side::windows` and `Sweep::run`
+  # through `ClearanceLane::certified` and reads its witness off the
+  # candidate's already-crossed carriers, and its table helper
+  # (`the_verdict_door_on_a_cube`), as the wiring helper is. Neither
+  # reads a bracket of `T`: the same plumbing at the same door.
   'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 16 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
@@ -763,14 +773,30 @@ BOUNDS_ALLOWLIST=(
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
   # 21 -> 23: `knife_end` (a cusp's or slit's end, under
-  # `material_wedge_side`) and `knife_room_at` (`fillet3_knife_room`) are
-  # predicate 5's knife reads, the same battery seam as
+  # `material_wedge_side`) and `room_at` (`fillet3_knife_room` at a
+  # knife, `fillet3_ball_room` at a rim) are the link's reads of its
+  # ball's side and existence, the same battery seam as
   # `radius_headroom`: each decides only through `classify`, and reads
   # a bracket only to report a refusal, the classified margin through
   # `classified` (whose `measured` is the payload read) and the request
-  # radius through `.lo()` for `KnifeRefusal::NoRoom`. The next tighter
+  # radius through `.lo()` for `KnifeRefusal::NoRoom` and
+  # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
+  # 23 -> 24: `chain_apart`, which takes from the support
+  # screen the pairs of one chain's links joined by a run turning
+  # less than a half turn. Its one bracket read, `(sum - π).hi() < 0`, is
+  # a SELECTION that only narrows the screen: a sum not certainly below
+  # the half turn leaves the pair screened as before, the conservative
+  # reading. `Decide` alone has no bracket to read.
+  # 24 -> 25: `mixed_corner_square`, the all-three mixed corner's
+  # admission, which asks `cap_transverse` whether `E` is square to the
+  # odd edge: the battery's own end-section decision at this seam, made
+  # through `classify`. It reads no bracket of its own; the bound is
+  # `cap_transverse`'s.
+  # 25 -> 23: the link's wedge is read by the edge's wedge fold
+  # (`topo::edge_wedge`), so `wedge_at` and `knife_end` and their bounds
+  # are gone; no bound was added.
   'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
@@ -837,7 +863,41 @@ BOUNDS_ALLOWLIST=(
   #   down on is left to the ring pass, which meters it whole; any
   #   reading not certain is neither, metered as before. It inherits
   #   `ring_clearance`'s DL5(b) disposition and the reach's.
-  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 22 -> 24: the mixed rim's carve and the support-boundary
+  # meter's level, each needing `Bounds` only for callees argued above,
+  # so `Decide` alone fails to compile at those calls:
+  # - `rim_phase_mixed`, `rim_phase_annulus`'s walk with one band face
+  #   per link, calls `seam_split_param`, `split_fragment` and
+  #   `strut_foot`. It reads no bracket of its own.
+  # - `impl StripLevel`, the level `support_boundary_clearance` reads
+  #   each strip through, calls `piece_distance`, `piece_along` and
+  #   `boxed_reach`, and inherits their dispositions. It makes two
+  #   bracket reads, both SELECTIONS. `(rim_at - at_trim).lo() > 0.0`
+  #   picks which side of the trim the rim lies on, definite by a setback
+  #   (DL5(b)); an indefinite read refuses. An arc window's
+  #   `(t1 - t0).lo() > 0` and `(sweep - π).hi() < 0` admit the wedge
+  #   only when it is certainly one, since an uncertain read takes the
+  #   whole circle, a sound bound. Its margins are `max`es of the
+  #   pieces' extents, arithmetic, and `ring_clearance` decides them.
+  # 24 -> 26: `level_clearance` and `cycles_clearance` are
+  # `support_boundary_clearance`'s per-face read split out so the open
+  # band's torus link reads its supports through it too (arm (e) of
+  # `ring_clearance_pass`); they read brackets only through
+  # `StripLevel::clearance` and `ring_clearance`, as that arm did.
+  # 26 -> 27: `impl StripLevel` gained the clip of a line or circle
+  # piece to a wedge (`within`, `arc_within`, `graze`, `missed`,
+  # `settle`), under the impl's own bound. Their bracket reads are
+  # SELECTIONS between sound windows: a line's crossing clips only where
+  # its sign is certain, a circle that may lie wholly inside keeps its
+  # window, and a part is dropped only when certainly short of an edge
+  # by more than the band (`reach::sure`), anything nearer kept as a
+  # superset. No decision is taken there: every reading, a touch's
+  # included, is classified by `ring_clearance`. The new occurrence is
+  # the unit row
+  # `a_piece_beside_a_wedge_reads_clipped_and_a_deciding_touch_escalates`,
+  # generic over the scalar `StripLevel::clearance` takes, reading
+  # brackets only for the midpoint its assertions quote.
+  'crates/sweep/src/blend/surgery.rs 27 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -885,7 +945,26 @@ BOUNDS_ALLOWLIST=(
   #   `piece_distance`'s and `piece_along`'s), and its result is one term
   #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
   #   decides, so it inherits that door's disposition and no other.
-  'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 9 -> 10: `feet_in_order` is `shared_rims_clear`'s decision split
+  # out so a junction's feet meter decides through it too; it decides
+  # only through `classify`, as that meter did.
+  'crates/sweep/src/blend/open/end_face.rs 10 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # junction.rs new at 2: the junction's moves left `surgery.rs`'s
+  # mixed rim for their own file when the open band took them too.
+  # `split_mate` reads brackets only through `seam_split_param`'s window
+  # test, as the mixed rim's split did; `feet_clear` meters a straight
+  # link's two feet along it, deciding only through `classify`, as
+  # `shared_rims_clear` meters two cut-offs'. The same seam and the same
+  # reads, moved and shared; no new decision reads a bracket.
+  # 2 -> 4: `strut_foot` moved here from `surgery.rs` as a junction's
+  # own move, and `split_at` is `split_mate`'s split shared with the
+  # annulus and ladder walks; each reads brackets only through
+  # `seam_split_param`'s window test or not at all, as before the move.
+  # `surgery.rs` 26 holds: it lost `strut_foot` and gained `arc_pieces`,
+  # which reads a sweep's bracket only to select how many pieces to cut
+  # and whether each is certainly under a half turn, an uncertain read
+  # taking the whole circle.
+  'crates/sweep/src/blend/junction.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
@@ -929,7 +1008,7 @@ BOUNDS_ALLOWLIST=(
   # it is public so the at-rest rows can run the limb directly.
   # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
   # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
-  'crates/geom-brep/src/edge_nurbs.rs 14 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 20 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; the lane'"'"'s curved-partner twin (curved_nurbs_limbs) and the body the two share (residual_nurbs_limbs) at plane_nurbs_limbs'"'"'s bound, 2026-11-12 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -944,7 +1023,7 @@ BOUNDS_ALLOWLIST=(
   # geom-brep README's C2): the certification doors' impl block and the
   # engine they share (`run_checks`), at the lane's bound, so a scalar
   # that may not certify cannot name them.
-  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine'
+  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
   # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
   # scalars' edge door bodies their policies run, at the certifying
   # doors' own bound, and nothing else in the file.
@@ -998,7 +1077,12 @@ BOUNDS_ALLOWLIST=(
   # shell.rs 2 -> 1 (ONEHOME, finished-body doors): `shell` takes the
   # scalar's finished body (`F: FinishedBody`), so its compound bound is
   # spelled on `F::Scalar` in a `where` clause; the seam is unchanged.
-  'crates/topo/src/shell.rs 1 2026-09-02, the certified at-rest validator'
+  # 1 -> 2 (CLEAR's verdict door): `cavity_embedded`, which asks the
+  # clearance engine's verdict door (`topo::clearance::embedded`) of the
+  # moved clone and maps its answer to the shell's refusals. It reads no
+  # bracket; the bound is the door's own, at the door that already
+  # carries it (`shell_open_at`).
+  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
@@ -2026,7 +2110,7 @@ plant_trait_generic_sole_bracket_ratified() {
 # naming the ratified entry it merely begins with.
 plant_colon_path_beside_entry() {
   printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
-    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+    > "$1/crates/topo/src/boxes.rs:x.rs"
 }
 
 # THE READER'S OWN HALF OF THE SAME SPLIT, planted in both directions on
@@ -2168,7 +2252,7 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
-  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
+  gate_selftest_case "crates/topo/src/boxes.rs:x.rs" plant_colon_path_beside_entry
   gate_selftest_case "crates/topo/src/boolean/a:Bounds.rs" plant_colon_path_compound_bound
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound

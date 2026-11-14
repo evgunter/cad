@@ -211,7 +211,7 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   and it builds the triangle everywhere, including the cells where
 ///   both point lanes refuse it.
 /// - **Every placement here but the origin is past the session box**
-///   (D4 ¶4: `(d, d, d)` reaches `√3·d`, past 1 km from `d = 1e6`). In
+///   (D4 ¶4 bounds each coordinate: `(d, d, d)` has every coordinate `d`, past 1 km from `d = 1e6`). In
 ///   the bare lane a body that builds there is refused at its
 ///   operation's finished-body gate as `OutsideSessionBox`; a refusal
 ///   its construction makes first (a certification check) still answers

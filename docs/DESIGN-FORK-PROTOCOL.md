@@ -70,6 +70,13 @@ docs/DESIGN-FORK-PROTOCOL.md`, after a fetch).
    before Ev answers. Once Ev answers, a second commit fills in Ev's
    decision and the label→model mapping from the analysis branch,
    before merge.
+   The mapping names each designer's model with its exact version,
+   always ("Opus 5.5", "Fable 5.2" — never the family name alone), as
+   the harness reports it for that designer, and so do the
+   analysis-branch records of further designers; where it cannot be
+   known, "unknown" with the dispatch date, never an inference. A
+   model release splits every analysis into eras, and only the
+   version says which era a row is in.
 7. **Readouts are off-file**, on the standing A/B rule: a directional
    result ("Ev usually sides with X") creates expectancy effects on how
    forks are framed and reconciled. They live on a branch under

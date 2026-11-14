@@ -81,3 +81,5 @@ simply be stated and left, is the row. Nothing about it is urgent —
 what is not acceptable is the paragraph claiming a cover it no longer
 has, which this unit's diff corrects in the same breath as creating
 the gap.
+
+**Evidence (GREEN, PR 6921, 2026-11-14).** `KNOWN_HAND_LISTED` grew to two entries: `NodeFrame`'s `PartialEq` in `geom-brep/.../sweep/critical.rs` was pinned there, citing `work/sectarms/nodeframe-eq-reads-its-fields-by-name`. Like the first entry, it is its file's only Debug-or-PartialEq impl. With the classifier mutated to stop after each file's first such impl, every row of the census stays green, so the new entry adds no per-impl sight either.

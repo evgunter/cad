@@ -192,9 +192,7 @@ fn plate(shape: Outline, z0: f64) -> AtRestBody<f64> {
 fn tangent_struts(b: &Body<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
     let kind = |he| {
         let f = b.face_of_half_edge(he).unwrap();
-        b.get_surface(b.get_face(f).unwrap().surface)
-            .unwrap()
-            .kind()
+        b.face_surface(f).unwrap().kind()
     };
     b.edges()
         .filter(|(_, e)| {
@@ -426,7 +424,7 @@ fn capsule() -> AtRestBody<f64> {
     };
     let at0 = sweep::revolve(&pr, axis, Revolution::Full, t).unwrap().body;
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let mut c = topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, t), t).unwrap();
+    let mut c = topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, t)).unwrap();
     c.merge_coplanar_faces(t).unwrap();
     finished("the capsule", c, t)
 }

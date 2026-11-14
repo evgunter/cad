@@ -1,0 +1,9 @@
+# Production parameter gaps from a span's end metered into metres by hand,
+# by file, function and direction class (scripts/gates/span-end-gap-sites.sh;
+# its header defines the classes and says what raising a row means). One
+# row per (file, function).
+# path	function	count	class
+crates/geom-brep/src/pair_section.rs	within_span	1	witness
+crates/geom-brep/src/pcurve_cache.rs	side_of	2	sup
+crates/topo/src/chord_join.rs	chord_spec	1	exact-rate
+crates/topo/src/boolean/trace.rs	circle_crossings	1	exact-rate

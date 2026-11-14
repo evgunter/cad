@@ -23,8 +23,8 @@ use crate::pcurve_cache::FidelityLegs;
 const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
-/// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 33] = [
+/// own one (`topo-v-var`) under the same variable.
+pub(super) const SITES: [&str; 58] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,6 +47,9 @@ pub(super) const SITES: [&str; 33] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
+    "semi-axis-unchecked",
+    "charge-circular",
+    "ellipse-term-dropped",
     "ruling-per-parameter",
     "cone-ruling-gate",
     "ruling-unplaced",
@@ -57,7 +60,29 @@ pub(super) const SITES: [&str; 33] = [
     "spline-bound-undercut",
     "spline-on-cut-short",
     "spline-product-uncharged",
+    "spline-shown-unread",
     "sampled-line-incidence",
+    "arc-rim-weight-unpaid",
+    "arc-rim-span-unpaid",
+    "arc-rim-tangent-under",
+    "closed-image-sampled",
+    "stated-station-computed",
+    "stated-station-mirrored",
+    "patch-remainder-dropped",
+    "focal-floor-single",
+    "spiric-floor-major",
+    "spiric-copy-divisor-high",
+    "closed-sup-half-span",
+    "stated-image-sampled",
+    "net-bound-sampled",
+    "general-image-class-gate",
+    "analytic-image-sampled",
+    "by-turn-sampled",
+    "first-reading-spliced",
+    "first-reading-dropped",
+    "first-reading-sym-discarded-on-pass",
+    "across-once",
+    "sphere-meridian-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -194,7 +219,7 @@ fn the_named_mutant_is_a_site() {
     );
 }
 
-/// `incidence::incident`: the incidence test skipped, so a carrier off
+/// `incidence::incident_as`: the incidence test skipped, so a carrier off
 /// the chart reaches the general lane and a class reading's "not yet"
 /// (its rows are `off_chart_class_rows`).
 pub(super) fn skip_incidence() -> bool {
@@ -241,6 +266,13 @@ pub(super) fn spline_on_cut_short() -> bool {
     on("spline-on-cut-short")
 }
 
+/// `read_shown`'s spline arm, and the point read's, passing every
+/// carrier and point unread: a carrier off its wall ends as its image's
+/// bound at the certificate doors (its rows are `spline_door_rows`).
+pub(super) fn spline_shown_unread() -> bool {
+    on("spline-shown-unread")
+}
+
 /// The cylinder arm's ruling reading folded again: an in-band reading
 /// takes the meridian form rather than the general lane (its rows are
 /// `cylinder_line_rows`).
@@ -280,6 +312,14 @@ pub(super) fn cone_ruling_gate() -> bool {
     on("cone-ruling-gate")
 }
 
+/// The sphere meridian's azimuth direction read off its radial part as
+/// it is, its error across the carrier's plane kept, at the derivation
+/// and in the incidence lemma alike (its rows are `closed_image_rows`'
+/// pole-start meridians and the far-shown azimuths' sphere).
+pub(super) fn sphere_meridian_unprojected() -> bool {
+    on("sphere-meridian-unprojected")
+}
+
 /// A line's chart form read at the segment's two ends only, dropping
 /// the middle Bernstein coefficient: the sup misses a chord that dips
 /// toward the axis (its rows are `cylinder_line_rows` and
@@ -302,6 +342,82 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
     on("form-uncharged").then_some(harmonics)
 }
 
+/// The edge certificate's stated chart image metered at its schedule's
+/// samples again rather than bounded over the span through its pcurve
+/// certificate (its rows are `pcurve_cache::stated_image_rows`).
+pub(crate) fn stated_image_sampled() -> bool {
+    on("stated-image-sampled")
+}
+
+/// A spline net stated on an analytic chart read at its samples alone
+/// again, not bounded over the span (its rows are
+/// `pcurve_cache::analytic_net_rows`).
+pub(super) fn net_bound_sampled() -> bool {
+    on("net-bound-sampled")
+}
+
+/// The edge certificate's stated chart image on an analytic chart
+/// metered at its schedule's samples again, whatever its class (its
+/// rows are `pcurve_cache::analytic_image_rows`).
+pub(crate) fn analytic_image_sampled() -> bool {
+    on("analytic-image-sampled")
+}
+
+/// A closed-form image stated on an analytic chart metered at the edge
+/// certificate's samples again, not bounded by its residual's
+/// coefficients (its rows are `pcurve_cache::closed_image_rows`).
+pub(crate) fn closed_image_sampled() -> bool {
+    on("closed-image-sampled")
+}
+
+/// A stated image's schedule read at stations computed at the scalar,
+/// not held (its row is `analytic_image_rows::a_cone_image_at_a_steep_sample_certifies`).
+pub(crate) fn stated_station_computed() -> bool {
+    on("stated-station-computed")
+}
+
+/// A stated image's held schedule run backwards over its outer ends
+/// (its row is `analytic_image_rows::a_stated_images_stations_are_the_schedules_at_f64`).
+pub(crate) fn stated_station_mirrored() -> bool {
+    on("stated-station-mirrored")
+}
+
+/// The enclosing patch's controls without their Lagrange remainder (its
+/// row is `closed_image_rows::an_enclosing_patch_holds_its_chart`).
+pub(super) fn patch_remainder_dropped() -> bool {
+    on("patch-remainder-dropped")
+}
+
+/// A focal section's multiplier floor read `1 − |β|`, not its square
+/// (`closed_image_rows::each_floor_is_its_multipliers_least_value`).
+pub(super) fn focal_floor_single() -> bool {
+    on("focal-floor-single")
+}
+
+/// A spiric wall's multiplier floor read `R`, not `R − r` (the same row).
+pub(super) fn spiric_floor_major() -> bool {
+    on("spiric-floor-major")
+}
+
+/// A spiric copy's `f_i − f_c` divisor read `2·sup f_c`, not
+/// `inf f_i + inf f_c` (the same row, and
+/// `closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it`).
+pub(super) fn spiric_copy_divisor_high() -> bool {
+    on("spiric-copy-divisor-high")
+}
+
+/// The rows' frames squared once, not twice
+/// (`closed_image_rows::a_frame_drawn_near_its_axis_is_square_to_rounding`).
+pub(super) fn across_once() -> bool {
+    on("across-once")
+}
+
+/// A closed form's coefficient bound read over half its span
+/// (`closed_image_rows::a_closed_forms_bound_holds_its_dense_miss`).
+pub(super) fn closed_sup_half_span() -> bool {
+    on("closed-sup-half-span")
+}
+
 /// A lane choice's envelope refusal left as the envelope's own (a bound
 /// on a miss, a tolerance offer) rather than the lane's gap (its rows
 /// are `circle_lane_rows`).
@@ -315,4 +431,90 @@ pub(crate) fn lane_envelope_bound() -> bool {
 /// `circle_lane_rows`).
 pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
+}
+
+/// The edge certificate's semi-axis checks skipped: a conic stored with
+/// a negative or non-finite semi-axis reaches the span meter, which
+/// ends it as something else (its rows are
+/// `ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_refuses_typed`
+/// and `..._with_a_semi_axis_not_finite_refuses_as_that`).
+pub(crate) fn semi_axis_unchecked() -> bool {
+    on("semi-axis-unchecked")
+}
+
+/// A conic's charge read as a circle's, `|a| = |b|`: the reach and the
+/// cone's levers read the first semi-axis for both, so an ellipse whose
+/// second is the larger is under-charged (its rows are
+/// `ellipse_lane_rows`).
+pub(crate) fn charge_circular() -> bool {
+    on("charge-circular")
+}
+
+/// The second harmonic's cosine coefficient read as a circle's, the
+/// ellipse's `(a² − b²)` part dropped: the form's bound misses an
+/// eccentric ellipse's (its rows are `ellipse_lane_rows`).
+pub(crate) fn ellipse_term_dropped() -> bool {
+    on("ellipse-term-dropped")
+}
+
+/// An arc rim's decided weight margins left out of its envelope: the
+/// envelope misses a column whose weight is off `cos(h/2)` inside the
+/// band (its rows are `iso_arc_weight_miss` and its search).
+pub(super) fn arc_rim_weight_unpaid() -> bool {
+    on("arc-rim-weight-unpaid")
+}
+
+/// An arc rim's in-band overshoot past its image's arc left out of its
+/// envelope: the envelope misses the chord the clamped map leaves (its
+/// row is `iso_arc_weight_rows::a_span_past_the_arc_pays_its_overshoot`).
+pub(super) fn arc_rim_span_unpaid() -> bool {
+    on("arc-rim-span-unpaid")
+}
+
+/// An arc rim's weight lever read with `12/27` for `16/27`, under-reading
+/// the tangential miss a short sub-arc's weight costs (its row is
+/// `iso_arc_weight_rows::a_short_sub_arc_pays_its_tangential_miss`).
+pub(super) fn arc_rim_tangent_under() -> bool {
+    on("arc-rim-tangent-under")
+}
+
+/// The mint's `General` image keyed on its carrier's class rather than
+/// its measured miss: `Some(false)` for a carrier that is straight or a
+/// spline, which takes the degree-1 image unclimbed and whose refusal
+/// keeps its own term, and `Some(true)` for any other (its rows are
+/// `general_climb_rows`).
+pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
+    on("general-image-class-gate")
+        .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
+}
+
+/// A part read in the parts its turn needs (`Parts::ByTurn`) bounds
+/// `|f|` by its values at its two ends alone, a sampled read: check 4's
+/// first reading and limb 2's then under-read a part whose distance from
+/// the chart peaks inside it.
+pub(super) fn by_turn_sampled(
+    parts: super::Parts,
+    (a, b): (geom_core::Interval, geom_core::Interval),
+) -> Option<f64> {
+    use geom_core::Bounds;
+    (on("by-turn-sampled") && parts == super::Parts::ByTurn).then(|| a.abs().hi().max(b.abs().hi()))
+}
+
+/// Whether check 4 keeps its first reading's recording: `first-reading-spliced`
+/// keeps a dropped reading's, and `first-reading-dropped` drops a passing
+/// reading's (`projected::run_projected_checks`).
+pub(super) fn first_reading_kept(kept: bool) -> Option<bool> {
+    if on("first-reading-spliced") && !kept {
+        Some(true)
+    } else if on("first-reading-dropped") && kept {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Whether check 4 discards a passing first reading's `Sym` decision logs
+/// (`first-reading-sym-discarded-on-pass`) where it keeps them.
+pub(super) fn first_reading_sym_discarded_on_pass() -> bool {
+    on("first-reading-sym-discarded-on-pass")
 }

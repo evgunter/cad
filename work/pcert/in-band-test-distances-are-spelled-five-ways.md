@@ -23,7 +23,7 @@ confirm nor rule out". `fn in_band() -> f64` appears in 13 places
   - `crates/geom-brep/src/dihedral_side.rs` (near :487);
 - the arithmetic mean `½(zero + escalate)`:
   - `crates/geom-brep/tests/spline_pair_arc_rim.rs` (near :227);
-  - `crates/topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs` (near :44);
+  - `crates/topo/tests/a_circle_no_row_holds_ends_alike_in_every_form.rs` (near :44);
   - `crates/topo/src/census.rs` (near :4192, which also asserts its own placement);
 - `ε·√K`: `crates/sweep/tests/common/semicircle_wall.rs` (near :27);
 - `ε·(1 + K)/2`: `crates/profile/tests/rejections.rs` (near :744);

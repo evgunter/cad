@@ -137,8 +137,8 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     // vertex with two edges at it; one lying in a face's closure with
     // no vertex is the defect the pass exists to remove.
     let points: Vec<_> = b.vertex_points().collect();
-    for (_, f) in b.faces() {
-        let s: Vec<Point3<f64>> = match *b.get_surface(f.surface).unwrap() {
+    for (fk, _) in b.faces() {
+        let s: Vec<Point3<f64>> = match *b.face_surface(fk).unwrap() {
             Surface::Sphere {
                 center,
                 radius,

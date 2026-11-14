@@ -421,7 +421,7 @@ fn merge_coplanar_glues_on_the_margin() {
     });
     let pair: Vec<_> = declared
         .faces()
-        .filter_map(|(_, f)| match declared.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match declared.face_surface(fk) {
             Some(geom::Surface::Plane { origin, normal, .. })
                 if origin.z == 1.0 && normal.z == 1.0 =>
             {

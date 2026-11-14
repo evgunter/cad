@@ -786,7 +786,7 @@ pub(super) fn knots_inside(knots: &[f64], lo: f64, hi: f64) -> impl Iterator<Ite
 pub(super) fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
     range_spans(kv.knots(), lo, hi)
         .into_iter()
-        .map(|(a, b)| (a, b, a.midpoint(b)))
+        .map(|(a, b)| (a, b, geom::mid_param(a, b)))
         .collect()
 }
 

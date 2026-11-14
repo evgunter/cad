@@ -22,7 +22,7 @@ use crate::entity::FaceKey;
 use geom_brep::OpenConic;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
+type Frame = Result<Option<geom::Line<f64>>, FrameError>;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -98,7 +98,7 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
 /// refusal's variant and the predicate or conic it names.
 fn shape(frame: &Frame) -> String {
     match frame {
-        Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
+        Ok(Some(axis)) => format!("frame {:?} {:?}", axis.origin, axis.dir),
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
@@ -137,7 +137,7 @@ fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> P
 }
 
 fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what: &str) {
-    let Ok(Some((c, a))) = got else {
+    let Ok(Some(geom::Line { origin: c, dir: a })) = got else {
         panic!("{what}: the conic's frame, got {}", shape(got));
     };
     assert!(
@@ -522,7 +522,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             below: 1.0,
             above: 1.0,
             across: geom_core::test_support::fixture_lever(1.0),
-            round: geom_core::test_support::fixture_lever(1.0),
         },
     ] {
         let got = one_loop(pair_section_frame_at(
@@ -649,7 +648,7 @@ fn the_frames_cone_window_holds_its_face() {
     };
     let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
     for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
-        let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+        let (body, face) = crate::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
         let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
@@ -679,8 +678,8 @@ fn the_frames_cone_window_holds_its_face() {
 /// flipping the plane's normal swaps the order.
 #[test]
 fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
-    use super::Branch;
     use super::join::{PkSection, line_of, pk_section};
+    use geom_brep::SectionPick;
     let cone = widening();
     let apex = Point3::new(0.0, -1.0, 0.0);
     let reach = measured(on_wall(), wall_reach());
@@ -721,7 +720,7 @@ fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
         ] {
             assert_eq!(
                 read(site, dir).unwrap(),
-                Branch::Line(k),
+                SectionPick::Line(k),
                 "line {k}: {what}"
             );
         }
@@ -770,11 +769,8 @@ fn a_plane_off_the_apex_reads_one_loop() {
 fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
-        super::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
-    let carrier = wall
-        .get_surface(wall.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+        crate::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
+    let carrier = wall.proven_face(face).surface().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
@@ -799,7 +795,7 @@ fn apex_pair_faces(
     let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
         body.faces()
             .map(|(k, _)| k)
-            .find(|&k| keep(body.get_surface(body.get_face(k).unwrap().surface).unwrap()))
+            .find(|&k| keep(body.proven_face(k).surface()))
             .unwrap()
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
@@ -820,13 +816,13 @@ fn apex_pair_faces(
 /// with the cone's axis reversed, and with both bodies turned.
 #[test]
 fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
+    use super::Locus;
     use super::join::PkSection;
-    use super::{Branch, Locus};
     use crate::body::Body;
+    use geom_brep::SectionPick;
     use geom_core::{Affine3, RigidMotion};
     let tol = Tol::witness();
-    let turned =
-        |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m, tol).unwrap();
+    let turned = |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m).unwrap();
     let identity = geom_core::test_support::rigid(&Affine3::identity(), tol);
     let flip = geom_core::test_support::rigid(
         &Affine3::rotation_about_axis(
@@ -882,7 +878,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
                 .unwrap()
             };
             let first = read(Point3::origin() + l0 * 0.6, -l0);
-            let Branch::Line(k) = first else {
+            let SectionPick::Line(k) = first else {
                 panic!("{what}: a germ on the line pair rides a line, not {first:?}");
             };
             for (germ, site, dir, want) in [
@@ -895,7 +891,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
             ] {
                 assert_eq!(
                     read(Point3::origin() + site, dir),
-                    Branch::Line(want),
+                    SectionPick::Line(want),
                     "{what}: {germ}"
                 );
             }
@@ -913,9 +909,10 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
 /// again would fail the row.
 #[test]
 fn the_mint_takes_the_pairs_held_reading() {
+    use super::Locus;
     use super::join::PkSection;
     use super::section_table::{ApexLines, SectionTable};
-    use super::{Branch, Locus};
+    use geom_brep::SectionPick;
     let (wall, brick) = apex_pair();
     let (cone, plane) = apex_pair_faces(&wall, &brick, Vec3::new(1.0, 0.0, 0.0));
     let (a, b) = ((&wall, cone), (&brick, plane));
@@ -940,22 +937,22 @@ fn the_mint_takes_the_pairs_held_reading() {
         let d = lines.dirs[k];
         assert_eq!(
             mint(&door, d).unwrap(),
-            Branch::Line(k),
+            SectionPick::Line(k),
             "line {k}: the door's reading"
         );
         assert_eq!(
             mint(&swapped, d).unwrap(),
-            Branch::Line(1 - k),
+            SectionPick::Line(1 - k),
             "line {k}: a held reading with its lines swapped"
         );
     }
     let looped = SectionTable::holding_plane_cone(
         a,
         b,
-        Ok(PkSection::Loop(
-            Point3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        )),
+        Ok(PkSection::Loop(geom::Line {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        })),
     );
     let at_apex = super::join::germ_branch(
         &looped,
@@ -966,7 +963,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         band(),
     )
     .unwrap();
-    assert_eq!(at_apex, Branch::Only, "a held loop mints no line");
+    assert_eq!(at_apex, SectionPick::Only, "a held loop mints no line");
     assert!(
         matches!(
             super::vtxfac::apex_germ_on_a_line(loci, at_apex),

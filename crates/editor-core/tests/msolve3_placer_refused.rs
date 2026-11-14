@@ -26,10 +26,10 @@ use std::sync::Arc;
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault, MateRef,
     MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, ProfileDoc,
-    RecipeNodeId, StableName, TargetAxis, VarId,
+    RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step};
+use fixture::{insert, insert_pinned, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -133,7 +133,7 @@ fn options(store: &Arc<PartStore>) -> EvalOptions {
 
 /// A scene whose placer is a FAMILY of `count` members over a fresh
 /// index `k`, placed by the values `values(k)` names, mated onto member
-/// `i` — the name carries the `Member { (k, i) }` qualifier.
+/// `i`, read `pattern[i]` by the part's own name.
 fn patterned(
     label: &str,
     values: impl FnOnce(VarId) -> Vec<(Coord<editor_core::Operand>, Formula)>,
@@ -143,8 +143,8 @@ fn patterned(
     build(label, |doc, legs, leg_body| {
         let (doc, k) = fixture::index(doc, "k", count);
         let (doc, pattern) = fixture::family_of(doc, legs, values(k));
-        let name = in_copy(pattern, k, i, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, Vec::new())
+        let side = fixture::member_head(pattern, &[i], in_part(legs, leg_body, CapEnd::End));
+        (doc, pattern, side, Vec::new())
     })
     .0
 }
@@ -155,7 +155,7 @@ fn row(k: VarId) -> Vec<(Coord<editor_core::Operand>, Formula)> {
 }
 
 /// The scene builder both shapes share: two part documents, the
-/// placed instance pinned to the world, the placer with the name the
+/// placed instance pinned to the world, the placer with the side the
 /// mate reads it by, the capping instance, and the mate. `place` is
 /// handed the placed instance and its part's body.
 fn build<F>(label: &str, place: F) -> (Scene, Vec<RecipeNodeId>)
@@ -164,7 +164,12 @@ where
         ProfileDoc,
         RecipeNodeId,
         RecipeNodeId,
-    ) -> (ProfileDoc, RecipeNodeId, StableName, Vec<RecipeNodeId>),
+    ) -> (
+        ProfileDoc,
+        RecipeNodeId,
+        editor_core::SitedFace,
+        Vec<RecipeNodeId>,
+    ),
 {
     let mut store = PartStore::new();
     let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg")), Tol::witness());
@@ -172,14 +177,14 @@ where
     let store = Arc::new(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, legs) = insert_pinned(doc, crate::fixture::mated_instance(leg), &options(&store));
-    let (doc, placer, name, extra) = place(doc, legs, leg_body);
+    let (doc, placer, side, extra) = place(doc, legs, leg_body);
     let (doc, cap) = insert(doc, fixture::mated_instance(top));
     let twin = doc.clone();
     // The target is read AT the placer: that read is what puts the
     // placer upstream of the placement.
     let mate = fixture::rest(
         fixture::head_at(cap, in_part(cap, top_body, CapEnd::Start)),
-        fixture::head_at(placer, name),
+        side,
     );
     let (doc, mate) = fixture::constrain_at(doc, cap, mate);
     (

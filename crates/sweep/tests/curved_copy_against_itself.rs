@@ -60,7 +60,6 @@ fn shifted(body: &Body<f64>, by: Vec3<f64>) -> Body<f64> {
     topo::transform_rigid(
         body,
         &geom_core::test_support::rigid(&Affine3::translation(by), tol()),
-        tol(),
     )
     .unwrap()
 }
@@ -165,10 +164,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             panic!("{label}: {r:?}");
         };
         // Both operands are the one body, so either's keys read it.
-        let surface = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .cloned();
+        let surface = body.face_surface(face).cloned();
         let carrier = body
             .get_edge(edge)
             .and_then(|e| body.get_curve_geom(e.curve))
@@ -291,8 +287,7 @@ fn a_curved_body_against_its_copy_in_another_chart_is_one_body() {
     });
     for (label, body, want, turn) in cases.chain([pole_turned]) {
         let turned =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()), tol())
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol())).unwrap();
         for (op, r) in every_op(&body, &turned) {
             let label = format!("{label} against its copy turned, {op}");
             if op.contains('∖') {

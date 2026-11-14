@@ -56,7 +56,6 @@ fn main() {
                         let moved: Body<f64> = topo::transform_rigid(
                             &fin,
                             &geom_core::test_support::rigid(&turn, tol()),
-                            tol(),
                         )
                         .unwrap();
                         total += 1;

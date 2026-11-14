@@ -121,3 +121,5 @@ Levers:
 - **(iii) Considered, not taken:** skip the read where the walk has
   already derived the image, carrying the witness from topo's walk to
   certify. The calls are already memoized, so it would save little.
+
+2026-11-09: PR 6639 (BOXES) raises the frozen column again, by a little, through the cover's arc arm, which now meets each arc's window with its whole conic. At ε 1e-9 the pad's `m10_9` receipt reads frozen 3492 → 3616, and decisions are unchanged. The baselines are in `work/shell/main-red-three-m10-interval-pins-moved-at-5728.md`.

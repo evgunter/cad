@@ -115,3 +115,33 @@ form `2(K+2)·ε`, with an empty gap above it up to 1.9e-4 m.
 same shape and is covered by the same ruling. Neighbours:
 `k-lint-eps-coupled-criterion-unwritten`,
 `work/tier/census-decides-under-bool-pair-gap-unaudited.md`.
+
+## Re-measured (2026-11-10, `instr/klint-large-k`)
+
+Main `9fe94da35`, the sweep's dump half. `bool_pair_gap` flags rules 2
+and 3 on 541 rows at 1e-6 and 1e-9, and on 311 at 1e-12, where the lily
+is not recorded. Every row is at exactly 24·ε:
+
+| shape | rows per ε |
+|---|--:|
+| `demo/lily_walls` | 216 |
+| `demo/projectbox_cutaway` | 110 |
+| `corpus/axis_projection` | 105 |
+| `corpus/revolves_on_one_axis` | 68 |
+| `demo/tiltedcut` | 28 |
+| `demo/lily` | 14 |
+
+Three pose screens have the same shape, a margin that is the pad when
+the geometric term is zero:
+
+- `curve_pair_pose_clear` at exactly `Kε`;
+- `curve_pair_pose_parallel` at exactly `Kε`;
+- `curve_pair_pose_tilt` at exactly `2Kε`.
+
+Together they put 623, 584 and 392 more flags into rules 2 and 3 at
+1e-6, 1e-9 and 1e-12. Filed on CPAIR as
+`work/cpair/the-pose-screens-clear-and-parallel-record-minus-k-eps-and-land-in-band-under-k-lint.md`;
+if CPAIR finds the margins right as recorded, they join this row's
+rule (4) ruling. Both shapes sit under rule (4)'s 150·ε. The pose
+screens sit at 10·ε and 20·ε, so a floor shared with them would have to
+fall below 10·ε.

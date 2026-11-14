@@ -464,7 +464,7 @@ impl CheckEvidence {
     /// measured on `chart_coherence` (`meridian_closure`,
     /// `rim_continuation`, `meridian_continuation`), and why a loop
     /// was out of reach on `chart_coherence_unexamined` (`corrupt`,
-    /// `null_scaffold_edge`, `non_iso_carrier`).
+    /// `empty_loop`, `null_scaffold_edge`, `non_iso_carrier`).
     ///
     /// One attribute for two alphabets, which `boolean_variant`
     /// refuses — and for that field's own stated reason, which does
@@ -531,7 +531,7 @@ impl CheckEvidence {
     /// `coaxial_sphere`, `sphere_on_torus_axis`, `coaxial_cylinder_torus`,
     /// `coaxial_tori`, `crossing_cylinders`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion`, `iso_join` or `census_at_rest`.
+    /// `vertex_fusion`, `iso_join`, `census_at_rest` or `smooth_join`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site

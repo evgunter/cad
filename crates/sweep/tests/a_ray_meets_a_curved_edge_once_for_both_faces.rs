@@ -82,7 +82,7 @@ fn whole_ray(
 ) -> Result<(), String> {
     let material = |p: Point3<f64>| robust(truth, p, clear).map(|m| m != inside_out);
     let orders = [(0, false), (3, true)].map(|order| {
-        topo::test_support::ray_counts(body, face, (q, d), band, order)
+        topo::test_support::ray_counts(body, face, &geom::Ray::new(q, d), band, order)
             .map(|hits| clusters(hits, 2.0 * clear))
     });
     let counts = |r: &Read| {
@@ -556,7 +556,7 @@ fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
                         let q = p - d * back;
                         // Read whole: counted at every crossing, none set aside.
                         read += usize::from(matches!(
-                            topo::test_support::ray_counts(&body, f.face, (q, d), band, (0, false)),
+                            topo::test_support::ray_counts(&body, f.face, &geom::Ray::new(q, d), band, (0, false)),
                             Ok(hits) if hits.iter().all(|h| !h.3)
                         ));
                         if let Err(w) =

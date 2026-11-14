@@ -11,10 +11,10 @@
 //! loops about the rod, essential on its wall) and the ops answer in
 //! closed form.
 //!
-//! A rod that does cross the tube still stops, at the reduction's germ
-//! mint: the certificate answers every pair, and the section value lists
-//! the square wall's components without telling a site's component apart
-//! among them (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
+//! A rod that does cross the tube builds: the certificate answers every
+//! pair, each germ's component is its site's foot on the carried
+//! section, and the torus face its chords trim measures through the
+//! rotational lane.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -227,48 +227,56 @@ fn a_rod_threading_the_hole_answers_every_op() {
     );
 }
 
-/// **A radial hole through the tube joins, and stops at the result
-/// gate's volume, with every certificate pair answered.** Through both
-/// walls, through the inner side only, through the outer side only, and
-/// off the axis: the section pass's report holds no refusal (each torus ×
-/// wall pair was R-reach before the square-wall arm), each germ's
-/// component is its site's foot on the carried section, and ∖ builds
-/// past the join to the volume of a torus face its fitted chords bound,
-/// which the chart table has no lane for
-/// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`);
-/// the rod's chorded wall measures through the rotational lane, so the
-/// torus face is the one the gate reports in any face order.
+/// **A radial hole through the tube joins and builds at its volume,
+/// with every certificate pair answered.** Through both walls, through
+/// the inner side only, through the outer side only, and off the axis:
+/// the section pass's report holds no refusal (each torus × wall pair was
+/// R-reach before the square-wall arm), each germ's component is its
+/// site's foot on the carried section, and ∖ builds, the torus face its
+/// fitted chords bound measured through the rotational lane, its
+/// certified volume holding the donut sliced against the rod
+/// ([`crate::common::donut_slices`], in the donut's frame: its axis `y`
+/// there, the rod's axis at `(y, z) = (h, e)` is at height `h` and `e`
+/// off the axis's plane).
 /// Mutant: drop the arm, and the report carries `Err(Reach)`.
 #[test]
-fn a_radial_hole_through_the_tube_stops_at_the_volume() {
+fn a_radial_hole_through_the_tube_builds_at_its_volume() {
+    use crate::common::donut_slices::{Op, Rod, volume};
+    let tol = Tol::witness();
     let d = donut();
-    for (what, r) in [
-        ("through both walls", rod((1.0, 3.0), (0.0, 0.0), 0.2)),
-        ("through the inner side", rod((1.0, 2.0), (0.0, 0.0), 0.2)),
-        ("through the outer side", rod((2.0, 3.0), (0.0, 0.0), 0.2)),
-        ("off the axis", rod((1.0, 3.0), (0.1, 0.15), 0.2)),
+    for (what, x, (h, e)) in [
+        ("through both walls", (1.0, 3.0), (0.0, 0.0)),
+        ("through the inner side", (1.0, 2.0), (0.0, 0.0)),
+        ("through the outer side", (2.0, 3.0), (0.0, 0.0)),
+        ("off the axis", (1.0, 3.0), (0.1, 0.15)),
     ] {
-        let report = topo::test_support::no_event_section_report(&d, &r, Tol::witness())
+        let r = rod(x, (h, e), 0.2);
+        let report = topo::test_support::no_event_section_report(&d, &r, tol)
             .expect("the section pass runs");
         assert!(!report.is_empty(), "{what}: the certificate is asked");
         for (_, _, v) in &report {
             assert!(v.starts_with("Ok("), "{what}: {v}");
         }
-        match topo::subtract(&d, &r, Tol::witness()) {
-            Err(topo::BooleanError::ResultInvalid { findings: errors }) => assert!(
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                        ..
-                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
-                ),
-                "{what}: {errors:?}"
-            ),
-            other => panic!("{what}: {:?}", other.map(|r| r.body().map(|b| b.kind))),
-        }
+        let got = topo::subtract(&d, &r, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let body = got
+            .body()
+            .unwrap_or_else(|| panic!("{what}: an empty result"));
+        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+            .enclosure;
+        let truth = volume(
+            Op::Subtract,
+            Rod::AlongX {
+                x,
+                at: (e, h),
+                rc: 0.2,
+            },
+        );
+        assert!(
+            (m.volume - truth).abs() <= m.volume_pad + 1e-11,
+            "{what}: the volume {} ± {} misses the sliced {truth}",
+            m.volume,
+            m.volume_pad
+        );
     }
 }

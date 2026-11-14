@@ -75,7 +75,7 @@ fn plane() -> Surface<f64> {
 fn face_pose_reports_the_stored_sense_beside_an_uncorrected_axis() {
     let (body, face) = seed_face(plane());
     let flipped = body
-        .flipped_face_sense_for_tests(face)
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .expect("the seed face is live");
     for (label, b, stored) in [("minted", &body, true), ("flipped", &flipped, false)] {
         let stored_flag = b.get_face(face).expect("live").sense;
@@ -130,7 +130,9 @@ fn face_carrier_kind_copies_the_tag_out_for_every_kind() {
         let (body, face) = seed_face(surface);
         assert_eq!(face_carrier_kind(&body, face), Ok(kind));
         // The sense flip changes nothing about the kind: two facts.
-        let flipped = body.flipped_face_sense_for_tests(face).expect("live");
+        let flipped = body
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .expect("live");
         assert_eq!(face_carrier_kind(&flipped, face), Ok(kind));
     }
 }
@@ -270,11 +272,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
         surface_of(&body, edge.he_plus),
         surface_of(&body, edge.he_minus),
     );
-    let start = body
-        .get_half_edge(edge.he_plus)
-        .expect("a live half-edge")
-        .start;
-    let end = body.half_edge_end(edge.he_plus).expect("a live half-edge");
+    let (start, end) = body.edge_vertices(edge_key).expect("a live edge");
     let p0 = *body
         .get_point(body.get_vertex(start).expect("live").point)
         .expect("live");

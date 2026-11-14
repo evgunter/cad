@@ -94,8 +94,7 @@ fn solid_clouds(body: &topo::Body<f64>) -> Vec<Vec<[f64; 3]>> {
             let mut pts = Vec::new();
             for shell in &solid.shells {
                 for &face in &body.get_shell(*shell).expect("shell").faces {
-                    let f = body.get_face(face).expect("face");
-                    for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    for (lk, _, _) in body.face(face).expect("face").loops() {
                         let topo::LoopBoundary::Cycle { first } =
                             body.get_loop(lk).expect("loop").boundary
                         else {
@@ -499,5 +498,59 @@ fn a_cyclic_placement_chain_refuses_typed() {
             "expected Structure, got {other_at}",
             other_at = other.render()
         ),
+    }
+}
+
+/// **Each distinct solid finishes once** (ONEHOME): an instance of a
+/// solid already finished is that finished body moved, its verdict
+/// carried (`topo::FinishedBody::moved`), so further instances of the
+/// box and the sphere add no finish to the import's.
+#[test]
+fn each_distinct_solid_finishes_once_however_often_it_is_placed() {
+    let finishes = |text: &str| {
+        let before = topo::finishes_on_this_thread();
+        import(text);
+        topo::finishes_on_this_thread() - before
+    };
+    let once = finishes(&base_text());
+    assert!(once >= 2, "the box and the sphere each finish: {once}");
+    let text = append(
+        &append(
+            &append(
+                &base_text(),
+                &extra_instance(36, 4_000_000_000_001, 30.0, 0.0, 0.0, 0.0),
+            ),
+            &extra_instance(36, 4_000_000_000_101, 7.0, 3.0, 2.0, 90.0),
+        ),
+        &extra_instance(205, 4_000_000_000_201, 60.0, 0.0, 0.0, 0.0),
+    );
+    assert_eq!(
+        finishes(&text),
+        once,
+        "three more instances of the two solids ran a finish of their own"
+    );
+}
+
+/// **An instance moved out of the session box refuses there, typed**:
+/// the move asks the box of its image, so a copy of the box placed 2 km
+/// off refuses as the tier gate's finding on that solid, not a panic.
+#[test]
+fn an_instance_moved_out_of_the_box_refuses_typed() {
+    let text = append(
+        &base_text(),
+        &extra_instance(36, 4_000_000_000_001, 2.0e6, 0.0, 0.0, 0.0),
+    );
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+        Err(StepImportError::TierInvalid {
+            solid: Some(37),
+            errors,
+        }) => assert!(
+            matches!(
+                &errors[..],
+                [topo::ValidationError::OutsideSessionBox { .. }]
+            ),
+            "the session box is the move's one refusal: {errors:?}"
+        ),
+        other => panic!("a copy placed past the session box refuses typed: {other:?}"),
     }
 }

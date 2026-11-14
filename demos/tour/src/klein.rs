@@ -279,7 +279,7 @@ const SWEEP_IN: f64 = 0.5 * PI;
 /// section, four quarter arcs a wall: every station count from 9 to 19
 /// at v-degree 2 meshed, and so did 13 at v-degree 3; 21 at v-degree 2
 /// refused `CertificateExceeded`
-/// (`work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
+/// (`work/tesslane/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
 /// The `circle` loop is meshed at this setting only.
 const STATIONS: usize = 13;
 const V_DEGREE: usize = 2;
@@ -621,11 +621,7 @@ pub fn wall3_pinned<S: Scalar>(
     else {
         return false;
     };
-    let kind_of = |body: &AtRestBody<S>, f| {
-        body.get_face(f)
-            .and_then(|f| body.get_surface(f.surface))
-            .map(|s| s.kind())
-    };
+    let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
     format!("{a_face:?}") == "FaceKey(6v1)"
         && format!("{b_face:?}") == "FaceKey(4v1)"
         && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)
@@ -1250,7 +1246,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // every lofted wall carries an interior knot of multiplicity =
     // degree — a C0 crease the mesher refused by name until the
     // trimmed lane learned to cut along it
-    // (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
+    // (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
     // The scene's own loop is that loop, and its stop meshes it at the
     // stop's δ, so a regression reappears there.
 

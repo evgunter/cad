@@ -68,6 +68,16 @@
 //!   (per-instantiation semantics documented in
 //!   `geom_core::spline::locate`), then the core per overlapped span,
 //!   hulled channel-independently for interval-natured scalars.
+//! - **The hodograph derivative** (`derivative_at`): the same first
+//!   derivative as `ders1`'s, summed as the derivative curve's own
+//!   series — the homogeneous net's differences against the degree
+//!   `p − 1` basis of the same knots — so the data's differences enter
+//!   once and an enclosure of a point parameter stays near the
+//!   derivative's own width. It takes its parameter at `f64`, a point
+//!   its caller states (a path-sweep station), and reads the one span
+//!   [`NurbsCurve3::span_at`] locates rather than the [`SpanLocate`]
+//!   seam: a point parameter overlaps one span, so there is nothing to
+//!   hull, and no lane value of `t` to locate by.
 //!
 //! # What does not typecheck
 //!
@@ -388,8 +398,10 @@ macro_rules! nurbs_curve {
             /// one basis pass of order `N − 1`, read from this window's
             /// own span and curve. Total: there is no pairing to refuse.
             ///
-            /// The one homogeneous pass every derivative evaluator
-            /// reads; the ORDER is the caller's, so a first derivative
+            /// The one homogeneous pass every derivative-recursion
+            /// evaluator reads (the hodograph read, `derivative_at`,
+            /// sums the net's differences instead); the ORDER is the
+            /// caller's, so a first derivative
             /// runs an order-1 basis and never computes the order-2
             /// row it would discard.
             fn homogeneous<const N: usize>(self, t: T) -> ([[T; N]; $dim], [T; N]) {
@@ -1128,8 +1140,7 @@ macro_rules! nurbs_curve {
             /// the domain, `(b − a)·bound ≤ ∫ₐᵇ ‖C′‖`. That is exactly
             /// what every consumer asks of it — `interval_span_forward`
             /// converts a parameter span to metres of arc,
-            /// `split_edge_param_interior` converts a distance-to-
-            /// endpoint the same way.
+            /// and a span's interior reads it as its inf speed.
             ///
             /// It certifies **nothing about injectivity, turning, or
             /// monotone advance along any direction**. A carrier may
@@ -1680,6 +1691,81 @@ macro_rules! nurbs_curve {
                 )
             }
 
+            /// **The first derivative at `at`, read through the
+            /// hodograph**: the same derivative as [`Self::ders1`]'s,
+            /// evaluated as the derivative curve's own sum. The
+            /// homogeneous net's differences `p·(Qᵢ₊₁ − Qᵢ)/(uᵢ₊ₚ₊₁ −
+            /// uᵢ₊₁)`, `Qᵢ = wᵢPᵢ`, are summed against the degree `p − 1`
+            /// basis on the same knots
+            /// ([`spline::basis::basis_funs_to_degree_in`]); a rational
+            /// curve takes `C′ = (A′ − W′·C)/W`
+            /// (`rational_corrections` at order 1). The data's
+            /// differences enter once. At an enclosure scalar of a point
+            /// parameter that is narrower than the derivative
+            /// recursion's, by how much depending on the curve: about 20×
+            /// on the three polynomial cubic interpolants of the sweep
+            /// rows it was built for, a median of 2.8× over 600 random
+            /// curves of degree 1–5 (polynomial 3–5×, rational
+            /// 1.1–1.3×), and wider than [`Self::ders1`]'s in 366 of
+            /// 13940 components there, by up to 2.3×. `at` is read in
+            /// the span [`Self::span_at`] locates (at a knot, the span
+            /// starting there; outside the domain, the end span, whose
+            /// polynomial extension it returns as [`Self::ders1`]
+            /// does); only a NaN `at` poisons.
+            pub fn derivative_at(&self, at: f64) -> $Vector<T> {
+                let t = T::from_f64(at);
+                let p = self.knots.degree();
+                let Some(window) = self.span_at(at) else {
+                    return Self::poison_vector(t);
+                };
+                if p == 0 {
+                    return $Vector::<T>::zero();
+                }
+                let k = window.index();
+                let Some(lower) =
+                    spline::basis::basis_funs_to_degree_in(window.knot_span(), t, p - 1)
+                else {
+                    return Self::poison_vector(t);
+                };
+                let held = self.knots.values();
+                let w = self.weights.values();
+                let polynomial = self.constant_weight().is_some();
+                let mut a1 = $Vector::<T>::zero();
+                let mut w1 = T::zero();
+                for (r, n) in lower.iter().enumerate() {
+                    let i = k - p + r;
+                    let (q0, q1) = (self.control[i], self.control[i + 1]);
+                    let step = if polynomial {
+                        spline::derivative_pair(q0, q1, held, p, i).map(|d| (d, T::zero()))
+                    } else {
+                        let lift = |q: $Point<T>, wi: T| $Vector::new($(q.$c * wi),+);
+                        spline::derivative_pair(lift(q0, w[i]), lift(q1, w[i + 1]), held, p, i)
+                            .zip(spline::derivative_pair(w[i], w[i + 1], held, p, i))
+                    };
+                    let Some((d, dw)) = step else {
+                        return Self::poison_vector(t);
+                    };
+                    a1 = a1 + d * *n;
+                    w1 = w1 + dw * *n;
+                }
+                if polynomial {
+                    return a1;
+                }
+                // The point's homogeneous sums from the full basis, then
+                // the one rational correction at order 1.
+                let full = spline::basis::basis_funs_in(window.knot_span(), t);
+                let base = window.first_control();
+                let mut a0 = $Vector::<T>::zero();
+                let mut w0 = T::zero();
+                for (j, nj) in full.iter().enumerate() {
+                    let cw = *nj * w[base + j];
+                    let pt = self.control[base + j];
+                    $(a0.$c = a0.$c + cw * pt.$c;)+
+                    w0 = w0 + cw;
+                }
+                $Vector::new($(rational_corrections([a0.$c, a1.$c], [w0, w1])[1]),+)
+            }
+
             /// Point, first and second derivative at `t` — the jet a
             /// consumer that wants more than one of them computes ONCE
             /// (the located-span walk over the window's `ders_in_span`;
@@ -1856,7 +1942,7 @@ impl NurbsCurve3<Interval> {
 
     fn read_span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
         let about = |a: f64, b: f64| {
-            let m = net::middle(a, b);
+            let m = geom_core::mid_param(a, b);
             net::cell_origin(self.eval(Interval::from_bounds(m, m)))
         };
         let mut acc: Option<Vec3<Interval>> = None;

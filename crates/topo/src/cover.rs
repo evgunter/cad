@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::live::{BoundaryMember, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -56,7 +56,7 @@ impl FaceUncovered {
 
     /// The refusal of a face whose carrier refused and whose arm read no
     /// boundary.
-    pub(crate) fn of_carrier(carrier: Uncovered) -> Self {
+    pub fn of_carrier(carrier: Uncovered) -> Self {
         Self {
             carrier,
             boundary: Vec::new(),
@@ -209,10 +209,7 @@ pub(crate) fn meet_within<T: Real>(
     match (a, b) {
         (Ok(a), Ok(b)) => within(&a.clone().meet(b.clone())),
         (Ok(one), Err(_)) | (Err(_), Ok(one)) => within(one),
-        (Err(_), Err(_)) => {
-            let poison = geom_core::poison();
-            geom_brep::ExtentBall::of_cover_from(None, Point3::new(poison, poison, poison))
-        }
+        (Err(_), Err(_)) => geom_brep::ExtentBall::of_covered(None),
     }
 }
 
@@ -234,16 +231,20 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// proves, one arm per kind, each constraint a stage of that one rule.
 ///
 /// - **Plane**: the convex hull of its boundary (each edge's cover,
-///   [`edge_cover`], and each isolated vertex).
-/// - **Cylinder**: the boundary's convex hull. The carrier is ruled
-///   along its axis, so the ruling through any point of the face leaves
-///   it at the boundary both ways; that needs only that the axis be a
-///   direction. (The slab of the radius over the boundary's axial
-///   window holds that hull already, so it would tighten no bound.)
+///   [`edge_cover`], and each isolated vertex). A ruled face (a plane, a
+///   cylinder, a cone) whose outer loop is a lone vertex has no bounding
+///   loop, and keeps its carrier's refusal.
+/// - **Cylinder**: the boundary's convex hull, met with the carrier's
+///   wall over the heights the hull spans ([`Cover::wall`]), which holds
+///   the face's level about its axis. The carrier is ruled along its
+///   axis, so the ruling through any point of the face leaves it at the
+///   boundary both ways; that needs only that the axis be a direction.
 /// - **Cone**: the convex hull of the boundary and, where the face may
 ///   hold the apex, the apex: the rulings run through it. A face holds
 ///   the apex only where a loop winds round the axis
-///   ([`cone_may_hold_apex`]).
+///   ([`cone_may_hold_apex`]). Met with the carrier's frustum over the
+///   heights the hull spans ([`Cover::cone`]), which is measured about
+///   the axis ([`Cover::about`]).
 /// - **Sphere**: the ball, met with the chart rectangle or latitude zone
 ///   its boundary spans ([`sphere_window`]), and with the pole-side cut
 ///   along an aim where one is read ([`face_cover_toward`]).
@@ -312,15 +313,37 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    // A lone-vertex outer loop bounds nothing: a ruled face holds no
+    // hull of it.
+    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
     match surface {
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
+            carrier
+        }
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
-        Surface::Cylinder { axis, .. } => {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
             if !crate::validate::is_direction(axis) {
                 return carrier;
             }
-            and_trim(carrier, boundary_cover(body, f).map(Cover::convex))
+            let frame = geom::Frame::new(*origin, *axis, *u_ref);
+            let hull = boundary_cover(body, f).map(Cover::convex);
+            let wall = hull
+                .as_ref()
+                .ok()
+                .and_then(|h| Cover::wall(&frame, *radius, h));
+            and_proven(and_trim(carrier, hull), wall)
         }
-        Surface::Cone { apex, .. } => {
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
             let Some(at_apex) = Cover::points(vec![*apex]) else {
                 return carrier;
             };
@@ -329,8 +352,13 @@ fn face_cover_in<T: Decide>(
                 boundary.map(|b| b.hull(at_apex))
             } else {
                 boundary
-            };
-            and_trim(carrier, hull.map(Cover::convex))
+            }
+            .map(Cover::convex);
+            let frustum = hull
+                .as_ref()
+                .ok()
+                .and_then(|h| Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h));
+            and_proven(and_trim(carrier, hull), frustum)
         }
         Surface::Sphere { center, radius, .. } => {
             let zone = sphere_window(body, f, surface, band);
@@ -369,14 +397,110 @@ fn face_cover_in<T: Decide>(
     }
 }
 
-/// **Whether a face on `cone` may hold its apex**: unless every loop is
-/// decided to close in the chart ([`closes_in_chart`], over
-/// `chart_window::face_loop_azimuth_travels`). The apex is
-/// the chart's pole, and a bounded face holding it has a loop that
-/// winds round it a whole turn, where a loop that closes in the chart
-/// leaves it outside. Every loop, not the outer alone: a file's
-/// designated outer bound can be a hole, and the loop enclosing the
-/// apex then a ring. A loop not read, or a refusal reading one, may
+/// **The farthest `face` stands from `at`**: its cover's far distance
+/// ([`face_cover`], [`Cover::distance_range`]), as a lever. It holds what
+/// bulges past the boundary (a sphere's far side, a cone's apex), and
+/// reads no null scaffolding as a bound.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    band: Band,
+) -> Result<geom_core::Lever<T>, FaceUncovered> {
+    let cover = face_cover(body, face, band)?;
+    Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
+}
+
+/// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`
+/// on `(x − at)·axis` over the face, its cover's range along `axis`
+/// ([`Cover::range_along`]) read from `at`.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_range_along<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    Ok(range_from(&face_cover(body, face, band)?, at, axis))
+}
+
+/// A cover's range along `axis` read from `at`: bounds on `(x − at)·axis`.
+fn range_from<T: Real>(cover: &Cover<T>, at: Point3<T>, axis: Vec3<T>) -> (T, T) {
+    let (lo, hi) = cover.range_along(axis);
+    let base = (at - Point3::origin()).dot(axis);
+    (lo - base, hi - base)
+}
+
+/// **How far `face` reaches from `at` either way along `axis`**:
+/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
+/// over the face ([`face_range_along`]), each at least zero, `at` being a
+/// point the reading is consumed from. They lever a tilt of `axis` read
+/// at `at`'s foot on it.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_axial_range<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    let (lo, hi) = face_range_along(body, face, at, axis, band)?;
+    Ok(((T::zero() - lo).max(T::zero()), hi.max(T::zero())))
+}
+
+/// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
+/// measured from `at` against `cone`'s axis: its cover's window along
+/// the axis from the apex, met with `within`'s where the consumed region
+/// lies in a second face too ([`Cover::meet`]), and [`face_reach_from`]
+/// `at` as its lever.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn cone_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    (cone, within): (&Surface<T>, Option<&Cover<T>>),
+    band: Band,
+) -> Result<geom_brep::Reach<T>, FaceUncovered> {
+    let &Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!("the plane×cone arm's reach is asked of a cone")
+    };
+    let cover = face_cover(body, face, band)?;
+    let region = within.map_or_else(|| cover.clone(), |w| cover.clone().meet(w.clone()));
+    let (lo, hi) = range_from(&region, apex, axis);
+    let at_axis = (at - apex).dot(axis);
+    Ok(geom_brep::Reach::of_face(
+        at,
+        (at_axis - lo, hi - at_axis),
+        geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever(),
+    ))
+}
+
+/// **Whether a face on `cone` may hold its apex**: unless every loop's
+/// lift closes in the chart
+/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
+/// every vertex of it is decided off the apex. The lift is decided
+/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
+/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
+/// pole, and a bounded face holding it has a loop that winds round it a
+/// whole turn, or one that passes through it, where a loop that closes
+/// in the chart clear of it leaves it outside. Every loop, not the
+/// outer alone: a file's designated outer bound can be a hole, and the
+/// loop enclosing the apex then a ring. A loop whose lift is not
+/// decided, or a vertex whose incidence on the apex is undecided, may
 /// hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
@@ -384,28 +508,33 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     cone: &Surface<T>,
     band: Band,
 ) -> bool {
-    let travels = constraint(|| {
-        crate::chart_window::face_loop_azimuth_travels(body, cone, face, band).map_err(|_| ())
-    });
-    travels.is_none_or(|loops| !loops.into_iter().all(|t| t.is_some_and(closes_in_chart)))
-}
-
-/// **Whether a loop whose net travel round a chart's period is `travel`
-/// closes in the chart**: decided within half a turn of zero for every
-/// value the scalar stands for. A loop that closes returns to where it
-/// entered (net zero); one that winds round the period travels a whole
-/// turn, so half a turn separates the two and the test needs no band.
-/// The one reading of it for the face cover's walks: the torus chart
-/// window's wrap guard and the cone's apex rule. (`pcurves::loop_windings`
-/// asks it of a loop's stored certified rows, for W2's certificate.)
-pub(crate) fn closes_in_chart<T: SpanLocate>(travel: T) -> bool {
-    travel.is_bounded() && (T::pi() - travel.abs()).structure_positive()
+    let Surface::Cone { apex, .. } = cone else {
+        return true;
+    };
+    let Some(view) = body.face(face) else {
+        return true;
+    };
+    view.cycles().any(|(_, cycle)| {
+        let closes =
+            constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
+                .is_some_and(|lift| lift.closes_in_chart());
+        !closes
+            || cycle.iter().any(|&he| {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+                constraint(|| {
+                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+                }) != Some(false)
+            })
+    })
 }
 
 /// **The boundary's cover**: each boundary edge's cover
-/// ([`edge_cover_linked`]), hulled with each isolated vertex. A face's
-/// region is not in it; a ruled one's is in its convex hull
-/// ([`Cover::convex`]).
+/// ([`edge_cover_linked`]), hulled with each isolated vertex and each
+/// placeholder's one point (a null edge whose two ends are one point,
+/// [`crate::null::is_placeholder`]); a null edge whose ends have parted
+/// is a gap, and has no cover. A face's region is not in it; a ruled
+/// one's is in its convex hull ([`Cover::convex`]).
 ///
 /// # Errors
 ///
@@ -420,6 +549,12 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
         let one = match member {
             BoundaryMember::Isolated { vertex, point } => {
                 Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
+            }
+            // A placeholder is a zero-length copy of its one point
+            // (`crate::null::is_placeholder`), which its neighbours hold.
+            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+                Cover::points(vec![body.member_point(&member)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
             }
             BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
                 .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
@@ -590,7 +725,7 @@ fn sphere_window<T: Decide>(
             SPHERE_SEAM,
             Margin::levered(
                 seam.get().dot(unit.get()),
-                geom_brep::ExtentBall::of_sphere(*center, *radius).lever(),
+                geom_brep::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever(),
             ),
             band,
         );
@@ -654,8 +789,18 @@ fn hull_of<T: Real>((a, b): (T, T), (c, d): (T, T)) -> (T, T) {
 pub(crate) type WindowStep<'a, T> =
     Option<(&'a geom_brep::PcurveCache<T>, geom_brep::Pcurve<T>, bool)>;
 
+/// One LOOP, as the window walk reads it: its half-edges' steps, and
+/// whether its stored lift closes in the chart
+/// ([`crate::pcurves::Lift::closes_in_chart`]): `false` for a loop that
+/// winds a channel, and for one with no lift to read.
+#[derive(Clone)]
+pub(crate) struct WindowLoop<'a, T: Real> {
+    pub(crate) steps: Vec<WindowStep<'a, T>>,
+    pub(crate) closes: bool,
+}
+
 /// **A torus face's chart window, from its boundary's stored certified
-/// pcurves — the ONE walk, for every lane.**
+/// pcurves — one fold of its loops' lift, for every lane.**
 ///
 /// The caller hands over its own arena traversal as loops of
 /// [`WindowStep`]s and nothing else: the face cover's torus arm and the
@@ -686,11 +831,11 @@ pub(crate) type WindowStep<'a, T> =
 ///   torus constructor seams its walls — so this is a latent hole
 ///   rather than a live one, and it is closed by refusing the class.
 ///
-/// The wrap test is the loop's NET travel per channel: a loop that
-/// closes in the chart returns to its entry point, so the signed sum
-/// of `P(exit) − P(entry)` over its half-edges is zero, while a loop
-/// that wraps sums to `± τ`. Half a period separates the two, so the
-/// test needs no `Band` and no `decide`.
+/// The wrap test is the loop's winding, read off its lift
+/// ([`crate::pcurves::Lift::closes_in_chart`]): the joint elements
+/// composed once around are the identity exactly when the loop returns
+/// to its entry point, an integer reading that needs no `Band` and no
+/// `decide`.
 ///
 /// # The slack, and the bound it holds under
 ///
@@ -715,9 +860,6 @@ pub(crate) struct TorusChartWindow<T: Real> {
     u: Option<(T, T)>,
     v: Option<(T, T)>,
     envelope: T,
-    /// The current loop's signed travel per channel; `None` once a
-    /// loop has been abandoned or has wrapped.
-    net: Option<(T, T)>,
     loops: usize,
     ok: bool,
 }
@@ -763,7 +905,6 @@ impl<T: SpanLocate> TorusChartWindow<T> {
             u: None,
             v: None,
             envelope: T::zero(),
-            net: Some((T::zero(), T::zero())),
             loops: 0,
             ok: true,
         }
@@ -776,7 +917,6 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         if self.loops > 1 {
             self.ok = false;
         }
-        self.net = Some((T::zero(), T::zero()));
     }
 
     /// One half-edge of the open loop. The window reads a torus chart's
@@ -784,7 +924,7 @@ impl<T: SpanLocate> TorusChartWindow<T> {
     /// section among them) abandons it — which widens the box to the
     /// whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
-        let Some((cache, image, forward)) = step else {
+        let Some((cache, image, _)) = step else {
             self.ok = false;
             return;
         };
@@ -794,27 +934,21 @@ impl<T: SpanLocate> TorusChartWindow<T> {
             return;
         };
         let (u, v) = ((b.u_min, b.u_max), (b.v_min, b.v_max));
-        let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
+        if image.harmonic_form().is_none() {
             self.ok = false;
             return;
-        };
+        }
         self.u = Some(self.u.map_or(u, |a| hull_of(a, u)));
         self.v = Some(self.v.map_or(v, |a| hull_of(a, v)));
         self.envelope = self.envelope.max(cache.certificate().envelope);
-        self.net = self.net.map(|(a, b)| (a + travel.0, b + travel.1));
     }
 
     /// Close the open loop: it must return to where it entered the
     /// chart rather than wrap a channel (the type docs).
-    pub(crate) fn close_loop(&mut self) {
-        let Some((nu, nv)) = self.net else {
-            self.ok = false;
-            return;
-        };
-        if !(closes_in_chart(nu) && closes_in_chart(nv)) {
+    pub(crate) fn close_loop(&mut self, closes: bool) {
+        if !closes {
             self.ok = false;
         }
-        self.net = None;
     }
 
     /// Abandon the window outright — the caller's own arm for a loop
@@ -840,34 +974,8 @@ impl<T: SpanLocate> TorusChartWindow<T> {
     }
 }
 
-/// One half-edge's SIGNED travel in each chart channel, in the
-/// direction the loop traverses it — `P(exit) − P(entry)`, the datum
-/// [`TorusChartWindow`]'s wrap guard sums. `None` for a pcurve outside
-/// the harmonic family.
-pub(crate) fn harmonic_travel<T: Real>(
-    pcurve: &geom_brep::Pcurve<T>,
-    t0: T,
-    t1: T,
-    forward: bool,
-) -> Option<(T, T)> {
-    let (p0, pa, pb, pl) = pcurve.harmonic_form()?;
-    let at = |t: T| {
-        let (s, c) = t.sin_cos();
-        (
-            p0.x + pa.x * c + pb.x * s + pl.x * t,
-            p0.y + pa.y * c + pb.y * s + pl.y * t,
-        )
-    };
-    let (entry, exit) = if forward {
-        (at(t0), at(t1))
-    } else {
-        (at(t1), at(t0))
-    };
-    Some((exit.0 - entry.0, exit.1 - entry.1))
-}
-
-/// **The face's loops, as [`WindowStep`]s**, read a loop at a time
-/// through [`crate::body::Body::face_boundary_by_loop`]: the window
+/// **The face's loops, as [`WindowLoop`]s**, read a loop at a time
+/// through [`FaceView::boundary_by_loop`]: the window
 /// steps the face cover's torus arm and the construction rows read.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
@@ -884,10 +992,10 @@ pub(crate) fn harmonic_travel<T: Real>(
 pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Vec<Vec<WindowStep<'_, T>>> {
+) -> Vec<WindowLoop<'_, T>> {
     body.proven_face(face)
         .boundary_by_loop()
-        .map(|(_, members, _)| {
+        .map(|(lk, members, _)| {
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
                 .filter_map(|member| match member {
@@ -895,12 +1003,26 @@ pub(crate) fn face_window_steps<T: Decide>(
                     BoundaryMember::Isolated { .. } => None,
                 })
                 .collect();
-            let halves: Vec<HalfEdgeKey> = cycle.iter().map(|&(he, _)| he).collect();
-            let lifted = crate::pcurves::lifted_images(body, &halves);
-            cycle
+            // The window's slack is each STORED row's certified envelope
+            // ([`TorusChartWindow::step`]), so the lift read is the stored
+            // one: a lift decided at the band, as the cone arm's
+            // ([`cone_may_hold_apex`]), has no certificate to widen by. A
+            // loop with a gap in its rows has no lift (`LiftGap`, the
+            // read's one refusal), and says so in its steps: every one is
+            // `None`, which abandons the window for the whole tube.
+            let lift = crate::pcurves::Lift::read(body, lk).ok();
+            let closes = lift
+                .as_ref()
+                .is_some_and(crate::pcurves::Lift::closes_in_chart);
+            let mut lifted: slotmap::SecondaryMap<HalfEdgeKey, geom_brep::Pcurve<T>> =
+                slotmap::SecondaryMap::new();
+            for row in lift.into_iter().flatten() {
+                lifted.insert(row.half_edge, row.pcurve);
+            }
+            let steps = cycle
                 .into_iter()
-                .zip(lifted)
-                .map(|((he, edge), image)| {
+                .map(|(he, edge)| {
+                    let image = lifted.remove(he);
                     let Some(claim) = edge.claim(he) else {
                         unreachable!(
                             "{} names {} on its loop, and its edge does not claim it",
@@ -912,30 +1034,32 @@ pub(crate) fn face_window_steps<T: Decide>(
                         .zip(image)
                         .map(|(c, image)| (c, image, claim.plus))
                 })
-                .collect()
+                .collect();
+            WindowLoop { steps, closes }
         })
         .collect()
 }
 
-/// **The ONE walk**, over a face's loops of [`WindowStep`]s — see
-/// [`TorusChartWindow`]. A loop that yields NO half-edge (a lone
+/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
+/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
+/// no branch. A loop that yields NO half-edge (a lone
 /// vertex) abandons the window: it carries no chart image, so the walk
 /// cannot see what bounds the face's chart region.
 pub(crate) fn torus_chart_window<T: SpanLocate>(
-    loops: &[Vec<WindowStep<'_, T>>],
+    loops: &[WindowLoop<'_, T>],
     major: T,
     minor: T,
 ) -> Option<TorusWindowPair<T>> {
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        for step in lp {
+        for step in &lp.steps {
             acc.step(step);
         }
-        if lp.is_empty() {
+        if lp.steps.is_empty() {
             acc.abandon();
         } else {
-            acc.close_loop();
+            acc.close_loop(lp.closes);
         }
     }
     acc.finish(major, minor)
@@ -947,9 +1071,10 @@ pub(crate) fn torus_chart_window<T: SpanLocate>(
 /// ([`geom::Curve3::cover_over`], which holds the one kind match),
 /// hulled with its two end vertices, which sit on the carrier only to
 /// its certification residual. Every bound on where an edge is reads
-/// this ([`edge_box`], the census's and the narrow phase's reads in a
-/// frame, the containment, shell and reduction doors) through the cover's methods, and none
-/// matches on the carrier's kind.
+/// this ([`edge_box`](crate::boxes::edge_box), the census's
+/// and the narrow phase's reads in a frame, the containment, shell and
+/// reduction doors) through the cover's methods, and none matches on
+/// the carrier's kind.
 ///
 /// # Errors
 ///
@@ -1161,3 +1286,7 @@ pub(crate) fn edge_end_point<T: Real>(
     .start;
     body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
 }
+
+#[cfg(test)]
+#[path = "cover_reach_rows.rs"]
+mod cover_reach_rows;

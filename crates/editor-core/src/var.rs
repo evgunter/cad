@@ -262,6 +262,12 @@ pub enum VarDef {
     /// **A pick** (D10 `[placement.placement]`): one piece of a copy,
     /// a `Body`.
     Pick(Pick),
+    /// **A source** (D10 `[placement.placement]`, VR4): a `Body` read of
+    /// one body — a plain body, a member `xs[k]`, a pick or another
+    /// source — which a placement's source slot reads. It evaluates as
+    /// that body and adds no name segment, so a copy's names are the
+    /// body's. Redefining it re-points every placement reading it.
+    Source(crate::BodyRead<VarId>),
     /// **An index** (D10 `[repetition]`): a `Count` over `0..count`. A
     /// definition or operation whose reads reach it is evaluated once
     /// per value, and its outputs are families.
@@ -317,6 +323,12 @@ pub struct Pick {
 /// that body's name table under the N5 ladder at evaluation, the one
 /// place a name in a slot is resolved.
 ///
+/// The body read is a body seat's ([`crate::BodyRead`], REFERENCES
+/// DM3): a body, or one member of a family, `xs[i]`, whose indices are
+/// `Count` variables of this definition, as a pose definition's
+/// scalars are its own. The names are that body's own: a member's are
+/// the member's, never the family's for it.
+///
 /// The names are stored in the order the kind reads them: an `Edges`
 /// set sorted and deduplicated, so two selections of the same edges are
 /// equal; a `Faces` set in designation order, first occurrence kept
@@ -329,7 +341,7 @@ pub struct Pick {
 #[serde(deny_unknown_fields)]
 pub struct Select {
     /// The body the names are read in.
-    pub body: VarId,
+    pub body: crate::BodyRead<VarId>,
     /// The entities, by name.
     pub names: Vec<crate::names::StableName>,
 }
@@ -498,6 +510,19 @@ pub enum SelectionFault {
     /// body: the name's node is neither the read's operation nor
     /// upstream of it.
     OtherBody,
+    /// A body read by index carrying other than one index per index
+    /// of the family it reads: a node seat's indexed read's fault
+    /// ([`crate::node::InputFault::IndexRank`]), at a selection's body,
+    /// boxed: its seat would otherwise size every error carrying a
+    /// selection fault.
+    Input(Box<crate::node::InputFault>),
+    /// An index of a mate side's body read that is no written count:
+    /// the mate's member walk reads the member from the document, never
+    /// from an evaluated value.
+    SideIndex {
+        /// The index's place, outermost first.
+        k: usize,
+    },
 }
 
 impl SelectionFault {
@@ -512,7 +537,9 @@ impl SelectionFault {
             | Self::NotCanonical { .. }
             | Self::Kind { .. }
             | Self::Repeated { .. }
-            | Self::OtherBody => None,
+            | Self::OtherBody
+            | Self::Input(_)
+            | Self::SideIndex { .. } => None,
         }
     }
 }
@@ -559,6 +586,12 @@ impl core::fmt::Display for SelectionFault {
                 expected.noun()
             ),
             Self::Repeated { first, again } => write!(f, "name {again} repeats name {first}"),
+            Self::Input(fault) => write!(f, "{fault}"),
+            Self::SideIndex { k } => write!(
+                f,
+                "index {k} of the side's body read is no written count — a mate side reads \
+                 its member at a count written in the document"
+            ),
         }
     }
 }
@@ -573,7 +606,7 @@ impl VarDef {
             Self::Defined(expr) => Some(VarKind::from(expr.dim())),
             Self::Pose(def) => def.kind(),
             Self::Output { .. } | Self::Select(_) => None,
-            Self::Pick(_) => Some(VarKind::Body),
+            Self::Pick(_) | Self::Source(_) => Some(VarKind::Body),
             Self::Index(_) => Some(VarKind::Count),
         }
     }
@@ -632,6 +665,15 @@ impl VarDef {
         }
     }
 
+    /// The body read, when the definition is a source.
+    #[must_use]
+    pub fn source(&self) -> Option<&crate::BodyRead<VarId>> {
+        match self {
+            Self::Source(read) => Some(read),
+            _ => None,
+        }
+    }
+
     /// The operation and port, when the definition is an output.
     #[must_use]
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
@@ -642,6 +684,7 @@ impl VarDef {
             | Self::Select(_)
             | Self::Pose(_)
             | Self::Pick(_)
+            | Self::Source(_)
             | Self::Index(_) => None,
         }
     }
@@ -656,7 +699,8 @@ impl VarDef {
             (Self::Output { .. }, Self::Output { .. })
             | (Self::Select(_), Self::Select(_))
             | (Self::Pose(_), Self::Pose(_))
-            | (Self::Pick(_), Self::Pick(_)) => self == other,
+            | (Self::Pick(_), Self::Pick(_))
+            | (Self::Source(_), Self::Source(_)) => self == other,
             (
                 Self::Free(_)
                 | Self::Defined(_)
@@ -664,6 +708,7 @@ impl VarDef {
                 | Self::Select(_)
                 | Self::Pose(_)
                 | Self::Pick(_)
+                | Self::Source(_)
                 | Self::Index(_),
                 _,
             ) => false,
@@ -687,6 +732,8 @@ pub enum WrittenDef {
     Pose(VarKind, crate::pose::PoseDef),
     /// A pick, a `Body`.
     Pick(Pick),
+    /// A source, a `Body`.
+    Source(crate::BodyRead<VarId>),
     /// An index, a `Count`.
     Index(Index),
 }
@@ -699,7 +746,7 @@ impl WrittenDef {
             Self::Free(free) => VarKind::from(free.dim()),
             Self::Defined(expr) => VarKind::from(expr.dim()),
             Self::Select(kind, _) | Self::Pose(kind, _) => *kind,
-            Self::Pick(_) => VarKind::Body,
+            Self::Pick(_) | Self::Source(_) => VarKind::Body,
             Self::Index(_) => VarKind::Count,
         }
     }
@@ -713,6 +760,7 @@ impl From<WrittenDef> for VarDef {
             WrittenDef::Select(_, select) => Self::Select(select),
             WrittenDef::Pose(_, def) => Self::Pose(def),
             WrittenDef::Pick(pick) => Self::Pick(pick),
+            WrittenDef::Source(read) => Self::Source(read),
             WrittenDef::Index(index) => Self::Index(index),
         }
     }
@@ -737,6 +785,8 @@ pub enum VarDecl {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         within: Option<crate::Formula>,
     },
+    /// **A source** ([`VarDef::Source`]): a read of one body.
+    Source(crate::BodyRead<crate::Formula>),
 }
 
 impl VarDecl {
@@ -746,19 +796,28 @@ impl VarDecl {
         Self::Defined(expr)
     }
 
-    /// The kind this definition holds: a scalar, read at [`Self::dim`].
+    /// A source reading `body`.
     #[must_use]
-    pub fn kind(&self) -> VarKind {
-        VarKind::from(self.dim())
+    pub fn source(body: impl Into<crate::BodyRead<crate::Formula>>) -> Self {
+        Self::Source(body.into())
     }
 
-    /// The dimension this definition holds.
+    /// The kind this definition holds: a scalar's [`Self::dim`], or a
+    /// source's `Body`.
     #[must_use]
-    pub fn dim(&self) -> Dimension {
+    pub fn kind(&self) -> VarKind {
+        self.dim().map_or(VarKind::Body, VarKind::from)
+    }
+
+    /// The dimension this definition holds; `None` for a source, which
+    /// is no scalar.
+    #[must_use]
+    pub fn dim(&self) -> Option<Dimension> {
         match self {
-            Self::Free(free) => free.dim(),
-            Self::Defined(expr) => expr.dim(),
-            Self::Index { .. } => Dimension::Count,
+            Self::Free(free) => Some(free.dim()),
+            Self::Defined(expr) => Some(expr.dim()),
+            Self::Index { .. } => Some(Dimension::Count),
+            Self::Source(_) => None,
         }
     }
 }
@@ -820,6 +879,14 @@ impl VarDecl {
                 count: crate::Formula::from(count),
                 within: within.map(|within| crate::Formula::var(within, Dimension::Count)),
             }),
+            VarDef::Source(body) => Some(Self::Source(crate::BodyRead {
+                read: crate::Operand::Var(body.read),
+                at: body
+                    .at
+                    .into_iter()
+                    .map(|at| crate::Formula::var(at, Dimension::Count))
+                    .collect(),
+            })),
             VarDef::Output { .. } | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => None,
         }
     }
@@ -891,6 +958,7 @@ impl Var {
             | VarDef::Output { .. }
             | VarDef::Pose(_)
             | VarDef::Pick(_)
+            | VarDef::Source(_)
             | VarDef::Index(_) => None,
         }
     }

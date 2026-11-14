@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tomllib
 from collections import Counter
 from typing import NoReturn
 
@@ -66,6 +67,7 @@ def check(
     suites: dict[str, set[str]],
     complete: bool,
     members: set[str] | None = None,
+    label: str = "slow-set",
 ) -> int:
     """Print the verdict and return the exit status."""
     packages = {b.split("::")[0] for b in suites}
@@ -82,13 +84,13 @@ def check(
             dead.append(f"{binary}: {name}")
     twice = [f"{b}: {n}" for (b, n), k in Counter(pairs).items() if k > 1]
     checked = len(pairs) - sum(unchecked.values())
-    print(f"check-slow-set-names: {checked} of {len(pairs)} slow-set entries checked")
+    print(f"check-slow-set-names: {checked} of {len(pairs)} {label} entries checked")
     for binary, k in sorted(unchecked.items()):
         print(f"  unchecked: {k} under {binary} (its package is not in this listing)")
     for line in dead:
-        print(f"::error file={CONFIG}::slow-set entry matches no test: {line}")
+        print(f"::error file={CONFIG}::{label} entry matches no test: {line}")
     for line in twice:
-        print(f"::error file={CONFIG}::slow-set entry listed twice: {line}")
+        print(f"::error file={CONFIG}::{label} entry listed twice: {line}")
     if dead or twice:
         print(
             f"check-slow-set-names: {len(dead)} dead, {len(twice)} duplicated. "
@@ -176,14 +178,23 @@ def main(argv: list[str]) -> int:
     complete = "--complete" in argv
     try:
         with open(CONFIG, encoding="utf-8") as fh:
-            text = ci_filter(fh.read())
-    except (OSError, SlowSetError) as exc:
+            raw = fh.read()
+        text = ci_filter(raw)
+        overrides = tomllib.loads(raw)["profile"]["ci"].get("overrides", [])
+    except (OSError, SlowSetError, tomllib.TOMLDecodeError) as exc:
         die(f"{CONFIG}: {exc}")
     try:
         listing = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
         die(f"stdin is not a JSON listing ({exc})")
-    return check(entries(text), suites_of(listing), complete, members)
+    suites = suites_of(listing)
+    rc = check(entries(text), suites, complete, members)
+    # A `ci` override names its tests the same way, so a renamed one is as
+    # dead as a renamed slow-set entry: each override is checked on its own.
+    # An override's filter must be the slow set's exact-name shape, `(binary_id(B) & (test(=..) | ..))`; any other spelling fails here.
+    for i, override in enumerate(overrides):
+        rc |= check(entries(f"not ({override['filter']})"), suites, complete, members, f"ci override {i}")
+    return rc
 
 
 if __name__ == "__main__":

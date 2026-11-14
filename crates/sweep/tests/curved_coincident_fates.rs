@@ -5,7 +5,7 @@
 //! operand is A; and a hemisphere's base, a disc bounded by one closed
 //! circle, is cut where a brick's coincident bottom holds it.
 //!
-//! Faces are named by their carrier (`topo::face_carrier`), rounded to
+//! Faces are named by their carrier (`topo::face_normal::face_carrier_desc`), rounded to
 //! thousandths; a border by the live edge it settles on, by its two ends.
 //! A stretch that settles on no live edge merged away with the faces
 //! beside it and says nothing, so it is left out.
@@ -52,7 +52,7 @@ fn rounded(s: &str) -> String {
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
     rounded(&format!(
         "{:?}",
-        topo::face_carrier(body, f).expect("a carrier")
+        topo::face_normal::face_carrier_desc(body, f).expect("a carrier")
     ))
 }
 
@@ -73,10 +73,7 @@ fn live(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]) -> 
         let p = topo::readback::vertex_point(body, v).expect("a live end");
         rounded(&format!("({:.3},{:.3},{:.3})", p.x, p.y, p.z))
     };
-    let ends = |e: topo::EdgeKey| {
-        let d = body.get_edge(e).expect("a live edge");
-        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half").start)
-    };
+    let ends = |e: topo::EdgeKey| <[_; 2]>::from(body.edge_vertices(e).expect("a live edge"));
     let mut v: Vec<String> = rows
         .iter()
         .filter_map(|&(u, w)| {
@@ -288,7 +285,7 @@ fn a_slanted_rod_and_a_coaxial_rod_are_cut_alike_in_either_order() {
     let cutter = fin("cutter", brick((-3.0, 3.0), (-3.0, 3.0), (2.0, 6.0), tol));
     let cutter = fin(
         "cutter",
-        topo::transform_rigid(&cutter, &tilt, tol).expect("moved"),
+        topo::transform_rigid(&cutter, &tilt).expect("moved"),
     );
     let whole = fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 3.0));
     let BooleanResult::Body(slanted) = topo::subtract(&whole, &cutter, tol).expect("the slant")
@@ -319,10 +316,10 @@ fn a_rod_at_a_box_edge_borders_alike_in_either_order() {
     let union = op_fates("∪", &boxed, &at_edge);
     let wall = rounded(&format!(
         "{:?}",
-        topo::CarrierDesc::Plane {
+        geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc {
             origin: geom_core::Point3::new(2.0, 0.0, 0.5),
             normal: geom_core::Vec3::new(1.0, 0.0, 0.0),
-        }
+        })
     ));
     let edges = [
         "(2,-0.5,0) (2,-0.5,1)",

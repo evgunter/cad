@@ -1,27 +1,27 @@
 //! **The shell checks its cavity embedded at certifying scalars**
-//! (`topo::shell`'s module docs): where the scalar holds the clearance
-//! engine's door, the moved clone is asked E7's self-intersection
-//! question before it is inserted.
+//! (`topo::shell`'s module docs): at `Interval` and `Sym` over it, the
+//! moved clone is asked the verdict door's question
+//! (`topo::clearance::embedded`) before it is inserted. At `f64` the
+//! shell does not ask yet, and the rows that will pin it there wait on
+//! `work/embed/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
 //!
 //! - a vessel holding a coaxial void whose dilation reaches past the
 //!   eroded wall refuses `CavityCrosses` at `Interval` and at
 //!   `Sym<Interval>`, the witness on the vessel's wall and the void's
-//!   cap, and shells Ok at `f64`, where no lane answers and the curved
-//!   window stays open;
+//!   cap, on the same pair of operand faces at each;
 //! - the tube and the vessel shell Ok at `Interval`, and the vessel at
-//!   `Sym<Interval>`, with the self-intersection site decided during
-//!   the build and nothing refused, so a gate that stopped running goes
-//!   red here too;
+//!   `Sym<Interval>`, with nothing refused, and the build logs none of
+//!   the cavity sweep's cell readings: the engine keeps them out of the
+//!   caller's log itself;
 //! - the tube at `Sym<Interval>`, and the corpus pot, the cone frustum
-//!   and the klein elbow at both certifying scalars, shell Ok with the
-//!   gate run;
+//!   and the klein elbow at both certifying scalars, shell Ok;
 //! - the planar dumbbell still refuses at the planar gate, at both
 //!   scalars;
-//! - two rows refuse before the gate is reached, each typed: the
-//!   planar dumbbell's curved twin, which the general offset door
-//!   cannot build at `Interval`, and the box whose cylindrical void
-//!   dilates past the cavity's planar wall, which the planar
-//!   `moved_walls_cross` reads first.
+//! - the planar dumbbell's curved twin refuses in the general offset
+//!   door at `Interval`, before the cavity is built;
+//! - the box whose cylindrical void dilates past the cavity's planar
+//!   wall refuses before the gate is reached, at the planar
+//!   `moved_walls_cross`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::time::Instant;
@@ -35,8 +35,8 @@ use sweep::test_support::{brick, finished, prism};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::voids::{VoidContainment, VoidEvidence, insert_void};
 use topo::clearance::{
-    BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, SELF_INTERSECTION_GAP, Side,
-    Sweep, Which,
+    BoundVerdict, Budgets, CLEARANCE_MARGIN, CLEARANCE_SUPPORT_GAP, ClearanceBound,
+    DEFAULT_MAX_CELL_DEPTH, SELF_INTERSECTION_GAP, Side, Sweep, Which,
 };
 use topo::{Body, FaceKey, ShellError, Shelled};
 
@@ -56,23 +56,23 @@ fn shell<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 
 /// **The planar dumbbell** (`offd2_r1_probes`): two 2×2 blobs joined
 /// along `x ∈ [2, 3]` by a neck between `y = 0.8` and `y = 1.2`,
-/// extruded 2. With a nonzero `bulge` the two neck walls are arcs that
-/// bow into the neck, each by `bulge / 2` at its middle — the curved
-/// twin, whose neck is narrowest at `x = 2.5`.
+/// extruded 2. With a nonzero `bulge` the two neck walls are arcs, a
+/// negative one bowing each into the neck by `|bulge| / 2` at its
+/// middle — the curved twin, whose neck is narrowest at `x = 2.5`.
 fn dumbbell<T: Decide + topo::AtRestPolicy>(bulge: f64) -> Body<T> {
     let v = |x: f64, y: f64, b: f64| (Point2::new(x, y).map(T::from_f64), T::from_f64(b));
     prism(
         vec![
             v(0.0, 0.0, 0.0),
             v(2.0, 0.0, 0.0),
-            v(2.0, 0.8, 0.0),
-            v(3.0, 0.8, bulge),
+            v(2.0, 0.8, bulge),
+            v(3.0, 0.8, 0.0),
             v(3.0, 0.0, 0.0),
             v(5.0, 0.0, 0.0),
             v(5.0, 2.0, 0.0),
             v(3.0, 2.0, 0.0),
-            v(3.0, 1.2, 0.0),
-            v(2.0, 1.2, bulge),
+            v(3.0, 1.2, bulge),
+            v(2.0, 1.2, 0.0),
             v(2.0, 2.0, 0.0),
             v(0.0, 2.0, 0.0),
         ],
@@ -131,8 +131,7 @@ fn with_void<T: Decide>(mut dst: Body<T>, cavity: Body<T>) -> Body<T> {
 }
 
 fn surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
-    body.get_surface(body.get_face(face).expect("a face of the operand").surface)
-        .expect("its surface")
+    body.face_surface(face).expect("its surface")
 }
 
 fn is_cylinder<T: Decide>(body: &Body<T>, face: FaceKey) -> bool {
@@ -197,9 +196,8 @@ fn coaxial_crossing<T: topo::AtRestPolicy + Decide>(
 }
 
 /// **A void dilated through a curved cavity wall refuses with a
-/// witness** at `Interval`, and the certifying `Sym` rebuild refuses
-/// on the same pair of operand faces. At `f64` no lane answers and the
-/// same call shells Ok: the curved window the module docs state.
+/// witness** at `Interval`, and the certifying `Sym` rebuild refuses on
+/// the same pair of operand faces.
 #[test]
 fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
     let operand: Body<Interval> = vessel_with_void();
@@ -210,30 +208,17 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
         at_sym, at_interval,
         "the Sym rebuild's witness is on the Interval rebuild's faces"
     );
-    let at_f64 = shell(vessel_with_void::<f64>(), 0.1);
-    assert!(
-        at_f64.is_ok(),
-        "at f64 no lane answers, so the curved window is open: {:?}",
-        at_f64.err()
-    );
 }
 
-/// **The planar dumbbell's curved twin** — bulge 0.2 narrows the neck
-/// to 0.2 at `x = 2.5`, and two walls of 0.15 need 0.3 — shells Ok at
-/// `f64`, the curved window, and at `Interval` refuses in the general
-/// offset door before the cavity is built, an escalation at
-/// `offset_corner_on_surface`. It waits on
+/// **The planar dumbbell's curved twin** — bulge −0.2 narrows the neck
+/// to 0.2 at `x = 2.5`, and two walls of 0.15 need 0.3 — refuses at
+/// `Interval` in the general offset door before the cavity is built, an
+/// escalation at `offset_corner_on_surface`. It waits on
 /// `work/shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
-/// whose fix turns this row's second half into a `CavityCrosses` row.
+/// whose fix turns this row into a `CavityCrosses` row.
 #[test]
-fn the_curved_dumbbell_is_the_window_at_f64_and_waits_on_the_offset_door_at_interval() {
-    let at_f64 = shell(dumbbell::<f64>(0.2), 0.15);
-    assert!(
-        at_f64.is_ok(),
-        "at f64 no lane answers, so the curved window is open: {:?}",
-        at_f64.err()
-    );
-    match shell(dumbbell::<Interval>(0.2), 0.15) {
+fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
+    match shell(dumbbell::<Interval>(-0.2), 0.15) {
         Err(ShellError::Face { error, .. })
             if matches!(
                 &*error,
@@ -286,21 +271,46 @@ fn the_planar_dumbbell_refuses_at_the_planar_gate() {
     );
 }
 
-/// `operand` shells Ok at `Interval` with the self-intersection site
-/// decided during the build, and its cavity — the result's inner wall,
-/// the moved clone grafted verbatim — certifies embedded, its receipt
-/// and time printed.
+/// How many of `recorded`'s verdicts and escalations are the clearance
+/// engine's cell readings: its three distance compares and its cells'
+/// region readings.
+fn cell_readings(recorded: &geom_core::k_stats::Recorded) -> usize {
+    let engine = |p: &str| {
+        [
+            SELF_INTERSECTION_GAP,
+            CLEARANCE_SUPPORT_GAP,
+            CLEARANCE_MARGIN,
+        ]
+        .contains(&p)
+            || p.starts_with("cell_region_")
+    };
+    let verdicts = recorded.verdicts.iter().filter(|v| engine(v.predicate));
+    let escalations = recorded
+        .escalations
+        .iter()
+        .filter(|e| engine(e.predicate()));
+    verdicts.count() + escalations.count()
+}
+
+/// `operand` shells Ok at `Interval`, and its cavity — the result's
+/// inner wall, the moved clone grafted verbatim — certifies embedded,
+/// its receipt and time printed.
+///
+/// **A shell at `Interval` logs no cell reading**: the cavity sweep
+/// decides cells at every level, and the engine takes them out of the
+/// caller's log itself (audit row F41), so the build's log holds none.
+/// Measured with that scope dropped, the tube's shell logs 1,027 of
+/// them and the vessel's 588.
 fn holds(what: &str, operand: Body<Interval>, t: f64) {
     let bracket = Bracket::open();
     let start = Instant::now();
     let shelled = shell(operand, t).unwrap_or_else(|e| panic!("{what} shells: {e:?}"));
     let built = start.elapsed();
-    let verdicts = bracket.finish().verdicts;
-    let gap = verdicts
-        .iter()
-        .filter(|v| v.predicate == SELF_INTERSECTION_GAP)
-        .count();
-    assert!(gap > 0, "{what}: the cavity gate decided no separation");
+    let logged = cell_readings(&bracket.finish());
+    assert_eq!(
+        logged, 0,
+        "{what}: the shell's log holds the cavity sweep's cell readings"
+    );
 
     let faces: Vec<FaceKey> = shelled.naming.inner.iter().map(|&(twin, _)| twin).collect();
     let side = Side {
@@ -331,7 +341,7 @@ fn holds(what: &str, operand: Body<Interval>, t: f64) {
     assert!(report.receipt.holds(), "{what}: the receipt adds up");
     assert_eq!(report.receipt.refused, 0, "{what}: nothing refused");
     println!(
-        "[shell4] {what}: shell {built:?}, cavity sweep {swept:?}, {gap} gap decides, {:?}",
+        "[shell4] {what}: shell {built:?}, cavity sweep {swept:?}, {:?}",
         report.receipt
     );
 }
@@ -406,30 +416,18 @@ fn klein_elbow<T: Decide + topo::AtRestPolicy>() -> Body<T> {
         .into_body()
 }
 
-/// `what` shells Ok at `T` with the self-intersection site decided
-/// during the build, the time printed.
+/// `what` shells Ok at `T`, the time printed.
 fn shells<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: Body<T>,
     t: f64,
 ) {
-    let bracket = Bracket::open();
     let start = Instant::now();
     let r = shell(body, t);
     let elapsed = start.elapsed();
-    let gap = bracket
-        .finish()
-        .verdicts
-        .iter()
-        .filter(|v| v.predicate == SELF_INTERSECTION_GAP)
-        .count();
     let scalar = core::any::type_name::<T>();
     assert!(r.is_ok(), "{what} shells at {scalar}: {:?}", r.err());
-    assert!(
-        gap > 0,
-        "{what} at {scalar}: the cavity gate decided no separation"
-    );
-    println!("[shell4] {what} at {scalar}: {elapsed:?}, {gap} gap decides");
+    println!("[shell4] {what} at {scalar}: {elapsed:?}");
 }
 
 /// **Valid bodies shell at both certifying scalars**: the tube, and the
@@ -488,7 +486,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
     );
     let slab = finished(
         "the turned slab",
-        topo::transform_rigid(&slab, &rigid, tol()).expect("a rigid turn"),
+        topo::transform_rigid(&slab, &rigid).expect("a rigid turn"),
         tol(),
     );
     match topo::subtract(&ring, &slab, tol()) {
@@ -502,7 +500,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
 /// meeting along the full meridian, and the departure certificate does
 /// not discharge that pair, the refusal the operand itself has at both
 /// scalars. The row waits on
-/// `work/clear/one-face-torus-cut-refuses-across-its-meridian.md`; when
+/// `work/embed/one-face-torus-cut-refuses-across-its-meridian.md`; when
 /// that row is fixed this cavity certifies and the row moves to a body
 /// the engine still refuses.
 #[test]

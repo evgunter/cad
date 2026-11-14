@@ -226,14 +226,14 @@ struct TorusWall {
 /// Every torus wall the body stores.
 fn tori(body: &Body<f64>) -> Vec<TorusWall> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
+    for (fk, _) in body.faces() {
         if let Some(Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        }) = body.get_surface(face.surface)
+        }) = body.face_surface(fk)
         {
             out.push(TorusWall {
                 minor: *minor_radius,

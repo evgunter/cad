@@ -395,7 +395,8 @@ fn side_surfaces<T: Real>(body: &Body<T>, e: EdgeKey) -> (SurfaceKey, SurfaceKey
         .surfaces()
 }
 
-/// The start and end vertices of `he`, `holder`'s field `field`.
+/// The start and end vertices of `he`, `holder`'s field `field`: its
+/// end read as [`Body::half_edge_end`] reads it, each hop a link.
 fn half_edge_ends<T: Real>(
     body: &Body<T>,
     he: HalfEdgeKey,
@@ -414,8 +415,12 @@ fn half_edge_ends<T: Real>(
     (h.start, next.start)
 }
 
-/// The two end vertices of `e`, a live edge the walk reached, in
-/// `he_plus`-forward order.
+/// **The two end vertices of `e`**, a live edge the kernel reached, in
+/// `he_plus`-forward order: [`Body::edge_vertices`]' reading, each hop a
+/// link. A miss is a kernel bug and panics naming the hop (D2 row 4); a
+/// key a caller passed reads [`Body::edge_vertices`], which answers
+/// `None`.
+#[track_caller]
 pub(crate) fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
     half_edge_ends(body, edge.he_plus, EntityId::Edge(e), "he_plus")

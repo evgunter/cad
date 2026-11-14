@@ -198,9 +198,9 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
         };
         let edge = named(&ev0, operand, |k| match k {
             EntityKey::Edge(e) => {
-                let he = body.get_edge(e).expect("an edge").he_plus;
-                let s = point(body.get_half_edge(he).expect("a half").start);
-                let t = point(body.half_edge_end(he).expect("an end"));
+                let (v0, v1) = body.edge_vertices(e).expect("an edge");
+                let s = point(v0);
+                let t = point(v1);
                 (near(s, side.edge.0) && near(t, side.edge.1))
                     || (near(s, side.edge.1) && near(t, side.edge.0))
             }
@@ -213,19 +213,19 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                 && p.z < side.zs.1 + 1e-9
         };
         let cup = named(&ev0, operand, |k| match k {
-            EntityKey::Face(f) => {
-                let face = body.get_face(f).expect("a face");
-                core::iter::once(face.outer)
-                    .chain(face.rings.iter().copied())
-                    .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
-                        topo::LoopBoundary::Empty { vertex } => in_cup(point(vertex)),
-                        topo::LoopBoundary::Cycle { first } => body
-                            .loop_cycle(first)
-                            .expect("a cycle")
-                            .into_iter()
-                            .all(|he| in_cup(point(body.get_half_edge(he).expect("he").start))),
-                    })
-            }
+            EntityKey::Face(f) => body
+                .face(f)
+                .expect("a face")
+                .loops()
+                .map(|(lk, _, _)| lk)
+                .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
+                    topo::LoopBoundary::Empty { vertex } => in_cup(point(vertex)),
+                    topo::LoopBoundary::Cycle { first } => body
+                        .loop_cycle(first)
+                        .expect("a cycle")
+                        .into_iter()
+                        .all(|he| in_cup(point(body.get_half_edge(he).expect("he").start))),
+                }),
             _ => false,
         });
         assert_eq!(

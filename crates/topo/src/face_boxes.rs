@@ -19,7 +19,7 @@ use bvh::{Aabb, Bvh};
 use geom_core::{Band, Bounds, Decide};
 
 use crate::body::Body;
-use crate::boolean::boxes::{face_box, sweep_pad};
+use crate::boxes::{face_box, sweep_pad};
 use crate::entity::FaceKey;
 
 /// A face's certified box as two corners, `lo ≤ hi` per axis — NaN at

@@ -1,4 +1,4 @@
-//! **A lofted circle meshes** (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
+//! **A lofted circle meshes** (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
 //!
 //! A circle section is two half-turn arcs, and `sweep::skin::segment_curve`
 //! cuts each into two rational quarter arcs joined at a knot of
@@ -18,10 +18,7 @@ use sweep::test_support::lofted_cylinder;
 fn walls<'m>(body: &topo::Body<f64>, mesh: &'m mesh::Mesh) -> Vec<&'m mesh::FacePatch> {
     mesh.patches
         .iter()
-        .filter(|p| {
-            let face = body.get_face(p.face).unwrap();
-            matches!(body.get_surface(face.surface), Some(Surface::Nurbs(_)))
-        })
+        .filter(|p| matches!(body.face_surface(p.face), Some(Surface::Nurbs(_))))
         .collect()
 }
 
@@ -240,7 +237,7 @@ fn uneven_station_round(r: [f64; 5], e: f64) -> topo::Body<f64> {
 }
 
 /// **Bands are not column-aligned, and the outcome stays sound**
-/// (`work/tess/the-lower-malign-arm-is-unwitnessed`). The round through
+/// (`work/tesslane/the-lower-malign-arm-is-unwitnessed`). The round through
 /// stations 0, 0.01, 0.02, 0.5, 1 has bands whose residual aspect over
 /// the face's lattice metric lies beyond 5 and below 1/5, the bands a
 /// column alignment would project. Each band keeps its own columns, and
@@ -269,7 +266,7 @@ fn an_uneven_station_loft_meshes_or_refuses_typed() {
 }
 
 /// **A band too narrow-columned for its rows takes rows**
-/// (`work/tess/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`).
+/// (`work/tesslane/cylinder-lofted-through-uneven-stations-refuses-at-fine-delta`).
 /// The same stations on a constant-radius cylinder spread their bands'
 /// aspects 166:1 (56 at the thin first span, 0.34 at the thick ones), and
 /// the one face-wide metric leaves the thick bands at residual 0.085: a

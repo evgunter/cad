@@ -1,12 +1,14 @@
 ---
 id: the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again
-kind: issue
+kind: unit
 title: Tier 3's wedge pass and the census each compose the dihedral class with the material pairing, the question geom_brep::classify_edge_wedge now answers in one door
-status: dispatched
+status: closed
+closed: 2026-11-14
 opened: 2026-11-02
 priority: P1
 cost: H
-branch: onedoor/wedge-fold
+branch: onedoor/wedge-fold-3
+pr: 6913
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.
@@ -90,3 +92,43 @@ What landed:
 **Owed by stage 3:** the blend's `classify_edge_wedge`, `EdgeWedge` and `PositiveArm`, and the second `sweep::blend::Convexity`.
 
 The free `classify_material_pairing_as` stays for the face-pair readers (`face-pair-contact-pairing-has-four-spellings`). The resolver's pass-over of `DIHEDRAL_SIGN` is a stopgap; its class is filed on DOCTAIL as `verdict-log-tells-no-validation-reading-from-a-building-decision`.
+
+## Stage 2 (`onedoor/wedge-fold-2`, PR 6869)
+
+What moves:
+- `topo/src/edge_wedge.rs` is the one door from an edge to its wedge. `edge_wedge_walk` builds the walk. `edge_wedge` composes the verdict: the one-surface seam by identity, else `geom_brep::edge_wedge_over` levered at the faces' extent. Check 4 reads this composition with its cached reach. `edge_wedge_description` reads what the verdict demands off the same walk (`WedgeWalk::description`, witnessed at the carrier's middle).
+- The extrude's struts and cap rims, and the revolve upgrade through `Body::dihedral_across`, read it. `SmoothAcross` is minted only on a two-plane π seam, and its margin is the fold's first station's.
+- The split finish's smooth arm reads it. An end or the lamina against a curved wall is a `KnifeEdge`. Every rung escalates as `SplitFinishError::WedgeEscalated`, which carries the escalation whole.
+- `must_carry_over_edge`'s first pass is the fold's class pass. Its in-band verdict is a `MustCarryEscalation`: the one `WedgeEscalation`, held with a `MustCarryRung` of exactly the rule's three rungs.
+- One map from a settled verdict to the description (`dihedral::Settled`). One station numbering (`interior_stations`).
+- `rules::edge_wedge`'s class read and its sign's arm are levered at the faces' extent.
+
+What retires: `dihedral_class`, `dihedral_decided`, `DihedralReading`, `MustCarryEscalation`'s first-order/second-order shape, and `SplitFinishError::{DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated}`.
+
+Still owed:
+- `rules::edge_wedge`'s sign stays on `enters_material`. It decides which body the split builds, and `dihedral_sign` is on the resolver's pass-over list (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`). The cone-apex point split stands.
+- `edge_join`'s vertex read: `work/onedoor/edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent.md`.
+
+## Stage 3 spec (ONEDOOR, 2026-11-13)
+
+- **What moves.** The blend's `classify_edge_wedge`, `EdgeWedge`, `PositiveArm` and the second `sweep::blend::Convexity` move onto the fold. The blend reads an edge's wedge through `topo::edge_wedge` / `edge_wedge_description` (or `geom_brep::edge_wedge_over` over a `WedgeWalk` where it holds no body), levered at the faces' extent, as every stage-2 reader does.
+- **What retires.** The blend's own class-and-sign composition, and the second `Convexity`, which folds into the one the fold reads. After this stage, no edge reader composes class and pairing outside the fold. The stage's sweep must show it, and a census row or source guard must keep it so.
+- **Behaviour.** A blend request on an edge the fold reads in band or mixed refuses typed, carrying the fold's escalation whole, as the split finish does. Every input a blend built before must still build, unless the PR body names it. A refusal on a valid input is a STOP, to report.
+- **Letter M, tier dual.** Stage 1 set the design and stage 3 repoints, as stage 2 did. It is dual because it moves the blend's wedge reading, which sweep, editor-core and `pncad` reach. Under the protocol, M means sequential reviews.
+
+## Stage 3 landed (PR 6913, 2026-11-14); the row closes
+
+The blend reads an edge's wedge through `topo::edge_wedge_as`. `classify_edge_wedge`, `EdgeWedge`, `EdgeWedgeEscalation`, `PositiveArm`, `battery::{wedge_at, knife_end, LinkWedge}`, `KnifeRefusal::NeverOpens` and sweep's own `Convexity` are retired. No edge reader outside the fold composes class with pairing. The PR's sweep shows it, and a source scan pins it for the blend (`the_blend_composes_no_wedge_of_its_own`).
+
+**A deviation from the Design's one name.** The fold's sign and end decisions are recorded under the reader's names, `geom_brep::FoldNames { sign, end }`:
+- the blend passes `{ fillet3_convexity_sign, fillet3_knife_end }`;
+- tier 3 and the constructors pass `FoldNames::SHAPE` (`dihedral_sign`, `material_cusp_side`).
+
+A blend convexity or knife flip decides which body is built, so it must stay visible to `editor_core::resolve::first_cause`, which passes over `dihedral_sign`. R1 found the MAJOR; the ruling follows stage 2's split-rule precedent. The class (`dihedral_wedge`) and pairing (`material_wedge_side`) stay on tier 3's shared names, and the DOCTAIL row records that neither may join the pass-over list.
+
+**Cost:** the blend battery is about 1.8× slower, roughly 16 µs per requested edge, because the fold reads every interior station.
+
+**What stays owed is filed elsewhere:**
+- `rules::edge_wedge`'s sign on `enters_material`, freed only when a decision is marked at its source (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`);
+- `edge_join`'s vertex read (`edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`);
+- whether `docs/SELECT-DESIGN.md`'s GS-Q2 should be reopened, now that its one-point ground is gone (`select-gs-q2-ground-no-longer-holds`).

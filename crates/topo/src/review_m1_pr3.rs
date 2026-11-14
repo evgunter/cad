@@ -1285,10 +1285,9 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     // he_plus runs target anchor (strut_a tip) → ring anchor (strut_b
     // tip).
     assert_eq!(
-        body.get_half_edge(join.he_plus).unwrap().start,
-        strut_a.vertex
+        body.edge_vertices(join.edge),
+        Some((strut_a.vertex, strut_b.vertex))
     );
-    assert_eq!(body.half_edge_end(join.he_plus), Some(strut_b.vertex));
     assert_eq!(
         euler_counts(&body),
         EulerCounts {

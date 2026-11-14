@@ -894,10 +894,7 @@ fn far_end_anchor_makes_its_authored_point_a_vertex() {
     let lowered = pinned(lowered);
     validate_ok(&lowered);
     assert!(
-        lowered
-            .vertices()
-            .iter()
-            .any(|v| v.x.to_bits() == far.x.to_bits() && v.y.to_bits() == far.y.to_bits()),
+        lowered.vertices().iter().any(|v| v.same_bits(far)),
         "the authored far vertex must be on the path verbatim"
     );
 }

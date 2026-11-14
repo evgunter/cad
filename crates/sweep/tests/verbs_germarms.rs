@@ -386,7 +386,6 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
             &Affine3::rotation_about_axis(o, Vec3::new(1.0, 0.0, 0.0), 0.3),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = topo::transform_rigid(
@@ -395,7 +394,6 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
             &Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), 0.5),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = finished("the turned bar", bar, tol);
@@ -455,11 +453,9 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
         let body = out.body;
         let wall = body
             .faces()
-            .find(|(_, f)| {
-                let cylinder = matches!(
-                    body.get_surface(f.surface),
-                    Some(topo::Surface::Cylinder { .. })
-                );
+            .find(|(fk, f)| {
+                let cylinder =
+                    matches!(body.face_surface(*fk), Some(topo::Surface::Cylinder { .. }));
                 let outer_edges = match body.get_loop(f.outer).map(|l| l.boundary) {
                     Some(topo::LoopBoundary::Cycle { first }) => {
                         body.loop_cycle(first).map_or(0, |c| c.len())
@@ -481,7 +477,7 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
             "{what}: as built"
         );
         let flipped = body
-            .flipped_face_sense_for_tests(wall)
+            .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
             .expect("live face key");
         let errs = topo::validate_geometric(&flipped, tol)
             .expect_err(&format!("{what}: a flipped wall must refuse"));
@@ -716,7 +712,6 @@ fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&
             ),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = finished("the turned bar", bar, tol);

@@ -73,8 +73,7 @@ fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
         check_mesh(&mesh).expect("watertight");
         let mut worst = 0.0f64;
         for patch in &mesh.patches {
-            let face = body.get_face(patch.face).unwrap();
-            let Some(Surface::Nurbs(payload)) = body.get_surface(face.surface) else {
+            let Some(Surface::Nurbs(payload)) = body.face_surface(patch.face) else {
                 continue;
             };
             let (u0, u1) = payload.knots_u_f64_interim().domain();

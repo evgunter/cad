@@ -24,8 +24,7 @@ fn spline_edges(body: &Body<f64>) -> SecondaryMap<EdgeKey, SplineEdge> {
             let Curve3::Nurbs(_) = curve.carrier() else {
                 return None;
             };
-            let start = body.get_half_edge(e.he_plus)?.start;
-            let end = body.half_edge_end(e.he_plus)?;
+            let (start, end) = body.edge_vertices(k)?;
             Some((k, (curve.carrier().clone(), curve.params(), [start, end])))
         })
         .collect()
@@ -41,9 +40,9 @@ fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 /// The cube's planar face whose chart normal is `normal`.
 fn face_on(body: &Body<f64>, normal: [f64; 3]) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal: n, .. })
                     if (n.x - normal[0]).abs() + (n.y - normal[1]).abs() + (n.z - normal[2]).abs() < 1e-12
             )

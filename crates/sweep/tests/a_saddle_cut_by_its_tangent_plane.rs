@@ -4,9 +4,12 @@
 //! `y ≥ 0` is tangent to it at the origin and cuts it along the lines
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
-//! tangency, so the pair is a spline × plane tangent section, which no
-//! lane builds yet: each op refuses typed at the spline × plane pair, in
-//! the join, where no frame names the wall × plane germ pair's section. Its closed
+//! tangency, so the pair is a spline × plane section with a node at the
+//! origin, which no lane builds yet: each op refuses typed at the spline
+//! × plane pair, in the join, where its section's carry lists the four
+//! arcs to the node and carries none of them
+//! (`GermSectionUnbuilt`, `NoCarrier::NodeArc`; the unit
+//! `a-spline-implicit-arc-is-carried-to-its-node` carries them). Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
@@ -56,7 +59,7 @@ fn above() -> AtRestBody<f64> {
 fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
     let walls: Vec<_> = s
         .faces()
-        .filter(|(_, fd)| match s.get_surface(fd.surface) {
+        .filter(|(fk, _)| match s.face_surface(*fk) {
             Some(geom::Surface::Nurbs(n)) => {
                 n.control().iter().all(|p| (p.y - p.x * p.z).abs() < 1e-12)
             }
@@ -72,9 +75,9 @@ fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
 fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
     let faces: Vec<_> = h
         .faces()
-        .filter(|(_, fd)| {
+        .filter(|(fk, _)| {
             matches!(
-                h.get_surface(fd.surface),
+                h.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.y.abs() < 1e-12 && normal.y.abs() > 1.0 - 1e-12
             )
@@ -86,15 +89,14 @@ fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
 }
 
 /// **Every op, either way round, refuses at the spline × plane pair**:
-/// in the join, at the germ frame of the saddle's wall against the
-/// half-space's face `y = 0`
-/// (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`),
+/// in the join, where the carry of the saddle's wall against the
+/// half-space's face `y = 0` lists the arcs to its node and carries none,
 /// the two faces named by identity in the operands' order.
 /// Its held pierce reads first: the block's corner edges pierce the
 /// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
 /// its carrier.
 #[test]
-fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_germ_frame_under_every_op() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
     let (s, h) = (saddle_block(), above());
     let (wall, cut) = (saddle_wall(&s), cut_face(&h));
     // The A face first: the saddle's wall in `s ∪ h`, the cut face in
@@ -112,8 +114,15 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_germ_frame_under_every_op() 
         };
         matches!(
             r,
-            Err(BooleanError::GermFrameUnsupported { a_face, a_kind: ak, b_face, b_kind: bk })
-                if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
+            Err(BooleanError::GermSectionUnbuilt {
+                a_face,
+                a_kind: ak,
+                b_face,
+                b_kind: bk,
+                why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::Unminted(
+                    geom_brep::NoCarrier::NodeArc
+                )),
+            }) if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
         )
     };
     for (op, r, saddle_first) in [

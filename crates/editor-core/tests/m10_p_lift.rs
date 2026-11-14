@@ -352,7 +352,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
 fn the_evaluation_door_runs_the_lift_at_dual() {
     use geom_core::Dual64;
     let doc = plate();
-    let dual = evaluate::<Dual64>(
+    let dual = editor_core::test_support::evaluate_bound::<Dual64>(
         &doc.doc,
         None,
         &CancelToken::new(),
@@ -594,7 +594,7 @@ fn at_sym_a_fixed_box_is_the_build() {
 /// Each node's content key and the first profile node's verdict log, for
 /// `doc` at `T` over an EMPTY box or none, in a deferring session at the
 /// door's budget (a no-op at a numeric scalar).
-fn under_an_empty_box<T: editor_core::EvalScalar>(
+fn under_an_empty_box<T: editor_core::test_support::AnyEvaluate>(
     doc: &editor_core::ProfileDoc,
     boxed: bool,
 ) -> (Vec<Option<editor_core::ContentKey>>, Vec<String>) {
@@ -614,7 +614,13 @@ fn under_an_empty_box<T: editor_core::EvalScalar>(
         geom_core::SymRules::shipped(),
         editor_core::drive::DEFAULT_SYM_RETRY,
         || {
-            let ev = evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness());
+            let ev = editor_core::test_support::evaluate_any::<T>(
+                doc,
+                None,
+                &CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            );
             let profile = *doc
                 .ids()
                 .iter()

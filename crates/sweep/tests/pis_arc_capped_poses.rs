@@ -269,10 +269,12 @@ fn probes(case: &Case) -> Vec<(Point3<f64>, bool)> {
 /// refusal must be an in-band escalation (the solid walk's own, or the
 /// in-face walk's, which arrives as `Loop(Escalated)`), the honest
 /// posture for a margin it cannot decide, and at most one probe in
-/// twenty per cell. Measured: at ε = 1e-6 the torus barrel at the
-/// (1,2,3) pose escalates 5 of its 117 probes on
-/// `point_in_arc_loop_conic_disc` — an in-face ray passing within a
-/// band's width of tangent to the 3/64 m cap circle.
+/// twenty per cell. Where they arise, as at ε = 1e-6 on the torus barrel
+/// at the (1,2,3) pose, it is an in-face ray passing within a band's
+/// width of tangent to the 3/64 m cap circle, on the plane door's
+/// `plane_crossing_belly_graze`. (The count measured there was taken on
+/// the unit-circle chord's margin, before the ray's crossing moved onto
+/// the door, so it is not restated.)
 #[test]
 fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -285,12 +287,8 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
             case.name
         );
         for (pose, map) in poses() {
-            let posed = transform_rigid(
-                &case.body,
-                &geom_core::test_support::rigid(&map, tol()),
-                tol(),
-            )
-            .unwrap();
+            let posed =
+                transform_rigid(&case.body, &geom_core::test_support::rigid(&map, tol())).unwrap();
             let mut refused = 0;
             for &(p, t) in &probes {
                 let want = if t {
@@ -345,9 +343,9 @@ type FaceRow<'a> = (
 fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::FaceKey {
     let hits: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal: n, .. })
                     if n.cross(normal).norm() < 1e-12 && (at - *origin).dot(*n).abs() < 1e-12
             )
@@ -586,8 +584,11 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
 
     // The face's boundary, sampled from each edge's carrier, in the
     // plane's (across, up) coordinates.
-    let loops: Vec<_> = core::iter::once(data.outer)
-        .chain(data.rings.iter().copied())
+    let loops: Vec<_> = cavity
+        .face(spiric_face)
+        .expect("face")
+        .loops()
+        .map(|(lk, _, _)| lk)
         .collect();
     let mut segments = Vec::new();
     let mut spiric = None;
@@ -808,8 +809,8 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap();
+            let posed =
+                transform_rigid(&half, &geom_core::test_support::rigid(&map, tol())).unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -846,8 +847,8 @@ fn the_cut_cylinder_reads_its_truth() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap();
+            let posed =
+                transform_rigid(&half, &geom_core::test_support::rigid(&map, tol())).unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -889,8 +890,7 @@ fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
     let half = tilted_cut_cylinder(true);
     let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
     for (pose, map) in poses() {
-        let posed =
-            transform_rigid(&half, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap();
+        let posed = transform_rigid(&half, &geom_core::test_support::rigid(&map, tol())).unwrap();
         let below = point_in_solid(&posed, map.transform_point(at(1.2)), band, tol());
         assert!(
             !matches!(
@@ -951,8 +951,8 @@ fn iso_bounded_walls_answer_through_their_rectangle() {
     {
         let mut answered = 0;
         for (pose, map) in poses() {
-            let posed = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap();
+            let posed =
+                transform_rigid(&body, &geom_core::test_support::rigid(&map, tol())).unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -1206,8 +1206,7 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
     for case in tilted_cut_cases() {
         let mut sections = 0;
         for (key, face) in case.body.faces() {
-            let Some(geom::Surface::Plane { origin, normal, .. }) =
-                case.body.get_surface(face.surface)
+            let Some(geom::Surface::Plane { origin, normal, .. }) = case.body.face_surface(key)
             else {
                 continue;
             };
@@ -1242,12 +1241,15 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
 /// An escalation this row admits: a trim row's margin strictly inside
 /// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
 /// a boundary edge, which is a typed refusal and not an answer. One row
-/// only: a planar face's arc window (`point_in_arc_loop_conic_window`,
-/// which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
+/// only: a planar face's arc span, where a ray's root lies on the arc
+/// (the plane door's span reading, `curve_pair_span_end_chord` or
+/// `curve_pair_span_end_side`, which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
 fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(diag.predicate, Some("point_in_arc_loop_conic_window"))
-        && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    matches!(
+        diag.predicate,
+        Some("curve_pair_span_end_chord" | "curve_pair_span_end_side")
+    ) && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// Each shape's answered-count floor and escalation cap. The floor is
@@ -1281,12 +1283,8 @@ fn every_tilted_cut_wall_reads_its_truth() {
     for case in tilted_cut_cases() {
         let (mut answered, mut wrong, mut escalated) = (0, 0, 0);
         for (pose, map) in poses() {
-            let posed = transform_rigid(
-                &case.body,
-                &geom_core::test_support::rigid(&map, tol()),
-                tol(),
-            )
-            .unwrap();
+            let posed =
+                transform_rigid(&case.body, &geom_core::test_support::rigid(&map, tol())).unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {

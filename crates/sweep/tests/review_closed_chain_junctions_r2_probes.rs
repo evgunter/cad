@@ -35,15 +35,11 @@ const R: f64 = 0.5;
 const RHO: f64 = 0.1;
 const L: f64 = 2.0;
 
-/// **An edge's two vertices, read off the body** — `he_plus`'s start
-/// and its mate's start. Independent of `Link::start`/`Link::end`,
-/// which is what the pairing row under review reads.
+/// **An edge's two vertices, read off the body** (`Body::edge_vertices`).
+/// Independent of `Link::start`/`Link::end`, which is what the pairing
+/// row under review reads.
 fn endpoints(body: &Body<f64>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    let ed = body.get_edge(e).expect("the edge is in the body");
-    (
-        body.get_half_edge(ed.he_plus).expect("he_plus").start,
-        body.get_half_edge(ed.he_minus).expect("he_minus").start,
-    )
+    body.edge_vertices(e).expect("the edge is in the body")
 }
 
 /// Every junction of `chain` names exactly the two requested links the

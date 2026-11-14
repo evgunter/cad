@@ -1557,7 +1557,15 @@ impl<T: Decide> Body<T> {
         // Decided here, where both keys resolve: the kills below may
         // reap the dying face's surface, and a decision carried out
         // of the plan phase has no order to keep against them.
-        let remnant_changes_chart = !kill.one_payload;
+        // The remnant's rows stand on the surviving face where the two
+        // faces are on one chart and on one side of it.
+        let remnant_changes_chart = !kill.one_payload || {
+            let (dying, surviving) = (
+                proven(&self.faces, f1, EntityId::Face),
+                proven(&self.faces, f2, EntityId::Face),
+            );
+            !self.sides_agree(surviving.surface, dying.sense, surviving.sense)
+        };
         // `b = next(he)` is the cycle's second member, so the walk
         // proved it and it wants no check of its own — and it is
         // `Option` rather than a key beside a `he_alone` flag because
@@ -1824,7 +1832,8 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, None, RechartDoor::Mfkrh)?;
+        let created =
+            self.mfkrh_with(ring, surface, ParentSide::Against, None, RechartDoor::Mfkrh)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh");
         Ok(created)
@@ -1840,20 +1849,81 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, Some(tol), RechartDoor::Mfkrh)?;
+        let created = self.mfkrh_with(
+            ring,
+            surface,
+            ParentSide::Against,
+            Some(tol),
+            RechartDoor::Mfkrh,
+        )?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_minting");
         Ok(created)
     }
 
-    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door, and the door its
-    /// re-chart refusals name. The door that calls it declares the
-    /// postcondition.
+    /// **A ring promoted as its face's own region**, keys only:
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s surgery on the ring's own chart, the new
+    /// face keeping the old face's sense. A ring whose left is a piece
+    /// of its face (a region a cut parted from it, not a hole of it)
+    /// bounds that piece as it stands, so its rows stand too, joints on
+    /// the chart's singular set included ([`Body::sides_agree`]):
+    /// nothing is decided.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s.
+    pub(crate) fn mfkrh_piece(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh_piece_with(ring, None, "mfkrh_piece")
+    }
+
+    /// [`Body::mfkrh_piece`] at the band door: the same surgery, and
+    /// the site mint [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting) runs, at `tol`'s
+    /// band, for a ring that stores no rows yet.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting)'s.
+    pub(crate) fn mfkrh_piece_minting(
+        &mut self,
+        ring: LoopKey,
+        tol: Tol,
+    ) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh_piece_with(ring, Some(tol), "mfkrh_piece_minting")
+    }
+
+    /// The two piece doors' one body, declaring `door`'s postcondition.
+    fn mfkrh_piece_with(
+        &mut self,
+        ring: LoopKey,
+        tol: Option<Tol>,
+        door: &'static str,
+    ) -> Result<MfkrhCreated, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mfkrh_with(
+            ring,
+            FaceSurface::Inherit,
+            ParentSide::With,
+            tol,
+            RechartDoor::Mfkrh,
+        )?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, door);
+        #[cfg(not(debug_assertions))]
+        let _ = door;
+        Ok(created)
+    }
+
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s plan and surgery, with the side of the ring the
+    /// new face is on (`Against` at the public doors: a hole promoted),
+    /// the band its site mint runs at, or none for the keys-only door,
+    /// and the door its re-chart refusals name. The door that calls it
+    /// declares the postcondition.
     fn mfkrh_with(
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
+        side: ParentSide,
         tol: Option<Tol>,
         door: RechartDoor,
     ) -> Result<MfkrhCreated, EulerOpError> {
@@ -1883,12 +1953,8 @@ impl<T: Decide> Body<T> {
         // normal (interior-left), and as an outer loop it winds
         // counter-clockwise about the new face's, so on the parent's
         // chart the new face takes the parent's bit negated.
-        let resolved = self.resolve_face_surface(
-            &surface,
-            old_face,
-            (inherit_surface, inherit_sense),
-            ParentSide::Against,
-        )?;
+        let resolved =
+            self.resolve_face_surface(&surface, old_face, (inherit_surface, inherit_sense), side)?;
         let ring_halves = self.whole_cycle(ring);
         self.vouch_move(
             door,
@@ -1899,14 +1965,17 @@ impl<T: Decide> Body<T> {
             resolved.on_parent_chart,
             None,
         )?;
+        let stand = resolved.on_parent_chart
+            && self.sides_agree(inherit_surface, inherit_sense, resolved.sense);
         let rows = self.plan_moved_rows(
             &ring_halves,
-            resolved.on_parent_chart,
+            stand,
             old_face,
             |body| {
                 body.new_site_face(
                     old_face,
                     &surface,
+                    side,
                     true,
                     ring_halves
                         .iter()
@@ -1940,7 +2009,7 @@ impl<T: Decide> Body<T> {
         };
         loop_data.face = face;
         self.drop_null_face_records_naming(ring);
-        if !resolved.on_parent_chart {
+        if !stand {
             self.drop_rows(ring_halves);
         }
         crate::pcurves::apply_site_rows(self, rows, None);
@@ -1966,6 +2035,7 @@ impl<T: Decide> Body<T> {
                 surface: geom::Surface::nurbs_placeholder(),
                 sense,
             },
+            ParentSide::Against,
             None,
             RechartDoor::MfkrhPlug,
         )?;
@@ -2434,8 +2504,10 @@ mod tests {
             Some(vec![seg.he_plus, seg.he_minus])
         );
         // The segment now runs seed.vertex → strut.vertex.
-        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
-        assert_eq!(body.half_edge_end(seg.he_plus), Some(strut.vertex));
+        assert_eq!(
+            body.edge_vertices(seg.edge),
+            Some((seed.vertex, strut.vertex))
+        );
     }
 
     #[test]
@@ -3944,8 +4016,8 @@ mod tests {
         body.mev_line(fan, Point3::new(1.2, 0.1, 0.0), tol).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let (he, m) = (circle.he_plus, circle.he_minus);
-        let x = body.get_half_edge(he).unwrap().start;
-        assert_eq!(body.get_half_edge(m).unwrap().start, x, "both ends are `x`");
+        let (x, y) = body.edge_vertices(circle.edge).unwrap();
+        assert_eq!(y, x, "both ends are `x`");
         let next_he = body.get_half_edge(he).unwrap().next;
         let next_m = body.get_half_edge(m).unwrap().next;
         assert!(

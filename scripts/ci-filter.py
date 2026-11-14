@@ -490,8 +490,13 @@ def _compiled_markdown_readers(root: str) -> dict[str, set[str]]:
                         text = fh.read()
                 except OSError as exc:
                     raise Bail(f"cannot read {src}: {exc}") from exc
-                for m in _INCLUDE_RE.finditer(text):
-                    lit = m.group(1)
+                # Located in code alone — a comment or a string that spells
+                # `include!(` is not one — and read where literals are kept.
+                code = _rust_code_view(text)
+                bare = _rust_code_view(text, blank_literals=True)
+                for found in _INCLUDE_RE.finditer(bare):
+                    m = _INCLUDE_RE.match(code, found.start())
+                    lit = m.group(1) if m else None
                     if lit is None:
                         raise Bail(
                             f"{os.path.relpath(src, root)} has an `include!` whose argument is not a "
@@ -694,10 +699,15 @@ _BIND_RE = re.compile(
 _GROUP_HEAD_RE = re.compile(r"(concat|format|vec)!\s*$")
 
 
-def _rust_code_view(text: str) -> str:
+def _rust_code_view(text: str, blank_literals: bool = False) -> str:
     """Comments blanked, string literals kept — the same view this tree's own
     source-text guards read through `test_utils::source::code_and_literals`.
-    A path spelled in a doc comment is prose, not a read."""
+    A path spelled in a doc comment is prose, not a read.
+
+    With `blank_literals`, a string literal's contents are blanked too (its
+    quotes kept), the view of `test_utils::source::code_only`: a macro call
+    spelled inside a string is text, not code. Every view blanks in place,
+    so an offset into one indexes the others."""
     out: list[str] = []
     i, n = 0, len(text)
     while i < n:
@@ -712,7 +722,11 @@ def _rust_code_view(text: str) -> str:
                     j += 1
                     break
                 j += 1
-            out.append(text[i:j])
+            if blank_literals and j - i >= 2:
+                inner = "".join(ch if ch == "\n" else " " for ch in text[i + 1 : j - 1])
+                out.append('"' + inner + '"')
+            else:
+                out.append(text[i:j])
             i = j
             continue
         if text.startswith("//", i):
@@ -4087,6 +4101,19 @@ def selftest() -> None:
         _expect("an include! that cannot be read must not leave the docs tier open",
                 _selftest_invoke(t, ["--files", "-"], "docs/PROSE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
+
+    # An `include!(` spelled in a comment or inside a string literal is text,
+    # not an include: it neither names a page nor poisons the derivation, so a
+    # docs-only change stays docs.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "src", "gen.rs"), "w") as fh:
+            fh.write('// include!(concat!("x"))\n'
+                     'fn f(s: &str) -> bool { s.contains("include!(") '
+                     '|| s.contains("include_str!(\\"a\\")") }\n')
+        _expect("an include! inside a comment or a string is no include",
+                _selftest_invoke(t, ["--files", "-"], "docs/PROSE.md\n"),
+                {"TIER": "docs"})
 
     # --- THE DERIVATION ITSELF FAILING TO PARSE, on the python side. Its own
     # fixture, for the same reason the `include!` case above has one: this is

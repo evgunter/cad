@@ -60,8 +60,36 @@ pub fn repr_bits<T: crate::Real>(x: &T) -> Option<ScalarBits> {
 /// Bit-identity of two same-type scalars: `Some(true)` iff their
 /// descriptions are bit-equal; `None` if the type has no channel
 /// (callers take the never-equal branch).
+///
+/// A `Sym` over `f64` or the interval scalar has no fixed-size
+/// [`ScalarBits`], so [`repr_bits`] answers `None` for it, but its
+/// description is still one: the same node (content-addressed, so the
+/// same expression) and a bit-equal numeric channel. Any other `Sym`
+/// value type has no channel.
+///
+/// **An identity, never a verdict.** A caller reads it only to choose
+/// between two sound paths, where a false "no" costs the slower one:
+/// it decides nothing about geometry, and a coincidence is still its
+/// margin's to decide (D10).
 pub fn eq_bits<T: crate::Real>(a: &T, b: &T) -> Option<bool> {
+    if let Some(same) = eq_sym::<f64, T>(a, b).or_else(|| eq_sym::<crate::Interval, T>(a, b)) {
+        return same;
+    }
     Some(repr_bits(a)? == repr_bits(b)?)
+}
+
+/// [`eq_bits`] of two `Sym<V>`s, or `None` when `T` is not `Sym<V>`.
+fn eq_sym<V: crate::Real, T: crate::Real>(a: &T, b: &T) -> Option<Option<bool>> {
+    let (a, b): (&dyn core::any::Any, &dyn core::any::Any) = (a, b);
+    let (a, b) = (
+        a.downcast_ref::<crate::Sym<V>>()?,
+        b.downcast_ref::<crate::Sym<V>>()?,
+    );
+    Some(if a.node() == b.node() {
+        eq_bits(&a.value, &b.value)
+    } else {
+        Some(false)
+    })
 }
 
 #[cfg(test)]
@@ -87,6 +115,26 @@ mod tests {
         use crate::Real;
         let a = crate::Dual64::from_f64(1.0);
         assert_eq!(eq_bits(&a, &a), None);
+    }
+
+    /// A `Sym` is its node and its value: the same node and value bits
+    /// are one description, and another node is another, whatever the
+    /// value reads.
+    #[test]
+    fn sym_channel_reads_the_node_and_the_value() {
+        use crate::{ParamSymbol, Real, Sym};
+        let x = Sym::<f64>::param(ParamSymbol::new(0), 0.5);
+        assert_eq!(eq_bits(&x, &x), Some(true));
+        assert_eq!(eq_bits(&x, &Sym::<f64>::from_f64(0.5)), Some(false));
+        let i = Sym::<crate::Interval>::from_f64(2.0);
+        assert_eq!(
+            eq_bits(&i, &Sym::<crate::Interval>::from_f64(2.0)),
+            Some(true)
+        );
+        assert_eq!(
+            eq_bits(&i, &Sym::<crate::Interval>::from_f64(3.0)),
+            Some(false)
+        );
     }
 
     #[test]

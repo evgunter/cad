@@ -803,8 +803,8 @@ impl BoxAxis {
         lo <= 0.0 && 0.0 <= hi
     }
 
-    /// The axis midpoint, `0.5 * (lo + hi)` — a pure function of the
-    /// two endpoints, so the same axis bisects the same way on every
+    /// The axis midpoint, [`geom::mid_param`] of the two endpoints —
+    /// a pure function of them, so the same axis bisects the same way on every
     /// machine and in every schedule (D9).
     ///
     /// ONE home, because two consumers must not drift apart:
@@ -815,7 +815,7 @@ impl BoxAxis {
     /// the splits were.
     pub fn midpoint(&self) -> f64 {
         let (lo, hi) = self.span();
-        0.5 * (lo + hi)
+        geom::mid_param(lo, hi)
     }
 }
 
@@ -1017,9 +1017,9 @@ impl ParamBox {
     /// split (a midpoint that lands on an endpoint — the `f64` grid's
     /// own floor).
     ///
-    /// The midpoint is `0.5 * (lo + hi)`, a pure function of the two
-    /// endpoints, so the same box splits into the same two halves on
-    /// every machine and in every schedule (D9).
+    /// The midpoint is [`BoxAxis::midpoint`]'s, so the same box splits
+    /// into the same two halves on every machine and in every schedule
+    /// (D9).
     pub fn split(&self, name: VarId) -> Option<(Self, Self)> {
         let BoxAxis::Varying { lo, hi } = *self.axes.get(&name)? else {
             return None;
@@ -1405,7 +1405,7 @@ pub fn sample_offset(
             let target = u * total;
             let (mut z_lo, mut z_hi) = (a, b);
             loop {
-                let mid = 0.5 * (z_lo + z_hi);
+                let mid = geom::mid_param(z_lo, z_hi);
                 if mid <= z_lo || mid >= z_hi {
                     return Ok(sigma * z_hi);
                 }
@@ -1429,7 +1429,7 @@ fn std_normal_quantile(u: f64) -> f64 {
     let target = u.clamp(0.0, 1.0);
     let (mut lo, mut hi) = (-Z_BRACKET, Z_BRACKET);
     loop {
-        let mid = 0.5 * (lo + hi);
+        let mid = geom::mid_param(lo, hi);
         if mid <= lo || mid >= hi {
             return hi;
         }
@@ -1707,7 +1707,7 @@ fn quantile_z(mass: f64) -> f64 {
     );
     let (mut lo, mut hi) = (0.0, Z_BRACKET);
     loop {
-        let mid = 0.5 * (lo + hi);
+        let mid = geom::mid_param(lo, hi);
         if mid <= lo || mid >= hi {
             return hi;
         }

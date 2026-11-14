@@ -371,7 +371,7 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
 // ---- the lanes the hosted matrix does not draw: Dual64 ----
 
 fn run_dual(doc: &ProfileDoc) -> editor_core::Evaluation<geom_core::Dual64> {
-    editor_core::evaluate::<geom_core::Dual64>(
+    editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         doc,
         None,
         &editor_core::CancelToken::new(),

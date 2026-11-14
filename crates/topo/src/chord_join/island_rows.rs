@@ -9,6 +9,15 @@
 
 use super::*;
 
+/// **The loop rule's start**: the chart coordinate a sheet's loop
+/// starts from, `at` at sense `true` and its mirror at sense `false`, so
+/// the loop is walked from the other ruling or meridian and the face is
+/// the region it bounds at either sense (module docs). The one spelling
+/// of the rule the sheet builders read.
+pub(super) fn loop_start(sense: bool, at: f64) -> f64 {
+    if sense { at } else { -at }
+}
+
 /// **The points lie in the face**: each is placed `In` the face by the
 /// face's own region door, read on a copy of the face holding its outer
 /// loop alone, or on its boundary or in band of it where the row sets an

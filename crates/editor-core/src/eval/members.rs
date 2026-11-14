@@ -9,10 +9,10 @@
 //! operation it reads as a member replaced by that member
 //! ([`overlay`]). A seat that reads a family whole — a member seat of
 //! a `union`, `intersect` or `assemble`, or an indexed read
-//! ([`crate::repetition::takes_whole`]) — and a selection naming its
-//! members read the family the member stands for
-//! ([`super::NodeValue::whole`]), so one operation may read a family
-//! plainly at one seat and whole at another. A member that refuses
+//! ([`crate::repetition::takes_whole`]), a selection's among them —
+//! reads the family the member stands for ([`super::NodeValue::whole`]),
+//! so one operation may read a family plainly at one seat and whole at
+//! another. A member that refuses
 //! refuses the family, naming the member.
 //!
 //! A family of bodies is its members' bodies as an `Instances`

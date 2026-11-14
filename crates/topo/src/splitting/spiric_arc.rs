@@ -218,12 +218,7 @@ mod tests {
     use crate::splitting::pieced_arc::{ArcHit, ArcRows};
     use geom_core::{Interval, Tol};
 
-    const ROWS: ArcRows = ArcRows {
-        end: "test_spiric_end",
-        clear: "test_spiric_clear",
-        on: "test_spiric_on",
-        leaf: "test_spiric_leaf",
-    };
+    const ROWS: ArcRows = crate::rows::TEST_SPIRIC_ARC;
 
     /// The oval `R = 2, r = 0.5` cut at `x = 0.8`, in the plane's
     /// `(y, z)` coordinates, and its arc `v ∈ [−2, 2]`.

@@ -2,10 +2,12 @@
 id: main-red-the-plates-sym-walk-ledger-reads-12-more-forms
 kind: issue
 title: main is red (slow set): m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row, the plate's Plain/Decision and Early/Decision lines read 12 more forms than pinned
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
+closed: 2026-11-09
+pr: 6663
 ---
 
 
@@ -29,3 +31,16 @@ Main's own run shows the move predates it.
 The row's docs pin main's measurement "not explained" and name the PRs
 that moved it before. What moved it this time is unread: bisect main
 between the last commit that touched `PLATE_LEDGER` and `8ae2b9bfc`.
+
+**Still red at main `2fee45b9`** (measured by ONECOPY's
+`onecopy/length-rule`, PR 6628, with main's `crates/` checked out):
+`the_forms_the_plates_walks_build_are_pinned` reads largest form 38
+(pinned 28) and `Plain/Decision calls 1203 forms 53637 frozen 62`
+(pinned `forms 51397 frozen 36`), `Plain/Assertion … forms 9172`,
+`Early/Decision … forms 42505`, `Early/Assertion … forms 10583`,
+`Door/Decision … forms 13458`. PR 6628 moves only the
+Plain/Decision, Plain/Assertion and Early/Assertion lines further
+(53631, 9114, 10519; a refused direction reads its norm once), and
+leaves the plate pin for this row's owner to re-derive.
+
+**Closed by PR 6663** (2026-11-09): bisected to PRs 6568, 6594, 6588 and 6628, every call count on the plate ledger and every plate decision unmoved at these ε; re-pinned at all three ε at main as of 2026-11-09, after two more undisclosed BOXES moves of `Plain/Decision` that landed while the PR was open: PR 6639 (`bc04d87117`) and PR 6631 (`296779102b`). The cost 6588 added is filed on BOXES (`work/boxes/cover-readers-moved-the-plates-sym-ledger-undisclosed.md`).

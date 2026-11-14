@@ -79,8 +79,7 @@ impl Pose {
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), self.turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), self.tilt);
         let placed =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol)
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol)).unwrap();
         (finished("the tube", placed, tol), vt, shared)
     }
 }
@@ -145,7 +144,7 @@ fn a_tilted_tube_builds_at_its_closed_form() {
 /// sound at its closed form (`sphere-face-with-a-hole-has-no-closed-form`,
 /// closed by PR 4573), read without a mesh: the mesher has no lane for a
 /// curved face with a ring
-/// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
+/// (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();
@@ -170,7 +169,6 @@ fn placed_tube(a: f64, z0: f64, len: f64, place: Affine3<f64>) -> AtRestBody<f64
     let body = topo::transform_rigid(
         &tube_at(a, z0, len),
         &geom_core::test_support::rigid(&place, tol),
-        tol,
     )
     .unwrap();
     finished("the tube", body, tol)

@@ -2,76 +2,45 @@
 //! carrier and consumed by both adjacent faces (the watertightness
 //! half of the pure-function invariant, crate docs).
 //!
-//! Chord counts are deterministic ceil arithmetic from δ: a chord's
-//! worst point lands at δ from its carrier (the edge-chord theorem at
-//! `sizing::sagitta_step`), and each adjacent face whose lane needs
-//! more raises the count through one of the tightenings below.
+//! Chord counts are deterministic ceil arithmetic from δ, in two steps.
+//!
+//! **The carrier's own count**: a chord's worst point lands at the
+//! edge's target from its carrier (the edge-chord theorem at
+//! `sizing::sagitta_step`). The target is the least of the two faces'
+//! ([`edge_target`], `trimmed::face_target`): δ, or the headroom's share
+//! of it beside an arm that sizes its lattice there, so that arm's trim
+//! polygon is the one its lattice was sized beside.
 //!
 //! - Line carriers: 1 chord (a segment of the exact locus).
 //! - Circle carriers (radius ρ, forward span Δt): per-chord step
 //!   φ = 2·acos(1 − δ/ρ) (the closed-form sagitta bound
 //!   ρ(1 − cos(φ/2)) ≤ δ), capped at π/4 (`sizing::MAX_ANGULAR_STEP`);
 //!   n = ceil(Δt/φ).
-//! - Adjacent-grid tightening: a torus, sphere or cone face's
-//!   worst-triangle theorem is about its grid's cells, so a rim chord
-//!   point the grid did not place would make triangles the theorem
-//!   does not cover. A circle edge's carrier parameter *is* the chart
-//!   coordinate along it (azimuth for rims, minor angle or latitude for
-//!   meridians), so each such adjacent face adds n ≥ ceil(Δt/h) with
-//!   `h` the face's grid step in the edge's own direction —
-//!   `sizing::grid_boundary_step` names each surface's `h` and says
-//!   what refuses.
-//! - Unproved headroom: an edge of a trimmed cylinder or trimmed sphere
-//!   face (the two arms without their theorem,
-//!   `trimmed::UNPROVED_HEADROOM`) is chorded at that headroom's share
-//!   of δ, so the arm's trim polygon is the one its lattice was sized
-//!   beside.
-//! - Adjacent-sphere-arm tightening: a trimmed sphere face's lattice
-//!   runs in the chart, which its tilted circles cross, so each such
-//!   face adds `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉` from closed-form
-//!   speed bounds of the half-edge's image and the arm's lattice steps
-//!   ([`sphere_arm_tighten`]).
-//! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
-//!   shape with a hull-derived Hessian — a described NURBS face
-//!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
-//!   needs boundary UV steps within the face's own (h_u, h_v); the
-//!   half-edge's stored pcurve gives per-axis UV speed bounds
-//!   (s_u, s_v) — exact `|pl|` components for the iso line, the
-//!   closed-form sub-arc rate for the arc rim, the amplitude sum for
-//!   the harmonic form, and for the `General` spline image the hull of
-//!   its own differenced control net (`general_uv_speeds`, a convexity
-//!   fact rather than a closed form, and a SUP the image need not
-//!   attain) — so each adjacent NURBS face adds n ≥ ⌈s_u·Δt/h_u⌉ and
-//!   ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a straight wall edge is one
-//!   3-D chord but many UV steps). A `Fitted` image has no certified
-//!   speed bound here and refuses typed (the trimmed lane's module
-//!   docs name its consumer).
-//! - Crease joints: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
-//!   creases at the sub-arc joints, and the trimmed lane cuts its
-//!   triangles along those creases, so the count is rounded up to a
-//!   multiple of `m`: point `q·k` of `q·m` then sits at the joint's own
-//!   parameter, `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
-//!   `sweep::skin::segment_curve` places the joint knot with.
+//! - Ellipse, spiric and B-spline carriers: the curvature-bound step
+//!   from each kind's closed-form or hull `sup|C″|`.
 //!
-//! An adjacent face reaches a chord count only through the
-//! tightenings above (not the crease joints, which round a count
-//! already tightened): the `Circle` arm's
-//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`]),
-//! [`nurbs_tighten`] and [`sphere_arm_tighten`]. Each reads the face
-//! through `tessellate::face_surface`; the `Circle` arm and the
-//! headroom target read the dispatch itself (`tessellate::lane_of`),
-//! `sphere_arm_tighten` reads `trimmed::takes_sphere_arm`, the predicate
-//! `lane_of` routes a sphere face by, and `nurbs_tighten` reads the
-//! surface's spline chart, so a face tightens an edge only for the lane
-//! that will mesh it. **This list is not enforced**: nothing in the
-//! tree checks that these are the only four, and a fifth caller
-//! compiles green as a fifth way for a neighbour to enter the count.
+//! **The one rule** ([`tighten`]): a face whose lattice the rule reads
+//! ([`FaceLattice::of`]: the curved lane's and every trimmed arm's but the
+//! cylinder's) certifies triangles about that lattice's cells, so a
+//! boundary chord beside it spans at most one lattice step on each chart
+//! axis: `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the
+//! face's lattice steps (its chart row's at its target, the spline arm's
+//! at its lattice share of it) and `(s_u, s_v)` the per-axis speed of the
+//! image the face's lane reads ([`FaceLattice::speeds`]): the iso image
+//! on the curved lane, the stored row's [`Pcurve::speed_bound`] on the
+//! trimmed lane's arms. This is `crates/mesh/README.md` `[mesh.sizing]`'s
+//! *rim chords use the face's grid step*, stated once.
 //!
-//! With that door held, chord points are a pure function of (carrier +
-//! interval, endpoint points, adjacent surface parameters, an adjacent
-//! cone face's largest rim radius, whether an adjacent cylinder or
-//! sphere face is trimmed, an adjacent trimmed sphere face's latitude
-//! window and the half-edge's image on it, δ).
+//! **Crease joints**: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
+//! creases at the sub-arc joints, and the trimmed lane cuts its triangles
+//! along those creases, so the count is rounded up to a multiple of `m`:
+//! point `q·k` of `q·m` then sits at the joint's own parameter,
+//! `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
+//! `sweep::skin::segment_curve` places the joint knot with.
+//!
+//! So chord points are a pure function of (carrier + interval, endpoint
+//! points, each adjacent face's lattice and the half-edge's image on it,
+//! δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
 //! (never `carrier(t₀)`, which is only within ε of them) so every
@@ -81,17 +50,15 @@
 use std::collections::HashMap;
 
 use geom::Curve3;
-use geom_brep::Pcurve;
+use geom_brep::{NoSpeedBound, Pcurve};
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::SplineCoeffs;
 use topo::{Body, EdgeKey};
 
+use crate::chart_table::{AnalyticRow, ChartRow};
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{
-    ceil_count, curvature_step, ellipse_step, grid_boundary_step, sagitta_step, spiric_step,
-};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -124,6 +91,8 @@ pub(crate) fn compute_chords(
     // included) — the trimmed-face lane evaluates pcurves at exactly
     // the chord schedule, so both stay one derivation (M5 PR 11).
     let mut params = HashMap::new();
+    // Each face's lattice, read once for the whole pass.
+    let mut lattices = HashMap::new();
     for (ek, edge) in body.edges() {
         let curve = body
             .get_curve_geom(edge.curve)
@@ -136,25 +105,14 @@ pub(crate) fn compute_chords(
         let n = match *curve.carrier() {
             Curve3::Line(_) => 1,
             Curve3::Circle(..) => {
-                let mut n = ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?;
-                for fk in adjacent_faces(body, ek)? {
-                    if let Some(h) = grid_boundary_step(body, fk, curve, ek, delta)? {
-                        n = n.max(ceil_count(span, h)?);
-                    }
-                }
-                n
+                ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?
             }
             // Ellipse arcs (curved-cut boundaries, M5 PR 5): the
-            // certified-conservative curvature-bound step; no torus
-            // tightening applies (an ellipse never lies on a torus
-            // chart of this kernel's constructions).
+            // certified-conservative curvature-bound step.
             Curve3::Ellipse(ref e) => ceil_count(span, ellipse_step(target, e))?,
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
-            // (`spiric_step`). No torus tightening: `grid_boundary_step`
-            // is the circle arm's (a spiric is neither a rim nor a
-            // meridian traversal of its chart), and the step here is
-            // already a chord bound on the carrier itself.
+            // (`spiric_step`).
             Curve3::Spiric {
                 major_radius,
                 minor_radius,
@@ -177,19 +135,11 @@ pub(crate) fn compute_chords(
             // so this gate is what makes the face bound reachable).
             Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, target, ek)?,
         };
-        // Adjacent-NURBS tightening (module docs), on every carrier
-        // kind — a straight wall edge is one 3-D chord but many UV
-        // steps of the wall's certificate budget.
-        let n = nurbs_tighten(
-            body,
-            ek,
-            (t0, t1),
-            crate::nurbs_cert::lattice_budget(delta),
-            bounds,
-            n,
-        )?;
-        let n = sphere_arm_tighten(body, ek, (t0, t1), delta, n)?;
-        let (vs, ve) = edge_vertices(body, ek)?;
+        // The one rule (module docs), on every carrier kind: a straight
+        // wall edge is one 3-D chord but many UV steps of its wall's
+        // lattice.
+        let n = tighten(body, curve, ek, delta, bounds, &mut lattices, n)?;
+        let (vs, ve) = edge_ends(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
         })?;
@@ -345,147 +295,407 @@ fn rational_carrier_m_bound(
     }
 }
 
-/// The adjacent-NURBS chord tightening (module docs): for each
-/// adjacent described NURBS face, raise `n` until the edge's UV image
-/// steps fit inside the face's certificate-budget grid steps. The
-/// bound comes from the tessellation's shared [`FaceBounds`] memo, so
-/// the Hessian hull is assembled once per face for the whole run.
-fn nurbs_tighten(
+/// **The one chord rule.** For each side of the edge whose face's lattice
+/// the rule reads ([`FaceLattice::of`]), with steps `(h_u, h_v)`, the
+/// count rises to `⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(s_u, s_v)` the
+/// per-axis speed of the image that face's lane reads
+/// ([`FaceLattice::speeds`]). A chord's chart step is at most its speed
+/// bound times its parameter step, so no boundary chord spans more than
+/// one of those lattice steps on either axis. The count is then settled
+/// on every side's crease joints ([`settle`]).
+fn tighten(
     body: &Body<f64>,
+    curve: &geom_brep::EdgeCurve<f64>,
     ek: EdgeKey,
-    params: (f64, f64),
-    budget: f64,
+    delta: f64,
     bounds: &mut FaceBounds,
+    lattices: &mut HashMap<topo::FaceKey, Option<FaceLattice>>,
     n: usize,
 ) -> Result<usize, TessellateError> {
-    let (t0, t1) = params;
+    let (t0, t1) = curve.params();
     let span = t1 - t0;
-    // The sub-arc count every adjacent arc rim needs the schedule to
-    // be a multiple of (the `IsoArc` arm below).
-    let mut joints = 1;
-    let n = tighten_by_sides(body, ek, span, n, |hek, fk, surface| {
-        // The UV step schedule is a statement about the chart, so both
-        // spline kinds take it — an approximating surface's chart is
-        // its fit's.
-        let Some(payload) = surface.spline_chart() else {
-            return Ok(None);
-        };
-        if payload.is_placeholder() {
-            return Err(TessellateError::UnsupportedSurface { face: fk });
+    let mut asks = Vec::with_capacity(2);
+    let sides = sides_of(body, ek)?;
+    for s in [sides.plus, sides.minus] {
+        // The curved lane's lattice is sized against its iso sides, its
+        // rims and meridians: a ruling moves along a ruled axis only, and
+        // any other carrier is no iso side the walk reads, so the lane
+        // refuses that face at its own guard — before its window is read.
+        if !matches!(curve.carrier(), Curve3::Circle(..)) {
+            let surface = crate::tessellate::face_surface(body, s.face)?;
+            if crate::tessellate::lane_of(body, s.face, surface)? == crate::tessellate::Lane::Curved
+            {
+                continue;
+            }
         }
-        let (hu, hv) = face_bound(bounds, payload, fk)?.grid_steps(budget);
-        let Some(cache) = body.pcurve(hek) else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "NURBS-face half-edge carries no stored pcurve cache — caches \
-                       mint at loft/sweep assembly and STEP adoption; without one \
-                       the chord schedule has no certified UV step bound",
-            });
+        let lattice = match lattices.entry(s.face) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let surface = crate::tessellate::face_surface(body, s.face)?;
+                e.insert(FaceLattice::of(body, s.face, surface, delta, bounds)?)
+            }
         };
-        // Per-axis UV speed bounds (module docs): exact for the iso
-        // line, the supremum `√(pa² + pb²) + |pl|` per axis for the
-        // harmonic form ([`harmonic_uv_speeds`]), the derivative net's
-        // hull for the general spline image.
-        let (su, sv) = match cache.pcurve() {
-            Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
-            // The ARC rim (M8-3). With `s = ½ + tan(φ/2)/(2·tan(h/4))`
-            // and `g = (k + s)/m`,
-            //   `dg/dt = sec²(φ/2) / (4·m·tan(h/4))`,
-            // maximal at the sub-arc ends (`|φ| = h/2`), where
-            // `sec²(h/4)/(4·m·tan(h/4)) = 1/(2·m·sin(h/2))`.
-            // A closed-form sup over the whole span, like the other
-            // two arms — no sampling.
-            Pcurve::IsoArc {
-                pd,
-                t0: arc_t0,
-                angle,
-                breaks,
-                ..
-            } => {
-                let spans = geom_brep::iso_arc_spans(breaks);
-                if spans == 0 {
-                    return Err(TessellateError::UnsupportedCurve {
-                        edge: ek,
-                        note: "an arc-rim pcurve with no sub-arc structure — a malformed \
-                               cache, not a chord-schedule question",
-                    });
-                }
-                // THE CREASE CHORD POINT. Two sub-arcs meet at a knot
-                // of multiplicity two, a C⁰ crease of the chart in `u`,
-                // and the trimmed lane needs a boundary point exactly
-                // there to cut its triangles at it. A schedule of
-                // `q·spans` points puts point `q·k` at
-                // `t0 + span·sub_arc_joint(k, spans)`, the joint's own
-                // parameter, so the count is rounded up to a multiple
-                // below. That needs the rim's turn to be this edge's
-                // interval, bit for bit.
-                if spans > 1 {
-                    if *arc_t0 != t0 || *angle != span {
-                        return Err(TessellateError::UnsupportedCurve {
-                            edge: ek,
-                            note: "an arc-rim pcurve whose turn is not its edge's parameter \
-                                   interval, so no chord point lands on its sub-arc joints \
-                                   (the C⁰ creases of its NURBS face)",
-                        });
+        let Some(lattice) = lattice.as_ref() else {
+            continue;
+        };
+        let Ask {
+            speeds: (su, sv),
+            joints,
+        } = lattice.speeds(body, s.half_edge, s.face, curve, ek)?;
+        let (hu, hv) = lattice.steps;
+        if let Reads::ChartRows {
+            budget: Some(budget),
+            ..
+        } = lattice.reads
+        {
+            // An arc passing near a pole asks about `ρ_c·Δt/(r·d·h_u)`
+            // chords at polar distance `d` (the schedule is uniform, so as
+            // fine everywhere as at the closest approach). Past the arm's
+            // per-edge work budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`, whose
+            // doc states it) it refuses typed, read on the raw ratios so
+            // that an arc through or near the pole refuses by its own cause
+            // before `ceil_count`'s `MAX_COUNT` would.
+            #[allow(clippy::cast_precision_loss)]
+            let budget = budget as f64;
+            if !(su * span / hu <= budget && sv * span / hv <= budget) {
+                return Err(TessellateError::SphereTrimShape {
+                    face: s.face,
+                    edge: ek,
+                    cause: crate::types::SphereTrimCause::ChordBudget,
+                });
+            }
+        }
+        let count = ceil_count(su * span, hu)?.max(ceil_count(sv * span, hv)?);
+        asks.push((count, joints));
+    }
+    Ok(settle(n, &asks))
+}
+
+/// The count every side's ask settles on: the largest of `n` and the
+/// sides' counts, rounded up to a multiple of every side's sub-arc
+/// count. The rounding comes after every raise, so no raise moves a
+/// crease chord point off its joint (module docs, crease joints).
+fn settle(n: usize, asks: &[(usize, usize)]) -> usize {
+    let (count, joints) = asks.iter().fold((n, 1), |(count, joints), &(c, j)| {
+        (count.max(c), lcm(joints, j))
+    });
+    count.div_ceil(joints) * joints
+}
+
+/// What one side asks of an edge: its image's per-axis speed, and the
+/// sub-arc count its count must be a multiple of (`1` but on an arc rim of
+/// several sub-arcs).
+struct Ask {
+    speeds: (f64, f64),
+    joints: usize,
+}
+
+/// A face's lattice as the chord rule reads it: its steps per chart axis
+/// at the face's target, and which image of a boundary half-edge its
+/// lane reads.
+///
+/// A step is the one the lane's cell bound needs on that axis: `+∞` along
+/// a ruling (a cylinder's or a cone's `v`), where no cell bound reads the
+/// extent, whatever rows the lane lays there for its triangles' shape.
+struct FaceLattice {
+    steps: (f64, f64),
+    reads: Reads,
+}
+
+/// Which image of a half-edge a face's lane reads.
+enum Reads {
+    /// The curved lane walks its boundary by the iso classification
+    /// (`topo::chart_iso::classify_kind`) on the face's chart and reads no
+    /// stored row, so the rule reads the classifier's image too
+    /// (`work/tesslane/rectangle-faces-move-to-the-chart-lane.md` retires
+    /// this reader).
+    Iso(topo::chart::Chart<f64>),
+    /// The trimmed lane's analytic arms read the stored row: a rim's, a
+    /// meridian's or a ruling's harmonic image, a tilted circle's projected
+    /// one, a section conic's focal-section one, a spiric's. On a chart
+    /// with singular rows an image through one has no speed bound
+    /// (`SphereTrimShape { ThroughPole }`), and on the sphere each edge
+    /// is held to the arm's per-edge budget
+    /// (`trimmed::MAX_SPHERE_EDGE_CHORDS`).
+    ChartRows {
+        singular: bool,
+        budget: Option<usize>,
+    },
+    /// The trimmed lane's spline arm reads the stored row.
+    SplineRows,
+}
+
+impl FaceLattice {
+    /// The lattice of face `fk` beside `curve`, or `None` for a face whose
+    /// lane lays none the rule sizes against: the planar lane, the trimmed
+    /// lane's cylinder arm (its boundary is chorded at its target alone,
+    /// `work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
+    /// Its steps are the face's chart row's ([`ChartRow::steps`]):
+    ///
+    /// Every lattice is sized at the face's target
+    /// ([`crate::trimmed::face_target`]).
+    ///
+    /// - **Curved lane**, beside a circle (its rims and meridians, the iso
+    ///   sides its lattice is sized against: a ruling moves along a ruled
+    ///   axis only, and any other carrier is no iso side the walk reads,
+    ///   so the lane refuses that face at its own guard). Uncapped; why
+    ///   the cap moves no count is at [`crate::sizing::torus_grid_steps`].
+    /// - **Trimmed lane's cone, sphere, torus and spindle arms**:
+    ///   [`crate::trimmed::arm_steps`].
+    /// - **Spline arm** (a described NURBS face or an approximating
+    ///   surface's fit): the face's whole-patch certificate steps at the
+    ///   lane's lattice share of the target, from the shared [`FaceBounds`]
+    ///   memo, so the Hessian hull is assembled once per face for the whole
+    ///   run.
+    fn of(
+        body: &Body<f64>,
+        fk: topo::FaceKey,
+        surface: &geom::Surface<f64>,
+        delta: f64,
+        bounds: &mut FaceBounds,
+    ) -> Result<Option<Self>, TessellateError> {
+        use crate::tessellate::Lane;
+        Ok(match crate::tessellate::lane_of(body, fk, surface)? {
+            Lane::Planar => None,
+            Lane::Curved => {
+                let target = crate::trimmed::face_target(body, fk, delta)?;
+                let Some(chart) = topo::chart::Chart::of(surface) else {
+                    unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
+                };
+                Some(Self {
+                    steps: AnalyticRow::of(body, fk, surface)?.steps(target),
+                    reads: Reads::Iso(chart),
+                })
+            }
+            Lane::Trimmed => {
+                // The spline row borrows the face's cell table, which this
+                // pass is the one to assemble (`face_bound`).
+                if let Some(payload) = surface.spline_chart() {
+                    if payload.is_placeholder() {
+                        return Err(TessellateError::UnsupportedSurface { face: fk });
                     }
-                    joints = lcm(joints, spans);
+                    face_bound(bounds, payload, fk)?;
                 }
-                #[allow(clippy::cast_precision_loss)]
-                let m = spans as f64;
-                let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
-                (pd.x.abs() * rate, pd.y.abs() * rate)
+                match ChartRow::of(body, fk, surface, bounds)? {
+                    row @ ChartRow::Spline { .. } => Some(Self {
+                        steps: row.steps(crate::trimmed::face_target(body, fk, delta)?),
+                        reads: Reads::SplineRows,
+                    }),
+                    ChartRow::Analytic(row) if row.chorded_to_lattice() => Some(Self {
+                        steps: crate::trimmed::arm_steps(body, fk, &row, delta)?,
+                        reads: Reads::ChartRows {
+                            singular: !row.singular_points().is_empty(),
+                            budget: row.chord_budget(),
+                        },
+                    }),
+                    ChartRow::Analytic(_) => None,
+                }
             }
-            Pcurve::Harmonic { u, v } => harmonic_uv_speeds(*u, *v),
-            Pcurve::Fitted(_) => {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "NURBS-face half-edge carries a FITTED pcurve — no \
-                           certified UV speed bound is wired for a fitted image's \
-                           chord schedule; its first tessellation consumer is the \
-                           edge×NURBS-face boolean layer (the cut-loft unit)",
-                });
+        })
+    }
+
+    /// What this face asks of the half-edge `hek`'s edge: the per-axis
+    /// speed `(s_u, s_v)` of the image of `hek` its lane reads, and an arc
+    /// rim's sub-arc count.
+    fn speeds(
+        &self,
+        body: &Body<f64>,
+        hek: topo::HalfEdgeKey,
+        fk: topo::FaceKey,
+        curve: &geom_brep::EdgeCurve<f64>,
+        ek: EdgeKey,
+    ) -> Result<Ask, TessellateError> {
+        let (t0, t1) = curve.params();
+        let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
+        let (cache, joints) = match self.reads {
+            // The iso image of a circle, exactly: a rim's carrier
+            // parameter is its azimuth, a meridian's its minor angle or
+            // latitude. The classifier is total on circles; its `None`
+            // is for conic and spline carriers, surfaced typed rather than
+            // defaulted so a widened classifier cannot pick a direction.
+            Reads::Iso(ref chart) => {
+                let speeds = match topo::chart_iso::classify_kind(chart, curve) {
+                    Some(topo::chart_iso::TravKind::Rim { .. }) => (1.0, 0.0),
+                    Some(topo::chart_iso::TravKind::Meridian { .. }) => (0.0, 1.0),
+                    None => {
+                        return Err(refuse(
+                            "an edge a curved-lane face's lattice reads that the iso-curve \
+                             classifier left unclassified — neither rim nor meridian, so no \
+                             grid direction sizes its chords",
+                        ));
+                    }
+                };
+                return Ok(Ask { speeds, joints: 1 });
             }
-            // The general curve-in-UV arm (U2): no closed form, but
-            // the same KIND of fact as its two siblings — a hull over
-            // the image's own differenced control net
-            // ([`general_uv_speeds`]).
-            Pcurve::General(image) => general_uv_speeds(image, params, ek)?,
-            // Unreachable by construction, and refused rather than
-            // given a bound: this loop runs only on SPLINE charts, and
-            // a spiric image certifies on a plane or a torus chart and
-            // nowhere else (`geom_brep::SpiricImage`). A cache that
-            // reached here would be a corrupt one, not a frontier.
-            Pcurve::Spiric { .. } => {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and the two tori \
-                           that hold it, so no spline chart mints one",
-                });
+            Reads::ChartRows { .. } => {
+                let cache = body.pcurve(hek).ok_or_else(|| {
+                    refuse(
+                        "trimmed analytic face half-edge carries no stored pcurve cache — \
+                         without one the chord schedule has no UV step bound",
+                    )
+                })?;
+                chart_image(cache.pcurve(), ek)?;
+                (cache, 1)
             }
-            // As the spiric: a focal-section image certifies on a cone
-            // or torus chart only, so no spline chart mints one.
-            Pcurve::FocalSection(_) => {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
-                           image lives on a cone or torus chart, so no spline chart mints \
-                           one",
-                });
-            }
-            // As the focal section: a projected image is an analytic
-            // chart's inverse of its carrier.
-            Pcurve::Projected(_) => {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "NURBS-face half-edge carries a PROJECTED pcurve — that image \
-                           lives on an analytic chart, so no spline chart mints one",
-                });
+            Reads::SplineRows => {
+                let cache = body.pcurve(hek).ok_or_else(|| {
+                    refuse(
+                        "NURBS-face half-edge carries no stored pcurve cache — caches mint at \
+                         loft/sweep assembly and STEP adoption; without one the chord \
+                         schedule has no certified UV step bound",
+                    )
+                })?;
+                let joints = spline_image(cache.pcurve(), (t0, t1), ek)?;
+                (cache, joints)
             }
         };
-        Ok(Some(((hu, hv), (su, sv))))
-    })?;
-    Ok(n.div_ceil(joints) * joints)
+        let speeds = cache
+            .pcurve()
+            .speed_bound(t0, t1)
+            .map_err(|e| match (e, &self.reads) {
+                (NoSpeedBound::ThroughSingularSet, Reads::ChartRows { singular: true, .. }) => {
+                    TessellateError::SphereTrimShape {
+                        face: fk,
+                        edge: ek,
+                        cause: crate::types::SphereTrimCause::ThroughPole,
+                    }
+                }
+                (e, _) => refuse(no_speed_note(e)),
+            })?;
+        Ok(Ask { speeds, joints })
+    }
+}
+
+/// What an analytic arm's row must be beyond a bounded speed: a closed
+/// form an analytic chart mints — a rim's, a meridian's or a ruling's
+/// harmonic image, a section conic's focal-section one, a spiric's, or a
+/// conic's projected one. A projected image of a spline or a line carrier
+/// refuses here: the projected speed bound is a conic's only.
+fn chart_image(image: &Pcurve<f64>, ek: EdgeKey) -> Result<(), TessellateError> {
+    let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
+    match image {
+        Pcurve::Harmonic { .. } | Pcurve::FocalSection(_) | Pcurve::Spiric { .. } => Ok(()),
+        Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Conic { .. }) => {
+            Ok(())
+        }
+        Pcurve::Projected(_) => Err(refuse(
+            "trimmed analytic face bounded by the projected image of a spline or line carrier \
+             — the trimmed lane bounds the UV speed of a conic's image only",
+        )),
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } | Pcurve::General(_) | Pcurve::Fitted(_) => {
+            Err(refuse(
+                "trimmed analytic face half-edge carries an iso, arc-rim, general or fitted \
+                 image — those are a spline chart's forms, and no analytic mint produces one",
+            ))
+        }
+    }
+}
+
+/// What a spline chart's row must be beyond a bounded speed: a form a
+/// spline chart mints, and an arc rim whose sub-arc joints the schedule
+/// can land on. Answers the sub-arc count the edge's count must be a
+/// multiple of: an arc rim's, `1` for every other row.
+///
+/// THE CREASE CHORD POINT. Two sub-arcs of an arc rim meet at a knot of
+/// multiplicity two, a C⁰ crease of the chart in `u`, and the trimmed lane
+/// needs a boundary point exactly there to cut its triangles at it. A
+/// schedule of `q·spans` points puts point `q·k` at
+/// `t0 + span·sub_arc_joint(k, spans)`, the joint's own parameter, so the
+/// count is rounded up to a multiple of `spans` ([`tighten`]). That needs
+/// the rim's turn to be this edge's interval, bit for bit.
+fn spline_image(
+    image: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+    ek: EdgeKey,
+) -> Result<usize, TessellateError> {
+    let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
+    match image {
+        Pcurve::IsoArc {
+            t0: arc_t0,
+            angle,
+            breaks,
+            ..
+        } => {
+            let spans = geom_brep::iso_arc_spans(breaks);
+            if spans > 1 {
+                if *arc_t0 != t0 || *angle != t1 - t0 {
+                    return Err(refuse(
+                        "an arc-rim pcurve whose turn is not its edge's parameter interval, so \
+                         no chord point lands on its sub-arc joints (the C⁰ creases of its \
+                         NURBS face)",
+                    ));
+                }
+                return Ok(spans);
+            }
+            Ok(1)
+        }
+        // A spiric's chart images live on its own cutting plane and the
+        // two tori that hold it, a focal section's on a cone or a torus, a
+        // projected image on an analytic chart: no spline chart mints one,
+        // so such a row is a corrupt cache rather than a frontier.
+        Pcurve::Spiric { .. } => Err(refuse(
+            "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's chart images live on \
+             its own cutting plane and the two tori that hold it, so no spline chart mints one",
+        )),
+        Pcurve::FocalSection(_) => Err(refuse(
+            "NURBS-face half-edge carries a FOCAL-SECTION pcurve — that image lives on a cone \
+             or torus chart, so no spline chart mints one",
+        )),
+        Pcurve::Projected(_) => Err(refuse(
+            "NURBS-face half-edge carries a PROJECTED pcurve — that image lives on an \
+             analytic chart, so no spline chart mints one",
+        )),
+        Pcurve::Harmonic { .. }
+        | Pcurve::IsoLine { .. }
+        | Pcurve::General(_)
+        | Pcurve::Fitted(_) => Ok(1),
+    }
+}
+
+/// The chord pass's note for an image with no certified speed bound.
+fn no_speed_note(e: NoSpeedBound) -> &'static str {
+    match e {
+        NoSpeedBound::Fitted => {
+            "NURBS-face half-edge carries a FITTED pcurve — no certified UV speed bound is \
+             wired for a fitted image's chord schedule; its first tessellation consumer is \
+             the edge×NURBS-face boolean layer (the cut-loft unit)"
+        }
+        NoSpeedBound::RationalGeneral => {
+            "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — the \
+             certified UV speed here is the polynomial net's difference hull, and a varying \
+             weight vector's derivative is not that net; no mint produces a rational chart \
+             image of this class"
+        }
+        NoSpeedBound::OutsideDomain => {
+            "a spline chart image or carrier read outside its own knot domain — the \
+             control-net hull bounds its speed on its domain and says nothing about the end \
+             span's polynomial extended past it"
+        }
+        NoSpeedBound::NotASpan => {
+            "a chart image read over a span that is reversed or not finite — the chord pass \
+             reads every edge forward, so this is a kernel defect"
+        }
+        NoSpeedBound::NonFinite => {
+            "a closed-form chart image whose coefficients give no finite speed bound — no \
+             certified UV step bound sizes its chords"
+        }
+        NoSpeedBound::NetUnbounded => {
+            "a chart image whose derivative bound is unbounded/refused — outside the \
+             certified chord inventory"
+        }
+        NoSpeedBound::NoSubArc => {
+            "an arc-rim pcurve with no sub-arc structure — a malformed cache, not a \
+             chord-schedule question"
+        }
+        NoSpeedBound::OffRegime => {
+            "a closed-form chart image outside the regime its speed bound holds in — no \
+             certified UV step bound sizes its chords"
+        }
+        NoSpeedBound::ThroughSingularSet => {
+            "a projected chart image through its chart's singular set — the chart's inverse \
+             has no speed bound there"
+        }
+    }
 }
 
 /// The least common multiple of two sub-arc counts.
@@ -497,301 +707,16 @@ fn lcm(a: usize, b: usize) -> usize {
     a / x * b
 }
 
-/// The per-axis UV speed sups `(s_u, s_v)` of a **general
-/// curve-in-UV** chart image — what [`nurbs_tighten`] reads where the
-/// `IsoLine` arm reads its exact `|pl|` components and the `Harmonic`
-/// arm its supremum `√(pa² + pb²) + |pl|`. Those two are closed
-/// forms of the image; this one is a CONVEXITY fact about its control
-/// net, which is the only shape a spline image admits.
-///
-/// **The fact.** For `P(t) = Σ_j N_{j,p}(t)·P_j` on a clamped vector,
-/// the derivative is again a spline — `P′(t) = Σ_j N_{j,p−1}(t)·Q_j`
-/// with `Q_j = p·(P_{j+1} − P_j)/(u_{j+p+1} − u_{j+1})` — and the
-/// `N_{j,p−1}` are a nonnegative partition of unity, so every value of
-/// `u′` is a convex combination of the `Q^u_j` and lies in their hull.
-/// `max_j |Q^u_j|` is therefore a certified `sup|u′|`, with no
-/// evaluation and no sampling, and likewise in `v`. Both the
-/// differencing and the hull are
-/// [`SplineCoeffs::derivative_domain_hull`]'s, not respelled here.
-///
-/// **The bound is a SUP, not an attained maximum.** It is attained
-/// exactly when the winning coefficient's basis function reaches 1
-/// somewhere — at a clamped end, or at an interior knot of a
-/// degree-`p` image whose derivative basis is degree `p − 1`. On an
-/// interior coefficient a higher-degree basis never fully activates,
-/// and the bound is then a genuine over-estimate (the row
-/// `general_uv_speeds_dominate_the_sampled_image_speeds` carries one
-/// leg of each kind, with the measured slack).
-///
-/// **The parameter range.** The hull is over the image's WHOLE knot
-/// domain, and the caller's `[t₀, t₁]` must lie inside it — which is
-/// what this function checks, because `eval`/`deriv` extrapolate the
-/// end span's polynomial past the domain and no hull of the net bounds
-/// that. At every mint on this head the two coincide (the image is
-/// built on the carrier's own parameter), so the check is a premise
-/// made explicit rather than a live refusal; a proper sub-range is
-/// admitted and strictly over-bounded, which is sound in the only
-/// direction that matters. A per-span reading for a genuine sub-range
-/// producer is the sibling `rational_carrier_m_bound`'s shape.
-///
-/// **Constant weights only.** The hull licence above is the
-/// POLYNOMIAL one. A constant weight vector cancels out of the
-/// rational basis (`R_j = N_j·c / Σ_k N_k·c = N_j`), so such an image
-/// IS its polynomial wrap and the differenced control net is exactly
-/// its derivative net; a genuinely varying weight vector's derivative
-/// is a quotient whose coefficients are not that net, and refuses
-/// typed ([`geom::NurbsCurve2::constant_weight`]).
-///
-/// **What this function does NOT check, because the type already
-/// does.** A degree-0 image and an interior multiplicity above the
-/// degree are both refused by [`KnotVector::clamped`](geom_core::KnotVector::clamped) at construction,
-/// so no image carrying either can reach here. Multiplicity `= p` — a
-/// C⁰ kink — IS constructible and IS admitted: the bound is a
-/// Lipschitz statement, which C⁰ suffices for.
-fn general_uv_speeds(
-    image: &geom::NurbsCurve2<f64>,
-    params: (f64, f64),
-    ek: EdgeKey,
-) -> Result<(f64, f64), TessellateError> {
-    if image.constant_weight().is_none() {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \
-                   the certified UV speed here is the polynomial net's difference hull, \
-                   and a varying weight vector's derivative is not that net; no mint \
-                   produces a rational chart image of this class",
-        });
-    }
-    let kv = image.knots_f64_interim();
-    let (d0, d1) = kv.domain();
-    let (t0, t1) = params;
-    if !(t0 >= d0 && t1 <= d1) {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "a general curve-in-UV pcurve read outside its own knot domain — the \
-                   control-net hull bounds the image's speed on its domain and says \
-                   nothing about the end span's polynomial extended past it",
-        });
-    }
-    let mut speeds = [f64::NAN; 2];
-    for (axis, s) in speeds.iter_mut().enumerate() {
-        let coeffs: Vec<Interval> = image
-            .control()
-            .iter()
-            .map(|pt| Interval::point(if axis == 0 { pt.x } else { pt.y }))
-            .collect();
-        // `mag` is NaN on a refusal — a coefficient array the mint
-        // refuses arrives refused and leaves as the refusal below,
-        // never as a finite bound.
-        *s = kv
-            .with_coeffs(&coeffs)
-            .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull)
-            .mag()
-            .next_up();
-    }
-    let [su, sv] = speeds;
-    if !su.is_finite() || !sv.is_finite() {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "general curve-in-UV pcurve whose derivative control hull is \
-                   unbounded/refused — outside the certified chord inventory",
-        });
-    }
-    Ok((su, sv))
-}
-
-/// The deviation target an edge's own carrier is chorded at: δ, or
-/// [`crate::trimmed::UNPROVED_HEADROOM`]·δ when either adjacent face is
-/// a trimmed cylinder or a trimmed sphere — the arms whose theorem is
-/// not yet written size their lattice at that headroom, and their trim
-/// polygon is these chords.
+/// The deviation target an edge's own carrier is chorded at: the least
+/// of its faces' targets ([`crate::trimmed::face_target`]), so the trim
+/// polygon of an arm that sizes at its headroom is the one its lattice
+/// was sized beside.
 fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
-    for fk in adjacent_faces(body, ek)? {
-        if crate::trimmed::sizes_at_headroom(body, fk)? {
-            return Ok(delta * crate::trimmed::UNPROVED_HEADROOM);
-        }
-    }
-    Ok(delta)
-}
-
-/// **Adjacent-sphere-arm tightening**: for each side whose face the
-/// trimmed lane's sphere arm meshes, raise `n` until every chord's UV
-/// step fits inside that face's lattice steps,
-/// `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the arm's
-/// own ([`crate::trimmed::sphere_lattice_steps`]) and `(s_u, s_v)` the
-/// half-edge image's per-axis speed bounds ([`sphere_uv_speeds`]). A
-/// chord's UV step is at most its speed bound times its parameter
-/// step, so no boundary chord spans more than one lattice step in
-/// either direction — the curved lanes' rule that rims are chorded at
-/// the face's grid step, on a lattice the boundary does not run along.
-fn sphere_arm_tighten(
-    body: &Body<f64>,
-    ek: EdgeKey,
-    params: (f64, f64),
-    delta: f64,
-    n: usize,
-) -> Result<usize, TessellateError> {
-    let span = params.1 - params.0;
-    tighten_by_sides(body, ek, span, n, |hek, fk, surface| {
-        if !crate::trimmed::takes_sphere_arm(body, fk, surface)? {
-            return Ok(None);
-        }
-        let (hu, hv) = crate::trimmed::sphere_lattice_steps(body, fk, surface, delta)?;
-        let Some(cache) = body.pcurve(hek) else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "trimmed sphere face half-edge carries no stored pcurve cache — \
-                       without one the chord schedule has no UV step bound",
-            });
-        };
-        let (su, sv) = sphere_uv_speeds(cache.pcurve(), params, ek, fk)?;
-        // An arc passing near a pole asks about `ρ_c·Δt/(r·d·h_u)`
-        // chords at polar distance `d` (the schedule is uniform, so as
-        // fine everywhere as at the closest approach). Past the arm's
-        // per-edge work budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`, whose
-        // doc states it) it refuses typed, read on the raw ratios so that
-        // an arc through or near the pole refuses by its own cause before
-        // `ceil_count`'s `MAX_COUNT` (whose sentence is about δ) would.
-        #[allow(clippy::cast_precision_loss)]
-        let budget = crate::trimmed::MAX_SPHERE_EDGE_CHORDS as f64;
-        if !(su * span / hu <= budget && sv * span / hv <= budget) {
-            return Err(TessellateError::SphereTrimShape {
-                face: fk,
-                edge: ek,
-                cause: crate::types::SphereTrimCause::ChordBudget,
-            });
-        }
-        Ok(Some(((hu, hv), (su, sv))))
-    })
-}
-
-/// **The side walk both UV tightenings share** ([`nurbs_tighten`],
-/// [`sphere_arm_tighten`]): for each side of the edge, `side` reads the
-/// face's lattice steps `(h_u, h_v)` and the half-edge image's per-axis
-/// speed bounds `(s_u, s_v)` — `None` for a face the tightening is not
-/// about — and the count rises to `⌈s·Δt/h⌉` on each axis.
-fn tighten_by_sides(
-    body: &Body<f64>,
-    ek: EdgeKey,
-    span: f64,
-    mut n: usize,
-    mut side: impl FnMut(
-        topo::HalfEdgeKey,
-        topo::FaceKey,
-        &geom::Surface<f64>,
-    ) -> Result<Option<((f64, f64), (f64, f64))>, TessellateError>,
-) -> Result<usize, TessellateError> {
-    let sides = sides_of(body, ek)?;
-    for s in [sides.plus, sides.minus] {
-        let surface = crate::tessellate::face_surface(body, s.face)?;
-        if let Some(((hu, hv), (su, sv))) = side(s.half_edge, s.face, surface)? {
-            n = n
-                .max(ceil_count(su * span, hu)?)
-                .max(ceil_count(sv * span, hv)?);
-        }
-    }
-    Ok(n)
-}
-
-/// A harmonic chart image's per-axis speed bounds: with
-/// `P′(t) = −pa·sin t + pb·cos t + pl`, each axis' supremum
-/// `√(pa² + pb²) + |pl|`. The one spelling the NURBS and sphere
-/// tightenings read.
-fn harmonic_uv_speeds(u: geom_brep::Channel<f64>, v: geom_brep::Channel<f64>) -> (f64, f64) {
-    let (_, pa, pb, pl) = geom_brep::harmonic_form_of(u, v);
-    (pa.x.hypot(pb.x) + pl.x.abs(), pa.y.hypot(pb.y) + pl.y.abs())
-}
-
-/// Per-axis speed bounds `(sup|u′|, sup|v′|)` of a sphere chart image
-/// over `[t₀, t₁]`, for the two forms a sphere face's circles carry.
-///
-/// - **Harmonic** (a parallel or a meridian):
-///   `|P′| = |−pa·sin t + pb·cos t + pl|`, so per axis
-///   `√(pa² + pb²) + |pl|`.
-/// - **Projected circle** `p(t) = c + a·cos t + b·sin t` in the chart
-///   frame (`z` on the axis), with `u = atan2(y, x)` and
-///   `v = atan2(z, ρ)`, `ρ = √(x² + y²)`: `u′ = (x·y′ − y·x′)/ρ²` and
-///   `v′ = p′·ê_v/|p|`, so `|u′| ≤ |p′|/ρ` and `|v′| ≤ |p′|/|p|`, on any
-///   point, on the sphere or off it. `sup|p′|²` is the largest
-///   eigenvalue of the Gram matrix of `(a, b)`; `|p|²` is
-///   `K + 2(c·a)·cos t + 2(c·b)·sin t + ½(|a|² − |b|²)·cos 2t + (a·b)·sin 2t`
-///   with `K = |c|² + ½(|a|² + |b|²)`, bounded below by `K` less its two
-///   harmonics' amplitudes; and `ρ² = |p|² − z²` with `z`'s range over
-///   the interval closed form ([`crate::trimmed::harmonic_range`]). On
-///   an exact circle of the sphere `|p|` is the radius `r` and `ρ` is
-///   `r·cos v`, so the bounds read `ρ_c/r` and `ρ_c/(r·cos v)`, and
-///   the second is attained where the arc turns in latitude.
-///
-/// **How near a pole an arc may pass is decided by what its schedule
-/// asks.** The azimuth bound grows as `1/ρ` toward a pole, and the
-/// uniform schedule [`sphere_arm_tighten`] sizes from it is as fine
-/// everywhere as at the arc's closest approach: `⌈s_u·Δt/h_u⌉` chords,
-/// which [`ceil_count`] refuses typed (`ResolutionOverflow`) past
-/// `sizing::MAX_COUNT`, the allocation cap every count in the crate is
-/// held to. Only where the bound itself fails — `ρ² ≤ 0` on the arc's
-/// closed-form lower bound, an arc through or numerically on the pole —
-/// is there no count to ask, and that refuses
-/// [`SphereTrimCause::ThroughPole`](crate::types::SphereTrimCause::ThroughPole).
-///
-/// The deck map moves an image by a translation and a sign, which no
-/// speed sees. A spline carrier's projected image, or any other form,
-/// refuses typed: the arm meshes circle-bounded faces.
-pub(crate) fn sphere_uv_speeds(
-    pcurve: &Pcurve<f64>,
-    params: (f64, f64),
-    ek: EdgeKey,
-    fk: topo::FaceKey,
-) -> Result<(f64, f64), TessellateError> {
-    let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
-    match pcurve {
-        Pcurve::Harmonic { u, v } => Ok(harmonic_uv_speeds(*u, *v)),
-        Pcurve::Projected(image) => {
-            let geom_brep::FramedCarrier::Circle { centre, a, b, .. } = image.carrier() else {
-                return Err(refuse(
-                    "trimmed sphere face bounded by the projected image of a spline carrier — \
-                     the sphere arm bounds the UV speed of a circle's image only",
-                ));
-            };
-            projected_circle_speeds((*centre, *a, *b), params).ok_or(
-                TessellateError::SphereTrimShape {
-                    face: fk,
-                    edge: ek,
-                    cause: crate::types::SphereTrimCause::ThroughPole,
-                },
-            )
-        }
-        _ => Err(refuse(
-            "trimmed sphere face half-edge carries an image that is neither harmonic nor a \
-             projected circle — no sphere mint produces one",
-        )),
-    }
-}
-
-/// The per-axis speed bounds of a projected circle
-/// `p(t) = c + a·cos t + b·sin t` in its chart's frame over `params`
-/// ([`sphere_uv_speeds`]' doc), or `None` where the azimuth bound fails:
-/// `ρ² ≤ 0` on its closed-form lower bound, an arc through or
-/// numerically on the chart's pole.
-pub(crate) fn projected_circle_speeds(
-    (c, a, b): (
-        geom_core::Vec3<f64>,
-        geom_core::Vec3<f64>,
-        geom_core::Vec3<f64>,
-    ),
-    params: (f64, f64),
-) -> Option<(f64, f64)> {
-    let (aa, bb, ab) = (a.dot(a), b.dot(b), a.dot(b));
-    let speed_sq = 0.5 * (aa + bb) + (0.5 * (aa - bb)).hypot(ab);
-    let p_sq_min = 0.5f64.mul_add(aa + bb, c.dot(c))
-        - 2.0 * c.dot(a).hypot(c.dot(b))
-        - (0.5 * (aa - bb)).hypot(ab);
-    let (z_lo, z_hi) = crate::trimmed::harmonic_range(c.z, a.z, b.z, params);
-    let rho_sq_min = p_sq_min - z_lo.abs().max(z_hi.abs()).powi(2);
-    if !(rho_sq_min > 0.0 && speed_sq.is_finite()) {
-        return None;
-    }
-    let speed = speed_sq.sqrt();
-    Some((speed / rho_sq_min.sqrt(), speed / p_sq_min.sqrt()))
+    adjacent_faces(body, ek)?
+        .into_iter()
+        .try_fold(delta, |least, fk| {
+            Ok(least.min(crate::trimmed::face_target(body, fk, delta)?))
+        })
 }
 
 /// The radius of a circle carrier (caller guarantees the variant).
@@ -802,23 +727,14 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     }
 }
 
-/// The (start, end) vertices of the edge's `he_plus`.
-pub(crate) fn edge_vertices(
+/// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's
+/// miss named as the tessellator names it.
+pub(crate) fn edge_ends(
     body: &Body<f64>,
     ek: EdgeKey,
 ) -> Result<(topo::VertexKey, topo::VertexKey), TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    let he = body
-        .get_half_edge(edge.he_plus)
-        .ok_or(TessellateError::MissingEntity { what: "he_plus" })?;
-    let end = body
-        .half_edge_end(edge.he_plus)
-        .ok_or(TessellateError::MissingEntity {
-            what: "he_plus end",
-        })?;
-    Ok((he.start, end))
+    body.edge_vertices(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })
 }
 
 /// An edge's two sides, the edge's miss named as the tessellator names
@@ -843,299 +759,314 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
+    use crate::sizing::{
+        cone_face_rho_max, cone_grid_step, sphere_face_widest_cos, sphere_grid_steps,
+        torus_grid_steps,
+    };
     use geom::NurbsCurve3;
+    use geom_core::Point3;
     use geom_core::spline::KnotVector;
-    use geom_core::{Point2, Point3};
     use topo::EdgeKey;
 
-    /// A degree-1 chart image, the shape this head's producer mints
-    /// (`edge_nurbs::PXN_IMAGE_DEGREE = 1`, 33 interpolated feet): a
-    /// polyline whose per-span speed IS a difference coefficient, so
-    /// the hull bound is the sup exactly and any slack is a defect.
-    fn polyline_image() -> geom::NurbsCurve2<f64> {
-        let n = 9;
-        let pts: Vec<Point2<f64>> = (0..n)
-            .map(|i| {
-                let t = f64::from(i) / f64::from(n - 1);
-                Point2::new(1.0 + t + 0.15 * (6.0 * t).sin(), 0.4 * t * t - 0.2 * t)
-            })
-            .collect();
-        let mut knots = vec![0.0];
-        knots.extend((0..n).map(|i| f64::from(i) / f64::from(n - 1)));
-        knots.push(1.0);
-        let kv = KnotVector::clamped(knots, 1).unwrap();
-        geom::NurbsCurve2::new(kv, pts, vec![1.0; n as usize]).unwrap()
-    }
-
-    /// A degree-3 chart image whose per-axis derivative-net maximum
-    /// sits on an INTERIOR coefficient (`Q_1^u = 3.0` against
-    /// `Q_0 = Q_2 = Q_3 = 1.2`): a degree-2 derivative basis peaks at
-    /// ½ and never reaches 1, so the hull bound is a genuine
-    /// over-estimate — `sup|u′|` sampled ≈ 2.4 against a certified 3.0.
-    ///
-    /// This is the leg that exercises what convexity is FOR. A bound
-    /// taken over only the end coefficients is wrong here and right on
-    /// the other two legs, which is exactly the degradation a
-    /// domination row has to be able to see.
-    ///
-    /// Adopted from the review lane's interior-maximum probe.
-    fn interior_max_cubic() -> geom::NurbsCurve2<f64> {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-        let pts = vec![
-            Point2::new(0.0, 0.0),
-            Point2::new(0.2, 0.0),
-            Point2::new(1.2, 0.5),
-            Point2::new(1.6, 1.0),
-            Point2::new(1.8, 1.0),
-        ];
-        geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap()
-    }
-
-    /// A degree-2 image whose maximum is attained ONLY at its interior
-    /// knot: the derivative basis is degree 1, whose Greville
-    /// abscissae ARE the knots, so `Q_1` is reached exactly at
-    /// `t = ½` and nowhere else. `Q_1^u = 2·(0.9 − 0.1)/(1 − 0) = 1.6`
-    /// against `Q_0^u = Q_2^u = 0.4`.
-    ///
-    /// Two things ride on this leg: the bound is ATTAINED (so the
-    /// two-sided pin applies), and it is attained at a point a uniform
-    /// sampling grid can miss — which is what makes
-    /// [`sampled_uv_speeds`]' both-sides-of-every-interior-knot
-    /// augmentation load-bearing rather than decorative.
-    ///
-    /// Adopted from the review lane's interior-knot probe.
-    fn interior_knot_quadratic() -> geom::NurbsCurve2<f64> {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let pts = vec![
-            Point2::new(0.0, 0.0),
-            Point2::new(0.1, 0.3),
-            Point2::new(0.9, 0.4),
-            Point2::new(1.0, 0.7),
-        ];
-        geom::NurbsCurve2::new(kv, pts, vec![1.0; 4]).unwrap()
-    }
-
-    /// The densest honest reading of the image's per-axis UV speeds:
-    /// `|u′|` and `|v′|` at `samples + 1` parameters across the
-    /// domain, plus both sides of every interior knot (a degree-1
-    /// image's speed is piecewise constant and its extremes sit on the
-    /// spans, which a grid that lands ON a break would read as the
-    /// one-sided value the evaluator happens to pick;
-    /// [`interior_knot_quadratic`] is the leg that makes this an
-    /// assertion rather than a precaution).
-    fn sampled_uv_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
-        let (d0, d1) = c.knots_f64_interim().domain();
-        let span = d1 - d0;
-        let mut ts: Vec<f64> = Vec::new();
-        for i in 0..=samples {
-            #[allow(clippy::cast_precision_loss)]
-            let lam = i as f64 / samples as f64;
-            ts.push(d0 + span * lam);
-        }
-        for (k, _) in c.knots_f64_interim().interior_knots() {
-            ts.push(k - span * 1e-9);
-            ts.push(k + span * 1e-9);
-        }
-        let (mut su, mut sv) = (0.0f64, 0.0f64);
-        for t in ts {
-            let d = c.deriv(t.clamp(d0, d1));
-            su = su.max(d.x.abs());
-            sv = sv.max(d.y.abs());
-        }
-        (su, sv)
-    }
-
-    /// **DOMINATION — the `General` arm's certified sup is a sup, and
-    /// on the legs where it is attained it is not padded.**
-    ///
-    /// [`general_uv_speeds`] answers a convexity fact about the
-    /// differenced control net; this row answers the same question by
-    /// DENSE SAMPLING of `P′` and requires the certificate to dominate
-    /// it on both axes. The vertex-count row downstream (E2 in
-    /// `sweep/tests/m8_4_intersection_iso.rs`) cannot see a sup that
-    /// is too SMALL — it would simply schedule fewer chords and still
-    /// produce a mesh — so this is the row that can, and it prints
-    /// both sides at full precision so a near miss is readable.
-    ///
-    /// **Three legs, and which is which** (the reason a single fixture
-    /// will not do):
-    ///
-    /// | leg | where the max sits | attained? |
-    /// | --- | --- | --- |
-    /// | [`polyline_image`] — degree 1, the head's minted shape | an END coefficient | yes, exactly |
-    /// | [`interior_knot_quadratic`] — degree 2 | an INTERIOR coefficient, at the interior knot | yes, exactly, at one point |
-    /// | [`interior_max_cubic`] — degree 3 | an INTERIOR coefficient, mid-span | no — `sup` ≈ 2.4 against a certified 3.0 |
-    ///
-    /// The two-sided pin runs on the first two. A bound folded over
-    /// only the end coefficients passes the first leg unchanged and
-    /// fails the other two, which is what the middle column is for; a
-    /// bound scaled down anywhere fails all three.
+    /// **Each refusal note names its class.** The chord pass hands these to
+    /// a caller as `UnsupportedCurve`, and the doors downstream read them
+    /// (`fitted_refusals`'s `FITTED` and `UV speed bound`).
     #[test]
-    fn general_uv_speeds_dominate_the_sampled_image_speeds() {
-        for (name, image, attained) in [
+    fn each_speed_refusal_names_its_class() {
+        for (e, keys) in [
+            (NoSpeedBound::Fitted, &["FITTED", "UV speed bound"][..]),
+            (NoSpeedBound::RationalGeneral, &["RATIONAL"][..]),
             (
-                "degree-1 polyline, max at an end coefficient (the head's minted shape)",
-                polyline_image(),
-                true,
+                NoSpeedBound::OutsideDomain,
+                &["outside its own knot domain"][..],
             ),
-            (
-                "degree-2, max at an interior coefficient attained at the interior knot",
-                interior_knot_quadratic(),
-                true,
-            ),
-            (
-                "degree-3, max at an interior coefficient the basis never fully activates",
-                interior_max_cubic(),
-                false,
-            ),
+            (NoSpeedBound::NoSubArc, &["sub-arc structure"][..]),
+            (NoSpeedBound::NotASpan, &["reversed or not finite"][..]),
+            (NoSpeedBound::NonFinite, &["no finite speed bound"][..]),
+            (NoSpeedBound::OffRegime, &["outside the regime"][..]),
+            (NoSpeedBound::NetUnbounded, &["unbounded/refused"][..]),
+            (NoSpeedBound::ThroughSingularSet, &["singular set"][..]),
         ] {
-            let (d0, d1) = image.knots_f64_interim().domain();
-            let (su, sv) = general_uv_speeds(&image, (d0, d1), EdgeKey::default())
-                .expect("a constant-weight polynomial image is in the certified inventory");
-            let (wu, wv) = sampled_uv_speeds(&image, 4096);
-            println!(
-                "DOMINATION {name}: certified s_u {su:.17e} vs sampled {wu:.17e}; \
-                 certified s_v {sv:.17e} vs sampled {wv:.17e}"
-            );
-            assert!(
-                wu > 0.0 && wv > 0.0,
-                "{name}: the fixture must MOVE on both axes, else the row is vacuous — \
-                 sampled sup|u'| {wu:.17e}, sup|v'| {wv:.17e}"
-            );
-            assert!(
-                wu <= su,
-                "{name}: the certified sup|u'| {su:.17e} is DOMINATED BY a sampled \
-                 speed {wu:.17e} — the chord schedule would under-count"
-            );
-            assert!(
-                wv <= sv,
-                "{name}: the certified sup|v'| {sv:.17e} is DOMINATED BY a sampled \
-                 speed {wv:.17e} — the chord schedule would under-count"
-            );
-            if attained {
-                // Where the winning coefficient's basis function
-                // reaches 1, the hull max IS the sup and the two sides
-                // may differ only by each side's outward rounding —
-                // interval arithmetic's difference quotient and its `next_up` on
-                // one side, the evaluator's basis pass on the other.
-                // `1e-14` relative is ~45 ulps at these magnitudes,
-                // measured at ~6e-16; a rewrite that pads the bound by
-                // so much as 1e-13 of it reds here.
-                assert!(
-                    su <= wu * (1.0 + 1e-14) && sv <= wv * (1.0 + 1e-14),
-                    "{name}: this bound is ATTAINED, so a certified \
-                     s = ({su:.17e}, {sv:.17e}) this far above the sampled \
-                     ({wu:.17e}, {wv:.17e}) is slack this arm must not carry"
-                );
-            } else {
-                // The converse claim, so the table above is a
-                // measurement and not a belief: on this leg the bound
-                // is STRICTLY loose, by more than 20%. An arm that
-                // became exact here would be a different mechanism and
-                // owes a new argument.
-                assert!(
-                    su > wu * 1.2,
-                    "{name}: the u bound is meant to be convexity-LOOSE here — \
-                     certified {su:.17e} against sampled {wu:.17e}"
-                );
+            let note = no_speed_note(e);
+            for key in keys {
+                assert!(note.contains(key), "{e:?}: {note}");
             }
         }
     }
 
-    /// **The rational refusal is live and load-bearing.** A constant
-    /// weight vector cancels out of the rational basis, so a
-    /// constant-`2.0` image IS its polynomial wrap and answers
-    /// identically to the unit-weight one; a VARYING weight vector's
-    /// derivative is a quotient whose coefficients are not the
-    /// differenced net, and refuses typed.
+    /// **The crease joints are settled after every raise.** A side whose
+    /// arc rim has two sub-arcs asks 5, and the other side raises to 7: the
+    /// count is 8, a multiple of the joints, not the 7 a raise after the
+    /// rounding would leave (which puts no chord point on the joint).
     #[test]
-    fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
-        let base = interior_max_cubic();
-        let (d0, d1) = base.knots_f64_interim().domain();
-        let plain = general_uv_speeds(&base, (d0, d1), EdgeKey::default()).unwrap();
+    fn the_joints_are_settled_after_every_sides_raise() {
+        assert_eq!(settle(3, &[(5, 2), (7, 1)]), 8);
+        assert_eq!(settle(3, &[(7, 1), (5, 2)]), 8, "in either side order");
+        assert_eq!(
+            settle(9, &[(5, 2), (7, 3)]),
+            12,
+            "every side's joints at once"
+        );
+        assert_eq!(settle(4, &[]), 4, "no side asks: the carrier's own count");
+    }
 
-        let two = geom::NurbsCurve2::new(
-            base.knots_f64_interim().clone(),
-            base.control().to_vec(),
-            vec![2.0; base.control().len()],
+    /// **An analytic arm's projected row is a conic's.** A projected image
+    /// of a spline carrier refuses here, naming its class: the projected
+    /// speed bound the arms read is a conic's only (`chart_image`).
+    #[test]
+    fn a_sphere_arm_row_of_a_spline_carrier_refuses() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let quarter = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            vec![1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0],
         )
         .unwrap();
-        let constant = general_uv_speeds(&two, (d0, d1), EdgeKey::default())
-            .expect("a constant weight vector is the polynomial wrap");
-        assert_eq!(
-            plain, constant,
-            "constant weights cancel: the same curve must answer the same sup"
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let image =
+            geom_brep::chart_pcurve(&Curve3::Nurbs(std::sync::Arc::new(quarter)), &sphere, band)
+                .expect("a spline arc of the equator has a projected image");
+        assert!(matches!(image, Pcurve::Projected(_)), "{image:?}");
+        match chart_image(&image, EdgeKey::default()) {
+            Err(TessellateError::UnsupportedCurve { note, .. }) => {
+                assert!(note.contains("a conic's image only"), "{note}");
+            }
+            other => panic!("a spline carrier's projected row was admitted: {other:?}"),
+        }
+        let line = Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.0, 0.0),
+            pl: geom_core::Vec2::new(1.0, 0.0),
+        };
+        assert!(
+            matches!(chart_image(&line, EdgeKey::default()),
+                     Err(TessellateError::UnsupportedCurve { note, .. })
+                         if note.contains("no analytic mint produces one")),
+            "an iso line is no analytic mint"
         );
+    }
 
-        let mut w = vec![1.0; base.control().len()];
-        w[2] = 0.5;
-        let varying =
-            geom::NurbsCurve2::new(base.knots_f64_interim().clone(), base.control().to_vec(), w)
+    /// The chord pass over `body`, its vertex ids minted first.
+    fn chords_of(body: &Body<f64>, delta: f64) -> ChordPass {
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, p) in body.vertex_points() {
+            #[allow(clippy::cast_possible_truncation)]
+            vids.insert(vk, positions.len() as u32);
+            positions.push(p);
+        }
+        let mut bounds = FaceBounds::new();
+        compute_chords(body, delta, &vids, &mut positions, &mut bounds).unwrap()
+    }
+
+    /// For every side of every edge of `body` whose lattice the rule reads:
+    /// the steps against the lane's own step function at the face's
+    /// target, computed here from the surface rather than read off the
+    /// lattice; and the edge's count against what the rule asks. On a line
+    /// or a circle, whose own count is the sagitta's, the count is exactly
+    /// the larger of that and every side's ask, settled on its joints.
+    /// Answers how many sides each arm answered (the curved lane's, the
+    /// sphere arm's, the spline arm's) and how many edges the rule raised
+    /// above their carrier's own count.
+    #[allow(clippy::float_cmp)]
+    fn arms_on(body: &Body<f64>, delta: f64) -> [usize; 4] {
+        let pass = chords_of(body, delta);
+        let mut bounds = FaceBounds::new();
+        let mut seen = [0; 4];
+        for (ek, edge) in body.edges() {
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .unwrap()
+                .certified()
                 .unwrap();
-        let err = general_uv_speeds(&varying, (d0, d1), EdgeKey::default())
-            .expect_err("a varying weight vector has no certified net here");
-        assert!(
-            matches!(&err, TessellateError::UnsupportedCurve { note, .. }
-                     if note.contains("RATIONAL")),
-            "the refusal names its own class: {err:?}"
-        );
+            let (t0, t1) = curve.params();
+            let span = t1 - t0;
+            let n = pass.ids[&ek].len() - 1;
+            let mut asks = Vec::new();
+            let sides = sides_of(body, ek).unwrap();
+            for s in [sides.plus, sides.minus] {
+                let surface = crate::tessellate::face_surface(body, s.face).unwrap();
+                let Some(lattice) =
+                    FaceLattice::of(body, s.face, surface, delta, &mut bounds).unwrap()
+                else {
+                    continue;
+                };
+                let target = crate::trimmed::face_target(body, s.face, delta).unwrap();
+                let want = match (&lattice.reads, surface) {
+                    (
+                        Reads::Iso(_) | Reads::ChartRows { .. },
+                        geom::Surface::Sphere { radius, .. },
+                    ) => {
+                        let widest = sphere_face_widest_cos(body, s.face, surface).unwrap();
+                        sphere_grid_steps(target, *radius, widest)
+                    }
+                    (
+                        Reads::Iso(_) | Reads::ChartRows { .. },
+                        geom::Surface::Torus {
+                            major_radius,
+                            minor_radius,
+                            ..
+                        }
+                        | geom::Surface::Spindle {
+                            major_radius,
+                            minor_radius,
+                            ..
+                        },
+                    ) => torus_grid_steps(target, *major_radius, *minor_radius),
+                    (Reads::Iso(_), geom::Surface::Cylinder { radius, .. }) => {
+                        (sagitta_step(target, *radius), f64::INFINITY)
+                    }
+                    (
+                        Reads::Iso(_) | Reads::ChartRows { .. },
+                        geom::Surface::Cone { half_angle, .. },
+                    ) => (
+                        cone_grid_step(
+                            target,
+                            *half_angle,
+                            cone_face_rho_max(body, s.face, *half_angle).unwrap(),
+                        ),
+                        f64::INFINITY,
+                    ),
+                    (Reads::Iso(_) | Reads::ChartRows { .. }, _) => {
+                        panic!("{ek:?}: an analytic chart the row has no step for")
+                    }
+                    (Reads::SplineRows, _) => {
+                        let payload = surface.spline_chart().unwrap();
+                        face_bound(&mut bounds, payload, s.face)
+                            .unwrap()
+                            .grid_steps(crate::nurbs_cert::lattice_budget(target))
+                    }
+                };
+                seen[match lattice.reads {
+                    Reads::Iso(_) => 0,
+                    Reads::ChartRows { .. } => 1,
+                    Reads::SplineRows => 2,
+                }] += 1;
+                assert!(lattice.steps == want, "{ek:?}: steps {:?}", lattice.steps);
+                let ask = lattice
+                    .speeds(body, s.half_edge, s.face, curve, ek)
+                    .unwrap();
+                let rule = ceil_count(ask.speeds.0 * span, want.0)
+                    .unwrap()
+                    .max(ceil_count(ask.speeds.1 * span, want.1).unwrap());
+                asks.push((rule, ask.joints));
+            }
+            let own = match *curve.carrier() {
+                Curve3::Line(_) => Some(1),
+                Curve3::Circle(geom::Circle { radius, .. }) => Some(
+                    ceil_count(
+                        span,
+                        sagitta_step(edge_target(body, ek, delta).unwrap(), radius),
+                    )
+                    .unwrap(),
+                ),
+                _ => None,
+            };
+            if let Some(own) = own {
+                let expected = settle(own, &asks);
+                assert_eq!(n, expected, "{ek:?}: own {own}, asks {asks:?}");
+                if expected > own {
+                    seen[3] += 1;
+                }
+            } else {
+                for &(rule, joints) in &asks {
+                    assert!(
+                        n >= rule && n.is_multiple_of(joints),
+                        "{ek:?}: {n} chords against a side's ask of {rule} (joints {joints})"
+                    );
+                }
+            }
+        }
+        seen
     }
 
-    /// **A C⁰ kink is admitted; the type refuses what this arm does
-    /// not.** Interior multiplicity `= p` is constructible and the
-    /// Lipschitz bound holds across it. Degree 0 and multiplicity
-    /// `p + 1` are refused by [`KnotVector::clamped`] itself, so the
-    /// arm carries no guard for either — this row is why those two
-    /// sentences in its doc are a measurement.
+    /// A revolved profile loop, about `y`.
+    fn revolved(lp: profile::ProfileLoop<f64>) -> Body<f64> {
+        let tol = geom_core::Tol::witness();
+        let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: geom_core::Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
+            .unwrap()
+            .body
+            .into_body()
+    }
+
+    /// **Each arm of the rule answers its lane's lattice, and the count is
+    /// what the rule asks.** One body per arm and chart: a ball (the curved
+    /// lane's sphere), a donut (its torus, whose rims the rule raises above
+    /// their own sagitta count: the binding case), a washer (its cylinders),
+    /// the pair of tilted balls (the trimmed sphere arm), a lofted cylinder
+    /// (the spline arm, whose arc rims carry crease joints). An arm that
+    /// stops answering leaves its body's tally at zero; a count off the
+    /// rule's ask on a line or circle reds in `arms_on`.
     #[test]
-    fn the_knot_vector_type_refuses_what_the_speed_arm_does_not_guard() {
-        assert!(KnotVector::clamped(vec![0.0, 1.0], 0).is_err(), "degree 0");
+    fn each_arm_of_the_rule_answers_its_lanes_lattice() {
+        use geom_core::Point2;
+        use profile::RawLoop;
+        let tol = geom_core::Tol::witness();
+        let ball = sweep::test_support::ball_poled_y(1.0, geom_core::Vec3::new(0.0, 0.0, 0.0), tol);
         assert!(
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0], 2).is_err(),
-            "interior multiplicity p + 1"
+            arms_on(&ball, 1e-2)[0] > 0,
+            "the curved lane answers on a ball"
         );
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let pts = vec![
-            Point2::new(0.0, 0.0),
-            Point2::new(0.3, 0.1),
-            Point2::new(0.5, 0.9),
-            Point2::new(0.7, 0.2),
+        let donut = revolved(profile::test_support::bulge_loop(vec![
+            (Point2::new(2.0, -0.5), 1.0),
+            (Point2::new(2.0, 0.5), 1.0),
+        ]));
+        let on_donut = arms_on(&donut, 1e-2);
+        assert!(
+            on_donut[0] > 0 && on_donut[3] > 0,
+            "the curved lane answers on a donut, and raises a rim: {on_donut:?}"
+        );
+        let washer = revolved(profile::ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
             Point2::new(1.0, 1.0),
-        ];
-        let image = geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap();
-        let (su, sv) = general_uv_speeds(&image, (0.0, 1.0), EdgeKey::default())
-            .expect("multiplicity = p is a C0 kink, which a Lipschitz bound survives");
-        let (wu, wv) = sampled_uv_speeds(&image, 4096);
-        println!("C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})");
-        let d = Domination::sampled_under_certified(&[("u'", wu, su), ("v'", wv, sv)]);
+        ]));
         assert!(
-            wu > 0.0 && wv > 0.0 && d.holds(),
-            "C0 kink: sampled speeds must be positive and under the certified sups: {d}"
+            arms_on(&washer, 1e-2)[0] > 0,
+            "the curved lane answers on a washer"
         );
-    }
-
-    /// **The domain premise is checked, not assumed.** The hull bounds
-    /// the image on its own knot domain; past the domain `deriv`
-    /// extends the end span's polynomial and the hull says nothing.
-    /// A half-edge interval reaching outside refuses typed; a proper
-    /// sub-range is admitted and strictly over-bounded.
-    #[test]
-    fn a_read_outside_the_images_domain_refuses_and_a_subrange_is_over_bounded() {
-        let image = interior_max_cubic();
-        let (d0, d1) = image.knots_f64_interim().domain();
-        let err = general_uv_speeds(&image, (d0, d1 + 0.25), EdgeKey::default())
-            .expect_err("past the domain there is no certified bound");
+        let one = |c| {
+            sweep::test_support::finished(
+                "the ball",
+                sweep::test_support::ball_poled_y(1.0, c, tol),
+                tol,
+            )
+        };
+        let pair = topo::boolean::union(
+            &one(geom_core::Vec3::new(0.0, 0.0, 0.0)),
+            &one(geom_core::Vec3::new(1.4, 0.0, 0.0)),
+            tol,
+        )
+        .expect("the pair unions")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+        .into_body();
         assert!(
-            matches!(&err, TessellateError::UnsupportedCurve { note, .. }
-                     if note.contains("outside its own knot domain")),
-            "{err:?}"
+            arms_on(&pair, 1e-2)[1] > 0,
+            "the sphere arm answers on the tilted pair"
         );
-        let whole = general_uv_speeds(&image, (d0, d1), EdgeKey::default()).unwrap();
-        let part = general_uv_speeds(&image, (d0, d1 * 0.5), EdgeKey::default()).unwrap();
-        assert_eq!(
-            whole, part,
-            "the bound is the whole domain's whatever sub-range is asked for — \
-             conservative, and the premise the doc states"
+        let loft = sweep::test_support::lofted_cylinder(1.0, tol);
+        assert!(
+            arms_on(&loft, 1e-2)[2] > 0,
+            "the spline arm answers on a loft"
         );
     }
 

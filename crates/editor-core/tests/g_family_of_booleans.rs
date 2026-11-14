@@ -74,7 +74,7 @@ fn member_of_name(name: &StableName) -> Option<MemberAt> {
 /// **A row of three unit blocks, pitch 0.75, each cut by the read
 /// `tool` makes** (given the block and the row): the document, the row
 /// and the per-`k` subtract.
-fn cut_row(
+pub(crate) fn cut_row(
     tool: impl FnOnce(ProfileDoc, RecipeNodeId, RecipeNodeId) -> (ProfileDoc, BodyRead<Formula>),
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("g-family-of-booleans", Tol::witness());

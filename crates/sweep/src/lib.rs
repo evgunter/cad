@@ -155,6 +155,7 @@
 pub mod extrude;
 pub mod loft;
 pub mod revolve;
+pub mod rows;
 pub mod skin;
 // The lowering the sweep verbs share (its own docs say what is in it
 // and what deliberately is not); crate-internal, so not `pub`.

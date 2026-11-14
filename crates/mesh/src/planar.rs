@@ -124,7 +124,7 @@
 //! and bit-clean: it emits the zero the construction produced, for a
 //! reason stated at the site, and it moves nothing else.
 //!
-//! # The floor under it: `mitigate_underflow` at the insert feed
+//! # The floor under it: the crate's CDT feed
 //!
 //! The sited write closes the far point and only the far point, and
 //! that is not the whole class. Any boundary point lying on an
@@ -136,40 +136,15 @@
 //! symmetry, and they refuse over the same ν band and by the same ν²
 //! law as the defect the write fixes.
 //!
-//! So every chart coordinate additionally passes through spade's own
-//! [`spade::mitigate_underflow`] on its way into `insert`.
-//!
-//! **Read what that function actually does, because the argument turns
-//! on it.** It snaps a coordinate to zero *only* when the coordinate is
-//! already nonzero and already below [`spade::MIN_ALLOWED_VALUE`] — the
-//! open band `(0, MIN_ALLOWED_VALUE)` that `insert` refuses outright.
-//! It cannot touch a small-but-real coordinate: a value at 1e-30 is
-//! above the floor and passes through bit-identical. So the choice it
-//! offers is never "corrupt a real value or not". It is "mesh, or
-//! refuse", over exactly the values spade will not accept in any case.
-//!
-//! That is the same argument as the sited write, one step wider. Each
-//! coordinate in that band is a float residue of a quantity whose
-//! exact-arithmetic answer is zero — the construction's own zero,
-//! reached by geometry the frame cannot see rather than by the frame's
-//! own algebra — and snapping it declines to invent a nonzero, exactly
-//! as the far-point write does. It is not value snapping in the sense
-//! this module bans, because there is no real value to snap: nothing in
-//! the band is a number the pipeline may keep.
-//!
-//! The two layers are kept separate rather than collapsed into one.
-//! The write is exact and structural, and it names WHY that coordinate
-//! is zero at the site that knows; the floor is a general refusal to
-//! hand spade a value it rejects, and it knows nothing. Deleting the
-//! write would leave the far point's zero to be recovered by a filter
-//! that cannot say why it is zero.
-//!
-//! **Genuine degeneracy still refuses, and that is load-bearing.** A
-//! degenerate loop yields non-finite frame components, and mitigation
-//! passes NaN and infinity through untouched — the comparison
-//! `|c| < MIN_ALLOWED_VALUE` is false for both — so the typed
-//! [`TessellateError::Triangulation`] path is intact. The floor
-//! converts sub-floor refusals and nothing else.
+//! So every chart coordinate additionally passes through the crate's
+//! one CDT feed, `crate::cdt::spade_point`, whose docs carry the
+//! floor's argument: it writes `0.0` only for a coordinate already in
+//! the band `insert` refuses, and passes every other value, NaN and
+//! infinity included, bit-identical. The two layers stay separate: the
+//! write is exact and structural and names WHY that coordinate is zero
+//! at the site that knows; the floor knows nothing. Deleting the write
+//! would leave the far point's zero to a filter that cannot say why it
+//! is zero.
 //!
 //! The anchor needs neither layer: its `w` is the exactly-zero vector,
 //! so both its coordinates are already float `0.0`.
@@ -227,7 +202,6 @@ use geom_core::{Point3, Vec3};
 use spade::{
     ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation,
     handles::{DirectedEdgeHandle, FixedFaceHandle, FixedVertexHandle, InnerTag},
-    mitigate_underflow,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
@@ -249,12 +223,12 @@ pub(crate) fn tessellate_planar(
     shared: &[Point3<f64>],
 ) -> Result<Patch, TessellateError> {
     let face = body
-        .get_face(fk)
+        .face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
 
     // Loop id cycles (outer first, then rings in face order).
-    let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.rings.len());
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    let mut loops: Vec<Vec<u32>> = Vec::new();
+    for (lk, _, _) in face.loops() {
         loops.push(loop_ids(body, fk, lk, chords)?);
     }
 
@@ -272,36 +246,6 @@ pub(crate) fn tessellate_planar(
         interior: Vec::new(),
         triangles: triangulate_chart(fk, &loops, &polygons)?,
     })
-}
-
-/// Bit-equality of coordinates, which is NOT the same relation as "the
-/// same 3-D point". It is stricter than `==` in both directions that
-/// matter: `==` equates `+0.0` with `-0.0` and this does not, and `==`
-/// makes NaN unequal to itself while this makes it equal.
-///
-/// The strictness is deliberate — it is what makes
-/// [`ChartFrame::project`] a pure function of the point's BITS rather
-/// than of its walk position, which is what lets a slit seam's two
-/// traversals dedupe to one CDT handle.
-///
-/// **The ±0.0 gap, stated rather than left implied.** Two points that
-/// differ only in the sign of a zero coordinate are one point
-/// geometrically and two points here, so a `-0.0` twin of the far
-/// point does not receive the far-point write. That gap predates this
-/// code and is not created by it: before the write existed, such a
-/// twin already projected to its own residue and split into a second
-/// CDT vertex. What changes is the consequence. The twin's v is a
-/// residue of the same structural zero, so it lands in the same
-/// sub-floor band, and `mitigate_underflow` at the insert feed snaps it
-/// to `0.0` — the same value the write gives the far point itself. The
-/// two therefore arrive at spade as one coordinate pair and dedupe,
-/// which is why the floor makes this gap benign rather than merely
-/// documented. Above the floor the twin's v is a real value and the two
-/// points are genuinely distinct to the CDT, which is correct.
-fn same_position(a: Point3<f64>, b: Point3<f64>) -> bool {
-    a.x.to_bits() == b.x.to_bits()
-        && a.y.to_bits() == b.y.to_bits()
-        && a.z.to_bits() == b.z.to_bits()
 }
 
 /// The boundary-derived chart of a planar face: anchor, in-plane axes,
@@ -328,7 +272,18 @@ impl ChartFrame {
         // product is a determinant with a repeated row (module docs).
         // Written, not read back — the float residue is ~ν², which
         // goes sub-floor for spade and refuses the whole face.
-        let v = if same_position(p, self.far_at) {
+        //
+        // The far point is matched by its BITS, so the projection is a
+        // pure function of the bits rather than of the walk position,
+        // which is what lets a slit seam's two traversals dedupe to one
+        // CDT handle. A `-0.0` twin of the far point is two points here
+        // and one geometrically, so it does not receive the write. Its v
+        // is a residue of the same structural zero, under the floor,
+        // and the crate's CDT feed (`crate::cdt::spade_point`) writes it `0.0`,
+        // the write's own value, so the two still dedupe. Above the
+        // floor the twin's v is a real value and the two are genuinely
+        // distinct to the CDT.
+        let v = if Point3::same_bits(p, self.far_at) {
             0.0
         } else {
             w.dot(self.v_ref)
@@ -414,14 +369,9 @@ fn triangulate_chart(
     for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
         for (&id, &[u, v]) in ids.iter().zip(poly) {
-            // The floor under the sited far-point write (module docs):
-            // snaps a coordinate to zero ONLY when it is already
-            // nonzero and already below `MIN_ALLOWED_VALUE`, the band
-            // `insert` refuses outright. It cannot move a small-but-real
-            // value, and it passes NaN and infinity through, so a
-            // degenerate frame still refuses typed below.
+            // The floor under the sited far-point write (module docs).
             let h = cdt
-                .insert(mitigate_underflow(SpadePoint::new(u, v)))
+                .insert(crate::cdt::spade_point(u, v))
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
             walk.enter(&mut meta, h, PatchVertex::Shared(id), id);
             hs.push(h);
@@ -1178,7 +1128,7 @@ mod tests {
         // selection rule. (Asserting only that `far_at` is *some* input
         // point cannot fail: it is assigned from one by construction.)
         assert!(
-            super::same_position(frame.far_at, positions[3]),
+            Point3::same_bits(frame.far_at, positions[3]),
             "far must be the farthest walk point (index 3), got {:?}",
             frame.far_at
         );
@@ -1210,7 +1160,7 @@ mod tests {
             // The far point is (2, 1, 2ν) — the diagonal corner.
             let far = frame.far_at;
             assert!(
-                super::same_position(far, positions[2]),
+                Point3::same_bits(far, positions[2]),
                 "1e{exp}: far drifted off the diagonal corner: {far:?}"
             );
 
@@ -1260,7 +1210,7 @@ mod tests {
         let frame = super::chart_frame(&outer, &positions);
         for (i, p) in positions.iter().enumerate() {
             let [_, v] = frame.project(*p);
-            if super::same_position(*p, frame.far_at) {
+            if Point3::same_bits(*p, frame.far_at) {
                 continue;
             }
             let raw = (*p - frame.origin).dot(frame.v_ref);
@@ -1392,7 +1342,8 @@ mod tests {
     /// the SIGN OF A ZERO is one point geometrically and one point to
     /// spade (`-0.0 == 0.0`), but two points to `same_position`. The
     /// write then reaches one traversal and not the other, and the one
-    /// it misses keeps the sub-floor residue that refuses the face.
+    /// it misses keeps the sub-floor residue, which the crate's CDT feed
+    /// (`crate::cdt::spade_point`) then writes `0.0`.
     #[test]
     fn r2_signed_zero_twin_of_the_far_point_is_missed_by_bit_keying() {
         let nu = 1.0e-30_f64;
@@ -1409,8 +1360,8 @@ mod tests {
         let b = f.project(pts[2]);
         println!("PROBE2: far_at={:?} a={a:?} b={b:?}", f.far_at);
         println!(
-            "PROBE2: same_position(p1,p2) = {}, p1 == p2 (float) = {}",
-            super::same_position(pts[1], pts[2]),
+            "PROBE2: Point3::same_bits(p1,p2) = {}, p1 == p2 (float) = {}",
+            Point3::same_bits(pts[1], pts[2]),
             pts[1].x == pts[2].x && pts[1].y == pts[2].y && pts[1].z == pts[2].z
         );
         // Documented, not asserted as a defect: record whether the two
@@ -1697,7 +1648,7 @@ mod tests {
         let f = super::chart_frame(&outer, &positions);
         let mut moved = 0;
         for (i, p) in positions.iter().enumerate() {
-            if super::same_position(*p, f.far_at) {
+            if Point3::same_bits(*p, f.far_at) {
                 continue;
             }
             let raw = (*p - f.origin).dot(f.v_ref);
@@ -1724,7 +1675,7 @@ mod tests {
         //! failure directions, by execution.
         #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-        use crate::planar::{ChartFrame, chart_frame, same_position, triangulate_chart};
+        use crate::planar::{ChartFrame, chart_frame, triangulate_chart};
         use geom_core::Point3;
         use topo::FaceKey;
 
@@ -1747,7 +1698,7 @@ mod tests {
             let (frame, positions, outer) =
                 frame_of(&[(1.0, 2.0, 3.0), (1.0, 2.0, 3.0), (1.0, 2.0, 3.0)]);
             assert!(
-                same_position(frame.far_at, positions[0]),
+                Point3::same_bits(frame.far_at, positions[0]),
                 "far degenerates to anchor"
             );
             let polys: Vec<Vec<[f64; 2]>> =
@@ -1791,7 +1742,7 @@ mod tests {
             let (frame, positions, outer) =
                 frame_of(&[(0.0, 0.0, 0.0), (s, 0.0, 0.0), (s, s, 0.0), (0.0, s, 0.0)]);
             assert!(
-                same_position(frame.far_at, positions[0]),
+                Point3::same_bits(frame.far_at, positions[0]),
                 "far collapses to anchor"
             );
             let polys: Vec<Vec<[f64; 2]>> =
@@ -1820,7 +1771,7 @@ mod tests {
             ]);
             // Walk order: (2,-1) comes first, so it is the far point.
             assert!(
-                same_position(frame.far_at, positions[1]),
+                Point3::same_bits(frame.far_at, positions[1]),
                 "first max in walk order must win the tie: {:?}",
                 frame.far_at
             );
@@ -1854,15 +1805,15 @@ mod tests {
                 (2.0, 1.0, 0.0),
                 (0.0, 1.0, nu),
             ]);
-            assert!(same_position(frame.far_at, positions[2]));
+            assert!(Point3::same_bits(frame.far_at, positions[2]));
             // The -0.0 twin of the far point: == equal, bits unequal.
             let twin = Point3::new(2.0, 1.0, -0.0);
             assert!(
-                twin.x == frame.far_at.x && twin.y == frame.far_at.y && twin.z == frame.far_at.z,
+                twin.equals_exactly(frame.far_at),
                 "same point under coordinate =="
             );
             assert!(
-                !same_position(twin, frame.far_at),
+                !Point3::same_bits(twin, frame.far_at),
                 "twin must differ in bits — probe broken otherwise"
             );
             let v_twin = frame.project(twin)[1];
@@ -1889,7 +1840,7 @@ mod tests {
                 (0.0, 1.0, 0.0),
             ]);
             let far = frame.far_at;
-            assert!(same_position(far, positions[2]));
+            assert!(Point3::same_bits(far, positions[2]));
             for (dx, dy, dz) in [(1i64, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0)] {
                 let bump = |c: f64, d: i64| {
                     if d == 0 {
@@ -1899,7 +1850,7 @@ mod tests {
                     }
                 };
                 let q = Point3::new(bump(far.x, dx), bump(far.y, dy), bump(far.z, dz));
-                assert!(!same_position(q, far));
+                assert!(!Point3::same_bits(q, far));
                 let v = frame.project(q)[1];
                 let raw = (q - frame.origin).dot(frame.v_ref);
                 assert_eq!(

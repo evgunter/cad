@@ -221,7 +221,7 @@ fn chart_direction(
     // samples reads as the step it is. It covers 5% of a full period,
     // i.e. ~0.31 rad; anything materially smaller than that is not a
     // reading.
-    let step = geom_core::period::Period::new(core::f64::consts::TAU).near(hi - lo, 0.0);
+    let step = geom_core::period::Period::<f64>::angle().near(hi - lo, 0.0);
     (step.abs() > 0.1).then_some(step > 0.0)
 }
 
@@ -620,7 +620,6 @@ fn seam_vertex_on_loop(
     mint: &mut dyn FnMut() -> u64,
     splits: &mut usize,
 ) -> Result<u64, StepImportError> {
-    use core::f64::consts::TAU;
     let face_id = solid.faces[fi].id;
     let s_u_ref = match *surface {
         Surface::Cylinder { u_ref, .. } | Surface::Torus { u_ref, .. } => u_ref,
@@ -659,10 +658,7 @@ fn seam_vertex_on_loop(
             continue;
         };
         let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
-        let mut t = geom::Conic::azimuth(circle, q).near(0.0);
-        while t <= spec.t0 {
-            t += TAU;
-        }
+        let t = geom::conic_period().above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
         if t < spec.t1 {
             crossing = Some((u.edge, t, q));
             break;

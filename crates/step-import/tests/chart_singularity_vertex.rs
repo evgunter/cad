@@ -131,8 +131,8 @@ fn rows() -> Vec<Row> {
 /// The singular points of every sphere and cone face of `body`.
 fn singular_points(body: &topo::Body<f64>) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    for (_, f) in body.faces() {
-        match *body.get_surface(f.surface).unwrap() {
+    for (fk, _) in body.faces() {
+        match *body.face_surface(fk).unwrap() {
             Surface::Sphere {
                 center,
                 radius,

@@ -323,8 +323,10 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
     .body
     .into_body();
     let on_torus = |body: &Body<f64>, h: HalfEdgeKey| {
-        let face = body.get_face(body.face_of_half_edge(h).unwrap()).unwrap();
-        matches!(body.get_surface(face.surface), Some(Surface::Torus { .. }))
+        matches!(
+            body.face_surface(body.face_of_half_edge(h).unwrap()),
+            Some(Surface::Torus { .. })
+        )
     };
     let equators: Vec<_> = body
         .edges()

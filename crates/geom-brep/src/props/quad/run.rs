@@ -193,7 +193,7 @@ pub struct FaceCutBounds {
 /// Funnel wrapper (the `props_*` idiom of [`crate::props::curved`]): margins
 /// are certification-substrate `f64` lengths lifted to the caller's
 /// scalar so every lane (f64 / Probe / Interval) records identically.
-pub(super) fn classify_len<T: Decide>(
+pub(super) fn classify_len_as<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
@@ -212,7 +212,7 @@ pub(in crate::props) fn face_extent<T: Decide>(
     perimeter: f64,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify_len::<T>(
+    match classify_len_as::<T>(
         "props_quad_face_extent",
         Margin::over_lever(lo_or_refuse(area), perimeter),
         band,

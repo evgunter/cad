@@ -48,6 +48,14 @@ fn sym_arc_loft(s: f64) -> Body<Sym<f64>> {
     .into_body()
 }
 
+/// **The roster's unit** ([`crate::common::box_unit`]): ε, or less
+/// where the coarse loft, reaching `2·1e11` units (its top station),
+/// would pass the far end of the session box (at ε = 1e-6).
+fn unit() -> f64 {
+    let eps = Tol::witness().get().eps;
+    crate::common::box_unit(2.0e11, crate::common::FAR_END, eps / 1024.0)
+}
+
 fn counts_line(refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
         "{} decisions={} sym={} rref={} rcon={} num={} frozen={} shapes={}",
@@ -73,7 +81,7 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
             with_session(budget(), || {
                 match topo::validate_geometric_certificate(body, tol) {
                     Ok(cert) => cert
-                        .measure(topo::test_support::pinned_resolution(tol))
+                        .measure(crate::common::unit_resolution(unit()))
                         .map_or(true, |m| m.stop != topo::Stop::Met),
                     Err(_) => true,
                 }
@@ -102,10 +110,11 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
 /// with faces behind it still unresumed.
 #[test]
 fn the_session_receipt_does_not_move_with_the_thread_count() {
-    let eps = Tol::witness().get().eps;
+    // The names keep `eps` for the unit, which is ε but at 1e-6.
+    let unit = unit();
     for (label, body) in [
-        ("sym_arc_loft_1e9eps", sym_arc_loft(1.0e9 * eps)),
-        ("sym_arc_loft_1e11eps", sym_arc_loft(1.0e11 * eps)),
+        ("sym_arc_loft_1e9eps", sym_arc_loft(1.0e9 * unit)),
+        ("sym_arc_loft_1e11eps", sym_arc_loft(1.0e11 * unit)),
     ] {
         let one = session_reading(&body, 1);
         assert!(

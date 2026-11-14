@@ -2,7 +2,8 @@
 id: a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound
 kind: issue
 title: A spline chart's certificate door reads no incidence, so an off carrier ends as its image's bound
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-11-04
 priority: P1
 cost: M
@@ -58,3 +59,70 @@ DL3's "absent by type" holds for `validate_geometric`, not for
 `validate_pcurves`: that door compiles at `Dual` and answers clean there on
 an off carrier. The row rests on DL3's other half, that a dual's answer is
 not the validation of record.
+
+## Closed (2026-11-04): a spline chart's certificate doors read incidence
+
+`pcert/spline-certificate-door`. `pcurve_cache.rs` `read_shown` reads the spline
+arm over the edge's span (`read_edge_incidence`'s read). `incidence_ended` is the
+one home of when a certificate door reads it: an analytic chart before the door,
+a spline chart where the door refuses, or where the certificate's span is not
+shown to cover the span asked about. Every door goes through it:
+
+- `PcurveCache::certify`, `recertify`, `certify_fitted` and `certify_general`;
+- the edge certificate's stated chart image (`certify.rs` `stated_door`, at the
+  mint and at the sampled checks);
+- `read_incidence` and `read_point_incidence` read outright, the point by
+  `spline_incidence::spline_point_incidence`, one walk for the one point.
+
+A carrier off its wall at a read sample ends `CarrierOffChart` by each door's
+term (the kernel's defect at a build, the stored culprit at rest through
+`validate::off_face_ending`, the damaged file at import), and one in band ends
+`Escalated` (`PcurveCheck::ChartIncidence`) in the read's lever, never as the
+image's own bound.
+
+**Read on refusal.** On a spline chart a certificate that holds bounds every
+carrier point of its own span within the band of the wall (its envelope is a
+sup), so where that span covers the one asked about a read adds nothing. Taken
+first, the read cost up to 10× on the loft rows (5376 reads of 65 samples in
+one elbow row). Taken on refusal, it is off the hot path and an on-chart carrier
+that certified on main certifies unchanged. A row re-certified for an edge its
+span does not cover is read over the edge (review R1).
+
+**The stated route's meter is sampled**, not a sup, and so is the read: a
+carrier off its wall only between both sets of samples gets an edge certificate
+there, as on main (review R2). Every production producer closes with a mint
+whose envelope catches it; the construction tier does not. Filed:
+`a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` (P1).
+
+**The own-chart arm** (`topo::pcurves::nurbs_iso_derive`) reads nothing: it
+returns the stated image, and every door that stores or validates it ends a
+refusal by the read. `restate`'s no-door `Fitted` arm (a dual) now does too.
+Pinned by `topo/tests/a_spline_faces_stated_image_ends_by_its_carriers_incidence.rs`,
+whose lamina states every edge as its own face's image, read at rest unstored.
+
+**Dual.** `validate_pcurves` at `Dual` no longer answers clean on an off
+carrier: an own-chart `General` or `Fitted` image refuses for want of a fitted
+door, and the read then ends it `CarrierOffChart`, which `not_owed` does not
+excuse (`at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door`,
+`at_a_dual_an_off_carrier_is_a_finding`). DL3 still makes the base scalar's
+evaluation the validation of record.
+
+**Analytic charts.** `certify_fitted` and `certify_general` now read an analytic
+chart's carrier before refusing it `ImageMismatch`, so an off carrier offered
+there ends `CarrierOffChart` (`an_analytic_chart_reads_the_carrier_before_the_fitted_lane`).
+
+**The read's foot.** Each sample tries its foot before the walk: Gauss–Newton on
+the chart's `f64` shadow from the last sample's foot, its point evaluated in the
+scalar and decided as a kept cell's centre is. An on-chart sample reads in a few
+evaluations instead of a dive; in band, the foot arms the walk's band prune from
+its first visit. A chart too narrow to shrink its rectangle inside is walked
+without it (review R3).
+
+Rows:
+
+- `geom-brep/src/pcurve_cache/spline_door_rows.rs`: every door at `f64` and
+  `Interval`, on, off and in band; the dual's `certify_general`; R1 and R3; the
+  analytic fitted door. The `spline-shown-unread` mutant reds every off and
+  in-band reading;
+- the topo row above, the same doors through a body, the import term and the
+  dual; the same mutant, applied by hand, reds every reading.

@@ -251,7 +251,7 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
 /// The author's choice between the adjudication's two options is
 /// taken here and stated: a drift the band ADMITS certifies with a
 /// NONZERO envelope (the number is the honest one), and a drift the
-/// band calls definite refuses `CarrierOffChart` — a non-circular
+/// band calls definite refuses, read off its chart (`IncidenceRead::Off`) — a non-circular
 /// spiric oval lies on no torus but its own and its mirror's
 /// ([`the_mirror_torus_holds_the_oval_and_is_uncovered`]).
 #[test]
@@ -356,7 +356,10 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     ] {
         let e = certify(wall(1.0, 0.0), &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "{what}: {e:?}"
         );
     }
@@ -516,7 +519,10 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     ] {
         let e = geom_brep::chart_pcurve(&c, &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "{what}: {e:?}"
         );
     }
@@ -533,7 +539,10 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     let e = geom_brep::chart_pcurve(&c, &perpendicular, band())
         .unwrap_err_or_else_msg("perpendicular torus");
     assert!(
-        matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+        matches!(
+            geom_brep::IncidenceRead::of(&e),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ),
         "{e:?}"
     );
 }
@@ -546,7 +555,7 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
 /// that imaged first hands both an image (`Ok`).
 #[test]
 fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
-    use geom_brep::{IncidenceRead, OffMargin};
+    use geom_brep::IncidenceRead;
     use geom_core::{Interval, Real};
     let moved = Surface::Plane {
         origin: Point3::new(D + 1e-3, 0.0, 0.0),
@@ -582,8 +591,9 @@ fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
         ] {
             let e = got.unwrap_err_or_else_msg(what);
             assert!(
-                matches!(&e, PcurveCertifyError::CarrierOffChart { why: w, margin, .. }
-                    if w.contains(why) && !matches!(margin, Some(OffMargin::InBand(_))))
+                matches!(&e, PcurveCertifyError::Incidence(r)
+                    if r.why().is_some_and(|w| w.contains(why))
+                        && matches!(r.read(), IncidenceRead::Off(_)))
                     && IncidenceRead::of(&e).is_some_and(IncidenceRead::is_definite),
                 "{what} ({lane}): the incidence read's definite miss: {e:?}"
             );
@@ -648,7 +658,7 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
 /// so the own-torus image on the mirror and the mirror image
 /// on the own torus are each the wrong image of a carrier the chart
 /// holds (`ImageMismatch`, not off the chart); a torus that is neither
-/// holds no oval of it (`CarrierOffChart`), whichever image it is
+/// holds no oval of it (`IncidenceRead::Off`), whichever image it is
 /// handed.
 #[test]
 fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
@@ -684,7 +694,10 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
     for (what, image) in [("own", own), ("mirror", mirrored)] {
         let e = certify(image, &neither, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "the {what} image on a third torus: {e:?}"
         );
     }
@@ -749,11 +762,9 @@ fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
         let got = certify(wall(1.0, 0.0), &surface, band());
         let read_off = matches!(
             &got,
-            Err(PcurveCertifyError::CarrierOffChart {
-                why,
-                margin: Some(geom_brep::OffMargin::Past(_)),
-                ..
-            }) if why.starts_with("the carrier's points are not on the torus")
+            Err(PcurveCertifyError::Incidence(r))
+                if matches!(r.read(), geom_brep::IncidenceRead::Off(Some(_)))
+                    && r.why().is_some_and(|why| why.starts_with("the carrier's points are not on the torus"))
         );
         if !read_off {
             wrong.push(format!("{what}: the read answers off, definitely: {got:?}"));
@@ -762,15 +773,13 @@ fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
     let control = chart(mirror, Vec3::unit_y(), R + inside, RR);
     let got = certify(wall(1.0, 0.0), &control, band());
     if !matches!(
-        got,
-        Err(PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            cause: geom_core::Indeterminate {
+        got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+        Some(geom_brep::IncidenceRead::Undecided(
+            geom_core::Indeterminate {
                 predicate: Some("pcurve_torus_chart_incident"),
                 ..
-            },
-            ..
-        })
+            }
+        ))
     ) {
         wrong.push(format!(
             "control: the mirror with only its major radius in band escalates on the read: {got:?}"

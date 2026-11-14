@@ -192,12 +192,8 @@ fn the_block_carries_the_keel_as_a_slit_of_the_bore() {
     let at = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let bores: Vec<_> = body
         .edges()
-        .filter(|(_, e)| {
-            let h = e.he_plus;
-            let (a, b) = (
-                body.get_half_edge(h).unwrap().start,
-                body.half_edge_end(h).unwrap(),
-            );
+        .filter(|&(k, _)| {
+            let (a, b) = body.edge_vertices(k).unwrap();
             (at(a).distance(TIP) < 1e-12 || at(b).distance(TIP) < 1e-12)
                 && (at(a) - at(b)).cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12
         })

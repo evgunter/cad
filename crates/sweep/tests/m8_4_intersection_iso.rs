@@ -972,7 +972,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// The same body E1 measures. Its `Intersection` seam carries a
 /// `General` chart image, which until TRIM-2 PR-2 stopped the CHORD
 /// pass dead — `TessellateError::UnsupportedCurve` at
-/// `mesh::chords::nurbs_tighten`'s `General` arm, before any face lane
+/// `mesh::chords`' `General` arm, before any face lane
 /// ran, at all three ε. Two arms flip that: the chord pass now sizes
 /// the seam's UV steps from the image's own differenced control net,
 /// and the trim walk reads the image at the shared chord parameters.
@@ -1003,7 +1003,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
 /// curvature one. The curvature evidence for the speed bound is the
 /// unit row
-/// `mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`,
+/// `geom_brep`'s `speed_rows::general_speeds_dominate_the_sampled_image_speeds`,
 /// which carries an interior-maximum leg.
 ///
 /// It is also not a bound on how wrong the sup may be: a sup too small
@@ -1040,7 +1040,7 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     let (gt, gi) = patch_size(&body, &got, key);
     let oracle_walls: Vec<(usize, usize)> = oracle
         .faces()
-        .filter(|(_, f)| matches!(oracle.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .map(|(_, f)| patch_size(&oracle, &want, f.surface))
         .collect();
     println!(
@@ -1186,7 +1186,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     let plus = body.get_edge(edge).unwrap().he_plus;
     let from = vertex_at(&body, body.get_half_edge(plus).unwrap().start);
     assert!(
-        from.distance(end) == 0.0,
+        from.equals_exactly(end),
         "the rim runs from the row's u = {u_hi} end to its u = {u_lo} end: starts at {from:?}"
     );
     // The row run back by the kernel's own door, and the row on its
@@ -1322,7 +1322,7 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
                 .control()
                 .iter()
                 .zip(carrier.control())
-                .all(|(a, b)| a.x == b.x && a.y == b.y && a.z == b.z),
+                .all(|(a, b)| a.equals_exactly(*b)),
         "the fixture's premise: the carrier is the wall's u = 1 column, bit for bit"
     );
     let (t0, t1) = carrier.domain();

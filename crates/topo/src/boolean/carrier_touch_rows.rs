@@ -19,8 +19,9 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{ball_off_face, boxes, clusters, edge_clear_of_ball, off_face, reach};
+use super::{ball_off_face, clusters, edge_clear_of_ball, off_face, reach};
 use crate::body::Body;
+use crate::boxes;
 use crate::entity::EdgeKey;
 use crate::euler::MevSite;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};

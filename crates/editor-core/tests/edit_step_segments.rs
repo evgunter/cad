@@ -1665,10 +1665,7 @@ fn wall_radius(
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
-    match body
-        .body()
-        .get_surface(body.body().get_face(face)?.surface)?
-    {
+    match body.body().face_surface(face)? {
         geom::Surface::Cylinder { radius, .. } => Some(*radius),
         _ => None,
     }
@@ -2447,10 +2444,9 @@ fn a_reversed_chain_from_any_corner_is_answered_in_canonical_indices() {
 /// direction. Its instance is AUTHORED here rather than found in the
 /// corpus: now that the emission record pairs a fillet's radius with
 /// the arc it drew, the corpus's fillets are all attached, and the
-/// remaining shape is a radius argument that draws NO segment — the
-/// `Radius` spec of an `arc_fillet` whose carrier the arriving leg is
-/// already on, which EXTENDS that leg's own segment rather than
-/// emitting one of its own.
+/// remaining shape is a radius argument that draws NO segment — an
+/// `arc_fillet`'s incoming carrier whose run the fillet trims to no
+/// length at all.
 #[test]
 fn every_attached_radius_was_keyed_first() {
     let mut attached = 0_usize;
@@ -2505,7 +2501,7 @@ fn every_attached_radius_was_keyed_first() {
     for d in &corpus::documents() {
         check(d.name, &d.doc);
     }
-    check("segment-radii-extension", &keyed_but_never_attached());
+    check("segment-radii-zero-fit", &keyed_but_never_attached());
     assert!(attached > 0, "the corpus exercises the attach at all");
     assert!(
         keyed_only > 0,
@@ -2515,42 +2511,37 @@ fn every_attached_radius_was_keyed_first() {
 }
 
 /// The document whose program authors a radius that draws no segment:
-/// an `arc_fillet(Radius { .. })` off a directed leg end whose derived
-/// carrier IS the leg's own, so the incoming side EXTENDS that leg
-/// (the §4 item 4 vertex-move exemption) instead of emitting a segment
-/// of its own. The spelling reaches the content key, as every authored
-/// radius does, and no wall carries it.
+/// an `arc_fillet(Radius { r: 2, .. })` off the directed leg end (2, 0)
+/// heading +y, whose r = 1 fillet against the arrival y = 1 touches the
+/// carrier at that leg end itself — an exact incoming fit, so the
+/// incoming run has no length and is not emitted. The spelling reaches
+/// the content key, as every authored radius does, and no wall carries
+/// it.
 fn keyed_but_never_attached() -> ProfileDoc {
     let program = LoopProgram::Chain(vec![
-        ProgramStep::ArcFilletArc {
-            spec: ProgramArcData::Center {
-                c: len2([0.0, 0.0]),
-                winding: profile::ArcSweep::Ccw,
-                target: ProgramTarget::Point(len2([5.0, 0.0])),
-            },
-            radius: len(0.5),
-            spec2: ProgramArcData::Center {
-                c: len2([0.0, 7.0]),
-                winding: profile::ArcSweep::Cw,
-                target: ProgramTarget::Point(len2([0.0, 4.0])),
-            },
-        },
-        ProgramStep::ArcFillet {
-            spec: ProgramArcData::Radius {
-                r: len(3.0),
-                side: profile::ArcSide::Right,
-            },
-            radius: len(0.3),
-        },
-        ProgramStep::At(len2([-2.0, 2.0])),
+        ProgramStep::At(len2([2.0, -1.0])),
         ProgramStep::Toward {
             dx: fixture::scl(0.0),
-            dy: fixture::scl(-1.0),
+            dy: fixture::scl(1.0),
         },
         ProgramStep::Line(len(1.0)),
+        ProgramStep::ArcFillet {
+            spec: ProgramArcData::Radius {
+                r: len(2.0),
+                side: profile::ArcSide::Left,
+            },
+            radius: len(1.0),
+        },
+        ProgramStep::Toward {
+            dx: fixture::scl(-1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::At(len2([-1.0, 1.0])),
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([-2.0, -1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let doc = ProfileDoc::empty_derived("segment-radii-extension", tol());
+    let doc = ProfileDoc::empty_derived("segment-radii-zero-fit", tol());
     let (doc, _) = insert(
         doc,
         Node::Profile(ProfileProgram {

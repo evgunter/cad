@@ -791,7 +791,7 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let hole_wall = |f: topo::FaceKey| {
         let body = &assembly.body;
         matches!(
-            body.get_face(f).and_then(|f| body.get_surface(f.surface)),
+            body.face_surface(f),
             Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
         )
     };

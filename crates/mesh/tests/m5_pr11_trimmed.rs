@@ -70,7 +70,7 @@ fn halves_of(r: f64) -> (Body<f64>, Body<f64>) {
 fn assert_cylinder_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).unwrap();
-        let geom::Surface::Cylinder { origin, axis, .. } = *body.get_surface(face.surface).unwrap()
+        let geom::Surface::Cylinder { origin, axis, .. } = *body.face_surface(patch.face).unwrap()
         else {
             continue;
         };
@@ -126,7 +126,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
 }
 
 /// **A wide trimmed cylinder triangulates in the lattice metric**
-/// (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+/// (`work/tesslane/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
 /// The lane's lattice is square in 3-D, `hu` radians by `r·hu`, so in
 /// (θ, z) it is a strip of aspect ~1/r; triangulated there, an
 /// ellipse trim point between two rows fanned a sliver across many
@@ -205,8 +205,12 @@ fn trimmed_lane_is_bit_deterministic() {
 }
 
 /// The honest door: a trimmed face whose stored pcurve caches are
-/// missing refuses TYPED, naming where caches mint — never a silently
-/// re-derived branch guess.
+/// missing refuses TYPED — never a silently re-derived branch guess.
+/// With every cache detached the face's loop has no lift in its chart
+/// (`topo::Body::loop_lift` answers a `LiftGap`), and that is the cause
+/// the lane refuses on: `UnsupportedCurve` at an edge whose half-edge is
+/// a gap the body's own lift names, read here from the body rather than
+/// from the refusal's sentence.
 #[test]
 fn missing_pcurve_caches_refuse_typed() {
     let (above, _) = halves();
@@ -215,11 +219,25 @@ fn missing_pcurve_caches_refuse_typed() {
     for he in hes {
         stripped.detach_pcurve(he);
     }
+    let gaps: Vec<topo::EdgeKey> = stripped
+        .faces()
+        .filter_map(|(_, face)| stripped.loop_lift(face.outer).err())
+        .map(|gap| {
+            stripped
+                .get_half_edge(gap.half_edge)
+                .expect("a half-edge")
+                .edge
+        })
+        .collect();
+    assert!(!gaps.is_empty(), "a stripped face's loop has no lift");
     match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
-        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
-            assert!(note.contains("pcurve cache"), "{note}");
+        Err(mesh::TessellateError::UnsupportedCurve { edge, .. }) => {
+            assert!(
+                gaps.contains(&edge),
+                "the refusal is at a gap of a loop's lift: {edge:?} not in {gaps:?}"
+            );
         }
-        other => panic!("expected the typed missing-cache refusal, got {other:?}"),
+        other => panic!("expected the typed missing-lift refusal, got {other:?}"),
     }
 }
 
@@ -236,16 +254,16 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
     let (above, _) = halves();
     let wall = above
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                above.get_surface(f.surface),
+                above.face_surface(*fk),
                 Some(geom::Surface::Cylinder { .. })
             )
         })
         .map(|(k, _)| k)
         .expect("the trimmed wall");
     let flipped = above
-        .flipped_face_sense_for_tests(wall)
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
         .expect("a live face");
     match mesh::tessellate(&flipped, 0.01, Tol::witness()) {
         Err(mesh::TessellateError::TrimLoopOrientation { face }) => assert_eq!(face, wall),

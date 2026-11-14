@@ -31,8 +31,8 @@
 //! component representations. Each instance's frame is its own rigid
 //! map, and [`transform_rigid`](crate::transform_rigid) — the kernel's
 //! placement door, which moves a body by a rigid motion the reader
-//! decided at `RigidMotion::check_rigid` and re-certifies every
-//! carrier — maps a WHOLE body. So an instance is
+//! admitted at `RigidMotion::check_rigid` and carries every
+//! certificate — maps a WHOLE body. So an instance is
 //! materialized by building its component alone, mapping that lone body
 //! through the kernel door, and grafting the placed result in. The body
 //! that ships is then, entity for entity, the union of the bodies that
@@ -676,11 +676,8 @@ mod tests {
     fn distinct_dead_parents_keep_distinct_dead_roots_per_copy() {
         let mut src = cube();
         let ends = |b: &Body<f64>, e: EdgeKey| {
-            let he = b.get_edge(e).unwrap().he_plus;
-            [
-                b.get_half_edge(he).unwrap().start,
-                b.half_edge_end(he).unwrap(),
-            ]
+            let (v0, v1) = b.edge_vertices(e).unwrap();
+            [v0, v1]
         };
         let a0 = src.edges().next().unwrap().0;
         let a_ends = ends(&src, a0);

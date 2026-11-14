@@ -73,7 +73,7 @@
 //! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
 //! named as a loop.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom_core::Decide;
@@ -136,7 +136,30 @@ pub(crate) struct PartValue<T: topo::AtRestPolicy + Decide> {
     /// document, when a report asks (`checks::DoorJob`).
     pub door_rows:
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
+    /// **What the part's own evaluation refused**, at every depth: what
+    /// a dual descent binds the same part's run to, read off the
+    /// record's row (DUAL-DESIGN DL3, [`Refusals`]).
+    pub refused: Arc<Refusals>,
 }
+
+/// **A part's evaluation, as a build of record**: the nodes it refused
+/// and, for each part it instantiates, the same of that part's, or the
+/// fault its row holds. A dual descent binds each nested run to the
+/// tree its record's row holds ([`super::RecordBinding::of_part`]), as
+/// the top binds its own run to the record ([`super::evaluate_recorded`]).
+/// Read only off a row that is carried, so off a run that completed:
+/// a canceled run's row is not carried ([`PartStore::enter`]).
+#[derive(Debug, Default)]
+pub(crate) struct Refusals {
+    /// The part's nodes its evaluation refused.
+    pub nodes: BTreeSet<RecipeNodeId>,
+    /// Each part it instantiates, by its row's key.
+    pub parts: Arc<PartRecords>,
+}
+
+/// Each part's [`Refusals`] by its row's key, or the fault its row
+/// holds.
+pub(crate) type PartRecords = BTreeMap<(DocRef, u64), Result<Arc<Refusals>, PartFault>>;
 
 impl<T: topo::AtRestPolicy + Decide> PartValue<T> {
     /// **What the copy instance `through` defines carries**: the
@@ -197,6 +220,7 @@ impl<T: topo::AtRestPolicy + Decide> Clone for PartValue<T> {
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
             door_rows: Arc::clone(&self.door_rows),
+            refused: Arc::clone(&self.refused),
         }
     }
 }
@@ -581,6 +605,10 @@ pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
     /// node's [`super::ComputingTwist::for_node`]).
     twist: Option<super::ComputingTwist>,
     rows: Rows<T>,
+    /// **The build of record's parts, where the run is a dual's**
+    /// ([`Self::with_record`]): each part is entered only where the
+    /// record holds a build of it, and its run is bound to that build.
+    record: Option<Arc<PartRecords>>,
     /// The rows entered this run that the next may take up.
     carried: BTreeMap<(DocRef, u64), PartValue<T>>,
     /// Each part's charge, as far as one is known: carried from the
@@ -610,6 +638,7 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
             symbols: false,
             twist: None,
             rows: BTreeMap::new(),
+            record: None,
             carried: BTreeMap::new(),
             costs: Costs::new(),
             charged: std::collections::BTreeSet::new(),
@@ -629,6 +658,12 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
             costs: prior.map(|p| p.costs.clone()).unwrap_or_default(),
             ..self
         }
+    }
+
+    /// The store, each part bound to the build `record` holds of it
+    /// (DUAL-DESIGN DL3): a dual's, from [`super::RecordBinding`].
+    pub(crate) fn with_record(self, record: Option<Arc<PartRecords>>) -> Self {
+        Self { record, ..self }
     }
 
     /// The store, its parts evaluated in the run's second computing
@@ -659,11 +694,16 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// unbracketed decisions — its mate solve, its profile pre-passes,
     /// the gather of its product — must land on no instance. Its
     /// `probe` samples go to whatever sink the caller installed.
+    ///
+    /// `record` is the build of record's evaluation of the same part, a
+    /// dual's run is bound to ([`Refusals`]); `None` at a scalar that is
+    /// its own record.
     pub(crate) fn row(
         &mut self,
         doc_ref: &DocRef,
         tol: Tol,
         cancel: &super::CancelToken,
+        record: Option<Arc<Refusals>>,
     ) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
         if let Some(hit) = self.rows.get(&key) {
@@ -671,7 +711,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         }
         let value = {
             let _shield = geom_core::k_stats::Bracket::open();
-            self.resolve_and_evaluate(doc_ref, tol, cancel)
+            self.resolve_and_evaluate(doc_ref, tol, cancel, record)
         };
         self.rows.insert(key, value.clone());
         value
@@ -806,6 +846,17 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         if self.rows.contains_key(&key) {
             return;
         }
+        // A dual enters only a part its record holds a build of, bound to
+        // that build. Where the record holds none, every instance of the
+        // part is refused before it runs ([`super::RecordBinding`]), so
+        // nothing reads the row.
+        let record = match &self.record {
+            None => None,
+            Some(records) => match records.get(&key) {
+                Some(Ok(tree)) => Some(Arc::clone(tree)),
+                Some(Err(_)) | None => return,
+            },
+        };
         if let Some(value) = prior.and_then(|p| p.rows.get(&key)) {
             self.carried.insert(key, value.clone());
             self.rows.insert(key, Ok(value.clone()));
@@ -814,7 +865,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         if cancel.is_canceled() {
             return;
         }
-        if let Ok(value) = self.row(&doc_ref, tol, cancel)
+        if let Ok(value) = self.row(&doc_ref, tol, cancel, record)
             && !cancel.is_canceled()
         {
             self.carried.insert(key, value);
@@ -849,37 +900,74 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// decisions, the same sharing within a document and none across
     /// two. Rows no instance asks for are evaluated too (the module
     /// docs say what that reaches).
+    ///
+    /// Bound to `record` (a dual's run, [`Self::row`]), each document on
+    /// the way down is bound to the record's build of it, read off its
+    /// parent's: a part the record built is entered bound to that build,
+    /// and one it holds a fault for takes that fault without being
+    /// resolved, its instances refused by the binding before they run.
     fn resolve_and_evaluate(
         &mut self,
         doc_ref: &DocRef,
         tol: Tol,
         cancel: &super::CancelToken,
+        record: Option<Arc<Refusals>>,
     ) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
         let mut path = Vec::new();
         let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
+        let mut current_record = record;
         path.push(*doc_ref);
-        let mut waiting: Vec<Entered<T>> = Vec::new();
+        let mut waiting: Vec<(Entered<T>, Option<Arc<Refusals>>)> = Vec::new();
         loop {
             if let Some(child) = current.next_unreached(self.eps_bits) {
+                let key = (child, self.eps_bits);
+                let child_record = match &current_record {
+                    None => None,
+                    Some(tree) => match tree.parts.get(&key) {
+                        Some(Ok(built)) => Some(Arc::clone(built)),
+                        Some(Err(fault)) => {
+                            current.reached.insert(key, Err(fault.clone()));
+                            continue;
+                        }
+                        // The record's census of this document is this
+                        // run's (one pin, one ε), so it entered every
+                        // part this run does: a miss is the kernel defect
+                        // `NotEntered` names.
+                        None => {
+                            current.reached.insert(key, Err(PartFault::NotEntered));
+                            continue;
+                        }
+                    },
+                };
                 match Entered::enter(resolver, &path, &child, tol) {
                     Ok(entered) => {
                         path.push(child);
-                        waiting.push(core::mem::replace(&mut current, entered));
+                        let parent = core::mem::replace(&mut current, entered);
+                        let parent_record = core::mem::replace(&mut current_record, child_record);
+                        waiting.push((parent, parent_record));
                     }
                     Err(fault) => {
-                        current.reached.insert((child, self.eps_bits), Err(fault));
+                        current.reached.insert(key, Err(fault));
                     }
                 }
                 continue;
             }
             let reached = core::mem::take(&mut current.reached);
-            let value = self.evaluate_entered(&current.doc, current.doc_ref, reached, cancel, tol);
+            let value = self.evaluate_entered(
+                &current.doc,
+                current.doc_ref,
+                reached,
+                cancel,
+                tol,
+                current_record.as_deref(),
+            );
             path.pop();
-            let Some(parent) = waiting.pop() else {
+            let Some((parent, parent_record)) = waiting.pop() else {
                 return value;
             };
             let done = core::mem::replace(&mut current, parent);
+            current_record = parent_record;
             current.reached.insert((done.doc_ref, self.eps_bits), value);
         }
     }
@@ -891,6 +979,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// ([`PartRow`]): this is the one place the version `doc_ref` pins
     /// is in hand, and the pin is in every instance's key, so no later
     /// label reaches them.
+    ///
+    /// Bound to `record`, the build of record's evaluation of the same
+    /// document, the run refuses every node that one refused before it
+    /// runs ([`super::RecordBinding::of_part`]).
     fn evaluate_entered(
         &mut self,
         doc: &Arc<ProfileDoc>,
@@ -898,6 +990,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         reached: Rows<T>,
         cancel: &super::CancelToken,
         tol: Tol,
+        record: Option<&Refusals>,
     ) -> Result<PartValue<T>, PartFault> {
         self.evaluations += 1;
         let charged = self
@@ -947,8 +1040,35 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // this build ([`Self::charge`]), which proved it fits.
             member_budget: charged,
         };
-        let evaluation =
-            super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
+        let binding = record.map(|tree| super::RecordBinding::of_part(doc, tree, self.eps_bits));
+        let part_records: PartRecords = reached
+            .iter()
+            .map(|(&key, row)| {
+                let tree = match row {
+                    Ok(value) => Ok(Arc::clone(&value.refused)),
+                    Err(fault) => Err(fault.clone()),
+                };
+                (key, tree)
+            })
+            .collect();
+        let evaluation = super::evaluate_nested::<T>(
+            doc,
+            cancel,
+            &opts,
+            Reached(reached),
+            binding.as_ref(),
+            &doc_ref.pin,
+            tol,
+        );
+        let refused = Arc::new(Refusals {
+            nodes: evaluation
+                .nodes
+                .iter()
+                .filter(|(_, r)| matches!(r, super::NodeResult::Failed(_)))
+                .map(|(&id, _)| id)
+                .collect(),
+            parts: Arc::new(part_records),
+        });
         if let super::EvalOutcome::Exhausted { at, held, budget } = evaluation.outcome {
             unreachable!(
                 "a part's build ran out of the {budget} listing steps admission charged it, at \
@@ -1078,6 +1198,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             door_rows: Arc::new(door_rows),
+            refused,
             body: super::Framed::in_frame(Arc::new(product.body), product.frame),
             names: Arc::new(product.names),
             carry: super::Carry {
@@ -1140,6 +1261,41 @@ impl<T: topo::AtRestPolicy + Decide> Carried<T> {
     /// The carried rows' keys, in order.
     pub(crate) fn keys(&self) -> impl Iterator<Item = (DocRef, u64)> + '_ {
         self.rows.keys().copied()
+    }
+
+    /// `node` of the part `key` names, refused in this row's build of
+    /// record ([`super::Evaluation::plant_part_refusal`]); `false` where
+    /// no row is carried for it.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn plant_refusal(&mut self, key: (DocRef, u64), node: RecipeNodeId) -> bool {
+        let Some(row) = self.rows.get_mut(&key) else {
+            return false;
+        };
+        let mut nodes = row.refused.nodes.clone();
+        nodes.insert(node);
+        row.refused = Arc::new(Refusals {
+            nodes,
+            parts: Arc::clone(&row.refused.parts),
+        });
+        true
+    }
+
+    /// The row `key` names, no longer carried
+    /// ([`super::Evaluation::forget_part`]); `false` where none was.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn forget(&mut self, key: (DocRef, u64)) -> bool {
+        self.rows.remove(&key).is_some()
+    }
+
+    /// **Each carried row's evaluation, as a build of record**: what a
+    /// dual bound to the evaluation carrying these rows binds each part
+    /// to ([`PartStore::with_record`]). Only rows that built are
+    /// carried, so a part whose row faulted has no entry.
+    pub(crate) fn records(&self) -> PartRecords {
+        self.rows
+            .iter()
+            .map(|(&key, value)| (key, Ok(Arc::clone(&value.refused))))
+            .collect()
     }
 }
 
@@ -1366,7 +1522,7 @@ mod tests {
         for ask in 1..=2 {
             assert!(
                 matches!(
-                    store.row(&asked, Tol::witness(), &cancel),
+                    store.row(&asked, Tol::witness(), &cancel, None),
                     Err(PartFault::Unresolved { .. })
                 ),
                 "ask {ask}: this resolver refuses the reference"

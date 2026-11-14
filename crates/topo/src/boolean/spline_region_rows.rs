@@ -3,7 +3,7 @@
 //! along every iso line (degree 1 both ways), so a face's sides are
 //! straight edges whose images are iso lines.
 
-use super::{Caps, Place, Reading, Trim, bezier_cells, read, read_capped};
+use super::{Caps, Reading, Side, Trim, bezier_cells, read, read_capped};
 use crate::body::Body;
 use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
 use crate::entity::FaceKey;
@@ -58,16 +58,16 @@ pub(crate) fn twisted(c: f64) -> NurbsSurface<f64> {
 /// end: a side wholly there is stated a period down, in the principal
 /// window, and the mint's joint elements lift it back.
 pub(crate) fn sheet(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
-    holed_sheet(chart, uv, None)
+    holed_sheet(chart, uv, &[])
 }
 
-/// [`sheet`] with a hole, the chart polygon `ring`, planted through a
-/// strut from the outer polygon's third corner to the ring's first and
+/// [`sheet`] with holes, the chart polygons `rings`, each planted through
+/// a strut from the outer polygon's third corner to the ring's first and
 /// killed (`kemr`), then closed round with its own sides (`mef`).
 fn holed_sheet(
     chart: &NurbsSurface<f64>,
     uv: &[(f64, f64)],
-    ring: Option<&[(f64, f64)]>,
+    rings: &[&[(f64, f64)]],
 ) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let (u_lo, u_hi) = chart.knot_values_u().domain();
@@ -169,7 +169,7 @@ fn holed_sheet(
         (face, made.iter().map(|m| m.vertex).collect::<Vec<_>>())
     };
     let (face, corners) = polygon(&mut body, seed.r#loop, uv);
-    if let Some(ring) = ring {
+    for ring in rings {
         // `corners[k]` is `uv[k + 1]`: the strut leaves `uv[2]`.
         let from = corners[1];
         let he = [corners[2], corners[0]]
@@ -252,7 +252,11 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
     let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
-    assert_eq!(diag.predicate, Some(super::CARRIER), "{diag:?}");
+    assert_eq!(
+        diag.predicate,
+        Some(super::SPLINE_REGION_CARRIER),
+        "{diag:?}"
+    );
 }
 
 /// **A point on the trim's boundary within the band** is the boundary
@@ -274,24 +278,21 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
         "a point of an edge is on it"
     );
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
     // `|S_u| ≥ 1` on this chart, so a chart step of `δ` along `u` is at
     // least `δ` metres along the chart: halfway into the band.
     let step = (b.zero() + b.escalate()) / 2.0;
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+            matches!(near, Side::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
     let deep = trim.place(&cells, super::Rect::point(0.75 - 1e-3, 0.5), b);
-    assert!(matches!(deep, Place::In), "past the band inside: {deep:?}");
+    assert!(matches!(deep, Side::In), "past the band inside: {deep:?}");
     let past = trim.place(&cells, super::Rect::point(0.75 + 1e-3, 0.5), b);
-    assert!(
-        matches!(past, Place::Out),
-        "past the band outside: {past:?}"
-    );
+    assert!(matches!(past, Side::Out), "past the band outside: {past:?}");
 }
 
 /// **Across a crease**: a roof chart, its two planar halves meeting at a
@@ -362,10 +363,10 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
         "the projection's foot is the upper half's: {foot:?}"
     );
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
     let placed = trim.place(&cells, super::Rect::point(foot.u, foot.v), b);
     assert!(
-        matches!(placed, Place::Out),
+        matches!(placed, Side::Out),
         "the upper-half foot: {placed:?}"
     );
     // Over the face's interior: `y = 0.6` is `v = 0.2` below, `v = 0.8`
@@ -438,9 +439,9 @@ fn r1_a_ray_through_a_trim_vertex_counts_once() {
     );
     let b = band();
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
     let at = trim.place(&cells, super::Rect::point(0.5, 0.5), b);
-    assert!(matches!(at, Place::In), "{at:?}");
+    assert!(matches!(at, Side::In), "{at:?}");
 }
 
 /// On a chart closed in `u` (period 1), an outer loop lifted from a
@@ -474,7 +475,7 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
             v: (0.0, 1.0),
         },
         [Some(1.0), None],
-        Caps::READ,
+        Caps::READ.pieces,
     )
     .unwrap();
     let trim = outer
@@ -482,9 +483,9 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
         .expect("the hole's place in the outer loop's cover is decided");
     // Sanity: in the face but not in the hole.
     let face_point = trim.place(&cells, super::Rect::point(0.9, 0.5), b);
-    assert!(matches!(face_point, Place::In), "{face_point:?}");
+    assert!(matches!(face_point, Side::In), "{face_point:?}");
     let hole = trim.place(&cells, super::Rect::point(0.2, 0.5), b);
-    assert!(matches!(hole, Place::Out), "a point of the hole: {hole:?}");
+    assert!(matches!(hole, Side::Out), "a point of the hole: {hole:?}");
 }
 
 /// **Review r2: a chart point of the carrier within the band of the trim
@@ -525,14 +526,14 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
             (0.25, 0.5),
         ],
     );
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
     for (u, want_in) in [(0.5, true), (0.1, false), (0.9, false)] {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
             if want_in {
-                matches!(p, Place::In)
+                matches!(p, Side::In)
             } else {
-                matches!(p, Place::Out)
+                matches!(p, Side::Out)
             },
             "through vertices at u = {u}: {p:?}"
         );
@@ -549,14 +550,14 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
             (0.25, 0.5),
         ],
     );
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
     for (u, want_in) in [(0.3, true), (0.1, false)] {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
             if want_in {
-                matches!(p, Place::In)
+                matches!(p, Side::In)
             } else {
-                matches!(p, Place::Out)
+                matches!(p, Side::Out)
             },
             "along a side at u = {u}: {p:?}"
         );
@@ -633,7 +634,7 @@ fn a_face_across_a_closed_charts_seam_reads_its_region_and_its_hole() {
             0.94,
         ),
     ] {
-        let (body, face) = holed_sheet(&chart, &outer, Some(&hole));
+        let (body, face) = holed_sheet(&chart, &outer, &[&hole]);
         assert_eq!(
             body.get_face(face).unwrap().rings.len(),
             1,
@@ -652,6 +653,74 @@ fn a_face_across_a_closed_charts_seam_reads_its_region_and_its_hole() {
             );
         }
     }
+}
+
+/// **The ring door's decks on a spline face** ([`crate::Body::face_lift`]),
+/// on the square tube's face across its seam, which holds two holes: the
+/// outer loop's lift runs over `u ∈ [−0.1, 0.1]`. The hole past the seam
+/// is stored at `u ∈ [0.02, 0.06]`, in that region, and stays; the hole
+/// before it is stored at `u ∈ [0.92, 0.96]`, a period away, and moves
+/// down one. Each ring's deck is checked against where that ring is
+/// stored, and each moved ring's lift lies inside the outer loop's hull
+/// in `u`, which no other deck gives. So the row is red on a ring left
+/// where it is stored, on one moved the wrong way, and on the two decks
+/// handed out to each other's rings (the decks of
+/// `spline_trim::ring_decks` reversed).
+#[test]
+fn the_ring_door_moves_a_spline_faces_rings_into_its_outer_loops_region() {
+    let chart = square_tube();
+    let outer = [
+        (0.9, 0.2),
+        (1.0, 0.2),
+        (1.1, 0.2),
+        (1.1, 0.8),
+        (1.0, 0.8),
+        (0.9, 0.8),
+    ];
+    let hull = |lift: &crate::pcurves::Lift<f64>| {
+        lift.rows()
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), row| {
+                let (a, b) = row.entry_exit();
+                let (p, q) = (row.pcurve.eval(a), row.pcurve.eval(b));
+                (lo.min(p.x).min(q.x), hi.max(p.x).max(q.x))
+            })
+    };
+    let past = [(1.02, 0.4), (1.06, 0.4), (1.06, 0.6), (1.02, 0.6)];
+    let before = [(0.92, 0.4), (0.96, 0.4), (0.96, 0.6), (0.92, 0.6)];
+    let (body, face) = holed_sheet(&chart, &outer, &[&past, &before]);
+    let lift = body
+        .face_lift(face, band())
+        .unwrap_or_else(|e| panic!("the door places both rings: {e:?}"));
+    assert_eq!(lift.rings().len(), 2, "the face holds both holes");
+    let (outer_lo, outer_hi) = hull(lift.outer());
+    let mut decks = Vec::new();
+    for ring in lift.rings() {
+        // Where the ring is stored names the hole, whatever the loop order.
+        let stored = crate::pcurves::Lift::read(&body, ring.ring()).unwrap();
+        let (name, deck) = match hull(&stored) {
+            (lo, hi) if 0.0 < lo && hi < 0.1 => ("past the seam", 0),
+            (lo, hi) if 0.9 < lo && hi < 1.0 => ("before the seam", -1),
+            other => panic!("a ring stored over u ∈ {other:?}"),
+        };
+        assert_eq!(
+            ring.by(),
+            crate::joint::Deck {
+                u: deck,
+                v: 0,
+                twin: false
+            },
+            "{name}: the deck"
+        );
+        let (lo, hi) = hull(ring.lift());
+        assert!(
+            outer_lo < lo && hi < outer_hi,
+            "{name}: the moved ring over u ∈ [{lo}, {hi}] lies inside the outer loop's [{outer_lo}, {outer_hi}]"
+        );
+        decks.push(deck);
+    }
+    decks.sort_unstable();
+    assert_eq!(decks, [-1, 0], "one hole of each kind");
 }
 
 /// **A reading past its work caps stands unsettled**, never a verdict:
@@ -676,15 +745,15 @@ fn a_reading_past_its_work_caps_stands_unsettled() {
     );
     let cells = bezier_cells(&chart).unwrap();
     let at = super::Rect::point(0.9, 0.4);
-    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
-    assert!(matches!(trim.place(&cells, at, b), Place::Out));
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ.pieces, b).unwrap();
+    assert!(matches!(trim.place(&cells, at, b), Side::Out));
     let one_piece = Caps {
         pieces: 1,
         ..Caps::READ
     };
-    let trim = Trim::of(&body, face, &chart, &cells, one_piece, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, one_piece.pieces, b).unwrap();
     let capped = trim.place(&cells, at, b);
-    assert!(matches!(capped, Place::Near(None)), "one piece: {capped:?}");
+    assert!(matches!(capped, Side::Near(None)), "one piece: {capped:?}");
 }
 
 /// **A way out of the window within the band keeps a query near.** On a
@@ -714,11 +783,60 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
         u: (0.0, 1.0),
         v: (0.0, 1.0),
     };
-    let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
+    let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ.pieces).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+        matches!(near, Side::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
         "the way out of the window is in the band: {near:?}"
+    );
+}
+
+/// **A piece no wider than a query it meets stops the parity**
+/// ([`crate::chain_parity::ray_parity_as`]): a query of some size (a
+/// cell's box) meeting a piece whose box is exactly the query's size
+/// reads near, where halving the piece once would clear both halves and
+/// read the query out. The piece is a quadratic arc whose control box
+/// touches the query at a corner while the arc keeps away from it, and
+/// the query is cut to the piece's box, widened by its rounding, so the
+/// two sizes agree bit for bit. A stop that took only a box strictly
+/// narrower than the query (`<` for `<=`) reads this query out.
+#[test]
+fn a_piece_exactly_the_querys_size_that_meets_it_keeps_it_near() {
+    let b = band();
+    let chart = ruled(&[(0.0, 0.0), (1.0, 0.0)]);
+    let cells = bezier_cells(&chart).unwrap();
+    let vertex = |p: [f64; 2]| super::Piece::vertex(p, [0.0; 2]);
+    let arc = super::Piece {
+        net: vec![
+            vertex([0.875, 0.625]),
+            vertex([0.625, 0.625]),
+            vertex([0.625, 0.875]),
+        ],
+    };
+    let close = [[0.625, 0.875], [0.9375, 0.9375], [0.875, 0.625]];
+    let mut chain = vec![arc.clone()];
+    chain.extend((0..2).map(|k| super::Piece::segment(vertex(close[k]), vertex(close[k + 1]))));
+    let unit = super::Rect {
+        u: (0.0, 1.0),
+        v: (0.0, 1.0),
+    };
+    let trim = Trim::from_pieces(chain, unit, [None, None], Caps::READ.pieces).unwrap();
+    let boxed = arc.bbox().unwrap();
+    let size = |(lo, hi): (f64, f64)| hi - lo;
+    let query = super::Rect {
+        u: (boxed.u.0 - size(boxed.u), boxed.u.0),
+        v: (boxed.v.0 - size(boxed.v), boxed.v.0),
+    };
+    #[allow(clippy::float_cmp)] // the fixture's sizes agree bit for bit
+    let exact = size(query.u) == size(boxed.u) && size(query.v) == size(boxed.v);
+    assert!(
+        exact,
+        "the query is the arc's box's size: {query:?}, {boxed:?}"
+    );
+    let at = trim.place(&cells, query, b);
+    assert!(
+        matches!(at, Side::Near(None)),
+        "a piece of exactly the query's size that meets it stops the reading: {at:?}"
     );
 }
 
@@ -783,7 +901,7 @@ fn a_meetings_chart_point_is_placed_on_its_own_sheet() {
 /// a closed certified edge, whose halves start on one point.
 #[test]
 fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
-    use crate::pcurves::{LiftGap, loop_lift_past_placeholders};
+    use crate::pcurves::{Lift, LiftGap};
     let c = 0.6;
     let chart = twisted(c);
     let uv = rect((0.25, 0.75), (0.25, 0.75));
@@ -810,10 +928,10 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
     let null_halves = halves_of(&nulled, null);
 
     let lifted = |body: &Body<f64>, face| -> Vec<_> {
-        loop_lift_past_placeholders(body, outer(body, face))
+        Lift::read_past_placeholders(body, outer(body, face))
             .unwrap()
             .into_iter()
-            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
             .collect()
     };
     let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
@@ -857,7 +975,7 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
             ("strict", body.loop_lift(lk).map(|_| ())),
             (
                 "past placeholders",
-                loop_lift_past_placeholders(body, lk).map(|_| ()),
+                Lift::read_past_placeholders(body, lk).map(|_| ()),
             ),
         ] {
             let Err(LiftGap { half_edge }) = got else {
@@ -973,17 +1091,17 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
         (0.01, 0.79),
     ];
     for ring in [None, Some(&hole[..])] {
-        let (bare, face) = holed_sheet(&chart, &outer, ring);
+        let (bare, face) = holed_sheet(&chart, &outer, ring.as_slice());
         let loops: Vec<_> = bare.proven_face(face).loops().map(|(lk, ..)| lk).collect();
         let want: Vec<_> = probes
             .iter()
             .map(|&(u, v)| place(&bare, face, chart.eval(u, v)))
             .collect();
         let rows = |b: &Body<f64>, lk| -> Vec<_> {
-            crate::pcurves::loop_lift_past_placeholders(b, lk)
+            crate::pcurves::Lift::read_past_placeholders(b, lk)
                 .unwrap()
                 .into_iter()
-                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
                 .collect()
         };
         for &lk in &loops {
@@ -1037,7 +1155,7 @@ fn lift(x: f64) -> geom_core::Interval {
 /// line `y = 3e4, z = 2e4`; the point is on that line, inside the row's
 /// span, so its distance from the chart is zero. Uncharged, the cut's
 /// rounding puts every cell's box past the band and the walk reads it
-/// off the carrier (`SPLICE_SPLINE_REGION_MUTANT=spline-region-charge-dropped`,
+/// off the carrier (`SPLINE_TRIM_MUTANT=spline-trim-charge-dropped`,
 /// and the uncentred, uncharged walk this one replaced).
 #[test]
 fn a_point_on_a_far_rational_sheet_is_not_read_off_its_carrier() {
@@ -1060,7 +1178,7 @@ fn a_point_on_a_far_rational_sheet_is_not_read_off_its_carrier() {
     .unwrap();
     let q = Point3::new(o[0] + 0.59375 * s, o[1], o[2]);
     let cells = bezier_cells(&chart).unwrap();
-    let reading = super::carrier_walk(&chart, &cells, q, tight_band(), Caps::READ, |_| Place::In);
+    let reading = super::carrier_walk(&chart, &cells, q, tight_band(), Caps::READ, |_| Side::In);
     assert!(
         !matches!(reading, Reading::OffCarrier),
         "a point on the sheet reads off its carrier: {reading:?}"
@@ -1187,6 +1305,8 @@ fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
 /// knotted cut (`the_cut_rounding_bound_holds_a_knotted_cuts_drift`).
 #[test]
 fn the_cut_rounding_bound_holds_the_cut_drift() {
+    // A stream's label is its identity (its seed is mixed from it), so
+    // these labels keep their spelling whatever the module is named.
     let mut rng = test_utils::fuzz::start("spline-region-cut-drift");
     let mut worst = 0.0f64;
     for _ in 0..test_utils::fuzz::scaled(1000) {
@@ -1238,7 +1358,7 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
 /// **The cut's rounding bound is not loose by half**: one bilinear
 /// rational patch whose net, moved about its centre into homogeneous
 /// form and back, drifts more than half its bound in `x`. Halved
-/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-bound-halved`), the bound
+/// (`SPLINE_TRIM_MUTANT=spline-trim-bound-halved`), the bound
 /// no longer holds it.
 #[test]
 fn the_cut_rounding_bound_comes_within_half_of_a_points_drift() {
@@ -1276,7 +1396,7 @@ fn the_cut_rounding_bound_comes_within_half_of_a_points_drift() {
 /// that side. Uncharged, its pieces' boxes, cut in `f64` (and at
 /// `Interval` collapsed to their value channel), sit ulps of `1000` off
 /// the line, decided past the band once metered, and the query is read
-/// in (`SPLICE_SPLINE_REGION_MUTANT=spline-region-trim-uncharged`).
+/// in (`SPLINE_TRIM_MUTANT=spline-trim-trim-uncharged`).
 #[test]
 fn a_query_on_a_far_trim_curve_is_given_no_side() {
     use super::{Piece, bezier_pieces};
@@ -1311,7 +1431,7 @@ fn a_query_on_a_far_trim_curve_is_given_no_side() {
         run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
         run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
         run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
-        Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap()
+        Trim::from_pieces(run, domain, [None, None], Caps::READ.pieces).unwrap()
     };
     let q = super::Rect::point(0.59375, c);
     let at = trim(bezier_pieces(&image, 0.0, 1.0).unwrap()).place(
@@ -1319,13 +1439,13 @@ fn a_query_on_a_far_trim_curve_is_given_no_side() {
         q,
         tight_band(),
     );
-    assert!(matches!(at, Place::Near(_)), "f64: {at:?}");
+    assert!(matches!(at, Side::Near(_)), "f64: {at:?}");
     let at = trim(bezier_pieces(&image.map_scalar(lift), 0.0, 1.0).unwrap()).place(
         &bezier_cells(&chart.map_scalar(lift)).unwrap(),
         q,
         tight_band(),
     );
-    assert!(matches!(at, Place::Near(_)), "Interval: {at:?}");
+    assert!(matches!(at, Side::Near(_)), "Interval: {at:?}");
 }
 
 /// Knotted cuts against a double-double Boehm reference: the cells'
@@ -1653,13 +1773,13 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
     run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
     run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
     run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
-    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap();
+    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ.pieces).unwrap();
     let cells = bezier_cells(&chart.map_scalar(lift)).unwrap();
     let mut sided = 0;
     for k in 0..64 {
         let u = 0.25 + 0.5 * (k as f64 + 0.5) / 64.0;
         let q = super::Rect::point(u, c + 3e-11);
-        if !matches!(trim.place(&cells, q, tight_band()), Place::Near(_)) {
+        if !matches!(trim.place(&cells, q, tight_band()), Side::Near(_)) {
             sided += 1;
         }
     }
@@ -1760,7 +1880,7 @@ fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
 /// transpose of [`a_query_on_a_far_trim_curve_is_given_no_side`]: the
 /// image lies along `u = 1000` exactly, so it is the box's widening in
 /// `u` that keeps the query near
-/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-u-unwidened`).
+/// (`SPLINE_TRIM_MUTANT=spline-trim-u-unwidened`).
 #[test]
 fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
     use super::{Piece, bezier_pieces};
@@ -1795,12 +1915,12 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
     run.push(Piece::segment(run.last().unwrap().last(), v(c - 0.5, 0.8)));
     run.push(Piece::segment(v(c - 0.5, 0.8), v(c - 0.5, 0.2)));
     run.push(Piece::segment(v(c - 0.5, 0.2), run[0].first()));
-    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap();
+    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ.pieces).unwrap();
     let cells = bezier_cells(&chart).unwrap();
     let sided = (0..64)
         .filter(|k| {
             let q = super::Rect::point(c, 0.25 + 0.5 * (f64::from(*k) + 0.5) / 64.0);
-            !matches!(trim.place(&cells, q, tight_band()), Place::Near(_))
+            !matches!(trim.place(&cells, q, tight_band()), Side::Near(_))
         })
         .count();
     assert_eq!(sided, 0, "{sided} of 64 queries on the trim got a side");
@@ -1811,7 +1931,7 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
 /// control points up to `1e4` out in the chart, weights up to eight
 /// decades apart, moved by up to `1e4` in each channel, against the move
 /// in double-double. No point drifts past its bound
-/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-shift-untracked`: the move
+/// (`SPLINE_TRIM_MUTANT=spline-trim-shift-untracked`: the move
 /// charged nothing, the drift passes the bound).
 #[test]
 fn a_shifted_pieces_rounding_bound_holds_its_drift() {
@@ -1845,7 +1965,7 @@ fn a_shifted_pieces_rounding_bound_holds_its_drift() {
 /// ([`super::image_pieces`] on a [`Pcurve::IsoLine`]): lines `p0 + pl·t`
 /// with `p0` up to `1e4` out in the chart and `pl·t` of its size, each
 /// end against `p0 + pl·t` in double-double. No end drifts past its
-/// bound (`SPLICE_SPLINE_REGION_MUTANT=spline-region-iso-end-uncharged`:
+/// bound (`SPLINE_TRIM_MUTANT=spline-trim-iso-end-uncharged`:
 /// the end charged nothing, the drift passes the bound).
 #[test]
 fn an_iso_images_ends_hold_their_evaluations_rounding() {
@@ -1873,4 +1993,36 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         "an iso end drifts {worst} times its bound; {}",
         test_utils::fuzz::replay()
     );
+}
+
+/// **A spline face's stations read on its own chart, never off its
+/// carrier** (`crate::cell_region`'s held door). The twisted bilinear
+/// patch `(u, v, u·v)`, a sheet over `[0.1, 0.9]²` of it: every station
+/// of an 11 × 11 grid over the whole chart is placed by the curved door,
+/// and none reads `OffCarrier`. A station is a point of the chart, and
+/// the spline arm reads it by its own search, which `Held::check` does
+/// not guard. `cell_region::station_region` answers `In` well inside the
+/// sheet and `Out` well outside it, and panics nowhere.
+#[test]
+fn a_spline_faces_stations_read_on_its_own_chart() {
+    let (body, face) = sheet(
+        &twisted(1.0),
+        &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
+    );
+    let surface = body.face(face).unwrap().surface().clone();
+    let n = 10;
+    for i in 0..=n {
+        for j in 0..=n {
+            let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let at = curved_face_placement(&body, face, surface.eval(u, v), band());
+            assert!(
+                !matches!(at, Ok(CurvedPlacement::OffCarrier)),
+                "the station ({u}, {v}) reads off its own carrier: {at:?}"
+            );
+            let _ = crate::cell_region::station_region(&body, face, (u, v), band());
+        }
+    }
+    let region = |uv| crate::cell_region::station_region(&body, face, uv, band());
+    assert_eq!(region((0.5, 0.5)), Some(FaceContainment::In));
+    assert_eq!(region((0.02, 0.5)), Some(FaceContainment::Out));
 }

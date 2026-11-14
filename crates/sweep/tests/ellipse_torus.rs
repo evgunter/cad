@@ -79,16 +79,11 @@ fn donut(big: f64, small: f64, c: Vec3<f64>, axis: Vec3<f64>) -> Body<f64> {
         topo::transform_rigid(
             &at_origin,
             &geom_core::test_support::rigid(&turn, Tol::witness()),
-            Tol::witness(),
         )
         .expect("a rotation is rigid")
     };
-    topo::transform_rigid(
-        &turned,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .expect("a translation is rigid")
+    topo::transform_rigid(&turned, &geom_core::RigidMotion::translation(c).unwrap())
+        .expect("a translation is rigid")
 }
 
 /// The torus of `(big, small)` whose tube comes within `gap` of the rim at
@@ -127,12 +122,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Torus { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Torus { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -288,7 +278,10 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
                 match &e {
                     BooleanError::GermSectionSpiric { .. } => true,
                     BooleanError::GermSectionUnbuilt {
-                        why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
+                        why:
+                            topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
+                                geom_brep::SsiError::TubeStraddles { .. },
+                            )),
                         ..
                     } => coarse,
                     _ => false,

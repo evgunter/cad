@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
-    MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
+    Coord, Doc, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
+    Mate, MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -76,11 +76,15 @@ pub enum SessionOp {
         mate: MateRef,
     },
     /// Give `placement`'s copy a space of its own: a `new_space()`
-    /// inserted, the placement re-targeted into it and its bundle
-    /// written as the identity (`editor_core::stand`), as one action.
-    /// The copy leaves the space it was placed into — the world's, the
-    /// product's — and is drawn as a shown space of its own (DI5), which
-    /// free-move moves and a mate places again.
+    /// inserted and the placement re-targeted into it by the target edit
+    /// ([`SessionOp::SetBundle`] with [`PlaceTarget::NewSpace`]), its
+    /// values kept, as one action. The copy leaves the space it was
+    /// placed into — the world's, the product's — and is drawn as a
+    /// shown space of its own (DI5), which free-move moves and a mate
+    /// places again. Where its own constraints read the space it leaves,
+    /// the change is held: it refuses [`Refusal::TargetHeld`], and the
+    /// chrome opens the placement editor on it with the target set to a
+    /// new space.
     IntoOwnSpace {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
@@ -500,12 +504,10 @@ pub enum SessionOp {
     /// editor does: the placement's draft loaded, `mate` a row as
     /// written, `values` typed, and the draft applied
     /// (`SessionOp::SetBundle`) — the values derived as the editor
-    /// derives them. A mate whose `to` reads outside the placement's
-    /// target space is refused by the door, naming both spaces, unless
-    /// the author asked to move the copy there (`into_target_space`):
-    /// the gesture never moves a copy into another space as a side
-    /// effect. One history state and one undo; a bundle the door refuses
-    /// records nothing.
+    /// derives them. A mate is a constraint of one placement and reads
+    /// its `to` in that placement's target: one whose `to` reads another
+    /// space is refused by the door, naming both spaces. One history
+    /// state and one undo; a bundle the door refuses records nothing.
     AddMate {
         /// The placement whose copy the mate places.
         placement: RecipeNodeId,
@@ -513,46 +515,59 @@ pub enum SessionOp {
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
         values: Vec<(Coord<Operand>, Formula)>,
-        /// Whether the author asked, by name, to move the copy into the
-        /// space the mate's `to` reads where that is not its target:
-        /// the placement is first stood by the identity bundle, then
-        /// re-targeted there, in the same action. `false` refuses such a
-        /// mate at the door, naming both spaces.
-        into_target_space: bool,
     },
-    /// **Place a body where it stands**: one placement of `body` into
-    /// the body's own space, with no mate and every slide and spin at
-    /// zero (`editor_core::stand`), and what read the body along a path
-    /// the picture is seen through — a `⊔` operand, the product —
-    /// re-pointed to it, in one action. One history state, one undo. The
-    /// placement editor ([`crate::matetool::MateTool`]) then opens on the
-    /// placement it made, and every mate is added there. A body placed
-    /// already gets a second placement, the way it got its first. A
-    /// `body` that is itself a copy refuses [`Refusal::PlaceOnACopy`]: a
-    /// copy is edited by its own placement.
+    /// **Place a body**: one placement of `body` into `target`, with
+    /// no mate and every slide and spin at zero (`editor_core::stand`),
+    /// and what read the body along a path the picture is seen through —
+    /// a `⊔` operand, the product — re-pointed to it, in one action. One
+    /// history state, one undo. The viewer's Place names the body's own
+    /// space ([`SessionOp::place_where_it_stands`]), so the copy stands
+    /// where the body is; the placement editor
+    /// ([`crate::matetool::MateTool`]) then opens on the placement it
+    /// made, and every mate is added there. A `body` that is itself a
+    /// copy refuses [`Refusal::PlaceOnACopy`]: a copy is edited by its
+    /// own placement.
+    ///
+    /// The placement reads its body through a source (VARIABLES VR4). A
+    /// body no source reads gets an anonymous source of its own. A body
+    /// one source reads is placed through it, so the placements share it:
+    /// a named source as it is, an anonymous one named `name` in the same
+    /// step, which a second reader needs (VR2) — without a name the door
+    /// refuses `EditError::SharedVarNeedsName`. A body several sources read
+    /// refuses [`Refusal::SeveralSources`], naming them: the person places
+    /// one of them. A `body` that is a source is placed through it.
     Place {
-        /// The body, as a seat reads it.
+        /// The body, as a seat reads it, or a source.
         body: Operand,
+        /// The space the copy is placed into: a `Space` read.
+        target: Operand,
+        /// The name an anonymous source takes when this placement makes it
+        /// shared; `None` otherwise.
+        name: Option<VarName>,
     },
-    /// **The placement editor's change**, committed live: `placement`'s
-    /// bundle written whole (`DocEdit::SetConstraints`), each constraint
-    /// the draft loaded under its own id. Refused [`Refusal::BundleStale`]
-    /// where the placement no longer holds `base`, the bundle the draft
-    /// was loaded from, refused by the door as the bundle's own, and
-    /// refused [`Refusal::PlacementFails`] where its copy would not
-    /// stand (`DocSession::bundle_door`). With `into_target_space`, the
-    /// copy is first moved into the space its first mate's `to` reads,
-    /// by name, in the same action. One history state, one undo; a
-    /// bundle equal to `base` records nothing.
+    /// **The placement editor's change**, committed live: `placement`
+    /// re-targeted where `target` is not the target it holds (the target
+    /// edit), then its bundle written whole (`DocEdit::SetConstraints`),
+    /// each constraint the draft loaded under its own id. Refused
+    /// [`Refusal::BundleStale`] where the placement no longer holds
+    /// `base`, the target and bundle the draft was loaded from, refused
+    /// by the door as the bundle's own, and refused
+    /// [`Refusal::PlacementFails`] where its copy would not stand
+    /// (`DocSession::bundle_door`) — a mate left reading the space a
+    /// re-target leaves among them. Another read of the copy a
+    /// re-target leaves in the old space is admitted and reported
+    /// ([`Maintenance::StrandedSpace`]). One history state, one undo; a
+    /// change equal to `base` records nothing.
     SetBundle {
         /// The placement.
         placement: RecipeNodeId,
-        /// The bundle the draft was loaded from, as authored.
-        base: Vec<pncad::document::Constraint<Formula>>,
+        /// The target and the bundle the draft was loaded from, as
+        /// authored.
+        base: PlacementBase,
+        /// The space the copy is placed into.
+        target: PlaceTarget,
         /// The bundle, as authored, in order.
         constraints: Vec<pncad::document::Constraint<Formula>>,
-        /// Whether the copy moves into its first mate's `to` space.
-        into_target_space: bool,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -604,10 +619,11 @@ pub enum SessionOp {
     /// from its start cap, flipped, to the face's plane, its origin
     /// over the face body's own and turned `spin` about the face's
     /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the union taking over what read
-    /// the face's body (A10, Ev's residue 1).
+    /// (`Recording::sketch_on_face`), the union taking over the `⊔`
+    /// operands and the product slot that read the face's body (A10).
+    /// The made node is the profile, the piece the gesture adds.
     ///
-    /// A pick on a copy is read on the body it places. A face whose
+    /// A pick on a copy is read on that copy (Ev, PR 6353). A face whose
     /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
     /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
     /// is not planar or does not resolve refuses at evaluation, on the
@@ -737,15 +753,16 @@ pub enum SessionOp {
     /// not refused: a repeated read glues, so it is a document like any
     /// other.
     ///
-    /// **The result takes the operands' place in the world** (A10, Ev's
-    /// residue 1): the placements of the first operand the world
-    /// places, in the spec's order, are taken over by the boolean
-    /// (`Recording::take_over`: re-pointed, and what read them
-    /// rebound where it carries it), and every other operand's placements are
-    /// deleted, in the same action — so a combine of placed bodies
-    /// leaves the world `[result]`, and one undo restores them. A
-    /// repeated operand counts once; operands nothing places place
-    /// nothing.
+    /// **The result takes the operands' place where they were seen**
+    /// (A10; Ev, PR 6353): the `⊔` operands and the product slot reading
+    /// the first operand something reads so, in the spec's order, read
+    /// the boolean instead, and every other operand's `⊔` seats are
+    /// dropped, in the same action. No placement is written: a combine
+    /// of copies picked in the viewport reads the copies, which it hides
+    /// by reading them; a combine of bodies picked as themselves offers
+    /// to re-point the first's placements onto the result
+    /// ([`SessionOp::RepointPlacements`]). A repeated operand counts
+    /// once.
     ///
     /// **Operands in two spaces are related by a placement** (D10): each
     /// operand after the first whose value lives in another space than
@@ -765,15 +782,15 @@ pub enum SessionOp {
     /// tool's one committed action. A split defines two bodies, its
     /// `above` and `below` outputs, and a half is read by its port
     /// wherever a body seat takes one. What reads the target along a
-    /// seen path (a placement's source, a `⊔` operand, the product
-    /// slot) reads `above ⊔ below` instead, in the same action, so each
-    /// copy shows the two halves where it showed the body. A copy is
-    /// re-pointed through the kernel's takeover (`Recording::take_over`,
-    /// asked about the two halves beside the body), which re-seats a
-    /// mate on a face of the copy the split leaves intact; a mate on a
-    /// face it cuts stays stale, the mated placement failing `Vanished`
-    /// on the face's name. A `⊔` operand and the product slot are
-    /// re-pointed alone, and nothing read through them is re-seated
+    /// seen path (a `⊔` operand, the product slot) reads `above ⊔ below`
+    /// instead, in the same action; no placement's source is written
+    /// (Ev, PR 6353). Where placements read the target, `above ⊔ below`
+    /// is written too: the one new body the split makes, as a fillet
+    /// makes `fillet(B)`, which offers to re-point those placements onto
+    /// it ([`SessionOp::RepointPlacements`]). Picked on a copy, the split
+    /// reads that copy, so its halves stand where the copy stood. A `⊔` operand and the product
+    /// slot are re-pointed alone, and nothing read through them is
+    /// re-seated
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
@@ -792,18 +809,16 @@ pub enum SessionOp {
     },
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::body_of`), so the plane reads
-    /// the geometry of the body's space, as a mirror's plane must.
+    /// own, read where it was picked: a pick on a copy is read on that
+    /// copy, in the copy's space, where the mirrored body stands.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
-    /// what reads the body along a seen path taken over by the union —
-    /// the feature takeover a fillet makes (`Recording::take_over`) — so
-    /// the part is drawn where each copy stands and moves with the
-    /// copy's placement. A mate that another placement seats on a face
-    /// of the body's copy is re-seated where the union carries the face
-    /// whole, and goes stale where it does not, as at a fillet.
+    /// what reads the body along a seen path (a `⊔` operand, the
+    /// product) taken over by the union. Picked on a copy, the body is
+    /// that copy, so the part stands where the copy stands and moves
+    /// with the copy's placement; no placement's source is written (Ev,
+    /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its
@@ -833,9 +848,11 @@ pub enum SessionOp {
     /// committed edit: an index `k = index(count)` and one placement of
     /// the body in its own space whose values read it (D10
     /// `[repetition]`), a family of `count` copies. The family lands
-    /// where the body was seen and takes over what read it, member 0
-    /// standing where the body stood; a pick on a drawn member seats
-    /// that member.
+    /// where the body was seen — a copy picked in the viewport is
+    /// repeated in its own space — and takes over the `⊔` operands and
+    /// the product slot that read it, member 0 standing where the body
+    /// stood; it writes no placement's source (Ev, PR 6353). A pick on a
+    /// drawn member seats that member.
     ///
     /// The count is an `i64` and lands as the index's exact Count
     /// literal, edited afterwards by redefining the index. Any count is
@@ -866,9 +883,10 @@ pub enum SessionOp {
     /// as the unfused door's does. A user who already authored the
     /// unfused pattern fuses it with a boolean over the family instead.
     ///
-    /// **The fused body takes the prototype's place in the world** (A10,
-    /// Ev's residue 1): the prototype's placements are taken over by it
-    /// (`Recording::take_over`) in the same action.
+    /// **The fused body takes the prototype's place where it was seen**
+    /// (A10): the `⊔` operands and the product slot reading the
+    /// prototype read it, in the same action; no placement's source is
+    /// written (Ev, PR 6353).
     ///
     /// **Whether the copies meet is the union's question, not this
     /// door's**: the door authors what the user asked for and the union
@@ -884,11 +902,15 @@ pub enum SessionOp {
     },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed action, as a
-    /// fillet, taking over what read the body (A10, Ev's residue 1).
+    /// fillet, taking over the `⊔` operands and the product slot that
+    /// read the body (A10).
     ///
-    /// **A target that is a world placement is read on the body it
-    /// places**: the fillet reads that body, and a copy carries its
-    /// body's names as they are, so each selected name is the body's.
+    /// **A target that is a copy is read on the copy** (Ev, PR 6353): the
+    /// fillet reads that placed copy alone, in its space, and writes no
+    /// placement's source; a copy carries its body's names as they are,
+    /// so each selected name is the body's. A target picked as a body
+    /// itself makes a new body, which offers to re-point the body's
+    /// placements ([`SessionOp::RepointPlacements`]).
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -1027,7 +1049,10 @@ pub enum SessionOp {
     /// product's recourses and the `unused` finding's. A copy in the
     /// world is added to the slot; a placement's copy nothing reads has
     /// its placement re-targeted into the world, a `new_space()` it
-    /// leaves empty deleted, and is added; any other body is placed into
+    /// leaves empty deleted, and is added — where its own constraints read
+    /// the space it leaves, the move is held instead
+    /// ([`super::Refusal::TargetHeld`]), the chrome opening its placement
+    /// editor with the target set to the world; any other body is placed into
     /// the world by the identity bundle and that copy added. One action,
     /// one undo. A copy the product reads already is refused
     /// ([`super::Refusal::InTheProduct`]).
@@ -1038,6 +1063,21 @@ pub enum SessionOp {
         /// The output body a viewport pick hit, for a node with several
         /// outputs (a split's halves); `None` for a tree row.
         body: Option<u32>,
+    },
+    /// **Redefine the source `source` as a read of `onto`** (Ev, PR 6353
+    /// and PR 6581: `bracket = F`): the explicit step a feature on a body
+    /// picked as itself offers, one per source
+    /// (`crate::world::repoint_offer`), and what a source's body field
+    /// writes. Every placement reading the source copies `onto` from now
+    /// on, through the kernel's takeover (`Recording::take_over`): the
+    /// `DefineVar` and the `Rebind`s of what reads the copies and of what
+    /// selects in the source (each copy's mate `on` sides), in one action
+    /// and one undo. No feature gesture does this unasked.
+    RepointPlacements {
+        /// The source redefined.
+        source: VarId,
+        /// The body it reads from now on, as a seat reads it.
+        onto: Operand,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1217,7 +1257,51 @@ impl GestureName {
     }
 }
 
+/// **The space a placement's copy is placed into**, as the placement
+/// editor's first row (`into: <space>`) and [`SessionOp::SetBundle`]
+/// name it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PlaceTarget {
+    /// A space the document holds, by id: one target however a slot
+    /// spells its read.
+    Space(VarId),
+    /// A `new_space()`, inserted in the same action.
+    NewSpace,
+}
+
+impl PlaceTarget {
+    /// The space a document holds.
+    #[must_use]
+    pub fn space(space: VarId) -> Self {
+        Self::Space(space)
+    }
+}
+
+/// **What a placement holds, as a draft over it was loaded**: its
+/// target and its bundle, as authored — what tells a
+/// [`SessionOp::SetBundle`] the document has moved under it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlacementBase {
+    /// The target slot's read.
+    pub target: Operand,
+    /// The bundle, in the order written.
+    pub constraints: Vec<pncad::document::Constraint<Formula>>,
+}
+
 impl SessionOp {
+    /// **The viewer's Place of `body`**: into the space the body is in,
+    /// so the copy stands where the body is. `None` for a read in no
+    /// space, which names no body to place.
+    #[must_use]
+    pub fn place_where_it_stands(doc: &Doc<ProfileProgram>, body: Operand) -> Option<Self> {
+        let space = doc.operand_space(&body)?;
+        Some(Self::Place {
+            body,
+            target: Operand::Var(space),
+            name: None,
+        })
+    }
+
     /// **Whether this operation inserts a node** — what
     /// [`Creation::of`] admits. Exhaustive with no wildcard arm, so an
     /// operation added tomorrow says whether it creates.
@@ -1286,6 +1370,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1371,6 +1456,7 @@ impl SessionOp {
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1599,7 +1685,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1732,7 +1819,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => true,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1830,7 +1918,8 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
-            | Self::AddToProduct { .. } => false,
+            | Self::AddToProduct { .. }
+            | Self::RepointPlacements { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }

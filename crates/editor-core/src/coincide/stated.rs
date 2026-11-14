@@ -382,13 +382,17 @@ fn pose_at<P: crate::ProfilePayload>(
     if read.role.is_some() {
         return Some((pose(read.role), None));
     }
+    // A member read's construction is its member's, which the walk
+    // from the family does not reach by the member's own name.
     let entity = |of: crate::VarId| {
-        let select = doc.selection(of)?;
+        let select = doc
+            .selection(of)
+            .filter(|select| !select.body.is_indexed())?;
         let [name] = select.names.as_slice() else {
             return None;
         };
-        let at = construction(doc, select.body, name, tol).ok()?;
-        Some((at, select.body))
+        let at = construction(doc, select.body.read, name, tol).ok()?;
+        Some((at, select.body.read))
     };
     match doc.var(read.read).map(crate::Var::def)? {
         crate::var::VarDef::Pose(PoseDef::Plane { face }) => {

@@ -65,7 +65,7 @@ use crate::fixture::value_channel::{body_digest, value_digest};
 
 use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
-use editor_core::{CancelToken, ContentKey, EvalOptions, EvalOutcome, evaluate, product_recorded};
+use editor_core::{CancelToken, ContentKey, EvalOptions, EvalOutcome, product_recorded};
 use geom_core::{Dual64, Tol};
 
 /// The gather-door witnesses (module docs): they gather at `Dual64`
@@ -215,22 +215,6 @@ fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
 /// `at_rest_policy_tests`.)
 #[test]
 fn at_rest_census_verdicts_match_f64_at_interval() {
-    // Pinned red: at ε = 1e-12 `reshaped_rod`'s census reads f64 `Some(false)`
-    // against Interval `Some(true)`
-    // (`work/scalar/main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the at-rest census across scalars",
-        &[
-            "reshaped_rod: the census disagreed across certifying scalars (f64 None vs Interval None)\n  left: Some(false)\n right: Some(true)",
-        ],
-        at_rest_census_verdicts_match_f64_at_interval_row,
-    );
-}
-
-/// The row [`at_rest_census_verdicts_match_f64_at_interval`] runs, under its pin.
-fn at_rest_census_verdicts_match_f64_at_interval_row() {
     use geom_core::Interval;
     let blind = |findings: Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>| {
         findings.map(|f| !crate::fixture::could_not_look(&f).is_empty())
@@ -267,7 +251,7 @@ fn at_rest_census_verdicts_match_f64_at_interval_row() {
 fn same_seed_replay_at_dual64_reuses_everything() {
     for doc in documents() {
         let prior = eval::<Dual64>(&doc.doc);
-        let replay = evaluate::<Dual64>(
+        let replay = editor_core::test_support::evaluate_bound::<Dual64>(
             &doc.doc,
             Some(&prior),
             &CancelToken::new(),
@@ -292,7 +276,7 @@ fn a_bumped_parameter_at_dual64_recomputes_exactly_its_cone() {
     for doc in documents() {
         let prior = eval::<Dual64>(&doc.doc);
         let bumped = doc.bumped();
-        let after = evaluate::<Dual64>(
+        let after = editor_core::test_support::evaluate_bound::<Dual64>(
             &bumped,
             Some(&prior),
             &CancelToken::new(),

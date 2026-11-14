@@ -117,7 +117,7 @@ pub(super) fn composite_round_cost(
 /// ```
 ///
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
-/// are cut ON the interior knots ([`knot_aligned_cuts`](super::cells::knot_aligned_cuts)), so each one
+/// are cut ON the interior knots ([`knot_aligned_cuts`]), so each one
 /// lies inside a single smooth piece and the Taylor remainder is the
 /// whole error there. The area rides the
 /// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on

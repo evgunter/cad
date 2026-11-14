@@ -253,12 +253,7 @@ fn a_body_with_no_rows_still_has_none_after_a_split() {
     assert_eq!(bare.pcurves().count(), 0);
     let curved: Vec<topo::PcurveMintError> = bare
         .faces()
-        .filter(|(_, f)| {
-            !matches!(
-                bare.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| !matches!(bare.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(face, _)| topo::PcurveMintError::Unminted { face })
         .collect();
     assert!(!curved.is_empty(), "the wall has a curved face");

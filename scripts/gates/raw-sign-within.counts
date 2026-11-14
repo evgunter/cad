@@ -1,0 +1,6 @@
+# Production `.sign_within(` outside geom-core's doors and scalar impls,
+# counted per file (scripts/gates/raw-sign-within.sh). A raw read names
+# no predicate for the K recorder and logs no verdict. A read that
+# decides nothing says so at its site with a `// NO-DECISION: <why>` line
+# directly above it, and is not counted here; a read that decides goes
+# through a named k_stats door, or is entered here with why it cannot yet.

@@ -548,12 +548,8 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
         .into_iter()
         .find(|e| {
             *e != arc && !rec.arcs.iter().any(|(a, _, _)| a == e) && {
-                let he = body.get_edge(*e).expect("an edge").he_plus;
-                let other = if body.get_half_edge(he).expect("a half").start == foot {
-                    body.half_edge_end(he).expect("an end")
-                } else {
-                    body.get_half_edge(he).expect("a half").start
-                };
+                let (s, t) = body.edge_vertices(*e).expect("an edge");
+                let other = if s == foot { t } else { s };
                 let d = unit(sub(point_at(body, other), p_k));
                 dot(d, cone_of_turn(source, edges).l).abs() > 1.0 - 1e-9
             }
@@ -661,7 +657,7 @@ fn the_witnesses_build_at_every_pose() {
         let want = taken_on(&halves_of(&body), &body, &edges, D);
         for (pose, map) in poses() {
             let rigid = geom_core::test_support::rigid(&map, tol());
-            let moved = topo::transform_rigid(&body, &rigid, tol()).expect("a rigid pose");
+            let moved = topo::transform_rigid(&body, &rigid).expect("a rigid pose");
             let what = format!("{what} at {pose}");
             let out = fillet(&moved, &edges, &what);
             assert_delta(&moved, &out.body, want, 1e-11, &what);
@@ -1163,11 +1159,12 @@ fn a_fillet_turn_builds_at_the_chamfers_band_and_escalates_in_its_own() {
 }
 
 /// **L filleted in a later call** ends at the overrun's turn foot, in
-/// the far band's face — a cylinder, a curved end face — and refuses
-/// as one, at each of the leaning prism's overrun corners (`±0.5`,
-/// `±1`).
+/// the far band's face, where L runs on tangentially into the overrun's
+/// arc (the arc is tangent to L at the far foot): the request stops part
+/// way along a smooth run, and refuses saying so, at each of the leaning
+/// prism's overrun corners (`±0.5`, `±1`).
 #[test]
-fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
+fn a_later_fillet_of_l_refuses_where_it_runs_on_into_the_overrun_arc() {
     for s in [0.5, -0.5, 1.0, -1.0] {
         let what = format!("lean {s}");
         let (body, edges) = leaning_turn(s);
@@ -1183,8 +1180,8 @@ fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
         match fillet_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()) {
             Err(e) => assert!(
                 matches!(&e.error, BlendError::UnsupportedRunOut { detail, .. }
-                    if *detail == sweep::blend::battery::END_FACE_CURVED),
-                "{what}: L later refuses at a curved end face, got {}",
+                    if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN),
+                "{what}: L later refuses where it runs on into the overrun arc, got {}",
                 e.error.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!("{what}: L later must refuse"),

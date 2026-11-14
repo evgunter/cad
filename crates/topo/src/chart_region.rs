@@ -366,6 +366,10 @@ pub enum ChartRegionError {
     /// levers by edge lengths, so either end reads a height wrong.
     /// Recourse is the model's scale, not ε.
     EdgeScale,
+    /// A face of the pair has no cover ([`crate::cover::face_cover`]), so
+    /// its carrier gates have no region to read: the carrier's own refusal
+    /// and each boundary entity that left its boundary unread.
+    FaceUncovered(crate::cover::FaceUncovered),
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -383,6 +387,60 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
 impl ChartRegionError {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), by
+    /// the `[failure.taxonomy]` row each variant's doc puts it in.
+    /// Exhaustive with no catch-all arm, so an added variant states its
+    /// standing here before it compiles.
+    ///
+    /// - Kept by its margin (row 1(b)): [`Self::Escalated`].
+    /// - In band, with no margin carried (row 1(b): a tighter band may
+    ///   decide it): [`Self::RayExhausted`] (every ray grazed),
+    ///   [`Self::TouchingBoundary`] (not decidable at this ε) and
+    ///   [`Self::PeriodFold`] (a gap decided on a half-period mark, the
+    ///   branches astride it disagreeing).
+    /// - A limit (row 2: a reading not built, or a bound on the work):
+    ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
+    ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`], both witness caps
+    ///   and [`Self::FaceUncovered`] (no region read for a face).
+    /// - A limit (row 1(b): a precision limit the model controls, which no
+    ///   tolerance moves; its lever is the model's scale):
+    ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
+    /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
+    ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
+    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and two
+    ///   payloads that mix classes, until they are split
+    ///   (`work/onecopy/chart-region-refusals-that-mix-classes-await-their-split.md`):
+    ///   [`Self::TrimOffFace`], whose incidence read is a decided miss, a
+    ///   pose, or an undecided read; and [`Self::DegenerateLoop`], raised
+    ///   both for a loop with under three chart points (structure) and for
+    ///   an orientation the band decides zero (in band).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a refusal of the whole query.
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        use geom_core::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted | Self::TouchingBoundary | Self::PeriodFold => Ok(Refusal::InBand),
+            Self::ChartDivergence { .. }
+            | Self::NonPlanarTrim { .. }
+            | Self::ArmUnbounded { .. }
+            | Self::SeamBranch
+            | Self::WitnessSegmentCapExceeded { .. }
+            | Self::WitnessCellCapExceeded { .. }
+            | Self::EdgeScale
+            | Self::FaceUncovered(_) => Ok(Refusal::Limit),
+            Self::MissingCache { .. }
+            | Self::CarrierTilt
+            | Self::Corrupt
+            | Self::TrimOffFace { .. }
+            | Self::DegenerateLoop { .. } => Err(Aborts),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -520,6 +578,11 @@ impl ChartRegionError {
             Self::EdgeScale => write!(
                 f,
                 "chart-region: {EDGE_SCALE_REASON}. {EDGE_SCALE_RECOURSE}"
+            ),
+            Self::FaceUncovered(why) => write!(
+                f,
+                "chart-region: a face of the pair has no region to read its carriers over: \
+                 {why}"
             ),
             Self::Corrupt => write!(
                 f,
@@ -1155,10 +1218,10 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::passed_face`]'s [`crate::live::FaceView::surface`],
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
 /// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.passed_face(face)
+    body.face(face)
         .map(|f| f.surface())
         .ok_or(ChartRegionError::Corrupt)
 }
@@ -1176,6 +1239,19 @@ fn plane_frame<T: Decide>(
     }
 }
 
+/// **A face of the pair's region** ([`crate::cover::face_cover`]): the
+/// extent its carrier gates read. A face with no cover refuses with its
+/// reason ([`ChartRegionError::FaceUncovered`]); a face that does not
+/// resolve is [`ChartRegionError::Corrupt`].
+fn pair_cover<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<geom::cover::Cover<T>, ChartRegionError> {
+    body.face(face).ok_or(ChartRegionError::Corrupt)?;
+    crate::cover::face_cover(body, face, band).map_err(ChartRegionError::FaceUncovered)
+}
+
 /// Every boundary vertex of a face, outer loop then rings, cycle order
 /// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
 /// the face a link. A lone-vertex loop is refused, as a face that does
@@ -1184,7 +1260,7 @@ fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
-    let view = body.passed_face(face).ok_or(ChartRegionError::Corrupt)?;
+    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
     view.boundary()
         .map(|member| match member {
             BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
@@ -1200,31 +1276,32 @@ fn face_boundary_points<T: Decide>(
 ///
 /// # The margin, and why its lever is the pair's own extent
 ///
-/// `m = max over the union of BOTH faces' boundary vertices p of
+/// `m = max over BOTH faces' points p of
 /// max(|(p − o_a)·n̂_a|, |(p − o_b)·n̂_b|)` — metres, a point-to-plane
-/// distance, [`Margin::of`]'s door.
+/// distance, [`Margin::of`]'s door — each face read at its cover's range
+/// along each normal ([`pair_cover`], [`geom::cover::Cover::range_along`]).
 ///
-/// A vertex of face A lies on A's carrier exactly, so its A-term is
-/// zero and its B-term is the two carriers' SEPARATION at that
-/// location; symmetrically for B's vertices. So `m` is the largest
-/// separation of the two carriers anywhere on the pair's own boundary.
-/// Each term is affine in `p`, so its supremum over a trim region is
-/// attained at a vertex: `m` is EXACT over the region, not a
-/// small-angle bound.
+/// A point of face A lies on A's carrier, so its A-term is zero to the
+/// cover and its B-term is the two carriers' SEPARATION at that
+/// location; symmetrically for B's. So `m` bounds the largest
+/// separation of the two carriers anywhere on the pair's own region.
+/// Each term is affine in `p`, so its supremum over a face is its
+/// cover's support: exact where the face's edges are segments and conic
+/// arcs, not a small-angle bound.
 ///
 /// **The lever is the pair's own extent, per vertex.** Door 1 reads
 /// the same disagreement as one displacement over a ball enclosing both
 /// faces, the tilt levered to the ball's far reach and summed with the
-/// offset (`bool_plane_reach` via `carrier_eq::pair_door_reading`).
+/// offset (`carrier_plane_reach` via `carrier_eq::pair_door_reading`).
 /// Here the tilt's contribution to each term is `r·sin θ` with `r` that
 /// vertex's own distance from the carrier origin, and the offset term
 /// rides in the same length. A tilt a peg absorbs and a tilt that opens
 /// a millimetre across a table get different answers.
 ///
 /// **The margin is symmetric BY CONSTRUCTION** (the argument-order
-/// obligation): the vertex set is a UNION and both plane-distance
-/// functions are evaluated at every vertex, so swapping `(A, B)` for
-/// `(B, A)` permutes a `max` over an unchanged multiset of `f64`s.
+/// obligation): both faces' covers are read along both normals, so
+/// swapping `(A, B)` for `(B, A)` permutes a `max` over an unchanged
+/// multiset of `f64`s.
 /// `T::max` is associative-commutative on point brackets, so the
 /// margin is bit-identical in both orders — no appeal to the lemma's
 /// ε framing is needed for THIS row.
@@ -1260,10 +1337,11 @@ fn carrier_agreement<T: Decide + Bounds>(
     let (o_b, n_b) = plane_frame(body_b, face_b)?;
     let mut worst = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        for p in face_boundary_points(body, face)? {
-            worst = worst
-                .max((p - o_a).dot(n_a).abs())
-                .max((p - o_b).dot(n_b).abs());
+        let cover = pair_cover(body, face, band)?;
+        for (o, n) in [(o_a, n_a), (o_b, n_b)] {
+            let (lo, hi) = cover.range_along(n);
+            let base = (o - geom_core::Point3::origin()).dot(n);
+            worst = worst.max((lo - base).abs()).max((hi - base).abs());
         }
     }
     match decide_magnitude("chart_region_carrier_tilt", Margin::of(worst), band) {
@@ -1343,13 +1421,12 @@ fn cyl_frame<T: Decide>(
 /// - `chart_region_cyl_radius` — `r_a − r_b`, metres at unit arm (a
 ///   length is not re-levered; enters `E` at weight one).
 /// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by `hyp`.
-///   `reach` is the largest |axial coordinate| of any boundary vertex
-///   of either face about either description's own origin, and
+///   `reach` is the largest |axial coordinate| of either face's cover
+///   about either description's own origin ([`pair_cover`]), and
 ///   `r_max = max(r_a, r_b)` (both union-maxes over order-symmetric
 ///   multisets — the `chart_region_carrier_tilt` construction). `hyp`
-///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach on the
-///   boundary, and a straight-chart-edge region attains its v-extremes
-///   on the boundary), which widens toward decline — the conservative
+///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach over the
+///   face's cover), which widens toward decline — the conservative
 ///   direction; the second-order remainder rides the module's standing
 ///   small-multiple posture.
 /// - `chart_region_cyl_offset` — the larger of the two perpendicular
@@ -1516,17 +1593,20 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let gate_band = premise.band(band);
 
     // --- The carrier gates, at the pair's own extent (doc above).
-    //     `reach` is the axial reach (largest |axial coordinate| of a
-    //     boundary vertex about either origin, both faces — union-max
-    //     over an order-symmetric multiset); `hyp` is the TRANSFER
+    //     `reach` is the axial reach (largest |axial coordinate| of
+    //     either face's cover about either origin, a union-max over an
+    //     order-symmetric set); `hyp` is the TRANSFER
     //     lever `√(reach² + r_max²)`: every point p of either trim
     //     satisfies ‖p − o‖² = v² + r² ≤ reach² + r_max², so a rigid
     //     rotation by θ between the two descriptions displaces trim
     //     points by at most sin θ · hyp — the radius is priced.
     let mut reach = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        for p in face_boundary_points(body, face)? {
-            reach = reach.max(a.height(p).abs()).max(b.height(p).abs());
+        let cover = pair_cover(body, face, band)?;
+        for frame in [a, b] {
+            let (lo, hi) = cover.range_along(frame.axis);
+            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
+            reach = reach.max((lo - base).abs()).max((hi - base).abs());
         }
     }
     let r_max = a_radius.max(b_radius);
@@ -1567,7 +1647,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
     //     the pair's own extent per unit axial step, so the sign read
     //     goes through the metres door with an honest length.
-    let sigma = match decide(
+    let sigma: T = match decide(
         "chart_region_cyl_axis_sense",
         Margin::levered(
             a.axis.dot(b.axis),
@@ -1577,18 +1657,19 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         ),
         band,
     ) {
-        Ok(Sign::Positive) => T::one(),
-        Ok(Sign::Negative) => T::zero() - T::one(),
-        // A zero-band axis dot contradicts the tilt gate's Zero (the
-        // dot of near-parallel units is near ±1): poisoned input.
-        Ok(Sign::Zero) => {
-            return Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("chart_region_cyl_axis_sense"),
-                terminal_sliver: false,
-            }));
-        }
+        Ok(sense) => match sense.nonzero() {
+            Some(side) => side.unit(),
+            // A zero-band axis dot contradicts the tilt gate's Zero (the
+            // dot of near-parallel units is near ±1): poisoned input.
+            None => {
+                return Err(ChartRegionError::Escalated(Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("chart_region_cyl_axis_sense"),
+                    terminal_sliver: false,
+                }));
+            }
+        },
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
     };
     let w_a = a.v_ref();
@@ -1651,7 +1732,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
         )
     };
-    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
+    match period_fold_as(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
         Fold::One(shift) => overlap_at(shift),
         Fold::Astride([lo, hi], decline) => {
             let (below, above) = (overlap_at(lo), overlap_at(hi));
@@ -1665,7 +1746,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     }
 }
 
-/// The fold [`period_fold`] decides.
+/// The fold [`period_fold_as`] decides.
 enum Fold<T> {
     /// The one shift `k·τ`.
     One(T),
@@ -1679,18 +1760,17 @@ enum Fold<T> {
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
 /// half-period marks ([`geom_brep::Period::decide`]) metered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
-/// two branches astride it (`pcurves::branches_astride`), each a literal.
+/// two branches astride it (`pcurves::branches_astride_as`), each a literal.
 ///
 /// # Errors
 ///
 /// [`ChartRegionError::PeriodFold`] on a mark whose astride branches
 /// are not decided;
 /// [`ChartRegionError::Escalated`] in band, likewise.
-fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
-    let tau = T::tau();
+fn period_fold_as<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let name = "chart_region_period_fold";
     let meter = |g| Margin::metered(g, InfSpeed::new(radius));
-    let period = geom_brep::Period::new(tau);
+    let period = geom_brep::Period::angle();
     let shift = |k: i32| period.times(k);
     match period.decide(name, gap, meter, band) {
         Ok(k) => Ok(Fold::One(shift(k))),
@@ -1699,7 +1779,7 @@ fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, Char
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
             };
-            match crate::pcurves::branches_astride(name, gap, tau, meter, band) {
+            match crate::pcurves::branches_astride_as(name, gap, period.length(), meter, band) {
                 Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
                 Err(_) => Err(decline),
             }
@@ -2415,12 +2495,8 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let fa = body_a
-        .passed_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?;
-    let fb = body_b
-        .passed_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?;
+    let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
     let s_a = fa.surface();
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
@@ -2719,7 +2795,7 @@ fn certified_arms<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(InfSpeed<T>, InfSpeed<T>), ChartRegionError> {
     let gate = |arm: T, chart: &'static str| -> Result<T, ChartRegionError> {
-        gate_arm(ARM_INF, arm, arm.lo(), band).map_err(|g| g.of_chart(chart))
+        gate_arm_as(ARM_INF, arm, arm.lo(), band).map_err(|g| g.of_chart(chart))
     };
     let (arm_u, arm_v) = match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
@@ -2792,7 +2868,7 @@ fn certified_arms<T: Decide + Bounds>(
 /// The row a chart's inf-side lever arm is gated on.
 const ARM_INF: &str = "chart_region_arm_inf";
 
-/// Why [`gate_arm`] gates no rate.
+/// Why [`gate_arm_as`] gates no rate.
 #[derive(Clone, Debug)]
 pub(crate) enum ArmGate {
     /// The chart has no certified extent in that channel.
@@ -2825,7 +2901,7 @@ impl ArmGate {
 /// no bound) instead of laundering it into an escalation that reads as
 /// "undecided measurement". Only the floor is ever leaned on
 /// downstream, so this is the same question the row asks, asked first.
-pub(crate) fn gate_arm<T: Decide>(
+pub(crate) fn gate_arm_as<T: Decide>(
     name: &'static str,
     arm: T,
     floor: f64,
@@ -2841,7 +2917,7 @@ pub(crate) fn gate_arm<T: Decide>(
     }
 }
 
-/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm`] on
+/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm_as`] on
 /// `name`, each arm's floor read by `floor`): the per-axis infs of its
 /// stretch reading ([`geom_brep::chart_stretch_inf`]) gated FIRST, since
 /// they are the assembly's divisors and only a definitely-positive one
@@ -2854,10 +2930,13 @@ pub(crate) fn spline_chart_arms<T: Decide>(
     band: Band,
 ) -> Result<(InfSpeed<T>, InfSpeed<T>), ArmGate> {
     let inf = geom_brep::chart_stretch_inf(surface);
-    let gate = |arm: T| gate_arm(name, arm, floor(arm), band);
-    let (inf_u, inf_v) = (gate(inf.inf_u)?, gate(inf.inf_v)?);
+    let gate_as = |arm: T| gate_arm_as(name, arm, floor(arm), band);
+    let (inf_u, inf_v) = (gate_as(inf.inf_u)?, gate_as(inf.inf_v)?);
     let (arm_u, arm_v) = skew_discounted_arms(&inf, inf_u, inf_v);
-    Ok((InfSpeed::new(gate(arm_u)?), InfSpeed::new(gate(arm_v)?)))
+    Ok((
+        InfSpeed::new(gate_as(arm_u)?),
+        InfSpeed::new(gate_as(arm_v)?),
+    ))
 }
 
 /// **A spline chart's two inf-side lever arms** from its stretch reading
@@ -2964,7 +3043,7 @@ pub(crate) fn cyl_wrap_whole<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_cyl_wrap");
-    Period::new(T::tau())
+    Period::angle()
         .whole_turn(rows, span, Exact::new(radius), band)
         .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
 }
@@ -2977,7 +3056,7 @@ pub(crate) fn seam_span_over<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_seam_span");
-    Period::new(T::tau())
+    Period::angle()
         .not_over(rows, span, Exact::new(radius), band)
         .map(|not_over| !not_over)
         .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
@@ -3140,12 +3219,7 @@ const SCHEDULE_2D: [Vec2<f64>; 16] = [
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
-const ROWS: ParityRows = ParityRows {
-    segment: "chart_region_segment",
-    boundary: "chart_region_boundary",
-    side: "chart_region_side",
-    advance: "chart_region_advance",
-};
+const ROWS: ParityRows = crate::rows::CHART_REGION;
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
@@ -3770,18 +3844,29 @@ fn overlap_of_regions<T: Decide + Bounds>(
 /// valid only when their boundaries have no proper crossing: the
 /// first definite vertex verdict in cycle order (D9), `None` when
 /// every vertex sits on `to`'s boundary.
+///
+/// Every vertex off `to`'s boundary reads the one relation where the
+/// boundaries do not cross, so a vertex read in band is kept by its
+/// standing ([`ChartRegionError::refusal`]) and a later definite vertex
+/// answers. That is a premise about the input, not a theorem of the
+/// rule, so the ladder climbs under [`geom_core::ladder::Answering::First`] (a kept vertex
+/// ahead stays live on the record), pending 6592's `Alike`
+/// (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`).
 fn polygon_relation<T: Decide>(
     of: &[Point2<T>],
     to: &[Point2<T>],
     band: Band,
 ) -> Result<Option<PolyContainment>, ChartRegionError> {
-    for v in of {
-        match point_in_polygon(to, *v, band)? {
-            PolyContainment::OnBoundary => continue,
-            verdict => return Ok(Some(verdict)),
+    use geom_core::ladder::{Answering, Rung, climb};
+    climb(Answering::First, of, |v| {
+        match point_in_polygon(to, *v, band) {
+            Ok(PolyContainment::OnBoundary) => Rung::Passes,
+            Ok(verdict) => Rung::Answers(Ok(verdict)),
+            Err(e) => Rung::refused(e, ChartRegionError::refusal, Err),
         }
-    }
-    Ok(None)
+    })
+    .into_reading()
+    .and_then(|answer| answer.transpose())
 }
 
 #[cfg(test)]
@@ -3803,6 +3888,101 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// One sample of every variant kind, through a `match` with no
+    /// wildcard, so an arm added without a sample here is a compile
+    /// error rather than a row that never runs.
+    pub(super) fn sample(kind: ChartRegionErrorKind) -> ChartRegionError {
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("chart_region_area"),
+            terminal_sliver: false,
+        };
+        match kind {
+            ChartRegionErrorKind::ChartDivergence => {
+                ChartRegionError::ChartDivergence { detail: "same-key" }
+            }
+            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                what: "a Harmonic image",
+            },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
+            },
+            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
+            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
+            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
+            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
+            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
+            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
+            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
+                ChartRegionError::WitnessSegmentCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP + 1,
+                }
+            }
+            ChartRegionErrorKind::WitnessCellCapExceeded => {
+                ChartRegionError::WitnessCellCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP,
+                    cells: WITNESS_CELL_CAP,
+                }
+            }
+            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::FaceUncovered => ChartRegionError::FaceUncovered(
+                crate::cover::FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                )),
+            ),
+            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
+        }
+    }
+
+    /// [`ChartRegionError::refusal`] by its `[failure.taxonomy]` rows (QML
+    /// T4), over every variant ([`sample`]): the expected standing is a
+    /// `match` with no wildcard, so changing a standing, or adding a
+    /// variant without stating one here, goes red.
+    #[test]
+    fn a_chart_region_refusal_stands_by_its_row() {
+        use geom_core::ladder::{Aborts, Refusal};
+        for kind in <ChartRegionErrorKind as strum::IntoEnumIterator>::iter() {
+            let e = sample(kind);
+            let want = match kind {
+                ChartRegionErrorKind::Escalated => match e {
+                    ChartRegionError::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                    _ => unreachable!("the sample is its kind"),
+                },
+                ChartRegionErrorKind::RayExhausted
+                | ChartRegionErrorKind::TouchingBoundary
+                | ChartRegionErrorKind::PeriodFold => Ok(Refusal::InBand),
+                ChartRegionErrorKind::ChartDivergence
+                | ChartRegionErrorKind::NonPlanarTrim
+                | ChartRegionErrorKind::ArmUnbounded
+                | ChartRegionErrorKind::SeamBranch
+                | ChartRegionErrorKind::WitnessSegmentCapExceeded
+                | ChartRegionErrorKind::WitnessCellCapExceeded
+                | ChartRegionErrorKind::EdgeScale
+                | ChartRegionErrorKind::FaceUncovered => Ok(Refusal::Limit),
+                ChartRegionErrorKind::MissingCache
+                | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::Corrupt
+                | ChartRegionErrorKind::DegenerateLoop
+                | ChartRegionErrorKind::TrimOffFace => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{kind:?}");
+        }
     }
 
     /// **A trim off its plane ends by the door that reads it**: a
@@ -3933,57 +4113,6 @@ mod tests {
             "declare",
             "rescale",
         ];
-        let diag = Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-9),
-            band: band(),
-            predicate: Some("chart_region_area"),
-            terminal_sliver: false,
-        };
-        // Every arm, constructed: one sample per variant kind, through a
-        // `match` with no wildcard, so an arm added without a sample here
-        // is a compile error rather than a row that never runs.
-        let sample = |kind: ChartRegionErrorKind| match kind {
-            ChartRegionErrorKind::ChartDivergence => {
-                ChartRegionError::ChartDivergence { detail: "same-key" }
-            }
-            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                what: "a Harmonic image",
-            },
-            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
-            },
-            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
-                half_edge: HalfEdgeKey::default(),
-            },
-            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
-            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
-            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
-            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
-            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
-            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
-                face: FaceKey::default(),
-                r#loop: LoopKey::default(),
-            },
-            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
-            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
-            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
-                ChartRegionError::WitnessSegmentCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP + 1,
-                }
-            }
-            ChartRegionErrorKind::WitnessCellCapExceeded => {
-                ChartRegionError::WitnessCellCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP,
-                    cells: WITNESS_CELL_CAP,
-                }
-            }
-            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
-            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
-        };
         let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()
             .map(sample)
             .collect();
@@ -4218,6 +4347,7 @@ mod tests {
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            ends: Box::default(),
         };
         // The UV image is the straight segment p0 → p0 + pd by
         // variant; a span that is the whole arc ends at its ends,
@@ -5315,6 +5445,33 @@ mod tests {
             }
         }
     }
+
+    /// **A vertex inside answers past a vertex in band**
+    /// ([`polygon_relation`], `First`, under its boundaries-do-not-cross
+    /// premise). The unit square, and a polygon whose first vertex lies
+    /// `5e-9` off the square's right edge (in band) and whose next vertex
+    /// is inside: the relation is `In`. A first-refusal loop escalated at
+    /// the first vertex.
+    #[test]
+    fn a_vertex_inside_answers_past_a_vertex_in_band() {
+        let sq = rect(0.0, 0.0, 1.0, 1.0);
+        let of = [
+            Point2::new(1.0 + 5e-9, 0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, 0.25),
+        ];
+        assert!(
+            matches!(
+                point_in_polygon(&sq, of[0], band()),
+                Err(ChartRegionError::Escalated(_))
+            ),
+            "the first vertex reads in band"
+        );
+        assert_eq!(
+            polygon_relation(&of, &sq, band()).unwrap(),
+            Some(PolyContainment::In)
+        );
+    }
 }
 
 /// The certified INF-arm rows: the per-kind lower stretch bounds the
@@ -6267,7 +6424,7 @@ mod period_fold_rows {
         for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
-                    let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()
+                    let Fold::One(shift) = period_fold_as(a - b, Sym::from_f64(2.0), band).unwrap()
                     else {
                         panic!("k = {k}: a gap of whole periods sits on no mark");
                     };

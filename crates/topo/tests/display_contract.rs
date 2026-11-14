@@ -22,6 +22,7 @@ fn in_band() -> Indeterminate {
     Indeterminate {
         margin: MarginDiag::value(3e-11),
         band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
+        // UNDECIDED-NAME: the in-band cause the Display contract renders, any row
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     }
@@ -34,7 +35,7 @@ test_utils::f6_variants! {
     /// what it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const CONTACT_REFUSAL: ContactRefusal =
-        [Contradicted, Escalated, NotCertifiable];
+        [Escalated, NotCertifiable];
 }
 
 /// Every `Debug` field name `ContactRefusal`'s payloads carry, as the
@@ -69,16 +70,6 @@ const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
 #[test]
 fn contact_refusal_display_names_its_content_not_its_struct() {
     let cases = [
-        (
-            ContactRefusal::Contradicted { diag: in_band() },
-            // The one reason true at every contradiction site; the
-            // predicate and margin are developer detail in `Debug`.
-            vec![
-                "contradicted",
-                topo::CONTRADICTION_REASON,
-                topo::CONTRADICTION_RECOURSE,
-            ],
-        ),
         (
             ContactRefusal::Escalated { diag: in_band() },
             vec!["escalated", topo::CONTACT_RECOURSE],

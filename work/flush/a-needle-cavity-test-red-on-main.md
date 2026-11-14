@@ -2,8 +2,9 @@
 id: a-needle-cavity-test-red-on-main
 kind: issue
 title: topo shell_role_reader's needle-cavity test is red on main
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-09
 ---
 
 
@@ -14,3 +15,7 @@ fails on origin/main (reproduced on main in a separate worktree by the WIRE
 cause is unknown.
 
 Moved from `work/issues/` to `work/flush/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed as a copy (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
+
+Same test, same day, as `work/flush/main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex.md`, which names the failure; that row is the home.

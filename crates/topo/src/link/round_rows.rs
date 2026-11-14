@@ -428,7 +428,14 @@ fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across()
     let o = Point3::new(0.4, -0.3, 1.1);
     let a = Vec3::new(0.3, -0.5, 0.8).normalize();
     let across = Vec3::new(0.8, 0.0, -0.3).normalize();
-    let pin = Round::cylinder(cp(o), cv(a), Dual::variable(1.0), true);
+    let pin = Round::cylinder(
+        geom::Line {
+            origin: cp(o),
+            dir: cv(a),
+        },
+        Dual::variable(1.0),
+        true,
+    );
     let ball = Round::sphere(cp(o), Dual::variable(1.0), true);
     let mut bad = Vec::new();
     let mut check = |what: &str, got: Result<Dual<f64>, AtTheAxis>, value: f64| match got {
@@ -454,7 +461,14 @@ fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across()
         -1.0,
     );
     let moved = Point3::new(Dual::variable(on.x), c(on.y), c(on.z));
-    let fixed = Round::cylinder(cp(o), cv(a), c(1.0), true);
+    let fixed = Round::cylinder(
+        geom::Line {
+            origin: cp(o),
+            dir: cv(a),
+        },
+        c(1.0),
+        true,
+    );
     if fixed.offset(moved).err() != Some(AtTheAxis) {
         bad.push(format!(
             "a vertex moved across the axis: {:?}",
@@ -502,7 +516,14 @@ fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
         })
         .collect();
     let link = Link::of(p, sectors).expect("the fans make a link");
-    let bore = Round::cylinder(Point3::origin(), v(0.0, 0.0, 1.0), 1.0, false);
+    let bore = Round::cylinder(
+        geom::Line {
+            origin: Point3::origin(),
+            dir: v(0.0, 0.0, 1.0),
+        },
+        1.0,
+        false,
+    );
     assert_eq!(
         rest::by_round(&link, &bore, 0.5, band()),
         TouchVerdict::Crossing,

@@ -42,3 +42,15 @@ and its stored geometry" in the new sentence's sense is the question.
 
 So the class may need splitting rather than flipping. E1d did not touch
 it, and every one of these still ends in the lever at a build.
+
+## Evidence, PR 6836 (2026-11-11)
+
+PR 6836's first cut ended a stated chart image's definite miss through
+this side (`CertCheck::StatedImage` as a sized decision on
+`RefusedSide::StoredContradiction`), reading its build arm as the
+caller's lever. Its review upheld D4 ¶1 (iv) against it: the PR now
+ends that miss by the door's culprit (`CertifyError::StatedImageMissed`,
+`Ending::Stated` in `crates/geom-brep/src/certify.rs`), the kernel's
+defect at a build, and leaves this side's build arm to this row. The
+side's doc is the one place a reader learns the stale story from, so a
+new decision is still drawn to it.

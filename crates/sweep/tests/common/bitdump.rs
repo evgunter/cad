@@ -61,14 +61,14 @@ pub fn dump(body: &Body<f64>) -> String {
     }
     for (k, _) in body.faces() {
         let fd = body.get_face(k).unwrap();
-        let surf = body.get_surface(fd.surface).unwrap();
+        let surf = body.face_surface(k).unwrap();
         let _ = writeln!(
             s,
             "F {k:?} sense={:?} rings={} surface={surf:?}",
             fd.sense,
             fd.rings.len()
         );
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        for (lk, _, _) in body.face(k).unwrap().loops() {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
                 let _ = writeln!(s, "  L {lk:?} empty");
                 continue;

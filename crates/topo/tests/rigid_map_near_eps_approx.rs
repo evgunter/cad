@@ -1,15 +1,34 @@
-//! **A rigid map does not refuse an `Approx` face the kernel minted.**
+//! **A rigid map moves an `Approx` face the kernel minted near ε, and
+//! the image re-derives** (ONEHOME fork 259, PR 6824's
+//! `[tolerance.residuals]`: whatever a certificate or a meter reads is a
+//! function of the geometry, so a rigid map moves it only by its rounding
+//! width).
 //!
-//! An offset fit's `hull_sup` reads its vector upper bounds from
-//! coefficient norms, but its lower bounds and `X`'s enclosure width
-//! are assembled in the ambient frame, so a rotation moves it, and the
-//! fit loop stops at the first round that certifies, so a minted face
-//! can sit anywhere under ε. A face minted within the rotation's drift
-//! of ε therefore has an IMAGE that re-derives above ε. These rows
-//! build that face through the production mint door at the run's ε,
-//! show that its image refuses the re-derivation `transform_rigid`
-//! runs, and show that the body moves anyway: the transform re-fits the
-//! mapped description and ships a face tier 3's own door accepts.
+//! An offset fit's certificate reads every vector-valued bound from its
+//! coefficient vectors: their norms from above, their hull's distance
+//! from the origin from below (`‖E‖`'s floor, `PatchSpans::cell_norm_inf`),
+//! and balls about them for the curvature meter's forms
+//! (`PatchCell::balls`), never a per-coordinate box folded into a norm. So a rotation moves the
+//! certificate only by the rounding of the image itself: the image's
+//! control points are rounded at the patch's own extent, which moves the
+//! residual by a few ulps of it. Measured on the faces below: under
+//! these rotations the hull bound moves by up to `6.1e-4` of itself at
+//! the default ε, `5.0e-4` at 1e-6 and `4.1e-4` at 1e-12, and under
+//! ±2-ulp noise on the control points with no rotation at all by up to
+//! `3.9e-4` (measured while `‖E‖`'s floor read a ball about the vectors,
+//! where the rotations' drift was `6.2e-4`) — the same size, so that
+//! drift is the image's rounding, not a frame reading. The curvature
+//! meter's reach moves by `9e-11` (it moved by `2.7e-3` while its forms
+//! were boxes). `every_image_of_a_face_minted_near_eps_re_derives`
+//! asserts the hull drift under [`MARGIN`]`/4`.
+//!
+//! **A face within rounding of ε may flip** (`[simple.conditioned]`): a
+//! face minted closer to ε than its image's rounding is one whose
+//! re-derivation may land on either side, and nothing in the certifier
+//! can say otherwise, because the image is a different surface by that
+//! much. These rows mint the face [`MARGIN`] under ε, past that rounding,
+//! and assert that EVERY rotation's image re-derives and that the moved
+//! face re-certifies at a later finish.
 //!
 //! **The subject is one shape at a scale.** Every rigid map commutes
 //! with a uniform scale about the origin, and so does the offset
@@ -19,26 +38,6 @@
 //! from the patch's own round-[`ROUND`] bound, which is below every
 //! earlier round's, lands the minted face on that round a chosen
 //! fraction under the run's ε at every eps row.
-//!
-//! **The fraction is searched, not fixed.** "Up to the arithmetic" is
-//! not small here: at round 2 the scaled fit's bound departs from `s`
-//! times the patch's by up to `±1.7e-4` of itself, and the departure
-//! jumps between neighbouring scales, so it is the same size as the
-//! rigid drift the row needs and no one fraction is a witness at every
-//! eps row. A fixed `1/4096` was one until PR 4984 tightened the
-//! regularity floor, which cut the worst map's drift at `d = +0.05`
-//! to `2.16e-4` at 1e-12, under the `2.28e-4` that margin landed the
-//! face at. So [`near_eps_face`] walks [`MARGINS`] and keeps the first
-//! face that reproduces both answers — some image refuses on the hull
-//! limb and some certifies — and the rows assert that one exists.
-//!
-//! **The round is 2, not 0.** On the one-cell round-0 fit a rotation
-//! moves the bound by about `2e-5`, within a few times the scaling's
-//! own departure from linearity (`6e-6`), which leaves no margin both
-//! above the one and below the other. On round 2's 16 cells it moves
-//! it by `1.8e-4` to `4.9e-4` at the worst map, across the eps rows
-//! and both signs of `d`, and by `−1.6e-4` or less at the mildest, so
-//! margins in between are where a witness is.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,23 +45,16 @@ use std::sync::Arc;
 use topo::construction::Construct;
 
 use geom::{NurbsSurface, Surface};
-use geom_brep::{OffsetFitError, OffsetFitLane, OffsetLimb};
+use geom_brep::OffsetFitLane;
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use topo::construction::FaceSurface;
 use topo::{Body, FaceKey};
 
-/// How far under ε the minted face's bound is aimed, as fractions of ε,
-/// tried in order (module docs): the `1/4096` the rows used before PR
-/// 4984, then nearer ε down to just past the scaling's departure, then
-/// one step further under.
-const MARGINS: [f64; 6] = [
-    1.0 / 4096.0,
-    1.0 / 5120.0,
-    1.0 / 6144.0,
-    1.0 / 7168.0,
-    1.0 / 8192.0,
-    1.0 / 3072.0,
-];
+/// How far under ε the minted face's bound is aimed, as a fraction of
+/// ε: past the image's rounding (module docs: the rotations move the
+/// bound by up to `6.1e-4` of itself, asserted under a quarter of this),
+/// so a rotation's image cannot cross ε.
+const MARGIN: f64 = 1.0 / 256.0;
 
 /// The fit round the minted face certifies on (module docs).
 const ROUND: u32 = 2;
@@ -91,7 +83,7 @@ fn bowed(s: f64) -> NurbsSurface<f64> {
 
 /// The certified `Approx` face of the scaled patch's offset at `d`,
 /// minted by the production door at the run's ε on round [`ROUND`],
-/// at the first of [`MARGINS`] whose face reproduces both answers.
+/// [`MARGIN`] under ε.
 fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
     let tol = Tol::witness();
     let eps = tol.eps();
@@ -108,60 +100,25 @@ fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
         unscaled.rounds, ROUND,
         "the unscaled patch meets {ROUND_TARGET:e} on round {ROUND}"
     );
-    let mut tried = Vec::new();
-    for margin in MARGINS {
-        let s = eps * (1.0 - margin) / unscaled.hull_sup;
-        let face =
-            geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol).unwrap_or_else(|e| {
-                panic!(
-                    "d = {d}: the scaled patch mints at the run's ε: {e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                )
-            });
-        let c = face.certificate();
-        // The subject is what the file says it is: a round-`ROUND`
-        // face whose bound sits just under ε. A scaled fit that stopped
-        // elsewhere makes every row below vacuous.
-        let (refused, certified) = if c.rounds == ROUND && c.hull_sup >= eps * (1.0 - 4.0 * margin)
-        {
-            answers(&face, d)
-        } else {
-            (0, 0)
-        };
-        if refused > 0 && certified > 0 {
-            return Arc::unwrap_or_clone(face);
-        }
-        tried.push(format!(
-            "1/{:.0}: rounds {}, hull_sup/ε {}, {refused} refused, {certified} certified",
-            1.0 / margin,
-            c.rounds,
-            c.hull_sup / eps
-        ));
-    }
-    panic!("d = {d}: no margin reproduces both answers: {tried:#?}")
-}
-
-/// How many of [`rotations`]' images of `face` refuse the re-derivation
-/// on the hull limb, and how many certify.
-fn answers(face: &geom::ApproxSurface<f64>, d: f64) -> (usize, usize) {
-    let tol = Tol::witness();
-    let lane = OffsetFitLane::fit();
-    rotations()
-        .into_iter()
-        .fold((0, 0), |(refused, certified), (name, map)| {
-            let (description, fit) = image(face, &map);
-            match lane.remap(&description, &fit, face.window(), tol) {
-                Ok(_) => (refused, certified + 1),
-                Err(OffsetFitError::Limb {
-                    limb: OffsetLimb::HullSup,
-                    ..
-                }) => (refused + 1, certified),
-                Err(e) => panic!(
-                    "d = {d}, {name}: only the hull limb moves here: {e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                ),
-            }
-        })
+    let s = eps * (1.0 - MARGIN) / unscaled.hull_sup;
+    let face =
+        geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the scaled patch mints at the run's ε: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
+    let c = face.certificate();
+    // The subject is what the file says it is: a round-`ROUND` face whose
+    // bound sits just under ε. A scaled fit that stopped elsewhere makes
+    // every row below vacuous.
+    assert!(
+        c.rounds == ROUND && c.hull_sup >= eps * (1.0 - 4.0 * MARGIN) && c.hull_sup <= eps,
+        "d = {d}: the minted face is round {ROUND}, just under ε: rounds {}, hull_sup/ε {}",
+        c.rounds,
+        c.hull_sup / eps
+    );
+    Arc::unwrap_or_clone(face)
 }
 
 /// Rigid maps about four axes at eight angles each — the oblique ones
@@ -217,7 +174,7 @@ fn body_with(face: geom::ApproxSurface<f64>) -> (Body<f64>, FaceKey) {
 }
 
 fn approx_on(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
-    match body.get_surface(body.get_face(face).unwrap().surface) {
+    match body.face_surface(face) {
         Some(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }
@@ -229,20 +186,21 @@ fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
         && a.knots_u_f64_interim().knots() == b.knots_u_f64_interim().knots()
         && a.knots_v_f64_interim().knots() == b.knots_v_f64_interim().knots()
         && a.control().len() == b.control().len()
-        && a.control().iter().zip(b.control()).all(|(p, q)| {
-            p.x.to_bits() == q.x.to_bits()
-                && p.y.to_bits() == q.y.to_bits()
-                && p.z.to_bits() == q.z.to_bits()
-        })
+        && a.control()
+            .iter()
+            .zip(b.control())
+            .all(|(p, q)| p.same_bits(*q))
 }
 
-/// **The reproduction.** The face certifies at the run's ε where it
-/// stands — tier 3's door accepts it — and its image under some
-/// rotation refuses the same door at the same ε, on the hull limb. That
-/// refusal is what `transform_rigid` used to hand back as
-/// `ApproxRecertify` for a body that validates.
+/// **Every image re-derives.** The face certifies at the run's ε where
+/// it stands, and so does its image under every rotation: the
+/// certificate is a function of the geometry, and the face is minted
+/// past its image's rounding of ε (module docs). This row once pinned
+/// the opposite — some image refusing on the hull limb — while the
+/// certificate's lower bounds and the curvature meter were assembled in
+/// the ambient frame.
 #[test]
-fn the_image_of_a_face_minted_near_eps_refuses_re_derivation() {
+fn every_image_of_a_face_minted_near_eps_re_derives() {
     let tol = Tol::witness();
     let lane = OffsetFitLane::fit();
     for d in [0.05_f64, -0.05] {
@@ -257,33 +215,66 @@ fn the_image_of_a_face_minted_near_eps_refuses_re_derivation() {
             .into_iter()
             .filter_map(|(name, map)| {
                 let (description, fit) = image(&face, &map);
-                match lane.remap(&description, &fit, face.window(), tol) {
-                    Ok(_) => None,
-                    Err(OffsetFitError::Limb {
-                        limb: OffsetLimb::HullSup,
-                        ..
-                    }) => Some(name),
-                    Err(e) => panic!(
-                        "d = {d}, {name}: only the hull limb moves here: {e_at}",
-                        e_at = e.render(geom_brep::recourse::Reading::Build)
-                    ),
-                }
+                lane.remap(&description, &fit, face.window(), tol)
+                    .err()
+                    .map(|e| format!("{name}: {}", e.render(geom_brep::recourse::Reading::Build)))
             })
             .collect();
         assert!(
-            !refused.is_empty(),
-            "d = {d}: no rotation moved the bound past ε, so the face does not reproduce the \
-             refusal"
+            refused.is_empty(),
+            "d = {d}: every image re-derives, none refuses: {refused:#?}"
+        );
+        // The meters are functions of the geometry: an image's regularity
+        // floor and curvature reach are the source's up to rounding (the
+        // reach moved by `2.7e-3` of itself while the curvature forms were
+        // per-coordinate boxes).
+        let band = Band::linear(tol).unwrap();
+        let read = |description: &geom::SurfaceDescription<f64>, fit: &NurbsSurface<f64>| {
+            geom_brep::offset_fit::certify_offset_over_at(
+                description,
+                fit,
+                face.window(),
+                1.0,
+                band,
+            )
+            .unwrap_or_else(|e| panic!("d = {d}: the meters read: {e:?}"))
+        };
+        let source = read(face.description(), face.fit());
+        let mut worst_hull = 0.0f64;
+        for (name, map) in rotations() {
+            let (description, fit) = image(&face, &map);
+            let moved = read(&description, &fit);
+            let drift = |a: f64, b: f64| ((a - b) / b).abs();
+            worst_hull = worst_hull.max(drift(moved.hull_sup, source.hull_sup));
+            assert!(
+                drift(moved.normal_floor, source.normal_floor) <= 1e-9
+                    && drift(moved.curvature_reach, source.curvature_reach) <= 1e-9,
+                "d = {d}, {name}: the meters moved past rounding: floor {} -> {}, reach {} -> {}",
+                source.normal_floor,
+                moved.normal_floor,
+                source.curvature_reach,
+                moved.curvature_reach
+            );
+        }
+        // The image's rounding moves the hull bound (module docs); MARGIN
+        // holds four times the worst drift measured, so a rotation's image
+        // cannot cross ε.
+        assert!(
+            worst_hull <= MARGIN / 4.0,
+            "d = {d}: a rotation moved the hull bound by {worst_hull:e} of itself, past \
+             MARGIN / 4"
         );
     }
 }
 
-/// **The fix.** Every rotation moves the body. Where the image
-/// certifies, the moved face IS the image, bit for bit, with the
-/// operand's `rounds` carried; where it refuses, the moved face is a
-/// fresh fit of the mapped description — the base mapped bit for bit,
-/// a different net — and tier 3's door accepts it at the run's ε. Both
-/// classes occur, so neither half of the row is vacuous.
+/// **The move carries the verdict, and a later finish agrees.** Every
+/// rotation moves the body, and the moved face IS the image, bit for
+/// bit, its certificate the operand's; tier 3's door then re-certifies
+/// the moved face afresh (`finish(b.moved(iso)) ≡ b.moved(iso)`, one
+/// face wide: no closed body the tree builds carries a curved `Approx`
+/// face, so the verdict pin's offset cap,
+/// `sweep`'s `a_moved_body_keeps_its_verdict`, is a planar patch whose
+/// fit is exact).
 #[test]
 fn a_rigid_map_moves_a_face_minted_near_eps() {
     let tol = Tol::witness();
@@ -291,16 +282,14 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
     for d in [0.05_f64, -0.05] {
         let face = near_eps_face(d);
         let (body, key) = body_with(face.clone());
-        let (mut imaged, mut refitted) = (0_usize, 0_usize);
         for (name, map) in rotations() {
-            let moved =
-                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "d = {d}, {name}: a sound face must move: {e_at}",
-                            e_at = e.render(geom_brep::recourse::Reading::Build)
-                        )
-                    });
+            let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "d = {d}, {name}: a sound face must move: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let after = approx_on(&moved, key);
             let (description, fit) = image(&face, &map);
             let geom::SurfaceDescription::Offset {
@@ -313,44 +302,35 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
             } = after.description();
             assert!(
                 same_net(got, want) && got_d.to_bits() == want_d.to_bits(),
-                "d = {d}, {name}: the description maps exactly either way"
+                "d = {d}, {name}: the description maps exactly"
+            );
+            assert!(
+                same_net(after.fit(), &fit),
+                "d = {d}, {name}: the fit is the image, not a re-fit"
+            );
+            assert_eq!(
+                format!("{:?}", after.certificate()),
+                format!("{:?}", face.certificate()),
+                "d = {d}, {name}: the certificate is carried"
             );
             lane.recertify(&after, tol).unwrap_or_else(|e| {
                 panic!(
-                    "d = {d}, {name}: tier 3's door must accept the moved face: {e_at}",
+                    "d = {d}, {name}: the moved face re-certifies at a later finish: {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-            if lane.remap(&description, &fit, face.window(), tol).is_ok() {
-                imaged += 1;
-                assert!(
-                    same_net(after.fit(), &fit),
-                    "d = {d}, {name}: an image that certifies is shipped as the image"
-                );
-                assert_eq!(after.certificate().rounds, face.certificate().rounds);
-            } else {
-                refitted += 1;
-                assert!(
-                    !same_net(after.fit(), &fit),
-                    "d = {d}, {name}: a refused image must not be what ships"
-                );
-            }
         }
-        assert!(
-            imaged > 0 && refitted > 0,
-            "d = {d}: both answers must occur — {imaged} imaged, {refitted} re-fitted"
-        );
     }
 }
 
-/// **A face that does not certify where it stands is not re-fitted.**
-/// The near-ε face with an interior fit control point nudged by ten
-/// times ε, behind the certificate it had before, refuses
-/// `ApproxRecertify` on the image's limb under every rotation: the map
-/// re-fits only a sound face, so it cannot launder a body tier 3
-/// rejects into one it accepts.
+/// **The map carries what it is handed; a finish decides.** The near-ε
+/// face with an interior fit control point nudged by ten times ε,
+/// behind the certificate it had before, is a planted face that no
+/// longer certifies where it stands. The map is construction state: it
+/// moves the planted face as it moves any, and tier 3's own door
+/// refuses the image as it refuses the source.
 #[test]
-fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
+fn a_planted_face_is_moved_and_refused_by_the_finishs_door() {
     let tol = Tol::witness();
     let d = 0.05;
     let face = near_eps_face(d);
@@ -370,8 +350,6 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
         fit: nudged,
         window: face.window(),
     };
-    // Planted with the operand's certificate: the surface claims what
-    // it no longer is, and only a re-derivation can tell.
     let planted = geom::ApproxSurface::certify(spec, |_, _, _| {
         Ok::<_, std::convert::Infallible>(*face.certificate())
     })
@@ -380,13 +358,15 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
         OffsetFitLane::fit().recertify(&planted, tol).is_err(),
         "the planted fit must fail where it stands, or this row tests nothing"
     );
-    let (body, _) = body_with(planted);
+    let (body, key) = body_with(planted);
     for (name, map) in rotations() {
-        match topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol) {
-            Err(topo::TransformError::ApproxRecertify {
-                source: OffsetFitError::Limb { .. },
-            }) => {}
-            other => panic!("{name}: expected the image's limb refusal, got {other:?}"),
-        }
+        let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
+            .unwrap_or_else(|e| panic!("{name}: the map moves what it is handed: {e:?}"));
+        assert!(
+            OffsetFitLane::fit()
+                .recertify(&approx_on(&moved, key), tol)
+                .is_err(),
+            "{name}: tier 3's door refuses the planted face's image"
+        );
     }
 }

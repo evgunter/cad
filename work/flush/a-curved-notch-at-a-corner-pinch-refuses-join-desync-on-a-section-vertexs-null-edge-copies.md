@@ -95,7 +95,7 @@ cone and the reuse union. Eight are clean. Seven carry the signatures
 that already have rows: `t3p=CensusUndecidable` on five
 (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`)
 and `mesh=Triangulation(Plane rings=0)` at δ 0.05 on four
-(`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`),
+(`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`),
 both with the evidence added there. Every other line of every pinch
 battery is byte-identical. Pinned by two poses added to
 `curved_notch_pinch::a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`
@@ -103,7 +103,7 @@ and by `finish::twin_copy_rows`.
 
 `3 1 0 ab S` meshes at δ 0.05 and panics the mesher at 0.02 on a
 `debug_assert!` its comment calls vacuous: filed as
-`work/tess/a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert.md`.
+`work/tesslane/a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert.md`.
 
 ## Fix pass (PR 4777's dual review)
 
@@ -120,4 +120,4 @@ and by `finish::twin_copy_rows`.
   `3 1 0 ba S`.
 - `CertificateExceeded` at δ 0.005 and 0.001 on 11 of the 15 bodies is
   the probe's finer-δ sweep, and poses that build on the base show it
-  too (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
+  too (`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).

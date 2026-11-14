@@ -123,7 +123,7 @@ fn read_pose<T: Decide + crate::props::AtRestPolicy>(p: &Pose, band: Band) -> Op
     let (poly, _) = profile(p.kind, p.w);
     let prism = crate::test_support_fixtures::prism_z::<T>(&poly, 0.0, 1.0, Tol::witness());
     let m = motion::<T>(p);
-    let mut body = crate::transform_rigid(&prism.body, &m, Tol::witness()).ok()?;
+    let mut body = crate::transform_rigid(&prism.body, &m).ok()?;
     let face = prism.top_face;
     let o = m.transform_point(Point3::new(p.far.0, p.far.1, 1.0).map(T::from_f64));
     move_origin(&mut body, face, o);

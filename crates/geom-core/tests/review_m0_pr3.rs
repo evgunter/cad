@@ -204,6 +204,7 @@ fn display_messages_and_error_objects() {
         .sign_within(b)
         .unwrap_err()
         .with_predicate("side_of_plane");
+    // UNDECIDED-NAME: the plane-side leaf this test names by hand with with_predicate
     assert_eq!(named.predicate, Some("side_of_plane"));
     assert_eq!(named.to_string(), msg);
     assert!(format!("{named:?}").contains("side_of_plane"));
@@ -330,11 +331,13 @@ fn named_predicates_and_question_mark_propagation() {
     assert_eq!(side_of_plane(-0.25f64, lin), Ok(Sign::Negative));
     assert_eq!(side_of_plane(3e-10f64, lin), Ok(Sign::Zero));
     let e = side_of_plane(4e-9f64, lin).unwrap_err();
+    // UNDECIDED-NAME: this file's own side_of_plane leaf, named with with_predicate
     assert_eq!(e.predicate, Some("side_of_plane"));
 
     // transversality.
     assert_eq!(is_transversal(0.7f64, ang), Ok(true));
     let e = is_transversal(3.0e-8f64, ang).unwrap_err();
+    // UNDECIDED-NAME: this file's is_transversal leaf, named with with_predicate
     assert_eq!(e.predicate, Some("transversality"));
 
     // endpoint coincidence.
@@ -357,6 +360,7 @@ fn named_predicates_and_question_mark_propagation() {
     // The escalation path: second endpoint in the band; `?` propagates
     // the leaf's name.
     let e = split_edge_by_plane(-1.0f64, 5e-9, lin).unwrap_err();
+    // UNDECIDED-NAME: the leaf split_edge_by_plane's `?` hands up, named in this file
     assert_eq!(e.predicate, Some("side_of_plane"));
     assert_eq!(e.margin, MarginDiag::value(5e-9));
 }
@@ -459,6 +463,7 @@ fn orientation_composition_early_exit_and_collect_all() {
     );
     // A sliver above the base edge: in-band margin, early exit names the leaf.
     let e = locate_in_triangle([0.5, 4.0e-9], tri, b).unwrap_err();
+    // UNDECIDED-NAME: the in-band leaf locate_in_triangle exits early on, named here
     assert_eq!(e.predicate, Some("orient2d"));
 
     // Segments: clean cross, clean miss, marginal (near-collinear).
@@ -476,6 +481,7 @@ fn orientation_composition_early_exit_and_collect_all() {
     .unwrap_err();
     assert_eq!(marginal.len(), 4);
     for e in &marginal {
+        // UNDECIDED-NAME: each marginal edge's leaf, named by this file's orient2d
         assert_eq!(e.predicate, Some("orient2d"));
         assert!(
             matches!(e.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(v) if v.abs() == 2e-9)
@@ -516,6 +522,7 @@ fn sliver_band_user_experience() {
     // both thresholds (move the boss >= escalate away, or make it
     // coincident within zero).
     let e = classify_gap(5e-9, b).unwrap_err();
+    // UNDECIDED-NAME: classify_gap's leaf, named in this file with with_predicate
     assert_eq!(e.predicate, Some("face_gap_classification"));
     assert_eq!(e.band.zero(), 1e-9);
     assert_eq!(e.band.escalate(), 1e-8);

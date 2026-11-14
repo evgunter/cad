@@ -665,7 +665,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
     )
     .expect("bump applies")
     .doc;
-    let after = editor_core::evaluate::<Dual64>(
+    let after = editor_core::test_support::evaluate_bound::<Dual64>(
         &bumped,
         Some(&ev_d),
         &editor_core::CancelToken::new(),

@@ -201,11 +201,8 @@ fn a_crossing_outside_the_walls_trim_is_no_event_here() {
 fn a_spline_leaving_a_sphere_zone_is_split_where_it_crosses() {
     let at = arc_leaves(1.0);
     let (a, _, _) = spline_sheet(ARC, [1.0; 3], Vec3::unit_z());
-    let (b, face) = super::super::boxes::sphere_rect_rows::sphere_zone_sheet(
-        (0.5, 1.5),
-        (-0.5, 0.5),
-        Tol::witness(),
-    );
+    let (b, face) =
+        crate::boxes::sphere_rect_rows::sphere_zone_sheet((0.5, 1.5), (-0.5, 0.5), Tol::witness());
     let got = on_face(sweep_a(&a, &b), face);
     assert!(lands_at(&got, &[at]), "on the zone at {at:?}: {got:?}");
 }
@@ -248,7 +245,7 @@ fn a_spline_through_a_torus_tube_pierces_its_outer_face() {
     let at = bernstein(control, root(|t| rho2(t) - 6.25, (0.5, 1.0)));
     let (a, _, _) = spline_sheet(control, [1.0; 3], Vec3::unit_z());
     let seam = -0.5f64;
-    let (mut b, face) = super::super::boxes::tests::torus_wall(
+    let (mut b, face) = crate::boxes::tests::torus_wall(
         Point3::origin(),
         Vec3::unit_z(),
         Vec3::new(seam.cos(), seam.sin(), 0.0),
@@ -283,7 +280,7 @@ fn rising(z0: f64) -> [Point3<f64>; 3] {
 /// twin the patch: the body and the patch.
 fn upper_cone() -> (Body<f64>, FaceKey) {
     let alpha = core::f64::consts::FRAC_PI_4;
-    let (mut b, rest) = super::super::boxes::tests::cone_wall(alpha, 1.0, 2.0, 0.1, 2.0);
+    let (mut b, rest) = crate::boxes::tests::cone_wall(alpha, 1.0, 2.0, 0.1, 2.0);
     let patch = twin_on_the_carrier(&mut b, rest);
     (b, patch)
 }
@@ -468,7 +465,7 @@ fn sweep_declared(
         &super::SweepKnobs::default(),
         None,
         &mut Vec::new(),
-        &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
+        &crate::separating::OperandAxes::new(crate::boxes::axis_key),
         Tol::witness(),
     )
     .map(|_| ())
@@ -526,7 +523,7 @@ fn a_covered_spline_touch_lands_in_the_deferred_list() {
         &super::SweepKnobs::default(),
         None,
         &mut deferred,
-        &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
+        &crate::separating::OperandAxes::new(crate::boxes::axis_key),
         Tol::witness(),
     )
     .unwrap();

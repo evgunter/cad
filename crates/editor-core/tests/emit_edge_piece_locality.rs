@@ -34,9 +34,7 @@ fn seam_pieces(
             continue;
         };
         let EntityKey::Edge(e) = r.key else { continue };
-        let edge = body.get_edge(e).unwrap();
-        let ps = [edge.he_plus, edge.he_minus]
-            .map(|he| point(&body, body.get_half_edge(he).unwrap().start));
+        let ps = <[_; 2]>::from(body.edge_vertices(e).unwrap()).map(|v| point(&body, v));
         if ps
             .iter()
             .all(|p| (p.y - 1.0).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9)

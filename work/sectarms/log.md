@@ -420,6 +420,67 @@ and bodies unchanged. No orchestrator yet.
     - `SeedOutsideTube` stays for the pair lane;
     - `TracedTriple`'s plane pcurve stays as the exact affine image;
     - the anchored pivot with its padded band is kept, since a stored-origin readout would be a second reading.
+
+- 2026-11-03 — **NURBS stage 4a measured.** The plane is now a form of the one partner type, `ImplicitForm` (renamed from `Curved`). A differential row ran the whole suite through `PlaneSection` and `ImplicitSection` at three ε: 388 readings at 1e-12, and at every ε each refusal is either the same or a different kind on both lanes, never a new refusal. One fixture moves from decided to refused:
+  - `a_flat_wall_whose_chart_path_bends…` at 1e-12 (μ 0.2), now `TubeNotOneArc{Short}`.
+  - **Ruled accepted.** It is the same limb-3 shortfall the ℝ⁴ lane already refuses on its μ 0.1 sibling (SSIARITH P3, `ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12`). It is pinned with a dated note on that row.
+  - 4a and 4b go as one PR with dual review.
+
+- 2026-11-03 16:35 — **Cylinder 3b-ii is up as PR 6466.** Nodes are listed on the value, germs are minted from arc ends, `bool_node_run_turn` is retired, and the bisector lane retires. CI is green.
+  - **The near-node transversality regression, measured:**
+    - an operand seam builds from δ ≈ 2·√escalate (about 2e-4 at unit scale);
+    - inside that it refuses or escalates typed (filed P2, option (b) named);
+    - flagged to Ev.
+  - **Unexpected improvement:** `crossing_equal_rods` now builds SOUND where it used to refuse. The lane did not trace why, so the reviewers are asked to.
+  - **Mutants:** m9 and m10 survive, because no row reaches those arms (filed P3).
+  - **D5 deviation:** an in-span Zero now escalates rather than desyncing.
+  - **Review:** the dual review is dispatched to two cloud sessions.
+
+- 2026-11-03 18:05 — **PR 6466 dual review is in.** R1 and R2 both returned APPROVE-WITH-FIXES, with no MAJOR. Each built an oracle independent of Q that confirms the node listing, site reading and germ minting. Fix pass sent, both sessions archived, blind coding running.
+  - **Regression reach, measured by R2:** both seams refuse at 1.8e-4 and build from 2e-4.
+    - The issue's "B builds from 1.1e-4" is false. It is corrected, and threshold rows are added for both seams.
+    - The issue is what Ev reads, so the correction matters.
+  - **Must fix (beyond the threshold):**
+    - the ray order is rebuilt by hand beside `SectionNode::ray`;
+    - `crossing_equal_rods` moved to building with no traced cause (trace it, and update the HONEJOIN row);
+    - an undisclosed widening of chord-end reading through `reads`' pad;
+    - D3's ellipse agreement is held only by prose (add a `debug_assert` or route it through `site()`).
+  - **Fix-or-file:** several, including a second public `Sense` enum and three spellings of the node-end projection.
+
+- 2026-11-03 21:15 — **NURBS stage 4 is up as PR 6479.** It merges 4a and 4b: the plane is `Form::Plane` of `ImplicitForm`, and `PlaneSection`, the plane's ℝ⁴ lane and `WindowShortOfWall` are removed. CI is green.
+  - **Moved readings:**
+    - The one ruled decided→refused move is pinned, with the old reading quoted.
+    - A second move is on the uncertified trace door: an inflection deviation of 2.41e-9 against 1.31e-10. The single residual cannot see the pcurve's timing drift. The lane filed `the-implicit-chart-march-does-not-read-its-pcurves-timing`.
+  - **Mutants:** the pivot-padding mutant survives (that code predates the PR, and the PR discloses it).
+  - **Review:** a dual review is dispatched; claim 5 asks whether any certifying path reaches the timing weakness.
+  - **6466:** blind-coded at tally 0 (byte 114, A = R1), and its row is drafted.
+
+- 2026-11-03 22:20 — **Second container restart.** It stopped the 3b-ii fix pass, which had already pushed `b55c17d` and a main merge (`2df83ba`). The lane was resumed to finish its slow-set rerun and report. The PR 6479 reviews run in the cloud and were unaffected.
+
+- 2026-11-03 22:45 — **PR 6479 dual review is in:** R1 and R2 both returned APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, sessions archived, blind coding running.
+  - **Claim 1 held.** Each reviewer ran its own differential on 16 and 14 new fixtures at three ε, with these exceptions:
+    - R2's 54-pose sweep about 2 km out at 1e-6 moves 5 poses decided→refused and 5 refused→decided, via `FootPointInconclusive`. Ruled to be the known noisy limb-1 foot frontier, which the plane now reaches. The issue's false premise is to be corrected, the issue raised to P2, rows pinned on both sides, and the move disclosed.
+  - **One-home violation (both reviewers):** the plane is still read in five or six spellings. Limb 3's `ChartPhi::Plane` reads the stored, unnormalised normal, while the exclusion reads `Form::Plane`, normalised. Limb 3 must read the one form.
+  - **Other must-fix:**
+    - a short branch is labelled `Slab` for the 1×2 lane;
+    - R1's row to kill the pivot-padding mutant;
+    - rows that got weaker;
+    - rustdoc links to removed items.
+  - **File:** the pre-existing erratic stored-origin hull verdict.
+
+- 2026-11-04 — **PR 6466 fix pass accepted.** All 5 must-fix and 11 fix-if-small items are done.
+  - **Seam threshold corrected:** both seams decide on 0.2795·δ² and build from about 1.89e-4; the old 0.84·δ² was another chord's margin. A guard row pins both sides.
+  - **Ray order:** one home, in `SectionNode::RAYS`.
+  - **`crossing_equal_rods`:** traced. On main, a pierce recorded `Positive` was handed to an edge germ whose other end carried `Only`, which left four ends loose. This confirms R1's hypothesis, and the HONEJOIN row records the cause.
+  - **Chord ends:** they read `reads()`, kept and disclosed as the section's single site reading. A narrower re-read could refuse a site the join had accepted.
+  - **D3:** a `debug_assert` checks it.
+  - **Slow sets:** 9,666 of 9,670 pass. All four reds fail on main too, including `the_near_node_poses_at_the_witness_band` at δ 1e-8 (`VolumeUncomputable`). The lane is asked to file that one with its source commit.
+  - **Still owed:** a fresh main merge, since the branch conflicts again. The review row (tally 0, byte 114) goes in after it.
+- 2026-11-04 — **PR 6479 coded blind at tally 0** (byte 65, A = R2). Its row is drafted.
+
+- 2026-11-04 — **PR 6466: main merged, CI green.** The merge had two textual conflicts and no logical clash.
+  - The main-red near-node cell was bisected to PCERT PR 6470 (E2, an in-band ruling on the projected image lane) and filed on PCERT at P1. It is left red, not re-pinned.
+  - The review row is the last commit (`54ee4d1`, tally 0), and the PR merges on green.
 - 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
   - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
     - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
@@ -430,3 +491,255 @@ and bodies unchanged. No orchestrator yet.
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+
+- 2026-11-04 03:00 — **PR 6466 merged** (cylinder 3b-ii: nodes on the value, bisector lane retired; dual review, tally 0, row PR-6466.md). **Closed:** `the-carried-lane-chords-only-spline-components` (3b) and `skew-cylinder-germ-pair-has-no-section-frame`. Cylinder × cylinder is on the value end to end.
+- 2026-11-04 — **Cylinder × sphere on the ruling sweep dispatched** (P1 M, single full review) to a fresh implementer, plan first. Its timings are to be reported against SECT's ball × cylinder cost row. The 3b-ii lane's target is freed.
+- 2026-11-04 — **Cylinder × sphere plan accepted.** The sweep's ball (F1) is (a): a ball strictly containing the section, with its padding argued and any cut end refused `Unaccounted`. It decides nothing new, since the sphere's ball holds the section. The public `cylinder_sphere_ssi` door (F2) is decided by its callers: any production caller is a second reading and is routed to the value, while a test-only door stays as `implicit_pair_r3`'s vehicle and gets a P3 row.
+- 2026-11-04 — **Cylinder × sphere is up as PR 6518** (`RuledCylinderSphere` on a 2R ball; witnessed rings; the march from witnesses; a coverage sphere arm with a headroom row). CI is green.
+  - **Beyond the plan:** a shared `Sweeper::run` change drops undecided first cuts.
+  - **Moved toward refusing:** band-adjacent poses that the closed form decided, about 0.75% of fuzz, under two named, capped cases.
+  - **Timing:** unchanged; certificates dominate, so the march was not the cost.
+  - **Mutants:** m8 survives, equivalent at 2R.
+  - **Review:** a single full review is dispatched to the cloud, asked to check the shared change and the caps hardest.
+- 2026-11-04 10:00 — **PR 6479 fix pass accepted.** All six must-fix items are done and every mutant is killed:
+  - one plane home: limb 3, the side readers and the sweep read `ImplicitForm`;
+  - the km frontier is pinned and its issue corrected to P2;
+  - `Slab` labelled by lane;
+  - the pivot-padding killer row;
+  - the weakened rows re-pinned;
+  - rustdoc links.
+
+  The review row is the last commit (`8f4f30f`, tally 0; the push went through on the second try after a GitHub 500). The PR merges on green.
+- 2026-11-04 10:15 — **PR 6479 merged.** NURBS stage 4 is done: plane × NURBS is on the one 1×2 arm and `PlaneSection` is retired (dual review, tally 0, row PR-6479.md). **NURBS 3b (node ends) asked for a plan.** It rides 3b-ii's node listing, with lines and side from the decided Hessian, the end ray matched once at carry, and carriers ending at the node along their ray.
+- 2026-11-04 — **NURBS 3b plan accepted.**
+  - **F-A, list only:** spline × implicit sections are not carried yet, and the carry is the parked join unit. The end-ray match is done at listing, because C5's "each arc end … names its line" makes that the listing's job. Topo reads a spline node as `Tangent` until the join unit lands.
+  - **F-B, deferred:** the end-pinned fit, and what certifies the stretch from the box entry to the node, are recorded as open questions on `the-join-reads-a-spline-implicit-section`.
+  - **F-C:** a minimal node tip in the end types.
+  - **D2:** a same-node arc's end is named by its ray, with a lemniscate row.
+- 2026-11-04 10:55 — **PR 6518 review: APPROVE-WITH-FIXES** (single full review in the cloud, no MAJOR).
+  - **Held under execution:** the closed form, the 2R argument, and the `Sweeper::run` change.
+  - **Main finding:** the moved rows' exemption fits the generator, not the mechanism. 158 of 16 149 hunted poses escalate outside the two named cases, though no answer is lost end to end.
+  - **Fix pass sent:**
+    - restate the predicate by mechanism, with k bands argued;
+    - extend the generator to sample that zone;
+    - guard the first-cut exception (m11 survives);
+    - add a fast check against vacuous coverage;
+    - plus the refusal-map copy, the slope charge, an unreachable arm and naming.
+- 2026-11-10 — **Resumed after the weekly limit** (stopped 2026-11-04 to 11-10). Both lanes resumed from their saved transcripts and clones:
+  - the PR 6518 fix pass, at `048e7d1`, pushed;
+  - NURBS 3b, at `61d6046` plus one uncommitted edit.
+  
+  Both were told to merge main first.
+- 2026-11-10 — **PR 6518 merged** (cylinder × sphere on the ruling sweep; single full review with the fix pass accepted).
+  - The fix pass restated the exemption by mechanism: `SWEEP_ZONE_WIDTHS` = 1, argued from the ladder, with a measured upper bound of 0.29.
+  - It also fixed two defects the measurement found (a cancelling `1 − cos φ`, and a band-scale ball padding), added the empty-cut guard and the fast coverage row, and gave the refusal map one home.
+  - The arm's rounding charges were removed under main's newly ratified `[simple.conditioned]`.
+  - The cylinder × sphere lane was then asked to bisect `m5_pr7_ssi::a_corner_both_of_whose_sides…`, which went from about 30 s to over 1680 s after a main merge. It is plane × NURBS, and our stage 4 (PR 6479) is a suspect.
+- 2026-11-10 — **Slowdown bisected to our own PR 6479 (8383bea).** `m5_pr7_ssi::a_corner_both_of_whose_sides…` went from about 34 s to about 1870 s.
+  - **Profile:** 23 of 25 stack samples sit in the boundary pass's `strip_reach`. Stage 4 replaced the plane's closed-form side partial with the generic subdivided enclosure `ChartPhi::partial`, though a plane's ∇f is constant.
+  - **Fix dispatched** to the free cylinder × sphere lane, inside the one form: a constant-gradient short-cut in `ChartPhi::partial` for `Form::Plane`, not a separate plane path, so the one-home ruling holds. It must give the same answers, restore the time, and add a work-count guard. Tier M.
+- 2026-11-04 — **Cylinder × sphere on the ruling sweep (branch `sectarms/cylinder-sphere-ruling-sweep`).**
+  - A second `Ruled` impl (`RuledCylinderSphere`). The pair's off-axis crossing loops are counted and witnessed by the sweep against a ball of radius `2R`.
+  - The march starts from those witnesses with no `seed_r3`/`account_r3`, and a coverage `debug_assert` re-derives the count from the sphere's quadratic.
+  - `cylinder_sphere_ssi` is kept as the generic ℝ³ door's test vehicle (F2: no production caller), filed P3.
+  - The sweep now drops first cuts that decide nowhere, so near-coaxial poses with branch points count.
+  - Filed P3: the sweep cannot bracket branch points a band from a node.
+  - Closes `cylinder-sphere-reads-its-pose-on-the-ruling-sweep`.
+- 2026-11-10 — (PCERT orchestrator) Main red, fixed in PCERT's roster PR: PR 6518 merged after PR 6755's census rule, and `pair_section/ruling.rs`'s `a_spheres_discriminant_extremes_are_the_poses_reaches` site (`CylinderSpherePose::decide(x, …)`) was unlisted in `crates/geom-brep/tests/recourse_roster.rs`. It is now listed NOT_A_NAME. Nothing is owed.
+- 2026-11-11 01:10 — **NURBS 3b is up as PR 6811** (nodes and `NodeEnds` listed on the whole reading; touch plus arcs listed; the pinch retires; D2's end named by its ray; carriers stay `Unminted`). CI is green.
+  - **Leftover mutant caught:** the uncommitted edit found after the restart was a leftover mutant, and it was reverted, not committed.
+  - **Mutants:** 12 of 14 are killed. The two survivors are argued redundant: seeding in a claimed box, and stepping through a box.
+  - **Filed:** the lemniscate row exceeds the accounting budget at 1e-12 (P2).
+  - **Review:** dual review dispatched to two cloud sessions.
+- 2026-11-11 — **The stage 4 slowdown fix is up as PR 6814.**
+  - **Change:** `ImplicitForm::constant_gradient()` makes the boundary pass's partial read `plane_partial` once per window for a plane, inside the one form.
+  - **Timing:** the corner row is back to about 30 s from about 30 min, and 149 pinned plane rows are unchanged at three ε.
+  - **Guard:** a counted-work row checks that one plane reading reads one window, with a cylinder control reading 64.
+  - **Filed** on SPLICE: an `ellipse_torus` fuzz seed fails on main.
+  - **Review:** single full review dispatched.
+- 2026-11-11 02:45 — **PR 6811 dual review is in:** R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, sessions archived, blind coding running.
+  - **Node frame:** held against independent oracles (72 and 9 cases).
+  - **Executed findings:**
+    - **Generic nodes regress (R2):** nodes whose lines are not symmetric about the chart axes, or on a sheared chart, now refuse `Unaccounted` (the tube's crossing-angle bound is 0), which topo reads as Intractable/Reach where main gave Tangent. This falsifies the "listed instead of pinched" claim, with no row or disclosure. To be fixed, or else refused under a tangency name, with rows.
+    - **Cylinder germ sense inverted on line Second (R2):** a latent bug from 6466, masked by the tolerant single-end `end_at`; a strict check reds 5 `bisector_nodes` rows. To be fixed at the root, with `end_at` made strict.
+    - **Start-sense mutant survives (R1).**
+    - **Two unrowed guards (R2):** the lead check and the overlapping-box decline.
+  - **Fix-or-file:** `ray_of` should decide on the node→entry chord; `ray_along` should be fail-loud; `Ends::enter` should be fail-loud; plus duplicates and stale prose.
+- **2026-11-11 03:15 — PR 6814 full review in (head 1b01f80b):** APPROVE-WITH-FIXES. Soundness confirmed by construction and by a 146-fixture × 3-ε differential (byte-identical vs pA and vs main); timing confirmed ~55× (release 3.5 s vs 188 s).
+  - **Must fix:** the guard row counts the branch's label, not the windows read (reviewer's fall-through mutant stays green at 133 s). Count at the reads; re-run that mutant, pA/pB and the cylinder mutant.
+  - **Also:** counter to the `cfg(any(test, feature = "test-support"))` precedent if small; PR body narrowed ("one home" holds for the plane only; curved pass-vs-limb-3 split predates, file P2); differential cited.
+  - **Fix-or-skip:** fifth `flat_wall` helper; one spelling of the plane gradient.
+  - Fix pass sent to the plane-partial lane; review session archived. Tier M, no row; merge on green after the fix pass.
+- **2026-11-11 03:45 — PR 6814 merged** (head fa9ea9c1, merge 2fe95590) on green CI. Fix pass: the guard counts derivative-box reads (reviewer's fall-through mutant, pA, pB, pC all red); counter on the `test-support` precedent; one plane-gradient spelling; `bilinear` helper reused. Curved-partner split filed P2: `work/sectarms/a-curved-partners-partial-is-read-two-ways.md`. The stage-4 slowdown is retired. Lane target `/home/user/sectarms-cylsph-target` deleted.
+- **2026-11-11 08:35 — PR 6811 fix pass in (head 5b508575, CI green):** every item fixed. Generic nodes are listed via `Ends::graded` knot insertion toward node ends. Lines 45° apart refuse `Pinched` (read as Tangent); 40° or closer give `Budget` as on main; both are filed P2. The cylinder germ sense was rooted in `carried_seats` reading both ends by the entry germ, and `end_at` is now strict. Start sense, lead check and overlap decline are rowed; fix-or-file items done. 21 mutants, 19 killed; the 2 survivors are commented cost/accuracy guards. Accepted. Dual-review row (tally 0, base `328f367`) pushed as the last commit (d29a7f34); merge on green.
+- **2026-11-11 08:36 — P1 `a-corner-touch-verdict-moves-with-the-planes-stored-origin` dispatched** to a local implementer lane (clone `/home/user/sectarms-origin`). It also checks the two same-class siblings (oblique wall row P2, band-edge P3). Single full review on its PR.
+- **2026-11-11 08:55 — Ruled (not a fork): the corner-touch probe reads a corner reach, not `Apart`.** The lane stopped and reported. The pass's `corner_class` splits an in-band corner on the exact sign of φ read on the uncharged pivot plane. The stored plane's φ at the corner is exactly 0; the pivot's rounding gives +1.57e-16, hence `Apart`. A plane stored at (1e-17, 0, 0), which really cuts the corner, also reads `Apart`. The README boundary clause (~l.399-405: a `Corner` region "where the locus is coincident with it, nothing where the corner's distance has that sign too") already wants the Corner region. The probes row's `Apart` was pinned without a ruling (eed1c2c224), so it moves as a fixture correction. Fix: charge the shift into the pass's exact-sign decisions (corner `Empty`, side `Clear`); `pivot` reads `Frame::foot`. P2 oblique-wall sibling likely the same root (to be measured); P3 band-edge is a different mechanism and stays open.
+- **2026-11-11 09:05 — PR 6811 merged** (head d29a7f34, merge ee63af5d) on green CI, with the dual-review row as its last commit. NURBS stage 3b is done; `/home/user/sectarms-nurbs3-target` deleted.
+- **2026-11-11 09:15 — Design fork `a-spline-arc-reaches-its-node` dispatched** for the join unit `the-join-reads-a-spline-implicit-section`, which is unparked once the fork resolves. The fork covers what carries a spline × implicit arc from its node box's boundary to the node, and what certifies that stretch, where limb 3 cannot. Bytes 145 and 0 give two designers; the mapping is on `analysis/design-fork/a-spline-arc-reaches-its-node`. The brief is the problem only; it tells the designers to skip the unit file's lane-drafted options section.
+- **2026-11-11 10:55 — Fork `a-spline-arc-reaches-its-node` converged after round 2; `[ev]` PR 6829 opened.**
+  - **Round 1:** the positions crossed (A to the graded tube, B to the polar reading).
+  - **Round 2:** both read the limb 3 code, and B moved to one mechanism.
+  - **The recommendation:** each arc is carried to its node, and limb 3's tube is graded per box to a last box holding the node. That box's claim is the node reading, re-derived at rest. The ray is proved from the last boxes' sector, so `ray_of` retires. The pad is per box; a site within the √(εR) disc escalates. The C3 Hoffmann sentence is kept.
+  - **Text edited:** C2 limb 3; two C5 sentences from 6811; one clarifying sentence on Ev's 6398 node clause; the join unit's options section is replaced by the plan.
+  - Fork-log row 260 (recommendation half). Subscribed to the PR for Ev's comments.
+  - **Designers' side notes acted on:** the brief's error (no cylinder × sphere carried node arc) is noted. A suggested splitting the node carry out of the join unit, since the sphere × lofted wall likely has no node; that is held until Ev answers.
+- **2026-11-11 10:25 — PR 6830 (corner-touch stored origin) opened by the lane**; CI green on 738bdeee.
+  - **The fix:** the boundary pass's exact-sign decisions (corner `Empty`, side `Clear`, `Pieces::sign`, `Stretch::sign`) read the stored plane's sign through the foot's certified height (the lift on `ImplicitForm`, which is part of the pass key). `pivot` now reads `Surface::foot`.
+  - **Moved row:** the probes row's corner want moved `Apart` → corner region (per the 08:55 ruling).
+  - **Siblings:** the P2 issue is partly fixed and stays open (at 1e-12, 1e6 m the side cover doesn't fit the shift-padded band; mechanism recorded). The P3 issue is untouched (a different mechanism).
+  - **Mutants:** one survivor, the limb 3 `Stretch` lift.
+  - Single full review dispatched to cloud session `session_01VyvYnMAWEzxhwYQJXvXzRk`.
+- **2026-11-11 11:25 — PR 6830 full review in (head 738bdeee): APPROVE-WITH-FIXES.**
+  - **Confirmed:** the lift is certified; the corner verdict is invariant (396/396 per ε, where main split 279/117 at 1e-12); the targeted 188 pass at 1e-12.
+  - **Must fix:**
+    - the P2 record overclaims "1e5 m at every ε": at 1e-12 it reads U-low/U-high at 1.26e4 m and `Apart` from 1.58e5 m. Not a regression; the record and the row offsets are to be narrowed;
+    - the stored plane's height has three homes in two units (`Heights::over` un-normalized, `Pivot::stored` unit, `SplineImplicitPose::height` f64): make one quantity.
+  - **Fix-if-small:** rename `Partner::stored`; `Pieces::lift` fails loud on an unscaled form; one statement of the split; file a P3 for the unpinned `Stretch` lift. The stringly pass key is skipped.
+  - Fix pass sent; review session archived. Tier M, no row.
+
+## 2026-11-11 13:40 — PR 6830 merged (corner-touch)
+
+- Fix pass came back on head 3b29ec55, CI green and mergeable clean. Checked: `Heights` and `Partner::stored` are gone, `plus_lift` is in, `Pieces` carries its lift by construction, and the P3 `no-row-pins-limb-3s-side-stretch-reading-the-stored-plane` is filed.
+- The P2 record is narrowed: at ε 1e-12 the fix holds to about 1e4 m; the U-low/U-high reading is recorded and not yet traced. The row's 1e-12 offsets stop at 1e3 m.
+- The lane merged main (the stage-3b node listing conflict) and lowered the bare-rounding gate count from 2 to 1. Both are recorded in the PR body.
+- Merged as cde3660b, tier M, so no row.
+- Still open: [ev] PR 6829, waiting on Ev.
+
+## 2026-11-11 13:45 — two main-red P1s dispatched
+
+Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
+
+- **Census (cost E), from PR 6811.** `critical.rs` has 37 endpoint reads with 26 asking. My ruling:
+  - `node_frame` fails closed: `width` is NaN unless the point certifies, so it reads `Pinched`.
+  - `grown`'s four reads take the seed disposition.
+  - Lane on branch `sectarms/critical-census-disposition`.
+- **TubeStraddles at ε 1e-6, from PR 6518, plus the 1e-12 slowdown.** The lane decides from the mechanism between pinning the stop (the honest march) and fixing the sweep, and stops if that needs a design ruling. Lane on branch `sectarms/ruling-sweep-straddle-1e-6`.
+
+## 2026-11-11 14:30 — PR 6834 merged (census red)
+
+- **`node_frame`:** fails closed, so `width` is NaN unless the point certifies. The lane checked that `listed` refuses a NaN width, and the old `fold(f64::max)` would have dropped one. `a_node_not_placed_within_the_band_refuses` now also pins the NaN case.
+- **`grown`:** its four reads carry the seed note.
+- **Census row:** 37 / 28.
+- **A second unlisted site:** `implicit_chart.rs`'s `pass_key`, reading the lift's ends (2 / 0), from 179e0cc798. The lane dispositioned it as an identity, not a bound. Accepted: the key only names the pass, and the lift certifies by construction.
+- **Merge:** 2ad4a0be. Tier E, no row.
+
+## 2026-11-11 16:40 — PR 6837 merged (1e-6 TubeStraddles red)
+
+- **Cause, ruled (b): the seed.** PR 6518 seeds the march from the ruling sweep's witnesses. `cut_loop`'s median put a closed loop's witness, and so the fit's seam, at the far branch point or the far ruling. At ε 1e-6 the fat free-end spans there straddle a graph margin of 0.
+- **Fix.** A closed loop is now witnessed at its arc middle, and a whole-turn loop at φ = 0. A new row fails on the old median. Cylinder × cylinder loops move the same way.
+- **Reviewed by me.** `cut_loop`'s new index fails loud (Inconsistent) when no point is read there. Merged as 19eb4541 (tier M).
+- **The 1e-12 slowdown is not this PR's.** The parent's quick end was the row stopping on VolumeUncomputable. The cost is in topo's boolean pipeline over 6365-span carriers. Filed as `cylinder-sphere-frame-rows-take-twenty-minutes-a-boolean-at-1e-12` (P1); it needs a bisect from 50cfcf499d.
+- **Deeper root, on ssiarith.** A non-graph end span of a closed fit is never refined. Recorded on the ssiarith row.
+
+## 2026-11-11 — PR 6843 merged (the 1e-12 cylinder × sphere cost)
+
+- **The bisect found no single culprit.** PR 6509, the sphere volume lane on SPIRICARM, made the row's runs build bodies and check them. That is about 1.8× the work, which is the row doing its job.
+- **Within each boolean, the cost was quadratic.**
+  - `projected::span_stretches` scanned all of a carrier's roughly 6400 knots once per part.
+  - `spans_of` used a `windows` scan to find the span holding each part.
+  - Both now bisect.
+- **Reviewed.**
+  - I checked that `holding_span` equals the scan, including repeated knots and NaN.
+  - A new row file checks both bisections against the scans they replace.
+  - pcert's file was touched surgically, and the territory is noted.
+- **Result.** A boolean takes about half as long in debug. Merged as b8166e76; the next 1e-12 nightly is the real check.
+- **Left over.** The cost of the spline `Curve3::foot` whole-carrier sampling is filed on CPAIR at P2.
+
+## 2026-11-12 03:10 — [ev] PR 6829 approved and merged
+
+- **Ev's approval** (02:42): "i'm not sure about the considerations here, but this sounds broadly reasonable".
+- **Fork log.** The row records the decision and the mapping (bytes 145 and 0, A = Opus, B = Fable). It was renumbered from 260 to 262 because main had taken 260 in the meantime. Merged as a1cec575.
+- **The join unit is split in two.**
+  - The node carry is its own unit, `a-spline-implicit-arc-is-carried-to-its-node` (P1 H). It follows the join, since both touch `CarriedComponent::pad`.
+  - The join is unparked. Its blocker's stage 3 and 4 have landed; the arm row stays open only for the torus and cone partners, which are on other programs.
+- **Next:** dispatch the join (P0 H, dual review).
+
+## 2026-11-12 09:20 — the join's stage A is up for dual review (PR 6862)
+
+- **PR 6862**, head `fb97f06037`, green. This is stage A only. The whole reading carries each rim-to-rim arc with its pad in metres, the glue door reads spline × implicit pairs lazily, and a plane × spline germ rides `GermLane::Carried`.
+- **Done-when not met.** The sphere × lofted-wall union now stops at the at-rest certificate of the minted edge, P0 `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate`. That is where stage B lands. Also filed: two P1 M stops, one P2 and one P3.
+- **Review tier: dual (P0 H).** The join is an architectural lane that later arms will follow. Slot-order byte 202 (even), so R1 = Opus and R2 = Fable, run concurrently on `fb97f06037`.
+- **Protocol deviation.** The implementer was dispatched without an arm draw, on the default model, and with the harness trailer, so its commits name the model. The row records the implementer half as unfair, and the reviewers as exposed to the implementer's model.
+- **Calls on the lane's two questions:**
+  - **The C5 sentence** describes what the code does and decides nothing the ratified text left open. It lands with the change.
+  - **Stage B (the at-rest arm for a curved partner on a spline wall) is not a fork.** C2 has rest re-derive the door's certificate. The trace certifies the branch on C3's residual × NURBS lane, and `edge_nurbs::plane_nurbs_limbs` is the plane's precedent. The arm elaborates that ratified text faithfully. Its brief still tells it to stop if its plan finds text that contradicts the code.
+- **Next:** stage B is dispatched once stage A merges.
+
+## 2026-11-12 — PR 6862's reviews adjudicated; fix pass dispatched
+
+- **Verdicts.** Both reviewers (R1 Opus 5.5, R2 Fable 5.2, on `fb97f06037`) approve with fixes. Both found the pad sound in metres, and nothing uncertified is carried.
+- **Blocking: M1 (R2, MAJOR, demonstrated).** Two close rim arcs of one pair abort as `JoinDesync`, a kernel fault, on an ordinary ball across a 0.4 m flat wall. Main refuses that input typed. R1 met the same cause, the pad's overlap, as escalations at 1e-6 (MINOR).
+  - The class: the pad floors near an eighth of the window's span rather than near the rung, so any two arcs closer than about a quarter of the wall collide. The P3 issue on the loose pad is rewritten and raised to P1.
+- **My call reversed on the C5 sentence.** Both reviewers caught it: its "an arc to a node carry none" half contradicts Ev's ratified node clause (PR 6829) twenty lines above it. That half comes out. The rim-arc half stays.
+- **The other findings, fixed in one pass:**
+  - The guard's listing fallback is reachable, and could clear a seam-crossing section silently. It becomes one shared function.
+  - The loosened re-pins are restored.
+  - The moved band-loft row is now disclosed and pinned.
+  - The body's census, cost and 1e-16 claims are corrected. The reading takes 0.7 s of the brick's 7.6 s, so the cost is filed separately.
+  - Stale docs, contract rows, per-PR coverage, and the `pad_of`/`Tube::of` duplicate are addressed.
+- **Disclosures.**
+  - R1 saw the other lane's process names in `ps`, but no output. It also read the implementer's census logs in the shared scratchpad.
+  - Reviewer scratchpads are shared in this container. Later pairs need their own subdirectories, and a brief that names them.
+
+## 2026-11-12 — PR 6862 (the join's stage A) merges
+
+- **Fix pass at `45df7881c2`, green.** It took the whole adjudicated union.
+- **F1.** Close rim arcs now refuse typed at the carry, `CarryRefusal::PadsMeet`, by a certified hull gap compared against the pads and band.
+- **F2.** The pad is tightened from about 5.7 to about 1.1 rungs.
+- **F3.** The guard and the certificate's door share `section_cert::of_listed`.
+- **Cost accepted:** editor-core `wavy_loft` now stops typed at `PadsMeet`, at the germ mint. This is on the P1 pad item.
+- **Filed:** P2 `the-guards-listing-of-a-held-spline-pair-off-a-seam-or-pole-has-no-row`, and P2 `a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`. The second covers the census going from 6.5 to 17.5 min; the at-rest certificates take 6.4 s of the brick's 7.3 s.
+- **Row:** `docs/model-compare-log/rows/PR-6862.md`.
+  - The implementer half is excluded: no draw, the orchestrator's error.
+  - The reviewer pair is kept, flagged as exposed.
+  - Blind coding found no tally candidates. The one MAJOR is bilateral, with a severity divergence.
+- **Process fix for later duals:**
+  - Draw the implementer arm at dispatch, and leave the model-naming trailer out of lane briefs.
+  - Give each reviewer its own scratchpad subdirectory.
+- **Main red seen by the fix pass, not ours:** geom-brep `recourse_roster`. pcert has mended it on main (pcert log, 2026-11-12).
+- **Next:** stage B, `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H). It is not a fork: C2's re-derived door certificate decides it, and `plane_nurbs_limbs` is the precedent.
+
+## 2026-11-12 — stage B dispatched
+
+- **PR 6862 merged** as 7d83cdff.
+- **Stage B dispatched:** `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H).
+  - **Review tier:** dual, concurrent. It adds a certificate arm that every curved partner on a spline wall will rest on.
+  - **Implementer arm:** byte 55 (Fable), drawn at dispatch.
+  - **Blinding:** the brief carries no model-naming trailer.
+
+## 2026-11-12 — stage B (PR 6879) is up for dual review
+
+- **PR 6879**, head `79fd8aa9f5`, green. It adds an at-rest arm for an `Intersection` of a spline with a sphere, cylinder or torus (`residual_nurbs_limbs` and `curved_nurbs_limbs`; `Resolved::ResidualNurbs`). The ball row now reaches containment at 1e-9 and 1e-6. At 1e-12 the chord still refuses on its image (`ImageMiss`, about 1.7e-11 m), filed P1.
+- **The done-when is still not met.** The union stops at `Containment(KindUnsupported { Nurbs })`, which is INSIDE's `point-containments-ray-test-has-no-spline-arm` (P3 H). The join unit's done-when now waits on it, so a note goes on INSIDE's log asking them to weigh raising it.
+- **The lane built past a stop.** Its brief said to stop on a choice the text does not decide. It chose instead to image the carrier at rest with the pcurve mint's climbed image (`general_chart_image`), not the plane precedent's degree-1 interpolant, which misses a bent arc by its sag.
+  - **My call: not a fork.** The image is evidence that limb 2 decides, and `general_chart_image` is the mint's own image of any carrier on a spline chart (PR 6532). The choice is one reversible arm.
+  - The reviewers are asked to falsify "the image cannot weaken the certificate". The lane's disregard of the stop instruction is noted.
+- **Bounds allowlist:** `edge_nurbs.rs` 16 → 20, entered under the M7-8 / C2 precedent with retroactive Ev review, the form PR 6532 used. It goes to Ev in the merge summary.
+- **Main red that 6862 caused:** tour teapot wall 3 (`main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`, P1). SEAL's PR 6860 re-pinned the north-star row, and 6879 moves it to containment. The tour re-pin goes into 6879's fix pass, since 6879 moves the target again.
+- **Review tier:** dual, concurrent. Slot byte 31 (odd), so R1 = Fable and R2 = Opus, on `79fd8aa9f5`. Implementer arm: byte 55, drawn at dispatch. Each reviewer has its own scratch subdirectory.
+
+## 2026-11-12 — PR 6879's reviews adjudicated; fix pass dispatched
+
+- **Both reviewers approve with fixes, and neither raises a MAJOR.** Both found the arm sound, with no false pass at any scale, ε or near-tangent pose. They agree on three test gaps (bilateral):
+  - the wall's half of the curvature arm is unpinned, and its mutant survives;
+  - the 1000 ε stand-off rows let a 2–10× band loosening through;
+  - the docs say "the same image" where the image is now the climbed one.
+- **R1 alone (demonstrated): the soundness argument credits the wrong limb.** A degree-5 image can leave the knot rectangle, where limb 2 reads the polynomial extension and passes a carrier up to 10⁴ ε off. Only limb 3's tube refuses. The arm stays sound, but the stated reason is wrong. A row is added and the docs corrected.
+  - **Possible class on main:** `PcurveCache::certify_general` reads limbs 1–2 on the same image with no tube. The fix pass probes it and files on the owning program, at P0 if it reproduces.
+- **Cost, measured by both:** limb 3 takes 80–98%; the climb is about 1%. The P2 item's attribution is corrected.
+- **The image choice stays as built** (R1: likely an open decision for liveness, not for soundness). The P1 image item records that its candidate 2, where the door stores its pcurve, is a design fork for designers before anyone builds it.
+- **The fix pass is on Fable, the implementer's arm.** It also re-pins tour teapot wall 3 (the main red from 6862) and records that the join unit's done-when waits on INSIDE's containment row.
+
+## 2026-11-12 — PR 6879's fix pass is green; blind-coded; merging
+
+- **Fix pass** (Fable, the implementer's arm), head `9b955999f7`, CI green (run 43308503535). Every item was taken:
+  - T1–T4: rows and mutants (the wall-curvature row, the stand-off ladder killing band ×0.5/×1.5/×2/×10, the rim-excursion row, test honesty);
+  - D1–D2: docs; S1–S4: structure (S2 in part: the image `match` stays in the door, since moving it would move the bounds pin again);
+  - the tour teapot wall 3 re-pin, which closes `main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`.
+- **F1 reproduced:** `PcurveCache::certify_general` certifies a general image's row 3e-9 to 1e-5 m off the wall past the rim. Filed P0 on PCERT (`a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`), with a note on its log. The lane did not probe whether a stored body can carry such a row, so the P0 may be high; that is PCERT's to weigh.
+- **F4** filed P3 on SELECT (the residual lane's refusals are named for the plane). **F5:** the join unit stays open with `blocked_on` INSIDE's containment row.
+- **README C2/C3/C5 edits** in the fix pass re-describe the code and decide nothing. My call: they land with the change.
+- **Blind coding** (byte 39, A = R2, B = R1): 15 bilateral, no MAJOR either side, **no tally candidates**. R1's rim-excursion finding is unilateral and refutes R2's NOTE crediting limb 2.
+- **Main red, also from 6862:** geom-core's slow `certified_endpoint_census` (`spline_implicit.rs` 2,0 → 6,4), filed by PCERT on our track. A lane is re-pinning it on `sectarms/endpoint-census`, orchestrator's-read tier (a mechanical re-pin, each new read argued at its site).
+- **Friction:** the python suite job took 37 min on run 43308503535, over the 25 min bar for a geom-brep diff.
+- 2026-11-14 — **Seam note from TESSLANE: a P0 row moved onto your slate**, `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses`. Every boolean TESSLANE ran of cylinder × sphere, cylinder × cylinder (off-axis), sphere × torus and cylinder × torus builds and then refuses in the mesh's chord pass. The cause is measured: `pair_section::seat_at` rejoins a closed fitted loop with `rotated` at a knot of full multiplicity, which lands strictly inside an edge (a 2.4e-7 rad tangent jump on a smooth locus). `work/sect/log.md` of 2026-10-28 logged seating as a decision with periodic NURBS as the alternative, the day Ev's PR 5913 ruling made an edge carrier C¹ inside its cell. What a seated loop's carrier is is a design question on the section's ground, so the row is here with `design: true`; MEASUREDOOR's tier-3 row will refuse the same bodies. The row carries the trace and the numbers. (TESSLANE orchestrator)

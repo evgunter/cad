@@ -95,8 +95,8 @@ type PlaneFrame = (Point3<f64>, Vec3<f64>);
 /// Every distinct plane (origin, unit normal) of a body's faces.
 fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
     let mut out: Vec<PlaneFrame> = Vec::new();
-    for (_, f) in body.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
+    for (fk, _) in body.faces() {
+        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(fk)
             && !out
                 .iter()
                 .any(|(o, n)| (*n - *normal).norm() < 1e-12 && (n.dot(*o - *origin)).abs() < 1e-12)
@@ -295,8 +295,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     for (vk, _) in chamfered.vertices() {
         let mut ns: Vec<Vec3<f64>> = Vec::new();
         for fk in chamfered.faces_of_vertex(vk).expect("orbit") {
-            let f = chamfered.get_face(fk).unwrap();
-            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface)
+            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.face_surface(fk)
                 && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)
             {
                 ns.push(*normal);
@@ -571,12 +570,7 @@ fn r1f_one_curved_face_among_planars() {
     .body;
     let curved = body
         .faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .count();
     println!(
         "[r1f] bulged hexagon: {curved} non-planar face(s) of {}",
@@ -663,7 +657,7 @@ fn wide_dump(body: &Body<f64>) -> String {
     }
     for (k, f) in body.faces() {
         let surf = body
-            .get_surface(f.surface)
+            .face_surface(k)
             .map(|x| format!("{x:?}"))
             .unwrap_or_else(|| "?".into());
         let _ = writeln!(
@@ -730,9 +724,9 @@ fn r1h_widened_bit_identity_dump() {
     let body = prism(&[(0.0, 0.0), (w, 0.0), (w, d), (0.0, d)], h);
     let plane_face_at_z = |body: &Body<f64>, z: f64| {
         body.faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(geom::Surface::Plane { origin, normal, .. })
                         if (origin.z - z).abs() < 1e-9
                             && normal.x.abs() < 1e-9

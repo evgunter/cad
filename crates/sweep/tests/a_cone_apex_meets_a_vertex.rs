@@ -73,7 +73,7 @@ fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
 fn moved(body: &topo::Body<f64>, m: Affine3<f64>) -> AtRestBody<f64> {
     finished(
         "moved",
-        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol())).unwrap(),
         tol(),
     )
 }
@@ -399,7 +399,7 @@ fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
 /// (`a_cone_apex_on_an_edge::an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds`). The
 /// vertex pair at the apex reads the cone's whole turn in four true
 /// quarters, its window `2π` by the corner's bounds
-/// (`boolean::sectors::push_apex_corner`); read off the two bounds'
+/// (`topo::star`'s walk); read off the two bounds'
 /// azimuth, a hair past zero where the seam's departures round apart,
 /// the quarters collapsed onto the seam and left its bound `On` the
 /// box's side (`VertexPairAtConeApex`, box first and `box ∖ cone`).
@@ -459,8 +459,8 @@ fn wedge_volume(alpha: f64, edges: [Vec3<f64>; 3]) -> f64 {
 /// about `(1, 0.3, −0.5)`, so that none of its faces through the apex
 /// holds the axis and each face's side of the fan turns inside the
 /// fan's quarters. Each flat sector is cut at the fan's extreme rulings
-/// along it, and each fan sector at the planes' (`boolean::sectors`'
-/// `partner_cuts`). Its far faces clear the cone, so the box holds the
+/// along it, and each fan sector at the planes' (`topo::star`'s
+/// refinement against the partner's faces). Its far faces clear the cone, so the box holds the
 /// cone inside its trihedral wedge, [`wedge_volume`].
 #[test]
 fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {
@@ -574,7 +574,10 @@ fn shared_volume_of(alpha1: f64, a1: Vec3<f64>, alpha2: f64, a2: Vec3<f64>) -> f
 ///
 /// Both cones tipped, then both revolved: each op at the closed form its
 /// intersection's direction integral sets ([`shared_volume_of`]), with
-/// the regions at the lattice. The rim germs of the two common rulings
+/// the regions at the lattice, and tier 3′ passing: near-coaxial, the
+/// wider cone less the narrower is one shell whose apex holds both
+/// cones' nappes, the narrower's void nested in the wider's material. The
+/// rim germs of the two common rulings
 /// must each pair with the apex germ on their own ruling, not with each
 /// other across the apex (`boolean::join`'s `two_rulings`).
 #[test]

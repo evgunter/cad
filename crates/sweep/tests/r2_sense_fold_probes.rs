@@ -14,11 +14,7 @@ use topo::{Body, EdgeKey, FaceKey, ValidationError, validate_geometric};
 fn faces_where(body: &Body<f64>, pick: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     query::all_faces(body)
         .into_iter()
-        .filter(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(&pick)
-        })
+        .filter(|&f| body.face_surface(f).is_some_and(&pick))
         .collect()
 }
 
@@ -57,7 +53,9 @@ fn a_reversed_rod_wall_is_named_by_check_4_and_read_as_lamina_at_both_seams() {
         .copied()
         .collect();
     assert_eq!(seams.len(), 2, "the half walls share two seams");
-    let flipped = r.flipped_face_sense_for_tests(wall).unwrap();
+    let flipped = r
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, Tol::witness()).unwrap_err();
     let lamina: BTreeSet<EdgeKey> = errs
         .iter()

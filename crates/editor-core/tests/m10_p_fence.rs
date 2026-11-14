@@ -34,7 +34,7 @@
 
 use crate::corpus;
 
-use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload};
 use geom_core::Tol;
 
 /// A 128-bit FNV-1a over the evaluation's observable bits.
@@ -120,13 +120,13 @@ pub(crate) enum Outcome {
 ///
 /// It uses no API the lift introduced, which is what lets this file
 /// compile against a pre-lift tree.
-pub(crate) fn walk<T: editor_core::EvalScalar>(mut seen: impl FnMut(Seen<'_, T>)) {
+pub(crate) fn walk<T: editor_core::test_support::AnyEvaluate>(mut seen: impl FnMut(Seen<'_, T>)) {
     // The arc-carrier fillet machinery, which no corpus document
     // reaches — see `fixture_walk`.
     fixture_walk::<T>(&mut seen);
     for doc in corpus::documents() {
         seen(Seen::Document(doc.name));
-        let ev = evaluate::<T>(
+        let ev = editor_core::test_support::evaluate_any::<T>(
             &doc.doc,
             None,
             &CancelToken::new(),
@@ -183,7 +183,7 @@ pub(crate) fn walk<T: editor_core::EvalScalar>(mut seen: impl FnMut(Seen<'_, T>)
 /// door, which is what lets it compile against a pre-lift tree.
 fn corpus_digest<T, F, S>(bits: F, scalar: S) -> (u64, u64)
 where
-    T: editor_core::EvalScalar,
+    T: editor_core::test_support::AnyEvaluate,
     F: Fn(&mut Digest, &geom_core::Point3<T>),
     S: Fn(&mut Digest, T),
 {
@@ -325,7 +325,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x65eb_bbab_cafb_9a51, 0x9b10_f464_7b5b_b905),
+        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -360,7 +360,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xe42f_30c8_1790_5fab, 0x303f_78a3_da5f_4a77),
+        (0xcca5_16a8_6eee_a232, 0xd975_f6b0_33b0_aaae),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -384,7 +384,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x65eb_bbab_cafb_9a51, 0x9b10_f464_7b5b_b905),
+        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
         "the corpus's Probe evaluation moved"
     );
 }

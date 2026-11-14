@@ -145,9 +145,8 @@ fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
 
 /// Every vertex on `face`'s own boundary.
 fn face_vertices(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
-    let data = body.get_face(face).expect("face");
     let mut out = Vec::new();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).expect("face").loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("loop").boundary else {
             continue;
         };
@@ -265,10 +264,8 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
     ] {
         let out = hollowed(what, &body);
         let mut metered = 0usize;
-        for (face, f) in out.faces() {
-            let surface = out
-                .get_surface(f.surface)
-                .expect("a face carries a surface");
+        for (face, _) in out.faces() {
+            let surface = out.face_surface(face).expect("a face carries a surface");
             for v in face_vertices(&out, face) {
                 let p = *out
                     .get_point(out.get_vertex(v).expect("vertex").point)
@@ -317,7 +314,6 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
         let posed_after = transform_rigid(
             &hollowed(what, &body),
             &geom_core::test_support::rigid(&map, tol()),
-            tol(),
         )
         .unwrap_or_else(|e| {
             panic!(
@@ -325,14 +321,13 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             )
         });
-        let posed_first =
-            transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{what}: the operand re-poses, got {e_at}",
-                        e_at = e.render(geom_brep::recourse::Reading::Build)
-                    )
-                });
+        let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the operand re-poses, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let hollow_after = topo::shell(
             &finished("the operand", posed_first.clone(), tol()),
             T,
@@ -394,9 +389,9 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let band = Band::linear(tol()).expect("the witness band");
     let barrel = torus_barrel();
     let hollow = hollowed("the torus barrel", &barrel);
-    let operand = transform_rigid(&barrel, &geom_core::test_support::rigid(&map, tol()), tol())
+    let operand = transform_rigid(&barrel, &geom_core::test_support::rigid(&map, tol()))
         .expect("the operand re-poses");
-    let posed = transform_rigid(&hollow, &geom_core::test_support::rigid(&map, tol()), tol())
+    let posed = transform_rigid(&hollow, &geom_core::test_support::rigid(&map, tol()))
         .expect("the hollow re-poses");
     let on_operand: Vec<Point3<f64>> = operand.vertex_points().map(|(_, p)| p).collect();
     let mut cavity = 0;
@@ -673,12 +668,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     let mut body = body.into_body();
     let sphere = body
         .faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -807,8 +797,8 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
 
     // Every corner lies on every moved surface at its own faces — the
     // same outside read the torus rows make.
-    for (face, f) in cavity.faces() {
-        let surface = cavity.get_surface(f.surface).expect("surface");
+    for (face, _) in cavity.faces() {
+        let surface = cavity.face_surface(face).expect("surface");
         for v in face_vertices(&cavity, face) {
             let p = *cavity
                 .get_point(cavity.get_vertex(v).expect("vertex").point)
@@ -837,14 +827,10 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     let mut offset_first = body.clone();
     topo::offset_charts_together(&mut offset_first, &hollow_moves(&body, t), band, tol())
         .expect("the unposed lune offsets");
-    let posed_after = transform_rigid(
-        &offset_first,
-        &geom_core::test_support::rigid(&map, tol()),
-        tol(),
-    )
-    .expect("the offset lune re-poses");
+    let posed_after = transform_rigid(&offset_first, &geom_core::test_support::rigid(&map, tol()))
+        .expect("the offset lune re-poses");
 
-    let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+    let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()))
         .expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     topo::offset_charts_together(
@@ -933,7 +919,7 @@ fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let caps: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
@@ -1005,21 +991,20 @@ fn assert_hollow_lune(label: &str, body: &Body<f64>, r: f64, t: f64) {
     );
 }
 
-/// **The meridian-pair arm's refusing side, on a buildable body**: the
-/// HALF-turn lune's caps are two half-planes of one plane, so their
-/// inward offsets are parallel and meet in no line — the corner is
-/// genuinely under-determined by its surfaces, and the arm says so
-/// typed rather than falling back to the pole answer the moved caps
-/// have left. This is also the row that keeps the circle-profile rim
-/// family's refusal REACHABLE now that the quarter lune solves.
+/// **The half-turn lune's shell refuses at its axis edge**: its two
+/// caps are two half-planes of one plane, which the revolve leaves on
+/// one record, split by the axis edge, both facing the same way. The
+/// offset door moves that record by `t` and refuses the axis edge,
+/// whose minted curve stands exactly `t` off a moved surface it
+/// separates. It refuses that edge rather than returning a body that
+/// leaves it behind. A hollow half ball is buildable, so the refusal is
+/// the door's defect, and this row is its witness
+/// (`work/shell/the-general-offset-door-moves-a-record-two-solids-share-as-one.md`).
 #[test]
-fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
-    let e = topo::shell(
-        &finished("the operand", lune(0.3, core::f64::consts::PI), tol()),
-        0.05,
-        tol(),
-    )
-    .expect_err("parallel moved caps leave the rim corner under-determined");
+fn torax_the_half_turn_lune_refuses_at_its_axis_edge() {
+    let t = 0.05;
+    let body = finished("the operand", lune(0.3, core::f64::consts::PI), tol());
+    let e = topo::shell(&body, t, tol()).expect_err("the door refuses the axis edge");
     println!(
         "[torax] the half-turn lune: {e_at}",
         e_at = e.render(geom_brep::recourse::Reading::Build)
@@ -1030,13 +1015,22 @@ fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     };
-    let topo::ReplaceFaceError::TogetherAxialCorner { surfaces, what, .. } = *error else {
-        panic!("the parallel caps must refuse at the corner they under-determine: {error:?}");
+    let topo::ReplaceFaceError::TogetherEdgeDisagreement { edge, gap } = *error else {
+        panic!("the door refuses the axis edge's curve: {error:?}");
     };
-    assert_eq!(surfaces, 3, "sphere wall + two meridian caps");
+    let sides = topo::readback::edge_sides(&body, edge).expect("the refused edge is the operand's");
+    let (a, b) = sides.surfaces();
+    assert_eq!(
+        a, b,
+        "the refused edge lies between two faces of one record"
+    );
     assert!(
-        what.contains("parallel"),
-        "the refusal names the parallel caps, got {what}"
+        matches!(body.get_surface(a), Some(Surface::Plane { .. })),
+        "the refused edge lies between the two caps"
+    );
+    assert!(
+        (gap - t).abs() < 1e-12,
+        "the axis edge's curve stands the offset off a moved surface, got {gap}"
     );
 }
 
@@ -1146,8 +1140,8 @@ fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     has_corner(&cavity, rho, -h, "the reflex lune's lower rim corner");
 
     let mut worst = 0.0_f64;
-    for (face, f) in cavity.faces() {
-        let surface = cavity.get_surface(f.surface).expect("surface");
+    for (face, _) in cavity.faces() {
+        let surface = cavity.face_surface(face).expect("surface");
         for v in face_vertices(&cavity, face) {
             let p = *cavity
                 .get_point(cavity.get_vertex(v).expect("vertex").point)

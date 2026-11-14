@@ -2,10 +2,12 @@
 id: curved-edges-passes-hand-composes-on-carrier-and-span-place
 kind: issue
 title: solid_contain's curved_edges::passes composes on_carrier and Span::place by hand beside Span::read
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-09
+pr: 6614
 ---
 
 

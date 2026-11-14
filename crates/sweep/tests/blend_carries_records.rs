@@ -123,9 +123,9 @@ fn a_record_on_the_blended_edge_is_consumed() {
     let far = base
         .body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                base.body.get_surface(f.surface),
+                base.body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == 2.0
             )
@@ -284,9 +284,9 @@ fn a_record_on_a_support_face_is_consumed() {
     let face_at_z = |z: f64| {
         base.body
             .faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    base.body.get_surface(f.surface),
+                    base.body.face_surface(*fk),
                     Some(topo::Surface::Plane { origin, normal, .. })
                         if normal.z.abs() == 1.0 && origin.z == z
                 )

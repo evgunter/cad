@@ -208,6 +208,8 @@ named — claimed, not resolved, and each landing in a DIFFERENT
 successor, so again not rewritable by pattern. The fifth
 (`corner-config-tag-all-concave-trihedron`, cited twice from one file)
 resolves nowhere and needs the reading stated or a SHA named.
+2026-11-04: both of its citations now state the reading — Ev's ruling on
+PR 1935, no tag until a consumer wants one — on `band/mixed-vertex-gate`.
 
 **One near-miss, recorded so a later sweeper does not re-file it.**
 `crates/editor-core/src/mate/member.rs` names

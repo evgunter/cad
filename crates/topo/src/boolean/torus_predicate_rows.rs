@@ -31,7 +31,19 @@ fn axis() -> Vec3<f64> {
 }
 
 fn roots(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, RootRefusal> {
-    line_torus_roots(q, d.normalize(), centre(), axis(), R_MAJOR, R_MINOR, band())
+    line_torus_roots(
+        geom::Line {
+            origin: q,
+            dir: d.normalize(),
+        },
+        geom::Line {
+            origin: centre(),
+            dir: axis(),
+        },
+        R_MAJOR,
+        R_MINOR,
+        band(),
+    )
 }
 
 /// The coefficient the biquadratic branch is selected on, recomputed in
@@ -300,7 +312,16 @@ fn a_far_ray_reaches_the_count_disagreement() {
         -0.773_155_318_282_510_4,
     );
     let band = Band::new(1e-9, 1e-8).unwrap();
-    let roots = line_torus_roots(q, d, centre(), axis(), 1e6, 1e4, band);
+    let roots = line_torus_roots(
+        geom::Line { origin: q, dir: d },
+        geom::Line {
+            origin: centre(),
+            dir: axis(),
+        },
+        1e6,
+        1e4,
+        band,
+    );
     assert!(
         matches!(
             roots,

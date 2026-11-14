@@ -590,7 +590,7 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
     let boss = fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)]);
     let sketched = editor_core::sketch_on_face(
         &doc,
-        Operand::from(b),
+        Operand::from(b).into(),
         top,
         boss,
         len(0.5),
@@ -741,11 +741,11 @@ fn a_copy_mated_against_a_copy_already_placed_charts_on_the_space() {
 
 /// Every vertex of the body `node` evaluates to at scalar `T`, each
 /// coordinate as its `(lo, hi)` bounds, sorted.
-fn vertex_bounds<T: editor_core::EvalScalar>(
+fn vertex_bounds<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     node: RecipeNodeId,
 ) -> Vec<[(f64, f64); 3]> {
-    let ev = editor_core::evaluate::<T>(
+    let ev = editor_core::test_support::evaluate_any::<T>(
         doc,
         None,
         &editor_core::CancelToken::new(),
@@ -972,14 +972,14 @@ fn retyped(
 
 /// The memo-primed run of `after` against `before`'s, and a fresh one,
 /// agree on the copy `p` at the lane `T`, and the edit moved its key.
-fn primed_agrees_with_fresh<T: editor_core::EvalScalar>(
+fn primed_agrees_with_fresh<T: editor_core::test_support::AnyEvaluate>(
     what: &str,
     before: &ProfileDoc,
     after: &ProfileDoc,
     p: RecipeNodeId,
 ) -> (Vec<[(f64, f64); 3]>, bool) {
     let run = |doc, prior| {
-        editor_core::evaluate::<T>(
+        editor_core::test_support::evaluate_any::<T>(
             doc,
             prior,
             &editor_core::CancelToken::new(),

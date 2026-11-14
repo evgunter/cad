@@ -78,7 +78,7 @@
 //! [`sphere_grid_steps`], [`torus_grid_steps`], and
 //! `nurbs_cert::LATTICE_SHARE` for the NURBS lane's sliver, whose share
 //! of δ is a typed choice nothing has measured as the coarsest
-//! (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
+//! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
 //! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
 //! whose side carries a point keeps the lattice `curved::grid_counts`
@@ -104,8 +104,10 @@ use geom_core::{Band, Tol};
 /// **The bound of that claim.** ε also reaches `mesh` as
 /// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
 /// `Tol` — and leaves it unread: `mesh` hands it to
-/// `geom_brep::props::require_iso_rectangle` and
-/// `require_one_chart_branch`, and decides nothing against it. The
+/// `geom_brep::props::require_iso_rectangle`,
+/// `require_one_chart_branch` and
+/// `geom_brep::chart_singularity::vertex_at_singular_point`, and decides
+/// nothing against it. The
 /// inventory pin counts `eps` identifier carriers and the four method
 /// reads per file; it does not count `band`, `Band` or K, so a
 /// decision written against the band in this crate would be a bypass
@@ -353,13 +355,17 @@ pub(crate) struct SizingTols {
     pub eps: Eps,
     /// The linear decision band props classifies with, minted from
     /// the same [`Tol`] as `eps` at operation entry (the calling
-    /// convention `Band::linear` prescribes). Consumed by exactly one
-    /// site — `curved`'s shape door, which hands it to
+    /// convention `Band::linear` prescribes). Consumed by three sites —
+    /// `curved`'s shape door, which hands it to
     /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch` — and by no rule of this crate's
-    /// own: `mesh` decides nothing against it, it carries props' band
-    /// to props' predicates. Not an ε read of this crate, and the
-    /// inventory pin does not count it as one.
+    /// `require_one_chart_branch`, the walk's wrap strip, and the trimmed
+    /// lane's singular vertices (`crate::chart_table::AnalyticRow::is_singular`),
+    /// both of which hand it to
+    /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
+    /// no rule of this crate's own: `mesh` decides nothing
+    /// against it, it carries the band to geom-brep's predicates. Not an
+    /// ε read of this crate, and the inventory pin does not count it as
+    /// one.
     pub band: Band,
 }
 
@@ -560,14 +566,20 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// The cosine of a sphere face's latitude nearest the equator: 1 when
 /// its latitude window holds the equator, else `√(1 − s²)` at the
 /// window's end nearest it, `s` that end's height over the radius. The
-/// window is each boundary circle's own height range along the axis,
-/// `c + a·cos t + b·sin t` in its parameter, read in closed form over the
-/// edge's interval (`trimmed::harmonic_range`): a tilted circle's
-/// latitude turns inside its interval, so vertices alone do not bound
-/// it, and the curved lane's iso faces (rims constant, meridians
-/// monotone) read the same window from the same arithmetic. The chord
-/// pass, the curved lane and the trimmed lane's sphere arm read it from
-/// this one place.
+/// window is each boundary edge's own height range along the axis. A
+/// circle's is `c + a·cos t + b·sin t` in its parameter, read in closed
+/// form over the edge's interval (`geom_brep::harmonic_range`): a tilted
+/// circle's latitude turns inside its interval, so vertices alone do not
+/// bound it, and the curved lane's iso faces (rims constant, meridians
+/// monotone) read the same window from the same arithmetic. A spline
+/// edge's (a section with another curved surface) is its stored chart
+/// image's box over the edge's interval
+/// ([`geom_brep::Pcurve::chart_box`]), a latitude range taken to heights.
+/// A line, an ellipse or a spiric lies on no sphere, and refuses typed.
+/// The circle's closed form is the exact range where the box of its
+/// projected image is a conservative one. The chord pass, the curved lane
+/// and the trimmed lane read it from this one place, through the face's
+/// chart row (`crate::chart_table::ChartRow::of`).
 pub(crate) fn sphere_face_widest_cos(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
@@ -584,32 +596,53 @@ pub(crate) fn sphere_face_widest_cos(
             what: "a sphere face's widest latitude on a non-sphere surface",
         });
     };
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
-        let curve = body
-            .get_edge(ek)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: cc, .. },
-            ..
-        }) = *curve.carrier()
-        else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "a sphere face bounded by an edge that is not a circle — its \
-                       lattice is sized from its circles' latitude ranges",
-            });
+    for (hek, ek, curve) in outer_loop_curves(body, fk)? {
+        let (z0, z1) = match *curve.carrier() {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { origin: cc, .. },
+                ..
+            }) => {
+                let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
+                let c = height(cc);
+                let a = height(curve.carrier().eval(0.0)) - c;
+                let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
+                geom_brep::harmonic_range(c, a, b, curve.params())
+            }
+            geom::Curve3::Line(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "a sphere face bounded by a line — no line lies on a sphere",
+                });
+            }
+            // A plane meets a sphere in a circle, so neither a plane
+            // section's ellipse nor a torus section's spiric lies on one.
+            geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "a sphere face bounded by an ellipse or a spiric — neither lies on a \
+                           sphere",
+                });
+            }
+            // A section with another curved surface (a cylinder's, as in
+            // `sweep`'s `cylinder_sphere_frame`) is a spline.
+            geom::Curve3::Nurbs(_) => {
+                let w = image_box(
+                    body,
+                    hek,
+                    ek,
+                    curve,
+                    "a sphere face's spline edge carries no stored chart image, so the \
+                     face's latitude range is unread",
+                )?;
+                let lat = |v: f64| {
+                    radius
+                        * v.clamp(-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2)
+                            .sin()
+                };
+                (lat(w.v_min), lat(w.v_max))
+            }
         };
-        let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
-        let c = height(cc);
-        let a = height(curve.carrier().eval(0.0)) - c;
-        let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
-        let (z0, z1) = crate::trimmed::harmonic_range(c, a, b, curve.params());
         lo = lo.min(z0);
         hi = hi.max(z1);
     }
@@ -626,13 +659,60 @@ pub(crate) fn sphere_face_widest_cos(
     })
 }
 
+/// A loop's half-edge, its edge and the edge's certified curve.
+type LoopCurve<'b> = (
+    topo::HalfEdgeKey,
+    topo::EdgeKey,
+    &'b geom_brep::EdgeCurve<f64>,
+);
+
+/// The half-edges of face `fk`'s outer loop, each with its edge and the
+/// edge's certified curve.
+fn outer_loop_curves(
+    body: &topo::Body<f64>,
+    fk: topo::FaceKey,
+) -> Result<Vec<LoopCurve<'_>>, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    crate::walk::loop_half_edges(body, face.outer, fk)?
+        .into_iter()
+        .map(|(hek, ek, _)| {
+            let curve = body
+                .get_edge(ek)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            Ok((hek, ek, curve))
+        })
+        .collect()
+}
+
+/// The box of the chart image stored on `hek` over its edge's interval
+/// ([`geom_brep::Pcurve::chart_box`]): the window a face reads from an
+/// edge whose carrier states no closed-form range on its chart. `missing`
+/// is the refusal's note where no image is stored.
+fn image_box(
+    body: &topo::Body<f64>,
+    hek: topo::HalfEdgeKey,
+    ek: topo::EdgeKey,
+    curve: &geom_brep::EdgeCurve<f64>,
+    missing: &'static str,
+) -> Result<geom_brep::ChartWindow<f64>, TessellateError> {
+    let (t0, t1) = curve.params();
+    let image = body.pcurve(hek).ok_or(TessellateError::UnsupportedCurve {
+        edge: ek,
+        note: missing,
+    })?;
+    Ok(image.pcurve().chart_box(t0, t1))
+}
+
 /// The torus chart's two grid steps `(h_u, h_v)` — azimuth θ and
 /// minor angle φ — for chord deviation ≤ `target` on every triangle
 /// of an `h_u × h_v` cell grid, from the doubly-curved interpolation
 /// bound below. Shared by the curved-face grid sizing and the chord
-/// pass's adjacent-torus tightening ([`grid_boundary_step`]) so a
-/// boundary polyline and the interior grid agree on the rows they
-/// share.
+/// pass's one rule (`chords::tighten`) so a boundary polyline and the
+/// interior grid agree on the rows they share.
 ///
 /// # The bound (proved; [`crate::cert::cert_torus`] is its forward form)
 ///
@@ -748,118 +828,46 @@ pub(crate) fn torus_grid_steps(target: f64, major: f64, minor: f64) -> (f64, f64
     (curvature_step(share, a), curvature_step(share, minor))
 }
 
-/// The grid step a circle edge adjacent to face `fk` must be chorded
-/// within, if that face is the curved lane's
-/// ([`crate::tessellate::lane_of`]) and its theorem is about a grid its
-/// rims have to sit on (`crates/mesh/README.md` `[mesh.sizing]`, *rim
-/// chords use the face's grid step*): the torus's
-/// [`torus_grid_steps`], the sphere's [`sphere_grid_steps`] at the
-/// face's widest latitude ([`sphere_face_widest_cos`]), each in the
-/// edge's own direction — `h_u` for a rim (its carrier parameter is
-/// the azimuth), `h_v` for a meridian (the minor angle or the
-/// latitude); and the cone's [`cone_grid_step`] at the face's largest
-/// rim ([`cone_face_rho_max`]), every circle a cone carries being a
-/// rim. Every other face answers `None`, a face another lane takes
-/// included: its theorem is not about this grid.
-///
-/// The rim/meridian rule is [`topo::chart_iso::classify_kind`]'s — the
-/// same rule the walk classifies the same edge with when it lays the
-/// boundary polygon on the face's grid, so the count sized here and
-/// the grid row it lands on agree by construction rather than by a
-/// second copy of the threshold. That rule is total on circle
-/// carriers (`|n · axis| > 0.5` splits rim from meridian, every
-/// direction falling on one side), so nothing refuses HERE: a circle
-/// on a sphere that is neither iso-curve and stores its projected image
-/// routes its face to the trimmed lane's sphere arm, which this
-/// function answers `None` for; any other non-iso circle on a torus or
-/// a sphere — a Villarceau circle, an oblique small circle with no
-/// stored image — is refused by the face door
-/// (`geom_brep::props::require_iso_rectangle`, through
-/// [`crate::curved`]) before any grid is built on the face, and a
-/// whole-body refusal is what a mis-tightened count on such an edge
-/// could never outlive. The `None` the classifier reserves for conic
-/// and spline carriers is unreachable from a circle and is surfaced
-/// typed rather than defaulted, so a widened classifier cannot make
-/// this arm silently pick a direction.
-pub(crate) fn grid_boundary_step(
-    body: &topo::Body<f64>,
-    fk: topo::FaceKey,
-    curve: &geom_brep::EdgeCurve<f64>,
-    edge: topo::EdgeKey,
-    target: f64,
-) -> Result<Option<f64>, TessellateError> {
-    let surface = crate::tessellate::face_surface(body, fk)?;
-    if crate::tessellate::lane_of(body, fk, surface)? != crate::tessellate::Lane::Curved {
-        return Ok(None);
-    }
-    let steps = match *surface {
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        }
-        | geom::Surface::Spindle {
-            major_radius,
-            minor_radius,
-            ..
-        } => torus_grid_steps(target, major_radius, minor_radius),
-        geom::Surface::Sphere { radius, .. } => {
-            sphere_grid_steps(target, radius, sphere_face_widest_cos(body, fk, surface)?)
-        }
-        geom::Surface::Cone { half_angle, .. } => {
-            return Ok(Some(cone_grid_step(
-                target,
-                half_angle,
-                cone_face_rho_max(body, fk)?,
-            )));
-        }
-        _ => return Ok(None),
-    };
-    let Some(chart) = topo::chart::Chart::of(surface) else {
-        unreachable!(
-            "Chart::of answers every torus, sheet and sphere, and this is one: {surface:?}"
-        )
-    };
-    match topo::chart_iso::classify_kind(&chart, curve) {
-        Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(steps.0)),
-        Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(steps.1)),
-        None => Err(TessellateError::UnsupportedCurve {
-            edge,
-            note: "a circle edge on a torus or sphere that the iso-curve classifier left \
-                   unclassified — neither rim nor meridian, so no grid direction sizes its \
-                   chords",
-        }),
-    }
-}
-
-/// A cone face's largest radius: the largest radius of the circle
-/// carriers on its outer loop. The curved lane's iso-rectangle cone
-/// face has its widest side on a rim, so this is the face's `ρ_max`;
-/// the chord pass and the curved lane both read it here, so the rim
-/// count and the grid's column count come from one value.
+/// A cone face's largest radius: the largest radius on its outer loop.
+/// A circle's is its radius; a ruling's runs monotone between its ends,
+/// which its neighbours hold, so it adds none; any other edge's is the
+/// largest `|v|·sin α` over its stored chart image's box on the edge's
+/// interval ([`geom_brep::Pcurve::chart_box`]), `v` being slant metres.
+/// The curved lane's iso-rectangle cone face has its widest side on a
+/// rim, so this is that face's `ρ_max`; the chord pass and both lanes
+/// read it through the face's chart row
+/// (`crate::chart_table::ChartRow::of`), so the rim count and the grid's
+/// column count come from one value.
 ///
 /// # Errors
 ///
-/// [`TessellateError::MissingEntity`] for a face with no circle edge on
-/// its outer loop, which no cone face the curved lane meshes is.
+/// [`TessellateError::MissingEntity`] for a face whose outer loop is
+/// rulings alone, which bounds no cone face;
+/// [`TessellateError::UnsupportedCurve`] for an edge with neither a
+/// closed form nor a stored image.
 pub(crate) fn cone_face_rho_max(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
+    half_angle: f64,
 ) -> Result<f64, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
     let mut rho_max: Option<f64> = None;
-    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
-        let carrier = body
-            .get_edge(ek)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .carrier();
-        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *carrier {
-            rho_max = Some(rho_max.map_or(radius, |m: f64| m.max(radius)));
-        }
+    for (hek, ek, curve) in outer_loop_curves(body, fk)? {
+        let rho = match *curve.carrier() {
+            geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+            geom::Curve3::Line(_) => continue,
+            geom::Curve3::Ellipse(..) | geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => {
+                let w = image_box(
+                    body,
+                    hek,
+                    ek,
+                    curve,
+                    "a cone face's edge that is neither a circle nor a ruling carries no \
+                     stored chart image, so the face's radius range is unread",
+                )?;
+                w.v_min.abs().max(w.v_max.abs()) * half_angle.sin()
+            }
+        };
+        rho_max = Some(rho_max.map_or(rho, |m: f64| m.max(rho)));
     }
     rho_max.ok_or(TessellateError::MissingEntity {
         what: "cone face rim",

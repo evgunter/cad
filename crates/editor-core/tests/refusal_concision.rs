@@ -166,6 +166,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let diag = Indeterminate {
         margin: MarginDiag::value(3.0e-10),
         band,
+        // UNDECIDED-NAME: the cause this row renders; the sentence is under test
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };
@@ -517,7 +518,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated (Neighbours(Parallel), in-band enclosure)",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                decision: topo::BooleanDecision::Neighbours(geom_brep::PlaneRung::Parallel),
                 diag: enclosed,
             },
         ),
@@ -589,7 +590,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated (Neighbours(Parallel), in band)",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                decision: topo::BooleanDecision::Neighbours(geom_brep::PlaneRung::Parallel),
                 diag: in_band,
             },
         ),
@@ -671,6 +672,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+                why: topo::SharedStarts::NoneClear,
             },
         ),
         (
@@ -705,6 +707,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "LineMaterialUnread (no reference)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::NoReference,
+            },
+        ),
+        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
@@ -731,6 +741,49 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face: FaceKey::default(),
                 partner: VertexKey::default(),
                 along: topo::AlongFace::FacesInOnePlane,
+            },
+        ),
+        (
+            "TouchesItself",
+            BooleanError::TouchesItself {
+                operand: Operand::A,
+                record: 0,
+                faces: [FaceKey::default(); 2],
+            },
+        ),
+        (
+            "ToolSeatUnread",
+            BooleanError::ToolSeatUnread {
+                record: 0,
+                cells: [topo::Cell::Face(FaceKey::default()); 2],
+            },
+        ),
+        (
+            "ToolSeatUnread (lower cells)",
+            BooleanError::ToolSeatUnread {
+                record: 0,
+                cells: [topo::Cell::Edge(topo::EdgeKey::default()); 2],
+            },
+        ),
+        (
+            "ToolFuseRefused",
+            BooleanError::ToolFuseRefused {
+                why: Box::new(topo::ToolFuseRefusal::Step(BooleanError::TouchesItself {
+                    operand: Operand::A,
+                    record: 0,
+                    faces: [FaceKey::default(); 2],
+                })),
+            },
+        ),
+        (
+            "ToolFuseRefused (holding)",
+            BooleanError::ToolFuseRefused {
+                why: Box::new(topo::ToolFuseRefusal::Holding {
+                    face: FaceKey::default(),
+                    refusal: topo::HeldRefusal::NotUnder {
+                        member_face: (0, FaceKey::default()),
+                    },
+                }),
             },
         ),
         (

@@ -102,12 +102,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
@@ -122,15 +117,9 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(
-        &rot,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&rot, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
@@ -179,7 +168,6 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     ) {
         out.push(("cube_rotated", t));
     }
@@ -399,12 +387,14 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
         BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::KnifeEdge { .. } => "KnifeEdge",
+        BlendError::BallDoesNotFit { .. } => "BallDoesNotFit",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
         BlendError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
         BlendError::UnsupportedCorner { .. } => "UnsupportedCorner",
         BlendError::SpineUnsupported { .. } => "SpineUnsupported",
         BlendError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
+        BlendError::WedgeUnsettled { .. } => "WedgeUnsettled",
         BlendError::Escalated { .. } => "Escalated",
         BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
@@ -593,7 +583,6 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let apart = topo::transform_rigid(
         &cube(0.5, Tol::witness()),
         &geom_core::RigidMotion::translation(Vec3::new(3.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a translation is rigid");
     topo::instance::graft_disjoint_all(&mut dst, &apart).expect("a disjoint graft");

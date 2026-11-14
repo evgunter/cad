@@ -136,7 +136,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
-//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in the fillet CONSTRUCTORS, not here |
+//! | `fillet_leg_fit` | leg length − tangent setback (the run) | linear band, the one `vertex_separation` reads a segment on; fired in the fillet CONSTRUCTORS, not here |
 //! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
 //! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
 //! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |
@@ -350,6 +350,48 @@ impl fmt::Display for FilletLeg {
             Self::Incoming => "incoming leg",
             Self::Outgoing => "outgoing leg",
         })
+    }
+}
+
+/// Which legs of a fillet corner a trim overruns: one of them or both,
+/// never neither, so an overrun that names no leg is unwritable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverrunLegs {
+    /// Only this leg's anchor is eaten.
+    One(FilletLeg),
+    /// Both legs' anchors are eaten.
+    Both,
+}
+
+impl OverrunLegs {
+    /// The overrun of a corner whose `[incoming, outgoing]` legs are
+    /// overrun as given, or `None` where neither is.
+    #[must_use]
+    pub const fn of(incoming: bool, outgoing: bool) -> Option<Self> {
+        match (incoming, outgoing) {
+            (true, true) => Some(Self::Both),
+            (true, false) => Some(Self::One(FilletLeg::Incoming)),
+            (false, true) => Some(Self::One(FilletLeg::Outgoing)),
+            (false, false) => None,
+        }
+    }
+
+    /// Whether `leg` is overrun.
+    #[must_use]
+    pub fn contains(self, leg: FilletLeg) -> bool {
+        match self {
+            Self::One(one) => one == leg,
+            Self::Both => true,
+        }
+    }
+
+    /// The overrun legs' `[incoming, outgoing]` indices, in that order.
+    pub fn indices(self) -> impl Iterator<Item = usize> {
+        [FilletLeg::Incoming, FilletLeg::Outgoing]
+            .into_iter()
+            .enumerate()
+            .filter(move |(_, leg)| self.contains(*leg))
+            .map(|(k, _)| k)
     }
 }
 

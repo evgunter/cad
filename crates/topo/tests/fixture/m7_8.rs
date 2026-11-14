@@ -59,14 +59,13 @@ where
             },
         )
         .unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     let mut lane_edges = 0;
-    for (edge_key, edge) in edges {
+    for edge_key in edges {
         let (s1, s2) = topo::readback::edge_sides(&body, edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = body.edge_vertices(edge_key).unwrap();
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();

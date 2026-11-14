@@ -51,8 +51,9 @@ use geom_brep::{
 };
 use geom_core::Sign;
 use geom_core::Tol;
-use geom_core::k_stats::{self, Probe, SampleOutcome};
+use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
+use geom_core::test_support::twins::{Pairing, Twins};
 use slotmap::SlotMap;
 
 /// The `x = 0` and `y = 0` planes: two analytic charts whose
@@ -92,13 +93,13 @@ fn axis_segment(length: f64, domain: f64) -> Curve3<Probe> {
 /// Certifies the segment against the axis planes through `Probe`'s
 /// certified NURBS lane (the door a spline carrier between two
 /// analytic surfaces needs) and returns the `nurbs_span_meter` sample
-/// (outcome and margin) alongside the certification's own verdict.
+/// alongside the certification's own verdict.
 /// Exactly one such sample fires per certification — the row asserts
 /// that too.
 fn span_meter_sample(
     length: f64,
     domain: f64,
-) -> ((SampleOutcome, f64), Result<EdgeCurve<Probe>, CertifyError>) {
+) -> (MarginSample, Result<EdgeCurve<Probe>, CertifyError>) {
     let (px, py) = axis_planes();
     let mut arena: SlotMap<SurfaceKey, Surface<Probe>> = SlotMap::with_key();
     let s1 = arena.insert(px);
@@ -126,10 +127,9 @@ fn span_meter_sample(
         NurbsLane::certified(),
     );
     let samples = k_stats::take_samples();
-    let mut hits: Vec<(SampleOutcome, f64)> = samples
-        .iter()
+    let mut hits: Vec<MarginSample> = samples
+        .into_iter()
         .filter(|s| s.predicate == "nurbs_span_meter")
-        .map(|s| (s.outcome, s.margin))
         .collect();
     assert_eq!(
         hits.len(),
@@ -142,7 +142,8 @@ fn span_meter_sample(
 /// The margin IS the carrier's arc length — a metre, measured.
 #[test]
 fn the_span_meter_margin_is_the_carrier_arc_length() {
-    let ((outcome, margin), got) = span_meter_sample(1.0, 1.0);
+    let (sample, got) = span_meter_sample(1.0, 1.0);
+    let (outcome, margin) = (sample.outcome, sample.margin);
     got.expect("a unit segment on the axis certifies");
     assert!(
         matches!(outcome, SampleOutcome::Definite(Sign::Positive)),
@@ -158,11 +159,18 @@ fn the_span_meter_margin_is_the_carrier_arc_length() {
 /// model. A scale-quadratic comparand answers 1e6 here.
 #[test]
 fn the_span_meter_margin_scales_linearly_with_the_model() {
-    let ((_, mm), a) = span_meter_sample(1e-3, 1.0);
-    let ((_, m), b) = span_meter_sample(1.0, 1.0);
+    let (mm, a) = span_meter_sample(1e-3, 1.0);
+    let (m, b) = span_meter_sample(1.0, 1.0);
     a.expect("mm twin certifies");
     b.expect("metre twin certifies");
-    let ratio = m / mm;
+    let twins = Twins {
+        predicate: "nurbs_span_meter",
+        small: &[mm],
+        large: &[m],
+    };
+    let pairs = twins.decisive_pairs(Pairing::Site, |_| true);
+    assert_eq!(pairs.len(), 1, "both twins decide their meter: {pairs:?}");
+    let ratio = pairs[0].1 / pairs[0].0;
     assert!(
         (ratio / 1e3 - 1.0).abs() < 1e-12,
         "margin must scale linearly with the model: ratio {ratio:e}"
@@ -174,8 +182,10 @@ fn the_span_meter_margin_scales_linearly_with_the_model() {
 /// classify halves. A rename could not produce this row.
 #[test]
 fn the_span_meter_margin_is_reparametrization_invariant() {
-    let ((o1, once), a) = span_meter_sample(1.0, 1.0);
-    let ((o2, twice), b) = span_meter_sample(1.0, 2.0);
+    let (unit, a) = span_meter_sample(1.0, 1.0);
+    let (o1, once) = (unit.outcome, unit.margin);
+    let (doubled, b) = span_meter_sample(1.0, 2.0);
+    let (o2, twice) = (doubled.outcome, doubled.margin);
     a.expect("the unit-domain twin certifies");
     b.expect("the doubled-domain twin certifies");
     assert_eq!(o1, o2, "the twins must classify identically");
@@ -206,7 +216,8 @@ fn the_span_meter_margin_is_reparametrization_invariant() {
 fn a_sub_band_carrier_escalates_on_its_meter_not_its_span() {
     let eps = Tol::witness().get().eps;
     let (length, domain) = (3.0 * eps, 1e-6);
-    let ((outcome, margin), got) = span_meter_sample(length, domain);
+    let (sample, got) = span_meter_sample(length, domain);
+    let (outcome, margin) = (sample.outcome, sample.margin);
     let b = band();
     // The bare rate — what the old comparand classified — is decisive.
     let rate = length / domain;
@@ -246,7 +257,8 @@ fn a_sub_band_carrier_escalates_on_its_meter_not_its_span() {
 /// not short parametrizations.
 #[test]
 fn a_short_domain_with_an_honest_length_still_certifies() {
-    let ((outcome, margin), got) = span_meter_sample(1e-3, 1e-6);
+    let (sample, got) = span_meter_sample(1e-3, 1e-6);
+    let (outcome, margin) = (sample.outcome, sample.margin);
     got.expect("a millimetre carrier over a 1e-6 knot domain certifies");
     assert!(
         matches!(outcome, SampleOutcome::Definite(Sign::Positive)),

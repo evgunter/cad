@@ -101,13 +101,11 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let sphere_face = body
         .faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(fk, f)| (fk, f.outer))
         .expect("the wedge has a sphere face");
     let (outer, _) = topo::props::loop_edges(&body, sphere_face.1).unwrap();
-    let surface = body
-        .get_surface(body.get_face(sphere_face.0).unwrap().surface)
-        .unwrap();
+    let surface = body.face_surface(sphere_face.0).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
         geom_brep::props::require_iso_rectangle(surface, &outer, band),
@@ -165,7 +163,7 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
     body.faces()
         .map(|(fk, f)| {
             let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
-            let surface = body.get_surface(f.surface).unwrap();
+            let surface = body.face_surface(fk).unwrap();
             (
                 fk,
                 geom_brep::props::require_iso_rectangle(surface, &outer, band),
@@ -451,7 +449,7 @@ fn a_zero_width_slit_passes_the_door_and_trips_the_spatial_check_feature_sized()
     let (body, face) = slit();
     let f = body.get_face(face).unwrap();
     let (outer, _) = topo::props::loop_edges(&body, f.outer).unwrap();
-    let surface = body.get_surface(f.surface).unwrap();
+    let surface = body.face_surface(face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
         geom_brep::props::require_iso_rectangle(surface, &outer, band),

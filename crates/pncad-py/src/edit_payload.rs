@@ -324,7 +324,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
                 F::NotCanonical { at } | F::Kind { at, .. } => (Some(*at), None, None),
                 F::Count { count, .. } => (None, None, Some(*count)),
-                F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
+                F::SideIndex { k } => (Some(*k), None, None),
+                F::NotASelection { .. }
+                | F::Seat { .. }
+                | F::OtherBody
+                | F::Input(_) => (None, None, None),
             };
             let (found_kind, expected_kind) = match fault {
                 F::Kind {
@@ -335,7 +339,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 | F::NotCanonical { .. }
                 | F::Count { .. }
                 | F::NotASelection { .. }
-                | F::OtherBody => (None, None),
+                | F::OtherBody
+                | F::Input(_)
+                | F::SideIndex { .. } => (None, None),
             };
             EditPayload {
                 node: Some(node.id()),
@@ -512,6 +518,40 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DefinitionUnknownVarName { var, name: _ }
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
+            ..none
+        },
+        EditError::SourceRead { var, fault } => EditPayload {
+            param: var.name(),
+            found: match fault {
+                pncad::document::SourceFault::Kind { found } => Some(var_kind_tag(*found)),
+                pncad::document::SourceFault::IndexNotCount { found, .. } => Some(dim(*found)),
+                pncad::document::SourceFault::Unresolved { .. }
+                | pncad::document::SourceFault::IndexRank { .. }
+                | pncad::document::SourceFault::WrittenInPlace
+                | pncad::document::SourceFault::Fresh => None,
+            },
+            ..none
+        },
+        EditError::TakeOverNotASource { var } => EditPayload {
+            param: var.name(),
+            ..none
+        },
+        EditError::SourceReaderRefused { source, .. } => EditPayload {
+            param: source.name(),
+            ..none
+        },
+        EditError::TakeOverSharedSource {
+            copy,
+            source,
+            other: _,
+        } => EditPayload {
+            node: Some(copy.id()),
+            param: source.name(),
+            ..none
+        },
+        EditError::PlacementReadsNoSource { node, read } => EditPayload {
+            node: Some(node.id()),
+            param: read.name(),
             ..none
         },
         EditError::Index { var, fault } => EditPayload {

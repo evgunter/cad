@@ -2075,12 +2075,14 @@ class TestRocker(unittest.TestCase):
         )
         self.assertEqual(self.census(doc, rocker), (38, 57, 21))
 
-    def test_the_outline_is_ten_vertices_and_no_authored_corner(self):
-        """The LB5 topology, positively: the hub arc is ONE segment,
-        so the outline carries ten vertices — five fillet arcs, each
-        with a trim point ahead of it — and the seam sits on the keel,
-        where `.to(Start)` retrims the entry anchor away."""
-        self.assertEqual(self.outline().vertex_count, 10)
+    def test_the_outline_is_twelve_vertices_and_no_authored_corner(self):
+        """The LB5 topology, positively: twelve vertices — five fillet
+        arcs, each with a trim point ahead of it, and the boss's and the
+        hub's authored entry points, where each `arc_fillet(Radius)`
+        starts its run on the same circle as a segment of its own — and
+        the seam sits on the keel, where `.to(Start)` retrims the entry
+        anchor away."""
+        self.assertEqual(self.outline().vertex_count, 12)
         self.assertEqual(self.outline().step_count, 12)
 
 
@@ -2548,8 +2550,8 @@ class TestTeapot(unittest.TestCase):
     hollowed by `Node.shell` and OPENED at its mouth, a revolved lid
     whose three latitude rims roll through `Node.fillet`, a revolved
     spout placed against the pot, a `Node.tube` handle, and the two
-    unions, each refused past the operand gate
-    (`test_both_joins_refuse_through_the_document`).
+    unions: the handle's builds and validates, the spout's refuses past
+    the join (`test_the_handle_join_builds_and_the_spout_join_refuses`).
 
     Every selection here is a NAME the evaluation answered: the mouth
     is the pot's `Band` at the mouth-disc segment (a full revolve sweeps
@@ -2563,12 +2565,11 @@ class TestTeapot(unittest.TestCase):
     the same dyadic constants — never a decimal copied out of a run.
 
     One thing the Rust scene says that this row says differently, and
-    it is the binding's shape rather than a gap: the two unions arrive as
+    it is the binding's shape rather than a gap: the spout's union arrives as
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
-    variant name `CurvedPairUnsupported` is not in the text and what
-    the row pins instead is the face pair the gate named, which is the
-    same fact the Rust wall matches on.
+    variant name is not in the text, and what the row pins instead is
+    the refusal's arm (`inner_kind`) and the refusing test's own sentence.
     """
 
     # ---- the vessel (dyadic metres, exactly the scene's) ----
@@ -2966,7 +2967,7 @@ class TestTeapot(unittest.TestCase):
         )
         handle = joined(doc, pot, handle, axes_at(self.HANDLE_C, (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
-        # ---- the two joins, both refused ----
+        # ---- the two joins: the handle's builds, the spout's refuses ----
         joins = [
             doc.insert(Node.union([cup, handle])),
             doc.insert(Node.union([cup, spout])),
@@ -3264,53 +3265,64 @@ class TestTeapot(unittest.TestCase):
         self.close(pinned(tube).volume, v_handle, "handle V")
         self.close(pinned(tube).surface_area, a_handle, "handle A")
 
-    def test_both_joins_refuse_through_the_document(self):
+    def test_the_handle_join_builds_and_the_spout_join_refuses(self):
         doc = Doc()
-        *_rest, joins = self.teapot(doc)
+        _sealed, cup, *_rest, handle, joins = self.teapot(doc)
         ev = evaluate(doc)
-        # **TWO DIFFERENT DOORS, each of which has moved.**
         handle_join, spout_join = joins
 
         # handle union vessel: PAST the operand gate, because the
-        # handle's torus is on the union's kind roster, and PAST the
+        # handle's torus is on the union's kind roster; PAST the
         # maximal-faces precondition, since a full revolve sweeps the
-        # vessel's planar walls whole, and PAST the section: the
-        # sphere x torus pair's loops are carried, its germs matched on
-        # them and its closed loops seated, so the union builds. Dead at
-        # the result's validation: its volume is not computed, the
-        # vessel's sphere face trimmed by a conic loop no sphere-chart
-        # quadrature reads yet. Pinned by the refusal's arm, not a
-        # sentence of its text.
-        self.assertFalse(ev.succeeded(handle_join))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(handle_join)
-        refusal = caught.exception
-        self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "result_invalid")
+        # vessel's planar walls whole; PAST the section, whose sphere x
+        # torus loops are carried, matched and seated; and PAST the
+        # result's validation, since the vessel's chorded sphere face
+        # and the handle's chorded torus face measure through the
+        # rotational lane (the Rust scene retired its wall 2 on this).
+        self.assertTrue(ev.succeeded(handle_join))
+        joined_body = ev.value(handle_join).body()
+        joined_body.validate()
+        # Held to what a union must satisfy, from the operands' own
+        # readings: no smaller than either, and short of their sum by
+        # a real overlap (the handle's roots stand 11.2 mm into the
+        # wall).
+        v_join = pinned(joined_body).volume
+        v_cup = pinned(ev.value(cup).body()).volume
+        v_handle = pinned(ev.value(handle).body()).volume
+        self.assertGreater(v_join, max(v_cup, v_handle))
+        self.assertLess(v_join, v_cup + v_handle)
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists; PAST the split of the
-        # spout's spline seam where the solids meet; and PAST the
-        # spout's walls' reading of the belly's pierce point. Dead in
-        # the join, where no section frame traces the belly's sphere
-        # against the spout's spline wall (SECTARMS'
-        # `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-        # Making the spout the shape a potter draws did not make it
-        # joinable; it moved the refusal off a pair nobody modelled
-        # and onto the meeting itself. Pinned by the refusal's arm, and
-        # by the two face kinds its narration names.
+        # spout's spline seam where the solids meet; PAST the spout's
+        # walls' reading of the belly's pierce point; and PAST the
+        # section, which the spline-implicit lane traces between the
+        # belly's sphere and the spout's spline wall; and PAST the join,
+        # whose section edges on the spout's wall beside the belly's
+        # sphere certify at the attachment gate. Dead at the result's
+        # inside/outside test, which has no way to cross a spline face.
+        # Pinned by the refusal's arm, and by that test's own sentence.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "germ_frame_unsupported")
+        self.assertEqual(refusal.inner_kind, "containment")
         text = str(refusal)
-        self.assertIn("sphere face", text)
-        self.assertIn("spline (NURBS) face", text)
-        # NOT the pair rung any more, and this is the half that would
-        # go quietly wrong if it were only asserted positively.
+        self.assertIn("cannot tell what is inside the solid", text)
+        self.assertIn(
+            "a spline (NURBS) surface, which the inside/outside test has no way yet to cross",
+            text,
+        )
+        # NOT the pair rung, nor the germ frame the section stopped at
+        # before the lane traced it, nor the join's attachment gate the
+        # section's edges stopped at before they had a certificate: the
+        # halves that would go quietly wrong if the refusal were only
+        # asserted positively.
         self.assertNotIn("may meet", text)
+        self.assertNotIn("sphere face", text)
+        self.assertNotIn("sections could not be joined", text)
+        self.assertNotIn("has no certificate", text)
 
 
 class TestTorusvessel(unittest.TestCase):

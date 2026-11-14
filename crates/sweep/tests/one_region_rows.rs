@@ -233,8 +233,8 @@ fn circle_arc<T: Scalar>(
 fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
     let (face, frame) = body
         .faces()
-        .find_map(|(k, f)| {
-            let s = body.get_surface(f.surface)?;
+        .find_map(|(k, _)| {
+            let s = body.face_surface(k)?;
             kind(s).then(|| (k, Frame::of(s)))
         })
         .expect("the wall");
@@ -590,8 +590,8 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
     );
     let (face, cycles) = honest
         .faces()
-        .find_map(|(face, f)| {
-            matches!(honest.get_surface(f.surface), Some(Surface::Torus { .. })).then(|| {
+        .find_map(|(face, _)| {
+            matches!(honest.face_surface(face), Some(Surface::Torus { .. })).then(|| {
                 let cycles = topo::surface_boundary::surface_cycle_windings(&honest, face).unwrap();
                 (face, cycles)
             })
@@ -611,7 +611,7 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
         u: element.deck().u - 2 * windings[0],
         ..element.deck()
     };
-    misread.attach_joint(h, topo::JointElement::Shift(turned));
+    misread.attach_joint(h, topo::JointElement(turned));
     let errors = topo::validate_geometric_structural(&misread, tol()).unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(
@@ -797,7 +797,9 @@ fn a_sense_flipped_wall_is_refused_by_check_6_alone() {
         Ok(()),
         "the honest wall validates"
     );
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let errors = topo::validate_geometric_structural(&flipped, tol()).unwrap_err();
     assert!(
         errors
@@ -1184,7 +1186,7 @@ fn lune_pole_rows(d: f64) {
             .into_body();
         let face = lune
             .faces()
-            .find(|(_, f)| matches!(lune.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .find(|(fk, _)| matches!(lune.face_surface(*fk), Some(Surface::Sphere { .. })))
             .unwrap()
             .0;
         for (q, want) in rows {
@@ -1241,8 +1243,8 @@ fn points_beside_a_domes_far_pole<T: Scalar>(scalar: &str) {
     for angle in [None, Some(core::f64::consts::PI), Some(1f64.to_radians())] {
         let at_f64 = dome_by::<f64>(angle);
         let body = dome_by::<T>(angle);
-        for (k, f) in at_f64.faces() {
-            if !matches!(at_f64.get_surface(f.surface), Some(Surface::Sphere { .. })) {
+        for (k, _) in at_f64.faces() {
+            if !matches!(at_f64.face_surface(k), Some(Surface::Sphere { .. })) {
                 continue;
             }
             let face = same_face(&at_f64, k, &body);
@@ -1285,7 +1287,7 @@ fn a_frustums_apex<T: Scalar>(scalar: &str) {
     let at_f64 = revolved::<f64>(&profile);
     let (k, apex) = at_f64
         .faces()
-        .find_map(|(k, f)| match at_f64.get_surface(f.surface) {
+        .find_map(|(k, _)| match at_f64.face_surface(k) {
             Some(Surface::Cone { apex, .. }) => Some((k, *apex)),
             _ => None,
         })

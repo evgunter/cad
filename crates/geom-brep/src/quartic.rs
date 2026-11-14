@@ -4,6 +4,7 @@
 //! [`quadratic_roots`] its factors (and every quadratic arm) are solved by,
 //! and the `sqrt`-chain cube root its Ferrari resolvent is built on.
 
+pub use crate::rows::QuarticRows;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -227,24 +228,6 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
     (d.powi(3) - c0) / (d.powi(2) + pair)
 }
 
-/// The predicate names one caller of [`depressed_quartic_roots`] meters
-/// its ladder under, so each lane's rows stay its own in the verdict
-/// log.
-pub struct QuarticRows {
-    /// The discriminant `Δ`'s sign.
-    pub disc: &'static str,
-    /// `p`'s sign on the positive branch.
-    pub shape: &'static str,
-    /// `D = 64s − 16p²`'s sign on the positive branch.
-    pub depth: &'static str,
-    /// Whether `q̂` is in band (the biquadratic arm).
-    pub odd: &'static str,
-    /// A quadratic factor's discriminant.
-    pub split: &'static str,
-    /// The resolvent's largest root.
-    pub split_lead: &'static str,
-}
-
 /// **The certified real roots of the depressed monic quartic**
 /// `y⁴ + p y² + q̂ y + s`: the count read off exact sign algebra (`Δ`,
 /// then `p` and `D = 64s − 16p²` on the positive branch), the
@@ -343,14 +326,14 @@ pub fn depressed_quartic_roots<T: Decide>(
         - T::from_f64(27.0) * q_hat.powi(4)
         + T::from_f64(16.0) * p.powi(4) * s
         - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
+    let disc_sign = decide(rows.disc(), Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Err(Unsettled::Tangency.into()),
         Sign::Positive => {
-            let shape = decide(rows.shape, Margin::over_lever(p, lever), band)?;
+            let shape = decide(rows.shape(), Margin::over_lever(p, lever), band)?;
             let depth = decide(
-                rows.depth,
+                rows.depth(),
                 Margin::over_lever(
                     T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
                     lever.powi(3),
@@ -373,7 +356,7 @@ pub fn depressed_quartic_roots<T: Decide>(
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
     // `α = 0` one and is taken on its own closed form.
     let (f0, f1) =
-        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
+        if decide(rows.odd(), Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
             // `y⁴ + p y² + s`: with `α = 0` the factorization's own
             // relations collapse to `β + γ = p` and `βγ = s`, so the two
             // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
@@ -381,7 +364,7 @@ pub fn depressed_quartic_roots<T: Decide>(
             // quadratic in `y²`, which is the sign this arm is easy to get
             // backwards and which no in-band case would have caught.
             let inner = p.powi(2) - four * s;
-            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
+            match decide(rows.split(), Margin::over_lever(inner, lever.powi(3)), band)? {
                 Sign::Positive => {}
                 // A repeated `y²`, or none at all with a count that says
                 // otherwise: neither is a certified pair of factors.
@@ -407,7 +390,7 @@ pub fn depressed_quartic_roots<T: Decide>(
                 T::zero() - q_hat.powi(2),
                 disc_sign == Sign::Positive,
             );
-            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
+            match decide(rows.split_lead(), Margin::over_lever(z, lever), band)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(Unsettled::Resolvent.into()),
             }
@@ -426,7 +409,7 @@ pub fn depressed_quartic_roots<T: Decide>(
     let mut found = 0usize;
     for (a, c) in [f0, f1] {
         let inner = a.powi(2) - four * c;
-        match decide(rows.split, Margin::over_lever(inner, lever), band)? {
+        match decide(rows.split(), Margin::over_lever(inner, lever), band)? {
             Sign::Negative => continue,
             Sign::Zero => return Err(Unsettled::Tangency.into()),
             Sign::Positive => {}

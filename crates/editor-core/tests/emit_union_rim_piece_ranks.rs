@@ -88,9 +88,8 @@ pub(crate) fn signature(
     let body = body_of(ev, union);
     let point = |v| fine(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
     let mut neighbours: BTreeMap<_, Vec<P>> = BTreeMap::new();
-    for (_, edge) in body.edges() {
-        let s = body.get_half_edge(edge.he_plus).unwrap().start;
-        let t = body.get_half_edge(edge.he_minus).unwrap().start;
+    for (edge, _) in body.edges() {
+        let (s, t) = body.edge_vertices(edge).unwrap();
         neighbours.entry(s).or_default().push(point(t));
         neighbours.entry(t).or_default().push(point(s));
     }

@@ -17,9 +17,9 @@ use topo::{Body, FaceKey, ShellError};
 
 fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
             )
@@ -32,9 +32,9 @@ fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
 /// component dominant and origin coordinate near `c`.
 fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.x - x).abs() < 1e-9 && normal.y.abs() < 1e-9 && normal.z.abs() < 1e-9
             )
@@ -426,7 +426,7 @@ fn probe_opened_vessel_cup() {
     // loosening the volume the row checks.
     let mut caps: Vec<(FaceKey, f64)> = v
         .faces()
-        .filter_map(|(k, f)| match v.get_surface(f.surface) {
+        .filter_map(|(k, _)| match v.face_surface(k) {
             Some(geom::Surface::Plane { origin, .. }) => Some((k, origin.y)),
             _ => None,
         })
@@ -469,8 +469,8 @@ fn probe_opened_vessel_cup() {
             let counts = euler_counts(&cup);
             let mouth: Vec<FaceKey> = cup
                 .faces()
-                .filter(|(_, f)| {
-                    matches!(cup.get_surface(f.surface),
+                .filter(|(fk, _)| {
+                    matches!(cup.face_surface(*fk),
                         Some(geom::Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12)
                 })
                 .map(|(k, _)| k)
@@ -575,12 +575,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     let v = vessel(1.0, 2.0);
     let cyl: Vec<FaceKey> = v
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                v.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert!(
@@ -606,7 +601,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     // A mixed group refuses too, untouched.
     let cap = v
         .faces()
-        .find(|(_, f)| matches!(v.get_surface(f.surface), Some(geom::Surface::Plane { .. })))
+        .find(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
@@ -659,12 +654,7 @@ fn probe_late_err_leaves_body_untouched() {
     ])]);
     let cap = elbow
         .faces()
-        .find(|(_, f)| {
-            matches!(
-                elbow.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(elbow.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mut work = elbow.clone();

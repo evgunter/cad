@@ -367,10 +367,11 @@ pub fn witness(
     *probed |= moved(display, face_a.node) || moved(display, face_b.node);
 }
 
-/// Whether `node` is drawn in a free-moved space — the one read behind
-/// every probe flag on an [`EdgeOverlay`].
+/// Whether `node` is drawn in a space under a display frame
+/// ([`DisplayView::space_frame`]) — the one read behind every probe
+/// flag on an [`EdgeOverlay`], as the scene's probe flag.
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
-    display.moved_nodes.contains_key(&node)
+    display.space_frame(node).is_some()
 }
 
 /// The edge marks a frame draws: the drawn polylines of the marked
@@ -442,7 +443,7 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
-    /// **What a preview's fused fillet steps construct**: each step's
+    /// **What a preview's fillet steps construct**: each step's
     /// whole carriers and its fillet circle, in the theme's
     /// construction colour, under the preview's kept pieces.
     ///

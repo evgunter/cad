@@ -236,6 +236,12 @@ impl<T: SpanLocate> LoopEdge<T> {
         self.carrier.eval(self.t1)
     }
 
+    /// The carrier point the edge's traversal starts at: `p0` forward,
+    /// `p1` reversed.
+    pub fn traversal_start(&self) -> Point3<T> {
+        if self.forward { self.p0() } else { self.p1() }
+    }
+
     /// The carrier points at the edge's TRAVERSAL ends, in traversal
     /// order — `(p0, p1)` forward, swapped otherwise, the geometric
     /// twin of the `(start, end)` tag pair.
@@ -303,6 +309,8 @@ pub enum PropsError {
     /// routes it to by carrier kind; this lane's refusal is what a walk
     /// holding no quadrature lane reads. The variant carries no `what`,
     /// so the frontier is named here and at each raising site.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual of an inventory premise is
@@ -321,6 +329,8 @@ pub enum PropsError {
     /// `what` is a structural sentence no margin decided. Either way
     /// this `Decide`-generic lane does not read a margin back as
     /// `f64`.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -345,18 +355,24 @@ pub enum PropsError {
     ///
     /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
     /// reason.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     OffSurface {
         /// Which incidence failed (static description).
         what: &'static str,
     },
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     NappeSpanning,
     /// A sphere face (`curved::sphere_face`) fails a premise of its
     /// Gauss–Bonnet closed form: an edge not a circle on the sphere,
     /// a loop that does not close, a cusp, or a degenerate area.
     /// Name-only, as [`Self::NotIsoRectangle`]: `what` is the deciding
     /// predicate's name.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     SphereLoop {
         /// Which premise failed (the predicate's name).
         what: &'static str,
@@ -366,6 +382,8 @@ pub enum PropsError {
     /// through the apex, that meets itself at a vertex, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     ConeLoop {
         /// Which premise failed (the predicate's name).
         what: &'static str,
@@ -376,6 +394,8 @@ pub enum PropsError {
     /// loop's — the face's side (`props_cone_area_side`) is not the
     /// outer loop's — so the face's area would come out
     /// negative. Holes that overlap each other or leave the region.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     HolesExceedFace,
     /// A one-loop sphere face's sense bit contradicts the side its
     /// boundary encodes (`curved::sphere_loop_side`), so its radial
@@ -385,15 +405,21 @@ pub enum PropsError {
     /// inverted, or the face holds in its interior the one chart pole
     /// off its loop, which import must normalise into a vertex of the
     /// face.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SenseContradicted,
     /// A sphere face WITH HOLES whose sense bit contradicts the side
     /// its boundary encodes — the side of its loops with positive
     /// area, which no chart pole enters — so the bit is inverted.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SenseInverted,
     /// **A sphere seam region's faces overlap**: under their sense bits,
     /// its members claim the region `times` times over (`times ≥ 2`,
     /// [`sphere_region_cover`]). Tier 3's check 6 refuses the same region
     /// (`ValidationError::SeamRegionOvercovered`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SeamRegionOvercovered {
         /// How many times over the members claim the region.
         times: usize,
@@ -402,6 +428,8 @@ pub enum PropsError {
     /// of a half-sphere threshold, or below its floor of no cover
     /// ([`SeamCover::Unresolved`]). Tier 3's check 6 refuses the same
     /// (`ValidationError::SeamRegionCoverUnresolved`).
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     SeamRegionCoverUnresolved,
     /// **Two faces of one sphere meet with their material on one side of
     /// their seam**: their sense bits disagree across a shared edge, a
@@ -409,6 +437,8 @@ pub enum PropsError {
     /// (`ValidationError::LaminaWedge`), read here off the seam region
     /// ([`SeamCover::MixedSense`]), since the measurement door runs no
     /// check 4.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SeamRegionSensesDisagree,
     /// **A hole is wound the same way as its face** (`props_ring_winding`):
     /// a ring's signed area has the sign of the face's whole, where a
@@ -417,6 +447,8 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms', the cylinder
     /// quadrature's and the spiric lane's one decision
     /// (`curved::require_holes_wound_against`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     RingWoundWithFace,
     /// **A loop does not close on its periodic chart**
     /// (`props_chart_junction_open`): at one junction the edge after
@@ -425,6 +457,8 @@ pub enum PropsError {
     /// off. Stored data that is wrong: consecutive edges of a loop meet
     /// at their shared vertex. Every lane on a cylinder or torus chart
     /// decides it the one way (`closure::require_junction_closed`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ChartLoopOpen,
     /// **A face's loops wind its periodic chart as no face's boundary
     /// does**: with every junction decided closed, one loop winds the
@@ -434,6 +468,8 @@ pub enum PropsError {
     /// simple closed curves that bound it. A band's two rims, once each
     /// and opposite ways, are not this; a lane whose closed form cannot
     /// fold such a band refuses it as its inventory.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
@@ -469,6 +505,8 @@ pub enum PropsError {
     /// `scripts/gates/bounds-allowlist.sh` exists to keep off
     /// `props/curved.rs`; one payload does not earn that seam. Every
     /// arm of this enum is name-only, as [`Self::NotIsoRectangle`] is.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`
@@ -500,9 +538,13 @@ pub enum PropsError {
     /// dwarfs the area, e.g. the extreme-weight rational patches in
     /// [`quad`]'s envelope table — lands here too: a false negative
     /// (a capability gap, recorded as such), never a wrong answer.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     DegenerateFace,
     /// A structural classification landed in the ambiguity band or was
     /// poisoned (D4 ¶3: escalate, never guess).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a precision limit: kept by its margin.
     Escalated {
         /// The escalation, with its predicate name attached.
         cause: Indeterminate,
@@ -522,6 +564,8 @@ pub enum PropsError {
     /// structural fact AND the real blocker (exact structural doors —
     /// no in-band twin exists, stated so the omission of the
     /// two-tolerance shape reads as a decision).
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     QuadratureUnsupported {
         /// Which structural expectation failed, with its blocker.
         what: &'static str,
@@ -609,6 +653,44 @@ impl PropsCheck {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm, reading),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
+        }
+    }
+}
+
+impl PropsError {
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]), each
+    /// variant's `[failure.taxonomy]` row as its doc states it:
+    /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin;
+    /// the unbuilt lanes, row 2, are limits; an invalid input (1(a)), a
+    /// stored-data fault (4) and a payload that mixes classes abort.
+    /// Exhaustive with no catch-all arm, so an added variant states its
+    /// standing here before it compiles.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for an invalid input, a stored-data
+    /// fault and a payload that mixes classes.
+    pub(crate) const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
+            Self::Unimplemented
+            | Self::NotOneChartBranch { .. }
+            | Self::QuadratureUnsupported { .. } => Ok(crate::ladder::Refusal::Limit),
+            Self::NappeSpanning
+            | Self::HolesExceedFace
+            | Self::SenseContradicted
+            | Self::SenseInverted
+            | Self::SeamRegionOvercovered { .. }
+            | Self::SeamRegionSensesDisagree
+            | Self::RingWoundWithFace
+            | Self::ChartLoopOpen
+            | Self::LoopsWindChart
+            | Self::DegenerateFace
+            | Self::OffSurface { .. }
+            | Self::NotIsoRectangle { .. }
+            | Self::SphereLoop { .. }
+            | Self::ConeLoop { .. }
+            | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
         }
     }
 }
@@ -745,27 +827,105 @@ crate::ended_by_write!(PropsError);
 
 impl std::error::Error for PropsError {}
 
+/// **Where a face's measure is read from** ([`face_anchor`]), out of
+/// its vertices alone.
+#[derive(Clone, Copy, Debug)]
+pub struct FaceAnchor<T: Real> {
+    /// The least corner of the box of the face's vertices, each
+    /// coordinate one of theirs: the point its vector area is summed
+    /// about, which a closed loop's does not depend on. Read with no
+    /// arithmetic, it is as exact as the vertices are, so a face of
+    /// grid points reads its vector area exactly, and a face far from
+    /// the origin rounds no coordinate taking it.
+    pub lever: Point3<T>,
+    /// The mean of the vertices' offsets from `lever`: `lever + offset`
+    /// ([`Self::at`]) is the mean of the vertices, a convex combination
+    /// of boundary points, on the face's plane to within their stand-off
+    /// from it. Kept as an offset so a reading levered from another
+    /// point takes the difference of two stored points and this, never
+    /// a rounded absolute coordinate.
+    pub offset: Vec3<T>,
+}
+
+impl<T: Real> FaceAnchor<T> {
+    /// The mean of the face's vertices: the point its flux is read about.
+    #[must_use]
+    pub fn at(&self) -> Point3<T> {
+        self.lever + self.offset
+    }
+
+    /// The offset of [`Self::at`] from `from`, taken as `(lever − from) +
+    /// offset`.
+    #[must_use]
+    pub fn from(&self, from: Point3<T>) -> Vec3<T> {
+        (self.lever - from) + self.offset
+    }
+}
+
+/// **Where a face's measure is read from**, out of its boundary's
+/// `vertices`: the start point of each edge in traversal
+/// ([`LoopEdge::traversal_start`]) or each point of a vertex polygon's
+/// rings, every loop's ([`FaceAnchor`]). Both are functions of the vertex
+/// set alone: no loop order, no traversal start and no carrier direction
+/// moves them, so a face reads the same however an operation happened to
+/// write its loops. Both lie within the box of its vertices, so the lever
+/// of every term its reading sums is the face's own extent; a face whose
+/// vertices share a coordinate reads that coordinate exactly at both. It
+/// reads only the stored boundary, so both scalars take it before either
+/// reads the face. `None` where there is no vertex.
+pub fn face_anchor<T: Real>(
+    vertices: impl IntoIterator<Item = Point3<T>>,
+) -> Option<FaceAnchor<T>> {
+    let points: Vec<Point3<T>> = vertices.into_iter().collect();
+    let (&first, rest) = points.split_first()?;
+    let lever = rest.iter().fold(first, |lo, p| {
+        Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z))
+    });
+    // The count kept in `T`, one per vertex: an exact small integer.
+    let (sum, n) = points
+        .iter()
+        .fold((Vec3::zero(), T::zero()), |(sum, n), &p| {
+            (sum + (p - lever), n + T::one())
+        });
+    Some(FaceAnchor {
+        lever,
+        offset: sum * (T::one() / n),
+    })
+}
+
+/// [`face_anchor`] of a face's loops.
+pub fn loops_anchor<T: SpanLocate>(loops: &[Vec<LoopEdge<T>>]) -> Option<FaceAnchor<T>> {
+    face_anchor(loops.iter().flatten().map(LoopEdge::traversal_start))
+}
+
 /// The flux and area of a **planar** face from its loops (outer +
-/// rings, all traversed as stored): `A⃗ = Σ_loops (1/2)∮(p−origin)×dp`,
-/// `flux = origin·A⃗` (the plane through `origin` makes
-/// `(p−origin)·n = 0`), `area = ‖A⃗‖` (rings subtract via their stored
-/// opposite winding; the loop orientation convention points `A⃗` along
-/// the face's outward normal). `origin` doubles as the translation
-/// reference (Mäntylä's far-from-origin conditioning remedy).
+/// rings, all traversed as stored), read at the face ([`face_anchor`]):
+/// its boundary's flux about `a`, the mean of its vertices — the vector
+/// area `A⃗ = Σ_loops (1/2)∮(p−l)×dp`, summed about `l`, the least corner
+/// of their box (a closed loop's does not depend on it), and `flux = a·A⃗`,
+/// the fan from a point of the face. `area = ‖A⃗‖` (rings subtract via their
+/// stored opposite winding; the loop orientation convention points `A⃗`
+/// along the face's outward normal). The surface's origin is never
+/// read: the term is the face's own wherever its record is anchored
+/// (`[tolerance.epsilon]`), and a face whose loops stand off its record
+/// — a face moved onto a record in band of its own — reads the fan its
+/// own boundary spans. Over a closed shell the fans meet at the shared
+/// points, so the sum is the volume they bound, about any point. The
+/// interval lane encloses this same flux about the same anchor
+/// (`topo`'s `props::quad_lane::planar_face_about`: the part along the
+/// normal and a slack for the part across it).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
 /// sense at all — not the bit its curved sibling takes — and
 /// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
-/// is. A planar face's entire flux is `origin·A⃗` (the anchored term
-/// vanishes on the plane), so orientation reaches this computation
-/// exclusively through the winding, never through the surface's chart
-/// normal. `revert` reverses loops and flips `Face::sense` together;
+/// is. `revert` reverses loops and flips `Face::sense` together;
 /// applying the sense here as well would negate the volume twice.
 ///
 /// # Errors
 ///
+/// [`PropsError::DegenerateFace`] where no loop has a point;
 /// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier, which
 /// the certified lane reads instead ([`rational_rim`]); non-rational
 /// spline boundaries integrate exactly through
@@ -773,16 +933,15 @@ impl std::error::Error for PropsError {}
 /// at-rest case is a stage-1-promoted plane keeping its parsed spline
 /// boundary carriers).
 pub fn planar_face<T: SpanLocate>(
-    origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {
+    let anchor = loops_anchor(loops).ok_or(PropsError::DegenerateFace)?;
     let mut va = Vec3::zero();
     for lp in loops {
-        va = va + loop_vector_area(lp, origin)?;
+        va = va + loop_vector_area(lp, anchor.lever)?;
     }
-    let flux = (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
-        flux,
+        flux: anchor.from(Point3::origin()).dot(va),
         area: va.norm(),
     })
 }
@@ -833,7 +992,7 @@ mod tests {
                 for i in 0..4 {
                     edges.push(line_edge(order[i], order[(i + 1) % 4]));
                 }
-                let c = planar_face(order[0], &[edges]).unwrap();
+                let c = planar_face(&[edges]).unwrap();
                 flux += c.flux;
                 area += c.area;
             }
@@ -906,11 +1065,12 @@ mod tests {
             }
             .render(crate::recourse::Reading::AtRest)
         };
-        // A premise no valid body violates is a defect however it is
-        // refused, and no tolerance is offered for one.
+        // A premise no valid body violates, read at rest and not decided,
+        // is reported as undecided (ONEHOME fork 259): at a point, the
+        // last resort, and no tolerance below is offered for one.
         let on_surface = under(PropsCheck::Exact);
         assert!(
-            on_surface.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            on_surface.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
             "{on_surface}"
         );
         assert!(!on_surface.contains("tolerance below"), "{on_surface}");
@@ -1036,5 +1196,19 @@ mod tests {
                 "{words} words, over the budget: {msg}"
             );
         }
+    }
+}
+
+/// **`PropsError`'s standing by row** ([`PropsError::refusal`]): a lane
+/// not built (row 2) is a limit, and an invalid input (row 1(a)) aborts.
+#[cfg(test)]
+mod refusal_rows {
+    use super::PropsError;
+    use crate::ladder::{Aborts, Refusal};
+
+    #[test]
+    fn an_unbuilt_lane_is_a_limit_and_invalid_input_aborts() {
+        assert_eq!(PropsError::Unimplemented.refusal(), Ok(Refusal::Limit));
+        assert_eq!(PropsError::HolesExceedFace.refusal(), Err(Aborts));
     }
 }

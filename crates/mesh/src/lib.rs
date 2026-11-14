@@ -1,6 +1,6 @@
 //! Tessellation: watertight triangle meshes from B-rep bodies (M2 PR 6),
 //! except where two coincident edges join one vertex pair
-//! (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+//! (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 //!
 //! [`fn@tessellate`] triangulates every face of a closed body into a
 //! [`Mesh`] whose triangles are certified to lie within a caller-chosen
@@ -73,7 +73,7 @@
 //! where two coincident edges join one vertex pair: both chord to one
 //! segment and its four faces use it four times, which `check_mesh`
 //! refuses as a non-manifold edge
-//! (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+//! (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 //! [`validate::check_mesh`] re-derives that over an emitted mesh and
 //! is what the acceptance suites run — but **[`fn@tessellate`] does
 //! not call it**, so a mesh whose construction argument failed is
@@ -91,14 +91,10 @@
 //! [`memo`]'s docs) and places a stored patch through the same fold the
 //! lane's fresh one takes, so its mesh is byte-identical to
 //! [`fn@tessellate`]'s. The chord points themselves are a pure function of
-//! (edge carrier + interval, endpoint vertex points, the adjacent
-//! faces' surface parameters, an adjacent cone face's largest rim
-//! radius, whether an adjacent cylinder face is trimmed, δ) — adjacent
-//! faces enter only through the grid, headroom and trimmed-NURBS
-//! boundary-step requirements, which reach a neighbour through one
-//! named door in [`chords`]. That
-//! module states what does and does not hold the door shut; nothing
-//! here adds to it.
+//! (edge carrier + interval, endpoint vertex points, each adjacent
+//! face's lattice and the half-edge's image on it, δ) — adjacent faces
+//! enter only through their target and the one chord rule in
+//! [`chords`], which that module states.
 //!
 //! # Structure kept, structure dropped
 //!
@@ -121,24 +117,30 @@
 //! # Orientation, seams, poles
 //!
 //! Outward triangle winding falls out of the loop conventions (D1
-//! interior-left): the boundary walk's UV polygon is CCW exactly when
-//! the face's outward normal agrees with the chart normal; a negative
-//! UV signed area flips the emitted triangles.
+//! interior-left): the polygon a face's boundary draws in its chart is
+//! counter-clockwise exactly when the face's outward normal is the
+//! chart normal, which is when `topo::Face::sense` is set. That rule's
+//! home is `geom_brep::PolygonOrientation`, and a lane that pairs a chart
+//! polygon with the bit reads it there.
 //!
-//! **The orientation-sense contract (M5 S10).** A face's outward
-//! normal is its chart normal with `topo::Face::sense` folded in, so "agrees
-//! with the chart normal" is now a real question with a stored answer
-//! — and the paragraph above is why this crate almost never has to ask
-//! it. Winding is read off the loop's *stored traversal*, and `revert`
-//! reverses the loops and flips `sense` together, so a reversed face
-//! arrives with a negative UV/projected area and flips itself.
-//! Folding the sense into those shoelaces would double-count the
-//! reversal — the hazard is named in place at both sites (`planar`,
-//! `curved`). The single exception is the pole-to-pole band's
-//! azimuth disambiguation below, which reads a *direction in the chart
-//! frame* rather than a winding; it is the one sense read in
-//! this crate. Every face this build mints has `sense: true`, so that
-//! read is the identity and the mesh is bitwise unchanged.
+//! **What reads the polygon, and what reads the bit.** The emit passes
+//! (`planar`, `curved`, `trimmed`) wind their triangles by the
+//! polygon's own signed area, which follows the loop's *stored
+//! traversal*: `revert` reverses the loops and flips `sense` together,
+//! so a reversed face arrives with a clockwise polygon and flips
+//! itself, and folding the sense in as well would double-count the
+//! reversal. The bit is read where the traversal cannot answer:
+//!
+//! - `trimmed` checks an analytic arm's polygon against
+//!   `PolygonOrientation::of_face` and refuses one wound against its face,
+//!   and reads each triangle against the face's outward normal
+//!   (`geom_brep::implicit_outward_normal`);
+//! - `walk::wrap_strip` places a wrap strip's far side by
+//!   `PolygonOrientation::of_face`, its loop walking one edge both ways and
+//!   so having no order to read;
+//! - the pole-to-pole band's azimuth below reads the loop's area
+//!   vector, which is on the outward side, against the chart's frame
+//!   turned to that side (`geom_brep::OutwardNormal::from_chart`).
 //!
 //! The walk assigns each iso side's constant coordinate once per ISO
 //! SIDE — not per point, and (since #653) not per edge either, so a
@@ -314,7 +316,9 @@
 // half, so a build without the feature exports the measurement types,
 // a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
+mod cdt;
 pub mod cert;
+mod chart_table;
 mod chords;
 mod curved;
 // The per-face patch memo behind `tessellate_with`: its key, stated

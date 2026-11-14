@@ -2,11 +2,10 @@
 id: a-sphere-cut-in-refuses-a-sphere-face-with-a-boundary-edge-that-is-not-a-circle
 kind: issue
 title: ops::apply_cut_ins refuses a sphere face whose boundary holds an edge that is not a circle, so a sphere cut by a cylinder or cone refuses its cut-in
-status: parked
+status: open
 opened: 2026-10-28
 priority: P1
 cost: M
-blocked_on: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane]
 ---
 
 
@@ -73,3 +72,5 @@ reader too.
 ## Parked (2026-10-29)
 
 Park this behind SPIRICARM's `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`, per the measurement above. Every non-circle edge a sphere face can hold carries a projected or fitted pcurve. The drilled ball that would take the cut-in refuses earlier, at `props`' volume gate, so a routing fix here has no fixture that can reach it at tier 3. When the blocker lands, this row owes both the roots routing in `apply_cut_ins` and widening `sphere_region::sphere_face_region` past its circle roster. (SPLITDOOR orchestrator)
+
+Unparked 2026-11-04: the blocker closed in SPIRICARM's PR 6509, and a sphere face bounded by a chord now passes `props`' volume gate. `sphere_region::sphere_face_region`'s circle roster now also stops point_in_solid on such a face (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`, P0), so widening it serves both rows.

@@ -43,20 +43,67 @@ impl Neg for DInterval {
 
 impl Mul for DInterval {
     type Output = Self;
-    /// The four-corner fold, read on two corners where either operand
-    /// is a one-signed non-point interval ([`DInterval::signed_corners`]),
-    /// bit for bit the fold.
+    /// **Exact by a point power of two** wherever the scaled endpoints
+    /// stay normal ([`DInterval::pow2_product`]), so a halving pads
+    /// nothing at any normal magnitude;
+    /// everywhere else the four-corner fold, read on two corners where
+    /// either operand is a one-signed non-point interval
+    /// ([`DInterval::signed_corners`]), bit for bit the fold.
     fn mul(self, rhs: Self) -> Self {
         if let Some(p) = Self::propagate2(&self, &rhs) {
             return p;
         }
-        self.signed_corners(rhs)
-            .or_else(|| rhs.signed_corners(self))
-            .unwrap_or_else(|| self.corner_product(rhs))
+        self.pow2_product(rhs)
+            .or_else(|| rhs.pow2_product(self))
+            .unwrap_or_else(|| self.general_product(rhs))
     }
 }
 
 impl DInterval {
+    /// The general product, on operands neither poisoned nor empty: the
+    /// four-corner fold, read on two corners where it can be.
+    fn general_product(self, rhs: Self) -> Self {
+        self.signed_corners(rhs)
+            .or_else(|| rhs.signed_corners(self))
+            .unwrap_or_else(|| self.corner_product(rhs))
+    }
+
+    /// **`self · k` for `k` a point `±2ⁿ` at a normal exponent**, exact,
+    /// where both scaled endpoints are zero or strictly above the
+    /// smallest normal ([`exact_scale`]); `None` elsewhere, for the
+    /// general product to decide.
+    ///
+    /// Scaling a finite `x` by a power of two only moves its exponent,
+    /// so `x·k` is exact whenever the exact result is normal. Against the
+    /// general product:
+    ///
+    /// - at `|x·k| >= TWO_PROD_VALID_MIN` that product certifies the
+    ///   same exact `x·k` through its 2Prod witness, so the two agree
+    ///   bit for bit, decoration included;
+    /// - between the smallest normal and that floor (about `2⁻⁹⁵⁹`) the
+    ///   witness cannot certify, so the general product pads one step
+    ///   outward and this is the exact value inside it;
+    /// - an endpoint scaled into the subnormal range, where
+    ///   round-to-nearest would not be outward, an overflow and an
+    ///   infinite endpoint are `None`.
+    ///
+    /// A negative `k` is the positive case negated, with a zero endpoint
+    /// kept `+0.0` as [`mul_lo`]/[`mul_hi`] return it.
+    fn pow2_product(self, w: Self) -> Option<Self> {
+        if w.lo != w.hi || !is_normal_pow2(w.lo.abs()) {
+            return None;
+        }
+        let k = w.lo.abs();
+        let (lo, hi) = (exact_scale(self.lo, k)?, exact_scale(self.hi, k)?);
+        let dec = self.dec.min(w.dec);
+        let neg = |v: f64| if v == 0.0 { 0.0 } else { -v };
+        Some(if w.lo > 0.0 {
+            Self::make(lo, hi, dec)
+        } else {
+            Self::make(neg(hi), neg(lo), dec)
+        })
+    }
+
     /// The general product's four-corner fold, on operands neither
     /// poisoned nor empty.
     fn corner_product(self, rhs: Self) -> Self {
@@ -110,46 +157,23 @@ impl DInterval {
 }
 
 impl DInterval {
-    /// **`self · k` for `k` a positive normal power of two**, exact
-    /// wherever the result is above the smallest normal, without the
-    /// general product's corner fold or its exactness witnesses.
-    ///
-    /// Scaling a finite `x` by a power of two only moves its exponent,
-    /// so `x·k` is exact whenever the exact result is normal, and the
-    /// shortcut returns `[lo·k, hi·k]` unpadded when both ROUNDED
-    /// endpoints land strictly above the smallest normal (or are zero):
-    /// an exact product just under it rounds up onto it
-    /// ([`exact_scale`] reads the boundary). Against the general product
-    /// `self * DInterval::point(k)`:
-    ///
-    /// - at `|x·k| >= TWO_PROD_VALID_MIN` that product certifies the
-    ///   same exact `x·k` through its 2Prod witness, so the two agree
-    ///   bit for bit;
-    /// - between the smallest normal and that floor the witness cannot
-    ///   certify, so the general product pads one step outward and the
-    ///   shortcut is the exact value inside it;
-    /// - every other case — an endpoint scaled into the subnormal range,
-    ///   where round-to-nearest would not be outward; an overflow; an
-    ///   infinite endpoint; a poisoned or empty operand; a `k` that is
-    ///   not a positive normal power of two — IS the general product.
+    /// **`self · k`**, the product by the point `k`: exact for `k` a
+    /// normal power of two wherever the scaled endpoints stay normal
+    /// ([`DInterval::pow2_product`] states each case), the general
+    /// product everywhere else.
     #[must_use]
     pub fn scale_pow2(self, k: f64) -> Self {
-        if Self::propagate1(&self).is_none()
-            && is_normal_pow2(k)
-            && let (Some(lo), Some(hi)) = (exact_scale(self.lo, k), exact_scale(self.hi, k))
-        {
-            return Self::make(lo, hi, self.dec);
-        }
         self * Self::point(k)
     }
 }
 
 impl DInterval {
-    /// **`self · w`, bit for bit the general product, reading two
-    /// corners where `w.lo >= 0`.** Total: every other operand — a `w`
-    /// with a negative lower end, a point `w` (whose general product
-    /// already folds two corners), a poisoned or empty operand — IS the
-    /// general product.
+    /// **`self · w`, bit for bit `self * w`, reading two corners where
+    /// `w.lo >= 0`.** Total: every other operand — a `w` with a negative
+    /// lower end, a point operand (whose product already folds two
+    /// corners, or scales exactly by a power of two), a poisoned or
+    /// empty operand — IS `self * w`. Below, "the general product" is
+    /// that product for a non-point `w`.
     ///
     /// With `w` non-negative, the extreme EXACT corners are fixed by the
     /// signs of `self`'s endpoints: the least is `self.lo · w.lo` when
@@ -187,7 +211,8 @@ impl DInterval {
     ///   `5e-324`, a bare selection's `0`).
     #[must_use]
     pub fn mul_nonneg(self, w: Self) -> Self {
-        if Self::propagate2(&self, &w).is_some() || w.lo < 0.0 || w.lo == w.hi {
+        if Self::propagate2(&self, &w).is_some() || w.lo < 0.0 || w.lo == w.hi || self.lo == self.hi
+        {
             return self * w;
         }
         self.nonneg_corners(w)
@@ -419,9 +444,17 @@ mod tests {
         (v.lo.to_bits(), v.hi.to_bits(), v.dec)
     }
 
+    /// The general product, propagation included: `*` without its exact
+    /// power-of-two path.
+    fn general(x: DInterval, y: DInterval) -> DInterval {
+        DInterval::propagate2(&x, &y).unwrap_or_else(|| x.general_product(y))
+    }
+
     /// **A point operand takes a shorter fold, with the four-corner
-    /// fold's bits.** Every product over [`intervals`] against
-    /// [`four_corners`]: bounds bit for bit, decoration equal.
+    /// fold's bits.** Every general product over [`intervals`] against
+    /// [`four_corners`]: bounds bit for bit, decoration equal. (`*` by a
+    /// point power of two leaves the fold where the fold pads:
+    /// [`a_power_of_two_product_is_the_general_product_where_that_is_exact`].)
     #[test]
     fn a_point_product_is_the_four_corner_fold() {
         let all = intervals();
@@ -430,7 +463,7 @@ mod tests {
             for &y in &all {
                 points += usize::from(x.lo == x.hi || y.lo == y.hi);
                 let want = four_corners(x, y, mul_lo, mul_hi);
-                assert_eq!(bits(x * y), bits(want), "{x:?} * {y:?}");
+                assert_eq!(bits(general(x, y)), bits(want), "{x:?} * {y:?}");
             }
         }
         assert!(
@@ -481,38 +514,72 @@ mod tests {
         0.0,
     ];
 
-    /// **A power-of-two scale is the general product wherever that
-    /// product is exact, and inside it where it pads.** Every interval
-    /// over [`intervals`] at every scale in [`SCALES`], against
-    /// `x * DInterval::point(k)`: where the general product's endpoints
-    /// are its unpadded corners `x·k` (zero, or at or above the 2Prod
-    /// floor) the two agree bit for bit, decoration included; between
-    /// the smallest normal and that floor the shortcut is `x·k` itself,
-    /// inside the general product's padded step; everywhere else — the
-    /// subnormal range, overflow, infinite endpoints, a `k` that is not
-    /// a positive normal power of two — it is the general product.
+    /// **A product by a point power of two is the general product
+    /// wherever that product is exact, and inside it where it pads.**
+    /// Every interval over [`intervals`] at every scale in [`SCALES`],
+    /// and every pair of [`intervals`] (whose points include powers of
+    /// two), `x * w` in either order against the general product. Where
+    /// one operand is a point `±2ⁿ` and both scaled endpoints stay
+    /// normal, the product is the other operand's endpoints times it,
+    /// computed here in `f64` (exact there), and lies inside the general
+    /// product, bit for bit equal to it wherever that product's
+    /// endpoints are unpadded (zero, or at or above the 2Prod floor);
+    /// everywhere else — the subnormal range, overflow, infinite
+    /// endpoints, a scale that is not a power of two — it is the general
+    /// product.
     #[test]
-    fn a_power_of_two_scale_is_the_general_product_where_that_is_exact() {
+    fn a_power_of_two_product_is_the_general_product_where_that_is_exact() {
         let (mut agreed, mut inside) = (0, 0);
         let floor = |v: f64| v == 0.0 || v.abs() >= TWO_PROD_VALID_MIN;
-        for &x in &intervals() {
-            for &k in &SCALES {
-                let (got, want) = (x.scale_pow2(k), x * DInterval::point(k));
-                let shortcut = is_normal_pow2(k)
-                    && exact_scale(x.lo, k).is_some()
-                    && exact_scale(x.hi, k).is_some();
-                if !shortcut || (floor(x.lo * k) && floor(x.hi * k)) {
-                    assert_eq!(bits(got), bits(want), "{x:?} scaled by {k:e}");
-                    agreed += 1;
+        let all = intervals();
+        let scaled: Vec<(DInterval, DInterval)> = all
+            .iter()
+            .flat_map(|&x| SCALES.iter().map(move |&k| (x, DInterval::point(k))))
+            .chain(all.iter().flat_map(|&x| all.iter().map(move |&y| (x, y))))
+            .collect();
+        for (x, w) in scaled {
+            let (got, want) = (x * w, general(x, w));
+            assert_eq!(bits(got), bits(w * x), "{x:?} * {w:?}, either order");
+            if w.lo == w.hi && w.lo.is_finite() && w.dec == DInterval::point(w.lo).dec {
+                assert_eq!(
+                    bits(got),
+                    bits(x.scale_pow2(w.lo)),
+                    "{x:?} * {w:?}, the door"
+                );
+            }
+            let pow2 = |s: DInterval| s.lo == s.hi && is_normal_pow2(s.lo.abs());
+            let exact = |v: DInterval, k: f64| {
+                let m = k.abs();
+                let scale = |e: f64| (e == 0.0).then_some(0.0).or_else(|| exact_scale(e, m));
+                let (lo, hi) = (scale(v.lo)?, scale(v.hi)?);
+                let neg = |e: f64| if e == 0.0 { 0.0 } else { -e };
+                Some(if k > 0.0 {
+                    (lo, hi)
                 } else {
-                    let exact = |v: f64| if v == 0.0 { 0.0 } else { v * k };
+                    (neg(hi), neg(lo))
+                })
+            };
+            let path = (DInterval::propagate2(&x, &w).is_none())
+                .then(|| {
+                    pow2(w)
+                        .then(|| exact(x, w.lo))
+                        .flatten()
+                        .or_else(|| pow2(x).then(|| exact(w, x.lo)).flatten())
+                })
+                .flatten();
+            match path {
+                Some((lo, hi)) if !(floor(lo) && floor(hi)) => {
                     assert_eq!(
                         (got.lo.to_bits(), got.hi.to_bits(), got.dec),
-                        (exact(x.lo).to_bits(), exact(x.hi).to_bits(), want.dec),
-                        "{x:?} scaled by {k:e}"
+                        (lo.to_bits(), hi.to_bits(), want.dec),
+                        "{x:?} * {w:?}"
                     );
-                    assert!(want.lo <= got.lo && got.hi <= want.hi, "{x:?} by {k:e}");
+                    assert!(want.lo <= got.lo && got.hi <= want.hi, "{x:?} * {w:?}");
                     inside += 1;
+                }
+                _ => {
+                    assert_eq!(bits(got), bits(want), "{x:?} * {w:?}");
+                    agreed += 1;
                 }
             }
         }
@@ -603,8 +670,8 @@ mod tests {
     }
 
     /// **The product is the four-corner fold, bit for bit**: every
-    /// interval over [`intervals`] times every other, `x * y` (which
-    /// reads two corners where either operand is one-signed) against
+    /// interval over [`intervals`] times every other, the general product
+    /// (which reads two corners where either operand is one-signed) against
     /// [`DInterval::corner_product`], bounds and decoration. Red under a
     /// mirrored selection that rounds or picks a corner the fold does
     /// not, or a zero's sign the fold does not give.
@@ -617,7 +684,11 @@ mod tests {
                 if x.is_empty() || y.is_empty() || x.is_nai() || y.is_nai() {
                     continue;
                 }
-                assert_eq!(bits(x * y), bits(x.corner_product(y)), "{x:?} * {y:?}");
+                assert_eq!(
+                    bits(x.general_product(y)),
+                    bits(x.corner_product(y)),
+                    "{x:?} * {y:?}"
+                );
                 if x.signed_corners(y)
                     .or_else(|| y.signed_corners(x))
                     .is_some()

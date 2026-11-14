@@ -1256,7 +1256,10 @@ use expr_table;
 /// any kind: a face, an edge, a vertex, a whole body.
 ///
 /// A mate's side is authored in its own type, [`SitedFace`], which
-/// fixes the name's kind to a face and lowers the same way.
+/// fixes the name's kind to a face and lowers the same way. A
+/// reference to one member of a family is written as the read it is,
+/// `Operand::select(BodyRead::indexed(xs, [i]), [name])`, by the
+/// member's own name (REFERENCES DM3).
 ///
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
@@ -1301,11 +1304,18 @@ impl SitedRef {
 ///
 /// [`SitedRef`]'s shape with the name's kind fixed by the type. It
 /// lowers (`impl From<SitedFace> for Operand`) to a one-name selection
-/// of `at`'s output, which the door mints as a `Face` variable, so the
-/// selection's body read is an ordinary DAG edge and the name resolves
-/// against `at`'s own evaluated table through the N5 ladder every
-/// other authored name takes. A mate reads it inside a pose — the
-/// plane of the face ([`crate::pose::PoseDef::Plane`]).
+/// of `at`'s output — or, for a side on one member of the family `at`
+/// defines, of that member, `xs[i]` at the values `member` (REFERENCES
+/// DM3), by the member's own name — which the door mints as a `Face`
+/// variable, so the selection's body read is an ordinary DAG edge and
+/// the name resolves against the body's own evaluated table through
+/// the N5 ladder every other authored name takes. A mate reads it
+/// inside a pose — the plane of the face
+/// ([`crate::pose::PoseDef::Plane`]).
+///
+/// The mate's member walk reads a side's head off its stored selection
+/// ([`crate::mate::head_of`]): for a member read, the family's name for
+/// the member's entity, derived and never authored.
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
@@ -1358,7 +1368,11 @@ pub struct SitedFace {
     /// The node whose output the face is read in — the PLACED
     /// geometry, when that node placed it.
     pub at: RecipeNodeId,
-    /// The face's stable name.
+    /// The member of the family `at` defines the face is read in, by
+    /// its index values, outermost first; empty for `at`'s own body.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub member: Vec<u32>,
+    /// The face's stable name: the member's own, for a member.
     pub name: FaceName,
 }
 
@@ -1366,15 +1380,22 @@ impl SitedFace {
     /// A side read at the node that minted the name — the degenerate
     /// case, and the honest spelling of "as authored".
     pub fn at_mint(name: FaceName) -> Self {
-        Self {
-            at: name.node,
-            name,
-        }
+        Self::new(name.node, name)
     }
 
     /// A side read at `at`.
     pub fn new(at: RecipeNodeId, name: FaceName) -> Self {
-        Self { at, name }
+        Self {
+            at,
+            member: Vec::new(),
+            name,
+        }
+    }
+
+    /// A side read in one member of the family `at` defines, `xs[i]` at
+    /// the index values `member`, by the member's own name.
+    pub fn in_member(at: RecipeNodeId, member: Vec<u32>, name: FaceName) -> Self {
+        Self { at, member, name }
     }
 }
 
@@ -2552,11 +2573,10 @@ impl<P> Node<P> {
             return Some(InputFault::IndexedFamily);
         }
         self.body_reads().into_iter().find_map(|(seat, read)| {
-            if !read.is_member() {
-                return None;
-            }
-            let rank = doc.var_reach(read.read).chain().map_or(0, <[VarId]>::len);
-            (read.at.len() != rank).then_some(InputFault::IndexRank {
+            // A read whose body is gone is a strand (VR7): it refuses at
+            // evaluation, and its family's rank is no longer there to ask.
+            let rank = doc.member_rank_fault(read.read, read.at.len())?;
+            Some(InputFault::IndexRank {
                 seat,
                 found: read.at.len(),
                 rank,
@@ -3414,25 +3434,42 @@ impl<P, S: Slot> Node<P, S> {
             constraints,
         }
     }
+}
 
+impl<P> Node<P, crate::Formula> {
     /// Builds a [`Node::Place`] copying `source` into `target` under
     /// `constraints`, the whole bundle: a value naming a mate of it
     /// names the mate's id as written, which the insert mints
     /// ([`crate::mate::pin::Placed::bundle`]).
+    ///
+    /// A placement reads its body through a source (VARIABLES VR4):
+    /// `source`'s read is written as a source authored at the seat
+    /// ([`crate::Operand::Source`]), which the door answers by the one rule
+    /// every placement goes through — a body (a node, a port, an output's
+    /// variable, a pick) mints an anonymous source for this placement, as
+    /// a written `5 mm` mints a variable, and a source is shared. A member
+    /// read `xs[k]` reads member `k` of a source of the family, so its
+    /// index stays this placement's slot.
     pub fn place(
-        source: impl Into<crate::BodyRead<S>>,
-        target: impl Into<S::Read>,
-        constraints: Vec<crate::mate::Constraint<S>>,
+        source: impl Into<crate::BodyRead<crate::Formula>>,
+        target: impl Into<crate::Operand>,
+        constraints: Vec<crate::mate::Constraint<crate::Formula>>,
     ) -> Self {
+        let crate::BodyRead { read, at } = source.into();
+        let source = crate::BodyRead {
+            read: match read {
+                read @ crate::Operand::Source(_) => read,
+                read => crate::Operand::source(crate::BodyRead::plain(read)),
+            },
+            at,
+        };
         Node::Place {
-            source: source.into(),
+            source,
             target: target.into(),
             constraints,
         }
     }
-}
 
-impl<P> Node<P, crate::Formula> {
     /// A [`Node::Measure`] over `primitive`, each reference authored as
     /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
     /// as the selection of it in the body it is read at).
@@ -3503,7 +3540,7 @@ impl<P> Node<P, crate::Formula> {
     /// bits do not depend on the order a user clicked in. The door mints
     /// the selection.
     pub fn fillet(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         radius: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
@@ -3516,7 +3553,7 @@ impl<P> Node<P, crate::Formula> {
     /// Builds a [`Node::Chamfer`] over the selection of `selection` in
     /// the body `target` reads, as [`Node::fillet`] does.
     pub fn chamfer(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         distance: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
@@ -3532,7 +3569,7 @@ impl<P> Node<P, crate::Formula> {
     /// designated face of a chart carries the rim's identity, so the
     /// order is authored data.
     pub fn shell(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         thickness: crate::Formula,
         open: Vec<StableName>,
     ) -> Self {
@@ -3561,7 +3598,10 @@ impl<P> Node<P, crate::Formula> {
 
 /// The `Edges` selection of `names` in the body `target` reads, in
 /// stored order.
-fn edges_of(target: impl Into<crate::Operand>, names: Vec<StableName>) -> crate::Operand {
+fn edges_of(
+    target: impl Into<crate::BodyRead<crate::Formula>>,
+    names: Vec<StableName>,
+) -> crate::Operand {
     crate::Operand::select(
         target,
         crate::var::Select::canonical(crate::VarKind::Edges, names),

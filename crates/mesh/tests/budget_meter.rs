@@ -32,9 +32,9 @@ const RATIO_FLOOR: f64 = 0.1;
 /// The body's described-NURBS faces, in arena order.
 fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface).expect("face surface"),
+                body.face_surface(*fk).expect("face surface"),
                 Surface::Nurbs(_)
             )
         })

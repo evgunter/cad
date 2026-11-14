@@ -58,3 +58,49 @@ sweep slow rows by editing their expectation tables
 `OTHER_SPINS_STOPS`, and the asserted `Stop` in `torus_doors_join`). Its
 first gate ran `Starting 0 tests` in the slow-set step and still
 concluded `gate ok`. The fix pass names each row in its pin comment.
+
+## Evidence: PR 6818 (TINT, 2026-11-11)
+
+Two more slow rows show the same blind spot, from both sides.
+
+- **How the red got in.** PR 6371 retyped `BooleanError::ResultInvalid`'s
+  field from `errors` to `findings`. Nothing in that diff spells
+  `germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, so the
+  test ran on no PR step. It stood red on main from 2026-11-08 until
+  PR 6818.
+- **How the fix goes unchecked.** PR 6818 re-pins that test inside its
+  body and adds a line to
+  `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`'s
+  `ROSTER`. Its head `403e5baf1f` reported, in hosted run 42965866425 (job
+  `test (kernel)`):
+  - `slow set over: package(geom-core)|package(sweep)`, followed by `0 tests run`;
+  - change filter: "1 of its rows are in ci's slow set and skip this step"
+    for `bounds_census.rs`, and "3 of its rows" for `germ_tilted_rod.rs`.
+
+  So neither fix ran hosted at any ε. The PR's evidence for both is a
+  local run.
+
+- **PR 6934** (`green/eps-1e-6`, 2026-11-14): two of its thirteen slow rows were edited without their names on an added line (`a_vertex_piercing_a_lens_wall::a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`, a re-pinned stop inside the body; `m5_s11_concave_sense::loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`, a constant it reads). Each now has a doc line naming the test, which is what selects it. Even selected, a slow row runs on the PR at the default ε only, so an ε 1e-6 pin on one is checked by no PR step.
+
+
+## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
+
+PR 6931 (`green/default-eps`) pins or re-blesses six slow-set tests by editing their bodies and helpers. Its first gate run (head `447474cb7`) was green with the slow-set step lasting one second: the diff's added lines spelled none of the six names. The lane made each pin's comment name its test, and the second run (43555174396) is the one that ran them. Every lane that greens a nightly red is in this position, since greening a slow test is an edit inside it. On GREEN this turns "the gate is green" into no evidence at all for a pin PR, so the lanes now read the step log for which tests ran.
+
+**Comments written for the selector (PR 6931's fix pass).** The lane's
+answer was to make a comment beside each pin name the test that reads
+it. Those mentions exist so that an added line spells the name and the
+slow-set step selects the test; they are to go when the selector reads
+edits inside a test. They are:
+
+- `crates/sweep/tests/a_plane_near_a_needle_cones_apex.rs`, the module
+  header's last sentence;
+- `crates/sweep/tests/an_aimed_ray_from_far_reads_a_split_side_right.rs`,
+  `Read`'s doc (two test names);
+- `crates/topo/tests/shell_role_reader.rs`, `MOVED_THIN_READS`' doc;
+- `crates/topo/src/boolean/offer_rows.rs`, `QUOTED_AS_A_LENGTH`'s doc;
+- `crates/viewer/tests/door_at_rest.rs`, `DIE_UNPROVEN`'s doc.
+
+The review of that PR also read which rows the second run reached: each
+of the six once, at the default ε, in the slow-set step, and nowhere
+else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).

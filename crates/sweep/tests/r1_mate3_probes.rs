@@ -77,11 +77,8 @@ fn r1_cusp_profile_extrudes_and_the_cusp_is_legal_at_rest() {
             .any(|e| e == marked),
         "the marked edge is a strut"
     );
-    let he = body.get_edge(*marked).unwrap().he_plus;
-    for v in [
-        body.get_half_edge(he).unwrap().start,
-        body.half_edge_end(he).unwrap(),
-    ] {
+    let (v0, v1) = body.edge_vertices(*marked).unwrap();
+    for v in [v0, v1] {
         let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         assert!(
             p.x.abs() < 1e-9 && p.y.abs() < 1e-9,

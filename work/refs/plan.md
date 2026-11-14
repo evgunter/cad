@@ -8,7 +8,7 @@
    until it merges; the ruling item moves here after.
 2. `typing-a-value-mints-or-offers-a-variable` (in review).
 3. The indexed-read rows together (`an-indexed-read-of-rank-two-has-no-family`,
-   `a-selects-body-takes-an-indexed-read`,
+   `a-selects-body-takes-an-indexed-read` (closed 2026-11-10, PR 6555),
    `python-cannot-re-point-an-indexed-reads-index`): one representation
    question, likely one designer pair first.
 4. The rest by band and cost.

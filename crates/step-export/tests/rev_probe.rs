@@ -33,12 +33,14 @@ fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
     let body = common::ball();
     let bands: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 2);
     for k in bands {
-        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap();
         let v = validate_geometric(&flipped, Tol::witness());
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol = topo::test_support::measure_unvalidated(
@@ -114,7 +116,7 @@ fn nappe_adversaries() {
         assert!(ok.is_ok(), "{name}: honest body must be green");
         let cones: Vec<(FaceKey, bool, Point3<f64>, Vec3<f64>)> = body
             .faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            .filter_map(|(k, f)| match body.face_surface(k) {
                 Some(&Surface::Cone { apex, axis, .. }) => Some((k, f.sense, apex, axis)),
                 _ => None,
             })
@@ -134,7 +136,9 @@ fn nappe_adversaries() {
             } else if side < 0.0 {
                 seen_neg = true;
             }
-            let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+            let flipped = body
+                .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                .unwrap();
             let errs = validate_geometric(&flipped, Tol::witness())
                 .expect_err(&format!("{name}: flipped cone face must refuse"));
             let named = errs
@@ -168,13 +172,14 @@ fn conic_trimmed_wall_flip_probe() {
     let walls: Vec<(FaceKey, bool)> = body
         .faces()
         .filter_map(|(k, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. }))
-                .then_some((k, f.sense))
+            matches!(body.face_surface(k), Some(Surface::Cylinder { .. })).then_some((k, f.sense))
         })
         .collect();
     println!("CONIC walls={walls:?}");
     for (k, sense) in walls {
-        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap();
         let v = validate_geometric(&flipped, Tol::witness());
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol = topo::test_support::measure_unvalidated(

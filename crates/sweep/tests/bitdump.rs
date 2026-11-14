@@ -333,8 +333,8 @@ fn bitdump_shell_open_box_corpus() {
     .body;
     let cap_at = |b: &Body<f64>, z: f64| -> Vec<topo::FaceKey> {
         b.faces()
-            .filter(|(_, f)| {
-                matches!(b.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(b.face_surface(*fk),
                     Some(Surface::Plane { origin, normal, .. })
                         if (origin.z - z).abs() < 1e-12
                             && normal.x.abs() < 1e-9
@@ -374,7 +374,7 @@ fn bitdump_shell_open_box_corpus() {
 /// **The CONCAVE closed rims, the class the C1 constraint names and
 /// this suite used to omit.** Every other rim row here removes
 /// material; a change that moved only the material-ADDING fold — the
-/// arms' ball resting in the void, `Convexity::blend_sense` on the band
+/// arms' ball resting in the void, `battery::blend_sense` on the band
 /// face, the concave `signed` in the trim derivations — could not show
 /// in any of them.
 ///

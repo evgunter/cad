@@ -457,10 +457,10 @@ impl Sweep {
 /// that works, with no residual uncertainty for a reader to interpret.
 fn midpoint(valid: f64, invalid: f64, integral: bool) -> Option<f64> {
     if !integral {
-        let mid = valid + (invalid - valid) / 2.0;
+        let mid = pncad::geom::bracket_mid((valid, invalid));
         return (mid > valid && mid < invalid).then_some(mid);
     }
-    let mid = (valid + (invalid - valid) / 2.0).floor();
+    let mid = pncad::geom::bracket_mid((valid, invalid)).floor();
     (mid > valid && mid < invalid).then_some(mid)
 }
 

@@ -44,7 +44,7 @@ use topo::{Body, FaceKey, ValidationError, validate_geometric};
 fn faces_where(body: &Body<f64>, pred: fn(&Surface<f64>) -> bool) -> Vec<(FaceKey, bool)> {
     body.faces()
         .filter_map(|(k, f)| {
-            let s = body.get_surface(f.surface)?;
+            let s = body.face_surface(k)?;
             pred(s).then_some((k, f.sense))
         })
         .collect()
@@ -54,7 +54,7 @@ fn faces_where(body: &Body<f64>, pred: fn(&Surface<f64>) -> bool) -> Vec<(FaceKe
 /// with `CurvedSenseInverted` naming exactly that face.
 fn assert_flip_refuses(body: &Body<f64>, face: FaceKey, label: &str) {
     let flipped = body
-        .flipped_face_sense_for_tests(face)
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .expect("live face key");
     let errs = validate_geometric(&flipped, Tol::witness())
         .expect_err(&format!("{label}: a sense-flipped curved face must refuse"));
@@ -70,7 +70,8 @@ fn assert_flip_refuses(body: &Body<f64>, face: FaceKey, label: &str) {
 fn flip_all(body: &Body<f64>) -> Body<f64> {
     let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     keys.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k).expect("live face key")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key")
     })
 }
 
@@ -261,7 +262,7 @@ fn ball_half_flip_is_caught_at_the_shared_edge() {
     let bands = faces_where(&body, |s| matches!(s, Surface::Sphere { .. }));
     assert_eq!(bands.len(), 2, "ball: two rimless half-bands");
     let flipped = body
-        .flipped_face_sense_for_tests(bands[0].0)
+        .flipped_face_sense_for_tests(bands[0].0, geom_core::Tol::witness())
         .expect("live face key");
     let errs = validate_geometric(&flipped, Tol::witness())
         .expect_err("a half-flipped ball is a lamina at the bands' shared edges");
@@ -323,7 +324,7 @@ fn planar_control_unchanged() {
     let body = cube();
     let face = body.faces().next().map(|(k, _)| k).expect("cube face");
     let flipped = body
-        .flipped_face_sense_for_tests(face)
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .expect("live face key");
     let errs =
         validate_geometric(&flipped, Tol::witness()).expect_err("flipped cube face must refuse");
@@ -369,7 +370,9 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
     let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
     assert!(!walls.is_empty(), "cut_cylinder: trimmed wall present");
     for &(k, _) in &walls {
-        let flipped = body.flipped_face_sense_for_tests(k).expect("live face key");
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key");
         let errs = validate_geometric(&flipped, Tol::witness())
             .expect_err("a lone conic-trimmed wall flip is a lamina at its shared edges");
         assert!(
@@ -481,7 +484,9 @@ fn a_one_face_conic_trimmed_wall_flip_refuses() {
             "{name}: the bore and the outer wall, one face each"
         );
         for (k, sense) in walls {
-            let flipped = half.flipped_face_sense_for_tests(k).expect("live face key");
+            let flipped = half
+                .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                .expect("live face key");
             let errs = validate_geometric(&flipped, tol)
                 .expect_err("a lone one-face conic-trimmed wall flip refuses");
             assert!(

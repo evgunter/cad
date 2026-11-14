@@ -91,9 +91,9 @@ fn disc_below(cx: f64, cy: f64, r: f64, h: f64, plane: &SplitPlane<f64>) -> f64 
 fn sections(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<(bool, usize)> {
     let mut v: Vec<_> = half
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                half.get_surface(f.surface),
+                half.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.cross(plane.normal.get()).norm() < 1e-12
                         && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12
@@ -145,7 +145,7 @@ fn plane_at(o: [f64; 3], t: f64, phi: f64, flip: bool) -> SplitPlane<f64> {
 
 fn turned(body: &Body<f64>, turn: f64) -> Body<f64> {
     let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn);
-    topo::transform_rigid(body, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap()
+    topo::transform_rigid(body, &geom_core::test_support::rigid(&map, tol())).unwrap()
 }
 
 /// Tally of one sweep.

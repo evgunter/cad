@@ -32,7 +32,7 @@ use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
+    ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -81,12 +81,12 @@ fn spoken(doc: &ProfileDoc, n: &str) -> editor_core::SpokenVar {
     doc.spoken_var(var(doc, n))
 }
 
-fn run<T: editor_core::EvalScalar>(
+fn run<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     prior: Option<&Evaluation<T>>,
     o: &EvalOptions,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
 }
 
 /// The measure node of a document, by kind — the one sink these rows

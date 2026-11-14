@@ -320,14 +320,15 @@ fn tilted_press(
 /// **A press fit tilted off every axis is quiet under its `Gap`, as at
 /// the identity, and the quieting rule decides its axes through the
 /// funnel.** Turned and moved, the bore's and the pin's axes agree only
-/// to rounding, so whether they are one line is a decision at the band
-/// (`at_rest_quiet_axes_parallel`, `at_rest_quiet_centred`), not an exact
-/// comparison. The bore and the pin are opposed, so the gap reads −0.005
-/// in either role order, and `Gap ≤ −0.001` holds and quiets it at both
-/// poses, the bore first or the pin.
+/// to rounding, so whether they are parallel is a decision at the band
+/// (`carrier_pose_axes_parallel`, the gap's pose), not an exact
+/// comparison, and so is whether the pin lies inside the bore
+/// (`carrier_pose_round_side`). The bore and the pin are opposed, so the gap reads
+/// −0.005 in either role order, and `Gap ≤ −0.001` holds and quiets it at
+/// both poses, the bore first or the pin.
 ///
-/// *Breaks if* `constant_pairing` compares the axes raw (the tilted fit
-/// stays loud, and no verdict is recorded under either site).
+/// *Breaks if* the facing is read off the axes raw (the tilted fit stays
+/// loud, or no verdict is recorded under a site).
 #[test]
 fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
     use geom_core::linalg::{Affine3, Mat3, Vec3};
@@ -364,13 +365,16 @@ fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
                 "{pose_name} {why}: {finding:?}"
             );
             if quiets {
-                for site in ["at_rest_quiet_axes_parallel", "at_rest_quiet_centred"] {
+                for (site, sign) in [
+                    ("carrier_pose_axes_parallel", geom_core::Sign::Zero),
+                    ("carrier_pose_round_side", geom_core::Sign::Negative),
+                ] {
                     assert!(
                         recorded
                             .verdicts
                             .iter()
-                            .any(|v| v.predicate == site && v.sign == geom_core::Sign::Zero),
-                        "{pose_name}: {site} decided the axes one line in band"
+                            .any(|v| v.predicate == site && v.sign == sign),
+                        "{pose_name}: {site} decided the pin in the bore, {sign:?}"
                     );
                 }
             }

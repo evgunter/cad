@@ -128,7 +128,9 @@ pub use editor_core::{
     Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
     TubeWindow, VectorSlot,
 };
-pub use editor_core::{Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached};
+pub use editor_core::{
+    Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept
@@ -334,8 +336,13 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, ReadIn, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
 };
+// A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
+// `evaluate_recorded` takes the base-scalar evaluation and refuses every
+// node it refused; `evaluate` is the door of a scalar that is its own
+// record (`OwnRecord`), and a dual is `BoundToRecord`.
+pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
 // pick reads one of.

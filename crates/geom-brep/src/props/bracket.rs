@@ -52,7 +52,7 @@ pub(super) fn mid(x: Interval) -> f64 {
     if !x.is_certified() {
         return f64::NAN;
     }
-    (x.lo() + x.hi()) * 0.5
+    geom::mid_param(x.lo(), x.hi())
 }
 
 /// Interval absolute value: `|x|` as an enclosure.

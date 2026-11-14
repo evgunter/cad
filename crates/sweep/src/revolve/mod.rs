@@ -146,20 +146,17 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
-use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
 /// spheres and tori from arcs).
-pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
-    lines: "wall_lines_cosurface",
-    arcs: "wall_arcs_cosurface",
-};
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
@@ -395,6 +392,11 @@ pub enum RevolvedKind {
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
+        /// The row of the caps' coincidence where an axis edge joins its
+        /// two caps smoothly (a half turn): the caps then wear one
+        /// surface record (`topo::Body::one_record_across`). `None`
+        /// where they are two.
+        coplanar_caps: Option<topo::Coincidence>,
     },
     /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
     /// one full-period band: `walls`/`rims` carry the complete
@@ -690,54 +692,47 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The dihedral classification at a latitude (wall–wall) join
-    /// escalated: a sliver dihedral, certifiable as neither a corner
-    /// nor a smooth join (D2's ratified text); or, on a join whose
-    /// witness read smooth, a must-carry station's first-order arm or
-    /// wedge, or its second-order bend, did.
+    /// The wedge of a latitude (wall–wall) join escalated at a station
+    /// of its whole-edge fold ([`topo::edge_wedge`]): a sliver dihedral,
+    /// certifiable as neither a corner nor a smooth join (D2's ratified
+    /// text), or, past the class, a corner's sign or a smooth join's
+    /// pairing, bend or end (its `escalation`'s rung).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
-        /// The reading that escalated.
-        reading: DihedralReading,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The join's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
-    /// The dihedral classification at a cap–wall meridian rim (or a
-    /// partial revolve's cap–cap axis edge) escalated during the
-    /// upgrade pass, or, on one whose witness read smooth, a must-carry
-    /// station's first-order arm or wedge, or its second-order bend, did.
+    /// The wedge of a cap–wall meridian rim (or a partial revolve's
+    /// cap–cap axis edge) escalated during the upgrade pass, at the rung
+    /// its `escalation` names.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
-        /// The reading that escalated.
-        reading: DihedralReading,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The rim's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
-    /// The must-carry rule read a station of a latitude join or cap
-    /// rim definitely transverse
-    /// ([`geom_brep::MustCarryVerdict::Transverse`]) after the join's
-    /// witness classified definitely smooth: the geometry refuted the
-    /// premise the smooth arm was entered on.
+    /// Two neighbouring stations of a latitude join's or a cap rim's
+    /// whole wedge disagree ([`geom_brep::WedgeVerdict::Mixed`]): a
+    /// corner beside a smooth join or two corners of opposite turn
+    /// bracket a point in the band no station read; two smooth stations
+    /// whose material pairings or ends differ name a material verdict no
+    /// station established.
     ///
     /// Defense-in-depth (the `CapPlane` posture): the join's circle is
     /// carried by a symmetry flow of both surfaces, so every station
-    /// reads what the witness read. Reaching this means the inputs
-    /// carried something a validated profile cannot, and it is
-    /// surfaced rather than stored under a description neither reading
-    /// chose.
+    /// reads alike. Reaching this means the inputs carried something a
+    /// validated profile cannot, and it is surfaced rather than stored
+    /// under a description no reading chose.
     SmoothJoinRefuted {
-        /// The edge whose station refuted the smooth premise.
+        /// The edge whose stations disagree.
         edge: EdgeKey,
-        /// The two neighbouring stations that disagree, where one reads
-        /// smooth ([`geom_brep::MustCarryRefusal::Mixed`]); `None` where
-        /// every station reads a corner.
-        mixed: Option<geom_brep::MixedStations>,
+        /// The two neighbouring stations that disagree.
+        mixed: geom_brep::MixedStations,
     },
     /// A station INSIDE a run of walls (two segments one carrier
     /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
@@ -871,20 +866,20 @@ impl RevolveError {
             Self::NonFiniteAxis => write!(
                 f,
                 "the revolve axis direction has no finite length (a component overflows \
-                 the norm or is not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 the norm or is not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::UnderflowedAxis => write!(
                 f,
                 "the revolve axis direction's length underflowed out of the format: it \
-                 measures zero while still naming a direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 measures zero while still naming a direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::DegenerateAxis => write!(
                 f,
                 "the revolve axis direction has no definite length (zero or a sliver). \
-                 Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::AxisEscalated { source } => write!(
                 f,
@@ -898,8 +893,8 @@ impl RevolveError {
             Self::DegenerateAngle => write!(
                 f,
                 "the revolve angle is zero at tolerance (measured at the profile's widest \
-                 radius). Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 radius). {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::FullRangeAngle => f.write_str(
                 "the partial revolve angle reaches a full turn at tolerance; an exactly \
@@ -1026,35 +1021,23 @@ impl RevolveError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let join = format!("the join at loop {loop_index} vertex {vertex_index}");
-                crate::swept::sliver_text(f, &join, *reading, source)
+                crate::swept::sliver_text(f, &join, *escalation)
             }
             Self::SliverRim {
                 loop_index,
                 segment_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
-                crate::swept::sliver_text(f, &rim, *reading, source)
+                crate::swept::sliver_text(f, &rim, *escalation)
             }
-            Self::SmoothJoinRefuted {
-                edge,
-                mixed: Some(stations),
-            } => write!(
+            Self::SmoothJoinRefuted { edge, mixed } => write!(
                 f,
-                "along the join {edge:?}, {stations}. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
-            ),
-            Self::SmoothJoinRefuted { edge, mixed: None } => write!(
-                f,
-                "the join along {edge:?} classified definitely smooth at its witness but \
-                 definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "along the join {edge:?}, {mixed}. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::PinnedRunStation {
                 loop_index,
@@ -1110,7 +1093,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
             _ => RevolveError::AngleEscalated { source },
         })?;
     let rows = TurnRows::exact("revolve_angle_headroom");
-    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+    match Period::angle().strictly_partial(rows, angle, Exact::new(r_max), band) {
         Ok(true) => Ok(sign == NonzeroSign::Positive),
         Ok(false) => Err(RevolveError::FullRangeAngle),
         Err(undecided) => Err(RevolveError::AngleEscalated {
@@ -1331,30 +1314,26 @@ mod tests {
         }
     }
 
-    /// **A smooth latitude join or cap rim's must-carry escalation says which question
-    /// escalated**: a first-order station is the sliver, neither corner
-    /// nor smooth; a second-order one is a smooth join whose faces'
-    /// bend is too close to call. No fixture reaches a first-order
-    /// station past a witness that read smooth, so the escalations are
-    /// built directly.
+    /// **A latitude join or cap rim's wedge escalation says which
+    /// question escalated**: the class is the sliver, neither corner nor
+    /// smooth; the bend is a smooth join whose faces' curvature is too
+    /// close to call.
     #[test]
     fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
         use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
         for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
-            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            let escalation = escalation.escalation();
             for text in [
                 RevolveError::SliverJoin {
                     loop_index: 0,
                     vertex_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
                 RevolveError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
             ] {

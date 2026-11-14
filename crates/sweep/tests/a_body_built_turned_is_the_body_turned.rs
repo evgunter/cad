@@ -217,7 +217,7 @@ fn every_construction_built_on_a_turned_plane_is_the_construction_turned() {
     for frame in turned {
         let back = geom_core::test_support::rigid(&frame.back, tol);
         for ((what, want), (_, built)) in at_home.iter().zip(constructions(frame.plane, tol)) {
-            let got = topo::transform_rigid(&built, &back, tol).unwrap();
+            let got = topo::transform_rigid(&built, &back).unwrap();
             let (want_planes, got_planes) = (plane_frames(want), plane_frames(&got));
             assert!(
                 !want_planes.is_empty(),
@@ -287,7 +287,7 @@ fn a_ball_union_built_on_a_turned_plane_is_the_union_turned() {
     for frame in turned {
         let back = geom_core::test_support::rigid(&frame.back, tol);
         for (((what, ..), want), built) in BALL_PAIRS.iter().zip(&at_home).zip(union(&frame)) {
-            let got = topo::transform_rigid(&built, &back, tol).unwrap();
+            let got = topo::transform_rigid(&built, &back).unwrap();
             let (want, got) = (surfaces(want), surfaces(&got));
             assert!(
                 want.iter().any(|s| s.starts_with("Sphere")),

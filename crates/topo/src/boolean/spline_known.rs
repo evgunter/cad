@@ -54,7 +54,7 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
         }
         if let Some(ib) = crate::pcurves::side_image_of(&carrier, (t0, t1), sg, band) {
             known.rows.push(geom_brep::KnownRow {
-                images: [ia.clone(), ib],
+                images: [ia.pcurve().clone(), ib],
                 span: (t0, t1),
             });
         }
@@ -87,7 +87,7 @@ fn images<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
-) -> Vec<(HalfEdgeKey, geom_brep::Pcurve<T>)> {
+) -> Vec<(HalfEdgeKey, geom_brep::ChartImage<T>)> {
     let view = body.proven_face(face);
     view.boundary()
         .filter_map(|member| match member {
@@ -95,9 +95,9 @@ fn images<T: Decide + AtRestPolicy>(
             BoundaryMember::Isolated { .. } => None,
         })
         .filter_map(|he| {
-            let image = crate::pcurves::pcurve_of(body, he, band).ok()?;
+            let image = crate::pcurves::derived_pcurve_of(body, he, band).ok()?;
             matches!(
-                image,
+                image.pcurve(),
                 geom_brep::Pcurve::IsoLine { .. } | geom_brep::Pcurve::IsoArc { .. }
             )
             .then_some((he, image))
@@ -108,7 +108,7 @@ fn images<T: Decide + AtRestPolicy>(
 /// The corners of `net`'s rectangle an end of one of `rows` stands at
 /// exactly, each with the wall's point there.
 fn corners<T: Decide + AtRestPolicy>(
-    rows: &[(HalfEdgeKey, geom_brep::Pcurve<T>)],
+    rows: &[(HalfEdgeKey, geom_brep::ChartImage<T>)],
     net: &geom::NurbsSurface<T>,
     body: &Body<T>,
 ) -> Vec<(geom_brep::ssi::ChartCorner, geom_core::Point3<T>)> {
@@ -129,7 +129,7 @@ fn corners<T: Decide + AtRestPolicy>(
             continue;
         };
         for t in [t0, t1] {
-            let p: Point2<T> = image.eval(t);
+            let p: Point2<T> = image.pcurve().eval(t);
             let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
                 continue;
             };

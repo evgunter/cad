@@ -229,23 +229,23 @@ fn the_placement_is_the_witness_conversion_bit_for_bit() {
 #[test]
 fn point_value_reads_a_plane_minted_at_a_lane_scalar_back_bit_for_bit() {
     // A plane exists at a lane scalar only by being minted there. Minted
-    // at the decided door from the `f64` plane's twelve entries as point
+    // by the suites' door from the `f64` plane's twelve entries as point
     // values, it holds those entries verbatim, so `point_value` returns
     // every bit at `Interval` and through `Dual64`'s value channel, the
     // signed-zero frame included.
-    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let tol = geom_core::Tol::witness();
     for (o, u, v) in FRAMES {
         let plane = SketchPlane::from_frame(frame_of(o, u, v));
-        let at_interval = SketchPlane::from_frame(
-            RigidMotion::check_rigid(&plane.placement().map(Interval::from_f64), band)
-                .expect("a rigid f64 frame is rigid as point intervals"),
-        );
+        let at_interval = SketchPlane::from_frame(geom_core::test_support::rigid(
+            &plane.placement().map(Interval::from_f64),
+            tol,
+        ));
         let back = at_interval.point_value().expect("a point plane reads back");
         assert!(back.bit_eq(&plane), "Interval round trip at {o:?}");
-        let at_dual = SketchPlane::from_frame(
-            RigidMotion::check_rigid(&plane.placement().map(Dual64::from_f64), band)
-                .expect("a rigid f64 frame is rigid at Dual64"),
-        );
+        let at_dual = SketchPlane::from_frame(geom_core::test_support::rigid(
+            &plane.placement().map(Dual64::from_f64),
+            tol,
+        ));
         let back = at_dual
             .point_value()
             .expect("a dual plane's value channel reads back");

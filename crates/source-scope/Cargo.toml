@@ -1,0 +1,29 @@
+[package]
+name = "source-scope"
+publish = false
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+# The one home for SCOPE questions about Rust source (which binding a name
+# resolves to, what a `use` tree imports, which fn a call sits in), read
+# off a parse rather than off text. Lexing stays in `test-utils::source`,
+# which is a zero-dependency leaf on purpose; this crate is the layer above
+# it, and only tests and guards depend on it. Each version is the one
+# `Cargo.lock` already held through the proc-macro graph; `span-locations`
+# gives a span its line outside a proc macro.
+[dependencies]
+syn = { version = "=2.0.119", features = ["full", "visit"] }
+proc-macro2 = { version = "=1.0.106", features = ["span-locations"] }
+quote = "=1.0.46"
+
+[dev-dependencies]
+test-utils = { path = "../test-utils" }
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

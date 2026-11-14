@@ -73,13 +73,8 @@ fn a_keel_on_the_floor_names_its_two_edges_apart() {
             .edges()
             .map(|(e, _)| e)
             .filter(|&e| {
-                let he = body.body().get_edge(e).unwrap().he_plus;
-                [
-                    body.body().get_half_edge(he).unwrap().start,
-                    body.body().half_edge_end(he).unwrap(),
-                ]
-                .iter()
-                .all(|&v| {
+                let (v0, v1) = body.body().edge_vertices(e).unwrap();
+                [v0, v1].iter().all(|&v| {
                     on_keel(
                         body.body()
                             .get_point(body.body().get_vertex(v).unwrap().point)

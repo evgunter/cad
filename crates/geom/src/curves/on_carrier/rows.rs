@@ -145,7 +145,7 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
     assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
-    assert!((foot.point() - q).norm() == 0.0);
+    assert!(foot.point().equals_exactly(q));
     assert!(
         foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"
@@ -284,8 +284,9 @@ fn boxed(p: Point3<f64>, r: f64) -> Point3<geom_core::Interval> {
 
 /// **A tie across a hairpin's branches is the certificate's to read**.
 /// The hairpin's branches lie 0.2 apart. On an `Interval` box about a
-/// point on the near branch, seeded on the far one, a wide box ties
-/// every polish candidate and the polish keeps the seed's branch. That
+/// point on the near branch, seeded on the far one, a box as wide as
+/// half the branches' gap (±0.1) ties every polish candidate and the
+/// polish keeps the seed's branch. That
 /// pick is a heuristic's and stays out of the log (ledger row F32).
 /// What a reader can hold is the certificate, and across the box ladder
 /// it never says `On` at the far branch:
@@ -302,7 +303,7 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
     let (c, p) = hairpin(0.2);
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
     let seed = Interval::from_f64(0.92);
-    let (foot, rec) = detached(|| ci.foot(boxed(p, 0.05), seed));
+    let (foot, rec) = detached(|| ci.foot(boxed(p, 0.1), seed));
     assert!(
         foot.seed().lo() > 0.5,
         "the tie keeps the seed's branch: {:?}",
@@ -343,18 +344,57 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
     );
 }
 
+/// **A box about a point reads `On` from a seed on the far branch**.
+/// On the hairpin whose branches lie 0.2 apart, an `Interval` box of
+/// ±1e-10 about the point at `t = 0.08`, seeded at `t = 0.92`: the
+/// polish's iterates are points, so the gap at the foot carries the
+/// box's width alone and reads in the zero. Red where an iterate is held
+/// as an enclosure: the width compounds through the steps, the gap reads
+/// past the zero and the reading escalates.
+#[test]
+fn a_box_reads_on_from_a_seed_on_the_far_branch() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(0.2);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if (t.lo() - 0.08).abs() < 1e-9 && t.lo() == t.hi()),
+        "on at the point's own branch, at a point parameter: {on:?}"
+    );
+}
+
+/// **A box about a point reads `On` from a knot span's sample**: the
+/// case of [`a_box_reads_on_from_a_seed_on_the_far_branch`] seeded at
+/// `t = 0.125`, one of the spline's own samples, a few steps from the
+/// point. Red where an iterate is held as an enclosure: those few steps
+/// already widen the foot's parameter to ~8e-10 and its gap to ~3e-9,
+/// past the zero.
+#[test]
+fn a_box_reads_on_from_a_knot_spans_sample() {
+    use geom_core::{Bounds, Interval, Real};
+    let (c, p) = hairpin(0.2);
+    let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
+    let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.125), band());
+    assert!(
+        matches!(on, Ok(OnCarrier::On { t, .. }) if (t.lo() - 0.08).abs() < 1e-9),
+        "on at the point's own branch: {on:?}"
+    );
+}
+
 /// **Below the band's zero, `On` certifies the point and not the
-/// branch**. A hairpin whose branches lie 3e-10 apart, inside the 1e-9
+/// branch**. A hairpin whose branches lie 1e-10 apart, inside the 1e-9
 /// zero, reads `On` at the seed's branch at `Interval` (`t = 0.92`, the
-/// reversed tangent) with nothing logged, and `On` at the near branch at
-/// `f64`. Both are true of the point: it lies within the band of the
-/// carrier at either parameter. A reader of the branch (a tangent)
-/// rests on the carrier's branches being decided apart, which this
-/// carrier's are not (`a-carriers-branches-within-the-band-of-each-other`).
+/// reversed tangent) with nothing logged: on a ±1e-10 box the two
+/// branches' gaps tie, and the polish keeps the seed's. At `f64` it
+/// reads `On` at the near branch. Both are true of the point: it lies
+/// within the band of the carrier at either parameter. A reader of the
+/// branch (a tangent) rests on the boundary being embedded at the band,
+/// which the at-rest gate certifies (`DESIGN.md` `[topology.tiers]`),
+/// not on `On`.
 #[test]
 fn a_hairpin_closer_than_the_band_certifies_on_at_the_seeds_branch_at_interval() {
     use geom_core::{Bounds, Interval, Real};
-    let (c, p) = hairpin(3e-10);
+    let (c, p) = hairpin(1e-10);
     let ci: Curve3<Interval> = c.map_scalar(Interval::from_f64);
     let on = ci.on_carrier(boxed(p, 1e-10), Interval::from_f64(0.92), band());
     assert!(
@@ -493,15 +533,13 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
             "geom-brep/src/curve_pair/span.rs",
             1,
             "`Span::place` reads the ends' sides at the seed; `Span::read` takes \
-             `On`'s `t` for `Reading::On`. `place` is itself a reading, which \
-             `curved_edges::passes` reads directly \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+             `On`'s `t` for `Reading::On`",
         ),
         (
             "topo/src/boolean/solid_contain/curved_edges.rs",
             1,
-            "the ray's foot iteration seeds `on_carrier` and `Span::place` at its point \
-             (`curved-edges-passes-hand-composes-on-carrier-and-span-place`)",
+            "the ray's foot iteration carries its point to the closest approach, which \
+             `Span::read` reads",
         ),
         (
             "geom-brep/src/ssi/exhaust.rs",
@@ -586,17 +624,132 @@ fn measure_spline_foot_misses() {
     );
 }
 
-/// **Every walk refusal's sentence reads back as itself**, over every
-/// variant: no two share a sentence, so a reader that parses one (the
-/// census) cannot take one refusal for another.
+/// **A point's distance from a line's span or a circle's arc**, against
+/// a dense walk of the interval as the oracle: on a segment past its end,
+/// inside an arc (the circle's clearance), past an arc's end (the nearer
+/// end), on the circle's axis (every point alike), an arc across the
+/// seam and a reversed span. None on the kinds with no closed form.
 #[test]
-fn every_walk_refusal_reads_back_from_its_sentence() {
-    for &why in <PieceWalkRefusal as strum::VariantArray>::VARIANTS {
-        assert_eq!(
-            PieceWalkRefusal::of_sentence(why.sentence()),
-            Some(why),
-            "{why:?}"
+fn a_points_distance_within_a_span_is_the_dense_walks_least() {
+    use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    let segment = Curve3::Line(crate::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let dense = |c: &Curve3<f64>, q: Point3<f64>, (t0, t1): (f64, f64)| {
+        (0..=20_000)
+            .map(|k| (c.eval(t0 + (t1 - t0) * f64::from(k) / 20_000.0) - q).norm())
+            .fold(f64::INFINITY, f64::min)
+    };
+    let cases = [
+        (
+            "a segment past its end",
+            segment.clone(),
+            Point3::new(2.0, 1.0, 0.0),
+            (0.0, 1.0),
+        ),
+        (
+            "a reversed span",
+            segment,
+            Point3::new(-1.0, 1.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "inside an arc",
+            circle(),
+            Point3::new(3.0, 3.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "past an arc's end",
+            circle(),
+            Point3::new(-3.0, 0.0, 1.5),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "on the circle's axis",
+            circle(),
+            Point3::new(0.0, 0.0, 3.0),
+            (0.0, FRAC_PI_2),
+        ),
+        (
+            "across the seam",
+            circle(),
+            Point3::new(1.0, -0.1, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "past a seam arc's end",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (-FRAC_PI_4, FRAC_PI_4),
+        ),
+        (
+            "a whole turn",
+            circle(),
+            Point3::new(-1.0, -1.0, 1.0),
+            (0.0, 2.0 * PI),
+        ),
+    ];
+    for (what, c, q, span) in cases {
+        let got = c.distance_within(q, span).unwrap();
+        let want = dense(&c, q, span);
+        assert!(
+            got <= want + 1e-12 && want - got < 1e-6,
+            "{what}: distance_within {got} against the dense walk's {want}"
         );
     }
-    assert_eq!(PieceWalkRefusal::of_sentence("no walk's sentence"), None);
+    for c in [ellipse(2.0, 1.0), spiric(), spline()] {
+        assert!(
+            c.distance_within(Point3::new(1.0, 1.0, 1.0), (0.0, 0.5))
+                .is_none(),
+            "no closed form on {c:?}"
+        );
+    }
+}
+
+/// **A box about the arc's end ray reads a floor under every point of
+/// it, and never below the whole circle's clearance**: the box holds
+/// points inside the arc and past it, and its reading encloses its
+/// centre's distance with its low end at or above the clearance, which
+/// bounds every point's distance from below. So does a box well inside
+/// the arc. A box whose azimuth is named a
+/// turn from the arc is `topo`'s `ring_path::arc_floor_rows`.
+#[test]
+fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::Bounds as _;
+    let point = circle();
+    let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
+    let c: Curve3<geom_core::Interval> = Curve3::circle(
+        boxed(Point3::new(0.0, 0.0, 1.0), 0.0),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(2.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = (iv(0.0), iv(FRAC_PI_2));
+    // On the ray of the arc's end at `π/2`, off the circle.
+    let centre = Point3::new(0.0, 3.0, 1.5);
+    let q = boxed(centre, 0.05);
+    let got = c.distance_within(q, span).unwrap();
+    let clear = c.clearance(q).unwrap();
+    let truth = point.distance_within(centre, (0.0, FRAC_PI_2)).unwrap();
+    assert!(
+        got.lo() >= clear.lo() && got.lo() <= truth && truth <= got.hi(),
+        "the reading encloses the box centre's distance {truth} and is no lower than the \
+         clearance {clear:?}: {got:?}"
+    );
+    let inside = boxed(Point3::new(2.0, 2.0, 1.5), 0.05);
+    let (read, clear) = (
+        c.distance_within(inside, span).unwrap(),
+        c.clearance(inside).unwrap(),
+    );
+    let truth = point
+        .distance_within(Point3::new(2.0, 2.0, 1.5), (0.0, FRAC_PI_2))
+        .unwrap();
+    assert!(
+        read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
+        "a box well inside the arc reads its centre's distance {truth}, its low end the \
+         clearance's {clear:?} or above: {read:?}"
+    );
 }

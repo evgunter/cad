@@ -12,7 +12,7 @@
 //! derivation cannot survive to rest.
 
 use geom::Curve3;
-use geom_core::{Point3, Real};
+use geom_core::Point3;
 
 use crate::error::StepImportError;
 
@@ -76,8 +76,8 @@ pub(crate) fn endpoint_params(
             // The start angle in [0, τ), the end angle in (t0, t0 + τ]
             // — the increasing-parameter arc, its angle the conic's
             // principal one (an ellipse's eccentric anomaly).
-            let Some(conic) = carrier.conic() else {
-                unreachable!("a circle or an ellipse is a conic")
+            let (Some(conic), Some(turn)) = (carrier.conic(), carrier.period()) else {
+                unreachable!("a circle or an ellipse is a conic, which repeats")
             };
             // Each angle is refused where it is derived, so the
             // self-loop arm's early return cannot outrun the check:
@@ -86,8 +86,8 @@ pub(crate) fn endpoint_params(
             // The read is total over a finite direction (the centre
             // answers the reference, 0) and NaN over a non-finite one,
             // so a non-finite angle means non-finite vertex or
-            // placement data reached it. Both returned parameters are
-            // therefore finite, and the wrap loop below terminates.
+            // placement data reached it, and both returned parameters
+            // are finite.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
                 let t = conic.azimuth(p).near(0.0);
                 if t.is_finite() {
@@ -101,19 +101,11 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let tau = f64::tau();
-            let mut t0 = angle(p_start)?;
-            if t0 < 0.0 {
-                t0 += tau;
-            }
+            let t0 = turn.at_or_above(angle(p_start)?, 0.0);
             if self_loop {
-                return Ok((t0, t0 + tau));
+                return Ok((t0, t0 + turn.length()));
             }
-            let mut t1 = angle(p_end)?;
-            while t1 <= t0 {
-                t1 += tau;
-            }
-            Ok((t0, t1))
+            Ok((t0, turn.above(angle(p_end)?, t0)))
         }
         // No STEP entity is recognized as a spiric: the import mints
         // `Line`, `Circle`, `Ellipse` and `Nurbs` carriers only
@@ -174,6 +166,55 @@ mod tests {
             }
             other => panic!("expected a finiteness refusal, got {other:?}"),
         }
+    }
+
+    /// **A conic edge's interval is `[0, τ)` at its start and `(t0, t0 + τ]`
+    /// at its end, exactly at both open ends.** A seam start reads `0`,
+    /// not `τ`, and so does one a hair under the seam, whose lift rounds
+    /// onto `τ`; an end at the start's own point, on an edge whose two
+    /// vertices are distinct, reads a whole turn on, never a zero-length
+    /// arc, at a start where `Period::near` about `t0 + π` would keep it.
+    #[test]
+    fn a_conic_intervals_open_ends_hold_exactly() {
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let seam = Point3::new(1.0, 0.0, 0.0);
+        let below = Point3::new(0.0, -1.0, 0.0);
+        let Ok((t0, t1)) = endpoint_params(1, &carrier, seam, below, false) else {
+            panic!("an arc")
+        };
+        assert_eq!(t0.to_bits(), 0.0_f64.to_bits(), "a seam start reads 0");
+        let under_seam = Point3::new(1.0, -1e-17, 0.0);
+        let Ok((t0, _)) = endpoint_params(3, &carrier, under_seam, below, false) else {
+            panic!("an arc")
+        };
+        assert!(
+            (0.0..core::f64::consts::TAU).contains(&t0),
+            "a start a hair under the seam reads in [0, τ), not {t0}"
+        );
+        assert!(
+            (t1 - 1.5 * core::f64::consts::PI).abs() < 1e-12,
+            "the end three quarters on: {t1}"
+        );
+        let p = Point3::new(0.89_f64.cos(), 0.89_f64.sin(), 0.0);
+        let Ok((t0, t1)) = endpoint_params(2, &carrier, p, p, false) else {
+            panic!("an arc")
+        };
+        let turn = geom_core::period::Period::new(core::f64::consts::TAU);
+        assert_eq!(
+            turn.near(t0, t0 + core::f64::consts::PI).to_bits(),
+            t0.to_bits(),
+            "this start is one near about t0 + π keeps: {t0}"
+        );
+        assert_eq!(
+            t1.to_bits(),
+            (t0 + core::f64::consts::TAU).to_bits(),
+            "an end at the start's point is a whole turn on"
+        );
     }
 
     #[test]

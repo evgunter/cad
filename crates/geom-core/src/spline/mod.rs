@@ -49,6 +49,7 @@
 pub mod algebra;
 pub mod basis;
 pub mod blossom;
+pub mod built;
 pub mod compose;
 pub mod derivative;
 pub mod hull;
@@ -65,6 +66,7 @@ pub mod weights;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_segment};
+pub use built::{Built, Fact};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
@@ -72,18 +74,18 @@ pub use derivative::{
     AreaSlopes, AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellMeasureQuotients,
     CellQuotients, CellSecondQuotients, IntervalPieces, QUOTIENT_MAX_DEGREE, QuotientPiece,
     accel_pieces, cell_first_quotients, cell_measure_quotients, cell_quotients,
-    cell_second_quotients, derivative_net, polynomial_area_pieces, span_derivative_scale,
-    speed_pieces, stretch_pieces,
+    cell_second_quotients, derivative_net, derivative_pair, polynomial_area_pieces,
+    span_derivative_scale, speed_pieces, stretch_pieces,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, LooseKnots, Span, SplineError,
-    check_weight_value, check_weight_values, knot_difference, weight_in_regime,
+    KNOT_MAGNITUDE_MAX, KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, LooseKnots,
+    Span, SplineError, check_weight_value, check_weight_values, knot_difference, weight_in_regime,
 };
-pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
+pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange};

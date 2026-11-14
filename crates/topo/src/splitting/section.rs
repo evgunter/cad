@@ -26,7 +26,8 @@ use super::join::SectionKind;
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::{linked, proven};
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -194,9 +195,6 @@ pub enum SectionError<T: Real> {
         /// A corner of the hole.
         corner: Point3<T>,
     },
-    /// A traversal of the scratch body met a dangling key (a kernel
-    /// bug).
-    Corrupt,
 }
 
 impl<T: Real> From<SplitError> for SectionError<T> {
@@ -251,11 +249,6 @@ impl<T: Real> SectionError<T> {
                 "two outlines of the section each read as enclosing the other around a hole. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::Corrupt => write!(
-                f,
-                "the section traversal failed (corrupt body). {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
         }
     }
 }
@@ -293,6 +286,13 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// stages' refusals through unchanged, save a curved wall's knife-edge
 /// contact, which refuses as [`SectionError::KnifeEdge`] rather than
 /// reporting a trace with the contact in it.
+///
+/// # Panics
+///
+/// On a torn scratch body, a kernel bug: the section's loops are the
+/// join's own, on the clone it carved, so a record on their walk that
+/// does not resolve is no refusal (`section_walk`, and the nesting's
+/// reads of the same loops).
 pub fn plane_section<F: crate::FinishedBody>(
     operand: &F,
     plane: &SplitPlane<F::Scalar>,
@@ -376,7 +376,12 @@ where
     }
     let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
         |fault| match fault {
-            NestFault::Torn => SectionError::Corrupt,
+            // `section_walk` resolved, on this body, every record the
+            // nesting reads of these loops.
+            NestFault::Torn(unresolved) => unreachable!(
+                "the section nesting read a torn scratch body ({unresolved}), over loops whose \
+                 every record the section walk resolved on the same body"
+            ),
             NestFault::Contradiction(hole) => SectionError::NestingContradiction {
                 corner: hole.points()[0],
             },
@@ -454,41 +459,54 @@ enum HalfCarrier<T: Real> {
     Unread,
 }
 
-/// The halves of cycle loop `l` in `loop_cycle` order — the corners and
+/// The halves of cycle loop `l` in cycle order — the corners and
 /// the edges between them from one walk, so each edge runs from its
-/// own corner to the next.
+/// own corner to the next. The walk is the claimed one
+/// ([`Body::loop_walk_of`]): each `next` resolves and names `l` as its
+/// `parent_loop`.
 ///
 /// # Errors
 ///
-/// [`SectionError::Corrupt`] on a dangling key or an unclaimed half;
-/// a lone-vertex loop is a broken section invariant
-/// ([`crate::chord_join::SplitJoinError::SectionInvariant`]).
+/// A lone-vertex loop is a broken section invariant
+/// ([`crate::chord_join::JoinError::SectionInvariant`]).
+///
+/// # Panics
+///
+/// On a torn scratch body, a kernel bug: `l` is a loop the join
+/// completed on `body`, and every hop past it is a link.
 fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
-    let loop_data = body.get_loop(l).ok_or(SectionError::Corrupt)?;
+    let Some(loop_data) = body.get_loop(l) else {
+        unreachable!(
+            "the join's completed section names below loop {l:?}, which does not resolve: the \
+             join walks a section's below loop and files it in its null face's pair as it \
+             completes the polygon, and {}",
+            crate::live::OPERATORS_KEEP_LINKS
+        )
+    };
     let LoopBoundary::Cycle { first } = loop_data.boundary else {
         return Err(
-            SplitError::Join(crate::chord_join::SplitJoinError::SectionInvariant {
+            SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
                 face: loop_data.face,
                 what: "a completed section polygon's below loop holds a lone vertex instead of a \
-                   cycle",
+                       cycle",
             })
             .into(),
         );
     };
     let mut halves = Vec::new();
-    for he in body.loop_cycle(first).ok_or(SectionError::Corrupt)? {
-        let h = body.get_half_edge(he).ok_or(SectionError::Corrupt)?;
-        let corner = body
-            .get_vertex(h.start)
-            .and_then(|vx| body.get_point(vx.point))
-            .copied()
-            .ok_or(SectionError::Corrupt)?;
-        let edge = body.get_edge(h.edge).ok_or(SectionError::Corrupt)?;
-        let forward = edge.claim(he).ok_or(SectionError::Corrupt)?.plus;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(SectionError::Corrupt)?
-            .certified();
+    for he in body.loop_walk_of(first, l).closed_in(l, first) {
+        let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let ek = half.edge;
+        let edge = linked(
+            &body.edges,
+            ek,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let corner = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+        let forward = crate::live::claimed(he, ek, edge).plus;
+        let curve = body.edge_curve_linked(ek, edge).certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
             Some(curve) => match curve.carrier() {
@@ -554,5 +572,138 @@ mod winding_ending {
             text.contains(". Recourse: move the section plane; "),
             "the lever and the note, got {text}"
         );
+    }
+}
+
+/// **A torn record on a section loop's walk panics naming it**: a cube
+/// face's loop, one tear at a time, each panic pinned by the holding
+/// record, the key it names and the premise.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod torn_walk {
+    use geom_core::Tol;
+
+    use super::section_walk;
+    use crate::body::Body;
+    use crate::entity::{EntityId, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    /// A cube, one of its loops and that loop's first half-edge.
+    fn cube() -> (Body<f64>, LoopKey, HalfEdgeKey) {
+        let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let (l, first) = body
+            .loops()
+            .find_map(|(l, data)| match data.boundary {
+                LoopBoundary::Cycle { first } => Some((l, first)),
+                LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        (body, l, first)
+    }
+
+    /// The walk's length, or that it refused.
+    fn walk(body: &Body<f64>, l: LoopKey) -> Result<usize, &'static str> {
+        section_walk(body, l)
+            .map(|halves| halves.len())
+            .map_err(|_| "refused")
+    }
+
+    /// `walk(l)` on the torn `body` panics naming `named` and both
+    /// premises.
+    fn assert_walk_panics(body: &mut Body<f64>, l: LoopKey, named: &str) {
+        assert_torn_op_panics(
+            "section_walk",
+            body,
+            &[named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| walk(b, l),
+        );
+    }
+
+    /// The sound loop the torn rows below start from walks whole, so each
+    /// of their panics is its tear's.
+    #[test]
+    fn a_sound_loop_walks_its_four_halves() {
+        let (body, l, first) = cube();
+        let halves = section_walk(&body, l).unwrap();
+        assert_eq!(halves.len(), 4, "a cube face's loop");
+        assert_eq!(halves[0].he, first, "the walk starts at the loop's first");
+    }
+
+    #[test]
+    fn a_completed_sections_loop_that_does_not_resolve_panics() {
+        let l = LoopKey::default();
+        let named = format!("the join's completed section names below loop {l:?}");
+        assert_torn_op_panics(
+            "section_walk",
+            &mut Body::<f64>::new(),
+            &[&named, OPERATORS_KEEP_LINKS],
+            |b| walk(b, l),
+        );
+    }
+
+    #[test]
+    fn a_next_that_leaves_the_loop_panics_naming_the_hop() {
+        let (mut body, l, first) = cube();
+        let stray = body
+            .half_edges()
+            .find_map(|(he, data)| (data.parent_loop != l).then_some(he))
+            .unwrap();
+        body.get_half_edge_mut(first).unwrap().next = stray;
+        let named = format!("the loop walk from {first:?} breaks at {first:?}, leaving loop {l:?}");
+        assert_walk_panics(&mut body, l, &named);
+    }
+
+    #[test]
+    fn a_half_its_edge_does_not_claim_panics_as_its_own_fault() {
+        let (mut body, l, first) = cube();
+        let other = body
+            .edges()
+            .find_map(|(e, data)| data.claim(first).is_none().then_some(e))
+            .unwrap();
+        body.get_half_edge_mut(first).unwrap().edge = other;
+        let named = format!("{first:?}'s edge {other:?} does not claim it in either slot");
+        assert_walk_panics(&mut body, l, &named);
+    }
+
+    #[test]
+    fn an_edge_whose_curve_does_not_resolve_panics_naming_the_edge() {
+        let (mut body, l, first) = cube();
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_walk_panics(&mut body, l, &named);
+    }
+
+    /// A corner's vertex and its point are two records, and each miss
+    /// names its own holder.
+    #[test]
+    fn a_corner_whose_vertex_or_point_does_not_resolve_panics_naming_which() {
+        let (sound, l, first) = cube();
+        let start = sound.get_half_edge(first).unwrap().start;
+        let point = sound.get_vertex(start).unwrap().point;
+
+        let mut body = sound.clone();
+        body.vertices.remove(start);
+        let named = format!(
+            "{}'s start names {}",
+            EntityId::HalfEdge(first),
+            EntityId::Vertex(start)
+        );
+        assert_walk_panics(&mut body, l, &named);
+
+        let mut body = sound;
+        body.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(start),
+            GeomRef::Point(point)
+        );
+        assert_walk_panics(&mut body, l, &named);
     }
 }

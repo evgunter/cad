@@ -51,7 +51,7 @@ use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     AssertionVerdict, CancelToken, ClearanceBounds, Dimension, Distribution, DocEdit, EvalOptions,
     Formula, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    SitedRef, UnitSym, ValuePayload, VarName,
 };
 use geom_core::Tol;
 
@@ -230,7 +230,7 @@ struct Dumbbell {
 }
 
 /// Evaluates over a box at the caller's scalar, through the public door.
-fn eval_over<T: editor_core::EvalScalar>(
+fn eval_over<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     box_: Option<ParamBox>,
 ) -> editor_core::Evaluation<T> {
@@ -238,7 +238,13 @@ fn eval_over<T: editor_core::EvalScalar>(
         param_box: box_.map(std::sync::Arc::new),
         ..EvalOptions::default()
     };
-    evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    )
 }
 
 /// The clearance report an evaluation holds for `assertion`.

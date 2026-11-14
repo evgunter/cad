@@ -81,7 +81,7 @@ fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
 fn caps_face_alike(what: &str, body: &Body<f64>) {
     let normals: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Plane { normal, .. }) => Some(normal.y),
             _ => None,
         })

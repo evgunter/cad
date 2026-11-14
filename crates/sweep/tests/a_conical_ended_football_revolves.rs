@@ -116,9 +116,11 @@ fn a_conical_ended_football_revolves() {
         ("the lemon", LEMON),
         ("the apple", APPLE),
         ("the lemon near its apexes", near_apex),
-        // Far out, but inside the 1 km session box: at (1e3, 1e3) it
-        // reached about 1.41 km, past it, and the finished-body gate
-        // refuses that (`OutsideSessionBox`).
+        // Far out, its axis through (650, 650), and inside the 1 km
+        // session box, which bounds each coordinate: every one is within
+        // about 652 m. Its axis through (1e3, 1e3) put coordinates past
+        // 1 km, and the finished-body gate refuses that
+        // (`OutsideSessionBox`).
         (
             "the lemon 920 m out",
             Band {
@@ -144,7 +146,7 @@ fn a_conical_ended_football_revolves() {
         let sheets: Vec<f64> = built
             .body
             .faces()
-            .filter_map(|(_, f)| match built.body.get_surface(f.surface) {
+            .filter_map(|(fk, _)| match built.body.face_surface(fk) {
                 Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
                 _ => None,
             })
@@ -184,7 +186,7 @@ fn a_conical_ended_football_revolves() {
 /// The surface kinds of a body's faces, a sheet or torus with its `R`.
 fn kinds(body: &topo::Body<f64>) -> Vec<String> {
     body.faces()
-        .map(|(_, f)| match body.get_surface(f.surface).unwrap() {
+        .map(|(fk, _)| match body.face_surface(fk).unwrap() {
             geom::Surface::Spindle { major_radius, .. } => format!("spindle({major_radius})"),
             geom::Surface::Torus { major_radius, .. } => format!("torus({major_radius})"),
             s => format!("{:?}", s.kind()),
@@ -353,14 +355,11 @@ fn a_football_revolved_part_way_measures_exact() {
     );
 }
 
-/// **The wide apple builds and measures, and its mesh refuses typed**:
-/// `R = 0.8, |v| ≤ 2.4`, past the latitude window's cut
-/// (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
-/// Tier 3 passes and props meets the closed form; `tessellate` reads the
-/// rim at `v = −2.4` a turn off and refuses `UnsupportedCurvedDomain`.
-/// The row moves when that window does.
+/// **The wide apple meshes and measures**: `R = 0.8, |v| ≤ 2.4`, its
+/// rim at `v = −2.4` past `1 − π`, read in the sheet's own `[−v*, v*]`.
+/// It meshes watertight, passes tier 3 and props meets the closed form.
 #[test]
-fn the_wide_apple_measures_and_its_mesh_refuses_typed() {
+fn the_wide_apple_meshes_and_measures() {
     let tol = Tol::witness();
     let band = Band {
         major: 0.8,
@@ -376,15 +375,9 @@ fn the_wide_apple_measures_and_its_mesh_refuses_typed() {
         tol,
     )
     .unwrap_or_else(|e| panic!("the wide apple: {e}"));
-    let mesh = mesh::tessellate(&built.body, 1e-2, tol);
-    assert!(
-        matches!(
-            mesh,
-            Err(mesh::TessellateError::UnsupportedCurvedDomain { .. })
-        ),
-        "the wide apple's mesh: {:?}",
-        mesh.map(|_| "meshed")
-    );
+    let mesh = mesh::tessellate(&built.body, 1e-2, tol)
+        .unwrap_or_else(|e| panic!("the wide apple: tessellate: {e:?}"));
+    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("the wide apple: the mesh: {e:?}"));
     let body = built.body;
     let g = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the wide apple: props: {e:?}"))

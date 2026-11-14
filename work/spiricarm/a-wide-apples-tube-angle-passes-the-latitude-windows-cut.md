@@ -2,10 +2,13 @@
 id: a-wide-apples-tube-angle-passes-the-latitude-windows-cut
 kind: issue
 title: A spindle sheet's v is read in the latitude window (-π + 1, π + 1], which holds [-v*, v*] only for v* < π - 1: an apple with R > 0.54 r reads its far side a turn off
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+branch: spiricarm/horn-cusp
+closed: 2026-11-11
+pr: 6806
 ---
 
 (SPIRICARM, stage 1 piece 1 of `horn-and-spindle-tori-have-no-representation`.)
@@ -47,3 +50,7 @@ turn off, and its cusp at `+π`; it is not in the suite. A window that
 holds `[−v*, v*]` for every sheet still has to place a horn's cusp at
 `+π` for an upper face and `−π` for a lower one, so the fix reads the
 cusp's `v` off the face, as a seam's.
+
+## Closed (2026-11-11)
+
+PR 6806. A sheet's `v` has one window, `Window::Sheet` (`(−π, π]`, read in the angle window at the caller's band and renamed about zero), read by both `chart_point` and the closed-form pcurve placement (`Along::Sheet`). The wide apples mesh and measure, `SHEETS` gains (0.999, 1), and `a_wide_apples_pcurves_name_v_as_its_chart_does` is red if either reader goes back to the latitude window.

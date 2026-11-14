@@ -64,9 +64,8 @@ fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
 
 /// Does any edge of `body` join vertices `a` and `b` (either order)?
 fn joins(body: &Body<f64>, a: VertexKey, b: VertexKey) -> bool {
-    body.edges().any(|(_, e)| {
-        let s1 = body.get_half_edge(e.he_plus).unwrap().start;
-        let s2 = body.get_half_edge(e.he_minus).unwrap().start;
+    body.edges().any(|(k, _)| {
+        let (s1, s2) = body.edge_vertices(k).unwrap();
         (s1 == a && s2 == b) || (s1 == b && s2 == a)
     })
 }

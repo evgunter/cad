@@ -102,9 +102,10 @@ kinds of thing. Nothing on the row itself says which:
   `split_sector_{coplanar,extent}` are the `sector_face` twins and the
   face-extent arm — *different quantities*, still two implementations,
   the rest of smell-scan S5. These are not candidates for pooling.
-- **Not a sector rung at all.** `split_bisector_side` matches the grep
-  on the substring in *bisector*. It is the splitting lane's own
-  subdivision-side predicate and keeps its lane prefix.
+- **Not a sector rung at all.** `split_bisector_side` matched the grep
+  on the substring in *bisector*. It was the splitting lane's own
+  subdivision-side predicate; the split's dividers now read their side
+  through the one bound-side reading (`topo::bound_side`).
 
 The general lesson, not the sector-specific one: **a predicate name in
 this directory is only interpretable against the era of the file it is

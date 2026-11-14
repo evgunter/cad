@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends]
+blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -26,24 +26,28 @@ this final state, but … keep it disabled/selectively disabled for now".
 - the `B` parameter on `Lofted` and `Revolved` and their `leaf`
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
-- `sweep::test_support::taken`;
-- the three evaluator doors' `T::leaf` ends, which become `T::finish`:
-  the computing frame's twist, the mirror and the `⊔` graft
-  (`crates/editor-core/src/eval/wire.rs`);
-- `NodeErrorKind::UnfinishedLeaf`'s leaf half: it stays, renamed to what
-  it then is, a body read through a placement's map that does not finish
-  where an operation takes it (`ReadIn::Mapped`, `ReadIn::taken`), with
-  its `input`, class, tags and rendered rows
-  (`crates/editor-core/src/eval/mod.rs`, `crates/pncad-py`);
+- `sweep::test_support::taken`, and `crates/sweep/tests/a_boxed_motion_moves_a_finished_body.rs`'s
+  naming of `topo::Replay<Interval>` as the leaf (it does not compile
+  with the leaf finished);
+- `LeafBody::moved`'s re-finish at f64 goes with the switch. It is
+  the switch's measured price (ONEHOME stage 2,
+  `crates/editor-core/tests/corpus_finish_count.rs`): the corpus runs
+  662 finishes with it, 389 with the move and no f64 leaf re-finish,
+  and 505 on main before a move carried its verdict;
+- the `⊔` graft's `T::leaf` end, which becomes `T::finish`
+  (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
+  what a value holds (`Held::moved`) and end in no gate;
+- `NodeErrorKind::UnfinishedLeaf`: with no leaf, every held body is
+  finished and a moved one stays finished, so nothing refuses where an
+  operation takes it; the arm goes with its `input`, class, tags and
+  rendered rows (`crates/editor-core/src/eval/mod.rs`, `crates/pncad-py`);
 - `Held`'s leaf arm, `Held::finished` and `Held::at_f64`/`arc`
   (`crates/editor-core/src/eval/framed.rs`), and `Framed::own_leaf` and
-  `in_frame_leaf`: a value holds a finished body again, and `ReadIn::Held`
-  holds that body. `Framed::read_in` and `ReadIn` stay: a body mapped
-  into another frame is construction state with or without the switch;
+  `in_frame_leaf`: a value holds a finished body again, and
+  `Framed::read_in` moves it (`FinishedBody::moved`);
 - the `MemberRead::taken_in` and `distribute::Operand::taken`/`taken_in`
   takes of a held body (`crates/editor-core/src/eval/wire.rs`,
-  `wire/distribute.rs`): a held body is taken as it is, a mapped one
-  still finishes there;
+  `wire/distribute.rs`): a held body is taken as it is;
 - the connectedness check's take of a held body
   (`crates/editor-core/src/checks.rs`);
 - the bindings' `HostBody` held arm, which holds the finished body
@@ -62,8 +66,12 @@ scalars' tier 3 read what the box studies build. The `f64` row
 not a blocker: `f64` is not behind the switch.
 
 **The test that says it is done.** The rows each blocker names pass with
-their main-era assertions after the deletion.
+their main-era assertions after the deletion, and the corpus finish
+count (`corpus_finish_count`) falls to the switch-free figure, about
+389.
 
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
+- 2026-11-10 — the twist, the mirror and `ReadIn` left the list: a finished body moved by an isometry stays finished (fork 256, the rigid-motion unit). (ONEHOME rigid-motion lane)
+- 2026-11-14 — `blocked_on` gains `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: M1 measured the slab, the derived-frame cube and the tour's stop as that row's, not the side reader's alone. The boxed-motion sweep test joins the list. (BOXFINISH orchestrator)

@@ -378,27 +378,38 @@ enum Shape {
 impl Shape {
     /// `cell`'s shape in `body`: a vertex's point; an edge's carrier and
     /// its ends' points; a face's carrier, sense, and the points and
-    /// carriers of its boundary. None where `body` does not hold it.
+    /// carriers of its boundary. None where `body` does not hold it, or
+    /// holds a face a loop of which it cannot walk.
     fn of<T: geom_core::Real>(body: &crate::Body<T>, cell: Cell) -> Option<Self> {
         let point = |v| body.get_vertex(v).map(|d| d.point);
-        let start = |h| body.get_half_edge(h).and_then(|h| point(h.start));
         match cell {
             Cell::Vertex(v) => point(v).map(Self::Vertex),
             Cell::Edge(e) => {
                 let edge = body.get_edge(e)?;
-                let mut ends = [start(edge.he_plus), start(edge.he_minus)];
+                let mut ends = body
+                    .edge_vertices(e)
+                    .map_or([None, None], |(a, b)| [point(a), point(b)]);
                 ends.sort();
                 Some(Self::Edge(edge.curve, ends))
             }
             Cell::Face(f) => {
                 let face = body.get_face(f)?;
                 let (mut points, mut curves) = (BTreeSet::new(), BTreeSet::new());
-                // Read off each half-edge's loop, walking no loop: the
-                // snapshot is taken before a door's own checks run.
-                for (_, h) in body.half_edges() {
-                    if body.get_loop(h.parent_loop).is_some_and(|l| l.face == f) {
-                        points.extend(point(h.start));
-                        curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+                // Read unchecked: the snapshot is taken before a door's
+                // own checks run. Its points are the boundary's vertices,
+                // a lone one included; its curves, its cycles' edges. A
+                // loop it cannot walk leaves the face with no shape, so no
+                // image reads as holding it.
+                for read in body.unchecked_face_boundary(face) {
+                    match read.ok()? {
+                        crate::live::UncheckedLoop::Lone(vertex) => points.extend(point(vertex)),
+                        crate::live::UncheckedLoop::Cycle(cycle) => {
+                            for he in cycle {
+                                let h = body.get_half_edge(he)?;
+                                points.extend(point(h.start));
+                                curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+                            }
+                        }
                     }
                 }
                 Some(Self::Face {
@@ -429,37 +440,13 @@ impl SourceGeometry {
     /// Every cell of `body`, as its geometry's keys.
     #[must_use]
     pub fn of<T: geom_core::Real>(body: &crate::Body<T>) -> Self {
-        type Bounds = (
-            BTreeSet<crate::geometry::PointKey>,
-            BTreeSet<crate::geometry::CurveKey>,
-        );
-        let mut bounds: BTreeMap<FaceKey, Bounds> = BTreeMap::new();
-        for (_, h) in body.half_edges() {
-            let Some(f) = body.get_loop(h.parent_loop).map(|l| l.face) else {
-                continue;
-            };
-            let (points, curves) = bounds.entry(f).or_default();
-            points.extend(body.get_vertex(h.start).map(|d| d.point));
-            curves.extend(body.get_edge(h.edge).map(|e| e.curve));
-        }
-        let mut cells: BTreeMap<Cell, Shape> = body
+        let cells = body
             .vertices()
             .map(|(v, _)| Cell::Vertex(v))
             .chain(body.edges().map(|(e, _)| Cell::Edge(e)))
+            .chain(body.faces().map(|(f, _)| Cell::Face(f)))
             .filter_map(|c| Shape::of(body, c).map(|s| (c, s)))
             .collect();
-        for (f, face) in body.faces() {
-            let (points, curves) = bounds.remove(&f).unwrap_or_default();
-            cells.insert(
-                Cell::Face(f),
-                Shape::Face {
-                    surface: face.surface,
-                    sense: face.sense,
-                    points,
-                    curves,
-                },
-            );
-        }
         Self { cells }
     }
 
@@ -530,7 +517,7 @@ pub(crate) fn roots<K: Ord + Copy>(rows: &[(K, K)]) -> Vec<K> {
 ///
 /// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// [`crate::chord_join::JoinError::LineageRow`]) it is a kernel
 /// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
 /// raises it, it refuses rows its caller wrote, and goes back to the one
 /// who holds them. Neither is reached by a move of a model, so nothing
@@ -581,7 +568,7 @@ impl LineageRows {
 ///
 /// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// [`crate::chord_join::JoinError::LineageRow`]) it is a kernel
 /// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
 /// raises it, it refuses rows its caller wrote, and goes back to the one
 /// who holds them. Neither is reached by a move of a model, so nothing
@@ -1380,13 +1367,13 @@ mod tests {
     /// **A refused row reads the same in every lane that carries it.**
     /// One sentence for the row ([`RowRefusal`]'s `Display`), inside
     /// the Boolean's refusal, the chord join's, and the join's lifted
-    /// into the Boolean's (`BooleanError`'s `From<SplitJoinError>`, which hands
+    /// into the Boolean's (`BooleanError`'s `From<JoinError>`, which hands
     /// it over as the Boolean's own [`crate::BooleanError::LineageRow`]).
     /// Red if a lane spells the row again, or the lift nests it.
     #[test]
     fn a_refused_row_reads_alike_in_every_lane_that_carries_it() {
         use crate::boolean::BooleanError;
-        use crate::chord_join::SplitJoinError;
+        use crate::chord_join::JoinError;
         let f = faces(1);
         let refusal = RowRefusal {
             rows: LineageRows::FaceDivisions,
@@ -1401,7 +1388,7 @@ mod tests {
                 Cell::Face(f[0])
             )
         );
-        let lifted = BooleanError::from(SplitJoinError::LineageRow(refusal));
+        let lifted = BooleanError::from(JoinError::LineageRow(refusal));
         assert!(
             matches!(
                 lifted,
@@ -1412,7 +1399,7 @@ mod tests {
         );
         for shown in [
             lifted.render(geom_brep::recourse::Reading::Build),
-            SplitJoinError::LineageRow(refusal).render(geom_brep::recourse::Reading::Build),
+            JoinError::LineageRow(refusal).render(geom_brep::recourse::Reading::Build),
         ] {
             assert!(shown.contains(&row), "{shown}");
             assert!(shown.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{shown}");
@@ -1455,6 +1442,39 @@ mod tests {
             ),
             Ok(Cell::Face(face)),
             "the settler's chase"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lone_vertex_rows {
+    use geom_core::Tol;
+
+    use crate::Cell;
+    use crate::test_support_fixtures::box_with_a_lone_ring;
+
+    /// **A face's shape holds its lone vertex's point**: the snapshot a
+    /// carry compares an image against reads the face's boundary, so a
+    /// box's top face that bounds a one-vertex ring keeps that vertex's
+    /// point among its own. Red where the shape was read off the face's
+    /// half-edges.
+    #[test]
+    fn a_faces_shape_holds_its_lone_vertexs_point() {
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let point = body.get_vertex(lone).unwrap().point;
+        let Some(super::Shape::Face { points, .. }) = super::Shape::of(&body, Cell::Face(top))
+        else {
+            panic!("the top face has a shape")
+        };
+        assert!(
+            points.contains(&point),
+            "the top face's shape holds the lone vertex's point"
+        );
+        assert_eq!(
+            points.len(),
+            5,
+            "four corners and the lone vertex: {points:?}"
         );
     }
 }

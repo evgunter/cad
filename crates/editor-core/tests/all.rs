@@ -61,6 +61,10 @@ mod wire;
 
 #[path = "a_blend_refusal_names_its_edge.rs"]
 mod a_blend_refusal_names_its_edge;
+#[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]
+mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
+#[path = "a_dual_is_bound_to_its_build_of_record.rs"]
+mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "aligned_overlap_quiets.rs"]
@@ -91,8 +95,12 @@ mod assemble_one_local_battery;
 mod atrest_carried_coincidence;
 #[path = "atrest_operation_rows_quiet.rs"]
 mod atrest_operation_rows_quiet;
+#[path = "band_closed_mixed_chain_names.rs"]
+mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_mixed_corner_names.rs"]
+mod band_mixed_corner_names;
 #[path = "band_planar_cut_off_names.rs"]
 mod band_planar_cut_off_names;
 #[path = "band_planar_mitre_names.rs"]
@@ -129,6 +137,8 @@ mod cert3r1_dump;
 mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+#[path = "corpus_finish_count.rs"]
+mod corpus_finish_count;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm3_indexed_read.rs"]
@@ -221,6 +231,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "every_predicate_name_is_minted_once.rs"]
+mod every_predicate_name_is_minted_once;
 #[path = "f64_lane_validates_once.rs"]
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
@@ -245,10 +257,14 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "placement_values_direction.rs"]
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "refactor_pose_definitions.rs"]
 mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]
@@ -645,6 +661,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "select_member_read.rs"]
+mod select_member_read;
 #[path = "split_and_shell_carry_contacts.rs"]
 mod split_and_shell_carry_contacts;
 #[path = "split_carries_spaces.rs"]
@@ -896,6 +914,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "source_readers.rs"]
+mod source_readers;
 #[path = "split_joined_keys_tie.rs"]
 mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]

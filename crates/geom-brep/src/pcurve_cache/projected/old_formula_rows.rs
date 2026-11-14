@@ -7,18 +7,14 @@
 //! The comparison is in sector, where a certified piece is read: the
 //! point's radial part, rotated back by the piece's azimuth centre (and
 //! flipped through a mirror nappe), has `x′ > 1e-12`, and on a torus
-//! the tube direction rotated back by its centre does too. Two
-//! differences are allowed, the image's two moved baselines:
-//!
-//! - the sphere latitude may differ in the sign of a zero
-//!   (`one_reading_rows`'s
-//!   `the_sphere_latitude_at_negative_zero_height_reads_positive_zero`);
-//! - at `Interval`, where a coordinate's enclosure has an end in
-//!   `(0, 2^-960)`, under the backend's 2Prod validity floor, the routed
-//!   enclosure may be narrower and lies inside the old one. The old
-//!   spelling multiplied the radial part by `σ = 1`, and a product under
-//!   that floor cannot witness its own exactness, so it pads one step
-//!   outward; the table reads the components as they are.
+//! the tube direction rotated back by its centre does too. One
+//! difference is allowed, the image's moved baseline: the sphere
+//! latitude may differ in the sign of a zero (`one_reading_rows`'s
+//! `the_sphere_latitude_at_negative_zero_height_reads_positive_zero`).
+//! At `Interval` the comparison holds under the backend's 2Prod
+//! validity floor (`2^-960`) too: the old spelling multiplies the radial
+//! part by `σ = ±1`, and a product by a point power of two is exact at
+//! every normal magnitude.
 //!
 //! The draws are a fixed seed: a fixture identifier, so the row reads the
 //! same points on every run and at every scalar. The review of PR 6500
@@ -116,19 +112,17 @@ fn charts<T: Real>(lift: impl Fn(f64) -> T) -> Vec<ProjectedChart<T>> {
     out
 }
 
-/// The scalar's view for the rows: its bits, its lower end, whether it
-/// has an end under the 2Prod floor, and whether one enclosure lies
-/// inside another.
+/// The scalar's view for the rows: its bits, its lower end, and whether
+/// it has an end under the 2Prod floor.
 struct View<T> {
     bits: fn(T) -> Vec<u64>,
     rep: fn(T) -> f64,
     under_floor: fn(T) -> bool,
-    inside: fn(T, T) -> bool,
 }
 
 /// The rows' one body: `points` draws per chart, every centre pair,
-/// answering how many in-sector reads it compared and how many of those,
-/// under the floor, came out narrower.
+/// answering how many in-sector reads it compared and how many of those
+/// had a coordinate under the floor.
 fn compare<T: Real>(
     lift: impl Fn(f64) -> T + Copy,
     point: impl Fn(&mut Draw) -> Vec3<T>,
@@ -139,10 +133,9 @@ fn compare<T: Real>(
         bits,
         rep,
         under_floor,
-        inside,
     } = *view;
     let mut draw = Draw(0x6500);
-    let (mut compared, mut narrower) = (0, 0);
+    let (mut compared, mut floored) = (0, 0);
     for chart in charts(lift) {
         let sigma = match chart {
             ProjectedChart::Cone {
@@ -191,16 +184,8 @@ fn compare<T: Real>(
                                 .zip(bits(old.1))
                                 .all(|(&a, b)| f64::from_bits(a) == f64::from_bits(b)));
                     let same = bits(new.x) == bits(old.0) && same_v;
-                    if !same && (under_floor(p.x) || under_floor(p.y) || under_floor(p.z)) {
-                        assert!(
-                            inside(new.x, old.0) && inside(new.y, old.1),
-                            "{:?} m {m} n {n} under the floor: the routed read is not inside the old",
-                            chart.kind(),
-                        );
-                        narrower += 1;
-                        compared += 1;
-                        continue;
-                    }
+                    floored +=
+                        usize::from(under_floor(p.x) || under_floor(p.y) || under_floor(p.z));
                     assert!(
                         same,
                         "{:?} m {m} n {n} at {:?}: new ({:?}, {:?}), old ({:?}, {:?})",
@@ -216,7 +201,7 @@ fn compare<T: Real>(
             }
         }
     }
-    (compared, narrower)
+    (compared, floored)
 }
 
 /// **ψ is the old spelling bit for bit, in sector**, at `f64`.
@@ -226,7 +211,6 @@ fn psi_is_the_old_spelling_bit_for_bit_at_f64() {
         bits: |x: f64| vec![x.to_bits()],
         rep: |x| x,
         under_floor: |_| false,
-        inside: |_, _| false,
     };
     let (compared, _) = compare(
         |x| x,
@@ -238,8 +222,8 @@ fn psi_is_the_old_spelling_bit_for_bit_at_f64() {
 }
 
 /// The same at `Interval`, on boxes up to `0.3` wide; the bits compared
-/// are both ends of each enclosure, and a read with a coordinate under
-/// the 2Prod floor may come out narrower, inside the old (module docs).
+/// are both ends of each enclosure, under the 2Prod floor as above it
+/// (module docs).
 #[test]
 fn psi_is_the_old_spelling_bit_for_bit_at_interval() {
     /// The backend's 2Prod validity floor, `2^-960`
@@ -258,18 +242,17 @@ fn psi_is_the_old_spelling_bit_for_bit_at_interval() {
                 .iter()
                 .any(|e| e.abs() > 0.0 && e.abs() < FLOOR)
         },
-        inside: |a: Interval, b: Interval| b.lo() <= a.lo() && a.hi() <= b.hi(),
     };
-    let (compared, narrower) = compare(
+    let (compared, floored) = compare(
         Interval::from_f64,
         |d| Vec3::new(wide(d), wide(d), wide(d)),
         &view,
         60,
     );
     assert!(compared > 2_000, "compared {compared} reads");
-    // The draws reach the floor (the `1e-300` class), so the allowance is
-    // read, not vacuous.
-    assert!(narrower > 0, "no read under the floor came out narrower");
+    // The draws reach the floor (the `1e-300` class), so the rows read
+    // under it are compared, not skipped.
+    assert!(floored > 0, "no read under the floor was compared");
 }
 
 /// **The box rotation is the quarter's on its corners**: at `f64`, where

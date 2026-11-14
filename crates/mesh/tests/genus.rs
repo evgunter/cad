@@ -41,9 +41,8 @@ fn donut_faces_share_one_torus_surface() {
         .patches
         .iter()
         .filter(|p| {
-            let f = body.get_face(p.face).unwrap();
             matches!(
-                body.get_surface(f.surface).unwrap(),
+                body.face_surface(p.face).unwrap(),
                 geom::Surface::Torus { .. }
             )
         })

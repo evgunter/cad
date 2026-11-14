@@ -14,8 +14,8 @@ a spiric on its torus's MIRROR through the cutting plane a wall image:
 `SpiricImage::Wall` tagged `WallTorus::Mirror`, whose azimuth sign is
 `−sense` (`crates/geom-brep/src/pcurve_cache.rs`, the variant's docs).
 The spiric-bounded wall quadrature (`crates/topo/src/props/quad_lane.rs`,
-`spiric_wall`, feeding `crates/geom-brep/src/props/spiric.rs`'s
-`WallImageQ`) reads one `sense`, and its wall terms read the face's
+`spiric_wall_edge`, building the rotational lane's spiric arm, its
+`crates/geom-brep/src/props/spiric.rs` `WallImageQ`) reads one `sense`, and its wall terms read the face's
 torus as the carrier's own. So a mirror wall refuses typed there:
 `QuadratureUnsupported`, "a spiric wall image on the carrier's mirror
 torus".

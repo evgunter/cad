@@ -2,12 +2,14 @@
 id: main-red-the-k-probe-sweep-cannot-compile-geom-brep-under-probe-alone
 kind: issue
 title: K roster revalue blocked: scripts/k_probe_sweep.sh stops at m4_pr8_k_probe's corpus dump (key splits since PR 6341, <unnamed> samples since PR 6376)
-status: dispatched
+status: closed
 opened: 2026-11-05
 priority: P2
 cost: E
 refs: [main-reds-editor-core-slow-set-and-the-k-probe-sweep]
 branch: onecopy/main-reds-k-and-m10
+closed: 2026-11-09
+pr: 6674
 ---
 
 
@@ -42,3 +44,5 @@ Items 1 and 2 are done: geom-brep (and geom, geom-core) carry the self dev-depen
 - 138 `<unnamed>` samples since PR 6376 (`geom_core::running::Rounded::divisor`'s raw `sign_within`): `work/green/main-red-slow-rows-uncovered-at-b2337e9e.md`.
 
 Once both are green, run `scripts/k_probe_sweep.sh <dir>` and the nightly's k-lint steps against it.
+
+**Closed by PR 6674** (2026-11-09). Both corpus-dump blockers are fixed (the key split derived from the key's own rule; every sign read on the corpus path named), the demo tour's `probe` build compiles, and the roster is revalued on `work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md` (10033 crowding margins, 51730 before). The sweep's plain half stops on two main reds owned elsewhere: `work/onehome/main-red-the-gather-records-one-sample-tier-3-prime-does-not.md` (PR 6380) and `work/onecopy/main-red-the-side-readers-aims-take-a-circle-foot-since-point-walk-floors.md` (PR 6645).

@@ -49,9 +49,8 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// Every boundary vertex of `f`, as (key, point).
 fn face_verts(body: &Body<f64>, f: FaceKey) -> Vec<(VertexKey, Point3<f64>)> {
-    let face = body.get_face(f).unwrap();
     let mut out = Vec::new();
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+    for (lk, _, _) in body.face(f).unwrap().loops() {
         let l = body.get_loop(lk).unwrap();
         let LoopBoundary::Cycle { first } = l.boundary else {
             // A lone-vertex loop has no cycle to walk. These fixtures

@@ -45,7 +45,7 @@ fn ext<T: geom_core::Decide + AtRestPolicy>(loops: Vec<Loop>, z0: f64, h: f64) -
     .unwrap()
     .body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0).map(T::from_f64));
-    topo::transform_rigid(&b, &geom_core::test_support::rigid(&up, tol), tol).unwrap()
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&up, tol)).unwrap()
 }
 
 fn plate<T: geom_core::Decide + AtRestPolicy>() -> Body<T> {
@@ -82,10 +82,7 @@ fn the_tangent_rest<T: geom_core::Decide + geom_core::Bounds + AtRestPolicy>(
                 lo - 1e-9 <= want && want <= hi + 1e-9,
                 "union: both volumes, got [{lo}, {hi}]"
             );
-            let kind = |f: topo::FaceKey| {
-                let face = r.body.get_face(f).unwrap();
-                r.body.get_surface(face.surface).unwrap().kind()
-            };
+            let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
             let ff: Vec<_> = r
                 .contacts
                 .face_face()

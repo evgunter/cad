@@ -37,9 +37,9 @@ use Want::{Budget, Draws, Folds, Refuses};
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let at = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), tol);
-    let at = topo::transform_rigid(&at, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let at = topo::transform_rigid(&at, &geom_core::test_support::rigid(&turn, tol)).unwrap();
     let moved =
-        topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap(), tol).unwrap();
+        topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", moved, tol)
 }
 
@@ -91,7 +91,7 @@ enum Want {
     Draws,
     /// `SOUND`, and the mesher refuses a triangle folded over the chord
     /// beside it near a chart pole
-    /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+    /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     Folds,
     /// `SOUND`, and the mesher refuses at once: the tilted circle passes
     /// so near a chart pole that its uniform chord schedule asks one edge

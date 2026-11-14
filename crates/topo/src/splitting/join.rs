@@ -57,12 +57,12 @@
 //! the other as a zero-area ring). Every other polygon it certifies
 //! definitely of positive area (**`split_section_area`**, margin 2·A/P)
 //! — a zero-area section polygon is refused typed,
-//! [`SplitJoinError::DegenerateSection`] — then kills its trees, the
+//! [`JoinError::DegenerateSection`] — then kills its trees, the
 //! zero-width spurs over each of which the other loop runs as a slit
 //! (`Sweep::strip_spurs`), so the finish and the section query read one
 //! loop. Last, it writes the F9 record.
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -70,12 +70,13 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
-    SectionConic, SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinError, JoinLane, Leave,
+    SectionCase, SectionConic, SectionCtx, SegmentEdge, WallSection, corrupt_edge, corrupt_face,
     corrupt_he, corrupt_loop, he_face, lone_site_placeholder, wall_section,
 };
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
+use crate::unresolved::Unresolved;
 use crate::validate::{decide, decide_nonzero};
 use geom_core::Tol;
 
@@ -122,14 +123,14 @@ pub(crate) enum SectionKind {
 ///
 /// # Errors
 ///
-/// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
+/// [`JoinError`] — the body may be left mid-surgery on `Err`
 /// (callers operate on a scratch clone; the public ops discard it).
 pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut SplitReduction<T>,
     band: Band,
     tol: Tol,
-) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
-    let exact = order::exact_band().map_err(SplitJoinError::Band)?;
+) -> Result<(Vec<CompletedSection>, FragmentRows), JoinError> {
+    let exact = order::exact_band().map_err(JoinError::Band)?;
 
     // The null edges' above ends (role resolution is key membership).
     let mut above_set: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
@@ -145,8 +146,13 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 .resolve_vertex_point(r.attr.below_end, crate::live::Proven),
         );
     }
-    let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
-        .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
+    let sorted =
+        order::sort_indices_by_point(&points, &red.plane, band, exact).map_err(|diag| {
+            JoinError::OrderEscalated {
+                decision: order::decision_of(&diag),
+                diag,
+            }
+        })?;
 
     let partner = fixed_partners(red, &above_set, band)?;
     let mut st = Sweep {
@@ -244,7 +250,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     }
 
     if !st.ends.is_empty() {
-        return Err(SplitJoinError::UnpairedLooseEnds {
+        return Err(JoinError::UnpairedLooseEnds {
             count: st.ends.len(),
         });
     }
@@ -254,7 +260,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The edge of a half-edge.
-fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJoinError> {
+fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, JoinError> {
     Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge)
 }
 
@@ -291,7 +297,7 @@ fn fixed_partners<T: Decide>(
     red: &SplitReduction<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
     band: Band,
-) -> Result<SecondaryMap<HalfEdgeKey, HalfEdgeKey>, SplitJoinError> {
+) -> Result<SecondaryMap<HalfEdgeKey, HalfEdgeKey>, JoinError> {
     let body = &red.body;
     let mut faces: Vec<(FaceKey, Vec<HalfEdgeKey>)> = Vec::new();
     for r in &red.null_edges {
@@ -318,7 +324,7 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
         let wall = view.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
@@ -359,7 +365,7 @@ fn fixed_partners<T: Decide>(
                         case: SectionCase::Loops { .. },
                         ..
                     }) => {
-                        return Err(SplitJoinError::SectionInvariant {
+                        return Err(JoinError::SectionInvariant {
                             face,
                             what: "a split reached a torus face, which its reduce refuses",
                         });
@@ -401,9 +407,9 @@ fn split_leave<T: Decide>(
     plane_normal: geom_core::UnitVec3<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
     half: HalfEdgeKey,
-) -> Result<geom_core::Vec3<T>, SplitJoinError> {
+) -> Result<geom_core::Vec3<T>, JoinError> {
     let face = he_face(body, half)?;
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let wall = view.surface();
     leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
@@ -416,7 +422,7 @@ fn leave_on<T: Decide>(
     above_set: &SecondaryMap<VertexKey, ()>,
     half: HalfEdgeKey,
     (wall, sense): (&geom::Surface<T>, bool),
-) -> Result<geom_core::Vec3<T>, SplitJoinError> {
+) -> Result<geom_core::Vec3<T>, JoinError> {
     let start = body
         .get_half_edge(half)
         .ok_or_else(|| corrupt_he(half))?
@@ -430,7 +436,7 @@ fn leave_on<T: Decide>(
     // carries its germ instead) has no direction to leave it in.
     let n = out.vec();
     if n.x.is_poison() || n.y.is_poison() || n.z.is_poison() {
-        return Err(SplitJoinError::SectionInvariant {
+        return Err(JoinError::SectionInvariant {
             face: he_face(body, half)?,
             what: "a null-edge half at a point where its wall has no normal carries no germ",
         });
@@ -481,7 +487,7 @@ fn crossing_reach<T: Decide>(crossings: &[Crossing<T>], from: Point3<T>) -> geom
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where its line or
+/// [`JoinError::Escalated`] naming the face, where its line or
 /// the order of two of its crossings along it is undecided.
 fn line_pairs<T: Decide>(
     red: &SplitReduction<T>,
@@ -489,7 +495,7 @@ fn line_pairs<T: Decide>(
     normal: geom_core::Vec3<T>,
     crossings: &[Crossing<T>],
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, JoinError> {
     let spread = crossing_reach(crossings, crossings[0].point);
     let d = normal.cross(red.plane.normal.get());
     match decide(
@@ -499,7 +505,7 @@ fn line_pairs<T: Decide>(
     ) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Ok(Vec::new()),
-        Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+        Err(diag) => return Err(JoinError::Escalated { face, diag }),
     }
     let along: Vec<&Crossing<T>> = crossings.iter().collect();
     let line = geom::Line {
@@ -517,17 +523,17 @@ fn line_pairs<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where the order of
+/// [`JoinError::Escalated`] naming the face, where the order of
 /// two crossings along the line is undecided.
 fn pair_along_line<T: Decide>(
     face: FaceKey,
     crossings: &[&Crossing<T>],
     line: geom::Line<T>,
     band: Band,
-) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
+) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), JoinError> {
     let keys: Vec<T> = crossings.iter().map(|c| line.height(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
+        .map_err(|diag| JoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
     let mut loose: Vec<&Crossing<T>> = Vec::new();
     for i in order {
@@ -566,22 +572,27 @@ fn pair_along_line<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where a crossing
+/// [`JoinError::Escalated`] naming the face, where a crossing
 /// lies as near one ruling as the other, or where [`pair_along_line`]
-/// escalates; [`SplitJoinError::SectionCrossings`] with
+/// escalates; [`JoinError::SectionCrossings`] with
 /// [`ConicCrossingsCase::NotAlternating`] where a ruling's crossings do
-/// not pair off; [`SplitJoinError::SectionInvariant`] where the
+/// not pair off; [`JoinError::SectionInvariant`] where the
 /// section's carrier is not a line.
 fn ruling_pairs<T: Decide>(
     face: FaceKey,
     rulings: &[geom::Curve3<T>; 2],
     crossings: &[Crossing<T>],
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, JoinError> {
+    // Each ruling runs along the cylinder's stored axis
+    // (`PlaneCylinderSection::ParallelLines`, nonzero at rest by tier 3's
+    // check 1) or a ruling of the cone's squared frame
+    // (`PlaneConeSection::ApexLinePair`, never the zero vector), so its
+    // direction normalizes with no decision.
     let mut lines = Vec::with_capacity(2);
     for ruling in rulings {
         let Some(geom::Line { origin, dir }) = ruling.as_line() else {
-            return Err(SplitJoinError::SectionInvariant {
+            return Err(JoinError::SectionInvariant {
                 face,
                 what: "a ruling section carried a non-line",
             });
@@ -612,7 +623,7 @@ fn ruling_pairs<T: Decide>(
                 band,
             ),
         };
-        match reading.map_err(|diag| SplitJoinError::Escalated { face, diag })? {
+        match reading.map_err(|diag| JoinError::Escalated { face, diag })? {
             NonzeroSign::Positive => on[0].push(c),
             NonzeroSign::Negative => on[1].push(c),
         }
@@ -621,7 +632,7 @@ fn ruling_pairs<T: Decide>(
     for (side, &line) in on.iter().zip(&lines) {
         let (along, loose) = pair_along_line(face, side, line, band)?;
         if loose > 0 {
-            return Err(SplitJoinError::SectionCrossings {
+            return Err(JoinError::SectionCrossings {
                 face,
                 case: ConicCrossingsCase::NotAlternating,
                 band,
@@ -686,13 +697,13 @@ fn ruling_pairs<T: Decide>(
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
 /// here only. The same heading read Zero at a chord's start is the
-/// chord's own refusal, [`SplitJoinError::SectionDepartureGrazes`],
+/// chord's own refusal, [`JoinError::SectionDepartureGrazes`],
 /// which a needle cone cut near its apex reaches.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where a heading or a
-/// gap is undecided; [`SplitJoinError::SectionCrossings`] where a
+/// [`JoinError::Escalated`] naming the face, where a heading or a
+/// gap is undecided; [`JoinError::SectionCrossings`] where a
 /// heading is in the band ([`ConicCrossingsCase::Grazing`]) or the
 /// senses do not alternate in walk order
 /// ([`ConicCrossingsCase::NotAlternating`]).
@@ -702,9 +713,9 @@ fn conic_pairs<T: Decide>(
     conic: &SectionConic<T>,
     crossings: &[Crossing<T>],
     band: Band,
-) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
-    let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
-    let escalate = |diag| SplitJoinError::Escalated { face, diag };
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, JoinError> {
+    let refuse = |case| JoinError::SectionCrossings { face, case, band };
+    let escalate = |diag| JoinError::Escalated { face, diag };
     let mut heading = None;
     let mut walk = Vec::with_capacity(crossings.len());
     for c in crossings {
@@ -719,7 +730,7 @@ fn conic_pairs<T: Decide>(
             Err(diag) => return Err(escalate(diag)),
         };
         if *heading.get_or_insert(sign) != sign {
-            return Err(SplitJoinError::SectionInvariant {
+            return Err(JoinError::SectionInvariant {
                 face,
                 what: "crossings of one curved face read opposite headings along a section \
                        conic the face meets transversally all round",
@@ -736,7 +747,7 @@ fn conic_pairs<T: Decide>(
     // conic's speed is even and 2π-periodic in `θ`, so it reads the
     // same at `w` as at the `θ` it came from.
     let gap = |w: &[T], a: usize, b: usize| {
-        (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
+        (w[a] - w[b]) * conic.tangent(geom::mid_param(w[a], w[b])).norm()
     };
     let n = crossings.len();
     let runs = super::order::sort_along_runs(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
@@ -752,6 +763,11 @@ fn conic_pairs<T: Decide>(
     .map_err(escalate)?
         == Sign::Zero
     {
+        // WHICH, not a search a later gap may answer past
+        // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer): the cut
+        // `k` rotates the walk, and the pairing below reads which crossings it put past the
+        // seam, so a gap in band ahead of a later one decided apart may be the true cut, and
+        // its escalation refuses.
         let mut cut = None;
         for k in 1..n {
             let step = gap(&walk, order[k], order[k - 1]);
@@ -801,7 +817,7 @@ pub(crate) fn conic_pairs_of_sites<T: Decide>(
     conic: &SectionConic<T>,
     sites: &[(Point3<T>, bool, geom_core::Vec3<T>)],
     band: Band,
-) -> Result<Vec<(usize, usize)>, SplitJoinError> {
+) -> Result<Vec<(usize, usize)>, JoinError> {
     let mut halves = slotmap::SlotMap::<HalfEdgeKey, usize>::with_key();
     let crossings: Vec<_> = sites
         .iter()
@@ -886,7 +902,7 @@ impl<T: Decide> Sweep<T> {
 
     /// The up/down sense of a null-edge half — data from the vertex
     /// key (`start ∈ above_set` ⇒ down half).
-    fn is_down<B: Decide>(&self, body: &Body<B>, he: HalfEdgeKey) -> Result<bool, SplitJoinError> {
+    fn is_down<B: Decide>(&self, body: &Body<B>, he: HalfEdgeKey) -> Result<bool, JoinError> {
         let start = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
         Ok(self.above_set.contains_key(start))
     }
@@ -899,7 +915,7 @@ impl<T: Decide> Sweep<T> {
         &mut self,
         body: &Body<T>,
         half: HalfEdgeKey,
-    ) -> Result<Option<HalfEdgeKey>, SplitJoinError> {
+    ) -> Result<Option<HalfEdgeKey>, JoinError> {
         let face = he_face(body, half)?;
         if let Some(&mate) = self.partner.get(half) {
             match self.ends.iter().position(|&e| e == mate) {
@@ -940,7 +956,7 @@ impl<T: Decide> Sweep<T> {
 impl<T: Decide> Sweep<T> {
     /// `cut` with the split lane's role resolution, area certification,
     /// and F9 record-keeping layered on the shared core.
-    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey, tol: Tol) -> Result<(), SplitJoinError> {
+    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey, tol: Tol) -> Result<(), JoinError> {
         match self.joiner.cut_core(body, edge, tol)? {
             CutOutcome::Merged => Ok(()),
             CutOutcome::Completed { face, ring } => {
@@ -980,8 +996,8 @@ impl<T: Decide> Sweep<T> {
         face: FaceKey,
         outer: LoopKey,
         ring: LoopKey,
-    ) -> Result<(LoopKey, LoopKey), SplitJoinError> {
-        let classify = |l: LoopKey| -> Result<bool, SplitJoinError> {
+    ) -> Result<(LoopKey, LoopKey), JoinError> {
+        let classify = |l: LoopKey| -> Result<bool, JoinError> {
             let starts = loop_starts(body, l)?;
             let above = starts
                 .iter()
@@ -992,13 +1008,13 @@ impl<T: Decide> Sweep<T> {
             } else if above == 0 {
                 Ok(false)
             } else {
-                Err(SplitJoinError::SectionLoopMixed { face })
+                Err(JoinError::SectionLoopMixed { face })
             }
         };
         match (classify(outer)?, classify(ring)?) {
             (true, false) => Ok((outer, ring)),
             (false, true) => Ok((ring, outer)),
-            _ => Err(SplitJoinError::SectionLoopMixed { face }),
+            _ => Err(JoinError::SectionLoopMixed { face }),
         }
     }
 
@@ -1017,7 +1033,7 @@ impl<T: Decide> Sweep<T> {
     ///
     /// # Errors
     ///
-    /// [`SplitJoinError::CurvedSlitTrace`]; corruption on a torn loop.
+    /// [`JoinError::CurvedSlitTrace`]; corruption on a torn loop.
     ///
     /// # Panics
     ///
@@ -1029,7 +1045,7 @@ impl<T: Decide> Sweep<T> {
         face: FaceKey,
         above_loop: LoopKey,
         below_loop: LoopKey,
-    ) -> Result<Shape, SplitJoinError> {
+    ) -> Result<Shape, JoinError> {
         let (above, below) = (Tree::of(body, above_loop)?, Tree::of(body, below_loop)?);
         let (strut, tree, slit_loop) = match (above.whole, below.whole) {
             (true, false) => (above_loop, above, below_loop),
@@ -1037,7 +1053,7 @@ impl<T: Decide> Sweep<T> {
             _ => return Ok(Shape::Area { above, below }),
         };
         if tree.curved {
-            return Err(SplitJoinError::CurvedSlitTrace { face });
+            return Err(JoinError::CurvedSlitTrace { face });
         }
         let slit = tree.slit(body, face, slit_loop)?;
         let cycle = loop_halves(body, slit_loop)?;
@@ -1069,7 +1085,7 @@ impl<T: Decide> Sweep<T> {
     /// only shrinks the mean-width margin — refuses more, never less).
     /// A spiric or spline section edge has no such term here, and its
     /// chord is not its area: it refuses
-    /// ([`SplitJoinError::RunEdgeCarrierUnsupported`]).
+    /// ([`JoinError::RunEdgeCarrierUnsupported`]).
     ///
     /// The join's body is mid-operation, and an edge's curve is a link
     /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
@@ -1079,7 +1095,7 @@ impl<T: Decide> Sweep<T> {
         body: &Body<T>,
         face: FaceKey,
         below_loop: LoopKey,
-    ) -> Result<(), SplitJoinError> {
+    ) -> Result<(), JoinError> {
         let points = loop_points_of(body, below_loop)?;
         let origin = points[0];
         let mut twice_area = T::zero();
@@ -1100,7 +1116,7 @@ impl<T: Decide> Sweep<T> {
             // polygon's below loop is a cycle by construction, so an
             // `Empty` one is this lane's own invariant, not a dangling
             // reference — and `Corrupt` is corruption only.
-            return Err(SplitJoinError::SectionInvariant {
+            return Err(JoinError::SectionInvariant {
                 face,
                 what: "a completed section polygon's below loop holds a lone vertex \
                        instead of a cycle",
@@ -1129,7 +1145,7 @@ impl<T: Decide> Sweep<T> {
                 geom::Curve3::Circle(c) => c,
                 geom::Curve3::Ellipse(e) => e,
                 geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                    return Err(SplitJoinError::RunEdgeCarrierUnsupported {
+                    return Err(JoinError::RunEdgeCarrierUnsupported {
                         face,
                         edge: body
                             .split_root(he_data.edge, |_| false)
@@ -1167,13 +1183,13 @@ impl<T: Decide> Sweep<T> {
         // dimensions down through the same door; the accumulators
         // stay separate, for the reasons written at that site.
         if placeholders == hes.len() {
-            return Err(SplitJoinError::DegenerateSection { face });
+            return Err(JoinError::DegenerateSection { face });
         }
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),
-            Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
-            Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
+            Ok(_) => Err(JoinError::DegenerateSection { face }),
+            Err(diag) => Err(JoinError::Escalated { face, diag }),
         }
     }
 }
@@ -1230,7 +1246,7 @@ impl<T: Decide> Sweep<T> {
         body: &mut Body<T>,
         face: FaceKey,
         [above, below]: [(Tree, LoopKey); 2],
-    ) -> Result<SectionKind, SplitJoinError> {
+    ) -> Result<SectionKind, JoinError> {
         let mut slit = above.0.slit(body, face, below.1)?;
         slit.extend(below.0.slit(body, face, above.1)?);
         slit.extend(above.0.closed.iter().chain(&below.0.closed));
@@ -1298,7 +1314,7 @@ impl Tree {
     /// # Errors
     ///
     /// Corruption on a torn loop.
-    fn of<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Self, SplitJoinError> {
+    fn of<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Self, JoinError> {
         let cycle = loop_halves(body, l)?;
         let image =
             crate::surface_boundary::chart_image(body, &cycle).ok_or_else(|| corrupt_loop(l))?;
@@ -1352,7 +1368,7 @@ impl Tree {
         body: &Body<T>,
         face: FaceKey,
         l: LoopKey,
-    ) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
+    ) -> Result<Vec<HalfEdgeKey>, JoinError> {
         let mut halves = Vec::new();
         for he in loop_halves(body, l)? {
             halves.push((he, edge_ends(body, he)?));
@@ -1381,7 +1397,7 @@ impl Tree {
 fn edge_ends<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
-) -> Result<(EdgeKey, [crate::PointKey; 2]), SplitJoinError> {
+) -> Result<(EdgeKey, [crate::PointKey; 2]), JoinError> {
     let data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
     let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
     let [Some(a), Some(b)] = [data.start, end].map(|v| body.get_vertex(v).map(|d| d.point)) else {
@@ -1391,28 +1407,57 @@ fn edge_ends<T: Decide>(
 }
 
 /// [`Body::loop_halves`], a torn loop refused as corruption.
-fn loop_halves<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
+fn loop_halves<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<HalfEdgeKey>, JoinError> {
     body.loop_halves(l).ok_or_else(|| corrupt_loop(l))
 }
 
+/// Why a loop's start vertices could not be read.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum LoopStartsFault {
+    /// A record on the walk did not resolve.
+    Unresolved(Unresolved),
+    /// The loop resolved and holds a lone vertex, which has no starts to
+    /// walk: a caller's invariant, not a torn arena.
+    LoneVertex {
+        /// The loop's face.
+        face: FaceKey,
+    },
+}
+
+impl From<LoopStartsFault> for JoinError {
+    fn from(fault: LoopStartsFault) -> Self {
+        match fault {
+            LoopStartsFault::Unresolved(unresolved) => Self::Corrupt(unresolved),
+            LoopStartsFault::LoneVertex { face } => Self::SectionInvariant {
+                face,
+                what: "a loop asked for its start vertices holds a lone vertex instead of \
+                       a cycle",
+            },
+        }
+    }
+}
+
 /// The start vertices of a cycle loop.
-pub(crate) fn loop_starts<T: Decide>(
-    body: &Body<T>,
-    l: LoopKey,
-) -> Result<Vec<VertexKey>, SplitJoinError> {
-    let loop_data = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?;
+fn loop_starts<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<VertexKey>, LoopStartsFault> {
+    let record = |entity| LoopStartsFault::Unresolved(Unresolved::Record(entity));
+    let loop_data = body.get_loop(l).ok_or(record(EntityId::Loop(l)))?;
     let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        // Resolved, but shaped wrong: an `Empty` loop has no starts to
-        // walk. That is a caller invariant, not a corrupt arena.
-        return Err(SplitJoinError::SectionInvariant {
+        return Err(LoopStartsFault::LoneVertex {
             face: loop_data.face,
-            what: "a loop asked for its start vertices holds a lone vertex instead of \
-                   a cycle",
         });
     };
     let mut out = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
-        out.push(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start);
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or(LoopStartsFault::Unresolved(Unresolved::Walk(
+            EntityId::Loop(l),
+        )))?;
+    for he in cycle {
+        out.push(
+            body.get_half_edge(he)
+                .ok_or(record(EntityId::HalfEdge(he)))?
+                .start,
+        );
     }
     Ok(out)
 }
@@ -1421,7 +1466,7 @@ pub(crate) fn loop_starts<T: Decide>(
 pub(super) fn loop_points_of<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
-) -> Result<Vec<Point3<T>>, SplitJoinError> {
+) -> Result<Vec<Point3<T>>, LoopStartsFault> {
     let starts = loop_starts(body, l)?;
     Ok(starts
         .into_iter()
@@ -1447,18 +1492,14 @@ mod tests {
         assert_eq!(he_face(&t.body, he).ok(), Some(t.face_a));
         assert!(matches!(
             he_face(&t.body, HalfEdgeKey::default()),
-            Err(SplitJoinError::Corrupt {
-                entity: EntityId::HalfEdge(_)
-            })
+            Err(JoinError::Corrupt(u)) if matches!(u.entity(), EntityId::HalfEdge(_))
         ));
         // A live half-edge with a dead loop back-pointer: the SECOND
         // hop fails, and the refusal is about the loop.
         t.body.get_half_edge_mut(he).unwrap().parent_loop = LoopKey::default();
         assert!(matches!(
             he_face(&t.body, he),
-            Err(SplitJoinError::Corrupt {
-                entity: EntityId::Loop(_)
-            })
+            Err(JoinError::Corrupt(u)) if matches!(u.entity(), EntityId::Loop(_))
         ));
     }
 
@@ -1580,7 +1621,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: Vec::new(),
+                    coincidences: crate::splitting::ReducedRows(Vec::new()),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),
@@ -1711,7 +1752,7 @@ mod placeholder_rows {
             for (face, lp) in [(seed.face, seed.r#loop), (lone.face, lone.r#loop)] {
                 let got = sweep.certify_section_area(&body, face, lp);
                 assert!(
-                    matches!(got, Err(SplitJoinError::DegenerateSection { face: f }) if f == face),
+                    matches!(got, Err(JoinError::DegenerateSection { face: f }) if f == face),
                     "normal {normal:?}, loop {lp:?}: {got:?}"
                 );
             }
@@ -1825,7 +1866,7 @@ mod curved_section_rows {
         assert!(
             matches!(
                 got,
-                Err(SplitJoinError::RunEdgeCarrierUnsupported { face, edge: e })
+                Err(JoinError::RunEdgeCarrierUnsupported { face, edge: e })
                     if face == section.face && e == edge
             ),
             "a spline section edge refuses, naming the section and the edge: {got:?}"

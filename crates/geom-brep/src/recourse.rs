@@ -212,10 +212,30 @@ macro_rules! ended_by_write {
 pub const BAND_TOLERANCE_RECOURSE: &str = "Recourse: set a smaller tolerance, so that K times it \
      stays finite; a run admits none below the floor its session box sets";
 
+/// **The recourse of a reading undecided over a box** ([`Unsized::recourse`]):
+/// at a box scalar a reading straddles because the box it encloses is
+/// wide, so a narrower box, or the exact symbolic scalar, decides it.
+pub const BOX_SCALAR_RECOURSE: &str =
+    "Recourse: narrow the box, or evaluate at the symbolic scalar";
+
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
 pub fn defect_ending(at: impl Into<ReadAt>) -> &'static str {
     at.into().culprit().ending()
+}
+
+/// **The defect ending of a kernel-bug arm**, written after the arm's
+/// payload: `". "` and [`defect_ending`] at the door `at` reads the
+/// refusal, and nothing where it is read at no door (its `Display`).
+///
+/// # Errors
+///
+/// The formatter's.
+pub fn defect_ended(f: &mut core::fmt::Formatter<'_>, at: Option<ReadAt>) -> core::fmt::Result {
+    match at {
+        Some(at) => write!(f, ". {}", defect_ending(at)),
+        None => Ok(()),
+    }
 }
 
 /// The unreadable-margin note at `at`, by its culprit
@@ -279,10 +299,27 @@ impl Unsized {
     /// ends in the last resort on every arm at every door. An arm whose
     /// margin could not be read ends in the defect ending, whatever the
     /// decision: no tolerance makes it readable.
+    ///
+    /// **An undecided reading past a build is reported as undecided, at
+    /// every scalar**: over a body at rest, and at the import door, which
+    /// reads as rest does, an arm whose margin was read but not decided
+    /// never ends in the defect ending, which is for a stored
+    /// contradiction or a breached invariant. A build's endings are its
+    /// own. Read over a box (an enclosure,
+    /// [`geom_core::MarginKind::Enclosure`]) it ends in the box scalars'
+    /// recourse ([`BOX_SCALAR_RECOURSE`]); read at a point, in the band,
+    /// in the last resort.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         let defect = defect_ending(at);
+        if let (Self::Defect, RefusedArm::Undecided(cause), false) = (self, arm, at.is_build()) {
+            match cause.margin.kind() {
+                geom_core::MarginKind::Enclosure => return BOX_SCALAR_RECOURSE.to_owned(),
+                geom_core::MarginKind::Value => return KERNEL_LIMIT_RECOURSE.to_owned(),
+                geom_core::MarginKind::Invalid => {}
+            }
+        }
         match self {
             Self::Defect => defect.to_owned(),
             Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),
@@ -474,8 +511,10 @@ pub struct LeverOnly {
 /// of the geometry's pose, not shown off the face, so its lever moves the
 /// pose at every door ([`crate::IncidenceRead::ending`]).
 pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
-    lever: "move the geometry so the edge sits clear of that pose by more than the tolerance, \
-            or so no piece of it sits there",
+    lever: geom_core::move_lever!(
+        "so the edge sits clear of that pose by more than the tolerance, \
+            or so no piece of it sits there"
+    ),
 };
 
 /// **A boundary whose incidence on its face is undecided**: an edge's
@@ -484,8 +523,10 @@ pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
 /// at every door. The refusal's own sentence says which of the two was
 /// read; the lever fits both.
 pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
-    lever: "move the geometry so the boundary lies clearly on the face it bounds at this \
-            tolerance",
+    lever: geom_core::move_lever!(
+        "so the boundary lies clearly on the face it bounds at this \
+            tolerance"
+    ),
 };
 
 impl LeverOnly {
@@ -552,8 +593,12 @@ impl SpanDecision {
     #[must_use]
     pub const fn lever(self) -> &'static str {
         match self {
-            Self::Forward => "move the geometry so this edge runs forward over a clear length",
-            Self::Winding => "move the geometry so this arc stays clearly short of a full turn",
+            Self::Forward => {
+                geom_core::move_lever!("so this edge runs forward over a clear length")
+            }
+            Self::Winding => {
+                geom_core::move_lever!("so this arc stays clearly short of a full turn")
+            }
         }
     }
 
@@ -951,7 +996,7 @@ pub const FITTED_GRADE_DOOR_RECOURSE: &str =
     "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
 
 /// The recourse for a chart that is still the placeholder
-/// ([`crate::Surface::is_placeholder_chart`]).
+/// ([`Surface::is_placeholder_chart`](geom::Surface::is_placeholder_chart)).
 pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
 
 /// The one recourse for a carrier whose parameter domain its chart

@@ -415,8 +415,8 @@ fn silent(mut ev: Evaluation<f64>) -> Evaluation<f64> {
 /// so the spelling says 2 → 0.
 ///
 /// Every change that stops a split dividing a face moves a vertex
-/// across the plane, which the split records as a
-/// `split_bisector_side` flip, and a recorded flip on the path is the
+/// across the plane, which the split records as a flip of a vertex
+/// side, and a recorded flip on the path is the
 /// answer above this rung. So the two real runs are read with that
 /// evidence taken out: no verdict log, and one document for both, so
 /// the doc-diff lanes see no edit. What is left is the rung, over the

@@ -7,21 +7,15 @@
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::boolean::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::contact::ContactRefusal;
+use topo::contact::{TangentRuling, TangentVerdict};
 use topo::{BooleanResult, Surface, ValidationError, union};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
@@ -53,11 +47,10 @@ fn probe_crossing_cylinder_through_plane_contradicts() {
     // The intersection line y = 1, z = 0: on the plane and on the
     // cylinder, but the surfaces CROSS there (normals perpendicular).
     let locus = line([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
-    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
-        .expect_err("a transverse crossing must contradict a tangency");
+    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, ContactRefusal::Contradicted { .. }),
-        "must be Contradicted, got {err:?}"
+        matches!(err, TangentVerdict::Ruled(_)),
+        "must be ruled out, got {err:?}"
     );
 }
 
@@ -74,11 +67,10 @@ fn probe_dihedral_crossing_planes_contradict_despite_zero_kappa() {
     // sense check reads "opposed" and cannot mask the verdict.
     let tilted = plane([0.0, 0.0, 0.0], [0.0, alpha.sin(), -alpha.cos()]);
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let err = tangent_locus_relation(&flat, true, &tilted, true, &locus, -1.0, 1.0, band())
-        .expect_err("crossing planes must contradict a tangency");
+    let err = tangent_locus_relation(&flat, true, &tilted, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, ContactRefusal::Contradicted { .. }),
-        "must be Contradicted, got {err:?}"
+        matches!(err, TangentVerdict::Ruled(_)),
+        "must be ruled out, got {err:?}"
     );
 }
 
@@ -96,11 +88,10 @@ fn probe_separated_pair_contradicts() {
     };
     let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
-        .expect_err("a 1 mm gap must contradict a tangency");
+    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band());
     assert!(
-        matches!(err, ContactRefusal::Contradicted { .. }),
-        "expected Contradicted, got {err:?}"
+        matches!(err, TangentVerdict::Ruled(_)),
+        "expected a ruling, got {err:?}"
     );
 }
 
@@ -122,7 +113,7 @@ fn probe_sphere_rung_mm_vs_metre_twin() {
             outward: false,
         };
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "scale {scale}: the radius decides at both scales"
         );
@@ -153,14 +144,20 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     let b = band();
     let near = tilt(b.zero() * 0.001);
     assert_eq!(
-        carrier_eq(&base, &near, &at(1.0), band()).unwrap(),
+        carrier_eq(&base, &near, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite,
         "sub-band: one carrier"
     );
     // Definite tilt: three orders above the escalate edge at the same
     // 1 m arm.
     assert_eq!(
-        carrier_eq(&base, &tilt(b.escalate() * 1000.0), &at(1.0), band()).unwrap(),
+        carrier_eq(
+            &base,
+            &tilt(b.escalate() * 1000.0),
+            &geom_brep::ConsumedExtent::arm(1.0),
+            band()
+        )
+        .unwrap(),
         CarrierRelation::Distinct,
         "definite: two carriers"
     );
@@ -223,11 +220,14 @@ fn probe_census_gate_refuses_a_fabricated_face_pair() {
         errors.iter().any(|e| matches!(
             e,
             ValidationError::ContactContradicted {
-                declaration: topo::ContactPair {
+                record: topo::ContactPair {
                     class: topo::GlueClass::Rest,
                     ..
                 },
-                ..
+                verdict: topo::ContactVerdict::Rest(topo::RestRuling {
+                    row: topo::RestRow::TwoCarriers,
+                    by: Some(_),
+                }),
             }
         )),
         "the fabricated patch record must be contradicted: {errors:?}"
@@ -260,22 +260,28 @@ fn probe_in_band_gap_escalates() {
 
     // Below the band's zero: no gap the run can see.
     assert!(
-        at_gap(b.zero() * 0.1).is_ok(),
+        matches!(at_gap(b.zero() * 0.1), TangentVerdict::Touch(_)),
         "a sub-zero gap is not a gap at this ε"
     );
 
     // Inside the band: a residual margin that cannot be decided.
     let mid = (b.zero() + b.escalate()) * 0.5;
-    let refusal = at_gap(mid).expect_err("an in-band gap refuses");
+    let refusal = at_gap(mid);
     assert!(
-        matches!(refusal, ContactRefusal::Escalated { .. }),
+        matches!(refusal, TangentVerdict::InBand(_)),
         "in-band gap must escalate: {refusal:?}"
     );
 
-    // Above the band: definite separation contradicts.
-    let far = at_gap(b.escalate() * 1000.0).expect_err("a definite gap contradicts");
+    // Above the band: definite separation rules the pair out.
+    let far = at_gap(b.escalate() * 1000.0);
     assert!(
-        matches!(far, ContactRefusal::Contradicted { .. }),
-        "a definite gap must contradict: {far:?}"
+        matches!(
+            far,
+            TangentVerdict::Ruled(TangentRuling::Row {
+                row: topo::TangentRow::Gap,
+                ..
+            })
+        ),
+        "a definite gap must be ruled out on the gap: {far:?}"
     );
 }

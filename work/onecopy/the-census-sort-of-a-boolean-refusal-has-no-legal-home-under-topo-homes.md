@@ -1,7 +1,7 @@
 ---
 id: the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 kind: issue
-title: The census's sort of a boolean FaceUnread has no legal home under [topo.homes]: pub(crate) in boolean is refused by engine-leaves, pub by unreachable_pub
+title: The census's sort of a boolean FaceUnread waits on onedoor unit 5's placement move (contain and its cyclic cluster leave boolean/ for the root)
 status: open
 opened: 2026-11-03
 priority: P2
@@ -54,3 +54,94 @@ No `[ev]` PR is needed. Nothing ratified changes, and both recommend against add
    - the `.counts` header states the migration practice: a new site is paid in the reader's pin, citing its move row, and never by a new `pub(crate)` in the engine (B).
 
    All three are agent text (PR 6458).
+
+## Also cited by (2026-11-09)
+
+`contain_loop.rs`'s `names-boolean` pin (`onecopy/small-sweeps`): the
+containment door's `From<PointInLoopError> for ContainError`, moved out
+of `boolean/contain.rs` so the boolean no longer names the splitting
+engine there. Its two sites are `ContainError`'s, and fall when step 1
+above moves `ContainError` to the crate root.
+
+## Blocked on onedoor unit 5's placement move (2026-11-10)
+
+Step 1 above cannot be done as a one-module move. It is
+`work/onedoor/plan.md`'s unit 5 ground ("boxes, records, `contain`,
+`solid_contain`, `containment` … one module per PR"), which that plan
+hands to a successor program. This row waits for that move, and its
+steps 2 and 3 follow it.
+
+The measured `super::` closure of `boolean/contain.rs` on main at
+`b5743060`, for the successor to start from:
+
+- **The cycle**, so no member is a leaf: `contain` (1.7k lines), `region`
+  (1.3k), `sphere_region` (1.6k), `torus_region` (1.2k), `ruled_region`
+  (0.7k), `spline_region` (1.6k, which reads only `contain`) and
+  `solid_contain` (6.5k).
+- **Read from the cycle by `solid_contain` (and `contain`):** `boxes`
+  (4.9k, which reads `separating` and `sweep_pad`), `rim_wedge` (1.9k,
+  which reads `contain` and `route_rim`), `separating` (0.4k) and
+  `surface_group` (0.3k, which reads `rim_wedge` and `solid_contain`).
+- **Plus three helpers in `boolean/mod.rs`:** `one_vertex_at`,
+  `kind_word` and `sweep_pad`.
+- About **28k lines** in all.
+- Readers outside `boolean/` of `contain`, `contfp`, `ContainError` or
+  `face_placement`, by file: census.rs 39, validate.rs 35,
+  test_support_samples.rs 21, review_d18.rs 21, chart_region.rs 16,
+  cover.rs 6, and under 6 each in a dozen more.
+
+When `ContainError` reaches the root, `contain_loop.rs`'s
+`names-boolean` pin (which cites this row) falls with it.
+
+## Measured on main at 151631ccb8 (2026-11-10), and the order taken
+
+Production lines (code before the file's first `#[cfg(test)]`, comments
+excluded), and the `super::` reads between the modules in that code:
+
+| module | production lines | reads |
+|---|---|---|
+| `contain` | 1256 | `one_vertex_at`, `region`, `ruled_region`, `solid_contain`, `sphere_region`, `spline_region`, `torus_region` |
+| `region` | 1111 | `solid_contain` |
+| `sphere_region` | 517 | `region`, `solid_contain` |
+| `torus_region` | 546 | `region`, `solid_contain` |
+| `ruled_region` | 710 | `region`, `solid_contain` |
+| `spline_region` | 875 | `contain` |
+| `solid_contain` | 5181 | `boxes`, `kind_word`, `region`, `rim_wedge`, `ruled_region`, `separating`, `sphere_region`, `surface_group`, `torus_region`, `placement_subject`, `placement_ending` |
+| `rim_wedge` | 1143 | `contain` |
+| `surface_group` | 281 | `rim_wedge`, `solid_contain` |
+| `boxes` | 334 | `separating` |
+| `separating` | 383 | (none of these) |
+| `carrier_cross` | 395 | `contain` |
+| `glue` | 453 | `rim_wedge` |
+| `contact_verify` | 785 | (none of these) |
+
+- **One strongly connected component.** {`contain`, `region`,
+  `sphere_region`, `torus_region`, `ruled_region`, `spline_region`,
+  `solid_contain`, `rim_wedge`, `surface_group`} is about 11.6k production
+  lines, about 21k with tests. It moves as one PR. Splitting it would leave
+  a root member reading an engine's `pub(super)` item (`contain` reads
+  `spline_region::spline_face_placement` and
+  `solid_contain::torus_elevation`), which needs a new `pub(crate)` in the
+  engine: refused (`engine-leaves.sh`, and the decision above).
+- **The tangent-line reading cannot go first.** It reads
+  `contain::placement_on_carrier`/`CurvedPlacement`/`ContainError`,
+  `rim_wedge`, `carrier_cross::face_boundary`, `glue::decided_glue`,
+  `contact_verify` and `boxes::sweep_pad`.
+- **What the containment move clears.** 140 root sites name the containment
+  door (`boolean::contain`/`contfp`, `ContainError`, `face_placement`,
+  `PlacementError`, `CurvedPlacement`): census 39, validate 32,
+  test_support_samples 20, review_d18 15, one_region 9, cover 5,
+  census/in_plane 4, splitting/containment 3, contain_loop 3, chart_region
+  3, lib 2, held 2, chord_join/island_rows 2, live 1. Root `names-boolean`
+  was 1393 sites over 59 files, census.rs's pin 432.
+
+**The order**, each its own PR: a pure move, the `git mv` its own commit,
+pins only falling:
+
+1. `separating` and `boxes` to the crate root (this PR's branch,
+   `onecopy/census-sort-home`).
+2. The component above, with `one_vertex_at`, `kind_word`,
+   `placement_subject` and `placement_ending` alongside.
+3. `carrier_cross::face_boundary` to the root, refusing in its own type.
+4. The reading itself, `FaceUnread` reshaped by verdict kind;
+   `contact_verify::tangent_locus_relation` to `geom-brep`.

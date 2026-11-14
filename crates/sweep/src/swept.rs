@@ -45,6 +45,7 @@
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
+pub(crate) use crate::rows::CosurfaceNames;
 use geom::{Curve3, Surface};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError, SketchSegment,
@@ -57,7 +58,7 @@ use geom_core::{
 use profile::SegmentKind;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
-use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
 
 /// Where a copy of the sketch stands: its placement, then for a
 /// revolve's far copy the turn about the revolution axis.
@@ -78,6 +79,11 @@ pub(crate) struct Placing<T: Real> {
 /// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
 /// same rotation minted anchored at the axis point, which turns a
 /// placement.
+///
+/// It holds the axis as a decided unit direction ([`UnitVec3`]) beside its
+/// point, not as a [`geom::Line`]: the rotation reads a unit axis, and a
+/// `Line` reads any nonzero direction, so the unit is minted once where
+/// the turn is built and carried here as the value the rotation takes.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,
@@ -222,32 +228,42 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
 }
 
-/// A sliver join's or rim's sentence, `what` naming the edge: a
-/// first-order reading could call it neither a corner nor smooth; a
-/// second-order one leaves undecided whether its smooth faces bend apart,
-/// in the coincidence levers its payload's own sentence ends in.
+/// A sliver join's or rim's sentence, `what` naming the edge, by the
+/// rung of its wedge that escalated: the class could call it neither a
+/// corner nor smooth; the rest leave a question of its corner or of its
+/// smooth faces undecided, in the coincidence levers its payload's own
+/// sentence ends in.
 pub(crate) fn sliver_text(
     f: &mut core::fmt::Formatter<'_>,
     what: &str,
-    reading: DihedralReading,
-    source: &Indeterminate,
+    escalation: geom_brep::WedgeEscalation,
 ) -> core::fmt::Result {
-    match reading {
-        DihedralReading::Lever(_) => write!(
-            f,
-            "{what} is neither a definite corner nor definitely smooth: {source}"
-        ),
-        DihedralReading::Bend => write!(
-            f,
-            "{}",
-            source.undecided(
-                format_args!(
-                    "whether the faces at {what} curve apart there or share their curvature"
-                ),
-                source.ending(geom_core::COINCIDENCE_RECOURSE),
-            )
-        ),
-    }
+    use geom_brep::WedgeRung;
+    let source = &escalation.diag();
+    let at = escalation
+        .station()
+        .map_or_else(String::new, |i| format!(" at sample {i}"));
+    let question = match escalation.rung() {
+        WedgeRung::Arm | WedgeRung::Wedge => {
+            return write!(
+                f,
+                "{what} is neither a definite corner nor definitely smooth{at}: {source}"
+            );
+        }
+        WedgeRung::Sign => format!("whether the corner at {what} is convex or concave{at}"),
+        WedgeRung::Pairing => {
+            format!("whether the material of the smooth faces at {what} lies on one side{at}")
+        }
+        WedgeRung::Bend => {
+            format!("whether the faces at {what} curve apart there or share their curvature")
+        }
+        WedgeRung::End => format!("whether the faces at {what} close a cusp or a slit{at}"),
+    };
+    write!(
+        f,
+        "{}",
+        source.undecided(question, source.ending(geom_core::COINCIDENCE_RECOURSE))
+    )
 }
 
 /// A carrier class in SWEPT traversal order: the validated
@@ -690,6 +706,22 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), q_from, q_to, tol)
+}
+
+/// [`placed_segment_spec`] with an arc's 3-space centre given by
+/// `centre` from its sketch centre, in place of `place`'s image of it:
+/// for a copy whose placement fixes the centre, which then takes the
+/// value the fixed copy has.
+pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
+    seg: &S,
+    place: Placing<T>,
+    normal: Vec3<T>,
+    centre: impl FnOnce(Point2<T>) -> Point3<T>,
+    q_from: Point3<T>,
+    q_to: Point3<T>,
+    tol: Tol,
+) -> EdgeCurveSpec<T> {
     let description =
         EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
             segment: sketch_segment(seg),
@@ -703,7 +735,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             param_end: q_from.distance(q_to),
         },
         SegmentKind::Arc { arc, turn } => {
-            let c_world = place.point(arc.centre);
+            let c_world = centre(arc.centre);
             let rim = q_from - c_world;
             // Rigidity, stated where it is guaranteed
             // (`register_rigidity` carries the proof). Bound out of the
@@ -1080,23 +1112,6 @@ pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     Ok(())
 }
 
-/// The predicate names one verb's cosurface decision reports under —
-/// the K recorder meters each sweep's line and arc margins separately,
-/// so the names are per-verb data passed into the shared body rather
-/// than a property of the body.
-///
-/// **A table of row names, so a new value here is a roster change**
-/// (`docs/K-REPORT.md`, "The inventory method, restated"): a name
-/// reaching the funnel as a field is invisible to any grep for a
-/// literal at the decide site.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct CosurfaceNames {
-    /// The line/line predicate (chord collinearity).
-    pub(crate) lines: &'static str,
-    /// The arc/arc predicate (carrier identity).
-    pub(crate) arcs: &'static str,
-}
-
 /// Decides whether two consecutive segments sweep the
 /// identical-by-construction surface (crate docs, cosurface sharing):
 /// collinear lines share one surface, same-carrier same-turn arcs
@@ -1123,7 +1138,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             }
             .side(next.b());
             Ok(matches!(
-                decide(names.lines, Margin::of(margin), band)?,
+                decide(names.lines(), Margin::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -1135,7 +1150,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             // direct — the profile crate's carrier-identity pattern).
             let margin = a1.centre.distance(a2.centre) + (a1.radius - a2.radius).abs();
             Ok(matches!(
-                decide(names.arcs, Margin::of(margin), band)?,
+                decide(names.arcs(), Margin::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -1428,34 +1443,19 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), EulerOpError> {
     let chart = face_surface_key(body, face);
-    let face_data = body
-        .get_face(face)
+    let edges: Vec<topo::EdgeKey> = body
+        .face(face)
         .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
-        .clone();
-    let mut edges: Vec<topo::EdgeKey> = Vec::new();
-    for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body
-            .get_loop(*lk)
-            .unwrap_or_else(|| {
-                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
-            })
-            .boundary
-        else {
-            continue;
-        };
-        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
-            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
-        });
-        for he in cycle {
-            edges.push(
-                body.get_half_edge(he)
-                    .unwrap_or_else(|| {
-                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
-                    })
-                    .edge,
-            );
-        }
-    }
+        .half_edges()
+        .into_iter()
+        .map(|he| {
+            body.get_half_edge(he)
+                .unwrap_or_else(|| {
+                    unreachable!("half-edge {he:?} is on a closed cycle of {face:?}")
+                })
+                .edge
+        })
+        .collect();
     for edge in edges {
         let curve = match body.stored_curve(edge) {
             Ok(curve) => curve,
@@ -1511,22 +1511,13 @@ mod tests {
     }
 
     /// **A must-carry escalation keeps which question escalated**: the
-    /// first-order arm and wedge by rung, the second-order sagitta as the
-    /// bend, each with its own diagnostics.
+    /// first-order arm and wedge each at its rung, read off the rule.
     #[test]
     fn the_must_carry_reading_keeps_which_question_escalated() {
-        use geom_brep::LeverRung;
-        use must_carry_fixtures::{arm, second_order, wedge};
-        for (escalation, want) in [
-            (arm(), DihedralReading::Lever(LeverRung::Arm)),
-            (wedge(), DihedralReading::Lever(LeverRung::Reading)),
-            (second_order(), DihedralReading::Bend),
-        ] {
-            assert_eq!(
-                DihedralReading::of_must_carry(escalation),
-                (want, escalation.diag()),
-                "{escalation:?}"
-            );
+        use geom_brep::MustCarryRung;
+        use must_carry_fixtures::{arm, wedge};
+        for (escalation, want) in [(arm(), MustCarryRung::Arm), (wedge(), MustCarryRung::Wedge)] {
+            assert_eq!(escalation.rung(), want, "{escalation:?}");
         }
     }
 
@@ -1959,7 +1950,7 @@ mod tests {
 #[allow(clippy::expect_used, clippy::panic)]
 pub(crate) mod must_carry_fixtures {
     use geom::{Curve3, Surface};
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryEscalation, MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -2022,12 +2013,15 @@ pub(crate) mod must_carry_fixtures {
 
     /// The second-order sagitta, in band.
     pub(crate) fn second_order() -> MustCarryEscalation {
-        MustCarryEscalation::SecondOrder(Indeterminate {
-            margin: MarginDiag::value(in_band()),
-            band: band(),
-            predicate: Some("tangent_second_order"),
-            terminal_sliver: false,
-        })
+        MustCarryEscalation::at(
+            MustCarryRung::Bend,
+            Indeterminate {
+                margin: MarginDiag::value(in_band()),
+                band: band(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        )
     }
 
     fn z_axis() -> Curve3<f64> {
@@ -2093,8 +2087,8 @@ pub(crate) mod undecided_fixtures {
 
     /// The lever-only ending on each of [`readings`].
     pub(crate) const LEVER: [&str; 3] = [
-        "Recourse: move the geometry",
-        "Recourse: move the geometry",
+        geom_core::MOVE_RECOURSE,
+        geom_core::MOVE_RECOURSE,
         "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
          reporting",
     ];

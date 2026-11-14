@@ -2,10 +2,12 @@
 id: the-face-placement-dispatch-has-four-more-copies
 kind: issue
 title: five more sites spell 'where does this face hold a point on its carrier' (plane -> contfp, curved -> curved_face_containment or _placement) beside face_placement, and a class splits the decided door pair (contfp_decided / curved_face_placement_decided) that face_placement has no form of
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6643
 ---
 
 

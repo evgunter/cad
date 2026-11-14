@@ -29,9 +29,9 @@ fn tol() -> Tol {
 /// Each spline face of `body`.
 fn walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface).expect("a live surface"),
+                body.face_surface(*fk).expect("a live surface"),
                 Surface::Nurbs(_)
             )
         })
@@ -135,8 +135,7 @@ fn the_klein_loops_walls_hold_against_themselves() {
 /// The widest coordinate of each of `rect_jet`'s three partials over each
 /// cell of an `8 × 32` grid of `wall`'s chart.
 fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
-    let face = body.get_face(wall).expect("a live face");
-    let Some(Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+    let Some(Surface::Nurbs(net)) = body.face_surface(wall) else {
         panic!("a blade wall is a spline")
     };
     let net = net.map_scalar(Interval::from_f64);
@@ -176,7 +175,7 @@ fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
 fn the_lily_blade_moved_off_the_origin_reads_its_walls_alike() {
     let home = leaf_a::<f64>(leaf_a_plan(), tol());
     let motion = RigidMotion::translation(Vec3::new(10.0, 10.0, 10.0)).expect("a translation");
-    let away = transform_rigid(&home, &motion, tol()).expect("the blade moves");
+    let away = transform_rigid(&home, &motion).expect("the blade moves");
     for wall in walls(&home) {
         let (a, b) = (grid_widths(&home, wall), grid_widths(&away, wall));
         for (cell, (a, b)) in a.iter().zip(&b).enumerate() {

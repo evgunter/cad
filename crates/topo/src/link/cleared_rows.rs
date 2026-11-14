@@ -61,7 +61,7 @@ fn cap(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Cap {
 impl Cap {
     /// The cap's sectors at `p`, held as `holds` say.
     fn cleared(&self, p: Point3<f64>, holds: &[Hold]) -> Result<Vec<FaceSector<f64>>, TouchUnread> {
-        FaceSector::cleared(&self.body, self.face, self.outward, p, holds)
+        FaceSector::cleared(&self.body, self.face, self.outward, p, holds, band())
     }
 
     /// The hold inside the cap's chord.
@@ -156,7 +156,7 @@ fn a_cleared_sector_is_the_disc_its_other_edges_clear_on_the_faces_side() {
     };
     assert_eq!(
         c.cleared(p(1.0, 0.0, 0.0), &[corner]).err(),
-        Some(TouchUnread::Unreadable),
+        Some(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a corner of a face with an arc edge is not a disc"
     );
     assert_eq!(
@@ -195,7 +195,8 @@ fn a_ring_nearer_than_the_outer_loop_bounds_the_disc() {
         .unwrap()
         .vec();
     let q = p(1.0, 1.6, 1.0);
-    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
+    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside], band())
+        .expect("the top's disc");
     assert_eq!(s.len(), 1, "one sector inside the face");
     let r = s[0].face.clear.expect("a cleared radius");
     assert!(
@@ -425,4 +426,34 @@ fn a_crossing_on_a_sliver_keels_rim_is_confirmed_only_inside_its_cleared_radius(
             "a sliver keel tilted {t}"
         );
     }
+}
+
+/// **A lone vertex bounds the cleared disc**: on a box's top face whose
+/// one-vertex ring stands `0.1` from the point read, the disc is no wider
+/// than that, where the square's edges stand `0.4` off. Red where the
+/// ring read as an unwalkable loop ([`TouchUnread::Corrupt`]), or where
+/// it was skipped (a radius of `0.4`).
+#[test]
+fn a_lone_vertex_bounds_the_cleared_disc() {
+    let (body, top, _) = crate::test_support_fixtures::box_with_a_lone_ring(Tol::witness());
+    let outward = crate::face_normal::face_outward_normal(&body, top)
+        .expect("a planar face's outward normal")
+        .vec();
+    let sectors = FaceSector::cleared(
+        &body,
+        top,
+        outward,
+        p(0.5, 0.6, 1.0),
+        &[Hold::Inside],
+        band(),
+    )
+    .expect("the face reads as a cleared disc");
+    for s in &sectors {
+        let clear = s.face.clear.expect("a cleared sector states its radius");
+        assert!(
+            clear <= 0.1 + 1e-12,
+            "the disc's radius {clear} reaches past the lone vertex 0.1 away"
+        );
+    }
+    assert!(!sectors.is_empty(), "the face gives a sector");
 }

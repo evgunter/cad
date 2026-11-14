@@ -71,11 +71,8 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
     topo::transform_rigid(
         b,
-        &geom_core::test_support::rigid(
-            &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
-            Tol::witness(),
-        ),
-        Tol::witness(),
+        &geom_core::RigidMotion::rotation_about_normalized_axis(p3(0.0, 0.0, 0.0), axis, iv(angle))
+            .unwrap(),
     )
     .unwrap()
 }
@@ -93,16 +90,14 @@ fn z_axis() -> Vec3<Interval> {
 }
 
 fn repose(b: &Body<Interval>) -> Body<Interval> {
-    let r = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(1.0, 2.0, 3.0).normalize(), iv(0.7));
-    topo::transform_rigid(
-        b,
-        &geom_core::test_support::rigid(
-            &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
-            Tol::witness(),
-        ),
-        Tol::witness(),
+    let r = geom_core::RigidMotion::rotation_about_normalized_axis(
+        p3(0.0, 0.0, 0.0),
+        v3(1.0, 2.0, 3.0).normalize(),
+        iv(0.7),
     )
-    .unwrap()
+    .and_then(|r| r.translated(v3(0.3, -0.45, 0.6)))
+    .unwrap();
+    topo::transform_rigid(b, &r).unwrap()
 }
 
 fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
@@ -180,7 +175,7 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
     let (source, site_predicate) = match reposed {
         BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
-            topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
+            topo::JoinError::Euler(source) => (source, "carrier_endpoint_start"),
             _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
         },
         _ => panic!(
@@ -310,7 +305,6 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
         &geom_core::RigidMotion::translation(v3(0.375, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let err = union_err(&a, &skew);
@@ -320,7 +314,7 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
             BooleanError::GermSectionUnbuilt {
                 a_kind: geom::SurfaceKind::Cylinder,
                 b_kind: geom::SurfaceKind::Cylinder,
-                why: topo::SectionUnbuilt::NoLane { .. },
+                why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::NoLane { .. }),
                 ..
             }
         ),

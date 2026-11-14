@@ -841,6 +841,10 @@ impl SaidFinding<'_> {
                         "its structure did not resolve ({at:?}), which is a tier-1 defect \
                          rather than a coherence one"
                     ),
+                    topo::Unexaminable::LoneLoop { .. } => f.write_str(
+                        "it is a lone vertex, construction scaffolding with no edge, so it \
+                         states no coordinate to compare",
+                    ),
                     topo::Unexaminable::NullScaffoldEdge { .. } => f.write_str(
                         "an edge of it carries construction scaffolding rather than a \
                          certified curve, so it states no coordinate to compare",
@@ -950,6 +954,12 @@ impl SaidFinding<'_> {
                 topo::Unexaminable::Corrupt { .. } => {
                     "the body's structural validation names the defect this read could not \
                      get past"
+                }
+                // Tier 1 admits a lone loop; tier 2 names it at rest
+                // (`ScaffoldingEmptyLoop`).
+                topo::Unexaminable::LoneLoop { .. } => {
+                    "the body's closed-solid validation names this loop as construction \
+                     scaffolding left at rest"
                 }
                 // A scaffolding edge and a trimmed face are lane
                 // boundaries, not defects: the report names them so

@@ -112,8 +112,8 @@
 //! out ([`NurbsCellGrid::band_schedule`]).
 //!
 //! The whole-patch steps still bound the BOUNDARY chord schedule of
-//! every adjacent edge (`chords`: the adjacent-torus tightening
-//! pattern) — the reported TESS-SPAN D-2 choice: an edge's chords are
+//! every adjacent edge (`chords`' one rule) — the reported TESS-SPAN
+//! D-2 choice: an edge's chords are
 //! shared with the neighbouring face, so they keep the conservative
 //! whole-patch schedule and forfeit the span gain along boundaries
 //! (quantified by `crate::budget`'s meter), rather than teaching the
@@ -532,7 +532,7 @@ pub(crate) fn nurbs_cell_bounds(
 ///
 /// * the CHORD PASS walks the edge arena and fills the entry of every
 ///   described NURBS face adjacent to an edge ([`face_bound`], through
-///   `chords::nurbs_tighten`). It is a per-edge walk writing per-FACE
+///   `chords::tighten`). It is a per-edge walk writing per-FACE
 ///   entries, and it is serial and complete before any face's lane
 ///   runs;
 /// * a FACE's LANE then reads its OWN face's entry, once, through
@@ -549,7 +549,7 @@ pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 ///
 /// **Why the lanes get a different door from the chord pass, and why
 /// this one does not assemble.** [`face_bound`] takes `&mut` and is the
-/// FILL door: `chords::nurbs_tighten` calls it for every described
+/// FILL door: `chords::tighten` calls it for every described
 /// NURBS face adjacent to an edge, which in a body
 /// whose faces have boundaries is every described NURBS face there is.
 /// That pass runs to completion before the per-face parallel map, so by
@@ -679,7 +679,7 @@ impl BandCounts {
 /// under it lands below δ. The share chooses between a coarser lattice
 /// and fewer raised rows; it is the lane's sizing split, typed rather
 /// than measured
-/// (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
+/// (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
 /// centroid retries of `trimmed::MAX_GRID_RETRIES` are a backstop,
 /// not part of the bound.
 ///
@@ -729,12 +729,18 @@ pub(crate) struct BandSchedule {
 /// many columns wide, and a sliver across them; in `(u/k, v)` the same
 /// lattice is near square and the circle a column or two.
 ///
-/// A POWER OF TWO so the map is exact in f64: `u/k` rounds nothing, so
-/// two points coincide in the scaled plane exactly when they coincide
-/// in UV, and every exact-coincidence rule the lane relies on (the
+/// A POWER OF TWO so the map is exact in f64: the trimmed lane applies
+/// it as a scale of at least one on the axis that grows (`trimmed`'s
+/// `cdt_point`), which rounds nothing, so two points coincide in the
+/// scaled plane exactly when they coincide in UV after the crate's
+/// coordinate floor, and every exact-coincidence rule the lane relies on (the
 /// grid-on-constraint drop, crease snapping, [`crate::planar::Pinches`],
-/// the handle merge) behaves as before. `1` when no band has a finite
-/// positive aspect.
+/// the handle merge) behaves as before. The scaled plane is `(u/k, v)`
+/// times a uniform power of two; spade's predicates are exact under
+/// that scale, but its bulk loader's hull walk is not scale-invariant
+/// (an absolute `f64::EPSILON`), and nothing relies on the
+/// triangulation being the same across scales. `1` when no band has a
+/// finite positive aspect.
 pub(crate) fn lattice_metric(aspects: impl Iterator<Item = f64>) -> f64 {
     let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
     for a in aspects.filter(|a| a.is_finite() && *a > 0.0) {
@@ -1034,7 +1040,7 @@ impl NurbsCellGrid {
     /// metric returned here, where each band's lattice is near square,
     /// so bands are not aligned to a shared column count. Aligning them
     /// keeps no measured face sound
-    /// (`work/tess/the-lower-malign-arm-is-unwitnessed` carries the
+    /// (`work/tesslane/the-lower-malign-arm-is-unwitnessed` carries the
     /// measurement); on uneven-station lofts it saves triangles
     /// (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
     ///
@@ -1077,7 +1083,7 @@ impl NurbsCellGrid {
             let (va, vb) = (w[0], w[1]);
             // The band is found by the slab midpoint — strictly inside
             // one band, since no interior cut crosses a slab.
-            let bound = self.row_bound(self.row_of(0.5 * (va + vb)));
+            let bound = self.row_bound(self.row_of(geom::mid_param(va, vb)));
             let steps = bound.split_steps(budget);
             let nuc = crate::sizing::ceil_count(du, steps.hu)?;
             let nvc = crate::sizing::ceil_count(vb - va, steps.hv)?;
@@ -2211,8 +2217,8 @@ pub(crate) mod tests {
     fn a_lofted_circle_straddler_reads_its_true_deviation() {
         let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
         let mut walls = 0;
-        for (fk, face) in body.faces() {
-            let Some(geom::Surface::Nurbs(wall)) = body.get_surface(face.surface) else {
+        for (fk, _) in body.faces() {
+            let Some(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
                 continue;
             };
             walls += 1;
@@ -2857,8 +2863,8 @@ pub(crate) mod tests {
         let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
-        for (_, face) in body.faces() {
-            if let Some(geom::Surface::Nurbs(p)) = body.get_surface(face.surface)
+        for (fk, _) in body.faces() {
+            if let Some(geom::Surface::Nurbs(p)) = body.face_surface(fk)
                 && p.constant_weight().is_none()
             {
                 return (**p).clone();

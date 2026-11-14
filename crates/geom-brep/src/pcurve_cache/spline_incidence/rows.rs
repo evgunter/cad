@@ -20,7 +20,7 @@ use geom_core::{Band, Bounds, Interval, Point3, Tol, Vec3};
 use std::sync::Arc;
 
 use super::{Net, Read};
-use crate::{PcurveCertifyError, PcurveCheck};
+use crate::PcurveCertifyError;
 
 fn knots(rng: &mut test_utils::fuzz::Rng, p: usize) -> KnotVector {
     let mut interior: Vec<f64> = (0..rng.below(5)).map(|_| rng.range(0.05, 0.95)).collect();
@@ -950,24 +950,18 @@ fn the_door_reads_a_circle_against_a_ring_wall<T: geom_core::Decide>() {
     let off = read::<T>(1.0 + 1e-3);
     assert!(
         matches!(
-            off,
-            Err(PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Nurbs,
-                carrier: geom::CurveKind::Circle,
-                ..
-            })
-        ),
+            off.as_ref().err().and_then(crate::IncidenceRead::of),
+            Some(crate::IncidenceRead::Off(_))
+        ) && off.as_ref().err().and_then(|e| e.chart_carrier_kinds())
+            == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle)),
         "a circle a millimetre off the wall, at {}: {off:?}",
         T::NAME
     );
     let near = read::<T>(1.0 + 0.5 * (band.zero() + band.escalate()));
     assert!(
         matches!(
-            near,
-            Err(PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartIncidence,
-                ..
-            })
+            near.as_ref().err().and_then(crate::IncidenceRead::of),
+            Some(crate::IncidenceRead::Undecided(_))
         ),
         "a circle at a band-scale distance from the wall, at {}: {near:?}",
         T::NAME

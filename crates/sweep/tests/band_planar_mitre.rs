@@ -41,7 +41,7 @@ use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, 
 use crate::common::operands::{leaning_turn, parallelepiped};
 
 /// What two band prisms meeting at a right trihedron overlap in.
-fn overlap(verb: Verb) -> f64 {
+pub(crate) fn overlap(verb: Verb) -> f64 {
     match verb {
         Verb::Chamfer => D.powi(3) / 3.0,
         Verb::Fillet => (5.0 / 3.0 - PI / 2.0) * D.powi(3),
@@ -424,12 +424,9 @@ fn the_mitre_carves_at_the_certified_scalar() {
         topo::query::all_edges(&body)
             .into_iter()
             .find(|&e| {
-                let he = body.get_edge(e).unwrap().he_plus;
+                let (v0, v1) = body.edge_vertices(e).unwrap();
                 let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-                let (s, t) = (
-                    p(body.get_half_edge(he).unwrap().start),
-                    p(body.half_edge_end(he).unwrap()),
-                );
+                let (s, t) = (p(v0), p(v1));
                 (near(&s, a) && near(&t, b)) || (near(&s, b) && near(&t, a))
             })
             .expect("a box edge")

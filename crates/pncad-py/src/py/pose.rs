@@ -155,7 +155,7 @@ pub(crate) fn scalar_at(
     )))
 }
 
-fn select(at: OperandArg, name: &str) -> PyResult<d::Operand> {
+fn select(at: super::doc::BodyArg, name: &str) -> PyResult<d::Operand> {
     Ok(d::Operand::select(at.read(), vec![name_from_text(name)?]))
 }
 
@@ -168,11 +168,12 @@ fn def(inner: Def<d::Operand, d::Formula>) -> PoseDef {
 #[pymethods]
 impl PoseDef {
     /// **A face read as a plane**: its carrier's plane, with the face's
-    /// outward normal. `at` is the body the face is read out of, `face`
-    /// one of the names `Evaluation.all_faces` answers with. A curved
-    /// face refuses `pose_read` at `evaluate`.
+    /// outward normal. `at` is the body the face is read out of — one
+    /// member of a family read `xs[i]`, by the member's own name — and
+    /// `face` one of the names a selector answers with. A curved face
+    /// refuses `pose_read` at `evaluate`.
     #[staticmethod]
-    fn plane(at: OperandArg, face: &str) -> PyResult<Self> {
+    fn plane(at: super::doc::BodyArg, face: &str) -> PyResult<Self> {
         Ok(def(Def::Plane {
             face: select(at, face)?,
         }))
@@ -182,7 +183,7 @@ impl PoseDef {
     /// torus's axis, a straight edge's line, or a circular edge's axis.
     /// `name` names a face or an edge of the body `at` reads.
     #[staticmethod]
-    fn axis(at: OperandArg, name: &str) -> PyResult<Self> {
+    fn axis(at: super::doc::BodyArg, name: &str) -> PyResult<Self> {
         Ok(def(Def::Axis {
             of: select(at, name)?,
         }))
@@ -191,7 +192,7 @@ impl PoseDef {
     /// **A point read off geometry**: a sphere's, a torus's or a
     /// circle's centre, a cone's apex, or a vertex's point.
     #[staticmethod]
-    fn point(at: OperandArg, name: &str) -> PyResult<Self> {
+    fn point(at: super::doc::BodyArg, name: &str) -> PyResult<Self> {
         Ok(def(Def::Point {
             of: select(at, name)?,
         }))

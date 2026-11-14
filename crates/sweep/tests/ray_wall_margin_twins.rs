@@ -22,11 +22,11 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeMap;
 use sweep::ExtrudeSide;
 
-use geom_core::k_stats::{self, Probe, SampleOutcome};
-use geom_core::{Band, Point2, Point3, Sign, Tol};
+use geom_core::k_stats::{self, Probe};
+use geom_core::test_support::twins::{Pairing, Streams, Twins, streams};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::point_in_solid;
@@ -40,12 +40,7 @@ const WALL_RUNGS: [&str; 2] = ["bool_point_in_solid_denom", "bool_ray_cylinder_d
 /// over them, the magnitude `None` where the sample reads its sign
 /// alone, and their verdicts.
 #[allow(clippy::type_complexity)] // the stream, then the verdicts
-fn margins_at(
-    scale: f64,
-) -> (
-    BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>>,
-    Vec<topo::SolidContainment>,
-) {
+fn margins_at(scale: f64) -> (Streams, Vec<topo::SolidContainment>) {
     let tol = Tol::witness();
     let s = |v: f64| Probe(v * scale);
     let lp = profile::circle(Point2::new(s(0.0), s(0.0)), s(1.0), tol).unwrap();
@@ -77,14 +72,7 @@ fn margins_at(
                 .unwrap_or_else(|e| panic!("({x}, {y}, {z}) at scale {scale:e}: {e:?}"))
         })
         .collect();
-    let mut out: BTreeMap<&'static str, Vec<(SampleOutcome, Option<f64>)>> = BTreeMap::new();
-    for sample in k_stats::take_samples() {
-        let magnitude = (!sample.reads_sign_only()).then_some(sample.margin.abs());
-        out.entry(sample.predicate)
-            .or_default()
-            .push((sample.outcome, magnitude));
-    }
-    (out, verdicts)
+    (streams(k_stats::take_samples()), verdicts)
 }
 
 #[test]
@@ -118,7 +106,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
             m.keys().collect::<Vec<_>>()
         );
         assert!(
-            m[rung].iter().all(|s| s.1.is_some()),
+            m[rung].iter().all(|s| !s.reads_sign_only()),
             "{rung} is decided against the linear band, so every margin it records has a scale"
         );
     }
@@ -128,36 +116,17 @@ fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
         "the twins must fire the same predicate set"
     );
     let mut nonlinear = Vec::new();
-    for (pred, mm_list) in &mm {
-        let m_list = &m[pred];
-        let outcomes =
-            |l: &[(SampleOutcome, Option<f64>)]| l.iter().map(|s| s.0).collect::<Vec<_>>();
+    for pred in mm.keys() {
+        let twins = Twins::of(pred, &mm, &m);
+        let (small, large) = twins.outcomes();
         assert_eq!(
-            outcomes(mm_list),
-            outcomes(m_list),
+            small, large,
             "{pred}: the twins must produce identical verdict streams"
         );
-        // Decisive margins with a scale only, sorted: a coincident
-        // residual is rounding noise, a sign-only read has no scale, and
-        // recording order pairs unrelated sites.
-        let decisive = |l: &[(SampleOutcome, Option<f64>)]| {
-            let mut v: Vec<f64> = l
-                .iter()
-                .filter(|s| {
-                    matches!(
-                        s.0,
-                        SampleOutcome::Definite(Sign::Positive | Sign::Negative)
-                    )
-                })
-                .filter_map(|s| s.1)
-                .collect();
-            v.sort_by(f64::total_cmp);
-            v
-        };
         // Not `dev > 1e-9`: a NaN ratio is a deviation too.
-        let off: Vec<f64> = decisive(mm_list)
-            .iter()
-            .zip(&decisive(m_list))
+        let off: Vec<f64> = twins
+            .decisive_pairs(Pairing::Rank, |_| true)
+            .into_iter()
             .map(|(a, b)| (b / a / 1e3 - 1.0).abs())
             .filter(|dev| dev.is_nan() || *dev > 1e-9)
             .collect();

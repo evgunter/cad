@@ -52,7 +52,7 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                     .blend_faces
                     .iter()
                     .find_map(|f| {
-                        let s = out.body.get_surface(out.body.get_face(*f)?.surface)?;
+                        let s = out.body.face_surface(*f)?;
                         match *s {
                             geom::Surface::Cylinder { axis, .. } => Some(axis),
                             _ => None,

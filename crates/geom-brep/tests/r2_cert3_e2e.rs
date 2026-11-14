@@ -23,8 +23,10 @@ fn oblique<T: Real>(angle: T, mk: impl Fn(f64) -> T) -> MappedCurve<T> {
     MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(mk(7.0), mk(-4.0)),
         place: Affine3::translation(Vec3::new(mk(1.5), mk(-2.5), mk(11.0))),
-        axis_origin: Point3::new(mk(-30.0), mk(45.0), mk(-12.0)),
-        axis_dir: Vec3::new(mk(1.0), mk(-2.0), mk(2.0)),
+        axis: geom::Line {
+            origin: Point3::new(mk(-30.0), mk(45.0), mk(-12.0)),
+            dir: Vec3::new(mk(1.0), mk(-2.0), mk(2.0)),
+        },
         angle,
     })
 }

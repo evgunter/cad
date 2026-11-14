@@ -336,7 +336,7 @@ fn a1_a_spin_value_follows_the_documents_angle_parameter() {
         len(1.0),
         Formula::zero(Dimension::Angle),
     );
-    let c = top_pose(&control, "control").affine::<f64>();
+    let c = top_pose(&control, "control").affine();
     let s = scene(
         "msolve7-a1-spin",
         &params,
@@ -345,7 +345,7 @@ fn a1_a_spin_value_follows_the_documents_angle_parameter() {
     );
     let check = |doc: ProfileDoc, th: f64, what: &str| -> Affine3<f64> {
         let sc = Scene { doc, ..s.clone() };
-        let t = top_pose(&sc, what).affine::<f64>();
+        let t = top_pose(&sc, what).affine();
         let expected = Affine3::rotation_about_axis(
             Point3::origin() + c.translation,
             Vec3::new(0.0, 0.0, 1.0),

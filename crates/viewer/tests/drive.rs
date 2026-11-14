@@ -427,7 +427,8 @@ mod missed_pick_bounds {
         // Beside the plate's central hole, on its material.
         vclick(&mut driver, 0.35, 0.5);
         let dump = driver.dump();
-        assert!(dump.contains("member 1: Extrude "), "the premise: {dump}");
+        // A pick on the plate's copy seats the copy (Ev, PR 6353).
+        assert!(dump.contains("member 1: Place "), "the premise: {dump}");
         assert!(!dump.contains("no pick taken"), "{dump}");
     }
 }

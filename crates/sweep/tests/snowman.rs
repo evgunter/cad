@@ -604,7 +604,6 @@ fn a_spun_snowman_builds_under_every_boolean() {
             topo::transform_rigid(
                 &ball(R2, D),
                 &geom_core::test_support::rigid(&spin, Tol::witness()),
-                Tol::witness(),
             )
             .unwrap(),
             Tol::witness(),
@@ -723,11 +722,7 @@ fn the_snowman_waist_fillets() {
     let rho = ((R1 + r).powi(2) - y.powi(2)).sqrt();
     assert!(!out.band_faces.is_empty(), "the fillet mints a band");
     for &f in &out.band_faces {
-        match *out
-            .body
-            .get_surface(out.body.get_face(f).unwrap().surface)
-            .unwrap()
-        {
+        match *out.body.face_surface(f).unwrap() {
             geom::Surface::Torus {
                 center,
                 major_radius,
@@ -887,7 +882,6 @@ fn tilted_slab_about(axis: geom_core::Vec3<f64>, tilt: f64, s: f64) -> AtRestBod
     let slab = topo::transform_rigid(
         &slab,
         &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     finished("the tilted slab", slab, Tol::witness())
@@ -952,7 +946,6 @@ fn brick_toward(n: geom_core::Vec3<f64>, s: f64, w: f64, t: f64) -> AtRestBody<f
     let brick = topo::transform_rigid(
         &brick,
         &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), tol),
-        tol,
     )
     .unwrap();
     finished("the brick", brick, tol)
@@ -1197,7 +1190,6 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
             topo::transform_rigid(
                 &cube,
                 &geom_core::test_support::rigid(&spin, Tol::witness()),
-                Tol::witness(),
             )
             .unwrap(),
             Tol::witness(),
@@ -1324,7 +1316,6 @@ fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
         topo::transform_rigid(
             &ball(0.9 * k, 0.0),
             &geom_core::test_support::rigid(&shift, tol),
-            tol,
         )
         .unwrap(),
         tol,
@@ -1576,8 +1567,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         let place = Affine3::translation(p - Point3::origin()) * aim;
         let cube = finished(
             "the cube",
-            topo::transform_rigid(&cube, &geom_core::test_support::rigid(&place, tol), tol)
-                .unwrap(),
+            topo::transform_rigid(&cube, &geom_core::test_support::rigid(&place, tol)).unwrap(),
             tol,
         );
         for (order, r) in [

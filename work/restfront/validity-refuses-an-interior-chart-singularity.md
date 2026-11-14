@@ -34,7 +34,7 @@ props' rim-only arm (PR 2741: `sphere_rim_only_pole_level`,
 `require_rim_only_closed`, and the rim-only half of
 `rim_interior_side`'s callers) is unreachable through a valid body and
 retires in the same unit or a PROPS one; the arm is whole at
-`6a1f6d60d`, which `work/tess/consider-emitting-the-rim-only-cap-instead-of-normalizing-it.md`
+`6a1f6d60d`, which `work/tesslane/consider-emitting-the-rim-only-cap-instead-of-normalizing-it.md`
 records for the tabled alternative — repoint that row at the retiring
 commit's parent.
 
@@ -85,7 +85,7 @@ predicate's author should know from TESS-1's measurements:
    short of the pole has a meridian and still has the pole in its
    interior, and the one-seam sphere has only meridians and zero width
    (`crates/mesh/tests/loops_the_meridian_guard_admits.rs`;
-   `work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
+   `work/tesslane/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
    "A chart singularity inside a face is a vertex of it" is the rule;
    "the loop has a meridian" is one necessary condition of it.
 2. `classify_kind` splits circle carriers on a float
@@ -128,7 +128,7 @@ What the predicate's author should know, on top of the two notes above:
    classification. It refuses exactly the loops for which a zero extent
    is FORCED; it does not certify that an admitted loop has width — two
    coincident edges open two columns that are one, which is
-   `work/tess/two-coincident-edges-open-two-columns-that-are-one.md` and
+   `work/tesslane/two-coincident-edges-open-two-columns-that-are-one.md` and
    a rung above (carrier identity, not edge identity).
 4. Its ε is `iso_side_starts`' separation band and no other. A validity
    rule asked at a different band will draw the line elsewhere on a

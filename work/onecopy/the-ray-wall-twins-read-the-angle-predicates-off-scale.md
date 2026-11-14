@@ -1,7 +1,7 @@
 ---
 id: the-ray-wall-twins-read-the-angle-predicates-off-scale
 kind: issue
-title: sweep's ray-wall margin twins stop on azimuth_near_cut_side and period_near_mark, not the pinned curve_foot_branch: red on main, unseen behind the probe feature
+title: sweep's ray-wall margin twins stopped on azimuth_near_cut_side and period_near_mark, not the pinned curve_foot_branch: red on main behind the probe feature
 status: closed
 opened: 2026-11-06
 priority: P2

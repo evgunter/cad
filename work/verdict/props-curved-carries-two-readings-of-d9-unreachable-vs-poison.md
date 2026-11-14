@@ -47,3 +47,11 @@ site by the premise the residual checks — and deliberately did NOT route
 
 So the site is this row's, with the extra fact that it is the only member
 of the class whose answer is currently user-visible prose.
+
+## The poison site is gone (ONECOPY, onecopy/ring-torus, 2026-11-09)
+
+`unreachable_zero` is deleted. Its one caller, `torus_ends`, now takes the
+meridian orientation as a `geom_core::k_stats::NonzeroSign`, so the `Zero`
+arm it answered is unrepresentable rather than unreachable. The row's
+question, `unreachable!` against a poison return, now has no poison site
+in `props/curved.rs`. `mixed_levels`' typed refusal is still open.

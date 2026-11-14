@@ -264,6 +264,79 @@ fn stated_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Arc<NurbsCurve2<
     Arc::new(fit.on_domain(t0, t1).expect("on the carrier's interval"))
 }
 
+/// [`stated_image`] under-refined: the carrier's exact chart feet at
+/// `feet` stations, joined at degree 1, the image the mint's producer
+/// gave a bending carrier before it climbed.
+fn chorded_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), feet: u32) -> Arc<NurbsCurve2<f64>> {
+    let fracs: Vec<f64> = (0..feet)
+        .map(|i| f64::from(i) / f64::from(feet - 1))
+        .collect();
+    let points: Vec<Point2<f64>> = fracs
+        .iter()
+        .map(|f| {
+            let p = carrier.eval(t0 + (t1 - t0) * f);
+            Point2::new(wall_u(p.y.atan2(p.x)), p.z)
+        })
+        .collect();
+    let fit = NurbsCurve2::<f64>::interpolate_with_params(&points, 1, &fracs).expect("the fit");
+    Arc::new(fit.on_domain(t0, t1).expect("on the carrier's interval"))
+}
+
+/// **A bending carrier's minted `General` image its certificate refuses
+/// ends as the lane's gap, at every ε** ([`geom_brep::minted_refusal`]):
+/// a circle's and an ellipse's image on the quarter cylinder, exact at
+/// nine feet and straight between them, misses its path by millimetres,
+/// which every band decides; the mint's door reads that refusal as
+/// `NoGeneralLane { gap: Image }`, ending "not yet" with its own lever,
+/// never a tolerance offer.
+fn a_refused_bending_image_ends_as_the_lanes_gap<
+    T: geom_core::Decide + geom_core::CertifiedBounds,
+>() {
+    let lift = |x: f64| T::from_f64(x);
+    let wall = Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall().map_scalar(lift)));
+    for (name, carrier) in [("the circle", circle(0.5)), ("the ellipse", ellipse())] {
+        let span = (0.1, 1.4);
+        let image = Arc::new(chorded_image(&carrier, span, 9).map_scalar(lift));
+        let carrier = carrier.map_scalar(lift);
+        let (t0, t1) = (lift(span.0), lift(span.1));
+        let refused = PcurveCache::certify_general(
+            Arc::clone(&image),
+            t0,
+            t1,
+            &carrier,
+            &wall,
+            band(),
+            Some(FittedLane::<T>::certified()),
+        )
+        .map(|_| ())
+        .expect_err("an image millimetres off its path refuses");
+        let got = geom_brep::minted_refusal(refused, &Pcurve::General(image), &carrier, &wall);
+        let ending = got.ending(Reading::Build);
+        assert!(
+            matches!(
+                got,
+                PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Image,
+                    ..
+                }
+            ) && ending.contains(geom_core::NOT_YET_ENDING)
+                && !ending.contains("loosen"),
+            "{name}: the lane's gap at {}: {got:?} :: {ending}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_refused_bending_image_ends_as_the_lanes_gap_at_f64() {
+    a_refused_bending_image_ends_as_the_lanes_gap::<f64>();
+}
+
+#[test]
+fn a_refused_bending_image_ends_as_the_lanes_gap_at_interval() {
+    a_refused_bending_image_ends_as_the_lanes_gap::<geom_core::interval::Interval>();
+}
+
 /// A height-`z` circle on the quarter-cylinder wall, `t` its angle.
 fn circle(z: f64) -> Curve3<f64> {
     Curve3::circle(
@@ -488,8 +561,9 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
 
 /// **A spline image short of the edge refuses.** The bound is over the
 /// image's domain, and a spline carrier evaluated past its knot domain
-/// clamps, so nothing else notices an edge interval that overruns it:
-/// check 4 refuses it, at either end, and certifies one inside.
+/// extends its end span, off the bounded wall: the door's incidence read
+/// ends an edge interval that overruns it, at either end, and certifies
+/// one inside.
 #[test]
 fn a_spline_image_short_of_the_edge_refuses() {
     for ((a, b), certifies) in [
@@ -510,7 +584,7 @@ fn a_spline_image_short_of_the_edge_refuses() {
             assert!(got.is_ok(), "[{a}, {b}] lies in the image: {got:?}");
         } else {
             assert!(
-                matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                got.as_ref().err().is_some_and(|e| read_off(e, None, None)),
                 "[{a}, {b}] overruns the image's [0, 1]: {got:?}"
             );
         }
@@ -584,56 +658,158 @@ fn flat_wall() -> NurbsSurface<f64> {
 /// **The derived route for a closed-form carrier**: the mint's two
 /// doors in its order, `general_image` over the edge's interval and
 /// then `certify_general`. An off-iso line on a flat wall has a
-/// straight foot path, so the degree-1 image certifies. A circle on the
-/// curved wall does not: the image's chord error is measured at the
-/// hull and refused typed, never excused.
-#[test]
-fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
-    let lane = FittedLane::<f64>::certified();
+/// straight foot path, and its degree-1 image certifies. A circle's and
+/// an ellipse's foot path bends, and their image is the finer one the
+/// producer climbs to, which certifies on the quarter cylinder and on a
+/// ring wall in two sub-arcs, where the circle crosses the knot line
+/// between them and the image breaks there.
+fn the_derived_route_certifies_a_line_and_a_bending_carrier<
+    T: geom_core::Decide + geom_core::CertifiedBounds,
+>() {
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
-    let (t0, t1) = (0.0, 0.9);
-    let wall = flat_wall();
+    derived_route_certifies::<T>("the diagonal", &diagonal, (0.0, 0.9), &flat_wall());
+    let quarter = fixture::quarter_cylinder_wall();
+    derived_route_certifies::<T>("the circle", &circle(0.5), (0.1, 1.4), &quarter);
+    derived_route_certifies::<T>("the ellipse", &ellipse(), (0.1, 1.4), &quarter);
+    derived_route_certifies::<T>(
+        "the circle across a knot line",
+        &circle(0.0),
+        (0.0, 1.2),
+        &ring_wall(),
+    );
+}
+
+/// `general_image` over `span` and then `certify_general`, which
+/// certifies within ε. At `Interval` a degree-5 image is about 1e-12 m
+/// wide at a sample, which an ε of that size reads in band.
+fn derived_route_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    name: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) {
+    let lane = FittedLane::<T>::certified();
+    let lift = |x: f64| T::from_f64(x);
+    let carrier = carrier.map_scalar(lift);
+    let wall = wall.map_scalar(lift);
+    let (t0, t1) = (lift(span.0), lift(span.1));
     let image = lane
-        .general_image(&diagonal, (t0, t1), &wall)
-        .expect("the diagonal's image derives");
+        .general_image(&carrier, (t0, t1), &wall, band())
+        .unwrap_or_else(|e| panic!("{name}: the image derives at {}: {e:?}", T::NAME));
     let got = PcurveCache::certify_general(
         Arc::new(image),
         t0,
         t1,
-        &diagonal,
+        &carrier,
         &Surface::Nurbs(Arc::new(wall)),
         band(),
         Some(lane),
-    )
-    .expect("an off-iso line's derived image certifies on a spline chart");
-    assert!(
-        matches!(got.pcurve(), Pcurve::General(_)) && got.certificate().envelope <= band().zero(),
-        "a General row within ε: {:?}",
-        got.certificate()
     );
-
-    let (t0, t1) = (0.1, 1.4);
-    let image = lane
-        .general_image(&circle(0.5), (t0, t1), &fixture::quarter_cylinder_wall())
-        .expect("the circle's image derives");
-    let got = PcurveCache::certify_general(
-        Arc::new(image),
-        t0,
-        t1,
-        &circle(0.5),
-        &quarter_cylinder_wall(),
-        band(),
-        Some(lane),
-    );
-    assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::FittedLimb {
-                limb: geom_brep::SsiLimb::HullSupChart | geom_brep::SsiLimb::HullValueChart,
-                ..
-            })
+    match got {
+        Ok(row) => assert!(
+            matches!(row.pcurve(), Pcurve::General(_))
+                && row.certificate().envelope.hi() <= band().zero(),
+            "{name}: a General row within ε at {}: {:?}",
+            T::NAME,
+            row.certificate()
         ),
-        "a curved foot path's degree-1 image refuses at the hull: {got:?}"
-    );
+        Err(PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::MapResidual,
+            ..
+        }) if T::NAME == "interval" && band().zero() < 2e-12 => {}
+        Err(e) => panic!("{name}: the derived image certifies at {}: {e:?}", T::NAME),
+    }
+}
+
+/// **A knot crossing anywhere along the rim**: the ring's circle over
+/// spans whose crossing of the `u = ½` knot line falls at a foot of the
+/// first rung's schedule, between two feet, a millionth to a thousandth
+/// of a step past one, and within a few feet of either end of the span.
+/// The crossing is a node of every rung wherever it falls, and the image
+/// certifies.
+fn a_knot_crossing_anywhere_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+    let ring = ring_wall();
+    let mut spans = vec![
+        ("at a foot", (0.0, 1.2)),
+        ("between feet", (0.013, 1.2)),
+        ("between feet, short", (0.0, 1.19)),
+        ("between feet, both ends in", (0.05, 1.17)),
+        ("near the start", (0.57, 1.2)),
+        ("near the end", (0.0, 0.63)),
+    ];
+    for d in [3e-6, 3e-5, 3e-4, 3e-3] {
+        spans.push(("past a foot", (0.0, 0.6 / (0.5 + d / 32.0))));
+    }
+    for (name, span) in spans {
+        derived_route_certifies::<T>(&format!("{name} {span:?}"), &circle(0.0), span, &ring);
+    }
+}
+
+#[test]
+fn a_knot_crossing_anywhere_certifies_at_f64() {
+    a_knot_crossing_anywhere_certifies::<f64>();
+}
+
+#[test]
+fn a_knot_crossing_anywhere_certifies_at_interval() {
+    a_knot_crossing_anywhere_certifies::<geom_core::Interval>();
+}
+
+#[test]
+fn the_derived_route_certifies_a_line_and_a_bending_carrier_at_f64() {
+    the_derived_route_certifies_a_line_and_a_bending_carrier::<f64>();
+}
+
+#[test]
+fn the_derived_route_certifies_a_line_and_a_bending_carrier_at_interval() {
+    the_derived_route_certifies_a_line_and_a_bending_carrier::<geom_core::Interval>();
+}
+
+/// The unit cylinder over `z ∈ [−½, ½]` through `1.2` rad from `x̂`, in two
+/// rational quadratic sub-arcs: its `u = ½` knot line is the joint.
+fn ring_wall() -> NurbsSurface<f64> {
+    let h = 0.6_f64;
+    let mut ku = vec![0.0; 3];
+    ku.extend([0.5; 2]);
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=4 {
+        let theta = f64::from(j) * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for z in [-0.5, 0.5] {
+            control.push(Point3::new(reach * theta.cos(), reach * theta.sin(), z));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).expect("the ring's u knots"),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("the ring's v knots"),
+        control,
+        weights,
+    )
+    .expect("the ring builds")
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

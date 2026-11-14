@@ -244,14 +244,13 @@ pub enum MassPropsError {
         source: PropsError,
     },
     /// A curved face carries interior rings and is neither a cone wall,
-    /// a cylinder wall (its closed form and its quadrature both read
-    /// every loop: `geom_brep::props::curved_face_loops`,
+    /// a cylinder wall nor a sphere face (each one's closed form and its
+    /// quadrature read every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::rotational_cut_face_rounds`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
-    /// bounded by circles. A boolean pierce leaves a ring in the wall it
-    /// pierces.
+    /// `geom_brep::props::spiric::rim_face_rounds`). A boolean pierce
+    /// leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -629,6 +628,7 @@ fn round_hook<T: Decide>(
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
+    bool,
     &[FlatLoop<T>],
     Band,
     Tol,
@@ -638,7 +638,7 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<LaneRun>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window, about: Point3<T>, resolution| match quad {
+    move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
             let about = Point3::new(
                 (lane.lift)(about.x),
@@ -648,6 +648,7 @@ fn round_hook<T: Decide>(
             (lane.cut_face_rounds)(
                 body,
                 surface,
+                sense,
                 loops,
                 band,
                 tol,
@@ -1207,27 +1208,7 @@ impl<T: Real> MassProperties<T> {
     }
 }
 
-/// The predicate names a role read decides under: the bracket's high
-/// end (and an exact volume) under `high`, its low end under `low`.
-#[derive(Clone, Copy, Debug)]
-pub struct RoleNames {
-    /// The name the high end, and an exact volume, are decided under.
-    pub high: &'static str,
-    /// The name the low end is decided under.
-    pub low: &'static str,
-}
-
-impl RoleNames {
-    /// One name for both ends — every decision but check 7's, which keeps
-    /// its two historical names.
-    #[must_use]
-    pub const fn one(name: &'static str) -> Self {
-        Self {
-            high: name,
-            low: name,
-        }
-    }
-}
+pub use crate::rows::RoleNames;
 
 /// A role read that decided no role: the two ends' decisions (one and
 /// the same for an exact volume).
@@ -1277,7 +1258,7 @@ impl RoleUnread {
 /// a certified enclosure on one side of zero is that role however thin
 /// the body. The margins it records are the volume's own.
 pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) -> RoleRead {
-    let sign = |name, volume| {
+    let sign_as = |name, volume| {
         crate::validate::decide_reported(name, Margin::sign_of(volume), Band::enclosure_sign())
     };
     let role_at = |end, decided: Result<Decided, Indeterminate>| {
@@ -1291,18 +1272,18 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     };
     match reading {
         SignReading::Exact { volume, .. } => {
-            let one = sign(names.high, volume);
+            let one = sign_as(names.high(), volume);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
-            let hi = sign(names.high, ends.volume_hi);
+            let hi = sign_as(names.high(), ends.volume_hi);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
             }
-            let lo = sign(names.low, ends.volume_lo);
+            let lo = sign_as(names.low(), ends.volume_lo);
             read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
@@ -1482,7 +1463,8 @@ pub(crate) fn certify_role<T: Decide>(
 /// `b`): `ROUNDING_TERMS · u · Σ_f (n_f + 1) · R_f · D_f²` over the walk's
 /// faces, `u` the unit roundoff and `n_f` a face's edge count. A face's
 /// closed form is taken about its surface's anchor (a plane's or a
-/// cylinder's origin, a cone's apex, a sphere's or a torus's centre), on
+/// cylinder's origin re-anchored at the face, [`face_anchored`]; a
+/// cone's apex; a sphere's or a torus's centre), on
 /// its geometry moved by `−c`, `c` its shell's reference
 /// ([`shell_reference`]): `R_f` is the larger 1-norm of the anchor and of
 /// the face's loop points about `c` (their distance from the point the
@@ -1504,10 +1486,11 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     let mut bound = T::zero();
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let loops = face_loops(body, face.record())?;
+        let surface = face_anchored(face.surface(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
-        let anchor = match *surface {
+        let anchor = match surface {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
             Surface::Cone { apex, .. } => Some(apex),
             Surface::Sphere { center, .. }
@@ -1521,8 +1504,8 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         let mut spread = T::zero();
         let mut box_lo: Option<Point3<T>> = None;
         let mut box_hi: Option<Point3<T>> = None;
-        for lp in face_loops(body, face.record())? {
-            for e in &lp {
+        for lp in &loops {
+            for e in lp {
                 terms = terms + T::one();
                 for p in [e.carrier.eval(e.t0), e.carrier.eval(e.t1)] {
                     reach = reach.max(about(p));
@@ -1722,6 +1705,7 @@ fn rederive_faces<T: Decide>(
                     (lane.cut_face_rounds)(
                         body,
                         surface,
+                        face.record().sense,
                         &flat,
                         band,
                         tol,
@@ -1936,12 +1920,14 @@ impl Rederived {
 ///
 /// Any fixed point is a sound centre for a closed surface; this is the
 /// same point for one stored body every time (D9), and two bodies
-/// storing one boundary in different orders take different vertices. The
-/// value about it also reads a plane's flux from its loop's first point,
-/// and where a loop's points stand off their plane two such bodies
-/// re-derive values that differ by up to `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over
-/// those faces, `|T^a|` and `|T^b|` the unsigned areas of face `f`'s fan
-/// triangles from either first point. On the polygon route
+/// storing one boundary in different orders take different vertices. A
+/// plane's flux about it is read from its face's anchor, which no
+/// storage order moves ([`geom_brep::props::face_anchor`]), and where a
+/// loop's points stand off their plane two such bodies re-derive values
+/// that differ by up to `|c^a − c^b|·Σ_f |A⃗⊥_f|`, the two centres' gap
+/// times each face's vector area across its plane: the faces' vector
+/// areas sum to zero over a closed shell, so only the parts the plane's
+/// normal drops are levered by the centre. On the polygon route
 /// ([`shell_polygons`]) that is the whole difference; on the fan route
 /// the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
@@ -2266,6 +2252,35 @@ pub(crate) struct KeptSign<T: Decide> {
 }
 
 impl<T: Decide> KeptSign<T> {
+    /// **This certificate over the body's image under an isometry**
+    /// `map`: every run's reference point moved with the body, and every
+    /// flux, area and carry kept. Each face's flux `∫(p − c)·n` about a
+    /// reference `c` that moves with the body is the image's, and so is
+    /// the volume; a reflection negates it and the mirror's reversal
+    /// restores it, so a mirrored body's runs are kept too.
+    pub(crate) fn moved(&self, map: &geom_core::Affine3<T>) -> Self {
+        let move_about = |about: ReadAbout<T>| match about {
+            ReadAbout::Shell(point) => ReadAbout::Shell(map.transform_point(point)),
+            ReadAbout::Region { point, carry } => ReadAbout::Region {
+                point: map.transform_point(point),
+                carry,
+            },
+        };
+        Self {
+            band: self.band,
+            tol: self.tol,
+            quad: self.quad,
+            runs: self
+                .runs
+                .iter()
+                .map(|run| FaceRun {
+                    about: move_about(run.about),
+                    ..run.clone()
+                })
+                .collect(),
+        }
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {
@@ -2322,6 +2337,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
 type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -2488,7 +2504,7 @@ mod face_walk_composition_tests {
     }
 
     /// A detached run that records exactly one verdict, under `name`.
-    fn one_verdict(name: &'static str) -> Detached {
+    fn one_verdict_as(name: &'static str) -> Detached {
         detached(|| {
             let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
         })
@@ -2514,12 +2530,12 @@ mod face_walk_composition_tests {
 
     /// The slots, with a hard refusal at `refuse_at` when one is asked
     /// for; every slot carries a recording naming itself.
-    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+    fn slots_as(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
         names
             .iter()
             .enumerate()
             .map(|(i, &name)| {
-                let recording = one_verdict(name);
+                let recording = one_verdict_as(name);
                 let run = if refuse_at == Some(i) {
                     Err(MassPropsError::Corrupt {
                         what: "the injected refusal",
@@ -2662,7 +2678,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
-        let decided = slots(&NAMES, None);
+        let decided = slots_as(&NAMES, None);
         let bracket = Bracket::open();
         let runs = splice_in_arena_order(decided).expect("no face refused");
         let log = bracket.finish();
@@ -2737,7 +2753,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
-        let decided = slots(&NAMES, Some(2));
+        let decided = slots_as(&NAMES, Some(2));
         let bracket = Bracket::open();
         let err = match splice_in_arena_order(decided) {
             Err(err) => err,
@@ -4083,11 +4099,23 @@ fn closed_form_of<U: Decide>(
     match *surface {
         // A plane with no loop that bounds area takes the empty rule's
         // dispatch below, which refuses it.
-        Surface::Plane { origin, .. } if !loops.is_empty() => planar_face(origin, loops),
+        Surface::Plane { .. } if !loops.is_empty() => planar_face(loops),
         _ => {
+            let surface = face_anchored(surface, loops);
             let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
-            curved_face_holding(surface, &loops, held, sense, band)
+            curved_face_holding(&surface, &loops, held, sense, band)
         }
+    }
+}
+
+/// **`surface` re-anchored at its face** ([`geom_brep::surface_anchored_at`]),
+/// at its mean vertex ([`geom_brep::props::loops_anchor`]): the face's
+/// measure reads no datum its kind forgets at a lever beyond the face
+/// (`[tolerance.epsilon]`). Unmoved where the face has no loop point.
+fn face_anchored<U: Decide>(surface: &Surface<U>, loops: &[Vec<LoopEdge<U>>]) -> Surface<U> {
+    match geom_brep::props::loops_anchor(loops) {
+        Some(anchor) => geom_brep::surface_anchored_at(surface, anchor.at()),
+        None => surface.clone(),
     }
 }
 
@@ -4556,7 +4584,7 @@ fn far_from(
     let curved = every.iter().any(|(_, plane)| plane.is_none());
     let (mut near, mut extent) = (f64::INFINITY, 0.0_f64);
     for (e, plane) in every {
-        let mid = (e.t0 + e.t1) * Interval::from_f64(0.5);
+        let mid = geom::mid_param(e.t0, e.t1);
         for t in [e.t0, mid, e.t1] {
             let p = e.carrier.eval(t);
             let (to_c, to_g) = (lever(p, c, *plane).lo(), lever(p, c_g, *plane).hi());
@@ -5133,41 +5161,34 @@ fn face_flux_about<T: Decide>(
             closed_form_about(surface, &loops, &held, face.sense(), band, about).map_err(wrap)?
         }
         _ => {
-            let trimmed = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
-            // loop's vector area, whatever trims it), the cylinder's
-            // closed form and quadrature alike (each a Green form summed
-            // over every loop), and the torus's closed form over rims
-            // and rulings, the sphere's over circles (Gauss–Bonnet over
-            // every loop), and the spiric lane every loop of a
-            // spiric-bounded plane or torus wall: on a wall, every loop's
-            // spirics, rims and meridians, each ring wound against the
-            // face, and any other edge refuses typed in that lane. No
-            // other kind reads one.
-            let spiric = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
+            // loop's vector area, whatever trims it), the cylinder's, the
+            // sphere's and the torus's closed forms and quadrature alike
+            // (each a Green form, or Gauss–Bonnet, summed over every
+            // loop), and the spiric lane every loop of a spiric-bounded
+            // plane cap. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric or a
                 // rational spline rim, and the plane cap reads every loop
                 // of its face.
-                Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } => !trimmed || spiric,
-                Surface::Sphere { .. } => !trimmed,
+                Surface::Cone { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Plane { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. } => true,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
-            // The S10 sense bit does not enter the quadrature lane: its
-            // Green form is winding-derived end to end (the signed UV area
-            // IS s_f·|Ω| through the stored loop traversal). An
-            // approximating face takes it as its fit's flux, the geometry
-            // the face carries.
+            // The S10 sense bit enters the quadrature lane on the sphere
+            // and the torus alone: a cylinder's or a plane's Green form is
+            // winding-derived end to end (the signed UV area IS s_f·|Ω|
+            // through the stored loop traversal), while a loop on a closed
+            // chart bounds a face on each side and the rotational lane
+            // reads the bit to say which (`quad_lane::cut_face_lane`),
+            // with no cross-check against the boundary. An approximating face
+            // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,
                 loops
@@ -5175,7 +5196,18 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(
+                    body,
+                    surface,
+                    face.sense(),
+                    &loops,
+                    band,
+                    tol,
+                    window,
+                    about,
+                    resolution,
+                )
+                .map_err(wrap)?
             } else {
                 None
             };
@@ -5631,7 +5663,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -6337,6 +6369,7 @@ pub struct QuadLane<T: Decide> {
     cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -6476,7 +6509,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
@@ -6851,7 +6884,7 @@ pub trait AtRestPolicy: Decide {
     /// the general rung through it ([`geom_brep::PairSection::carry`]).
     /// The ℝ³ march is written at `f64` alone, so that arm answers
     /// `Some`; a join whose germs ride such a section refuses at any
-    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    /// other scalar by name ([`geom_brep::CarryRefusal::NoLane`]).
     fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
@@ -6886,18 +6919,20 @@ pub trait AtRestPolicy: Decide {
     /// scalar. `None` leaves a face–face pair unread.
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
-    /// **This scalar's clearance engine, or `None` where it does not
+    /// **This scalar's clearance measure, or `None` where it does not
     /// answer** — the ONE seam the `Some` comes from, read by a
-    /// clearance assertion's evaluation, the engine's dials door and the
-    /// shell's cavity gate.
+    /// clearance assertion's evaluation and the engine's dials door.
+    /// The yes/no embedding verdict is the other door, bounded on
+    /// certification rights rather than answered per scalar
+    /// ([`crate::clearance::embedded`]).
     ///
-    /// The engine's answer is a verdict over a box, decided from
-    /// enclosures, so the door answers at the enclosure scalars and
-    /// wherever the symbolic tier wraps one. `None` at a dual is
-    /// certification rights (DL1), as [`AtRestPolicy::shell_door`]'s
-    /// is. `None` at `f64` and at the recording scalar is not a right
-    /// but a shape: a point build evaluates one parameter point, where a
-    /// search finds a near pair, not a verdict, and a clearance there
+    /// A clearance is a verdict over a box, decided from enclosures, so
+    /// the door answers at the enclosure scalars and wherever the
+    /// symbolic tier wraps one. `None` at a dual is certification rights
+    /// (DL1), as [`AtRestPolicy::shell_door`]'s is. `None` at `f64`, at
+    /// the recording scalar and at `Sym<f64>` is not a right but a shape:
+    /// a point build evaluates one parameter point, where a search finds
+    /// a near pair, not a verdict over the box, and a clearance there
     /// reads its third state naming the certifying lane.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
@@ -6908,9 +6943,10 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one constructor of a finished body**: tier 3, whose first
-    /// act is tiers 1 and 2, with the verdict kept beside the body, at a
-    /// certifying scalar; tier 2 alone at a dual.
+    /// **The one place a body's verdict is derived**: tier 3, whose
+    /// first act is tiers 1 and 2, with the verdict kept beside the body,
+    /// at a certifying scalar; tier 2 alone at a dual. A finished body
+    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
     ///
     /// # Errors
     ///
@@ -6924,6 +6960,16 @@ pub trait AtRestPolicy: Decide {
     /// (`Interval`, `Sym`). See [`AtRestPolicy::leaf`].
     type Leaf: crate::LeafBody<Scalar = Self>;
 
+    /// **Whether [`AtRestPolicy::take`] runs tier 3 on a leaf**, and so
+    /// logs the session box where it takes one: `true` at the box scalars
+    /// (`Interval`, `Sym`), whose leaf is tier 2 alone; `false` at `f64`
+    /// and `Probe`, whose taker relogs the leaf's held finish, and at a
+    /// dual, whose taker runs nothing. A move's session-box ask
+    /// ([`crate::Replay::moved_by`]) is held off the moving node's verdict
+    /// log only where the taker logs the box of the same image, so both
+    /// lanes log it once; elsewhere the move logs it itself.
+    const TAKE_FINISHES: bool;
+
     /// **THE SWITCH: a sweep door's own finish** (Ev on PR 6371,
     /// 2026-11-02: "keep aiming for this final state, but … keep it
     /// selectively disabled for now so it doesn't break everything").
@@ -6931,9 +6977,13 @@ pub trait AtRestPolicy: Decide {
     /// The final state is every door finishing its own result
     /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
     /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
-    /// the tube) and, in the evaluator, the computing frame's twist, the
-    /// mirror and the `⊔` graft, so at the box scalars a twisted or
-    /// mirrored Boolean result is a [`crate::Replay`] too. At the box
+    /// the tube) and, in the evaluator, the `⊔` graft. A move of a leaf
+    /// is a leaf of the same kind ([`crate::LeafBody::moved`]): at `f64`
+    /// and `Probe` the image is finished again, held off the log, so its
+    /// record is what the box lane's taker decides of the same body, and
+    /// that re-finish goes with this switch. A twisted or mirrored
+    /// Boolean result is a finished value and stays finished, with no
+    /// finish. At the box
     /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
     /// run tier 3, and the consumer that takes a finished body runs it
     /// there, at the one taker door ([`crate::take`]): a Boolean's, a
@@ -7110,6 +7160,7 @@ impl AtRestPolicy for f64 {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7270,6 +7321,7 @@ impl AtRestPolicy for geom_core::Probe {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7426,6 +7478,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7584,6 +7637,7 @@ where
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7755,6 +7809,7 @@ where
     }
 
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = false;
 
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         Self::finish(body, tol)
@@ -8231,16 +8286,102 @@ mod face_list_door_tests {
         ]
     }
 
-    /// The whole-body closed-form door's bits on the corpus, recorded
-    /// before the face-list door existed (base `3f2336b21`): the door
-    /// became the face-list door handed the arena, and these are what
-    /// say it changed no number.
+    /// A cylinder wall patch about an axis turned off every coordinate
+    /// axis, its record alone on its key: the corpus's curved face.
+    fn tilted_wall() -> (Body<f64>, FaceKey) {
+        use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed};
+        let tol = Tol::witness();
+        let mut frame = CylFrame::tilted(0.8, 0.4);
+        frame.origin = Point3::new(0.3, -0.7, 1.1);
+        let mut body = Body::new();
+        let (face, _) =
+            cyl_wall_sheet_keyed(&mut body, frame, CylKey::Bare, (0.2, 1.9), (0.1, 1.4), tol);
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, face)
+    }
+
+    /// **A reading of a face takes no datum its record's kind forgets**
+    /// (`[tolerance.epsilon]`): sliding every plane record's origin far
+    /// along its plane, and every cylinder record's far along its axis,
+    /// changes no closed-form volume beyond rounding. Each plane record
+    /// is first turned `1e-9` about a corner of its face, which is not
+    /// the point the face is read about, so its loops stand off it as a
+    /// face moved onto a record in band of its own does: a reading that
+    /// took the stored origin would move by the face's area times that
+    /// lean times the slide. A cylinder's term reads its datum on the
+    /// axis at the lever its rounding is taken at: unanchored, the slide
+    /// rounds the term at its length squared.
+    #[test]
+    fn sliding_every_record_along_its_symmetry_moves_no_reading() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let lean = 1e-9;
+        let slide = 1e4;
+        let (wall, _) = tilted_wall();
+        let mut bodies = corpus();
+        bodies.push(("tilted wall", wall));
+        for (name, mut body) in bodies {
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            for &f in &faces {
+                let at = face_start(&body, f);
+                let k = body.proven_face(f).record().surface;
+                let Some(Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                }) = body.surfaces.get_mut(k)
+                else {
+                    continue;
+                };
+                // Turned about `u_ref` through a corner.
+                let v = normal.cross(*u_ref);
+                let turned = (*normal + v * lean).normalize();
+                *origin = at;
+                *normal = turned;
+            }
+            let read = |body: &Body<f64>| {
+                let faces: Vec<FaceKey> = body
+                    .faces()
+                    .filter(|&(_, face)| {
+                        matches!(
+                            body.surfaces.get(face.surface),
+                            Some(Surface::Plane { .. } | Surface::Cylinder { .. })
+                        )
+                    })
+                    .map(|(k, _)| k)
+                    .collect();
+                mass_properties_closed_form_of(body, &faces, band, tol)
+                    .unwrap()
+                    .volume
+            };
+            let before = read(&body);
+            for (_, surface) in body.surfaces.iter_mut() {
+                match surface {
+                    Surface::Plane { origin, u_ref, .. } => *origin = *origin + *u_ref * slide,
+                    Surface::Cylinder { origin, axis, .. } => *origin = *origin + *axis * slide,
+                    _ => {}
+                }
+            }
+            let after = read(&body);
+            assert!(
+                (after - before).abs() <= 1e-12,
+                "{name}: sliding every record {slide} along its symmetry moved the volume from \
+                 {before} to {after}"
+            );
+        }
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, each plane
+    /// face's term its boundary's flux about its anchor
+    /// (`geom_brep::props::planar_face`). The door is the face-list door
+    /// handed the arena, bit for bit; the pins are the bits a face's
+    /// reading gives today, so a change to that reading moves them.
     const PINNED: [(&str, u64, u64); 5] = [
         ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
-        ("skew", 0x4001_0d4f_df3b_6459, 0x4026_2907_4669_574e),
+        ("skew", 0x4001_0d4f_df3b_6459, 0x4026_2907_4669_5750),
         ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
         ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
-        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba7),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
     ];
 
     #[test]
@@ -8392,6 +8533,7 @@ mod shell_role_refusal_tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the bracket's cause read at each decided end
             predicate: Some("chk_shell_volume_sign"),
             terminal_sliver: false,
         };
@@ -9004,7 +9146,6 @@ mod shell_reference_rows {
         let body = crate::transform_rigid(
             &body,
             &geom_core::RigidMotion::translation(geom_core::Vec3::new(5.0, -3.0, 2.0)).unwrap(),
-            tol,
         )
         .unwrap();
         let faces = crate::query::all_faces(&body);

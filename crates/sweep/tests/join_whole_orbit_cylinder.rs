@@ -2,7 +2,7 @@
 //! vertices** (review of PR 3770): the cylinder stands across the
 //! bar's y = 1 wall, its caps coplanar with the bar's, so the rim
 //! vertex's pierce run holds the whole orbit. Before
-//! `classify_vertex_on_face` recorded that run as the strut `mev_null`
+//! `mint_pierce` recorded that run as the strut `mev_null`
 //! builds, the union refused `JoinDesync`. Oracle: the half-disc
 //! outside the bar, `π r² / 2`.
 

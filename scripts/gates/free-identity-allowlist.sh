@@ -15,7 +15,7 @@
 # keep in view, reached here without `register_equal`. So the method
 # stays, and the files that may call it are a list a reviewer can read.
 #
-# THE SITE. `crates/geom-brep/src/edge_nurbs.rs` — `limb2_enclosure`,
+# THE SITE. `crates/geom-brep/src/edge_nurbs.rs` — `limb2_enclosure_as`,
 # fed by `free_residual`: the margin is the composite's enclosure of the
 # carrier's distance from the operand, and the identity is the
 # carrier's own description composed into the operand's implicit form

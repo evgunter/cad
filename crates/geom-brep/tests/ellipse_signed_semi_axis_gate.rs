@@ -1,8 +1,9 @@
 //! The certify gate on an ellipse's stored semi-axes: it meters either
 //! ORDER (the smaller semi-axis is the speed floor) and refuses a
-//! non-positive semi-axis, either one.
+//! negative semi-axis, either one, as a record that breaks the
+//! representation's invariant.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::{
@@ -17,8 +18,9 @@ use slotmap::SlotMap;
 /// `(a, b)` or swapped as `(b, a)` with `u_ref` along the minor axis, its
 /// quarter arc certifies; stored with `minor = −1` or with `major = −a`
 /// and `u_ref` flipped (each the same locus, one traversed the other way)
-/// it is refused as a span that does not run forward (`StatedInterval`,
-/// at this minting door): both semi-axes are positive at every door.
+/// it is refused as `SemiAxisNegative`, in its own lever at a build (the
+/// caller's input), not as a span that does not run forward: both
+/// semi-axes are positive at every door.
 #[test]
 fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -70,15 +72,15 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
         ("a negative minor", certify(a, -b, x)),
         ("a negative major, u_ref flipped", certify(-a, b, -x)),
     ] {
+        let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
+            panic!("{what}: {:?}", got.map(|_| "certified"))
+        };
+        let build = err.ending(geom_brep::recourse::Reading::Build);
         assert!(
-            matches!(
-                got,
-                Err(CertifyError::StatedInterval {
-                    refused: geom_brep::StatedSpan::Forward(_),
-                })
-            ),
-            "{what}: {:?}",
-            got.map(|_| "certified")
+            build.as_deref().is_some_and(|ending| ending
+                .contains("store each semi-axis as its finite, positive length")
+                && !ending.contains("defect")),
+            "{what}: the caller's lever at a build: {build:?}"
         );
     }
 }

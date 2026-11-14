@@ -1906,7 +1906,7 @@ fn probe_midpoint(
     tol: Tol,
 ) {
     // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
-    // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
+    // (`BoxAxis::midpoint`). Spelling the midpoint here as well
     // would let a change to the split rule silently detach the K
     // population from the leaves it is supposed to describe: these are
     // the points the driver certified AROUND, and "around" is defined

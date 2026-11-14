@@ -1180,11 +1180,8 @@ fn tangent_marks(body: &topo::Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> (
         if *mark != topo::ContactMark::Tangent {
             continue;
         }
-        let he = body.get_edge(edge).expect("live edge").he_plus;
-        let ends = [
-            point(body.get_half_edge(he).expect("live half-edge").start),
-            point(body.half_edge_end(he).expect("live half-edge")),
-        ];
+        let (v0, v1) = body.edge_vertices(edge).expect("live edge");
+        let ends = [point(v0), point(v1)];
         if ends.iter().all(&at) {
             on += 1;
         } else {

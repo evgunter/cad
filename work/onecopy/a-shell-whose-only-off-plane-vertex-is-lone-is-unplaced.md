@@ -2,10 +2,12 @@
 id: a-shell-whose-only-off-plane-vertex-is-lone-is-unplaced
 kind: issue
 title: splitting::finish::shell_side reads only edge members' start vertices, so a shell whose one off-plane vertex is a lone vertex is not placed
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6643
 ---
 
 

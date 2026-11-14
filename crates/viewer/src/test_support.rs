@@ -314,7 +314,7 @@ pub fn against_in(
 /// **`mate` added to `placement`'s bundle and `values` written over
 /// it**, as the mate tool's op writes them ([`DocEdit::AddConstraint`],
 /// which drops the values whose freedoms the mate fixes and writes `0`
-/// on each it leaves unset, then [`crate::session::valued`]), the
+/// on each it leaves unset, then [`valued`]), the
 /// placement re-targeted into the space the mate's `to` reads first.
 /// Answers the document and the mate's address.
 ///

@@ -203,7 +203,7 @@ pub(crate) enum Outline {
 pub(crate) fn drawn_profile(
     py: Python<'_>,
     frame: OperandArg,
-    faces: Vec<(OperandArg, String)>,
+    faces: Vec<(super::doc::BodyArg, String)>,
     outline: Outline,
 ) -> PyResult<Node> {
     let faces = faces

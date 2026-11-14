@@ -18,7 +18,10 @@
 use crate::m10_p_fence::{Outcome, Seen, walk};
 
 /// Dump every corpus observable the fence digests, in the same order.
-fn dump<T: editor_core::EvalScalar>(tag: &str, bits: impl Fn(&geom_core::Point3<T>) -> String) {
+fn dump<T: editor_core::test_support::AnyEvaluate>(
+    tag: &str,
+    bits: impl Fn(&geom_core::Point3<T>) -> String,
+) {
     let mut coords = 0usize;
     let mut nodes = 0usize;
     walk::<T>(|seen| match seen {

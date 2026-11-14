@@ -110,27 +110,24 @@ fn vessel_cavity() -> topo::Body<f64> {
 }
 
 /// **Where the trip lands.** The cavity writes out with one cubic
-/// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim, and the import door
-/// itself refuses. The native body passes tier 3: check 7 measures its
-/// spiric-bounded caps and torus wall by the spiric quadrature lane (it
-/// stood at `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
-/// a cap's `loop_vector_area`, before that lane).
+/// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim, and comes back whole. The
+/// native body passes tier 3: check 7 measures its spiric-bounded caps
+/// by the spiric quadrature lane and its torus wall by the rotational
+/// lane's spiric arm.
 ///
-/// The import stops at tier 3, past adoption. Each rim comes back as a
-/// spline, the export's sagitta-bounded stand-in for the spiric
-/// (uncertainty 1e-4 m; `step_export::spiric_export_spline`), whose
-/// `Intersection` reading is a rung-3 carrier between the cutting plane
-/// and the torus. That reading certifies: rebuilt here from each native
-/// rim by the writer's own door, the spline passes the edge certificate
-/// against the plane and the torus (limbs 2 and 3; the spline lies
-/// within about 3e-13 m of the torus). Check 7 then measures the torus
-/// wall the spline bounds: the cavity's walls are planes, cylinders and
-/// tori, a plane goes to the rim lane, and the conic-trim fallback
-/// refuses every chart but the cylinder's, so the refused face is a
-/// torus wall — no quadrature lane reads one trimmed by a spline
-/// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
+/// Each rim comes back as a spline, the export's sagitta-bounded
+/// stand-in for the spiric (uncertainty 1e-4 m;
+/// `step_export::spiric_export_spline`), whose `Intersection` reading is
+/// a rung-3 carrier between the cutting plane and the torus. That
+/// reading certifies: rebuilt here from each native rim by the writer's
+/// own door, the spline passes the edge certificate against the plane
+/// and the torus (limbs 2 and 3; the spline lies within about 3e-13 m of
+/// the torus). Check 7 then measures the torus wall the spline bounds
+/// through the rotational lane's projected arm, and the native and the
+/// imported cavity each hold the volume sliced from the authored
+/// stations ([`cavity_volume`]).
 #[test]
-fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
+fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
     let native = vessel_cavity();
     let rims = native
         .edges()
@@ -213,34 +210,141 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     }
     assert_eq!(adopted, rims, "every rim's spline read");
     assert!(
-        native.faces().all(
-            |(_, f)| native.get_surface(f.surface).is_some_and(|s| matches!(
+        native
+            .faces()
+            .all(|(fk, _)| native.face_surface(fk).is_some_and(|s| matches!(
                 s,
                 geom::Surface::Plane { .. }
                     | geom::Surface::Cylinder { .. }
                     | geom::Surface::Torus { .. }
-            ))
-        ),
+            ))),
         "the cavity's walls are planes, cylinders and tori"
     );
 
     let back = import_step(&text, &ImportOptions::default(), tol());
-    println!("[roundtrip] import door: {back:?}");
-    let Err(step_import::StepImportError::TierInvalid { errors, .. }) = &back else {
-        panic!("the imported cavity refuses at tier 3, got {back:?}");
+    let Ok(step_import::StepImport::Solid { body, .. }) = &back else {
+        panic!("the imported cavity builds, its spline-trimmed torus wall measured, got {back:?}");
     };
-    assert!(
-        matches!(
-            errors.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::props::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::QuadratureUnsupported { what },
-                    ..
-                },
-                ..
-            }] if what.starts_with("a trimmed face with no volume lane on its chart")
+    let truth = cavity_volume();
+    for (what, measured) in [
+        (
+            "native",
+            topo::mass_properties(
+                &topo::test_support::finished("the cavity", native.clone(), tol()),
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .expect("the native cavity measures")
+            .enclosure,
         ),
-        "the spline's Intersection reading adopts, and check 7 meets a torus wall trimmed by a \
-         spline, got {errors:?}"
-    );
+        (
+            "imported",
+            body.measure(topo::test_support::pinned_resolution(tol()))
+                .expect("the imported cavity measures")
+                .enclosure,
+        ),
+    ] {
+        assert!(
+            (measured.volume - truth).abs() <= measured.volume_pad + ORACLE_SLACK,
+            "the {what} cavity's volume {} ± {} misses the sliced {truth}",
+            measured.volume,
+            measured.volume_pad
+        );
+    }
+}
+
+/// What the slicing oracle's own quadrature may be off by (m³), far
+/// below any width the enclosures read.
+const ORACLE_SLACK: f64 = 1e-12;
+
+/// **The cavity's volume by slicing**, from the authored stations alone:
+/// each face moved inward by `δ = 1/128`, the meridian's edges mitred
+/// (the foot `x = r_foot − δ` above `y = δ`, the shoulder `y = y_foot + δ`
+/// out to the belly's arc of radius `5/64 − δ` about `(6/64, 8/64)`, up
+/// to `y = y_shoulder − δ`, the neck `x = r_neck − δ` up to
+/// `y = y_mouth − δ`), and each slice the quarter disc of that radius
+/// less the strips `x < δ` and `z < δ` its two moved cut planes take,
+/// `∫_δ^√(ρ²−δ²) (√(ρ² − x²) − δ) dx` in closed form. The slices are
+/// integrated by the 7–15 panel under the sine map on the pieces between
+/// the profile's corners, halved to `1e-14`.
+fn cavity_volume() -> f64 {
+    use core::f64::consts::FRAC_PI_2;
+    let d = 1.0 / 128.0;
+    let (r_foot, r_neck) = (5.0 / 64.0, 7.0 / 64.0);
+    let (y_foot, y_shoulder, y_mouth) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0);
+    let (cx, cy, rr) = (6.0 / 64.0, 8.0 / 64.0, 5.0 / 64.0 - d);
+    let radius = |y: f64| {
+        if y <= y_foot + d {
+            r_foot - d
+        } else if y <= y_shoulder - d {
+            cx + (rr * rr - (y - cy) * (y - cy)).max(0.0).sqrt()
+        } else {
+            r_neck - d
+        }
+    };
+    let slice = |y: f64| {
+        let rho = radius(y);
+        let prim = |x: f64| {
+            0.5 * (x * (rho * rho - x * x).max(0.0).sqrt() + rho * rho * (x / rho).asin()) - d * x
+        };
+        prim((rho * rho - d * d).sqrt()) - prim(d)
+    };
+    fn adapt(f: &dyn Fn(f64) -> f64, a: f64, b: f64, depth: u32) -> f64 {
+        let (k, e) = gk15(f, a, b);
+        if e <= 1e-17 || depth >= 40 {
+            return k;
+        }
+        let m = 0.5 * (a + b);
+        adapt(f, a, m, depth + 1) + adapt(f, m, b, depth + 1)
+    }
+    let cuts = [d, y_foot + d, y_shoulder - d, y_mouth - d];
+    cuts.windows(2)
+        .map(|w| {
+            let (m, h) = (0.5 * (w[0] + w[1]), 0.5 * (w[1] - w[0]));
+            let g = |th: f64| slice(m + h * th.sin()) * h * th.cos();
+            adapt(&g, -FRAC_PI_2, FRAC_PI_2, 0)
+        })
+        .sum()
+}
+
+/// The 7–15 Gauss–Kronrod panel on `[a, b]`: its Kronrod estimate and
+/// its distance from the embedded Gauss rule.
+fn gk15(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> (f64, f64) {
+    const XK: [f64; 8] = [
+        0.991_455_371_120_812_6,
+        0.949_107_912_342_758_5,
+        0.864_864_423_359_769_1,
+        0.741_531_185_599_394_4,
+        0.586_087_235_467_691_1,
+        0.405_845_151_377_397_2,
+        0.207_784_955_007_898_5,
+        0.0,
+    ];
+    const WK: [f64; 8] = [
+        0.022_935_322_010_529_22,
+        0.063_092_092_629_978_55,
+        0.104_790_010_322_250_18,
+        0.140_653_259_715_525_92,
+        0.169_004_726_639_267_9,
+        0.190_350_578_064_785_4,
+        0.204_432_940_075_298_9,
+        0.209_482_141_084_727_83,
+    ];
+    const WG: [f64; 4] = [
+        0.129_484_966_168_869_7,
+        0.279_705_391_489_276_7,
+        0.381_830_050_505_118_9,
+        0.417_959_183_673_469_4,
+    ];
+    let (c, h) = (0.5 * (a + b), 0.5 * (b - a));
+    let fc = f(c);
+    let (mut k, mut g) = (WK[7] * fc, WG[3] * fc);
+    for i in 0..7 {
+        let (lo, hi) = (f(c - h * XK[i]), f(c + h * XK[i]));
+        k += WK[i] * (lo + hi);
+        if i % 2 == 1 {
+            g += WG[i / 2] * (lo + hi);
+        }
+    }
+    (k * h, ((k - g) * h).abs())
 }

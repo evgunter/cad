@@ -33,7 +33,7 @@
 
 use geom_core::Real;
 use geom_core::k_stats::decide;
-use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Point3, UnitVec3, UnitVec3Error};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 
 use super::LeverRefusal;
@@ -104,28 +104,19 @@ pub enum Subgroup<T: Real = f64> {
     Trivial,
 }
 
-/// Coordinate-wise equality of the linear types, which carry no
-/// `PartialEq` of their own (the kernel keeps float comparison at the
-/// decided-predicate door, deliberately). This is STRUCTURAL equality
-/// for tests and diagnostics — never a geometric one; two subgroups
-/// that are equal as SETS may differ here (a line stated at a
-/// different base point), which is exactly why the algebra decides
-/// coincidence through predicates instead of comparing values.
-fn vec_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-    a.to_array() == b.to_array()
-}
-
-fn point_eq(a: Point3<f64>, b: Point3<f64>) -> bool {
-    a.to_array() == b.to_array()
-}
-
+/// Coordinate-wise equality of the linear types
+/// ([`geom_core::Point3::equals_exactly`]): STRUCTURAL equality for tests
+/// and diagnostics, never a geometric one. Two subgroups that are equal
+/// as SETS may differ here (a line stated at a different base point),
+/// which is exactly why the algebra decides coincidence through
+/// predicates instead of comparing values.
 impl PartialEq for Subgroup<f64> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Se3, Self::Se3) | (Self::Trivial, Self::Trivial) => true,
             (Self::Planar { normal: a }, Self::Planar { normal: b })
             | (Self::Prismatic { direction: a }, Self::Prismatic { direction: b }) => {
-                vec_eq(a.get(), b.get())
+                a.get().equals_exactly(b.get())
             }
             (
                 Self::Cylindrical {
@@ -146,11 +137,13 @@ impl PartialEq for Subgroup<f64> {
                     point: pb,
                     direction: db,
                 },
-            ) => point_eq(*pa, *pb) && vec_eq(da.get(), db.get()),
-            (Self::Spherical { point: pa }, Self::Spherical { point: pb }) => point_eq(*pa, *pb),
+            ) => pa.equals_exactly(*pb) && da.get().equals_exactly(db.get()),
+            (Self::Spherical { point: pa }, Self::Spherical { point: pb }) => {
+                pa.equals_exactly(*pb)
+            }
             (Self::Parallel { direction: a }, Self::Parallel { direction: b })
             | (Self::PlaneTranslation { normal: a }, Self::PlaneTranslation { normal: b }) => {
-                vec_eq(a.get(), b.get())
+                a.get().equals_exactly(b.get())
             }
             (Self::Translation, Self::Translation) => true,
             // Different subgroups are unequal — spelled over the whole
@@ -179,8 +172,8 @@ impl PartialEq for Coset<f64> {
     fn eq(&self, other: &Self) -> bool {
         // A field added to `Coset` is an E0027 at the two patterns
         // below. The placement is read through `Affine3::cols` and its
-        // vectors through `Vec3::to_array` (in `vec_eq`), and each of
-        // those doors binds its type's fields by pattern, so a field
+        // vectors through `Vec3::equals_exactly`, and each of those
+        // doors binds its type's fields by pattern, so a field
         // added to `Affine3`, `Mat3` or `Vec3` is an E0027 there.
         let Self {
             subgroup,
@@ -192,10 +185,11 @@ impl PartialEq for Coset<f64> {
         } = other;
         subgroup == other_subgroup
             && representative
+                .to_affine()
                 .cols()
                 .into_iter()
-                .zip(other_representative.cols())
-                .all(|(a, b)| vec_eq(a, b))
+                .zip(other_representative.to_affine().cols())
+                .all(|(a, b)| a.equals_exactly(b))
     }
 }
 
@@ -467,8 +461,9 @@ impl Subgroup<f64> {
 pub struct Coset<T: Real = f64> {
     /// The residual freedom.
     pub subgroup: Subgroup<T>,
-    /// One admitted pose (`b`'s part coordinates into `a`'s).
-    pub representative: Affine3<T>,
+    /// One admitted pose (`b`'s part coordinates into `a`'s), the motion
+    /// the mates' frames compose.
+    pub representative: geom_core::RigidMotion<T>,
 }
 
 impl<T: Real> Coset<T> {
@@ -476,7 +471,7 @@ impl<T: Real> Coset<T> {
     pub fn unconstrained() -> Self {
         Self {
             subgroup: Subgroup::Se3,
-            representative: Affine3::identity(),
+            representative: geom_core::RigidMotion::world(),
         }
     }
 }
@@ -651,20 +646,28 @@ fn point_on_line<T: SolveScalar>(
 /// carrying the ball's point home. Each side's equation holds by
 /// construction, so nothing is measured, and the answer is the same in
 /// either order.
-pub fn intersect<T: Real>(held: Coset<T>, added: Coset<T>) -> Option<Coset<T>> {
-    match (held.subgroup, added.subgroup) {
+///
+/// # Errors
+///
+/// [`geom_core::RigidMotionError::NonFinite`] where the met
+/// representative's origin is not finite.
+pub fn intersect<T: Real>(
+    held: Coset<T>,
+    added: Coset<T>,
+) -> Result<Option<Coset<T>>, geom_core::RigidMotionError> {
+    Ok(match (held.subgroup, added.subgroup) {
         (Subgroup::Se3, _) => Some(added),
         (_, Subgroup::Se3) => Some(held),
         (
             Subgroup::Spherical { point },
             turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
-        ) => Some(ball_meets(point, held, turning, added)),
+        ) => Some(ball_meets(point, held, turning, added)?),
         (
             turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
             Subgroup::Spherical { point },
-        ) => Some(ball_meets(point, added, turning, held)),
+        ) => Some(ball_meets(point, added, turning, held)?),
         _ => None,
-    }
+    })
 }
 
 /// [`intersect`]'s constructed meeting of a ball's coset `ball` about
@@ -672,26 +675,35 @@ pub fn intersect<T: Real>(held: Coset<T>, added: Coset<T>) -> Option<Coset<T>> {
 /// translation: the other's rotation, translated so `point` stays where
 /// the ball puts it. What is left is the other's turns about the line
 /// through `point` (a direction's), or nothing (the translations').
+/// The met representative is the other's turn, composed as motions with
+/// the ball's undone, standing where that turn about `point` puts the
+/// ball's origin: nothing re-derives its rigidity.
 fn ball_meets<T: Real>(
     point: Point3<T>,
     ball: Coset<T>,
     turning: Subgroup<T>,
     other: Coset<T>,
-) -> Coset<T> {
-    let rotation = other.representative.linear;
+) -> Result<Coset<T>, geom_core::RigidMotionError> {
+    let rotation = other.representative.turn_alone();
     // The turn about `point` that carries the ball's representative to
     // `rotation`, applied to it.
-    let turn = rotation * ball.representative.linear.transpose();
+    let turn = rotation
+        .compose(ball.representative.turn_alone().inverse()?)?
+        .linear();
     let p = point - Point3::origin();
-    let translation = p - turn * p + turn * ball.representative.translation;
+    let translation = p - turn * p + turn * (ball.representative.origin() - Point3::origin());
     let subgroup = match turning {
         Subgroup::Parallel { direction } => Subgroup::Revolute { point, direction },
         _ => Subgroup::Trivial,
     };
-    Coset {
+    Ok(Coset {
         subgroup,
-        representative: Affine3::from_parts(rotation, translation),
-    }
+        representative: rotation.standing_at(Point3::new(
+            translation.x,
+            translation.y,
+            translation.z,
+        ))?,
+    })
 }
 
 // ---- A value's freedom, inside a residual ----

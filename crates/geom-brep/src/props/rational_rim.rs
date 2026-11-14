@@ -246,6 +246,7 @@ struct PieceForm {
     numer: [Vec<Interval>; 3],
     slope: [Vec<Interval>; 3],
     weight: Vec<Interval>,
+    weight_slope: Vec<Interval>,
 }
 
 /// A span's centred forms carried to the piece `[p, q]`: in the span's
@@ -257,7 +258,7 @@ struct PieceForm {
 fn piece_form(span: &RationalSpanQ, p: f64, q: f64) -> PieceForm {
     let (a, len) = (pt(span.a), pt(span.b) - pt(span.a));
     let (s0, s1) = ((pt(p) - a) / len, (pt(q) - a) / len);
-    let delta = (s0 + s1) * pt(0.5) - pt(0.5);
+    let delta = geom::mid_param(s0, s1) - pt(0.5);
     let h = s1 - s0;
     let local = |d: &[Interval]| -> Vec<Interval> {
         let n = d.len();
@@ -280,18 +281,20 @@ fn piece_form(span: &RationalSpanQ, p: f64, q: f64) -> PieceForm {
             .collect()
     };
     let numer: [Vec<Interval>; 3] = core::array::from_fn(|c| local(&span.forms[c]));
+    let weight = local(&span.forms[3]);
     PieceForm {
         p,
         inv_len: Interval::one() / (pt(q) - pt(p)),
         slope: core::array::from_fn(|c| slope_form(&numer[c])),
         numer,
-        weight: local(&span.forms[3]),
+        weight_slope: slope_form(&weight),
+        weight,
     }
 }
 
-/// The jets of `B`, `dB/dt` and `w` on a piece, at the enclosure `t`
-/// of the rule's node or of the whole piece.
-fn piece_jets(f: &PieceForm, t: Interval) -> ([Jet; 3], [Jet; 3], Jet) {
+/// The jets of `B`, `dB/dt`, `w` and `dw/dt` on a piece, at the
+/// enclosure `t` of the rule's node or of the whole piece.
+fn piece_jets(f: &PieceForm, t: Interval) -> RationalJets {
     // `v = (t − p)/(q − p) − ½`, enclosed: the centre the forms are
     // about, whatever `f64` the rule's node rounds to.
     let v = Jet::var(t)
@@ -301,46 +304,98 @@ fn piece_jets(f: &PieceForm, t: Interval) -> ([Jet; 3], [Jet; 3], Jet) {
     let b: [Jet; 3] = core::array::from_fn(|c| horner(&f.numer[c], v));
     // `dB/dt = dB/dv · dv/dt`.
     let db: [Jet; 3] = core::array::from_fn(|c| horner(&f.slope[c], v).scale(f.inv_len));
-    (b, db, horner(&f.weight, v))
+    RationalJets {
+        b,
+        db,
+        w: horner(&f.weight, v),
+        dw: horner(&f.weight_slope, v).scale(f.inv_len),
+    }
 }
 
-/// **`∫ g(B, B′, w) dt` over the edge's carrier interval**, span by
-/// span at `pieces` per span ([`super::taylor::composite_over`]), for `N` integrands of
+/// A rational carrier's homogeneous point on a piece as jets: the
+/// numerator `B`, its derivative, the weight `w` and its derivative.
+pub(super) struct RationalJets {
+    pub(super) b: [Jet; 3],
+    pub(super) db: [Jet; 3],
+    pub(super) w: Jet,
+    pub(super) dw: Jet,
+}
+
+/// **`∫ g(B, B′, w, w′) dt` over the edge's carrier interval**, span by
+/// span at `pieces(i)` pieces on span `i` ([`super::taylor::composite_each`]), for `N` integrands of
 /// the carrier's homogeneous numerator `B`, its derivative and its
 /// weight `w`, each handed as jets; with per integrand the part of its
 /// width a later round removes. The traversal is NOT folded in.
-pub(super) fn rational_integrals<const N: usize>(
+pub(super) fn rational_integrals_each<const N: usize>(
     e: &RationalEdgeQ,
-    pieces: usize,
-    g: impl Fn([Jet; 3], [Jet; 3], Jet) -> [Jet; N],
+    pieces: impl Fn(usize) -> usize,
+    g: impl Fn(&RationalJets) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
-    super::taylor::composite_over(
-        e.spans.iter().map(|s| (s.a, s.b, s)),
-        pieces,
+    super::taylor::composite_each(
+        e.spans
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.a, s.b, s, pieces(i))),
         |s, p, q| piece_form(s, p, q),
-        |f, t| {
-            let (b, db, w) = piece_jets(f, t);
-            g(b, db, w)
-        },
+        |f, t| g(&piece_jets(f, t)),
     )
 }
 
-/// **`Σ h·bound(B, B′, w)` over the edge's pieces**, `pieces` per span
+/// **[`super::taylor::primitive_each`] over the edge's spans**: the rule
+/// with a running primitive `y`, from `start` at the carrier interval's
+/// start, at `pieces(i)` pieces on span `i`. The traversal is NOT folded
+/// in.
+pub(super) fn rational_primitive_each<const N: usize>(
+    e: &RationalEdgeQ,
+    pieces: impl Fn(usize) -> usize,
+    start: Interval,
+    g: impl Fn(&RationalJets) -> super::taylor::Integrand<N>,
+) -> super::taylor::Primitive<N> {
+    super::taylor::primitive_each(
+        e.spans
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.a, s.b, s, pieces(i))),
+        start,
+        |s, p, q| piece_form(s, p, q),
+        |f, t| g(&piece_jets(f, t)),
+    )
+}
+
+/// Per span, the fewest pieces (a power of two up to `most`) on each of
+/// which `fits(B, B′, w, w′, h)` holds, the jets enclosing the piece
+/// ([`super::taylor::pieces_where`]).
+pub(super) fn rational_span_pieces(
+    e: &RationalEdgeQ,
+    most: usize,
+    fits: impl Fn(&RationalJets, f64) -> bool,
+) -> Vec<usize> {
+    e.spans
+        .iter()
+        .map(|s| {
+            super::taylor::pieces_where(
+                (s.a, s.b),
+                most,
+                |p, q| piece_form(s, p, q),
+                |f, t, h| fits(&piece_jets(f, t), h),
+            )
+        })
+        .collect()
+}
+
+/// **`Σ h·bound(B, B′, w, w′)` over the edge's pieces**, `pieces` per span
 /// ([`super::taylor::rate_bound_over`]): `bound` reads the jets enclosing
 /// the piece and answers an upper bound of a nonnegative rate over it.
 pub(super) fn rational_rate_bound(
     e: &RationalEdgeQ,
     pieces: usize,
-    bound: impl Fn([Jet; 3], [Jet; 3], Jet) -> f64,
+    bound: impl Fn(&RationalJets) -> f64,
 ) -> f64 {
     super::taylor::rate_bound_over(
         e.spans.iter().map(|s| (s.a, s.b, s)),
         pieces,
         |s, p, q| piece_form(s, p, q),
-        |f, t| {
-            let (b, db, w) = piece_jets(f, t);
-            bound(b, db, w)
-        },
+        |f, t| bound(&piece_jets(f, t)),
     )
 }
 
@@ -349,8 +404,17 @@ pub(super) fn rational_rate_bound(
 /// its width a later round removes.
 #[must_use]
 pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [f64; 3]) {
-    let (va, removable) = rational_integrals(e, pieces, |b, db, w| {
-        let scale = w.sqr().recip().scale(pt(0.5));
+    rational_vector_area_each(e, |_| pieces)
+}
+
+/// [`rational_vector_area_split`] at `pieces(i)` pieces on span `i`.
+pub(super) fn rational_vector_area_each(
+    e: &RationalEdgeQ,
+    pieces: impl Fn(usize) -> usize,
+) -> (RVec3, [f64; 3]) {
+    let (va, removable) = rational_integrals_each(e, pieces, |j| {
+        let (b, db) = (j.b, j.db);
+        let scale = j.w.sqr().recip().scale(pt(0.5));
         [
             b[1].mul(db[2]).sub(b[2].mul(db[1])),
             b[2].mul(db[0]).sub(b[0].mul(db[2])),

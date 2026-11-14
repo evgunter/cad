@@ -72,9 +72,8 @@ fn knife_at(what: &str, body: &Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> 
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            at(&point(body.get_half_edge(he).unwrap().start))
-                && at(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            at(&point(v0)) && at(&point(v1))
         })
         .collect();
     let [edge] = found[..] else {
@@ -308,6 +307,55 @@ fn a_lune_cusp_loses_its_horn_and_a_lune_slit_gains_it() {
             let dv = filleted_dv(what, &operand, edge, r);
             assert_close(&format!("{what} at r = {r}"), dv, sign * lune_horn(r).area);
         }
+    }
+}
+
+/// **A knife's end is the blend's own building decision**: the end the
+/// fold reads picks the side the ball rests on (a cusp's in the material,
+/// as a convex link's; a slit's in the void, as a concave link's), so the
+/// fold records it under the blend's `fillet3_knife_end`, which the flip
+/// lane reads, and not under tier 3's shared `material_cusp_side`. The
+/// link carries that reading as its convexity margin.
+#[test]
+fn a_knifes_end_is_recorded_under_the_blends_own_name() {
+    use sweep::blend::Convexity;
+    use sweep::blend::battery::{BlendRequest, run_battery};
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    for ((what, body, sign), want) in lune_rows()
+        .into_iter()
+        .zip([Convexity::Convex, Convexity::Concave])
+    {
+        let edge = knife_at(what, &body, on_the_z_axis);
+        let req = BlendRequest {
+            body: &body,
+            edges: vec![edge],
+            size: 0.3,
+        };
+        let bracket = geom_core::k_stats::Bracket::open();
+        let verdict = run_battery(&req, band).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let recorded = bracket.finish();
+        let link = verdict.chains[0].first();
+        assert_eq!(link.convexity, want, "{what} (horn sign {sign})");
+        assert_eq!(
+            link.convexity_margin.predicate, "fillet3_knife_end",
+            "{what}"
+        );
+        let named = |name| {
+            recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == name)
+                .count()
+        };
+        assert!(
+            named("fillet3_knife_end") > 0,
+            "{what}: the end is on the log"
+        );
+        assert_eq!(
+            named(geom_brep::MATERIAL_CUSP_SIDE),
+            0,
+            "{what}: and not as a shape reading"
+        );
     }
 }
 
@@ -614,9 +662,8 @@ fn the_valley_fills_at_interval() {
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            on_axis(&point(body.get_half_edge(he).unwrap().start))
-                && on_axis(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            on_axis(&point(v0)) && on_axis(&point(v1))
         })
         .collect();
     let [edge] = knives[..] else {
@@ -826,9 +873,7 @@ fn a_crescent_whose_arc_is_shorter_than_its_foot_refuses() {
         };
         assert_eq!(margin.predicate, "fillet3_face_clearance");
         assert_eq!(margin.sign, geom_core::Sign::Negative, "r = {r}");
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = body.face_surface(face).unwrap();
         if arc {
             assert!(
                 matches!(surface, geom::Surface::Cylinder { .. }),
@@ -938,9 +983,8 @@ fn two_tangent_tubes_unioned_are_two_solids_whose_kiss_edges_are_left_as_they_ar
         .edges()
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            on_kiss(&point(body.get_half_edge(he).unwrap().start))
-                && on_kiss(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            on_kiss(&point(v0)) && on_kiss(&point(v1))
         })
         .collect();
     assert_eq!(body.solids().count(), 2, "two solids");

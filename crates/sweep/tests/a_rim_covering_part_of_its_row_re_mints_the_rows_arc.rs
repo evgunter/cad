@@ -104,6 +104,7 @@ fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
         t0,
         angle,
         breaks,
+        ..
     } = image
     else {
         panic!("an IsoArc row: {image:?}")
@@ -227,7 +228,7 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     }
     // The mesher's chord schedule lands on the sub-arc joints only for
     // a rim whose arc is its edge's interval, and refuses the children
-    // (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
+    // (`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
     match mesh::tessellate(&body, 5e-2, tol()) {
         Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => assert!(
             note.starts_with("an arc-rim pcurve whose turn is not its edge's parameter interval"),
@@ -275,7 +276,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
     let mut body = arc_prism(1.0);
     let (_, edge, wall, _) = bottom_rim(&body);
     let face = body.get_face(wall).unwrap();
-    let Some(Surface::Nurbs(net)) = body.get_surface(face.surface).cloned() else {
+    let Some(Surface::Nurbs(net)) = body.face_surface(wall).cloned() else {
         panic!("the arc wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall

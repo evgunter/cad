@@ -352,6 +352,9 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   named — the struct-payload sweep found it — and leaving it out
 //   would ship a `BlendError` matchable in three arms and not the
 //   fourth.
+// - `UnsettledWedge` is `WedgeUnsettled`'s: whether the edge's wedge,
+//   read whole, escalated at a station, disagreed between stations, or
+//   is the lamina — each its own recourse.
 //
 // The Python half of the CUR3 treatment does NOT apply to these, and
 // that is measured rather than skipped: `BlendError` projects no arms
@@ -360,7 +363,9 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{
+    BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy, UnsettledWedge,
+};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -406,7 +411,7 @@ pub use sweep::{
 // the error itself — the one-dependency contract's closure over
 // error payloads (crate docs, contract clause 1).
 pub use geom::SurfaceKind;
-// `PlaneRelation` rides here because it is the verdict a
+// `CarrierRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
 //
@@ -496,19 +501,20 @@ pub use geom::SurfaceKind;
 // **`CurveSelector` and `Structural` ARE here**: the discriminant a reader
 // of an at-rest `Intersection` branches on. `SharedRow`'s payload is a
 // `Pcurve`, which stays out on the argument above.
+pub use geom_brep::CarrierRelation;
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, Cited, Cites, ContactRecords, Curve3, CurveSelector, EdgeCarrierSite,
     EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
-    PlaneRelation, ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect,
-    subtract, transform_rigid, union,
+    ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect, subtract,
+    transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
 // The tier-3′ census vocabulary rides with `ValidationError` for the
 // group-9 reason again, and here the list was already half-persuaded:
-// `ContactPair` — the payload of `ValidationError::
-// ContactContradicted` — has been curated (through `crate::select`)
+// `ContactPair` — the record `ValidationError::ContactContradicted`
+// names — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
 // refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
@@ -556,7 +562,10 @@ pub use topo::{
 // unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
-// spellable from this list.
+// spellable from this list, save `ContactContradicted`'s verdict and
+// `MaterialOnBothSides`'s ruling (`topo::ContactVerdict`,
+// `topo::TangentRuling`, filed:
+// `work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md`).
 //
 // All four cross to Python as well, and this list is what made that
 // spellable. `ValidationError.findings` carries one word per failure —

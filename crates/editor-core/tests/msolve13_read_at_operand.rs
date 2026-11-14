@@ -312,7 +312,7 @@ fn seated_through(
 
 /// Whether two poses agree to well inside the witness band.
 fn near(a: &editor_core::Frame, b: &editor_core::Frame) -> bool {
-    let (a, b) = (a.affine::<f64>(), b.affine::<f64>());
+    let (a, b) = (a.affine(), b.affine());
     let cols = |m: &geom_core::linalg::Affine3<f64>| {
         [m.linear.c0, m.linear.c1, m.linear.c2, m.translation]
     };
@@ -544,7 +544,7 @@ fn a3c_a_mate_read_through_a_union_crosses_onto_the_instance() {
         panic!("the seat's target reads one face")
     };
     assert_eq!(
-        out.remainder.selection(select).map(|s| s.body),
+        out.remainder.selection(select).map(|s| s.body.read),
         out.remainder.output(out.instance, 0),
         "the kept seat's target reads the instance's copies"
     );

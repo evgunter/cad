@@ -11,7 +11,9 @@
 //! The reader is `test_utils::source::predicate_census`. **What it
 //! cannot read it reports**: a spelling it does not know is
 //! `unreadable`, a name-bearing argument that is not a plain literal is
-//! `indirect`, and `include!`/`#[path]` come back in `unwalked`.
+//! `indirect`, and `include!`/`#[path]` come back in `unwalked`; the
+//! checks every roster makes of those are
+//! `test_utils::source::roster_violations`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -71,7 +73,8 @@ fn no_funnel_call_in_src_takes_a_literal_name() {
         .indirect
         .iter()
         .filter(|site| {
-            let (file, expr) = site.split_once(": ").expect("`<file>: <expr>`");
+            let (file, _scope, expr) = test_utils::source::indirect_key(site)
+                .unwrap_or_else(|| panic!("an indirect key: {site}"));
             let the_funnel = file == "gate.rs" && expr.starts_with("self.predicate(");
             !(the_funnel || expr == "name" || expr == "gate" || expr.starts_with("Gate::"))
         })
@@ -84,8 +87,9 @@ fn no_funnel_call_in_src_takes_a_literal_name() {
         !census.indirect.is_empty(),
         "the reader found no funnel calls it should have"
     );
-    assert!(census.unreadable.is_empty(), "{:?}", census.unreadable);
-    assert!(census.unwalked.is_empty(), "{:?}", census.unwalked);
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let violations = test_utils::source::roster_violations(&src, &census, &[], None);
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// **Every row is a gate some production site raises, and names one
@@ -176,7 +180,6 @@ fn without_tests(code: &str) -> String {
 #[test]
 fn the_exact_order_gates_end_in_their_lever_alone() {
     for gate in [
-        Gate::FilletLegFit,
         Gate::FilletLegReach,
         Gate::CanonicalOrderX,
         Gate::CanonicalOrderY,
@@ -295,11 +298,21 @@ fn the_undecided_endings_follow_the_gates_kind() {
         ),
         (
             "an exact-order fillet gate, unreadable",
-            door(Door, Gate::FilletLegFit, poison),
+            door(Door, Gate::FilletLegReach, poison),
             format!(
                 "the fillet at this corner is undecided: margin is invalid (NaN or a refused \
                  enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: {}; an \
                  unreadable margin may indicate a kernel bug worth reporting",
+                profile::FILLET_NO_CORNER_RECOURSE
+            ),
+        ),
+        (
+            "the leg fit, a run in the linear band",
+            door(Door, Gate::FilletLegFit, value),
+            format!(
+                "the fillet at this corner is undecided: margin 5e-9 lies inside the ambiguity \
+                 band (1e-9, 1e-8). Recourse: {}, or, if this size is intended, tighten the \
+                 tolerance below 5e-10 m",
                 profile::FILLET_FIT_RECOURSE
             ),
         ),

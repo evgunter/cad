@@ -22,9 +22,8 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, SurfaceKey};
 /// Every edge of `face`, over its outer loop and every ring. A
 /// boundary that is not a cycle contributes nothing.
 pub fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
-    let fd = body.get_face(face).unwrap();
     let mut edges = Vec::new();
-    for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };

@@ -333,10 +333,7 @@ fn a_plane_grazing_a_conical_pit_through_its_apex_refuses_the_knife_edge() {
                     matches!(e, SplitError::Reduce(_)),
                     "{what}: read in the reduction: {e:?}"
                 );
-                let wall = body
-                    .get_face(knife.wall)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .map(geom::Surface::kind);
+                let wall = body.face_surface(knife.wall).map(geom::Surface::kind);
                 assert_eq!(
                     wall,
                     Some(geom::SurfaceKind::Cone),

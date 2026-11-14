@@ -49,12 +49,13 @@ use pncad::document::{
     TraceCrossing, TracePassage, TraceRefusal, TraceSense, TraceStepFault, ValuePayload,
     WrittenLoopFault, resolve_written_loops,
 };
-use pncad::geom_core::{Arc2, Point2, Point3, Tol};
-use pncad::profile::path::program::{FusedConstruction, replay_drawn};
+use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
+use pncad::profile::path::program::{FilletConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
-    PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
-    Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
+    PathNoCornerReason, PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure,
+    SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay,
+    replay_recording,
 };
 use pncad::quantity::UnitDef;
 
@@ -1592,15 +1593,14 @@ pub fn preview(
     drawn(plane, loops, tol, chord).0
 }
 
-/// **[`preview`], and what the loops' fused fillet steps construct**,
-/// both out of the one replay of each loop
+/// **[`preview`], and what the loops' fillet steps construct**, both
+/// out of the one replay of each loop
 /// ([`pncad::profile::path::program::replay_drawn`]) whose refusal the
 /// preview carries.
 ///
-/// The construction is drawn whether or not the preview is: a fused
-/// step whose fit refuses leaves the sides it was handed, and a chain
-/// refused at its first leg has no prefix to draw but still has them.
-/// A resolution that refuses constructs nothing.
+/// The construction is drawn whether or not the preview is: a fillet
+/// step whose fit refuses leaves what it was handed, and a chain
+/// refused at its first leg has no prefix to draw but still has it.
 pub fn drawn(
     plane: SketchPlane<f64>,
     loops: &[Vec<Step<f64>>],
@@ -1615,24 +1615,49 @@ pub fn drawn(
         .iter()
         .map(|steps| replay_drawn(steps, tol))
         .unzip();
+    let refused_corners = replays
+        .iter()
+        .filter_map(|replayed| replayed.as_ref().err())
+        .flat_map(|refused| match &refused.kind {
+            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
+                corners, ..
+            }) => corners.iter().map(|c| c.at).collect(),
+            // The turn refusal names its corner where the door derived
+            // one before its turn gate (the arc door).
+            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerForFillet {
+                reason:
+                    PathNoCornerReason::TurnWithinTolerance {
+                        corner: Some(at), ..
+                    },
+                ..
+            }) => vec![*at],
+            _ => Vec::new(),
+        })
+        .collect();
     (
         preview_replayed(plane, &resolved, replays, tol, chord),
         Construction {
             plane,
             steps: built.concat(),
+            refused_corners,
         },
     )
 }
 
-/// **What a door's fused fillet steps construct**, on the plane its
-/// preview is placed on: the sides each step's fit was handed and the
-/// fillet circle it found, as far as the replay reached them.
+/// **What a door's fillet steps construct**, on the plane its preview
+/// is placed on: the sides each step's fit was handed and its answer,
+/// as far as the replay reached them, and the corners its refusals
+/// name.
 #[derive(Clone, Debug)]
 pub struct Construction {
     /// The plane the preview the steps belong to is placed on.
     pub plane: SketchPlane<f64>,
-    /// Every loop's fused steps, in loop order and then program order.
-    pub steps: Vec<FusedConstruction<f64>>,
+    /// Every loop's fillet steps, in loop order and then program order.
+    pub steps: Vec<FilletConstruction<f64>>,
+    /// Each corner a loop's refusal names ([`pncad::profile::CornerRefusal::at`],
+    /// and a turn refusal's corner), in loop order and then the
+    /// refusal's own.
+    pub refused_corners: Vec<pncad::geom_core::Point2<f64>>,
 }
 
 impl Construction {
@@ -1642,6 +1667,7 @@ impl Construction {
         Self {
             plane,
             steps: Vec::new(),
+            refused_corners: Vec::new(),
         }
     }
 }
@@ -1953,7 +1979,7 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
     let Target::Point(at) = *target else {
         return None;
     };
-    if (at.x, at.y) != (start.x, start.y) {
+    if !at.equals_exactly(start) {
         return None;
     }
     *target = Target::Start;
@@ -2440,31 +2466,16 @@ pub const TIP_MARK_PX: f64 = 20.0;
 /// the heading a reader wants there is the one it arrived on.
 ///
 /// **A separation that is not a finite length has no direction
-/// either**, which is the second thing the `None` arm says. Two
-/// flattened points a few hundred orders of magnitude apart differ by
-/// ordinary numbers whose `hypot` overflows: the length is then `inf`,
-/// which is greater than zero, and each component divided by it is
-/// `0.0`. A zero vector handed out under the name of a unit one is
-/// this arm not being taken — the caller draws its tip mark along
-/// nothing and cannot tell that from a mark it drew.
+/// either**, which is the second thing the `None` arm says: two
+/// flattened points far enough apart that a component of the
+/// separation overflows, or a finite separation whose length does
+/// (`(1.5e308, 1.5e308)`), or a poisoned point. A zero vector handed out
+/// under the name of a unit one is this arm not being taken — the
+/// caller would draw its tip mark along nothing and could not tell that
+/// from a mark it drew.
 ///
-/// **Unit LENGTH is a property of the separation and not of the
-/// guard.** What the guard buys is that no component exceeds a finite
-/// length, so each quotient lands in `[-1, 1]`; the pair is a unit
-/// vector to within a rounding step only while the length is a NORMAL
-/// number. Below that the division has no precision left to divide
-/// with: `dx = dy = 1e-320` answers a length of 1.000129 and
-/// `dx = dy = 5e-324` answers `[1.0, 1.0]`, of length 1.4142.
-///
-/// It is still a DIRECTION there, which is why this is stated rather
-/// than refused. Both components are divided by one length, and that
-/// length's own rounding is a common factor: over every separation
-/// whose components are the first 400 multiples of `5e-324` the angle
-/// is wrong by at most one rounding step (2.2e-16 rad) while the
-/// length is wrong by up to 41%. The caller scales a screen mark by
-/// the pair, so what a subnormal separation costs is a mark up to 41%
-/// long and pointing the right way — and `None`, this door's only
-/// other answer, would draw no mark at all.
+/// Every other separation, subnormal ones included, answers its unit
+/// direction to rounding ([`Vec2::direction_and_length`]'s prescale).
 pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
     let (from, to) = if at + 1 < points.len() {
         (points[at], points[at + 1])
@@ -2475,11 +2486,8 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     } else {
         return None;
     };
-    let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
-    let length = dx.hypot(dy);
-    // Finite and non-zero is what makes each quotient below land in
-    // [-1, 1]; normal is what makes the pair unit length. See above.
-    (length.is_finite() && length > 0.0).then(|| [dx / length, dy / length])
+    let (direction, length) = Vec2::new(to[0] - from[0], to[1] - from[1]).direction_and_length();
+    (length.is_finite() && length > 0.0).then_some([direction.x, direction.y])
 }
 
 #[cfg(test)]
@@ -3299,6 +3307,39 @@ mod tests {
                 }
             ),
             "{refused}"
+        );
+    }
+
+    #[test]
+    fn a_heading_is_a_unit_direction_at_every_finite_separation() {
+        let d = core::f64::consts::FRAC_1_SQRT_2;
+        // Exact subnormal multiples, so the 3-4-5 ratio is exact.
+        let tiny = f64::from_bits(1);
+        for (to, want) in [
+            ([1.0e-320, 1.0e-320], [d, d]),
+            ([5.0e-324, 5.0e-324], [d, d]),
+            ([1.0e300, 1.0e300], [d, d]),
+            ([3.0e-320, 0.0], [1.0, 0.0]),
+            ([0.0, -3.0e-320], [0.0, -1.0]),
+            ([-3072.0 * tiny, 4096.0 * tiny], [-0.6, 0.8]),
+        ] {
+            let got = super::heading(&[[0.0, 0.0], to], 0, false).expect("a heading");
+            assert!(
+                got.iter().zip(want).all(|(&g, w)| (g - w).abs() <= 1.0e-15),
+                "the separation {to:?} heads {got:?}, not {want:?}"
+            );
+        }
+        for to in [[0.0, 0.0], [f64::MAX, f64::NAN], [1.5e308, 1.5e308]] {
+            assert_eq!(
+                super::heading(&[[0.0, 0.0], to], 0, false),
+                None,
+                "the separation {to:?} has no direction"
+            );
+        }
+        assert_eq!(
+            super::heading(&[[-f64::MAX, 0.0], [f64::MAX, 0.0]], 0, false),
+            None,
+            "a separation whose component overflows has no direction"
         );
     }
 }

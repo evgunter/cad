@@ -76,8 +76,7 @@ fn worst_incidence(body: &Body<f64>) -> f64 {
     let mut worst: f64 = 0.0;
     for (vk, p) in body.vertex_points() {
         for fk in body.faces_of_vertex(vk).expect("orbit") {
-            let f = body.get_face(fk).unwrap();
-            if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
+            if let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(fk) {
                 worst = worst.max(normal.dot(p - *origin).abs());
             }
         }

@@ -95,3 +95,16 @@ Clipping `t` per span (contributor 2) and keeping the partition of unity
 in both sums (contributor 1) are both needed. Neither alone closes the
 item: clipping leaves the one-span rows above as they are, and the sums
 alone leave a multi-span walk evaluating each span past its knots.
+
+## 2026-11-04 — at a one-ulp `t`, a degree-5 image is about 1e-13 m wide (PCERT, `pcert/curved-general-image`)
+
+The same per-basis enclosure costs a narrow `t` too, at degree 5. The
+pcurve mint's degree-5 `General` image of a circle on the quarter
+cylinder (`edge_nurbs::general_chart_image`, 129 feet), evaluated at the
+certificate's sample `t = [0.5875 − 3e-16, 0.5875 + 2e-16]`, encloses
+its chart point `u` about 1.9e-13 wide and `v` about 2.6e-13 wide.
+`S(P(t)) − C(t)` is then about 2e-12 m wide. So at ε 1e-12 check 3 of
+`certify_general` reads the image's samples in band at `Interval`, while
+`f64` certifies the same image with a residual of 3e-16 m. The mint
+relabels that escalation as the general lane's gap ("not yet"); the row
+that pins it is `a_bending_rim_certifies_at_interval`.

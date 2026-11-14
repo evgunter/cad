@@ -147,11 +147,7 @@ fn a_partial_revolves_open_rim_refuses_naming_a_wedge_end() {
     let arcs = arcs_at(&quarter, 0.5, -0.5);
     assert_eq!(arcs.len(), 1, "the wedge's bore rim is one open arc");
     // It is OPEN, structurally: its two ends are two vertices.
-    let e = quarter.get_edge(arcs[0]).unwrap();
-    let (start, end) = (
-        quarter.get_half_edge(e.he_plus).unwrap().start,
-        quarter.half_edge_end(e.he_plus).unwrap(),
-    );
+    let (start, end) = quarter.edge_vertices(arcs[0]).unwrap();
     assert_ne!(start, end, "a wedge's rim does not close on itself");
     match rim_of(&quarter, arcs[0]) {
         Err(RimError::NotOneRim { walked, at, how }) => {

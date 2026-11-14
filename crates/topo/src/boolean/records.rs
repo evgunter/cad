@@ -259,7 +259,7 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
         [Cell::Vertex(v), Cell::Edge(e)] => {
             half_edges(e).is_some_and(|hs| hs.iter().any(|(_, h)| h.start == v))
         }
-        [Cell::Vertex(v), Cell::Face(f)] => body.passed_face(f).is_some_and(|face| {
+        [Cell::Vertex(v), Cell::Face(f)] => body.face(f).is_some_and(|face| {
             face.loops().any(|(_, l, _)| match l.boundary {
                 LoopBoundary::Empty { vertex } => vertex == v,
                 LoopBoundary::Cycle { first } => body

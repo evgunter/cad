@@ -16,7 +16,7 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenSpace, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -100,8 +100,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        // A pick reads one piece of a copy: a body.
-        Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
+        // A pick reads one piece of a copy, and a source one body.
+        Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
     let repeats = |var: pncad::document::VarId| {
@@ -199,6 +199,60 @@ impl Step {
             Self::Redo => "redo",
         }
     }
+}
+
+/// **Why the door refuses a `SetBundle`** (`DocSession::bundle_door`):
+/// the three refusals its judgement answers, each a [`Refusal`] arm's
+/// payload. Kept beside the judgement, and owned again as that arm
+/// wherever it is said or an op lands with it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BundleRefusal {
+    /// [`Refusal::BundleStale`].
+    Stale {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// [`Refusal::Edit`]: the bundle's edit refused, respoken.
+    Edit(Box<EditError>),
+    /// [`Refusal::PlacementFails`].
+    Fails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
+}
+
+impl From<BundleRefusal> for Refusal {
+    fn from(refusal: BundleRefusal) -> Self {
+        match refusal {
+            BundleRefusal::Stale { node } => Self::BundleStale { node },
+            BundleRefusal::Edit(error) => Self::Edit(error),
+            BundleRefusal::Fails { fault } => Self::PlacementFails { fault },
+        }
+    }
+}
+
+/// **Typed text that did not parse** ([`crate::session::parse_text`]):
+/// [`Refusal::Parse`] before a door raises it, said in its words, so a
+/// field that reports it without the door (`matetool::typed_value`) says
+/// the door's sentence and holds nothing but a parse refusal.
+#[derive(Debug, Clone)]
+pub struct ParseRefusal(pub Box<ParseError>);
+
+impl From<ParseRefusal> for Refusal {
+    fn from(refusal: ParseRefusal) -> Self {
+        Self::Parse(refusal.0)
+    }
+}
+
+impl core::fmt::Display for ParseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        parse_said(f, &self.0)
+    }
+}
+
+/// [`Refusal::Parse`]'s sentence.
+fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt::Result {
+    write!(f, "the expression did not parse: {error}")
 }
 
 /// Why an operation did not happen. Every arm is a value the chrome
@@ -309,6 +363,13 @@ pub enum Refusal {
     NotABodyRead {
         /// The read, as the session op held it.
         read: Box<Operand>,
+    },
+    /// Entities picked on a drawn family are read in no one member of
+    /// it: a selection reads one body (REFERENCES DM3), and the picks lie
+    /// in two members, or in none the landed evaluation finds.
+    PickedMember {
+        /// The family, as the document held it at the refusal.
+        node: SpokenNode,
     },
     /// The step that clears a body could not be measured — its input's
     /// landed value is not one body with a width
@@ -435,6 +496,63 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// Place was asked of a body several sources read (VARIABLES VR4):
+    /// which of them the new placement shares is the person's to say, so
+    /// each is offered as the body to place.
+    SeveralSources {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+        /// The sources reading it, in id order.
+        sources: Vec<SpokenVar>,
+    },
+    /// A door's change of a copy's target ([`super::SessionOp::AddToProduct`]
+    /// moving it into the world, [`super::SessionOp::IntoOwnSpace`]) over
+    /// a bundle of its own that reads the space it leaves: the change is
+    /// held, as the placement editor holds it, and the editor opens on
+    /// the copy with `target` set, the rows reading the old space marked
+    /// ([`crate::tools::Tools::answered`]).
+    TargetHeld {
+        /// The copy's placement, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The placement, for the editor to open on.
+        placement: RecipeNodeId,
+        /// The space it would leave.
+        space: Box<SpokenSpace>,
+        /// How many of its constraints read that space.
+        reading: usize,
+        /// The space it would move into, `None` for a new space.
+        into: Option<Box<SpokenSpace>>,
+        /// The target the editor opens with.
+        target: super::PlaceTarget,
+    },
+    /// A combine was asked of a copy placed into another space than its
+    /// first operand's: a combine changes no placement's target, and the
+    /// copy is moved by its own placement's "into" row.
+    CopyInAnotherSpace {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The space its placement places it into.
+        space: Box<SpokenSpace>,
+        /// The first operand's space.
+        into: Box<SpokenSpace>,
+    },
+    /// A Place given a name for a source that has one
+    /// ([`super::SessionOp::Place`]): the copy shares a named source by
+    /// that name, and a rename is the source's own row.
+    SourceIsNamed {
+        /// The source, as the document held it at the refusal.
+        source: SpokenVar,
+    },
+    /// **A delete that cannot splice** (DM6,
+    /// `editor_core::continuation::SpliceFault`): one member of a family
+    /// would land where no edit writes one.
+    Unspliced {
+        /// The reader that would be handed the member, or the deleted
+        /// node, as the document held it at the refusal.
+        node: SpokenNode,
+        /// Which.
+        fault: editor_core::continuation::SpliceFault,
+    },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
     ValueNotRemoved {
@@ -490,9 +608,41 @@ impl Refusal {
                 node: again(node),
                 wanted,
             },
+            Self::PickedMember { node } => Self::PickedMember { node: again(node) },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::SeveralSources { body, sources } => Self::SeveralSources {
+                body: body.respoken(doc),
+                sources: sources.iter().map(|source| source.respoken(doc)).collect(),
+            },
+            Self::TargetHeld {
+                copy,
+                placement,
+                space,
+                reading,
+                into,
+                target,
+            } => Self::TargetHeld {
+                copy: again(copy),
+                placement,
+                space: Box::new(doc.spoken_space(space.id())),
+                reading,
+                into: into.map(|into| Box::new(doc.spoken_space(into.id()))),
+                target,
+            },
+            Self::CopyInAnotherSpace { copy, space, into } => Self::CopyInAnotherSpace {
+                copy: again(copy),
+                space: Box::new(doc.spoken_space(space.id())),
+                into: Box::new(doc.spoken_space(into.id())),
+            },
+            Self::SourceIsNamed { source } => Self::SourceIsNamed {
+                source: source.respoken(doc),
+            },
+            Self::Unspliced { node, fault } => Self::Unspliced {
+                node: again(node),
+                fault,
+            },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -559,6 +709,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
             | Self::StepClear(_)
             | Self::Frame(_)
@@ -577,6 +728,11 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
+            | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
+            | Self::SourceIsNamed { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -611,6 +767,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
             | Self::StepClear(_)
             | Self::Frame(_)
@@ -624,6 +781,11 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
+            | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
+            | Self::SourceIsNamed { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -913,6 +1075,11 @@ impl Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::PickedMember { node } => write!(
+                f,
+                "{node} is a family, and a selection reads one body: pick on one drawn member \
+                 of it, once the document has landed"
+            ),
             Self::NotABodyRead { read } => match &**read {
                 Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
                 _ => f.write_str(
@@ -930,7 +1097,7 @@ impl Refusal {
             Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
-            Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
+            Self::Parse(error) => parse_said(f, error),
             Self::NoGesture => write!(f, "no drag is in progress"),
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::WrongGesture => write!(f, "that is not the drag in progress"),
@@ -957,6 +1124,66 @@ impl Refusal {
                 f,
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
+            ),
+            Self::SeveralSources { body, sources } => {
+                write!(f, "{body} is placed through {} sources (", sources.len())?;
+                for (k, source) in sources.iter().enumerate() {
+                    if k > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{source}")?;
+                }
+                f.write_str("); place one of them, and the new copy shares it")
+            }
+            Self::TargetHeld {
+                copy,
+                space,
+                reading,
+                into,
+                ..
+            } => {
+                let into = into
+                    .as_ref()
+                    .map_or_else(|| "a new space".to_owned(), ToString::to_string);
+                write!(
+                    f,
+                    "{copy} has {reading} constraint(s) of its own reading {space}, the space \
+                     this would move it out of; its placement editor opens with the target set \
+                     to {into}: re-pick or strike the marked rows"
+                )
+            }
+            Self::CopyInAnotherSpace { copy, space, into } => write!(
+                f,
+                "{copy} is placed into {space}, and this combine is in {into}; a combine moves \
+                 no copy: set {copy}'s \"into\" row to {into} in its placement editor first"
+            ),
+            Self::Unspliced { node, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
+                    f,
+                    "deleting this would hand {node} one member of a family at a seat that \
+                     reads a whole body, which no edit can write; delete or re-point {node} \
+                     first"
+                ),
+                editor_core::continuation::SpliceFault::MemberAtProduct => write!(
+                    f,
+                    "deleting {node} would hand the product one member of a family, and the \
+                     product reads a whole body; set the product first"
+                ),
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
+                    f,
+                    "deleting this would hand a reader of one member of {node} a member of a \
+                     member, which no read spells; delete that reader first"
+                ),
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
+                    f,
+                    "the delete's continuations came back to {node}, which an acyclic recipe \
+                     cannot do; nothing was deleted"
+                ),
+            },
+            Self::SourceIsNamed { source } => write!(
+                f,
+                "{source} is named already, so the copy shares it by that name; place it \
+                 without a name, and rename it on its own row"
             ),
             Self::ValueNotRemoved { node } => write!(
                 f,

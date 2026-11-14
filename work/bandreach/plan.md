@@ -4,7 +4,7 @@ predicate 2 reading wider than it needs: the blend's reach meter and
 its support screen
 
 Opened 2026-10-26 by BAND's priority-seam split (`work/README.md`,
-Track size). Nothing dispatched.
+Track size). The P0 is closed (PR 6779).
 
 ## The slate
 

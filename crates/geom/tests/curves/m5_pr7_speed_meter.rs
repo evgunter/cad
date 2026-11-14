@@ -1,10 +1,12 @@
-//! M5 PR 7: the **certified speed meter** a rung-3 carrier needs at
-//! `split_edge` (C12.3).
+//! M5 PR 7: the **certified speed meter** a rung-3 carrier's span needs
+//! (C12.3).
 //!
-//! `Body::split_edge` states its interiority margin in metres by
-//! multiplying a parameter distance by a per-carrier meter: `1` for a
+//! Certification's check 2 states a span's length in metres by
+//! multiplying its parameter extent by a per-carrier meter: `1` for a
 //! line, the radius for a circle, the **minor** semi-axis for an
-//! ellipse — each a conservative lower bound on `‖dP/dt‖`. A fitted SSI
+//! ellipse — each a conservative lower bound on `‖dP/dt‖`. Since PR 6710
+//! `Body::split_edge`'s interiority reads the split point's chord
+//! instead, and its children read this meter at check 2. A fitted SSI
 //! carrier had no such meter and poisoned; this is it, and the rows
 //! below pin the three things a consumer relies on: it is a genuine
 //! lower bound, it is honest (non-positive, not optimistic) when the
@@ -320,8 +322,8 @@ fn a_rational_carrier_whose_speed_collapses_still_refuses() {
     // minimum speed is required to collapse before the meter is asked
     // anything. No assembly may manufacture a positive
     // metre-per-parameter for a curve that stops, and the refusal
-    // machinery (`nurbs_span_meter`, `split_edge_param_interior`)
-    // reads exactly this and escalates.
+    // machinery (certification's `nurbs_span_meter`, which each split
+    // child's span is read against) reads exactly this and escalates.
     //
     // 1. A cubic whose two legs are exactly ANTI-PARALLEL across a
     //    repeated interior control point. For a cubic the homogeneous

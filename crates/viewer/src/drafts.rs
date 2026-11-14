@@ -120,7 +120,7 @@ pub(crate) struct Drafts {
     /// The trace's branches: which crossing, and which sense.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
-    /// evaluation ([`Self::sync_trace_shown`]).
+    /// evaluation ([`Self::trace_wanted`], [`Self::show_trace`]).
     pub(crate) trace_shown: Option<TraceShown>,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
@@ -1635,7 +1635,10 @@ impl Drafts {
 pub(crate) fn template_steps(kind: ShapeKind, within: Option<[[f64; 2]; 2]>) -> Vec<Step<f64>> {
     let (centre, side) = match within {
         Some([lo, hi]) => (
-            Point2::new(0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1])),
+            Point2::new(
+                pncad::geom::mid_param(lo[0], hi[0]),
+                pncad::geom::mid_param(lo[1], hi[1]),
+            ),
             Some([hi[0] - lo[0], hi[1] - lo[1]]),
         ),
         None => (Point2::origin(), None),
@@ -2073,13 +2076,17 @@ mod tests {
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
         let x = || <Coord<Operand>>::slide(TargetAxis::X);
         let y = || <Coord<Operand>>::slide(TargetAxis::Y);
+        let base = |constraints| crate::session::PlacementBase {
+            target: Operand::Var(pncad::document::VarId::WORLD),
+            constraints,
+        };
         let door = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
-            base: Vec::new(),
+            base: base(Vec::new()),
         };
         let reloaded = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
-            base: pncad::document::stand().bundle(),
+            base: base(pncad::document::stand().bundle()),
         };
         let mut drafts = Drafts::default();
         drafts.sync_mate_edits(Some(&door), &[x(), y()]);
@@ -2105,7 +2112,7 @@ mod tests {
         drafts.sync_mate_edits(
             Some(&PlaceDoor {
                 placement: RecipeNodeId::new(0, 9),
-                base: Vec::new(),
+                base: base(Vec::new()),
             }),
             &[x()],
         );

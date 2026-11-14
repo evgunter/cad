@@ -2,9 +2,11 @@
 id: section-unbuilt-arms-state-no-recourse
 kind: issue
 title: SectionUnbuilt's Winds, TubeUnread and PadShort arms render no recourse, so GermSectionUnbuilt ends without one
-status: open
+status: closed
 priority: P3
 opened: 2026-11-06
+closed: 2026-11-09
+pr: 6622
 ---
 
 

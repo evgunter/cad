@@ -105,21 +105,21 @@ fn golden(f: &impl Fn(f64) -> f64, (mut a, mut b): (f64, f64), low: bool) -> f64
             a = x1;
         }
     }
-    (a + b) / 2.0
+    geom::mid_param(a, b)
 }
 
 /// `f`'s root in `[a, b]`, whose ends `f` reads on opposite sides,
 /// bisected to the bit.
 fn bisect(f: &impl Fn(f64) -> f64, (mut a, mut b): (f64, f64)) -> f64 {
     for _ in 0..80 {
-        let m = (a + b) / 2.0;
+        let m = geom::mid_param(a, b);
         if (f(m) < 0.0) == (f(a) < 0.0) {
             a = m;
         } else {
             b = m;
         }
     }
-    (a + b) / 2.0
+    geom::mid_param(a, b)
 }
 
 /// The samples about sample `k` of `v` (its one neighbour at either end)
@@ -208,7 +208,7 @@ pub fn assert_matches_oracle(
     };
     let (count, thetas) = (found.count(), found.roots());
     assert_eq!(count, want, "{label}: the certified count");
-    let mid = (t0 + t1) / 2.0;
+    let mid = geom::mid_param(t0, t1);
     let mut got = thetas[..count].to_vec();
     for &t in &got {
         assert!((t - mid).abs() <= PI, "{label}: {t} within π of {mid}");

@@ -41,7 +41,6 @@ fn ball() -> AtRestBody<f64> {
     let moved = topo::transform_rigid(
         &at,
         &geom_core::RigidMotion::translation(Vec3::new(C.0, C.1, C.2)).unwrap(),
-        tol,
     )
     .unwrap();
     finished("the ball", moved, tol)
@@ -65,17 +64,13 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     );
     let dimple: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
     let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
-        b.flipped_face_sense_for_tests(k).expect("the face")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("the face")
     });
     // Each flipped half claims its complement, which holds the other, so
     // the cover census refuses their region as claimed twice, named by

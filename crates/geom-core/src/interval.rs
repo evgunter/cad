@@ -755,13 +755,9 @@ impl Real for Interval {
         Self(self.0.powi(n))
     }
 
-    /// `[lo·k, hi·k]` unpadded where both results are strictly above the
-    /// smallest normal and `k` is
-    /// a positive normal power of two; the general product everywhere
-    /// else ([`DInterval::scale_pow2`] states each case). Bit for bit
-    /// the general product wherever that product is itself exact, and
-    /// inside its one-step pad between the smallest normal and the 2Prod
-    /// floor, where it cannot certify the exact value.
+    /// The product by the point `k`, which the backend computes exactly
+    /// for `k` a normal power of two wherever both results stay above the
+    /// smallest normal ([`DInterval::scale_pow2`]).
     fn scale_pow2(self, k: f64) -> Self {
         Self(self.0.scale_pow2(k))
     }
@@ -1377,21 +1373,41 @@ mod tests {
         Interval::from_bounds(lo, hi)
     }
 
-    /// **The interval scalar's `scale_pow2` is the backend's exact
-    /// scale, not the trait's default product.** Just above the
-    /// smallest normal the general product cannot certify an exact
-    /// halving (it is under the backend's 2Prod floor) and pads it one
-    /// step; the override returns the exact half, so a lost override
-    /// reds here. Above the floor the two agree bit for bit, and at
-    /// `f64` the door is the product.
+    /// **A halving pads nothing at any normal magnitude.** The product
+    /// by a point power of two is exact wherever the scaled endpoints
+    /// stay normal: under the backend's 2Prod floor (about `2⁻⁹⁵⁹`),
+    /// where the general product cannot certify an exact corner, it
+    /// would pad one step. So `x · ½`, `½ · x`, `x · (−½)` and
+    /// `scale_pow2` all read the exact half here, and a halving by `·½`
+    /// pads nothing.
     #[test]
-    fn the_power_of_two_scale_is_the_backends_exact_scale() {
+    fn a_halving_is_exact_below_the_two_prod_floor() {
         let least = f64::MIN_POSITIVE;
-        let x = iv(4.0 * least, 8.0 * least);
-        let got = x.scale_pow2(0.5);
-        assert_eq!((got.lo(), got.hi()), (2.0 * least, 4.0 * least));
-        let general = x * Interval::from_f64(0.5);
-        assert!(general.lo() < got.lo() && got.hi() < general.hi());
+        for (lo, hi) in [(4.0 * least, 8.0 * least), (-3.0e-300, 5.0e-295)] {
+            let x = iv(lo, hi);
+            let half = (lo * 0.5, hi * 0.5);
+            let read = |v: Interval| (v.lo(), v.hi());
+            assert_eq!(
+                read(x * Interval::from_f64(0.5)),
+                half,
+                "[{lo:e}, {hi:e}] · ½"
+            );
+            assert_eq!(
+                read(Interval::from_f64(0.5) * x),
+                half,
+                "½ · [{lo:e}, {hi:e}]"
+            );
+            assert_eq!(
+                read(x.scale_pow2(0.5)),
+                half,
+                "[{lo:e}, {hi:e}] scaled by ½"
+            );
+            assert_eq!(
+                read(x * Interval::from_f64(-0.5)),
+                (-half.1, -half.0),
+                "[{lo:e}, {hi:e}] · (−½)"
+            );
+        }
         let x = iv(-3.0, 0.375);
         assert_eq!(
             x.scale_pow2(0.25).repr_bits(),

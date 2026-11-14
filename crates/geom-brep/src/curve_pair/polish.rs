@@ -45,7 +45,9 @@ const MOVE: &str = "curve_pair_pose_move";
 /// pair (read at `T` at the iterate): the pair. A step whose value is a
 /// point is taken at `T`; one that is an enclosure moves the iterate by
 /// its middle, and the search is `f64` structure from there on (module
-/// docs). A step with no finite bracket ends the search where it stands.
+/// docs). A step with no finite bracket, or one `keep` refuses, ends the
+/// search where it stands: the iterate has not moved, so the next step
+/// would be the same one.
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
@@ -63,7 +65,7 @@ pub(super) fn pair<T: Decide>(
             break;
         };
         if !keep(moved) {
-            continue;
+            break;
         }
         structure |= !(is_point(ds) && is_point(dt) && is_point(s) && is_point(t));
         if structure {

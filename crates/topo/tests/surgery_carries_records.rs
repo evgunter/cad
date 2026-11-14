@@ -43,9 +43,9 @@ fn kiss() -> BooleanBody<f64> {
 
 fn face_at_x(body: &Body<f64>, x: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == x
             )
@@ -94,7 +94,6 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     let moved = topo::transform_rigid(
         &base.body,
         &geom_core::RigidMotion::translation(Vec3::new(0.3, 0.2, 0.1)).unwrap(),
-        tol(),
     )
     .expect("a rigid move");
     let carried = base.contacts.carried_from(0);
@@ -543,9 +542,9 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
 
 fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == z
             )

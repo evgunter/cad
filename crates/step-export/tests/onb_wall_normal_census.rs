@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use crate::common;
 
 use geom::Surface;
-use geom_core::{Tol, Vec3};
+use geom_core::Tol;
 use step_export::{StepOptions, step_string};
 use test_utils::seam_census::SeamClasses;
 
@@ -215,7 +215,7 @@ fn the_direction_records_every_stored_frame_is_written_to() {
                 continue;
             };
             planes += 1;
-            let minted = same_bits(*u_ref, normal.orthonormal_basis().0);
+            let minted = u_ref.same_bits(normal.orthonormal_basis().0);
             if minted {
                 minted_here += 1;
             }
@@ -235,10 +235,4 @@ fn the_direction_records_every_stored_frame_is_written_to() {
         }
     }
     println!("planar faces: {planes}; frames the constructor mints: {minted_here}");
-}
-
-fn same_bits(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-    a.x.to_bits() == b.x.to_bits()
-        && a.y.to_bits() == b.y.to_bits()
-        && a.z.to_bits() == b.z.to_bits()
 }

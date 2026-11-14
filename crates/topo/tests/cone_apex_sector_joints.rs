@@ -249,8 +249,8 @@ fn near_the_apex<T: Real + AtRestPolicy>(lane: &str) {
             vec![],
             "{lane} lever {lever}: the sector reads clean"
         );
-        for (face, record) in body.faces() {
-            let chart = body.get_surface(record.surface).unwrap().clone();
+        for (face, _) in body.faces() {
+            let chart = body.face_surface(face).unwrap().clone();
             let read = topo::pcurves::loop_windings(&body, face, &chart, band);
             let refused = matches!(read, Err(topo::PcurveMintError::JointWithoutRoom { .. }));
             assert_eq!(

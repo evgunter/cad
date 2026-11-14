@@ -72,8 +72,7 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
             foot.distance(p) <= ON && t0.min(t1) + ON < t && t < t0.max(t1) - ON
         }
         Cell::Face(f) => {
-            let face = body.get_face(f).unwrap();
-            let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(face.surface) else {
+            let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(f) else {
                 panic!("a brick face is a plane");
             };
             (p - *origin).dot(*normal).abs() <= ON
@@ -197,9 +196,13 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
         (12_732, 336, 432),
         "fused vertices settled at a live survivor, inside a joined edge, inside a merged face"
     );
-    // Pinned red at main's count since PR 5724 met PR 5706 (was
-    // (25 512, 1392)); whether the new discards are right is
-    // `work/flush/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706`.
+    // A containment fallback's result is one operand whole, and each
+    // face of the other's dropped shell that no kept face holds is a
+    // discard bordering the kept faces through its substituted fragments
+    // (`DiscardRow::bordered_through`), as on the section path. Those
+    // are 780 of the stretches, over 279 fallback results, and 612 of
+    // them have an end inside a kept edge, where the kept face is whole
+    // (`work/flush/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706`).
     assert_eq!(
         (stretches, inside),
         (26_292, 2004),

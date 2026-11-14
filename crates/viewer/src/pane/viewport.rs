@@ -106,7 +106,7 @@ pub(crate) struct CameraFrame<'a> {
     pub(crate) profiles: marks::LegLane,
     /// The doors' previews.
     pub(crate) previews: &'a Previews,
-    /// What the doors' fused fillet steps construct.
+    /// What the doors' fillet steps construct.
     pub(crate) constructions: &'a Constructions,
     /// Whether a fit is owed this frame.
     pub(crate) fit: bool,
@@ -306,17 +306,19 @@ pub(crate) fn push_committed(
 /// The doors' profile previews, as each door holds one.
 type Previews = ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>;
 
-/// What each door's fused fillet steps construct, taken with its preview.
+/// What each door's fillet steps construct, taken with its preview.
 type Constructions = ProfileDoors<Option<sketch::Construction>>;
 
 /// How many legs a full turn of a construction circle is drawn with.
 const CONSTRUCTION_LEGS_PER_TURN: u32 = 96;
 
-/// **Each door's construction, appended to a lane**: per fused fillet
-/// step ([`sketch::Construction`]), the two sides its fit was handed
-/// and its fillet circle where it resolved — the geometry the kept
-/// pieces were cut from, drawn whether or not the step's fit refused,
-/// since a refusal is when it is needed.
+/// **Each door's construction, appended to a lane**: per fillet step
+/// ([`sketch::Construction`]), the sides its fit was handed and its
+/// answer — the fillet circle where it resolved, the circle that
+/// overran where the anchor fit refused it — and a mark at each corner
+/// a refusal names: the geometry the kept pieces were cut from, drawn
+/// whether or not the step's fit refused, since a refusal is when it is
+/// needed.
 ///
 /// A circle is drawn as a full turn. A line side is drawn on the side
 /// of its anchor the fit reads it from — ahead of an incoming side's,
@@ -324,21 +326,41 @@ const CONSTRUCTION_LEGS_PER_TURN: u32 = 96;
 /// anchor, or four fillet radii where the step has none. Each side
 /// carries a heading mark at its anchor, sized against `view` (none
 /// without one): the point the fit anchors it at and the way the path
-/// travels it, which is what a refusal about the wrong side names.
+/// travels it, which is what a refusal about the wrong side names. A
+/// refused corner is a cross on its diagonals, and an overrunning
+/// circle's tangent points a cross square to the plane, at the same
+/// size.
 fn push_constructions(
     lane: &mut marks::LegLane,
     constructions: &Constructions,
     view: Option<screen::View>,
 ) {
-    use pncad::profile::path::program::Carrier;
+    use pncad::profile::path::program::{Carrier, FilletFit};
     for built in constructions.as_ref().into_array().into_iter().flatten() {
         let plane = &built.plane;
+        let tick_at = |at: pncad::geom_core::Point2<f64>| {
+            view.and_then(|view| view.screen_metres_at(plane.to_world(at), TIP_MARK_PX))
+        };
         for step in &built.steps {
-            let carriers = [Some(step.incoming), Some(step.arrival), step.fillet];
+            let (answer, tangents): (Vec<Carrier<f64>>, Vec<_>) = match &step.fit {
+                Some(FilletFit::Fillet(fillet)) => (vec![*fillet], Vec::new()),
+                Some(FilletFit::Overrun(overruns)) => (
+                    overruns.iter().map(|o| o.circle).collect(),
+                    overruns.iter().flat_map(|o| o.tangents).collect(),
+                ),
+                None => (Vec::new(), Vec::new()),
+            };
+            let sides: Vec<(Carrier<f64>, bool)> = core::iter::once((step.incoming, true))
+                .chain(step.arrival.map(|arrival| (arrival, false)))
+                .collect();
+            let carriers: Vec<Carrier<f64>> = sides
+                .iter()
+                .map(|(carrier, _)| *carrier)
+                .chain(answer.iter().copied())
+                .collect();
             let reach = |from: pncad::geom_core::Point2<f64>| {
                 carriers
                     .iter()
-                    .flatten()
                     .filter_map(|other| match *other {
                         Carrier::Circle { centre, radius, .. } => {
                             Some(from.distance(centre) + radius)
@@ -348,12 +370,12 @@ fn push_constructions(
                     .reduce(f64::max)
                     .unwrap_or(4.0 * step.radius.abs())
             };
-            for carrier in carriers.iter().flatten() {
+            for carrier in &carriers {
                 if let Carrier::Circle { centre, radius, .. } = *carrier {
                     push_circle(lane, plane, centre, radius);
                 }
             }
-            for (carrier, ahead) in [(step.incoming, true), (step.arrival, false)] {
+            for &(carrier, ahead) in &sides {
                 let (anchor, heading) = match carrier {
                     Carrier::Circle {
                         centre,
@@ -380,14 +402,37 @@ fn push_constructions(
                         (anchor, [dir.x, dir.y])
                     }
                 };
-                let world = plane.to_world(anchor);
-                if let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
-                {
+                if let Some(tick) = tick_at(anchor) {
                     push_heading_mark(lane, plane, [anchor.x, anchor.y], heading, tick);
                 }
             }
+            for at in tangents {
+                if let Some(tick) = tick_at(at) {
+                    push_cross(lane, plane, [at.x, at.y], [1.0, 0.0], tick);
+                }
+            }
+        }
+        for &at in &built.refused_corners {
+            if let Some(tick) = tick_at(at) {
+                let diagonal = core::f64::consts::FRAC_1_SQRT_2;
+                push_cross(lane, plane, [at.x, at.y], [diagonal, diagonal], tick);
+            }
         }
     }
+}
+
+/// A cross through `here`, its arms along the unit `heading` and square
+/// to it, each a mark length `tick` across.
+fn push_cross(
+    lane: &mut marks::LegLane,
+    plane: &pncad::profile::SketchPlane<f64>,
+    here: [f64; 2],
+    heading: [f64; 2],
+    tick: f64,
+) {
+    let at_offset = offsets(here, heading, tick);
+    push_segment(lane, plane, at_offset(-0.5, 0.0), at_offset(0.5, 0.0));
+    push_segment(lane, plane, at_offset(0.0, -0.5), at_offset(0.0, 0.5));
 }
 
 /// A full turn of the circle about `centre` of `radius`, in
@@ -3568,6 +3613,119 @@ mod tests {
         assert!(
             built.max_x > kept.max_x + 0.5 && built.min_y < kept.min_y - 0.5,
             "{built:?} vs {kept:?}"
+        );
+    }
+
+    /// **An anchor-fit refusal draws the circle that overran, and marks
+    /// its corner**: the ray east from the origin, filleted at 2.5 and
+    /// arriving north at (3, 2), refuses — the setback 2.5 outruns the
+    /// arrival's 2 m — and the construction holds the two lines, the
+    /// radius-2.5 circle about (0.5, 2.5) its trim would cut, a cross on
+    /// the diagonals at the corner (3, 0), and a square cross at each
+    /// tangent point, (0.5, 0) and (3, 2.5).
+    ///
+    /// Red if a refused line fillet draws no circle, or its refusal's
+    /// corner is not marked.
+    #[test]
+    fn an_anchor_fit_refusal_draws_its_overrun_and_marks_its_corner() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let steps = vec![
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::Fillet { radius: 2.5 },
+            Step::Toward { dx: 0.0, dy: 1.0 },
+            Step::FarEndTo(Point2::new(3.0, 2.0)),
+            Step::LineTo(Target::Start),
+        ];
+        let (previews, constructions) = door(&[steps]);
+        assert!(
+            matches!(&previews.edit, Some(Err(_))),
+            "a fixture whose fillet refuses: {previews:?}"
+        );
+        let drawn = construction_legs(&constructions);
+        let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
+        assert_eq!(
+            legs_on(&drawn, [0.5, 2.5], 2.5),
+            turn,
+            "the overrunning circle: {drawn:?}"
+        );
+        assert_eq!(drawn.len(), turn + 2, "two lines beside it: {drawn:?}");
+        let viewport = ViewportSize {
+            width_px: 800.0,
+            height_px: 600.0,
+        };
+        let view = crate::screen::view_of(&framed(), viewport).ok();
+        let marked = seen_construction_legs(&constructions, view);
+        let crossed = |at: [f64; 2], diagonal: bool| {
+            marked
+                .iter()
+                .filter(|leg| {
+                    let mid = [
+                        0.5 * (f64::from(leg[0][0]) + f64::from(leg[1][0])),
+                        0.5 * (f64::from(leg[0][1]) + f64::from(leg[1][1])),
+                    ];
+                    let (dx, dy) = (
+                        f64::from(leg[1][0] - leg[0][0]),
+                        f64::from(leg[1][1] - leg[0][1]),
+                    );
+                    let square = dx.abs() < 1.0e-6 || dy.abs() < 1.0e-6;
+                    (mid[0] - at[0]).hypot(mid[1] - at[1]) < 1.0e-6 && square != diagonal
+                })
+                .count()
+        };
+        assert_eq!(crossed([3.0, 0.0], true), 2, "the corner's cross");
+        assert_eq!(
+            crossed([0.5, 0.0], false),
+            2,
+            "the incoming tangent point's"
+        );
+        assert_eq!(crossed([3.0, 2.5], false), 2, "the arrival tangent point's");
+    }
+
+    /// **A turn refusal marks the corner it names**: the ray east at
+    /// height `y = 2 − 10⁻⁴`, starting 50 ε short of where it crosses
+    /// the circle of radius 2 about the origin, filleted onto that
+    /// circle. The arc door derives the corner (the crossing) before its
+    /// turn gate, whose levered margin is below the band, so the refusal
+    /// is the turn at tolerance at that corner, and the construction
+    /// marks it.
+    ///
+    /// Red if a turn refusal's corner is not marked.
+    #[test]
+    fn a_turn_refusal_marks_its_corner() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{ArcData, ArcSweep, Step, Target};
+        let y = 2.0_f64 - 1e-4;
+        let cx = -(4.0 - y * y).sqrt();
+        let steps = vec![
+            Step::At(Point2::new(cx - 50.0 * Tol::witness().eps(), y)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::FilletArc {
+                radius: 0.05,
+                spec: ArcData::Center {
+                    c: Point2::new(0.0, 0.0),
+                    winding: ArcSweep::Ccw,
+                    target: Target::Point(Point2::new(0.0, -2.0)),
+                },
+            },
+            Step::LineTo(Target::Point(Point2::new(-3.0, -3.0))),
+            Step::LineTo(Target::Point(Point2::new(-3.0, 3.0))),
+            Step::LineTo(Target::Start),
+        ];
+        let (previews, constructions) = door(&[steps]);
+        assert!(
+            matches!(&previews.edit, Some(Err(_))),
+            "a fixture whose fillet refuses: {previews:?}"
+        );
+        let built = constructions
+            .edit
+            .as_ref()
+            .expect("the edit door drew its construction");
+        assert_eq!(built.refused_corners.len(), 1, "{built:?}");
+        assert!(
+            built.refused_corners[0].distance(Point2::new(cx, y)) < 1e-9,
+            "the crossing: {built:?}"
         );
     }
 

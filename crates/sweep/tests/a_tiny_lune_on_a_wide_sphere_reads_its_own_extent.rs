@@ -62,9 +62,9 @@ fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
             let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), tol)
                 .map_err(|e| refused.push(format!("{sign}: {e:?}")))
                 .ok()?;
-            let lune = t.body.faces().any(|(_, f)| {
+            let lune = t.body.faces().any(|(fk, _)| {
                 matches!(
-                    t.body.get_surface(f.surface).unwrap(),
+                    t.body.face_surface(fk).unwrap(),
                     geom::Surface::Sphere { radius, .. } if (radius - R_SPHERE).abs() < 1e-9
                 )
             });

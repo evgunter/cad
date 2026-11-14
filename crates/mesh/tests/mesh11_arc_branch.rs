@@ -76,7 +76,7 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 /// (`geom-brep`), on a hand-built bow whose rims do not contradict;
 /// this body no longer reaches the branch door through `tessellate`,
 /// and the row for a body that does is
-/// `work/tess/apex-crossing-branch-premise-has-no-body-level-witness.md`.
+/// `work/tesslane/apex-crossing-branch-premise-has-no-body-level-witness.md`.
 #[test]
 fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
@@ -131,7 +131,7 @@ fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     // exactly, which is what kept this defect out of reach of a branch
     // door (CERT-1's rows admit the pole-crossing arc on purpose).
     let face_a = body.get_face(cap).expect("the half-cap");
-    let surface = body.get_surface(face_a.surface).expect("its sphere");
+    let surface = body.face_surface(cap).expect("its sphere");
     let (outer, _) = topo::props::loop_edges(&body, face_a.outer).expect("its loop");
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     let fc = geom_brep::props::curved_face(surface, &outer, face_a.sense, band)

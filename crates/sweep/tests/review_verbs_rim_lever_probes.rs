@@ -91,12 +91,9 @@ fn sides(body: &Body<f64>, edge: EdgeKey) -> (Surface<f64>, Surface<f64>, bool) 
     let surf = |he| {
         let l = body.get_half_edge(he).unwrap().parent_loop;
         let f = body.get_loop(l).unwrap().face;
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
+        body.face_surface(f).unwrap().clone()
     };
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(edge).unwrap();
     (surf(e.he_plus), surf(e.he_minus), start == end)
 }
 
@@ -415,12 +412,8 @@ fn co_surface_seams_read_smooth_while_transverse_rims_do_not() {
         );
         let margin = sweep::test_support::smooth_reading(&ball, seam, r * 0.05, tol());
         assert_eq!(
-            (
-                margin.predicate,
-                margin.reading.diagnostic_f64_for_error_text().value()
-            ),
-            ("fillet3_convexity_sign", Some(0.0)),
-            "a co-surface seam's dihedral sine is structurally zero (r={r})"
+            margin, None,
+            "a co-surface seam is read by identity, no margin read (r={r})"
         );
 
         let transverse = dome(

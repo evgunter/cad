@@ -4,7 +4,7 @@
 //! over the scalar lane (`f64`, `Dual`, `Interval` — every `Decide`
 //! scalar) wherever the builder is.
 //!
-//! **Two families, and what separates them is the boundary they can
+//! **Three families, and what separates them is the boundary they can
 //! describe.**
 //!
 //! The POLYHEDRAL family — [`prism_ops`] and everything grown from it,
@@ -16,7 +16,7 @@
 //! `Surface::nurbs_placeholder` the seed `mvfs` minted, because the
 //! suites it serves read that shared key.
 //!
-//! [`cyl_wall_sheet`] is the other family, and neither sentence is true
+//! [`cyl_wall_sheet`] is the second family, and neither sentence is true
 //! of it: its rims are `Curve3::Circle` carriers described as the
 //! cylinder cut by a plane, and its faces are on the cylinder its
 //! [`CylFrame`] names, so there is no `FaceGeometry` to choose. It has
@@ -24,6 +24,14 @@
 //! face's geometry but about WHICH face carries the cylinder key. Only
 //! its two meridian struts are chords. A suite wanting a curved chart
 //! comes here; a suite wanting a polyhedron does not.
+//!
+//! [`bezier_arc_sheet`] and [`spiric_cap`] are a third: a planar sheet
+//! bounded by one curved edge and the chord back, for suites that read
+//! a carrier which is neither a line nor a circle. The first's arc is a
+//! NURBS carrier described by its image in the plane's chart; the
+//! second's is a `Curve3::Spiric` described as a torus cut by the
+//! sheet's plane. Each is built in a [`fresh_keyed_body`], so a key a
+//! refusal names resolves in that body only.
 //!
 //! # Which home this is, and the one it is not
 //!
@@ -69,7 +77,7 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{Body, FaceKey, HalfEdgeKey, LoopBoundary};
+use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary};
 
 use crate::construction::{
     FaceSurface, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
@@ -177,6 +185,80 @@ pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     )
     .unwrap();
     let carrier = body.add_surface(cone());
+    let half = |u0: f64| EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(carrier, plane),
+            selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
+        },
+        carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
+        param_start: u0,
+        param_end: u0 + PI,
+    };
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            on(PI),
+            half(0.0),
+            tol,
+        )
+        .unwrap();
+    let face = body
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.mef(
+                MefSite::Chords {
+                    he1: e.he_minus,
+                    he2: e.he_plus,
+                },
+                half(PI),
+                FaceSurface::Shared {
+                    key: carrier,
+                    sense: true,
+                },
+                tol,
+            )
+        })
+        .unwrap()
+        .face;
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, face)
+}
+
+/// **A sphere cap**: the face on the unit sphere about the origin
+/// (axis `+z`) bounded by its one circle at height `z`, two half-circle
+/// edges with no seam, built as [`cone_cap`] builds its cap: the rim
+/// plane is the seed face and the cap the face `mef` mints.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn sphere_cap(z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_brep::CurveSelector;
+    let r = (1.0 - z.powi(2)).sqrt();
+    let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(on(0.0), true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::new(0.0, 0.0, z),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
+    let carrier = body.add_surface(Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
     let half = |u0: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(carrier, plane),
@@ -820,13 +902,12 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     tol: Tol,
 ) {
     let band = Band::linear(tol).unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in edges {
         let (s1, s2) = crate::readback::edge_sides(body, edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(body, edge_key);
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();
@@ -861,13 +942,12 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     tol: Tol,
 ) -> (Body<T>, Vec<crate::ValidationError>) {
     let mut body = body.clone();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in &edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in &edges {
         let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(&body, *edge_key);
         let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
         spec.description = EdgeDescriptionSpec::OnPair {
@@ -878,7 +958,7 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     }
     let want = edges
         .into_iter()
-        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .map(|edge| crate::ValidationError::TransverseNotIntrinsic { edge })
         .collect();
     (body, want)
 }
@@ -923,6 +1003,35 @@ pub fn wedge_on_a_block_top(
     )
 }
 
+/// **A tool cornered on a block's corner, its face near the block's top**
+/// (SECTOR's `a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`):
+/// the block `[0, 20]² × [−20, 0]`, and a parallelepiped cornered at the
+/// origin with edges `a = (10, 1, ·)`, `b = (−1e-3, −2e-4, ·)` and
+/// `c = (1e-4, 1e-4, −1e-3)`, its `w = 0` face (spanned by `a` and `b`)
+/// on the plane `z = θ·(x cos ψ + y sin ψ)`. The short edges make the
+/// vertex pair's arm 1 mm; `ψ = 0` is the generic pose, and
+/// [`HINGED_ALONG_B`] puts the two faces' crossing line along `b`.
+/// Returns `(block, tool)`.
+pub fn tool_on_a_block_corner(theta: f64, psi: f64, tol: Tol) -> (Body<f64>, Body<f64>) {
+    let rise = |x: f64, y: f64| Vec3::new(x, y, theta * (x * psi.cos() + y * psi.sin()));
+    let (a, b, c) = (
+        rise(10.0, 1.0),
+        rise(-1e-3, -2e-4),
+        Vec3::new(1e-4, 1e-4, -1e-3),
+    );
+    (
+        brick((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        mapped_cube(
+            move |u, v, w| Point3::new(0.0, 0.0, 0.0) + a * u + b * v + c * w,
+            tol,
+        ),
+    )
+}
+
+/// The `ψ` of [`tool_on_a_block_corner`] whose tilt leaves the short edge
+/// `b` in the block's top plane: the two faces cross along it.
+pub const HINGED_ALONG_B: f64 = -1.373_400_766_945_016;
+
 /// The one planar face of `body` whose outward normal leans along
 /// `facing` in `z` (`+1` up, `−1` down).
 ///
@@ -934,8 +1043,8 @@ pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(crate::face_carrier(body, k),
-                Some(crate::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
+            matches!(crate::face_normal::face_carrier_desc(body, k),
+                Some(geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. })) if normal.z * facing > 0.99)
         })
         .collect();
     assert_eq!(hits.len(), 1, "one face faces {facing}");
@@ -1375,8 +1484,7 @@ impl CylFrame {
     /// point's axial component and carries that subtraction's rounding
     /// into a direction the chart already names exactly.
     pub fn radial(&self, u: f64) -> Vec3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.u_ref * u.cos() + w * u.sin()
+        geom::Frame::new(self.origin, self.axis, self.u_ref).radial(u)
     }
 
     /// The chart map `S(u, v) = origin + radial(u)·radius + axis·v`.
@@ -1447,8 +1555,25 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
+    us: (f64, f64),
+    vs: (f64, f64),
+    tol: Tol,
+) -> (FaceKey, crate::geometry::SurfaceKey) {
+    cyl_wall_sheet_tilted(body, frame, key, us, vs, 0.0, tol)
+}
+
+/// [`cyl_wall_sheet_keyed`] with its bottom rim cut by the plane through
+/// the rim's two ends tilted by `tilt` (rise per unit run across their
+/// chord, towards the arc's middle): an ELLIPSE carrier, described as
+/// the cylinder cut by that plane, over the azimuth less the window's
+/// middle, plus `π`. At `tilt = 0` the sheet is [`cyl_wall_sheet_keyed`]'s.
+pub fn cyl_wall_sheet_tilted<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    frame: CylFrame,
+    key: CylKey,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
+    tilt: f64,
     tol: Tol,
 ) -> (FaceKey, crate::geometry::SurfaceKey) {
     let (p00, p10, p11, p01) = (
@@ -1504,7 +1629,36 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
             param_end: T::from_f64(t1),
         }
     };
-    let bottom = rim(body, v0, true);
+    let bottom = if tilt == 0.0 {
+        rim(body, v0, true)
+    } else {
+        let (half, mid) = (0.5 * (u1 - u0), 0.5 * (u0 + u1));
+        let (m, c) = (frame.radial(mid), half.cos());
+        let reach = tilt.hypot(1.0);
+        let normal = (frame.axis - m * tilt) / reach;
+        let u_ref = -(m + frame.axis * tilt) / reach;
+        let origin = frame.centre(v0) - frame.axis * (tilt * frame.radius * c);
+        let plane = body.add_surface(Surface::Plane {
+            origin: origin.map(T::from_computed),
+            normal: normal.map(T::from_computed),
+            u_ref: u_ref.map(T::from_computed),
+        });
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(origin, normal, u_ref),
+            frame.radius * reach,
+            frame.radius,
+        ));
+        let pi = core::f64::consts::PI;
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(cyl, plane),
+                selector: geom_brep::CurveSelector::Witness(ellipse.eval(pi).map(T::from_computed)),
+            },
+            carrier: ellipse.map_scalar(T::from_computed),
+            param_start: T::from_computed(pi - half),
+            param_end: T::from_computed(pi + half),
+        }
+    };
     let e_b = body
         .mev(
             MevSite::Lone {
@@ -1780,7 +1934,7 @@ pub fn arc_chain_over_the_jump(
     let band = Band::linear(tol).unwrap();
     assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
     let shift = |u| {
-        crate::JointElement::Shift(crate::Deck {
+        crate::JointElement(crate::Deck {
             u,
             v: 0,
             twin: false,
@@ -1889,6 +2043,17 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
 pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPolicy>(
     phi: f64,
 ) -> (Body<T>, FaceKey, crate::VertexKey) {
+    oblique_rim_wall_from(phi, 0.0)
+}
+
+/// [`oblique_rim_wall_in`] with the rim's vertex at parameter `t0` of its
+/// ellipse: off `t0 = 0` and `π` the rim leaves the vertex across the
+/// wall's rulings, not square to them.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    phi: f64,
+    t0: f64,
+) -> (Body<T>, FaceKey, crate::VertexKey) {
     let tol = Tol::witness();
     let f = T::from_f64;
     let (s, c) = phi.sin_cos();
@@ -1903,7 +2068,7 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         one,
     ));
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(carrier.eval(zero), true).unwrap();
+    let seed = body.mvfs(carrier.eval(f(t0)), true).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New {
@@ -1931,11 +2096,11 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(0.5) * tau)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(t0) + f(0.5) * tau)),
             },
             carrier,
-            param_start: zero,
-            param_end: tau,
+            param_start: f(t0),
+            param_end: f(t0) + tau,
         },
         FaceSurface::Inherit,
         tol,
@@ -2074,6 +2239,229 @@ pub fn trv(x: f64) -> geom_core::Interval {
         "a refused crossing keeps its endpoints: {refused:?}"
     );
     refused
+}
+
+/// **A unit box whose top face holds a lone vertex**: a strut grown from
+/// a top corner to `(0.5, 0.5, 1)` and killed into an empty ring, so the
+/// face bounds its square and a ring that is one vertex. Tier-1 valid.
+/// Returns the body, the top face and the lone vertex.
+///
+/// # Panics
+///
+/// Where the construction or the validation it asserts fails.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    use crate::euler::MevSite;
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let top = body
+        .face_views()
+        .find(|f| {
+            matches!(*f.surface(), Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+                && f.boundary().map(|m| m.vertex()).all(|v| {
+                    body.get_vertex(v)
+                        .and_then(|v| body.get_point(v.point))
+                        .is_some_and(|p| (p.z - 1.0).abs() < 1e-12)
+                })
+        })
+        .expect("the box's top face")
+        .key();
+    let he = body.proven_face(top).half_edges()[0];
+    let strut = body
+        .mev_line(
+            MevSite::Fan { he1: he, he2: he },
+            Point3::new(0.5, 0.5, 1.0),
+            tol,
+        )
+        .expect("a strut into the top face");
+    let ring = body
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the strut killed into a ring")
+        .ring;
+    assert_eq!(
+        body.get_loop(ring).expect("the ring").boundary,
+        LoopBoundary::Empty {
+            vertex: strut.vertex
+        },
+        "the killed strut strands its far vertex as an empty ring"
+    );
+    assert_eq!(crate::validate(&body), Ok(()), "the body is tier-1 valid");
+    (body, top, strut.vertex)
+}
+
+/// The quadratic Bézier arc (a NURBS carrier) in `z = 0` from
+/// `(0, 0, 0)` through the control point `(mx, 2h, 0)` to `(2, 0, 0)`.
+fn bezier_arc(mx: f64, h: f64) -> Curve3<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(mx, 2.0 * h, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ))
+}
+
+/// The arc's image in the plane chart (origin `0`, `u_ref = x̂`): the
+/// same net, read in `(x, y)`.
+fn bezier_arc_image(mx: f64, h: f64) -> geom_brep::Pcurve<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    geom_brep::Pcurve::Fitted(std::sync::Arc::new(
+        geom::NurbsCurve2::new(
+            kv,
+            vec![
+                geom_core::Point2::new(0.0, 0.0),
+                geom_core::Point2::new(mx, 2.0 * h),
+                geom_core::Point2::new(2.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ))
+}
+
+/// A planar sheet in `z = 0` bounded by [`bezier_arc`] and the chord
+/// back, built fresh-keyed: the sheet, and its arc edge.
+pub fn bezier_arc_sheet(mx: f64, h: f64, tol: Tol) -> (Body<f64>, EdgeKey) {
+    let mut body = fresh_keyed_body::<f64>();
+    let (p0, p1) = (Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 0.0, 0.0));
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: p0,
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Chart {
+                    surface: plane,
+                    image: Some(bezier_arc_image(mx, h)),
+                    wrap: false,
+                    declared: None,
+                },
+                carrier: bezier_arc(mx, h),
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(plane),
+            carrier: Curve3::line(p1, Vec3::new(-1.0, 0.0, 0.0)),
+            param_start: 0.0,
+            param_end: 2.0,
+        },
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, e.edge)
+}
+
+/// A planar cap in the plane `x = offset`, bounded by one spiric arc
+/// (the section of the torus `(big_r, r)` about `ẑ`, over its minor
+/// angle `v ∈ [v0, v1]`, described as the torus's intersection with the
+/// cap's plane) and the chord back, built fresh-keyed. The sheet, and
+/// its arc edge.
+pub fn spiric_cap(
+    big_r: f64,
+    r: f64,
+    offset: f64,
+    (v0, v1): (f64, f64),
+    tol: Tol,
+) -> (Body<f64>, EdgeKey) {
+    let spiric = Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        major_radius: big_r,
+        minor_radius: r,
+        offset,
+    };
+    let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
+    let mut body = fresh_keyed_body::<f64>();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(offset, 0.0, 0.0),
+                    normal: Vec3::new(1.0, 0.0, 0.0),
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let torus = body.add_surface(Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: big_r,
+        minor_radius: r,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(torus, plane),
+                    selector: geom_brep::CurveSelector::Witness(spiric.eval(0.5 * (v0 + v1))),
+                },
+                carrier: spiric,
+                param_start: v0,
+                param_end: v1,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec::line_between(p1, p0),
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, e.edge)
 }
 
 #[cfg(test)]

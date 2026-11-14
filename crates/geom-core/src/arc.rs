@@ -53,7 +53,7 @@ impl<T: Real> Arc2<T> {
     pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
         let len = a.distance(b);
         let unit = (b - a) / len;
-        let mid = a.lerp(b, T::from_f64(0.5));
+        let mid = a.mid(b);
         let normal = Vec2::new(-unit.y, unit.x);
         let x2 = x.powi(2);
         let four_x = T::from_f64(4.0) * x;
@@ -187,7 +187,7 @@ impl<T: Real> Arc2<T> {
     pub fn apex(self, a: Point2<T>, b: Point2<T>) -> Point2<T> {
         let len = a.distance(b);
         let unit = (b - a) / len;
-        let mid = a.lerp(b, T::from_f64(0.5));
+        let mid = a.mid(b);
         let normal = Vec2::new(-unit.y, unit.x);
         mid - normal * (len * self.quarter_tan() * T::from_f64(0.5))
     }

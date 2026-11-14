@@ -55,7 +55,7 @@ fn classify(
     (pierced, face): (&Body<f64>, FaceKey),
     chart: Option<(f64, f64)>,
 ) -> Result<Vec<SideCode>, BooleanError> {
-    super::classify_vertex_on_face(
+    super::read_vertex_on_face(
         piercing,
         pierced,
         Operand::A,
@@ -71,7 +71,9 @@ fn classify(
         chart,
         &crate::sector_shape::SlitTips::default(),
         band(),
+        None,
     )
+    .and_then(|read| super::mint_pierce(piercing, read))
     .map(|out| out.classes.into_iter().map(|(_, c)| c).collect())
 }
 

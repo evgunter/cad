@@ -198,7 +198,7 @@ fn check_verdict<E>(
 #[test]
 #[ignore = "review probe"]
 fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
-    let rows = TurnRows::bounded("probe_turn", "probe_straddle");
+    let rows = TurnRows::registered("probe_turn", "probe_straddle");
     let mut tally = Tally {
         least_slack_units: (f64::INFINITY, String::new()),
         least_decided_ratio: (f64::INFINITY, String::new()),

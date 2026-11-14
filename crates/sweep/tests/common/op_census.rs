@@ -45,7 +45,7 @@ pub fn kernel_invariant(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::ClassificationInvariant { .. } | BooleanError::JoinDesync { .. }
-    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::SplitJoinError::SectionInvariant { .. }))
+    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::JoinError::SectionInvariant { .. }))
 }
 
 /// Which region of the two operands an op keeps.
@@ -172,12 +172,8 @@ pub fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Re
     let owned = |operand: Operand, face| {
         body(operand).get_face(face).is_some() && body(operand.other()).get_face(face).is_none()
     };
-    let kind_of = |operand: Operand, face| {
-        body(operand)
-            .get_face(face)
-            .and_then(|f| body(operand).get_surface(f.surface))
-            .map(geom::Surface::kind)
-    };
+    let kind_of =
+        |operand: Operand, face| body(operand).face_surface(face).map(geom::Surface::kind);
     let check = |ok: bool, why: String| ok.then_some(()).ok_or(why);
     match *e {
         BooleanError::CurvedBooleanUnsupported {

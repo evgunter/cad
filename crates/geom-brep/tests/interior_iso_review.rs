@@ -179,11 +179,11 @@ fn r1_c1_collapse_matches_evaluation_f64() {
         for (u, end) in [(0.0, false), (1.0, true)] {
             let a = interior_iso_u(&s, u).unwrap();
             let b = boundary_iso_u(&s, end).unwrap();
-            let bit = a.control().iter().zip(b.control()).all(|(p, q)| {
-                p.x.to_bits() == q.x.to_bits()
-                    && p.y.to_bits() == q.y.to_bits()
-                    && p.z.to_bits() == q.z.to_bits()
-            });
+            let bit = a
+                .control()
+                .iter()
+                .zip(b.control())
+                .all(|(p, q)| p.same_bits(*q));
             assert!(
                 bit,
                 "{name}: the domain-end collapse is the boundary row's control bitwise"
@@ -334,8 +334,8 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     let env = ok.certificate().envelope.hi();
     assert!(env < 1e-12, "{lane}: case (a) envelope {env:e}");
     // A constant non-unit carrier against varying `W_j`: a different
-    // curve, so check 3 sees it before the shared-space check does —
-    // either refusal is sound.
+    // curve, off the chart, so the door's incidence read ends it before
+    // any check does.
     let c2 = NurbsCurve3::new(
         row.knots_f64_interim().clone(),
         row.control().to_vec(),
@@ -344,13 +344,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     .unwrap();
     let e = certify_line::<T>(&s, &c2, (u, v0), (0.0, v1 - v0))
         .expect_err("a constant carrier against varying W refuses");
-    assert!(
-        matches!(
-            e,
-            PcurveCertifyError::IsoUnsupported { .. } | PcurveCertifyError::ResidualExceeded { .. }
-        ),
-        "{lane}: {e:?}"
-    );
+    assert!(read_off(&e, None, None), "{lane}: {e:?}");
     // A proportional (2·W) carrier IS the same curve in ℝ, and the
     // shared-space check is deliberately bitwise: refused typed.
     let c3 = NurbsCurve3::new(
@@ -407,13 +401,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     .unwrap();
     let e = certify_line::<T>(&sb, &vary, (u, v0), (0.0, v1 - v0))
         .expect_err("a varying carrier against a polynomial row refuses");
-    assert!(
-        matches!(
-            e,
-            PcurveCertifyError::IsoUnsupported { .. } | PcurveCertifyError::ResidualExceeded { .. }
-        ),
-        "{lane}: {e:?}"
-    );
+    assert!(read_off(&e, None, None), "{lane}: {e:?}");
     // A both-varying net: perturb a weight on a row NOT live at
     // `u* = 0.5` (rows 1..=4 are), so the carrier stays the true curve,
     // check 3 passes, and the refusal is the extractor's.
@@ -532,10 +520,13 @@ fn r1_c3_slack_soundness_interval() {
 // ------------------------------------------------------ out-of-domain u*
 
 /// An `IsoLine` whose fixed `u` lies OUTSIDE the chart's `u` domain
-/// refuses typed at the seam class's domain decide — even when the
-/// carrier is the span's polynomial extension bit for bit and the
-/// window is the pcurve's own box (check 5 vacuous, as on the mint
-/// path). The chart is R1's at ×10 so that `1e-3` off the domain is
+/// refuses typed — even when the carrier is the span's polynomial
+/// extension bit for bit and the window is the pcurve's own box (check 5
+/// vacuous, as on the mint path). The extension is off the bounded
+/// patch, so the door reads the carrier off the chart before any class
+/// check (an `Incidence` read off); the seam class's own domain decide is
+/// pinned behind the door (`pcurve_cache::tests::an_image_leaving_the_column_domain_refuses`).
+/// The chart is R1's at ×10 so that `1e-3` off the domain is
 /// definitely outside at every ε the matrix draws.
 fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
     for (name, net) in [
@@ -560,12 +551,11 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
                 &Surface::Nurbs(Arc::new(lift_surface::<T>(&s))),
                 band(),
             );
-            let Err(PcurveCertifyError::IsoUnsupported { what }) = r else {
-                panic!("{lane} {name} u* = {u}: a column outside the domain refuses typed: {r:?}")
-            };
             assert!(
-                what.contains("outside the chart's u domain"),
-                "{lane} {name} u* = {u}: the refusal names the domain: {what}"
+                r.as_ref()
+                    .err()
+                    .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Nurbs), None)),
+                "{lane} {name} u* = {u}: a column outside the domain is off the patch: {r:?}"
             );
         }
     }
@@ -579,4 +569,23 @@ fn out_of_domain_u_star_refuses_typed_f64() {
 #[test]
 fn out_of_domain_u_star_refuses_typed_interval() {
     out_of_domain_body::<geom_core::Interval>("interval");
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

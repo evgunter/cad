@@ -139,12 +139,9 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
         .iter()
         .copied()
         .find(|s| {
-            faces_of(&hollow, *s).iter().any(|f| {
-                !matches!(
-                    hollow.get_surface(hollow.get_face(*f).unwrap().surface),
-                    Some(geom::Surface::Plane { .. })
-                )
-            })
+            faces_of(&hollow, *s)
+                .iter()
+                .any(|f| !matches!(hollow.face_surface(*f), Some(geom::Surface::Plane { .. })))
         })
         .expect("the vessel is the curved solid");
     let bx = *solids.iter().find(|s| **s != ves).expect("the box");

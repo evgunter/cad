@@ -12,7 +12,7 @@ pr: 6595
 
 
 Found by `a-ladder-that-checks-its-answers-agree-has-no-home`
-(`onecopy/refusal-standing`), whose first form (commit `a8e175f9`, on the lane's local branch) wired a debug check of
+(`onecopy/refusal-standing`), whose first form (commit `a8e175f9`, in `onecopy/refusal-standing`'s history) wired a debug check of
 the `Answering::Any` premise (`climb_any`: read every rung after the
 answer and assert each agrees) into the `Any` ladders. That wiring is
 held while the design fork on `Any`'s premise goes to Ev (`Any` kept for

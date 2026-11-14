@@ -3577,10 +3577,10 @@ mod tests {
         for (i, span) in spans.iter().enumerate() {
             assert_eq!(span.t, 2.0, "triangle {i} answers the midpoint at t = 2");
             let at = ray.origin + ray.dir * span.t;
-            assert_eq!(
-                at.to_array().map(f64::to_bits),
-                midpoint.to_array().map(f64::to_bits),
-                "triangle {i}'s answer places the hit at the shared edge's midpoint"
+            assert!(
+                at.same_bits(midpoint),
+                "triangle {i}'s answer places the hit at the shared edge's midpoint: {at:?}, not \
+                 {midpoint:?}"
             );
             assert!(
                 span.width() < 1e-12,

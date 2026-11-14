@@ -95,7 +95,7 @@ fn quarter_cone() -> Body<f64> {
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).is_some_and(&pred))
+        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&pred))
         .map(|(k, _)| k)
         .collect()
 }
@@ -443,11 +443,7 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     )[..] else {
         panic!("one base disc");
     };
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body
-        .get_face(disc)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
-    else {
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(disc).cloned() else {
         unreachable!("the disc is a plane")
     };
     for d in [0.05, -0.05] {
@@ -461,11 +457,7 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
         // Every corner of the moved disc lies on the moved plane and on
         // the untouched cone.
         let cone = faces_where(&work, |s| matches!(s, geom::Surface::Cone { .. }))[0];
-        let cone = work
-            .get_face(cone)
-            .and_then(|f| work.get_surface(f.surface))
-            .cloned()
-            .expect("the cone");
+        let cone = work.face_surface(cone).cloned().expect("the cone");
         let mut corners = 0;
         for he in work
             .half_edges()

@@ -79,10 +79,7 @@ fn a_callers_key_that_does_not_resolve_is_refused_stale_under_its_role() {
             key: EntityId::HalfEdge(he),
         })
     );
-    let chart = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let chart = body.face_surface(wall).unwrap().clone();
     assert_eq!(
         loop_windings(&body, face, &chart, band()).err(),
         Some(PcurveMintError::Stale {
@@ -150,10 +147,7 @@ fn a_null_edges_half_has_no_carrier_and_the_mint_leaves_the_body_as_found() {
 #[test]
 fn a_lone_vertex_outer_loop_winds_no_loop() {
     let (mut body, wall) = sheet();
-    let chart = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let chart = body.face_surface(wall).unwrap().clone();
     let lone = body.mvfs(Point3::new(5.0, 0.0, 0.0), true).unwrap();
     assert_eq!(loop_windings(&body, lone.face, &chart, band()), Ok(vec![]));
 }

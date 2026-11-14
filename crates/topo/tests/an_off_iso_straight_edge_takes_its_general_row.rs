@@ -28,7 +28,7 @@ use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 /// The lamina at `T`, lifted `lift` off the chart along its normal, with
 /// its two faces and the `he_plus` of its row, column and diagonal.
-fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
+pub(crate) fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
     let tol = Tol::witness();
     let on =
         |(x, y, z): (f64, f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
@@ -293,10 +293,10 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
     topo::test_support::describe_as_intersections(&mut body, tol);
     let top = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, f)| {
             !f.rings.is_empty()
                 && matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.z > 0.5
                 )
         })
@@ -325,10 +325,7 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
         },
     )
     .unwrap();
-    let wall = body
-        .get_surface(body.get_face(top).unwrap().surface)
-        .unwrap()
-        .clone();
+    let wall = body.face_surface(top).unwrap().clone();
     let rings = body.get_face(top).unwrap().rings.clone();
     let rims: Vec<HalfEdgeKey> = body
         .half_edges()
@@ -432,10 +429,10 @@ fn holed_cap<T: AtRestPolicy + geom_core::Bounds>(z: f64) -> (Body<T>, Vec<HalfE
     topo::test_support::describe_as_intersections(&mut body, tol);
     let top = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, f)| {
             !f.rings.is_empty()
                 && matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.z.lo() > 0.5
                 )
         })

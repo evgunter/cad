@@ -57,8 +57,7 @@ pub fn chart_at(
     su: f64,
     sv: f64,
 ) -> (&NurbsSurface<f64>, f64, f64) {
-    let f = body.get_face(face).expect("wall face resolves");
-    let Some(Surface::Nurbs(s)) = body.get_surface(f.surface) else {
+    let Some(Surface::Nurbs(s)) = body.face_surface(face) else {
         panic!("a skinned wall carries a NURBS chart");
     };
     let (u0, u1) = s.knots_u_f64_interim().domain();
@@ -217,7 +216,7 @@ pub fn assert_caps_face_out(lofted: &Lofted<f64>, oracle: &Oracle<'_>, delta: f6
     assert_probe_step(delta);
     for (what, face, t) in [("bottom", lofted.bottom, 0.0), ("top", lofted.top, 1.0)] {
         let f = lofted.body.get_face(face).expect("cap face resolves");
-        let Some(Surface::Plane { normal, .. }) = lofted.body.get_surface(f.surface) else {
+        let Some(Surface::Plane { normal, .. }) = lofted.body.face_surface(face) else {
             panic!("{what} cap carries a plane");
         };
         let outward = OutwardNormal::from_chart(*normal, f.sense).vec();

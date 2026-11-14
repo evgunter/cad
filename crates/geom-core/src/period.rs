@@ -65,7 +65,8 @@
 //! let _ = Period::new(7.0_f64).turn(TurnRows::exact("t"), extent, Exact::new(1.0), band);
 //! ```
 
-use crate::k_stats::{NonzeroSign, decide, decide_nonzero_reported, decide_reported, straddle};
+use crate::NonzeroSign;
+use crate::k_stats::{decide, decide_nonzero_reported, decide_reported, straddle};
 use crate::predicate::{
     Band, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Sign, SupSpeed,
 };
@@ -99,6 +100,16 @@ pub struct WalkStop {
     pub astride: Option<[i32; 2]>,
 }
 
+/// Which end of a one-period window holds its own copy
+/// ([`Period::above`], [`Period::at_or_above`]).
+#[derive(Clone, Copy, Debug)]
+enum Closed {
+    /// `(a, a + P]`.
+    Upper,
+    /// `[a, a + P)`.
+    Lower,
+}
+
 /// **A periodic channel's period**: the length one whole turn of the
 /// channel spans, which every whole-period question of that channel is
 /// asked of. Today that is τ in azimuth, its half on a sphere joint's
@@ -127,6 +138,16 @@ impl<T: Real> Period<T> {
         Self { length }
     }
 
+    /// **An angle's period, `τ`**: one turn, as a period. What a conic's,
+    /// a spiric's and an analytic chart's angle channels each state
+    /// (`geom::conic_period`, `geom::spiric_period`,
+    /// `geom::Surface::angle_periods`), and what a channel that is an
+    /// angle by construction reads (an azimuth, a sweep's or a revolve's
+    /// angle).
+    pub fn angle() -> Self {
+        Self::new(T::tau())
+    }
+
     /// The period as a length.
     pub fn length(self) -> T {
         self.length
@@ -152,6 +173,33 @@ impl<T: Real> Period<T> {
     /// tight enclosure of the ratio.
     pub fn rate(self, k: i32, carrier: Period<T>) -> T {
         self.times(k) / carrier.length()
+    }
+
+    /// **`t`'s margins from the start and the stop of the span
+    /// `(lo, hi)`, each also read on `t`'s copy a period away**: the
+    /// start's is the greater of `t − lo` and `hi − (t + P)`, the stop's
+    /// the greater of `hi − t` and `(t − P) − lo`. Each is negative only
+    /// where `t` is past that end on its own copy and before the other
+    /// end on the copy a period away, so a box named whole on one copy
+    /// ([`Period::near`] about a span's middle, a box astride the
+    /// middle's antipode) whose other copy reaches into the span reads
+    /// no end decided past.
+    ///
+    /// For a `t` within half a period of the span's middle, each copy's
+    /// margin is at most `t`'s own in ℝ (`hi − (t + P) − (t − lo)` is
+    /// `2(mid − t) − P`, at most `0`, and likewise at the stop), so on a
+    /// point named about the middle the margins are its own. They are
+    /// equal only at the tie, `t` half a period from the middle, the
+    /// antipode, which a point there is past on either copy: at or within
+    /// rounding of it the copy's rounding can move the margin's last bit,
+    /// never its sign past the band (measured over topo, sweep,
+    /// editor-core, step-import and mesh at ε 1e-9 and 1e-12: every moved
+    /// point reading is at or within rounding of such a tie). A reader
+    /// takes the period from its carrier (`geom::Curve3::period`), never
+    /// one of its own, and meters the margins itself.
+    pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
+        let p = self.length;
+        ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
     }
 }
 
@@ -312,11 +360,22 @@ impl<T: Decide> Period<T> {
     /// from the middle is in doubt: on a span shorter than a period it is
     /// outside the span on either copy, and on a whole-period span it IS
     /// the span's end, which lands on the upper one, `hi`, and every
-    /// reader of an end reads `lo` and `hi` alike.
+    /// reader of an end reads `lo` and `hi` alike. That holds for a point.
+    /// An enclosure is renamed whole by one `k`, so a box astride the
+    /// middle's antipode lands on one copy, and where the span's gap is
+    /// narrower than the box, part of it lies inside the span on the copy
+    /// a turn away: a reader of such a box against the ends reads each
+    /// side on both copies, through [`Period::span_margins`], the copy
+    /// rule's home.
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
     /// reads NaN.
+    ///
+    /// A rename into a window that STARTS at a value, rather than one
+    /// centred on it, is [`Period::above`] (`(a, a + P]`) or
+    /// [`Period::at_or_above`] (`[a, a + P)`): `near` about `a + P/2`
+    /// rounds that centre, so it does not hold the window's end exactly.
     #[must_use]
     pub fn near(self, t: T, reference: T) -> T {
         let k = crate::k_stats::unlogged("F31", || {
@@ -329,6 +388,113 @@ impl<T: Decide> Period<T> {
             Some(0) => t,
             Some(k) => t + self.times(k),
             None => T::from_f64(f64::NAN),
+        }
+    }
+
+    /// **`t` renamed by whole periods into `(a, a + length]`**, the
+    /// window open at `a`: a copy that reads `a` itself moves a whole
+    /// period, so an arc from `a` to a value equal to it is a whole turn,
+    /// never zero length. The open end is decided on `t`'s copy
+    /// [`Period::near`] `a`, against `a` itself, so it holds exactly: a
+    /// `t` equal to `a` reads `a + length`, and one past it by an ulp
+    /// reads itself.
+    ///
+    /// **A tie takes the closed end.** Where the copy's side of `a`
+    /// decides zero or is undecided, the answer is the copy at
+    /// `a + length`, as [`Period::near`]'s tie takes its upper copy. The
+    /// two copies name the same point, but not the same window: an extent
+    /// formed off it (an arc's `t1 − t0`, a whole turn or none) rests on
+    /// the pick. It is outside the log (F31) because at `f64` the side is
+    /// a float difference's sign, which is exact. A caller that forms an
+    /// extent off the window at an enclosure scalar must decide the side
+    /// at its own band. Its twin closed at `a` is [`Period::at_or_above`].
+    #[must_use]
+    pub fn above(self, t: T, a: T) -> T {
+        self.in_window(t, a, Closed::Upper)
+    }
+
+    /// **`t` renamed by whole periods into `[a, a + length)`**, the
+    /// window closed at `a`: a `t` equal to `a` reads itself, bit for bit,
+    /// and one equal to `a + length` reads `a`'s copy. A tie (the copy's
+    /// side of `a` decided zero or undecided) takes the closed end, the
+    /// copy at `a`. A point copy just under `a` whose lift rounds onto
+    /// `a + length`, the excluded end, reads `a` too (at `f64`, every
+    /// finite value). An enclosure that ties there is not folded: it
+    /// keeps the lifted copy, which it encloses, and may reach past
+    /// `a + length`. The twin open at `a`, and what rests on the pick, is
+    /// [`Period::above`].
+    #[must_use]
+    pub fn at_or_above(self, t: T, a: T) -> T {
+        self.in_window(t, a, Closed::Lower)
+    }
+
+    /// **The raw run from `from` to `to`**, forward round the turn, in
+    /// `[0, length]`: `to`'s copy [`Period::near`] `from`, lifted a period
+    /// where it lies behind `from`, less `from`. A `to` equal to `from`
+    /// runs nothing, never a whole turn: a caller whose two ends may name
+    /// one point and mean a whole turn says so itself. A `to` a hair
+    /// behind `from` runs a hair short of a whole turn, which may round to
+    /// `length` itself, never to nothing ([`Period::at_or_above`]'s point
+    /// fold onto `from` is the window's, not the run's). **A tie** (the
+    /// copy's side of `from` decided zero or undecided): a point on
+    /// `from` runs nothing; an enclosure astride `from` runs the hull of
+    /// both readings, nothing and a whole turn, so it encloses every run
+    /// of its points. A run is a raw
+    /// extent, read against a period only by the turn rule
+    /// ([`Period::turn`]); a sketch's own forward turn is
+    /// `profile::sugar::swept`, which folds a turn's fraction instead.
+    #[must_use]
+    pub fn run_from(self, from: T, to: T) -> T {
+        use crate::k_stats::{Pick, choose};
+        let n = self.near(to, from);
+        let (ahead, behind) = (n - from, n + self.length - from);
+        match choose("period_run_behind", Margin::of(n - from), "F31") {
+            Pick::Positive => ahead,
+            Pick::Negative => behind,
+            // A point on `from` runs nothing. An enclosure astride it holds
+            // runs of nothing and of nearly a whole turn at once, so its
+            // run is the hull of both readings, held to `[0, length]`,
+            // where every run lies: the whole span, as the fold into
+            // `[0, τ)` gave.
+            Pick::Tie if ahead.point_value().is_some() => ahead,
+            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length),
+        }
+    }
+
+    /// The copy of `t` in the window of one period from `a`, closed at
+    /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
+    /// the side of `a` the window excludes. A copy an ulp or so under `a`
+    /// lifts to a value that rounds onto `a + length`; closed at `a`, that
+    /// is the excluded end, and a point copy reads `a` instead.
+    fn in_window(self, t: T, a: T, closed: Closed) -> T {
+        use crate::k_stats::{Pick, choose};
+        let n = self.near(t, a);
+        let lift = match (
+            closed,
+            choose("period_window_end", Margin::of(n - a), "F31"),
+        ) {
+            (Closed::Upper, Pick::Positive) | (Closed::Lower, Pick::Positive | Pick::Tie) => false,
+            (Closed::Upper, Pick::Negative | Pick::Tie) | (Closed::Lower, Pick::Negative) => true,
+        };
+        if !lift {
+            return n;
+        }
+        let lifted = n + self.length;
+        let open_end = a + self.length;
+        // Only a point lands on the excluded end: an enclosure that ties
+        // there still holds the lifted copy, so it keeps it.
+        match closed {
+            Closed::Lower
+                if lifted.point_value().is_some()
+                    && choose(
+                        "period_window_open_end",
+                        Margin::of(lifted - open_end),
+                        "F31",
+                    ) != Pick::Negative =>
+            {
+                a
+            }
+            _ => lifted,
         }
     }
 
@@ -500,6 +666,63 @@ impl<T: Decide> Extent<T> {
         }
     }
 
+    /// **A span forward by its arc's lower bounds**: [`Extent::forward`]
+    /// at the `inf` rate, or, where that reads short of positive, the
+    /// chord between the span's end points past the band (`chord_name`)
+    /// with the span's sense positive at the `sup` rate (`sense_name`).
+    /// Both readings bound the arc from below (`Δt·inf ≤ arc`, `|chord| ≤
+    /// arc`), so either past the band certifies the span is not
+    /// degenerate. The chord alone carries no sense; the sup reading
+    /// does, and is positive wherever the arc is past the band and the
+    /// span runs forward (`Δt·sup ≥ arc ≥ |chord|`). On a carrier whose
+    /// speed varies (an ellipse's fast vertex), the floor under-reads a
+    /// short span by up to `sup/inf`, which the chord does not. A span
+    /// whose chord is past the band and whose sense reads negative is
+    /// [`NotForward::Reversed`], as at the floor: it is no point, it runs
+    /// backwards.
+    ///
+    /// # Errors
+    ///
+    /// [`Extent::forward`]'s, where neither reading settles it.
+    pub fn forward_by_arc(
+        (name, chord_name, sense_name): (&'static str, &'static str, &'static str),
+        t0: T,
+        t1: T,
+        (inf, sup): (InfSpeed<T>, SupSpeed<T>),
+        chord: crate::Vec3<T>,
+        band: Band,
+    ) -> Result<Self, NotForward> {
+        let short = match Self::forward(name, t0, t1, inf, band) {
+            Ok(extent) => return Ok(extent),
+            Err(NotForward::Reversed(margin)) => return Err(NotForward::Reversed(margin)),
+            Err(short) => short,
+        };
+        let apart = matches!(
+            decide_reported(chord_name, Margin::norm3(chord), band),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        );
+        if !apart {
+            return Err(short);
+        }
+        // Apart past the band, so the span is no point: its sense at the
+        // sup speed says which way it runs. Backwards it is `Reversed`,
+        // as `forward` reads a span definitely backwards at the floor.
+        match decide_reported(sense_name, Margin::metered_sup(t1 - t0, sup), band) {
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => Ok(Self(t1 - t0)),
+            Ok(Decided {
+                sign: Sign::Negative,
+                margin,
+            }) => Err(NotForward::Reversed(margin)),
+            _ => Err(short),
+        }
+    }
+
     /// The magnitude of a signed net quantity (a revolve's angle, a
     /// loop's net turn), with its sign, decided definitely nonzero under
     /// `name` at `rate`.
@@ -585,12 +808,35 @@ impl Turn {
 /// of the headroom, the inf's and (where it is read) the sup's: they are
 /// two bounds on one quantity, so one row holds them, as the site's own
 /// spelling did.
+///
+/// **Where its names are registered**: a reader that mints its own two
+/// names into one is a row bundle, registered in its crate's `rows`
+/// registry behind a type of that crate's (`topo::rows::ConicRows`,
+/// `geom_brep::rows::PeriodRows`), which alone can build one. A caller of
+/// [`TurnRows::exact`] with a name minted elsewhere (a parameter, a closed decision's `predicate()`, a
+/// shared site's const) is a plain site in this wrapper, whose uniqueness
+/// is the plain-site census's question
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct TurnRows<S> {
     /// The headroom's row, `(period − extent)` at the rate.
-    pub turn: &'static str,
+    turn: &'static str,
     /// The row a straddle of the two readings is named by.
-    pub straddle: S,
+    straddle: S,
+}
+
+impl<S: Copy> TurnRows<S> {
+    /// The headroom's row.
+    #[must_use]
+    pub const fn turn(&self) -> &'static str {
+        self.turn
+    }
+
+    /// The straddle's row.
+    #[must_use]
+    pub const fn straddle(&self) -> S {
+        self.straddle
+    }
 }
 
 impl TurnRows<()> {
@@ -602,10 +848,24 @@ impl TurnRows<()> {
 }
 
 impl TurnRows<&'static str> {
-    /// The rows of a [`Bounded`] site.
+    /// The rows of a [`Bounded`] site, two names of one reader's: a row
+    /// bundle. Crate-private: outside this crate a reader mints its two
+    /// names in its crate's `rows` registry ([`Self::registered`]).
     #[must_use]
-    pub const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
+    pub(crate) const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
         Self { turn, straddle }
+    }
+
+    /// **The rows of a [`Bounded`] site, minted by a crate's `rows`
+    /// registry alone**: the registry's own bundle type wraps it
+    /// (`topo::rows::ConicRows`, `geom_brep::rows::PeriodRows`), and
+    /// editor-core's tree-wide test refuses a call of this outside a
+    /// `rows.rs` in any crate's `src`. A test probe of the period door
+    /// calls it too.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn registered(turn: &'static str, straddle: &'static str) -> Self {
+        Self::bounded(turn, straddle)
     }
 }
 
@@ -867,6 +1127,229 @@ mod period_rows {
         assert_eq!(period.near(-1.0, 1.0), 3.0, "from below");
         assert_eq!(period.near(3.0, 1.0), 3.0, "from above");
         assert_eq!(period.near(-5.0, 1.0), 3.0, "a turn below the lower tie");
+    }
+
+    /// **`above` and `at_or_above` hold both ends of their windows.** At
+    /// `f64`: a `t` at exactly `a` (on an `a` whose `a + π` rounds short),
+    /// one at `a + P`, one a whole period below, and one an ulp inside
+    /// the open end. At `Interval`: a `t` astride `a` is undecided, and
+    /// a `t` at `a` decides zero; each takes the closed end, as narrow as
+    /// `t`.
+    #[test]
+    fn the_windows_from_an_end_hold_both_ends() {
+        use crate::Bounds;
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        let a = 0.89_f64;
+        assert_eq!(
+            period.near(a, a + core::f64::consts::PI).to_bits(),
+            a.to_bits(),
+            "near about a + π keeps a, the zero-length arc these windows exist to refuse"
+        );
+        let bits = |x: f64| x.to_bits();
+        assert_eq!(
+            bits(period.above(a, a)),
+            bits(a + tau),
+            "above: a reads a + P"
+        );
+        assert_eq!(
+            bits(period.at_or_above(a, a)),
+            bits(a),
+            "at_or_above: a reads a"
+        );
+        // `b ± P` rounds back to `b` both ways, so `b + P` IS the closed
+        // end's value and `b − P` a whole turn below.
+        let b = 0.5_f64;
+        let (up, below) = (b + tau, b - tau);
+        assert_eq!(
+            (bits(up - tau), bits(below + tau)),
+            (bits(b), bits(b)),
+            "b ± P is exact"
+        );
+        assert_eq!(
+            bits(period.above(up, b)),
+            bits(up),
+            "above: b + P reads itself"
+        );
+        assert_eq!(
+            bits(period.at_or_above(up, b)),
+            bits(b),
+            "at_or_above: b + P reads b"
+        );
+        assert_eq!(
+            bits(period.above(below, b)),
+            bits(up),
+            "above: a turn below b reads b + P"
+        );
+        assert_eq!(
+            bits(period.at_or_above(below, b)),
+            bits(b),
+            "at_or_above: a turn below b reads b"
+        );
+        let inside = a.next_up();
+        assert_eq!(
+            bits(period.above(inside, a)),
+            bits(inside),
+            "above: an ulp past a"
+        );
+        let under = a.next_down();
+        assert_eq!(
+            bits(under + tau),
+            bits(a + tau),
+            "an ulp under a lifts onto a + P"
+        );
+        let r = period.at_or_above(under, a);
+        assert!(
+            a <= r && r < a + tau,
+            "at_or_above: an ulp under a reads in [a, a + P), not {r}"
+        );
+        let ia = Interval::from_f64(a);
+        let w = Interval::from_f64(1e-12);
+        let t = (ia - w).enclosure_hull(ia + w);
+        let period = Period::new(Interval::tau());
+        let width = |x: Interval| x.hi() - x.lo();
+        let (hi, lo) = (period.above(t, ia), period.at_or_above(t, ia));
+        assert!(
+            hi.lo() <= a + tau && a + tau <= hi.hi(),
+            "above: a tie takes a + P, {hi:?}"
+        );
+        assert!(width(hi) < 1e-11, "above: as narrow as t, {hi:?}");
+        assert_eq!(
+            (lo.lo(), lo.hi()),
+            (t.lo(), t.hi()),
+            "at_or_above: a tie takes a, t itself"
+        );
+        let (hi, lo) = (period.above(ia, ia), period.at_or_above(ia, ia));
+        assert!(
+            hi.lo() <= a + tau && a + tau <= hi.hi() && width(hi) < 1e-14,
+            "above: a decided zero takes a + P, {hi:?}"
+        );
+        assert_eq!(
+            (lo.lo(), lo.hi()),
+            (a, a),
+            "at_or_above: a decided zero is a itself"
+        );
+        // Wholly under `a`, by less than `a + P`'s width: it ties on the
+        // excluded end, and still reads its own lifted copy, not `[a, a]`.
+        let under = Interval::from_bounds(a - 1e-12, a.next_down());
+        let r = period.at_or_above(under, ia);
+        assert!(
+            r.lo() <= under.lo() + tau && under.hi() + tau <= r.hi(),
+            "at_or_above: an enclosure under a holds its lifted copy, {r:?}"
+        );
+        assert!(width(r) < 1e-11, "at_or_above: as narrow as t, {r:?}");
+    }
+
+    /// **`run_from` runs `[0, P]` from its start**: nothing to the start
+    /// itself, a whole turn less the gap to a point just behind it, and a
+    /// point ahead by itself, a turn or more away included.
+    #[test]
+    fn run_from_runs_from_its_start() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        let a = 0.89_f64;
+        assert_eq!(
+            period.run_from(a, a).to_bits(),
+            0.0_f64.to_bits(),
+            "to the start itself"
+        );
+        let behind = period.run_from(a, a - 0.25);
+        assert!((behind - (tau - 0.25)).abs() < 1e-15, "behind: {behind}");
+        assert_eq!(
+            period.run_from(a, a + 1.5),
+            (a + 1.5) - a,
+            "ahead, a copy of itself"
+        );
+        let far = period.run_from(a, a + 1.5 + 3.0 * tau);
+        assert!((far - 1.5).abs() < 1e-14, "three turns ahead: {far}");
+        // A hair behind the start runs a hair short of a whole turn, never
+        // nothing (the window's point fold onto `from` is not the run's).
+        for from in [4.0_f64, 1.0, 3.0, 5.5, 0.89] {
+            let r = period.run_from(from, from.next_down());
+            assert!(
+                (r - tau).abs() < 1e-14,
+                "{from} → an ulp behind: a whole turn short of an ulp, {r}"
+            );
+        }
+        for (from, to) in [(0.3, 5.9), (5.9, 0.3), (-2.0, 2.0), (3.0, -40.0)] {
+            let r = period.run_from(from, to);
+            assert!((0.0..tau).contains(&r), "{from} → {to}: {r}");
+            assert!(
+                (r - (to - from).reduce_periodic(tau)).abs() < 1e-13,
+                "{from} → {to}: the forward fold's value, {r}"
+            );
+        }
+    }
+
+    /// **`forward_by_arc` reads the chord where the floor under-reads.**
+    /// Rates 1 and 1000 m per unit (a 1000 × 1 ellipse's): a span of
+    /// `5·10⁻¹¹` reads `5·10⁻¹¹` m at the floor, in the zero, but its
+    /// chord of `5·10⁻⁸` m is past the band, so it is forward. The same
+    /// span run backwards is reversed, and a span whose chord is in the
+    /// zero too is a point.
+    #[test]
+    fn forward_by_arc_reads_the_chord_where_the_floor_under_reads() {
+        use super::{Extent, NotForward};
+        use crate::{InfSpeed, SupSpeed};
+        let band = band();
+        let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
+        const ARC_ROWS: (&str, &str, &str) = ("t_forward", "t_chord", "t_sense");
+        let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
+        let dt = 5e-11;
+        assert!(matches!(
+            Extent::forward("t_forward", 0.0, dt, rates.0, band),
+            Err(NotForward::Zero(_))
+        ));
+        let extent = Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-8), band)
+            .expect("forward by its chord");
+        assert_eq!(extent.get(), dt);
+        assert!(
+            matches!(
+                Extent::forward_by_arc(ARC_ROWS, dt, 0.0, rates, chord(-5e-8), band),
+                Err(NotForward::Reversed(_))
+            ),
+            "run backwards, apart past the band: reversed, not a point"
+        );
+        assert!(
+            matches!(
+                Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-10), band),
+                Err(NotForward::Zero(_))
+            ),
+            "a chord in the zero"
+        );
+    }
+
+    /// **`run_from` at `Interval` encloses every run of its points.** A `to`
+    /// astride `from` holds points just ahead of it (runs near nothing)
+    /// and just behind it (runs near a whole turn): its run is the hull,
+    /// `[0, τ]` up to rounding. A `to` a whole turn on, as an enclosure of
+    /// `from + τ`, is astride `from`'s copy the same way.
+    #[test]
+    fn run_from_at_an_enclosure_astride_the_start_holds_both_runs() {
+        use crate::Bounds;
+        let period = Period::new(Interval::tau());
+        let from = Interval::from_f64(1.0);
+        let tau = f64::tau();
+        for (what, to) in [
+            ("a whole turn on", from + Interval::tau()),
+            ("a box about the start", Interval::from_bounds(0.999, 1.001)),
+        ] {
+            let r = period.run_from(from, to);
+            assert!(
+                r.lo() <= 1e-12 && r.hi() >= tau - 1e-3,
+                "{what}: the run encloses both nothing and nearly a whole turn, {r:?}"
+            );
+            assert!(
+                r.lo() >= -1e-12 && r.hi() <= tau + 1e-12,
+                "{what}: within [0, τ], {r:?}"
+            );
+        }
+        let point = period.run_from(from, from);
+        assert_eq!(
+            (point.lo(), point.hi()),
+            (0.0, 0.0),
+            "a point on the start runs nothing"
+        );
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.
@@ -1164,7 +1647,8 @@ mod period_rows {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 mod turn_rows {
-    use crate::k_stats::{Bracket, NonzeroSign};
+    use crate::NonzeroSign;
+    use crate::k_stats::Bracket;
     use crate::{Band, InfSpeed, MarginDiag, Real, SupSpeed};
 
     use super::{
@@ -1193,7 +1677,7 @@ mod turn_rows {
     }
 
     /// The rule at an inf of 1 and a sup of 20, with what it recorded.
-    fn bounded(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
+    fn turn_of(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
         let bracket = Bracket::open();
         let rate = Bounded::new(InfSpeed::new(1.0), SupSpeed::new(20.0));
         let got = one_turn().turn(ROWS, past(h), rate, band());
@@ -1241,7 +1725,7 @@ mod turn_rows {
     #[test]
     fn a_bounded_rate_decides_on_the_sound_bound() {
         for (h, short) in [(20.0 * EPS, true), (-20.0 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let want = if short { "short" } else { "over" };
             assert!(
                 matches!(
@@ -1252,11 +1736,11 @@ mod turn_rows {
             );
             assert_eq!(reads(&recorded), 1, "{want}: the inf reading alone");
         }
-        let (got, recorded) = bounded(0.04 * EPS);
+        let (got, recorded) = turn_of(0.04 * EPS);
         assert!(matches!(got, Ok(Turn::Whole(_))), "whole: {got:?}");
         assert_eq!(reads(&recorded), 2, "whole: both readings");
         for (h, over) in [(-0.9 * EPS, true), (0.9 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let Err(
                 undecided @ TurnUndecided {
                     diag,
@@ -1292,7 +1776,7 @@ mod turn_rows {
         // The inf reading in the band: undecided on its own margin, over at
         // the sup where the sup reading is definitely negative.
         for (h, over) in [(-3.0 * EPS, true), (3.0 * EPS, false)] {
-            let (got, _) = bounded(h);
+            let (got, _) = turn_of(h);
             assert!(
                 matches!(
                     got,
@@ -1304,7 +1788,7 @@ mod turn_rows {
         }
         // The inf reading Zero, the sup in the band: undecided on the sup's
         // margin, not over.
-        let (got, _) = bounded(-0.3 * EPS);
+        let (got, _) = turn_of(-0.3 * EPS);
         assert!(
             matches!(
                 got,

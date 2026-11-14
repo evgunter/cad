@@ -56,9 +56,9 @@ fn solid_door_fingerprint() {
             fnv(&mut h, n as u64);
         }
         let mut surf: Vec<Vec<u64>> = Vec::new();
-        for (_, face) in b.faces() {
+        for (fk, _) in b.faces() {
             let mut row = Vec::new();
-            match b.get_surface(face.surface) {
+            match b.face_surface(fk) {
                 Some(Surface::Torus {
                     center,
                     axis,

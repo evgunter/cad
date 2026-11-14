@@ -62,10 +62,11 @@
 //! gives a wall whose weights, knots and poles are functions of them
 //! too, and at an enclosure scalar a section over a box gives walls
 //! that enclose the box's family. The sines and cosines are `Real`'s,
-//! the pure-Rust `libm` D9 prescribes. A path sweep is the exception on
-//! its path's side: the path is `f64`, so its stations' parameters
-//! (`v = i/(n − 1)`) and its carried rotations are computed in `f64`
-//! and enter the sections' scalar as the points they are (`PathCarry`).
+//! the pure-Rust `libm` D9 prescribes. A path sweep's path is `f64`
+//! data, a constant of the model: its stations' parameters
+//! (`v = i/(n − 1)`) and their rolls are selected in `f64`, and its
+//! points, tangents and station frames are minted in the sections'
+//! scalar from the path read there (`PathCarry`).
 //!
 //! A carrier's weights and knots are points at every scalar for now, so
 //! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
@@ -79,10 +80,11 @@
 //! that makes sections compatible runs homogeneous at an enclosure
 //! scalar ([`make_compatible`], C6 S4), and its result enters through
 //! the same door. No topology decision is made here. A path sweep's
-//! three decisions read their margins against the band through
-//! `k_stats`, under `sweep_path_tangent`, `sweep_path_chord` and
-//! `sweep_path_turn` ([`sweep_places`]); the raw `f64` comparisons
-//! below are structure selection under C6.
+//! decisions read their margins against the band through `k_stats`,
+//! under `sweep_path_tangent`, `sweep_path_chord` and `sweep_path_turn`
+//! for the carry, and `sweep_station_roll` and `sweep_station_still`
+//! for each station minted ([`sweep_places`]); the raw `f64`
+//! comparisons below are structure selection under C6.
 
 use core::num::NonZeroUsize;
 use std::sync::Arc;
@@ -92,10 +94,11 @@ use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
+use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
-    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
-    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
+    Affine3, Arc2, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    KERNEL_LIMIT_RECOURSE, MOVE_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
+    RigidMotion, Sign, TurnError, Turns, UnitVec3, UnitVec3Error, Vec3,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
@@ -160,6 +163,8 @@ pub enum PathDecision {
     /// Whether the path folds back across the chord between the station
     /// and the one before it.
     FoldBack,
+    /// Whether the station's roll reference stands off its tangent.
+    Roll,
 }
 
 impl core::fmt::Display for PathDecision {
@@ -168,6 +173,7 @@ impl core::fmt::Display for PathDecision {
             Self::Tangent => "whether the path's tangent vanishes at station",
             Self::Chord => "whether the path's stations coincide at station",
             Self::FoldBack => "whether the path folds back across its chord into station",
+            Self::Roll => "whether the path's roll stands off its tangent at station",
         })
     }
 }
@@ -303,6 +309,14 @@ pub enum SkinError {
         /// The later station of the pair.
         station: usize,
     },
+    /// A station's roll reference, selected by the carry at `f64`, lies
+    /// along the station's tangent read at the lane scalar: the
+    /// residual that rolls the station's frame is decided zero, so the
+    /// station has no frame ([`sweep_places`]).
+    PathRollAlongTangent {
+        /// The station whose frame has no roll.
+        station: usize,
+    },
     /// One of the path sweep's decisions at a station could not be
     /// taken under the band ([`sweep_places`]).
     PathUndecided {
@@ -349,14 +363,59 @@ pub enum SkinError {
         /// The sweep's distance to the breakpoint, as read.
         margin: MarginDiag,
     },
-    /// The v-direction interpolation refused.
-    Fit(FitError),
-    /// A knot-algebra operation (degree elevation, refinement) refused.
-    KnotAlgebra(KnotAlgebraError),
-    /// The produced spline structure refused validated construction —
-    /// notably a non-positive interpolated weight, which would break
-    /// the convex-hull invariant every C9 bound stands on.
-    Structure(SplineError),
+    /// The parameterization a caller gave [`skin_on`] is not one per
+    /// section, clamped `0 → 1` and strictly ascending.
+    ParametersInvalid {
+        /// The parameters given.
+        params: usize,
+        /// The sections they are for.
+        sections: usize,
+    },
+    /// The v-direction interpolation over the kernel's parameters
+    /// refused.
+    Fit(Built<FitError>),
+    /// A knot-algebra operation the skin asked of its sections (degree
+    /// elevation, refinement) refused.
+    KnotAlgebra(Built<KnotAlgebraError>),
+    /// The spline structure the skin built refused validated
+    /// construction — notably a non-positive interpolated weight, which
+    /// would break the convex-hull invariant every C9 bound stands on.
+    Structure(Built<SplineError>),
+}
+
+/// The lever a loft refused over a value that is no point holds: the
+/// scalar it is evaluated in.
+const POINT_SCALAR_LEVER: &str = "evaluate the loft at a point scalar";
+
+/// Whether a refusal of what the skin built is over a value that is no
+/// point, or undecided over the values it stands for: the scalar the
+/// loft is evaluated in decides it.
+const fn scalar_limit(e: &SplineError) -> bool {
+    matches!(
+        e,
+        SplineError::CarrierKnotNotAPoint { .. }
+            | SplineError::CarrierWeightNotAPoint { .. }
+            | SplineError::KnotRunsUndecided { .. }
+            | SplineError::WeightSignUndecided { .. }
+    )
+}
+
+/// The ending of a knot edit the skin asked of its sections, decided on
+/// the payload: the scalar for a value the scalar leaves undecided, the
+/// last resort for a weight the format's range lost, and the defect
+/// ending for an edit no valid section reaches.
+fn knot_edit_ending(e: &KnotAlgebraError) -> String {
+    match e {
+        KnotAlgebraError::Structure(s) if scalar_limit(s) => {
+            format!("Recourse: {POINT_SCALAR_LEVER}")
+        }
+        KnotAlgebraError::ParameterUndecided { .. }
+        | KnotAlgebraError::UnboundedAtEnclosure { .. } => {
+            format!("Recourse: {POINT_SCALAR_LEVER}")
+        }
+        KnotAlgebraError::WeightCollapse { .. } => KERNEL_LIMIT_RECOURSE.to_owned(),
+        _ => KERNEL_DEFECT_ENDING.to_owned(),
+    }
 }
 
 /// The recourse a path sweep's vanishing tangent ends with.
@@ -407,7 +466,7 @@ impl core::fmt::Display for SkinError {
             ),
             Self::DegenerateSection { section, what } => write!(
                 f,
-                "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
+                "section {section} is degenerate ({what}). {MOVE_RECOURSE}"
             ),
             Self::NoParameterStep { section } => write!(
                 f,
@@ -441,6 +500,11 @@ impl core::fmt::Display for SkinError {
                  {FOLD_BACK_RECOURSE}",
                 station.saturating_sub(1),
             ),
+            Self::PathRollAlongTangent { station } => write!(
+                f,
+                "the path's roll at station {station} lies along its tangent, so the station \
+                 has no frame. {KERNEL_DEFECT_ENDING}"
+            ),
             Self::PathUndecided {
                 station,
                 which,
@@ -454,14 +518,14 @@ impl core::fmt::Display for SkinError {
             Self::StationNotFinite { station } => write!(
                 f,
                 "the profile's placement at station {station} is not a finite number. \
-                 Recourse: {RANGE_RECOURSE}"
+                 {RANGE_ENDING}"
             ),
             Self::Band(e) => write!(f, "{e}"),
             Self::RowMotionUndecided { row } => write!(
                 f,
                 "whether control row {row} moves between the sections is not decided over the \
                  values they stand for, so the skin's parameterization is not one for them \
-                 all. Recourse: narrow the range, or evaluate the loft at a point scalar"
+                 all. Recourse: narrow the range, or {POINT_SCALAR_LEVER}"
             ),
             Self::ArcSweepUndecided {
                 section,
@@ -473,34 +537,53 @@ impl core::fmt::Display for SkinError {
                  stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
                  range of that sweep or those endpoints until it clears the breakpoint; the width \
                  may be rounding alone (a constant sweep of exactly a full turn), and then \
-                 evaluate at a point scalar"
+                 {POINT_SCALAR_LEVER}"
             ),
-            Self::Fit(e) => write!(f, "{e}"),
-            Self::KnotAlgebra(e) => write!(f, "{e}"),
-            Self::Structure(e) => write!(f, "{e}"),
+            Self::ParametersInvalid { params, sections } if params == sections => write!(
+                f,
+                "the skin's {params} parameters do not ascend strictly from exactly 0 to exactly \
+                 1, and it needs that of them. Recourse: supply that, or skin through the door \
+                 that parameterizes the sections itself"
+            ),
+            Self::ParametersInvalid { params, sections } => write!(
+                f,
+                "the skin was given {params} parameters for {sections} sections, and it needs \
+                 one strictly-ascending parameter per section running exactly 0 to 1. \
+                 Recourse: supply that, or skin through the door that parameterizes the \
+                 sections itself"
+            ),
+            // The fit ran over the kernel's own parameters and rows: an
+            // approximation the kernel chose, or a knot edit no valid
+            // section reaches.
+            Self::Fit(e) => match e.refusal() {
+                FitError::KnotAlgebra(_) => write!(
+                    f,
+                    "the skin's interpolation refused: {e}. {KERNEL_DEFECT_ENDING}"
+                ),
+                _ => write!(
+                    f,
+                    "the skin's interpolation refused: {e}. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            },
+            Self::KnotAlgebra(e) => write!(
+                f,
+                "a knot edit of the sections refused: {e}. {}",
+                knot_edit_ending(e.refusal())
+            ),
+            Self::Structure(e) if scalar_limit(e.refusal()) => {
+                write!(
+                    f,
+                    "the skin's spline refused: {e}. Recourse: {POINT_SCALAR_LEVER}"
+                )
+            }
+            Self::Structure(e) => {
+                write!(f, "the skin's spline refused: {e}. {KERNEL_LIMIT_RECOURSE}")
+            }
         }
     }
 }
 
 impl core::error::Error for SkinError {}
-
-impl From<KnotAlgebraError> for SkinError {
-    fn from(e: KnotAlgebraError) -> Self {
-        Self::KnotAlgebra(e)
-    }
-}
-
-impl From<SplineError> for SkinError {
-    fn from(e: SplineError) -> Self {
-        Self::Structure(e)
-    }
-}
-
-impl From<FitError> for SkinError {
-    fn from(e: FitError) -> Self {
-        Self::Fit(e)
-    }
-}
 
 // ---------------------------------------------------------------------
 // Analytic → NURBS: the section curves
@@ -559,12 +642,9 @@ pub fn segment_curve<T: SpanLocate>(
             if !a.distance(b).structure_positive() {
                 return Err(degenerate("zero-length chord"));
             }
-            let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)?;
-            Ok(NurbsCurve3::new(
-                knots,
-                vec![world(a), world(b)],
-                vec![T::one(), T::one()],
-            )?)
+            let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1).map_err(built)?;
+            NurbsCurve3::new(knots, vec![world(a), world(b)], vec![T::one(), T::one()])
+                .map_err(built)
         }
         SketchSegment::Arc { a, b, arc } => {
             let Arc2 {
@@ -706,7 +786,7 @@ pub fn segment_curve<T: SpanLocate>(
                 runs.push((T::from_f64(geom_brep::sub_arc_joint(k, m)), two));
             }
             runs.push((T::one(), three));
-            Ok(NurbsCurve3::new(Knots::new(runs, 2)?, control, weights)?)
+            NurbsCurve3::new(Knots::new(runs, 2).map_err(built)?, control, weights).map_err(built)
         }
     }
 }
@@ -767,13 +847,19 @@ pub fn make_compatible<T: SpanLocate>(
             if raise == 0 {
                 Ok(c.clone())
             } else {
-                c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
+                c.elevate_degree(raise)
+                    .map_err(|e| SkinError::KnotAlgebra(Built::new(e)))
             }
         })
         .collect::<Result<_, _>>()?;
     // §5.3: one common knot vector — the union, at one degree and on
     // one domain by the two checks above.
-    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
+    NurbsCurve3::refine_to_union(&elevated).map_err(|e| SkinError::KnotAlgebra(Built::new(e)))
+}
+
+/// A refusal of a spline the skin built.
+fn built(e: SplineError) -> SkinError {
+    SkinError::Structure(Built::new(e))
 }
 
 // ---------------------------------------------------------------------
@@ -890,7 +976,7 @@ fn chord_length_parameters<T: SpanLocate>(
     params[0] = T::zero();
     params[k - 1] = T::one();
     for j in 1..k {
-        if !geom_core::spline::structure_ascends(params[j - 1], params[j]) {
+        if !geom_core::structure_ascends(params[j - 1], params[j]) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }
@@ -1016,7 +1102,7 @@ pub fn skin<T: SpanLocate>(
         }
     }
     let params = skin_parameters(sections)?;
-    skin_on(sections, v_degree, &params)
+    skin_with(sections, v_degree, &params)
 }
 
 /// [`skin`] on an EXPLICIT v-parameterization — the entry a multi-wall
@@ -1025,9 +1111,37 @@ pub fn skin<T: SpanLocate>(
 ///
 /// # Errors
 ///
-/// Exactly [`skin`]'s, plus [`SkinError::Fit`] for a parameterization
-/// that is not clamped `0 → 1` and strictly ascending.
+/// Exactly [`skin`]'s, plus [`SkinError::ParametersInvalid`] for a
+/// parameterization that is not one per section, clamped `0 → 1` and
+/// strictly ascending.
 pub fn skin_on<T: SpanLocate>(
+    sections: &[NurbsCurve3<T>],
+    v_degree: usize,
+    params: &[T],
+) -> Result<NurbsSurface<T>, SkinError> {
+    let k = sections.len();
+    if k < 2 {
+        return Err(SkinError::TooFewSections { have: k, need: 2 });
+    }
+    check_parameters(params, k)?;
+    skin_with(sections, v_degree, params)
+}
+
+/// The caller's parameterization of `sections` sections, checked by the
+/// fit's one rule ([`geom::curves::fit::check_parameterization`]).
+fn check_parameters<T: SpanLocate>(params: &[T], sections: usize) -> Result<(), SkinError> {
+    geom::curves::fit::check_parameterization(params, sections).map_err(|_| {
+        SkinError::ParametersInvalid {
+            params: params.len(),
+            sections,
+        }
+    })
+}
+
+/// [`skin_on`] past its check of the caller's parameters: the body
+/// [`skin`] and the loft reach with parameters the kernel chose, so a
+/// refusal of the fit over them is the kernel's.
+fn skin_with<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
     v_degree: usize,
     params: &[T],
@@ -1086,7 +1200,8 @@ pub fn skin_on<T: SpanLocate>(
             row
         })
         .collect();
-    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)?;
+    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)
+        .map_err(|e| SkinError::Fit(Built::new(e)))?;
     // Into the surface's u-major layout, `idx = iu · nv + iv`.
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
@@ -1106,7 +1221,7 @@ pub fn skin_on<T: SpanLocate>(
         at += if lane.is_some() { 3 } else { 4 };
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
-    NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)
+    NurbsSurface::new(knots_u, knots_v, control, weights).map_err(built)
 }
 
 // ---------------------------------------------------------------------
@@ -1386,8 +1501,10 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// naming the disagreeing section and count,
 /// [`SkinError::SectionProfile`] for a section the profile door
 /// refuses, [`SkinError::EmptyProfile`] for one with no loops,
-/// [`SkinError::BadDegree`], and every refusal
-/// [`segment_curve`], [`make_compatible`] and [`skin_on`] carry.
+/// [`SkinError::BadDegree`], [`SkinError::ParametersInvalid`] for
+/// `params` that are not one per section, clamped `0 → 1` and strictly
+/// ascending, and every refusal [`segment_curve`], [`make_compatible`]
+/// and [`skin_on`] carry.
 pub fn loft_geometry<L: SectionLoop>(
     sections: &[Section<L>],
     places: &[SketchPlane<f64>],
@@ -1396,6 +1513,7 @@ pub fn loft_geometry<L: SectionLoop>(
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let (validated, _) = validate_loft(sections, places, v_degree, tol)?;
+    check_parameters(params, sections.len())?;
     let compat = compatible_strips(&validated, places)?;
     skin_strips(validated, compat, v_degree, params)
 }
@@ -1549,7 +1667,7 @@ fn skin_strips<T: SpanLocate>(
         .iter()
         .map(|lp| {
             lp.iter()
-                .map(|strip| skin_on(strip, v_degree, params).map(Arc::new))
+                .map(|strip| skin_with(strip, v_degree, params).map(Arc::new))
                 .collect()
         })
         .collect::<Result<_, _>>()?;
@@ -1729,25 +1847,51 @@ pub(crate) const SWEEP_PATH_CHORD: &str = "sweep_path_chord";
 /// ([`RigidMotion::turned_between`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
+/// The K funnel name of a station's roll: the residual of the station's
+/// reference across its tangent read at the lane scalar, decided into
+/// a direction witness ([`RigidMotion::from_aim_and_reference`]).
+pub(crate) const SWEEP_STATION_ROLL: &str = "sweep_station_roll";
+
+/// The K funnel name of a still station's check at the lane scalar:
+/// each component of its tangent less its predecessor's, decided zero.
+pub(crate) const SWEEP_STATION_STILL: &str = "sweep_station_still";
+
 /// **The path's carry**: for each station, where the path is and the
 /// rotation carrying the start frame there — `crates/sweep/README.md`
 /// `[sweep.frame]`, the rotation-minimizing frame by double reflection.
-/// It is a function of the `f64` path and the station count alone, so
-/// it is computed once and every scalar lane composes it onto its own
-/// start plane ([`Self::place`]).
+///
+/// The path is a constant of the model, so the carry runs once at
+/// `f64` ([`Self::of`]) and selects each station's roll as one
+/// reference vector. Each scalar lane then mints every station's frame
+/// alone, from the path's tangent read at that scalar and that
+/// reference ([`Self::place`]): a frame exists at a scalar only by
+/// being minted there. A still station reuses its predecessor's
+/// rotation, one expression; no frame is composed from another's.
 pub(crate) struct PathCarry {
-    /// The path's start point, the pivot every station's rotation
-    /// turns about.
-    start: Point3<f64>,
-    /// Each station's point on the path and the rotation carrying the
-    /// start frame there, about the coordinate origin; `None` where
-    /// that rotation is the identity with no rounding.
-    stations: Vec<(Point3<f64>, Option<RigidMotion<f64>>)>,
+    /// The path, its data entering each lane as the constants it is.
+    path: NurbsCurve3<f64>,
+    /// Each station's selection.
+    stations: Vec<Selected>,
+    band: Band,
+}
+
+/// What the `f64` carry selects at one station.
+struct Selected {
+    /// The station's parameter on the path.
+    at: f64,
+    /// The station's tangent at `f64`, the value a still step's reused
+    /// tangent must enclose.
+    tangent: Vec3<f64>,
+    /// The start reference carried to the station: the station's roll.
+    reference: Vec3<f64>,
+    /// Whether the station shares one span, straight by its data, with
+    /// the one before it, so that its step may be still.
+    straight: bool,
 }
 
 impl PathCarry {
     /// The carry of `path` sampled at `stations` uniform shares of its
-    /// parameter.
+    /// parameter, selected at `f64`.
     ///
     /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
     /// Liu's double reflection (ACM TOG 2008): the reflection in the
@@ -1759,7 +1903,11 @@ impl PathCarry {
     /// ([`RigidMotion::turned_between`]), whose one decision is the
     /// second reflection's margin. A step whose two tangents are equal
     /// bit for bit is the identity with no rounding, as the exact law
-    /// makes it (the second reflection is then the first).
+    /// makes it (the second reflection is then the first). The carried
+    /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
+    /// aimed along the start tangent, [`RigidMotion::aimed`]) to the
+    /// station's reference `rᵢ`. `r₀` cancels from every station's
+    /// rotation `Fᵢ∘F₀⁻¹` (`Self::minted`) up to rounding.
     ///
     /// Three decisions, each under the band:
     ///
@@ -1786,22 +1934,34 @@ impl PathCarry {
         }
         let band = Band::linear(tol).map_err(SkinError::Band)?;
         let (lo, hi) = path.domain();
-        let shares = station_shares(stations);
-        let samples = shares
+        let at: Vec<f64> = station_shares(stations)
+            .iter()
+            .map(|s| (hi - lo).mul_add(*s, lo))
+            .collect();
+        let samples = at
             .iter()
             .enumerate()
-            .map(|(station, s)| {
-                let (p, d) = path.ders1((hi - lo).mul_add(*s, lo));
-                UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
-                    .map(|t| (p, t))
-                    .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
-            })
+            .map(|(station, t)| read_tangent(path, station, *t, band))
             .collect::<Result<Vec<_>, _>>()?;
-        let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
         let o = Point3::origin();
+        let start = RigidMotion::aimed(o, samples[0].1)
+            .map_err(not_finite(0))?
+            .u()
+            .get();
+        // A station on its span's right knot reads the next span at
+        // `span_at`, so it is looked up just left of that knot: the two
+        // stations share a span when the later lies in the earlier's
+        // closed span.
+        let span = |t: f64| path.span_at(t).map(|w| w.first_control());
+        let closed_span = |t: f64| span(t.next_down().max(lo));
         let mut turn: Option<RigidMotion<f64>> = None;
-        let mut carried = vec![(samples[0].0, None)];
+        let mut selected = vec![Selected {
+            at: at[0],
+            tangent: samples[0].1.get(),
+            reference: start,
+            straight: false,
+        }];
         for (i, pair) in samples.windows(2).enumerate() {
             let station = i + 1;
             let ((p, t), (q, next)) = (pair[0], pair[1]);
@@ -1833,11 +1993,20 @@ impl PathCarry {
                     Some(c) => step.compose(c).map_err(not_finite(station))?,
                 });
             }
-            carried.push((q, turn));
+            let first = span(at[i]);
+            selected.push(Selected {
+                at: at[station],
+                tangent: b,
+                reference: turn.map_or(start, |c| c.linear() * start),
+                straight: first.is_some()
+                    && first == closed_span(at[station])
+                    && first.is_some_and(|f| straight_by_data(path, f)),
+            });
         }
         Ok(Self {
-            start: samples[0].0,
-            stations: carried,
+            path: path.clone(),
+            stations: selected,
+            band,
         })
     }
 
@@ -1847,39 +2016,155 @@ impl PathCarry {
         station_shares(self.stations.len())
     }
 
-    /// The carry composed onto `plane`: station 0 is `plane` itself;
-    /// station `i` is `plane` turned about the path's start point `p₀`
-    /// by the station's rotation `Cᵢ`, then translated onto the path —
-    /// its origin `pᵢ + Cᵢ·(o − p₀)`. The rotation enters `T` as the
-    /// computed values it is ([`RigidMotion::computed_at`]), so a lane
-    /// decides nothing again.
-    pub(crate) fn place<T: Real>(
+    /// **Each station's rotation, minted at `T`**: its point on the path
+    /// and the rotation carrying the start frame there, about the
+    /// coordinate origin, `None` for the identity.
+    ///
+    /// Station `i`'s frame is `Fᵢ`, aimed along the tangent `tᵢ` read at
+    /// `T` with its roll from the station's reference
+    /// ([`RigidMotion::from_aim_and_reference`], under
+    /// `sweep_station_roll`), and its rotation is `Cᵢ = Fᵢ∘F₀⁻¹`. A
+    /// station the `f64` carry selected on one straight span with its
+    /// predecessor is still where its tangent is its predecessor's at
+    /// `T`: each component of the difference decides zero under
+    /// `sweep_station_still`, and the predecessor's tangent encloses the
+    /// `f64` one. A still station reuses its predecessor's rotation, one
+    /// expression; any other is minted.
+    fn minted<T: Decide>(&self) -> Result<Vec<Station<T>>, SkinError> {
+        let band = self.band;
+        let path = self.path.map_scalar(T::from_f64);
+        let o = Point3::origin();
+        let read = |station: usize, s: f64| read_tangent(&path, station, s, band);
+        let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
+            RigidMotion::from_aim_and_reference(
+                o,
+                t,
+                r.map(T::from_computed),
+                SWEEP_STATION_ROLL,
+                band,
+            )
+            .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
+        };
+        let first = &self.stations[0];
+        let (p0, t0) = read(0, first.at)?;
+        let unturn = frame(0, t0, first.reference)?
+            .inverse()
+            .map_err(not_finite(0))?;
+        let mut carried = vec![(p0, None)];
+        let (mut tangent, mut turn) = (t0, None);
+        for (station, selected) in self.stations.iter().enumerate().skip(1) {
+            let (p, t) = read(station, selected.at)?;
+            if !(selected.straight && still(tangent, t, selected.tangent, band)) {
+                turn = Some(
+                    frame(station, t, selected.reference)?
+                        .compose(unturn)
+                        .map_err(not_finite(station))?,
+                );
+                tangent = t;
+            }
+            carried.push((p, turn));
+        }
+        Ok(carried)
+    }
+
+    /// The carry minted at `T` and composed onto `plane`: station 0 is
+    /// `plane` itself; station `i` is `plane` turned about the path's
+    /// start point `p₀` by the station's rotation `Cᵢ`, then translated
+    /// onto the path — its origin `pᵢ + Cᵢ·(o − p₀)`.
+    pub(crate) fn place<T: Decide>(
         &self,
         plane: SketchPlane<T>,
     ) -> Result<Vec<SketchPlane<T>>, SkinError> {
+        let stations = self.minted::<T>()?;
         let start = plane.frame();
-        let at = |p: Point3<f64>| p.map(T::from_computed);
-        let back = Point3::origin() - at(self.start);
-        self.stations
-            .iter()
+        let p0 = stations[0].0;
+        let back = Point3::origin() - p0;
+        stations
+            .into_iter()
             .enumerate()
             .map(|(station, (p, turn))| {
                 if station == 0 {
                     return Ok(plane);
                 }
                 match turn {
-                    None => start.translated((*p - self.start).map(T::from_computed)),
-                    Some(turn) => start.translated(back).and_then(|f| {
-                        turn.computed_at::<T>()
-                            .compose(f)?
-                            .translated(at(*p) - Point3::origin())
-                    }),
+                    None => start.translated(p - p0),
+                    Some(turn) => start
+                        .translated(back)
+                        .and_then(|f| turn.compose(f)?.translated(p - Point3::origin())),
                 }
                 .map(SketchPlane::from_frame)
                 .map_err(|_| SkinError::StationNotFinite { station })
             })
             .collect()
     }
+}
+
+/// A station of a path's carry at `T`: its point on the path and the
+/// rotation carrying the start frame there, `None` for the identity.
+type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
+
+/// Station `station`'s point on `path` at the parameter `at` and its
+/// tangent, decided into a direction under `sweep_path_tangent`: the
+/// path's point ([`NurbsCurve3::eval`]) and its derivative through the
+/// hodograph ([`NurbsCurve3::derivative_at`]). The `f64` carry and every
+/// lane read this one expression.
+fn read_tangent<T: Decide>(
+    path: &NurbsCurve3<T>,
+    station: usize,
+    at: f64,
+    band: Band,
+) -> Result<(Point3<T>, UnitVec3<T>), SkinError> {
+    let t = T::from_f64(at);
+    UnitVec3::new(path.derivative_at(at), SWEEP_PATH_TANGENT, band)
+        .map(|d| (path.eval(t), d))
+        .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
+}
+
+/// A station's placement that left the format.
+fn not_finite<E>(station: usize) -> impl Fn(E) -> SkinError {
+    move |_| SkinError::StationNotFinite { station }
+}
+
+/// Whether the span whose first control point is `first` is straight
+/// by its data: every control point of the span on the line through
+/// its first two distinct ones, exactly.
+fn straight_by_data(path: &NurbsCurve3<f64>, first: usize) -> bool {
+    let window = &path.control()[first..=first + path.degree()];
+    let zero = |v: Vec3<f64>| v.x == 0.0 && v.y == 0.0 && v.z == 0.0;
+    let base = window[0];
+    let Some(along) = window.iter().map(|p| *p - base).find(|d| !zero(*d)) else {
+        return true;
+    };
+    window.iter().all(|p| zero((*p - base).cross(along)))
+}
+
+/// Whether a station's tangent `t`, read at `T`, is its predecessor's
+/// `kept`: each component of `t − kept` decides zero (ledger row F42:
+/// a dimensionless defect of a pair of directions against the metre
+/// band), and `kept` encloses the `f64` selection.
+///
+/// It decides only reuse. A station on a span straight only to its
+/// data's rounding, or whose tangents differ, is minted alone, which
+/// is always sound; so is one whose check escalates.
+fn still<T: Decide>(kept: UnitVec3<T>, t: UnitVec3<T>, selected: Vec3<f64>, band: Band) -> bool {
+    let (k, d) = (kept.get(), t.get() - kept.get());
+    let encloses = [(k.x, selected.x), (k.y, selected.y), (k.z, selected.z)]
+        .into_iter()
+        .all(|(x, s)| {
+            x.structure_bracket()
+                .is_some_and(|(lo, hi)| lo <= s && s <= hi)
+        });
+    encloses
+        && [d.x, d.y, d.z].into_iter().all(|c| {
+            match geom_core::k_stats::decide_flagged(SWEEP_STATION_STILL, c, band, "F42") {
+                Ok(Sign::Zero) => true,
+                Ok(Sign::Positive | Sign::Negative) => false,
+                // Not provably still: the station is re-minted from its
+                // own tangent, the conservative branch, so the
+                // escalation has nothing to refuse.
+                Err(Indeterminate { .. }) => false,
+            }
+        })
 }
 
 /// `i / (stations − 1)` for each of `stations ≥ 2` stations: `0` and
@@ -1897,6 +2182,7 @@ fn station_shares(stations: usize) -> Vec<f64> {
 enum PathDirection {
     Tangent,
     Chord,
+    Roll,
 }
 
 /// A path direction's refusal at `station`: a vector with no direction
@@ -1908,10 +2194,15 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> 
             which: match which {
                 PathDirection::Tangent => PathDecision::Tangent,
                 PathDirection::Chord => PathDecision::Chord,
+                PathDirection::Roll => PathDecision::Roll,
             },
             source,
         },
         (_, PathDirection::Chord) => SkinError::PathStationsCoincide { station },
+        // `rᵢ = Cᵢ·r₀` with `r₀ ⊥ t₀` and `Cᵢ` carrying `t₀` onto `tᵢ`,
+        // so the reference stands off the tangent to rounding: only a
+        // carry defect reaches this arm (its text ends as one).
+        (_, PathDirection::Roll) => SkinError::PathRollAlongTangent { station },
         (_, PathDirection::Tangent) => SkinError::PathTangentVanishes { station },
     }
 }
@@ -1933,11 +2224,69 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> 
 /// [`SkinError::PathUndecided`] naming the station and decision that
 /// could not be taken, and [`SkinError::StationNotFinite`] for a
 /// station whose placement overflows.
-pub fn sweep_places<T: Real>(
+pub fn sweep_places<T: Decide>(
     plane: SketchPlane<T>,
     path: &NurbsCurve3<f64>,
     stations: usize,
     tol: Tol,
 ) -> Result<Vec<SketchPlane<T>>, SkinError> {
     PathCarry::of(path, stations, tol)?.place(plane)
+}
+
+#[cfg(test)]
+mod ending_tests {
+    use super::*;
+
+    /// **What the skin built ends at the skin's door, decided on the
+    /// payload**: a value the scalar leaves no point or undecided ends in
+    /// the lever the loft's user holds, the scalar; a weight the format's
+    /// range lost, or the kernel's own interpolation, in the last resort;
+    /// an edit no valid section reaches in the defect ending; and none
+    /// passes the payload's caller recourse on.
+    #[test]
+    fn a_refusal_of_what_the_skin_built_ends_on_its_payload() {
+        let no_point = SplineError::CarrierWeightNotAPoint { index: 1 };
+        let other = SplineError::DomainInvalid { lo: 1.0, hi: 0.0 };
+        let rows = [
+            (
+                SkinError::Structure(Built::new(no_point.clone())),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::Structure(Built::new(other)),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::Structure(no_point))),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::KnotNotPresent { u: 0.5 })),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::WeightCollapse { index: 1 })),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::UnboundedAtEnclosure {
+                    index: 1,
+                })),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::Fit(Built::new(FitError::TooFewPoints { have: 1, need: 2 })),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+        ];
+        for (refusal, ending) in &rows {
+            let text = refusal.to_string();
+            assert!(text.ends_with(ending), "the door's ending: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "one repair, the door's: {text}"
+            );
+        }
+    }
 }

@@ -25,12 +25,7 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    let b = topo::transform_rigid(
-        &b,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let b = topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", b, Tol::witness())
 }
 
@@ -288,12 +283,7 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
             .clone();
         let sphere_faces = cut
             .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    cut.get_surface(f.surface),
-                    Some(geom::Surface::Sphere { .. })
-                )
-            })
+            .filter(|(fk, _)| matches!(cut.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
             .count();
         assert_eq!(
             sphere_faces,
@@ -431,8 +421,7 @@ fn the_lens_union_classifies_points_at_the_interval_scalar() {
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
         finished(
             "the ball",
-            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap(), tol)
-                .unwrap(),
+            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap()).unwrap(),
             tol,
         )
     };

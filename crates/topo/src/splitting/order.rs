@@ -95,6 +95,7 @@ use geom_core::{
 };
 
 use super::SplitPlane;
+use crate::chord_join::OrderDecision;
 use crate::validate::decide;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
@@ -190,11 +191,21 @@ pub(super) fn in_plane_frame<T: Decide>(
 
 /// The frame gate's row: a schedule member's in-plane fraction, levered
 /// by the points' spread.
-pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
+const FRAME_ARM: &str = "split_join_frame_arm";
 
 /// The axis-plane test's row: a component of the plane's normal,
 /// levered by the points' spread ([`axis_plane`]).
-pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
+const FRAME_AXIS: &str = "split_join_frame_axis";
+
+/// Which of the order's decisions `diag` escalated, by the predicate
+/// this module decided it under.
+pub(super) fn decision_of(diag: &Indeterminate) -> OrderDecision {
+    match diag.predicate {
+        Some(FRAME_AXIS) => OrderDecision::FrameAxis,
+        Some(FRAME_ARM) => OrderDecision::FrameArm,
+        _ => OrderDecision::Points,
+    }
+}
 
 /// Whether the unit normal `n` is a coordinate axis: two of its
 /// components exactly zero (**`split_join_frame_axis`**, at the exact
@@ -245,7 +256,7 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: Lever<T>, exact: Band) -> Result<bool,
 /// [`Indeterminate`] only on the interval lane (an enclosure pair
 /// whose difference straddles the hairline without being an exact
 /// tie).
-pub(super) fn lex_cmp<T: Decide>(
+pub(super) fn lex_cmp_as<T: Decide>(
     p: &Point3<T>,
     q: &Point3<T>,
     origin: &Point3<T>,
@@ -254,9 +265,11 @@ pub(super) fn lex_cmp<T: Decide>(
 ) -> Result<core::cmp::Ordering, Indeterminate> {
     use core::cmp::Ordering;
     let (wp, wq) = (*p - *origin, *q - *origin);
+    const SPLIT_JOIN_ORDER_U: &str = "split_join_order_u";
+    const SPLIT_JOIN_ORDER_V: &str = "split_join_order_v";
     for (name, a, b) in [
-        ("split_join_order_u", wp.dot(frame.0), wq.dot(frame.0)),
-        ("split_join_order_v", wp.dot(frame.1), wq.dot(frame.1)),
+        (SPLIT_JOIN_ORDER_U, wp.dot(frame.0), wq.dot(frame.0)),
+        (SPLIT_JOIN_ORDER_V, wp.dot(frame.1), wq.dot(frame.1)),
     ] {
         match decide(name, Margin::of(a - b), exact)? {
             Sign::Negative => return Ok(Ordering::Less),
@@ -296,7 +309,7 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     let mut order: Vec<usize> = (0..points.len()).collect();
     insertion_sort_by(&mut order, |&a, &b| {
         Ok(
-            lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
+            lex_cmp_as(&points[b], &points[a], &plane.origin, frame, exact)?
                 == core::cmp::Ordering::Less,
         )
     })?;
@@ -499,12 +512,18 @@ mod tests {
                     vec![diag],
                     "{label}, {spread}: once on the frame"
                 );
-                let said = crate::chord_join::SplitJoinError::OrderEscalated { diag }
-                    .render(geom_brep::recourse::Reading::Build);
+                let said = crate::chord_join::JoinError::OrderEscalated {
+                    decision: decision_of(&diag),
+                    diag,
+                }
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
-                        && said
-                            .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
+                        && said.ends_with(&format!(
+                            "{}. {}",
+                            diag.payload(),
+                            geom_core::MOVE_RECOURSE
+                        )),
                     "{label}, {spread}: {said}"
                 );
             }
@@ -549,7 +568,7 @@ mod tests {
         let frame = in_plane_frame(&plane, fixture_lever(1.0), band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
-        let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
+        let cmp = |p, q| lex_cmp_as(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);
@@ -602,8 +621,11 @@ mod tests {
         );
         let err = in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact).unwrap_err();
         assert_eq!(err.predicate, Some(FRAME_AXIS));
-        let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }
-            .render(geom_brep::recourse::Reading::Build);
+        let said = crate::chord_join::JoinError::OrderEscalated {
+            decision: decision_of(&err),
+            diag: err,
+        }
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             said,
             format!(

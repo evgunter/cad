@@ -386,7 +386,7 @@ fn the_door_lowers_names_before_it_mints() {
         panic!("a fillet");
     };
     let picked = doc.selection(selection).cloned().expect("a selection");
-    let (target, selection) = (picked.body, picked.names);
+    let (target, selection) = (picked.body.read, picked.names);
     let by_name = Node::fillet(target, named("w"), selection.clone());
     let by_id = Node::fillet(
         target,
@@ -1706,7 +1706,7 @@ fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
             .content_key
     };
     assert_eq!(key(on_a), key(on_b), "equal values, equal content");
-    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+    let seeded = editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         &doc,
         None,
         &editor_core::CancelToken::new(),

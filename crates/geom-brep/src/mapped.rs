@@ -186,13 +186,12 @@ pub enum MappedSource<T: Real> {
         point: Point2<T>,
         /// The rigid placement of the sketch plane in 3-space.
         place: Affine3<T>,
-        /// A point on the revolution axis.
-        axis_origin: Point3<T>,
-        /// The axis direction (normalized internally by the rotation —
-        /// `Affine3::rotate_point_about_axis`'s documented posture).
-        axis_dir: Vec3<T>,
+        /// The revolution axis; its direction is normalized internally by
+        /// the rotation (`Affine3::rotate_point_about_axis`'s documented
+        /// posture).
+        axis: geom::Line<T>,
         /// The **full** signed revolve angle of the whole sweep
-        /// (radians, right-hand rule about `axis_dir`): its normalized
+        /// (radians, right-hand rule about `axis.dir`): its normalized
         /// parameter 1 lands at the far end.
         angle: T,
     },
@@ -337,12 +336,11 @@ impl<T: Real> MappedSource<T> {
             MappedSource::RevolvedPoint {
                 point,
                 place,
-                axis_origin,
-                axis_dir,
+                axis,
                 angle,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotate_point_about_axis(axis_origin, axis_dir, u * angle, p)
+                Affine3::rotate_point_about_axis(axis.origin, axis.dir, u * angle, p)
             }
         }
     }
@@ -438,8 +436,10 @@ mod tests {
         let mc = MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(2.0, 0.0),
             place: Affine3::identity(),
-            axis_origin: Point3::origin(),
-            axis_dir: Vec3::unit_y(),
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_y(),
+            },
             angle: PI,
         });
         // s = 0: the placed point itself.

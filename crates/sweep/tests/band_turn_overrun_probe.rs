@@ -534,9 +534,9 @@ pub(crate) fn cone_at(body: &Body<f64>, at: Point3<f64>, l_to: Point3<f64>) -> C
     let mut out: Vec<V> = topo::query::all_edges(body)
         .into_iter()
         .filter_map(|e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let p = point(body.get_half_edge(he).expect("a half").start);
-            let q = point(body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let p = point(v0);
+            let q = point(v1);
             let far = if close(p, at) {
                 q
             } else if close(q, at) {

@@ -67,12 +67,12 @@ mod arc_spec_census;
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "fillet_constructions.rs"]
+mod fillet_constructions;
 #[path = "fillet_decided_tangency.rs"]
 mod fillet_decided_tangency;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
-#[path = "fused_constructions.rs"]
-mod fused_constructions;
 #[path = "review_fillet_attr_r1_probes.rs"]
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
@@ -207,3 +207,8 @@ mod review_fillet_stored_tangency_r2_probes;
 
 #[path = "cusp_fillet_keeps_its_leg.rs"]
 mod cusp_fillet_keeps_its_leg;
+
+#[path = "fillet_radius_at_anchor.rs"]
+mod fillet_radius_at_anchor;
+#[path = "fillet_run_fit.rs"]
+mod fillet_run_fit;

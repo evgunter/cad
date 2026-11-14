@@ -113,3 +113,14 @@ Closing this row takes the mechanism of each move. The pins keep main
 green until then.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+- 2026-11-09 — **New `frozen` baselines from PR 6639** (BOXES, `boxes/nightly-reds`). `geom::cover::Cover::arc` now meets an arc's window with its whole conic, so every arc read evaluates two pieces. That raises the frozen column (evaluation cost) at ε 1e-9; the symbolic and numeric columns, the decisions, are unchanged. Re-pin from these, not from the readings before 6639:
+
+  | row | before 6639 | after 6639 |
+  |---|---|---|
+  | `m10_9_the_pad_at_both_rule_f_dials` (pad) | (1684, 1262, 3492) | (1684, 1262, 3616) |
+  | `sym11_…_past_the_ceiling` `two_hole_plate` frozen | 255 | 259 |
+  | `sym11_…` `r1_annulus` frozen | 238 | 242 |
+  | `sym11_…` `r2_link` frozen | 4468 | 4716 |
+
+  The pins in the tests are not changed here; the rows were red on main before 6639.

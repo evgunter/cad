@@ -26,3 +26,5 @@ own extent and say `Instance { i, .. }` per level, and then lifting
 `IndexRank`'s fixed rank of one to the family's rank.
 
 Raised by both reviews of PR 4527 (r1 m2, r2 N1).
+
+**Status after PR 6555 (2026-11-10).** A family keyed by two indices exists today: an index declared `within` another (`fixture::index_of` with `Some(i)`) and a family over it reach both, so a member read carries two indices. PR 6555's selections read such members at rank two and evaluate: `crates/editor-core/tests/msolve1_transform_aware.rs` `a10_a_nested_family_head_is_read_at_its_member` and `a11_a_placement_between_two_patterns_composes_outer_t_inner` seat a top on `outer[1, 1]` (`eval/wire.rs` `member_at` matches the read's values against the family's members). `InputFault::IndexRank { rank: 2 }` is reachable at the door: `mate1_r1_probes.rs` and `fix_pattern_mate_crossing.rs` pin a one-index side over that family refusing `{ found: 1, rank: 2 }`. What this row says is refused — a node seat's `xs[i, j]` — needs re-checking against that: the flat `j·M + i` listing of a pattern of patterns (`wire_pattern`) is one family shape, and the index-within shape another.

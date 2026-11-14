@@ -4,12 +4,14 @@
 //! (`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031).
 //!
 //! Every pose runs ∪, ∩ and both differences in both operand orders,
-//! and every run builds a body that is SOUND by
+//! and every run is held to a body that is SOUND by
 //! `common::differential::outcome` (tiers 2 and 3′, the certificate, a
 //! legal operand, the volume). The volumes are closed form: the solids
 //! meet over the lens of their two discs, and a slab's height over it is
 //! constant or linear, whose integral is the lens's area and first
-//! moment ([`lens`]).
+//! moment ([`lens`]). At ε 1e-6 ten runs tipped inside the zero band
+//! build a body that misses that volume, and their two rows are pinned
+//! there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -123,12 +125,7 @@ fn turned(mut pose: Pose, axis: Vec3<f64>, angle: f64) -> Pose {
     let turn = |b: &AtRestBody<f64>| {
         finished(
             "the turned operand",
-            topo::transform_rigid(
-                b,
-                &geom_core::test_support::rigid(&m, Tol::witness()),
-                Tol::witness(),
-            )
-            .unwrap(),
+            topo::transform_rigid(b, &geom_core::test_support::rigid(&m, Tol::witness())).unwrap(),
             Tol::witness(),
         )
     };
@@ -180,7 +177,7 @@ fn pose(k: usize) -> Pose {
 }
 
 /// The row's poses (`conic_edge_curved_face`'s
-/// `a_rim_crossing_reaches_the_join`).
+/// `a_rim_crossing_builds_in_every_op`).
 fn rim_poses() -> Vec<Pose> {
     vec![
         across_the_rim(0.2, (0.5, 0.0), (0.2, 0.45)),
@@ -441,7 +438,7 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
             tol,
         ),
         va: PI * 0.25 * (2.0 * half + 2.0),
@@ -508,30 +505,34 @@ fn cut_and_tipped(
     );
     finished(
         "the tipped rod",
-        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol)).unwrap(),
         tol,
     )
 }
 
 /// **The rulings are read at the germ sites, wherever a wall's origin is
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
-/// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
-/// every op builds SOUND at the closed-form volume, in both orders.
+/// stored up to 1 km off its faces, the session box's own extent
+/// (`[tolerance.units]`), and tipped a fifth of the zero band: every op
+/// builds SOUND at the closed-form volume, in both orders. A long rod
+/// past the box is refused at its extrude
+/// ([`a_long_rod_past_the_session_box_is_refused_by_it`]).
 ///
 /// A pose runs only inside D4 ¶4's size range at the run's ε: the long
 /// rod reaches `|z| = far`, where f64 spaces coordinates
 /// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
-/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
-/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
-/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
-/// long rod's strut and escalates.
+/// there can read a whole ulp of rounding, and past `far ≈ 2⁵²·zero` no
+/// stored datum certifies within the zero band. At 1 km that ceiling is
+/// `2.2e-13` m, above the least ε a run admits
+/// (`geom_core::tolerance::EPS_MIN`, ≈ 2.0e-13 at K = 10), so at an
+/// admitted ε below it the 1 km pose stands down.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
     let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));
     let (area, _) = lens((0.0, 0.0), R, c, r);
-    let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
+    let poses: Vec<Pose> = [2.0, geom_core::tolerance::SESSION_BOX_EXTENT]
         .into_iter()
         .filter(|&far| {
             let in_range = far * f64::EPSILON <= zero;
@@ -564,6 +565,36 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// **A long rod past the session box is refused by it**: the rod
+/// [`a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`]
+/// cuts from, a metre longer at each end than the box's 1 km reach.
+#[test]
+fn a_long_rod_past_the_session_box_is_refused_by_it() {
+    let tol = Tol::witness();
+    let far = geom_core::tolerance::SESSION_BOX_EXTENT + 1.0;
+    let profile = profile::Profile::new(
+        profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -far)),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.3, 0.0), 1.0),
+            (Point2::new(0.7, 0.0), 1.0),
+        ])],
+    )
+    .validate(tol)
+    .expect("the rod's disc is a valid profile");
+    crate::common::refused_by_the_session_box(
+        &format!("the rod over z ∈ [−{far}, {far}]"),
+        far,
+        sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance {
+                depth: 2.0 * far,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        ),
+    );
+}
+
 /// The lever of an in-band reading of a cylinder pair's axes.
 const AXES_LEVER: &str = "Recourse: turn one part so the two cylinders' axes are clearly parallel";
 
@@ -583,7 +614,7 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
         a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
             tol,
         ),
         va: 2.0 * PI,
@@ -616,8 +647,35 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// stops at the work wall, every run at 1e-12, under
 /// [`TURNED_WALL_GUARD`]), and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
+///
+/// At ε 1e-6 that is the row's claim and not what is built: six of the
+/// runs tipped `1.5·zero / 3.2` miss the closed form, and the row is
+/// pinned there.
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
+    // Pinned red at 1e-6: six of the runs tipped `1.5·zero / 3.2` build a
+    // body 2.0e-7 to 2.8e-7 under the closed form, where the row wants every
+    // one SOUND
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the seams on the walls tipped 1.5·zero / 3.2",
+        &[
+            "6 of the runs are not SOUND",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981355 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+        ],
+        seams_lying_on_the_walls_read_the_axes_across_the_region_row,
+    );
+}
+
+/// The row [`seams_lying_on_the_walls_read_the_axes_across_the_region`] runs, under its pin.
+fn seams_lying_on_the_walls_read_the_axes_across_the_region_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
@@ -625,7 +683,12 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 1.5 * zero / 3.2)));
     let bad = unsound(&building);
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} of the runs are not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
     // Pinned exactly at the witness band. At 1e-6 the turned pose about
     // `x` escalates the join's end pairing first, and at 1e-12 the tipped
     // pose about `y` the corners' overlap: each row there escalates or
@@ -737,7 +800,7 @@ fn one_face_rod(c: (f64, f64), r: f64, az: f64, (z0, z1): (f64, f64)) -> AtRestB
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
     finished(
         "the one-face rod",
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap(),
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol)).unwrap(),
         tol,
     )
 }
@@ -755,7 +818,6 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
     let b = topo::transform_rigid(
         &one_face_rod((1.2, 0.0), 1.0, az, (-0.3, 0.3)),
         &geom_core::test_support::rigid(&m, tol),
-        tol,
     )
     .unwrap();
     Pose {
@@ -775,13 +837,42 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
 /// which levers it by `0.6 + √1.25 ≈ 1.72`), the tip reads `1.03·zero`,
 /// in the band, and every op escalates `cc_axes_parallel` as the axes'
 /// own decision, its lever a turn.
+///
+/// At ε 1e-6 that is the row's claim and not what is built: four of the
+/// runs tipped `0.2·zero` miss the closed form, and the row is pinned
+/// there.
 #[test]
 fn one_face_walls_read_their_axes_as_an_angle() {
+    // Pinned red at 1e-6: four of the runs tipped `0.2·zero` build a body
+    // 1.2e-7 under the closed form, where the row wants every one SOUND
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the one-face walls tipped 0.2·zero",
+        &[
+            "4 of the runs are not SOUND",
+            "one-face walls, seams at 0, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ab | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ba | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+        ],
+        one_face_walls_read_their_axes_as_an_angle_row,
+    );
+}
+
+/// The row [`one_face_walls_read_their_axes_as_an_angle`] runs, under its pin.
+fn one_face_walls_read_their_axes_as_an_angle_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let seams = [0.0, PI];
     let bad = unsound(&seams.map(|az| one_face_walls(az, 0.2 * zero)));
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} of the runs are not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
     for az in seams {
         let tipped = one_face_walls(az, 0.6 * zero);
         for (op, r, _) in tipped.runs() {

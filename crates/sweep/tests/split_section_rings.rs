@@ -384,7 +384,7 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
 /// gap under the band and another over it: no lean refuses at the
 /// join, the unleaned pose answers, and every pose that answers is at
 /// rest. A lean that puts a crossing vertex's sector bisector in the
-/// band refuses at the reduction (`split_bisector_side`), and one the
+/// band refuses at the reduction (the divider's side, `topo::bound_side`), and one the
 /// pcurve mint cannot certify refuses there — stages before and after
 /// the join's order, not this row's subject.
 /// (Review R1's concern.)
@@ -397,8 +397,7 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     for d in [0.0, 26.0, -26.0, 30.0, -30.0].map(|k| k * eps * t.sin()) {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), d);
         let posed =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol())).unwrap();
         let posed = sweep::test_support::finished("the posed", posed, tol());
         for flip in [true, false] {
             let what = format!("lean {d:e}, flipped {flip}");
@@ -556,7 +555,6 @@ fn a_bore_cut_out_through_both_caps_pairs_its_crossings_along_its_ellipse() {
         let tube = topo::transform_rigid(
             &bored_cylinder(a, 0.0, outer_phi, tol()),
             &geom_core::test_support::rigid(&map, tol()),
-            tol(),
         )
         .unwrap();
         for flip in [false, true] {
@@ -1311,8 +1309,9 @@ fn a_cut_along_a_cylinders_axis_refuses_its_rims_tie_at_interval() {
         n.map(<geom_core::Interval as geom_core::Real>::from_f64),
     )
     .expect_err("the interval lane refuses the rims' tie");
-    let topo::SectionError::Split(SplitError::Join(topo::SplitJoinError::OrderEscalated { diag })) =
-        &err
+    let topo::SectionError::Split(SplitError::Join(topo::JoinError::OrderEscalated {
+        diag, ..
+    })) = &err
     else {
         panic!("the join order refuses, got {err:?}");
     };
@@ -1439,12 +1438,7 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         .clone();
     let ringed_walls = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .filter(|(_, f)| !f.rings.is_empty())
         .count();
     assert_eq!(
@@ -1460,11 +1454,9 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     for (side, h) in [("below", &below), ("above", &above)] {
         let ringed = h
             .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    h.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                ) && !f.rings.is_empty()
+            .filter(|(fk, f)| {
+                matches!(h.face_surface(*fk), Some(geom::Surface::Cylinder { .. }))
+                    && !f.rings.is_empty()
             })
             .count();
         assert_eq!(

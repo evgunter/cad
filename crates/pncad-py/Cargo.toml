@@ -38,6 +38,10 @@ publish = false
 # `[workspace.lints]` therefore breaks THIS crate's build until it is
 # mirrored here, on the default (no-Python) path that hosted CI takes.
 [lints.rust]
+# Mirrors [workspace.lints.rust] minus unsafe_code (pncad-py's FFI); the
+# `any_first_mutant` cfg is the workspace's, set only by
+# scripts/any-first-mutant.sh.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(any_first_mutant)'] }
 missing_docs = "warn"
 unreachable_pub = "warn"
 

@@ -37,8 +37,7 @@ fn at(body: &topo::Body<f64>, v: topo::VertexKey) -> String {
 }
 
 fn face_kind(body: &topo::Body<f64>, f: topo::FaceKey) -> String {
-    let face = body.get_face(f).unwrap();
-    format!("{:?}", body.get_surface(face.surface).unwrap().kind())
+    format!("{:?}", body.face_surface(f).unwrap().kind())
 }
 
 /// Each record as its cells' places: a vertex's point, an edge's end
@@ -269,7 +268,6 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
                 * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -FRAC_PI_2)),
             tol(),
         ),
-        tol(),
     )
     .unwrap();
     let records = every_op_in_both_orders(

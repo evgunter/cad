@@ -1050,7 +1050,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
+        analytic_datum_verdicts(
+            poisoned_curve_datums(c),
+            c.representability_margins(band),
+            band,
+        )
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
@@ -1142,7 +1146,8 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),
-                lifted.representability_margins(band)
+                lifted.representability_margins(band),
+                band,
             ),
             expected,
             "{name}, at Interval"
@@ -1251,10 +1256,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(s),
                 s.representability_margins(band),
+                band,
             )),
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             )),
         )
     };
@@ -1264,10 +1271,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(c),
                 c.representability_margins(band),
+                band,
             ),
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             ),
         )
     };
@@ -1368,16 +1377,12 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
     );
 }
 
-/// **A stored arc past a full turn is typed at rest and a kernel bug
-/// where the kernel re-mints it** (`[failure]`): an arc minted at a band
-/// coarser than the run's, whose headroom to a full turn that band read
-/// as zero, planted in a body's arena (a state no door produces). The
-/// tier-3 validator reports it as a defect at rest; a rigid motion's
-/// re-mint of it, at the run's one band, panics as a kernel bug at its
-/// call site, rather than returning a refusal that names the caller's
-/// input.
+/// **A stored arc past a full turn is typed at rest** (`[failure]`): an
+/// arc minted at a band coarser than the run's, whose headroom to a full
+/// turn that band read as zero, planted in a body's arena (a state no
+/// door produces). The tier-3 validator reports it as a defect at rest.
 #[test]
-fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
+fn a_planted_arc_past_a_turn_is_typed_at_rest() {
     let tol = Tol::witness();
     let (mut body, split) = coplanar_pillow(tol);
     let past = 10.0 * tol.k() * tol.eps();
@@ -1410,10 +1415,6 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         )),
         "at rest, typed: {errs:?}"
     );
-
-    panics_as_a_kernel_bug_at(KernelSite::RigidTransform, || {
-        let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
-    });
 }
 
 /// The pillow with its split chord's curve swapped for an arc of the
@@ -1438,6 +1439,9 @@ enum ArcChart {
     Wrap,
     /// A second record of the split face's plane, which no face wears.
     Unworn,
+    /// The pair of the two faces' records, where an edge between two
+    /// records rests.
+    Pair,
 }
 
 /// [`pillow_with_an_arc_past_a_turn`], its description in `named`.
@@ -1449,7 +1453,7 @@ fn pillow_with_an_arc_past_a_turn_in(
     let (mut body, split) = coplanar_pillow(tol);
     let face_chart = body.get_face(split.face).unwrap().surface;
     let (chart, wrap) = match named {
-        ArcChart::Face => (face_chart, false),
+        ArcChart::Face | ArcChart::Pair => (face_chart, false),
         ArcChart::Wrap => {
             *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
                 origin: Point3::origin(),
@@ -1466,9 +1470,15 @@ fn pillow_with_an_arc_past_a_turn_in(
     };
     let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let t1 = core::f64::consts::TAU + past;
-    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1)
-        .unwrap()
-        .at_rest_in_chart(chart, wrap);
+    let arc = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
+    let spec = match named {
+        ArcChart::Pair => {
+            let [f1, f2] = crate::wedge_reach::edge_faces(&body, split.edge);
+            let record = |f| body.get_face(f).unwrap().surface;
+            arc.at_rest_on_pair(geom_brep::SurfacePair::new(record(f1), record(f2)))
+        }
+        _ => arc.at_rest_in_chart(chart, wrap),
+    };
     let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
     let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
     let planted = geom_brep::EdgeCurve::certify(
@@ -1657,11 +1667,13 @@ fn a_rim_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
 }
 
 /// **`describe_at_rest` restates the stored edge** (`[failure]`): a
-/// stored arc past a full turn panics at its call site.
+/// stored arc past a full turn, resting on the pair of the pillow's two
+/// records, panics at its call site.
 #[test]
 fn an_arc_past_a_turn_described_at_rest_is_a_kernel_bug() {
     let tol = Tol::witness();
-    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Pair);
     panics_as_a_kernel_bug_at(KernelSite::AtRest, || {
         let _ = body.describe_at_rest(split.edge, tol);
     });
@@ -2048,9 +2060,7 @@ enum Carrier {
 /// the body so the forward contract (increasing parameter runs
 /// `he_plus`) holds whichever way the fixture wound it.
 fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> EdgeCurveSpec<f64> {
-    let he = body.get_edge(edge).unwrap().he_plus;
-    let start_v = body.get_half_edge(he).unwrap().start;
-    let end_v = body.half_edge_end(he).unwrap();
+    let (start_v, end_v) = body.edge_vertices(edge).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start_v).unwrap().point)
         .unwrap();
@@ -2164,7 +2174,9 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter()
@@ -2211,14 +2223,13 @@ fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form()
     // cut — a definite corner — re-stored as a line at rest in the flat
     // face's chart.
     let corner = p.ev[1];
-    let he = p.body.get_edge(corner).unwrap().he_plus;
+    let (v0, v1) = p.body.edge_vertices(corner).unwrap();
     let at = |v| {
         *p.body
             .get_point(p.body.get_vertex(v).unwrap().point)
             .unwrap()
     };
-    let start = at(p.body.get_half_edge(he).unwrap().start);
-    let end = at(p.body.half_edge_end(he).unwrap());
+    let (start, end) = (at(v0), at(v1));
     let flat_chart = p.body.get_face(p.face_side[1]).unwrap().surface;
     let spec = EdgeCurveSpec::line_between(start, end).at_rest_in_chart(flat_chart, false);
     p.body.set_edge_curve(corner, spec, tol).unwrap();
@@ -2329,16 +2340,17 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 and the shared-rim routing spell no wedge reading of their
-/// own.** Both read an edge's wedge through `geom_brep::edge_wedge_over`
-/// once, over a walk built by its one door: the validator's
-/// `WedgeWalk::along_edge` (inside `edge_wedge_walk`), the rim's
+/// **Check 4, the shared-rim routing and the edge's own door spell no
+/// wedge reading of their own.** Each reads an edge's wedge through
+/// `geom_brep::edge_wedge_over` once, over a walk built by its one door:
+/// an edge's `WedgeWalk::along_edge` (inside `edge_wedge_walk`, which
+/// check 4 and `crate::edge_wedge` share), the rim's
 /// `WedgeWalk::around_circle`. The walk, its hook, the edge's interior
 /// stations and the pairing of a corner are out of their reach by type
 /// (crate-private, or asked only of a tangency token), so what this row
-/// pins is the rest: a class read (`classify_dihedral`, `dihedral_class`),
+/// pins is the rest: a class read (`classify_dihedral`),
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
-/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// `gradient_alignment(`, `normals_alignment(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
 /// back into either file's production code reds here. The link's
 /// reading one order down (`link/second_order.rs`) reads another picture
@@ -2395,12 +2407,11 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "tangent_second_order(",
         "tangent_jet(",
         "classify_dihedral(",
-        "dihedral_class(",
         ".convexity(",
         "\"dihedral_sign\"",
         ".pairing(",
-        "pairing_as(",
-        "classify_material_pairing_as(",
+        "gradient_alignment(",
+        "normals_alignment(",
         "Station::on(",
         "material_kappa_rel(",
     ];
@@ -2412,7 +2423,18 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/validate.rs",
         &[
-            ("edge_wedge_over(", 1),
+            ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 0),
+            ("WedgeWalk::along_edge(", 0),
+            ("WedgeWalk::around_circle(", 0),
+        ],
+        &reads,
+    );
+    scan(
+        "src/edge_wedge.rs",
+        &[
+            ("edge_wedge_over_as(", 1),
+            ("edge_wedge_over(", 0),
             ("WedgeWalk::along_edge(", 1),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2422,6 +2444,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "src/boolean/rim_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
+            ("edge_wedge_over_as(", 0),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],
@@ -2448,7 +2471,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
 /// moves both halves of a row together.
 #[test]
 fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
@@ -2507,10 +2530,8 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
     assert!(
         matches!(
             rule(r2),
-            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
-                predicate: Some("tangent_second_order"),
-                ..
-            }))
+            MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
+                && e.diag().predicate == Some("tangent_second_order")
         ),
         "in band: the rule escalates second-order: {:?}",
         rule(r2)
@@ -2668,7 +2689,9 @@ fn kissing_cylinder_pillow(
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),
         [seg.edge, split.edge],
@@ -2698,23 +2721,39 @@ fn wedge_reading_table() {
         .expect("the fixture has edges")
         .0;
     let read = |verdict, wrap, conventional| wedge_reading(verdict, edge, wrap, conventional);
+    let margin = geom_core::MarginDiag::value(1e-3);
+    let crease = |convexity| V::Crease { convexity, margin };
     let settled = [
-        (V::Crease(Convexity::Convex), M::Transverse),
-        (V::Crease(Convexity::Concave), M::Transverse),
+        (crease(Convexity::Convex), M::Transverse),
+        (crease(Convexity::Concave), M::Transverse),
         (
             V::Seam {
                 bend: Bend::Determinate,
+                margin: None,
             },
             M::Tangent,
         ),
         (
             V::Seam {
                 bend: Bend::UnderDetermined,
+                margin: None,
             },
             M::SmoothUnderdetermined,
         ),
-        (V::End(WedgeEnd::Cusp), M::Tangent),
-        (V::End(WedgeEnd::Slit), M::Tangent),
+        (
+            V::End {
+                end: WedgeEnd::Cusp,
+                margin,
+            },
+            M::Tangent,
+        ),
+        (
+            V::End {
+                end: WedgeEnd::Slit,
+                margin,
+            },
+            M::Tangent,
+        ),
     ];
     for (verdict, mark) in settled {
         assert_eq!(
@@ -2730,7 +2769,7 @@ fn wedge_reading_table() {
     }
     assert!(
         matches!(
-            read(V::Crease(Convexity::Convex), false, true),
+            read(crease(Convexity::Convex), false, true),
             (
                 M::Transverse,
                 Some(ValidationError::TransverseNotIntrinsic { .. })
@@ -2784,7 +2823,7 @@ fn wedge_reading_table() {
         let text = finding.render(geom_brep::recourse::Reading::AtRest);
         match ending {
             Some(defect) => assert!(text.ends_with(defect), "{text}"),
-            None => assert!(text.contains("Recourse: move the geometry"), "{text}"),
+            None => assert!(text.contains(geom_core::MOVE_RECOURSE), "{text}"),
         }
     }
 }
@@ -2845,19 +2884,19 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         ("in band", 30.0, cos30 * arm / k),
     ] {
         let wall = leaning(degrees);
-        let geom_brep::Dihedral::Tangent(tangency) = geom_brep::classify_dihedral(
-            &floor,
-            &wall,
-            origin,
-            geom_core::test_support::fixture_lever(arm),
-            band,
-        )
-        .unwrap() else {
-            panic!("{label}: check 4 reaches the pairing");
+        // Both planes hold the y axis: the walk along it reads every
+        // station tangent, and the pairing stops it.
+        let axis = geom::Curve3::line(origin, Vec3::unit_y());
+        let side = |surface| geom_brep::SideFace {
+            surface,
+            sense: true,
         };
-        let stop = tangency
-            .pairing([true, true], band)
-            .expect_err("the pairing stops the walk");
+        let walk = geom_brep::WedgeWalk::along_edge(side(&floor), side(&wall), &axis, 0.0, 1.0);
+        let geom_brep::WedgeVerdict::InBand(stop) =
+            geom_brep::edge_wedge_over(&walk, geom_core::test_support::fixture_lever(arm), band)
+        else {
+            panic!("{label}: the pairing stops the walk");
+        };
         assert_eq!(stop.rung(), geom_brep::WedgeRung::Pairing, "{label}");
         let text = crate::validate::dihedral_finding(edge, stop)
             .render(geom_brep::recourse::Reading::AtRest);
@@ -3235,9 +3274,8 @@ fn a_solid_with_a_genuine_cavity_certifies() {
 /// a cavity half-edge, the carve refuses rather than leave the link dangling.
 #[test]
 fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
+    use crate::carve::{CarveError, carve};
     use crate::entity::LoopBoundary;
-    use crate::splitting::SplitFinishError;
-    use crate::splitting::finish::carve;
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -3268,7 +3306,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_vertex, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptStartsAtDropped { .. })
         ),
         "a kept half-edge starting at a dropped vertex"
     );
@@ -3283,7 +3321,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_edge, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptSharesEdge { .. })
         ),
         "a kept edge naming a dropped half-edge"
     );
@@ -3295,7 +3333,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_lone, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptLoopHoldsDropped { .. })
         ),
         "a kept lone-vertex loop holding a dropped vertex"
     );
@@ -3475,14 +3513,15 @@ fn volume_role_of(body: &Body<f64>, tol: Tol) -> crate::ShellRole {
         .expect("the volume's sign decides a role")
 }
 
-/// **A sign is read off the exact volume, not off its rounding.** The
-/// slab of 1 mm × 1 mm × 100 nm anchored 5 km away: the walk's `f64`
-/// sum reads it NEGATIVE (−1.2e-12 m³) where it is exactly
-/// `1e-3 · 1e-3 · 1e-7 = +1e-13`, and reads its inside-out twin
-/// positive. The volume's role read, where the role reader falls back to
-/// it, reads the interval re-derivation, and gives the exact answer both
-/// ways; check 7 and the shell classification agree. (ε ≤ 1e-9: wider,
-/// the slab is thinner than the band.)
+/// **A sign is read off the exact volume, not off a record's anchor.**
+/// The slab of 1 mm × 1 mm × 100 nm whose records are anchored 5 km
+/// away: each face is read at the face (`[tolerance.epsilon]`), so the
+/// walk's `f64` sum reads it at its exact `1e-3 · 1e-3 · 1e-7 = +1e-13`,
+/// where a sum about the records' origins once read it negative. The
+/// volume's role read, where the role reader falls back to it, reads the
+/// interval re-derivation, and gives the exact answer both ways; check 7
+/// and the shell classification agree. (ε ≤ 1e-9: wider, the slab is
+/// thinner than the band.)
 #[test]
 fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     use crate::ShellRole::{Outer, Void};
@@ -3503,9 +3542,8 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     )
     .expect("the slab measures");
     assert!(
-        read.enclosure.volume < -exact,
-        "the premise: the walk's sum reads the slab negative, past its exact \
-         volume {exact:e}: {read:?}"
+        (read.enclosure.volume - exact).abs() <= 1e-3 * exact,
+        "the walk reads the slab at its exact volume {exact:e}: {read:?}"
     );
     assert_eq!(
         validate_geometric(&upright, tol),
@@ -3563,13 +3601,13 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
 }
 
 /// **The census's void screen reads a shell's role as the rest of the
-/// crate does.** The far-anchored slab of the row above, whose `f64`
-/// sum reads it negative: a lane-free volume read once called the
-/// upright slab a `Void`, and a cross-solid gate holding no lane dropped
-/// it as one. A lane-free read now leaves its sign unresolved within the
-/// sum's rounding (`props::rounding_bound`; asserted), and the gate reads
-/// what the shell classification reads, both ways round: a lone shell is
-/// outer by arity.
+/// crate does.** The far-anchored slab of the row above: a lane-free
+/// volume read once called the upright slab a `Void`, its sum taken
+/// about the records' far origins, and a cross-solid gate holding no
+/// lane dropped it as one. Each face is read at the face now, so a
+/// lane-free read takes the slab's own sign, `Outer` (asserted), and the
+/// gate reads what the shell classification reads, both ways round: a
+/// lone shell is outer by arity.
 #[test]
 fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     use crate::ShellRole::Outer;
@@ -3586,11 +3624,8 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     let shell = upright.shells.iter().next().expect("one shell").0;
     assert_eq!(
         crate::props::shell_volume_role(&upright, shell, band, tol, None),
-        Err(crate::ShellClassifyError::SignUnresolved {
-            shell,
-            limit: crate::SignLimit::Scalar,
-        }),
-        "read with no lane, the upright slab's rounded sum decides no role"
+        Ok(Outer),
+        "read with no lane, the upright slab's sum, read at its faces, is outer"
     );
     let inverted = upright.revert().unwrap();
     for (body, want, finishes) in [(&upright, Outer, true), (&inverted, Outer, false)] {
@@ -3707,12 +3742,9 @@ pub(crate) fn half_disc(
         geom::Curve3::circle(center, u_ref.cross(Vec3::unit_y()), r, u_ref)
     };
     let segment = |body: &Body<f64>, edge| {
-        let he = body.get_edge(edge).unwrap().he_plus;
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let (p0, p1) = (
-            at(body.get_half_edge(he).unwrap().start),
-            at(body.half_edge_end(he).unwrap()),
-        );
+        let (p0, p1) = (at(v0), at(v1));
         geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
@@ -3722,25 +3754,13 @@ pub(crate) fn half_disc(
         } else {
             segment(&p.body, e)
         };
-        let he = p.body.get_edge(e).unwrap().he_plus;
-        let p0 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.get_half_edge(he).unwrap().start)
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
-        let p1 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.half_edge_end(he).unwrap())
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
+        let (v0, v1) = p.body.edge_vertices(e).unwrap();
+        let at = |v| {
+            *p.body
+                .get_point(p.body.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let (p0, p1) = (at(v0), at(v1));
         let t1 = if is_arc {
             std::f64::consts::PI
         } else {
@@ -4179,15 +4199,15 @@ mod a_tangent_record_off_the_cusp {
     }
 }
 
-/// **A lane-free read never takes the rounded sum's sign for the
-/// volume's** (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
-/// the far-anchored slab's `f64` sum reads −1.2e-12 m³ for a +1e-13 m³
-/// body, and with no lane its volume is read as `[V − b, V + b]`, `b` the
-/// stated bound on the sum's rounding (`props::rounding_bound`). The slab
-/// lies within it either way out, so its shell's volume role is
-/// unresolved in this scalar, never `Void`; and the structural door,
-/// which reads the same walk, never refuses the upright slab
-/// `NegativeVolume`.
+/// **A lane-free read takes the volume's own sign**
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
+/// with no lane its volume is read as `[V − b, V + b]`, `b` the stated
+/// bound on the sum's rounding (`props::rounding_bound`). The far-anchored
+/// slab's faces and that bound are read at the faces, whatever the
+/// records' origins, so the sum reads the +1e-13 m³ slab outside its
+/// rounding: its shell's role is `Outer` upright and `Void` inside out;
+/// and the structural door, which reads the same walk, never refuses the
+/// upright slab `NegativeVolume`.
 #[test]
 fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
     let tol = Tol::witness();
@@ -4200,17 +4220,18 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
     }
     let band = geom_core::Band::linear(tol).expect("the witness band");
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    for (what, body) in [
-        ("upright", upright.clone()),
-        ("inside out", upright.revert().unwrap()),
+    for (what, body, role) in [
+        ("upright", upright.clone(), crate::ShellRole::Outer),
+        (
+            "inside out",
+            upright.revert().unwrap(),
+            crate::ShellRole::Void,
+        ),
     ] {
         let (shell, _) = body.shells.iter().next().expect("one shell");
         assert_eq!(
             crate::props::shell_volume_role(&body, shell, band, tol, None),
-            Err(crate::ShellClassifyError::SignUnresolved {
-                shell,
-                limit: crate::SignLimit::Scalar,
-            }),
+            Ok(role),
             "{what}: the lane-free volume role"
         );
     }
@@ -4248,10 +4269,11 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
     let band = geom_core::Band::linear(tol).unwrap();
     let mut concave = Vec::new();
     for (edge, e) in body.edges() {
-        let walk = crate::validate::edge_wedge_walk(&body, edge).expect("a live edge");
-        let reach = crate::edge_wedge_reach(&body, edge).expect("a certified curve");
-        let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
-        let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
+        let verdict = crate::edge_wedge(&body, edge, band).expect("a live edge");
+        let geom_brep::WedgeVerdict::Crease {
+            convexity: sign, ..
+        } = verdict
+        else {
             panic!("every edge of a prism is a crease: {verdict:?}");
         };
         if sign == geom_brep::Convexity::Concave {

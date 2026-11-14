@@ -24,7 +24,7 @@ use topo::{Body, FaceKey, ShellError};
 /// Every face of `body` on a surface of `kind`.
 fn faces_on(body: &Body<f64>, kind: geom::SurfaceKind) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -344,7 +344,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
             "{what}: both half-faces survive as the band, under their keys"
         );
         for &f in &cone {
-            let surface = cup.get_surface(cup.get_face(f).unwrap().surface);
+            let surface = cup.face_surface(f);
             assert!(
                 matches!(surface, Some(geom::Surface::Cone { apex: p, .. })
                     if p.x == 0.0 && p.y == apex && p.z == 0.0),
@@ -678,8 +678,8 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
 /// stored surface.
 fn walls_of(body: &Body<f64>, radius: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -985,9 +985,8 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     .unwrap();
     // The seam now parts two faces, so it is no longer a wrap edge.
     let ends = {
-        let e = body.get_edge(seam).unwrap();
-        let start = |he| body.get_half_edge(he).unwrap().start;
-        (p(&body, start(e.he_plus)), p(&body, start(e.he_minus)))
+        let (a, b) = body.edge_vertices(seam).unwrap();
+        (p(&body, a), p(&body, b))
     };
     body.set_edge_curve(
         seam,

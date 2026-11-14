@@ -66,7 +66,9 @@ fn tessellation_follows_the_band_sense() {
 
     // Flip ONE band's sense bit and nothing else.
     let (face, _) = body.faces().next().unwrap();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let lied = mesh::tessellate(&flipped, delta, Tol::witness()).unwrap();
 
     // The band's meridian branch moved by π: the emitted geometry is
@@ -77,7 +79,7 @@ fn tessellation_follows_the_band_sense() {
             .positions
             .iter()
             .zip(&lied.positions)
-            .all(|(a, b)| a.x.to_bits() == b.x.to_bits() && a.y.to_bits() == b.y.to_bits());
+            .all(|(a, b)| a.same_bits(*b));
     assert!(
         !same,
         "flipping a rimless band's sense must move its azimuth branch — \

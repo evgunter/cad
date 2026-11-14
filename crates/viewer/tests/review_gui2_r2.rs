@@ -922,7 +922,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
 fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let (session, index, drawn) = right_top_face();
     let doc = session.doc();
-    let extrude = viewer::world::seat_of(doc, drawn.node);
+    let extrude = viewer::world::original_of(doc, drawn.node);
     assert!(
         matches!(doc.node(extrude), Some(Node::Extrude { .. })),
         "the right copy places the extrude"
@@ -1532,7 +1532,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     let owner = session.selection().node().expect("a face owns a node");
     assert_eq!(
         owner,
-        viewer::world::seat_of(session.committed_doc(), face.node),
+        viewer::world::original_of(session.committed_doc(), face.node),
         "the ring's revolve owns the face its copy draws"
     );
     assert!(
