@@ -2790,17 +2790,12 @@ mod crossing_and_turn_rows {
                     "{at}: the suites' door admits the f64 turn entered at Interval, as given"
                 );
                 // The same two directions at `Interval`, as point
-                // enclosures: each the aim of an `f64` frame, entered at
-                // `Interval` through the suites' door.
+                // enclosures: each the aim of an `f64` frame rigid within
+                // rounding (`aimed`), entered at `Interval` through the
+                // suites' door.
                 let at_interval = |d: UnitVec3<f64>| {
-                    let frame = RigidMotion::from_aim_and_reference(
-                        Point3::origin(),
-                        d,
-                        Vec3::new(0.3, -0.5, 0.8),
-                        SITE,
-                        band(),
-                    )
-                    .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
+                    let frame = RigidMotion::aimed(Point3::origin(), d)
+                        .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
                     RigidMotion::admitted_for_a_suite(
                         &frame.to_affine().map(Interval::from_f64),
                         band(),
