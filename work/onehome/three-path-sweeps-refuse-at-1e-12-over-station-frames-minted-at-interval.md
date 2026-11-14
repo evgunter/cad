@@ -22,3 +22,7 @@ Filed by the skin-turn lane (`onehome/skin-turn`), which mints each station's fr
 Each reads the walls' pcurves against a frame now wider than the band's zero half-width allows at 1e-12. The wall is fitted through the minted stations, and the fit amplifies the frame's width.
 
 **Open.** Whether the 1e-12 row owes these three rows a narrower station frame (the per-station floor is the tangent's derivative enclosure, about 4e-13, and `from_aim_and_reference`'s residual), or whether the consumers that read the frame owe the width. The wide-start-frame row (`a_loft_computes_its_walls_in_t.rs`) passes at 1e-12 at `Interval` and at `Sym<Interval>`.
+
+**The refusal does not name the station frame.** Each refuses as the wall certificate's own text (`Pcurve(Escalated … pcurve_loop_continuity)`, `Euler(Certification … pcurve_map_residual)`), not as a typed refusal naming the station whose frame is too wide for the band. That is the same ask as the variable-path row's (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`, "Must hold"): a typed refusal naming the station frame.
+
+**Pinned.** The three rows are pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins lift with its fix.
