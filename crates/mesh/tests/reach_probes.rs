@@ -177,9 +177,12 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
 ///     misses the volume by a face's worth; a triangle folded over a
 ///     chord beside it points into the surface;
 ///   - **lies within δ of the surface**: its true distance, sampled on a
-///     barycentric grid ([`distance`]), is at most `δ`, so a certificate
-///     that under-reports a triangle's deviation reds here whichever arm
-///     issued it;
+///     barycentric grid ([`distance`]), is at most `δ`. That reds a mesh
+///     that is truly past δ, not a certificate that under-reports: a
+///     lattice sized at its own steps stays within δ whatever the
+///     certificate says, so a certificate is held to the truth in its own
+///     row (`mesh`'s `chart_table` tests,
+///     `the_cone_and_torus_certificates_hold_the_true_deviation`);
 ///   - **is not on one line**: `2·area/L²`, `L` its longest side, is at
 ///     least [`MIN_SHAPE`], so a triangle along one straight line of the
 ///     surface (a cone's ruling) reds here; a thin triangle does not.

@@ -515,6 +515,112 @@ mod tests {
     use geom::Surface;
     use geom_core::{Point3, Vec3};
 
+    /// **The cone's and the torus's certificates hold their triangles'
+    /// true deviation.** On triangles laid in each chart (spans from a
+    /// lattice cell's to a wide one's, at several places, on a cone with
+    /// and without its apex as a corner, on a ring torus across its inner
+    /// and outer sides), the true distance from the surface, sampled on a
+    /// 300-point barycentric grid of each triangle and read in the
+    /// surface's closed form, is at most the row's certificate
+    /// ([`AnalyticRow::cert`]). A certificate that under-reports, scaled
+    /// by `0.01` or zeroed on either arm, reds here; the mesh rows cannot
+    /// see that, since a lattice sized at its own steps keeps the true
+    /// deviation under δ whatever the certificate says.
+    #[test]
+    fn the_cone_and_torus_certificates_hold_the_true_deviation() {
+        let origin = Point3::new(0.3, -0.2, 0.7);
+        let axis = Vec3::new(1.0, 2.0, 2.0) * (1.0 / 3.0);
+        let u_ref = Vec3::new(2.0, -1.0, 0.0) * (1.0 / 5f64.sqrt());
+        let cone = Surface::Cone {
+            apex: origin,
+            axis,
+            half_angle: 0.4,
+            u_ref,
+        };
+        let torus = Surface::Torus {
+            center: origin,
+            axis,
+            major_radius: 2.0,
+            minor_radius: 0.6,
+            u_ref,
+        };
+        let distance = |surface: &Surface<f64>, p: Point3<f64>| -> f64 {
+            let split = |w: Vec3<f64>| {
+                let h = w.dot(axis);
+                (h, (w - axis * h).norm())
+            };
+            match *surface {
+                Surface::Cone { half_angle, .. } => {
+                    let (h, rho) = split(p - origin);
+                    let (s, c) = (half_angle.sin(), half_angle.cos());
+                    [1.0, -1.0]
+                        .map(|sign| {
+                            let t = (rho * s + h * sign * c).max(0.0);
+                            (rho - t * s).hypot(h - t * sign * c)
+                        })
+                        .into_iter()
+                        .fold(f64::INFINITY, f64::min)
+                }
+                Surface::Torus {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
+                    let (h, rho) = split(p - origin);
+                    ((rho - major_radius).hypot(h) - minor_radius).abs()
+                }
+                _ => unreachable!("the row's two surfaces"),
+            }
+        };
+        let mut checked = 0;
+        for (surface, vs) in [(&cone, [0.0, 0.3, 2.5]), (&torus, [-2.5, 0.2, 2.9])] {
+            let row = AnalyticRow::new(surface, 3.0).unwrap();
+            for u0 in [0.0, 1.3, 4.1] {
+                for v0 in vs {
+                    for (du, dv) in [(0.05, 0.05), (0.3, 0.1), (0.8, 0.5), (0.2, 1.2)] {
+                        for flip in [false, true] {
+                            let uv = if flip {
+                                [[u0, v0], [u0 + du, v0 + dv], [u0, v0 + dv]]
+                            } else {
+                                [[u0, v0], [u0 + du, v0], [u0 + du, v0 + dv]]
+                            };
+                            let apex = uv
+                                .map(|[_, v]| matches!(surface, Surface::Cone { .. }) && v == 0.0);
+                            let tri = uv.map(|[u, v]| surface.eval(u, v));
+                            let (bound, _) = row.cert(tri, uv, apex);
+                            const N: usize = 23;
+                            let mut worst = 0.0f64;
+                            for i in 0..=N {
+                                for j in 0..=N - i {
+                                    #[allow(clippy::cast_precision_loss)]
+                                    let (x, y) = (i as f64 / N as f64, j as f64 / N as f64);
+                                    let z = 1.0 - x - y;
+                                    let p = Point3::new(
+                                        x * tri[0].x + y * tri[1].x + z * tri[2].x,
+                                        x * tri[0].y + y * tri[1].y + z * tri[2].y,
+                                        x * tri[0].z + y * tri[1].z + z * tri[2].z,
+                                    );
+                                    worst = worst.max(distance(surface, p));
+                                }
+                            }
+                            assert!(
+                                worst <= bound * (1.0 + 1e-9) + 1e-14,
+                                "{:?} triangle {uv:?}: true deviation {worst:e} past its \
+                                 certificate {bound:e}",
+                                surface.kind()
+                            );
+                            checked += usize::from(worst > 1e-6);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            checked > 100,
+            "the triangles deviate measurably ({checked}), so a scaled certificate reds"
+        );
+    }
+
     /// **The fold check reads the face's side through the bit.** On each
     /// analytic row, at a point off the carrier on either side of it,
     /// `outward` points away from the point it is measured from exactly when
