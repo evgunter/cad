@@ -279,3 +279,5 @@ Newest entries at the bottom; the tail is the program's live status.
   - the viewer slow set run at the head: 3 failures, all also failing on main (the rook story, two `door_at_rest` rows).
 
   On the fork-log numbering: row number 266 is also used by another program's row on main. Both rows are kept, as with the earlier 260 duplicates.
+
+- 2026-11-14 — **PR 6948 merged.** The three re-point buttons now share the offer's check and its verb. Review history: a single full review returned APPROVE-WITH-FIXES with two MINORs (the leftover filter, and the pane layer unguarded, shown by mutation B), and the orchestrator accepted the fix pass on its read. The widget now derives enabled from the checked value alone, and a widget test fails under both mutations. Filed by the lane: `a-re-point-button-checks-the-first-edit-not-the-takeovers-rebinds` (P3; the takeover's `Rebind` rounds can refuse after the static check; no witness yet). The re-point and delete buttons were added to VNEWS's open row on gated controls during a gesture. The viewer slow-set superset showed only the expected main reds.

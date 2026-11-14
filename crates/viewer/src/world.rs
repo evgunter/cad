@@ -806,25 +806,34 @@ pub fn repoint_targets(
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter_map(|source| {
             let placements = placements_of_var(doc, source);
-            (!placements.is_empty() && redefinable(doc, source, onto, tol)).then_some(RepointRow {
-                body,
-                source,
-                placements,
-            })
+            (!placements.is_empty() && repoint_check(doc, source, onto, tol).is_ok()).then_some(
+                RepointRow {
+                    body,
+                    source,
+                    placements,
+                },
+            )
         })
         .collect()
 }
 
-/// **Whether the re-point of `source` onto `onto` lands**: the action's
-/// own checks, its takeover's first edit included
-/// (`session::repoint_refusal`), asked of `doc`.
-fn redefinable(
+/// **Whether the re-point of `source` onto `onto` lands**, or why not:
+/// the action's own checks, its takeover's first edit included
+/// (`session::repoint_refusal`), asked of `doc`. The one check every
+/// re-point button reads: the offer's rows ([`repoint_targets`]), and
+/// the source and "copy of" rows (`frame::repoint_button`).
+///
+/// # Errors
+///
+/// The refusal [`crate::session::SessionOp::RepointPlacements`] would
+/// land with.
+pub fn repoint_check(
     doc: &Doc<ProfileProgram>,
     source: VarId,
     onto: RecipeNodeId,
     tol: pncad::geom_core::Tol,
-) -> bool {
-    crate::session::repoint_refusal(doc, source, &Operand::Node(onto), tol).is_ok()
+) -> Result<(), crate::session::Refusal> {
+    crate::session::repoint_refusal(doc, source, &Operand::Node(onto), tol).map(drop)
 }
 
 /// **The source a Place of `body` shares** (VARIABLES VR4): `body` itself
