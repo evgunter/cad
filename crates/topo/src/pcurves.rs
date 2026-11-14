@@ -6,6 +6,23 @@
 //! half-edges, loops, and faces — i.e. everything about **where** a
 //! pcurve lives and **which branch** it takes.
 //!
+//! # The files
+//!
+//! - `pcurves/mint.rs`: [`PcurveMintError`], the chart a row is minted
+//!   on and its periods, a row's derivation, and the minting doors
+//!   ([`mint_pcurves`], [`mint_pcurves_of`]).
+//! - `pcurves/decision.rs`: the walk over a cycle's joints and the one
+//!   decision of a joint's element (`decide_joint`).
+//! - `pcurves/lift.rs`: a face's stored rows and a loop's [`Lift`].
+//! - `pcurves/site.rs`: the doors' limbs, an Euler operator's site mint,
+//!   a split's carried rows and a kill's turn.
+//! - `pcurves/tier3.rs`: the pass over a body's stored rows
+//!   ([`validate_pcurves`]) and [`loop_windings`].
+//! - `pcurves_rings.rs`: a face's rings in its outer loop's sheet
+//!   ([`FaceLift`]).
+//!
+//! Every other file under `pcurves/` is a `#[cfg(test)]` module of rows.
+//!
 //! # The half-edge IS the key (spec §1)
 //!
 //! A pcurve row belongs to an (edge, face-side) incidence, and the
@@ -84,7 +101,7 @@
 //! endpoint pinning. At a joint whose vertex is on the chart's singular
 //! set — a pole, an apex, decided as 3-D incidence — the whole
 //! latitude is the one point, and the element puts the image's entry
-//! the face's turn past its predecessor's exit ([`singular_turn`]), so
+//! the face's turn past its predecessor's exit (`singular_turn`), so
 //! the chain runs on through the point as the face's boundary. That
 //! element is a function of the two edges, the chart and the face's
 //! sense, with one exception stated where it is decided: two distinct
@@ -214,7 +231,7 @@
 //! the split body are narrower, both stated at [`split_cache`]. On a
 //! described-NURBS wall [`mint_pcurves`] — the recovery step this
 //! module's caveats name for a face left rowless — refuses, because
-//! [`nurbs_iso_derive`]'s rim arms map an edge's whole carrier
+//! `nurbs_iso_derive`'s rim arms map an edge's whole carrier
 //! interval onto the chart's whole `u` domain, which a sub-edge no
 //! longer spans; so the claim that a carried row is the row the pass
 //! would derive does not reach the iso rows there (it does reach a
@@ -349,7 +366,7 @@
 //! breaks its loop's branch or winding. It says nothing about the two shapes
 //! outside that — a COMPLETE face whose rows were stated in another
 //! chart and certify against this one anyway, and a face on a chart
-//! [`chart_mints`] refuses, which the pass skips entirely. So the
+//! `chart_mints` refuses, which the pass skips entirely. So the
 //! posture is fail-loud where the pass looks, and an op that mutates
 //! an already-minted body must either clear the map or re-mint before
 //! returning, and must say which.

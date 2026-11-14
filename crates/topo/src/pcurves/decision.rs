@@ -2,18 +2,24 @@
 //! cycle's joints and [`decide_joint`] decides each one's element.
 
 use geom::Surface;
-use geom_brep::{BranchMiss, ChartImage, Pcurve, PcurveCache, Period, WalkStop, first_within};
+use geom_brep::{
+    BranchMiss, CertifyingDoor, ChartImage, Pcurve, PcurveCache, PcurveCertifyError, Period,
+    WalkStop, first_within,
+};
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign, SupSpeed};
 
 use super::{
-    ChartPeriods, DescribedChart, NetChannel, VPeriod, chart_u_arm, half_edge_record, net_reach,
-    shift_v_branch, sphere_twin, v_meter,
+    ChartPeriods, DescribedChart, NetChannel, PcurveMintError, VPeriod, chart_u_arm, derive_image,
+    entry_vertex, half_edge_record, is_plus, loop_rows, net_reach, shift_v_branch, sphere_twin,
+    v_meter,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, HalfEdgeKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
+use crate::live::proven;
+use crate::props::AtRestPolicy;
 
 /// One half-edge's minted chart curve, before certification: the
 /// image, its carrier and the carrier interval, and the element of the
@@ -39,9 +45,7 @@ impl<T: Real, K> Walked<T, K> {
 
     /// The certified row, where the derivation's lane choice already
     /// read the certificate; the walked row back otherwise.
-    pub(super) fn into_certified(
-        self,
-    ) -> Result<(K, PcurveCache<T>, Option<JointElement>), Box<Self>> {
+    fn into_certified(self) -> Result<(K, PcurveCache<T>, Option<JointElement>), Box<Self>> {
         match self.image {
             ChartImage::Certified(cache) => Ok((self.key, cache, self.element)),
             image @ (ChartImage::Image { .. } | ChartImage::Stated { .. }) => {
@@ -432,8 +436,6 @@ pub(crate) enum WalkFail<E> {
 /// leaves as found, between two images that stand.
 ///
 /// [`site_rows`]: super::site_rows
-/// [`walk_loop`]: super::walk_loop
-/// [`walk_runs`]: super::walk_runs
 #[allow(clippy::too_many_arguments)]
 pub(super) fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     chart: DescribedChart<'_, T>,
@@ -580,6 +582,272 @@ pub(super) fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
         }
     }
     Ok(out)
+}
+
+/// The rows [`certify_walked`] certified, in walk order: each image's
+/// certified row, with the element of the joint into it where the walk
+/// decided one.
+pub(super) type Certified<T, K> = Vec<(K, PcurveCache<T>, Option<JointElement>)>;
+
+/// A fitted-grade certifier for an image whose door is the fitted one
+/// ([`geom_brep::CertifyingDoor`], [`certify_walked`]).
+type FittedDoor<'a, T, K> = &'a dyn Fn(&Walked<T, K>) -> Result<PcurveCache<T>, PcurveCertifyError>;
+
+/// **Pass 2 of the minting walk, for one face**: every image the walk
+/// derived certified against its carrier and chart, in walk order. The
+/// one home of that pass, shared by `mint_face` (the minting pass)
+/// and [`site_rows`] (the Euler operators' site mint), so the rows the
+/// two write for one walk are one set of bits. A row's certificate
+/// reads that row alone; the loop's facts (its branches and winding)
+/// are the walk's ([`walk_cycle`]).
+///
+/// An image whose derivation's lane choice already read its
+/// certificate ([`ChartImage::Certified`]) keeps that certificate and
+/// is not certified again. Every other image goes to the door its kind
+/// names ([`Pcurve::certifying_door`]): the `Decide`-scalar door,
+/// [`PcurveCache::certify`], or `fitted` — the fitted door, which only
+/// the pass holds. Without it a fitted or general image meets the
+/// closed-form door, which refuses it, and a projected one is read
+/// there.
+///
+/// # Errors
+///
+/// Every half-edge whose certification refused, with its refusal, in
+/// walk order.
+///
+/// [`site_rows`]: super::site_rows
+pub(super) fn certify_walked<T: Decide, K: Copy>(
+    walked: Vec<Walked<T, K>>,
+    surface: &Surface<T>,
+    band: Band,
+    fitted: Option<FittedDoor<'_, T, K>>,
+) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
+    let mut rows = Vec::with_capacity(walked.len());
+    let mut refused = Vec::new();
+    for w in walked {
+        let w = match w.into_certified() {
+            Ok(row) => {
+                rows.push(row);
+                continue;
+            }
+            Err(w) => *w,
+        };
+        let (t0, t1) = w.window();
+        let cache = match (w.pcurve().certifying_door(), fitted) {
+            (CertifyingDoor::Fitted | CertifyingDoor::Either, Some(fitted)) => fitted(&w),
+            _ => PcurveCache::certify(w.pcurve().clone(), t0, t1, &w.carrier, surface, band),
+        };
+        // An image the walk derived: a lane choice's refusal of its own
+        // image is the lane's gap (`geom_brep::minted_refusal`). A stated
+        // one keeps its term.
+        match cache {
+            Ok(cache) => rows.push((w.key, cache, w.element)),
+            Err(error) => refused.push((
+                w.key,
+                match w.image {
+                    ChartImage::Image { .. } => {
+                        geom_brep::minted_refusal(error, w.pcurve(), &w.carrier, surface)
+                    }
+                    ChartImage::Stated { .. } | ChartImage::Certified(_) => error,
+                },
+            )),
+        }
+    }
+    if refused.is_empty() {
+        Ok(rows)
+    } else {
+        Err(refused)
+    }
+}
+
+/// The one-branch walk of a single loop (module docs). Appends the
+/// branch-pinned chart curves to `out`.
+///
+/// The derivation is the one step that forks by chart: a SPLINE chart
+/// derives from the edge's description (`nurbs_iso_derive`, the
+/// fitted lane's), every analytic chart from the carrier's closed form
+/// ([`chart_pcurve_over`]). Everything after the derivation — the branch
+/// pin, the continuity margins, the closure — is [`walk_cycle`], which
+/// is stated under `Decide`. An empty loop bounds nothing to chart and
+/// appends nothing.
+///
+/// # Panics
+///
+/// [`loop_rows`]': `lp` is a loop of `face`'s record.
+///
+/// [`chart_pcurve_over`]: geom_brep::chart_pcurve_over
+#[track_caller]
+pub(crate) fn walk_loop<T: AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    lp: LoopKey,
+    chart: DescribedChart<'_, T>,
+    band: Band,
+    out: &mut Vec<Walked<T>>,
+) -> Result<(), PcurveMintError> {
+    let cycle = loop_rows(body, lp);
+    walk_halves(body, face, &cycle, chart, band, true, out)
+}
+
+/// **`halves` walked in `chart`**, consecutive members of one loop of
+/// `face` in loop order: the whole cycle where `closes`, and otherwise
+/// an open run of it, which decides no joint into its first member and
+/// checks no closure. Each half's image is derived on the chart's
+/// principal branch and every joint between two of them decided
+/// ([`walk_cycle`]), at `band`, on the face's side (its stored sense).
+/// The walked rows join `out`, uncertified.
+///
+/// # Errors
+///
+/// A derivation's refusal, or a joint's: as [`mint_pcurves`] reports
+/// them, by half-edge.
+///
+/// # Panics
+///
+/// Where `face` or a member does not resolve.
+///
+/// [`mint_pcurves`]: super::mint_pcurves
+#[track_caller]
+pub(crate) fn walk_halves<T: AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    halves: &[HalfEdgeKey],
+    chart: DescribedChart<'_, T>,
+    band: Band,
+    closes: bool,
+    out: &mut Vec<Walked<T>>,
+) -> Result<(), PcurveMintError> {
+    let surface = chart.surface();
+    let sense = proven(&body.faces, face, EntityId::Face).sense;
+    let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, PcurveMintError> {
+        let he = halves[i];
+        let row = derive_image(body, he, surface, band)?;
+        Ok(walk_item(
+            row,
+            is_plus(body, he),
+            entry_vertex(body, he),
+            stored_edge(body, he),
+        ))
+    };
+    let wedges = crate::wedge_reach::WedgeReach::new(body);
+    let reach = |i: usize| stored_reach(&wedges, body, halves[i]);
+    let walked = walk_cycle(
+        chart,
+        sense,
+        halves.len(),
+        item,
+        |_| None,
+        &reach,
+        band,
+        closes,
+    )
+    .map_err(|fail| match fail {
+        WalkFail::Item(e) => e,
+        WalkFail::Miss { index, miss } => joint_refusal(halves[index], miss),
+        WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+    })?;
+    out.extend(
+        halves
+            .iter()
+            .zip(walked)
+            .map(|(&key, (row, .., element))| Walked::pinned(key, row, element)),
+    );
+    Ok(())
+}
+
+/// The refusal of the joint into `half_edge` that decided no element.
+pub(super) fn joint_refusal(half_edge: HalfEdgeKey, miss: PinMiss) -> PcurveMintError {
+    match miss {
+        PinMiss::Discontinuity => PcurveMintError::LoopDiscontinuity { half_edge },
+        PinMiss::Escalated(cause) => PcurveMintError::Escalated { half_edge, cause },
+        PinMiss::NetStretchUndecided(cause) => {
+            PcurveMintError::NetStretchUndecided { half_edge, cause }
+        }
+        PinMiss::Singular(miss) => PcurveMintError::SingularTurn { half_edge, miss },
+    }
+}
+
+/// **The runs of covered edges in a loop the walk could not close**:
+/// the loop read as the mint reads it, minus the edges it cannot image.
+/// Each half-edge's image is derived ([`derive_image`]), and every
+/// maximal run of consecutive derived images — cyclically, so a run may
+/// cross the loop's start — is walked as an open chain ([`walk_cycle`]
+/// without the closure), its joints pinned and checked exactly as the
+/// loop's own walk would. The pinned images join `out` for
+/// certification; a derivation's refusal or a joint's joins
+/// `refused`.
+pub(super) fn walk_runs<T: AtRestPolicy>(
+    body: &Body<T>,
+    chart: DescribedChart<'_, T>,
+    sense: bool,
+    cycle: &[HalfEdgeKey],
+    band: Band,
+    out: &mut Vec<Walked<T>>,
+    refused: &mut Vec<PcurveMintError>,
+) {
+    let surface = chart.surface();
+    type Derived<T> = (HalfEdgeKey, WalkItem<T, DerivedRow<T>>);
+    let mut items: Vec<Option<Derived<T>>> = cycle
+        .iter()
+        .map(|&he| {
+            let derived = derive_image(body, he, surface, band).map(|row| {
+                (
+                    he,
+                    walk_item(
+                        row,
+                        is_plus(body, he),
+                        entry_vertex(body, he),
+                        stored_edge(body, he),
+                    ),
+                )
+            });
+            derived.map_err(|e| refused.push(e)).ok()
+        })
+        .collect();
+    let n = items.len();
+    let start = items
+        .iter()
+        .position(Option::is_none)
+        .map_or(0, |gap| (gap + 1) % n.max(1));
+    let mut runs: Vec<Vec<Derived<T>>> = Vec::new();
+    let mut run: Vec<Derived<T>> = Vec::new();
+    for k in 0..n {
+        match items[(start + k) % n].take() {
+            Some(item) => run.push(item),
+            None => runs.push(core::mem::take(&mut run)),
+        }
+    }
+    runs.push(run);
+    for run in runs.into_iter().filter(|run| !run.is_empty()) {
+        let (keys, mut walk_items): (Vec<_>, Vec<_>) =
+            run.into_iter().map(|(he, item)| (he, Some(item))).unzip();
+        let item = |j: usize| -> Result<WalkItem<T, DerivedRow<T>>, core::convert::Infallible> {
+            Ok(walk_items[j]
+                .take()
+                .unwrap_or_else(|| unreachable!("walk_cycle reads each item of a run once")))
+        };
+        let wedges = crate::wedge_reach::WedgeReach::new(body);
+        let reach = |i: usize| stored_reach(&wedges, body, keys[i]);
+        match walk_cycle(
+            chart,
+            sense,
+            keys.len(),
+            item,
+            |_| None,
+            &reach,
+            band,
+            false,
+        ) {
+            Ok(pinned) => out.extend(
+                keys.iter()
+                    .zip(pinned)
+                    .map(|(&key, (row, .., element))| Walked::pinned(key, row, element)),
+            ),
+            Err(WalkFail::Miss { index, miss }) => refused.push(joint_refusal(keys[index], miss)),
+            Err(WalkFail::Item(never)) => match never {},
+            Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
+        }
+    }
 }
 
 /// Where a joint's vertex sits against the chart's **singular set**:
@@ -801,7 +1069,7 @@ impl AzimuthRule {
 ///
 /// A cone's apex is on the face's side of one nappe only: which is read
 /// off each edge ([`apex_nappe`]).
-pub(super) fn singular_turn<T: Decide>(
+fn singular_turn<T: Decide>(
     chart: DescribedChart<'_, T>,
     which: geom_brep::chart_singularity::Singularity,
     image: &Pcurve<T>,
@@ -1477,7 +1745,7 @@ pub(crate) fn branches_astride_as<T: Decide>(
 ///
 /// [`PinMiss::Discontinuity`] for a definite gap,
 /// [`PinMiss::Escalated`] for an undecided one.
-pub(super) fn spline_gap_closes<T: Decide>(
+fn spline_gap_closes<T: Decide>(
     chart: DescribedChart<'_, T>,
     entry: geom_core::Point2<T>,
     prev: geom_core::Point2<T>,

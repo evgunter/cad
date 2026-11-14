@@ -315,21 +315,23 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         .unwrap()
         .to_path_buf();
     // The mint's rows: the modules `pcurves.rs` declares under
-    // `#[cfg(test)]`.
-    let root = std::fs::read_to_string(crates.join("topo/src/pcurves.rs")).unwrap();
-    let mut rows: Vec<String> = Vec::new();
-    let mut gated = false;
-    for line in root.lines() {
-        let module = line
-            .strip_prefix("pub(crate) mod ")
-            .or_else(|| line.strip_prefix("mod "))
-            .and_then(|rest| rest.strip_suffix(';'));
-        match module {
-            Some(name) if gated => rows.push(format!("topo/src/pcurves/{name}.rs")),
-            _ => {}
+    // `#[cfg(test)]`, the declarations that go when its gated items do.
+    let root = test_utils::source::code_only(
+        &std::fs::read_to_string(crates.join("topo/src/pcurves.rs")).unwrap(),
+    );
+    let mut shipped = root.clone();
+    for (at, _) in root.match_indices("#[cfg(test)]") {
+        if let Some(extent) = test_utils::source::attributed_extent(&root, at) {
+            let blank = " ".repeat(extent.len());
+            shipped.replace_range(extent, &blank);
         }
-        gated = line == "#[cfg(test)]" || (gated && line.starts_with("#["));
     }
+    let kept = test_utils::source::file_module_decls(&shipped);
+    let rows: Vec<String> = test_utils::source::file_module_decls(&root)
+        .into_iter()
+        .filter(|module| !kept.contains(module))
+        .map(|module| format!("topo/src/pcurves/{module}.rs"))
+        .collect();
     assert!(
         rows.iter().any(|row| row == OWN),
         "the rows `pcurves.rs` declares are read without this file among them"
@@ -364,20 +366,15 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
                 makers.push((name.clone(), made));
             }
             if name == "topo/src/pcurves/decision.rs" {
-                let lines: Vec<&str> = code().collect();
-                for (at, _) in lines
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, line)| line.contains(MAKER))
-                {
-                    let within = lines[..at]
+                let blanked = test_utils::source::code_only(&text);
+                let items = test_utils::source::fn_items(&blanked).unwrap();
+                for (at, _) in blanked.match_indices(MAKER) {
+                    let within = items
                         .iter()
-                        .rev()
-                        .find(|line| line.starts_with("fn ") || line.starts_with("pub"))
-                        .copied()
-                        .unwrap_or_default();
-                    assert!(
-                        within.starts_with("pub(super) fn decide_joint<"),
+                        .find(|(_, body)| body.contains(&at))
+                        .map_or("no function", |(name, _)| name.as_str());
+                    assert_eq!(
+                        within, "decide_joint",
                         "an element is made from a deck in `{within}`, not in `decide_joint`"
                     );
                 }

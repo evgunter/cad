@@ -141,7 +141,7 @@ pub(crate) enum SplitRefusal {
 ///
 /// - **The iso rim arms** are not among them. On a described-NURBS
 ///   wall the carried `IsoLine` and `IsoArc` rows restrict like any
-///   other, and [`mint_pcurves`] re-derives them: [`nurbs_iso_derive`]'s
+///   other, and [`mint_pcurves`] re-derives them: `nurbs_iso_derive`'s
 ///   line rim takes the row its end feet measure, and its arc rim the
 ///   row over the arc the row measures (`sweep`'s
 ///   `split_edge_loft_charts`). A carried fitted-grade row is
@@ -175,7 +175,6 @@ pub(crate) enum SplitRefusal {
 /// [`crate::Body::split_edge`](crate::construction::Construct::split_edge) resolved `Certified`.
 ///
 /// [`mint_pcurves`]: super::mint_pcurves
-/// [`nurbs_iso_derive`]: super::nurbs_iso_derive
 #[track_caller]
 pub(crate) fn split_cache<T: AtRestPolicy>(
     body: &Body<T>,
@@ -615,7 +614,7 @@ pub(crate) struct SiteFrom {
 }
 
 /// `face` as found, when a site mint's door could re-mint it: its
-/// chart mints ([`chart_mints`]) and [`StoredRows::remints`] selects it
+/// chart mints (`chart_mints`) and [`StoredRows::remints`] selects it
 /// were the door to release every loop a null edge holds open, the most
 /// a door can do. `None` for every other face, which the door leaves as
 /// found; [`site_rows`] asks the predicate again with what the door
@@ -629,8 +628,6 @@ pub(crate) struct SiteFrom {
 /// Where a loop of `face`, a face of the body, does not resolve or walk
 /// as its own ([`crate::live::FaceView::cycles`]), or a half's edge or curve does
 /// not resolve ([`held_open`]).
-///
-/// [`chart_mints`]: super::chart_mints
 #[track_caller]
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
