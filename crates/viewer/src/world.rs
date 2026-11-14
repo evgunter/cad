@@ -608,14 +608,19 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 
 /// **What `node` is built on**: everything it reads, at any depth and
 /// in no order, the walk down its reads stopping at each copy it
-/// reaches ([`copy_source`]). One answer for "built on a copy"
-/// ([`built_on_copy`]) and "built on bodies" ([`repoint_offer`]).
+/// reaches ([`copy_source`]). One walk, two answers: the copies reached
+/// through any seat answer "built on a copy" ([`built_on_copy`]: a
+/// sketch fused onto `C` reads `C` through its frame too), and the
+/// outputs read as bodies — down seats [`reads_as_body`] admits only —
+/// answer "built on bodies" ([`repoint_offer`]: a mirror whose plane is
+/// picked on `B` reads `B` as no body).
 struct BuiltOn {
-    /// The copies reached.
+    /// The copies reached, through any seat.
     copies: BTreeSet<RecipeNodeId>,
-    /// Every output read other than through a copy, a copy's own
-    /// included, as its operation and port.
-    reads: BTreeSet<(RecipeNodeId, u8)>,
+    /// Every output read as a body other than through a copy, a copy's
+    /// own included, as its operation and port: reached from the node
+    /// down body seats alone.
+    bodies: BTreeSet<(RecipeNodeId, u8)>,
     /// Whether a body built from nothing is reached other than through
     /// a copy.
     from_nothing: bool,
@@ -636,25 +641,35 @@ impl BuiltOn {
 fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
     let mut built = BuiltOn {
         copies: BTreeSet::new(),
-        reads: BTreeSet::new(),
+        bodies: BTreeSet::new(),
         from_nothing: false,
     };
-    let mut seen = BTreeSet::from([node]);
-    let mut next = vec![node];
-    while let Some(at) = next.pop() {
-        let reads: Vec<(RecipeNodeId, u8)> = doc
+    // Each node is walked once as a body (reached down body seats alone)
+    // and once otherwise at most: a node first reached through a plane
+    // is walked again where a body seat reaches it.
+    let mut seen = BTreeSet::from([(node, true)]);
+    let mut next = vec![(node, true)];
+    while let Some((at, as_body)) = next.pop() {
+        let reads: Vec<(bool, RecipeNodeId, u8)> = doc
             .node(at)
             .into_iter()
             .flat_map(Node::operand_rows)
-            .flat_map(|(_, var)| doc.read_ports(var))
+            .flat_map(|(seat, var)| {
+                let body = as_body && reads_as_body(seat);
+                doc.read_ports(var)
+                    .into_iter()
+                    .map(move |(read, port)| (body, read, port))
+            })
             .collect();
         built.from_nothing |= reads.is_empty() && at != node;
-        for (read, port) in reads {
-            built.reads.insert((read, port));
+        for (body, read, port) in reads {
+            if body {
+                built.bodies.insert((read, port));
+            }
             if copy_source(doc, read, 0).is_some() {
                 built.copies.insert(read);
-            } else if seen.insert(read) {
-                next.push(read);
+            } else if seen.insert((read, body)) {
+                next.push((read, body));
             }
         }
     }
@@ -687,8 +702,58 @@ pub fn built_on_copy(
         Node::Profile(_) => return copy_downstream_of(doc, node),
         _ => {}
     }
-    let copy = built_on(doc, node).copy()?;
+    copy_built_on(doc, &built_on(doc, node))
+}
+
+/// [`built_on_copy`] off a walk already taken.
+fn copy_built_on(
+    doc: &Doc<ProfileProgram>,
+    built: &BuiltOn,
+) -> Option<(RecipeNodeId, RecipeNodeId)> {
+    let copy = built.copy()?;
     Some((copy, original_of(doc, copy)))
+}
+
+/// **What a node says about placements**: the placed copy it is, or is
+/// built on ([`built_on_copy`]), or else the re-point it offers
+/// ([`repoint_offer`]) — the two read off one walk ([`built_on`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlacementReading {
+    /// On the placed copy `copy` (`node` itself where it is one), whose
+    /// original body is `original`.
+    OnCopy {
+        /// The placed copy.
+        copy: RecipeNodeId,
+        /// Its original body ([`original_of`]).
+        original: RecipeNodeId,
+    },
+    /// Built on no copy, offering the re-point.
+    Offer(RepointOffer),
+}
+
+/// [`PlacementReading`] of `node`; `None` where it says nothing.
+pub fn placement_reading(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    tol: pncad::geom_core::Tol,
+) -> Option<PlacementReading> {
+    let on_copy = |(copy, original)| PlacementReading::OnCopy { copy, original };
+    if copy_source(doc, node, 0).is_some() {
+        return Some(on_copy((node, original_of(doc, node))));
+    }
+    match doc.node(node)? {
+        Node::Place { .. } | Node::InstantiatePart { .. } => None,
+        Node::Profile(_) => copy_downstream_of(doc, node)
+            .map(on_copy)
+            .or_else(|| repoint_offer_on(doc, node, None, tol).map(PlacementReading::Offer)),
+        _ => {
+            let built = built_on(doc, node);
+            match copy_built_on(doc, &built) {
+                Some(copy) => Some(on_copy(copy)),
+                None => repoint_offer_on(doc, node, Some(built), tol).map(PlacementReading::Offer),
+            }
+        }
+    }
 }
 
 /// **The copy a profile's sketch is built on**: among the nodes made
@@ -832,12 +897,13 @@ pub struct RepointRow {
 /// 6353, PR 6581 and PR 6915: a body built on a body that placements
 /// read through a source offers, as one explicit step per source, to
 /// redefine that source onto it, `bracket = F`). The offer is a reading
-/// of the document, not a question: it stands on every drawn body built,
-/// at any depth ([`built_on`]), on a body a source places, for as long
-/// as that is true, and nothing records a decline. Each body it reads
-/// other than through a copy, a copy it reads included, answers its rows
-/// ([`repoint_targets`]), so a cut `B − T` offers the sources of `B` and
-/// of `T` alike.
+/// of the document, not a question: it stands on every drawn body that
+/// reads, at any depth, as a body ([`built_on`]), one a source places,
+/// for as long as that is true, and nothing records a decline. Each body
+/// it reads as a body other than through a copy, a copy it reads
+/// included, answers its rows ([`repoint_targets`]), so a cut `B − T`
+/// offers the sources of `B` and of `T` alike, and a mirror whose plane
+/// is picked on `B` offers nothing for `B`.
 ///
 /// `None` for a placement, for a node the picture does not draw, itself
 /// or as a `⊔`'s pieces (an intermediate body: a mirror's image its
@@ -856,6 +922,16 @@ pub fn repoint_offer(
     node: RecipeNodeId,
     tol: pncad::geom_core::Tol,
 ) -> Option<RepointOffer> {
+    repoint_offer_on(doc, node, None, tol)
+}
+
+/// [`repoint_offer`], with `node`'s walk where it is already taken.
+fn repoint_offer_on(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    built: Option<BuiltOn>,
+    tol: pncad::geom_core::Tol,
+) -> Option<RepointOffer> {
     if matches!(
         doc.node(node)?,
         Node::Place { .. } | Node::InstantiatePart { .. }
@@ -870,12 +946,12 @@ pub fn repoint_offer(
     if doc.var(onto)?.kind() != VarKind::Body {
         return None;
     }
-    let built = built_on(doc, node);
+    let built = built.unwrap_or_else(|| built_on(doc, node));
     if built.copy().is_some() {
         return None;
     }
     let mut rows: Vec<RepointRow> = built
-        .reads
+        .bodies
         .into_iter()
         .filter_map(|(read, port)| doc.output(read, port))
         .collect::<BTreeSet<VarId>>()

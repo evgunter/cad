@@ -2589,42 +2589,41 @@ pub struct PlacementOffer {
 /// - a pick on a placed copy, or a body built on one, is said to be on
 ///   that placed copy, with a button to its original body
 ///   ([`crate::world::built_on_copy`]);
-/// - a body built, at any depth, on a body that placements read through
-///   a source says so of each source, with a button that redefines the
-///   source onto it (`bracket = G`; [`crate::world::repoint_offer`],
-///   [`SessionOp::RepointPlacements`]). A source defined as another
-///   source follows it and has no row.
+/// - a body that reads, at any depth, as a body, one that placements
+///   read through a source says so of each source, with a button that
+///   redefines the source onto it (`bracket = G`;
+///   [`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///   A source defined as another source follows it and has no row.
+///
+/// Both read off one walk ([`crate::world::placement_reading`]).
 pub fn placement_offers(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     tol: pncad::geom_core::Tol,
 ) -> Vec<PlacementOffer> {
     let by = Speaker::of(doc);
-    let on_copy = crate::world::copy_source(doc, node, 0)
-        .is_some()
-        .then(|| (node, crate::world::original_of(doc, node)))
-        .or_else(|| crate::world::built_on_copy(doc, node));
-    if let Some((copy, original)) = on_copy {
-        let said = if copy == node {
-            format!(
-                "a placed copy of {}: a feature on it belongs to this copy alone",
-                by.node(original)
-            )
-        } else {
-            format!(
-                "on the placed copy {} of {}: it belongs to that copy alone",
-                by.node(copy),
-                by.node(original)
-            )
-        };
-        return vec![PlacementOffer {
-            said,
-            label: format!("Go to the original body, {}", by.node(original)),
-            op: SessionOp::Select(crate::session::Selection::Node(original)),
-        }];
-    }
-    let Some(offer) = crate::world::repoint_offer(doc, node, tol) else {
-        return Vec::new();
+    let offer = match crate::world::placement_reading(doc, node, tol) {
+        None => return Vec::new(),
+        Some(crate::world::PlacementReading::Offer(offer)) => offer,
+        Some(crate::world::PlacementReading::OnCopy { copy, original }) => {
+            let said = if copy == node {
+                format!(
+                    "a placed copy of {}: a feature on it belongs to this copy alone",
+                    by.node(original)
+                )
+            } else {
+                format!(
+                    "on the placed copy {} of {}: it belongs to that copy alone",
+                    by.node(copy),
+                    by.node(original)
+                )
+            };
+            return vec![PlacementOffer {
+                said,
+                label: format!("Go to the original body, {}", by.node(original)),
+                op: SessionOp::Select(crate::session::Selection::Node(original)),
+            }];
+        }
     };
     offer
         .rows

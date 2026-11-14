@@ -2466,8 +2466,9 @@ the new body itself reads (a cycle), one a reader could not take (a
 member left reading a member of no family), or one whose copies a pick
 reads that the re-point would strand has no button. The offer is read
 once per document change, not per frame. The offer is a reading of the
-document, not a question: it stands on every drawn body built, at any
-depth, on a body a source places (and on no placed copy), as a fact with
+document, not a question: it stands on every drawn body that reads,
+at any depth, as a body, one a source places (and on no placed copy),
+as a fact with
 its button — "bracket (2 copies) copies B, which this body is built on",
 "Re-point bracket onto G" — for as long as that is true, and nothing
 records a decline: not pressing it is the decline. The source's own row

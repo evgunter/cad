@@ -638,8 +638,8 @@ fn lateral_edges(session: &DocSession, node: RecipeNodeId) -> Vec<pncad::prelude
 }
 
 /// **The offer reaches through a chain of features** (Ev, PR 6915: it
-/// stands on every drawn body built, at any depth, on a body a source
-/// places): `F = fillet(B)` offers `bracket`; left unpressed, `G =
+/// stands on every drawn body that reads, at any depth, as a body, one
+/// a source places): `F = fillet(B)` offers `bracket`; left unpressed, `G =
 /// chamfer(F)` makes `F` an intermediate body the picture no longer
 /// draws, so `F` offers nothing and `G` offers `bracket`, saying what it
 /// re-points. Pressed, `bracket` reads `G`.
