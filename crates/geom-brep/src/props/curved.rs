@@ -2909,7 +2909,7 @@ struct ConeWinding<T: Real> {
 ///   its own centre, in the sense its axis makes with the cone's
 ///   (`props_cone_arc_sense`): it turns through its stored span, a whole
 ///   turn or more included, carried to the axis at each end
-///   ([`closure::about_axis`]: its centre is within the band of the axis and its
+///   ([`about_axis`]: its centre is within the band of the axis and its
 ///   ends are decided off it, so the axis passes inside it);
 /// - an ellipse on a cone is a plane section that meets every generator
 ///   of its nappe once, so its azimuth is monotone along it, in that
