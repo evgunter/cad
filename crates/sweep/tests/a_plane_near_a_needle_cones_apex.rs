@@ -18,18 +18,21 @@
 //! the pose is a fixed multiple of ε: the refusals pinned here were
 //! measured the same at ε 1e-6, 1e-9 and 1e-12, each typed with its
 //! lever, none naming a broken invariant. At `k = 10⁵` the same planes
-//! land their closed forms.
+//! land their closed forms
+//! (`a_needle_cone_cut_off_its_apex_lands_its_closed_forms`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::PI;
 
 use crate::revolve_common::needle;
+use geom_brep::curve_pair::MeetFault;
+use geom_brep::roots::Unsettled;
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::{Point3, Tol, Vec3};
 use topo::JoinError;
 use topo::splitting::{SplitError, split};
-use topo::{CensusUnsupportedCause, ContactRecords, ContactRefusal, EulerOpError, ValidationError};
+use topo::{CensusUnsupportedCause, ContactRecords, EulerOpError, ValidationError};
 
 /// The pose's plane, and the tip's volume above it (the apex's side).
 fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f64>, f64) {
@@ -157,18 +160,20 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 if spin == 0.0 && tilt == 1.5 {
                     // The ellipse's vertices on the seams: the census
                     // cannot settle a ruling against the half ending on
-                    // it, filed as
+                    // it, the meeting unread on a meter (the line ×
+                    // ellipse pose's basin), filed as
                     // work/splitdoor/tier-3-prime-cannot-settle-a-ruling-against-an-ellipse-it-ends-at-on-a-needle-cone.md
                     let errs = t3p.expect_err(&what);
                     assert!(
                         errs.iter().all(|e| matches!(
                             e,
                             ValidationError::CensusUnsupported {
-                                cause: CensusUnsupportedCause::ContactLane(
-                                    ContactRefusal::NotCertifiable { what }
-                                ),
+                                cause: CensusUnsupportedCause::Meeting(why),
                                 ..
-                            } if what.contains("could not settle a count")
+                            } if matches!(
+                                why.fault(),
+                                MeetFault::Unsettled(Unsettled::Meter { .. })
+                            )
                         )),
                         "{what}: tier 3′ as measured: {errs:?}"
                     );
