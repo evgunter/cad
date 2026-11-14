@@ -2,11 +2,12 @@
 id: f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves
 kind: issue
 title: At f64, tier 3 reads VolumeUncomputable in band on the 1.3 km tube at 1e-12 and the bool5r hairline revolves, so their doors refuse
-status: open
+status: closed
 opened: 2026-11-02
 priority: P0
 cost: M
 refs: [6371]
+closed: 2026-11-14
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -39,3 +40,28 @@ same ε.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
+
+## Closed (2026-11-14): measured, and split by what it found
+
+Measured on main `b363f5fa` (BOXFINISH's M2 lane). The row is three
+refusals under one title, and none is check 7 falling back on a volume:
+on every refusing body the aimed rays read `Side(Out)`.
+`VolumeUncomputable` is the certificate walk's refusal.
+
+- **The 1.3 km tube is not a case.** As the door stands it refuses
+  `OutsideSessionBox` (margin −302.5) before tier 3, and
+  `verbs_tubewall_r1_probes.rs`'s `CASES` no longer holds it, so the
+  pins this row cites are unreachable. With the box bypassed it refuses
+  `props_rim_span_winding`, an `Interval` enclosure one ulp of τ wide at
+  the rim's radius: `work/spiricarm/a-whole-turn-rims-headroom-is-read-through-a-one-ulp-tau.md`.
+- **CARVE's witness, and a tube in a generic pose from about 300 m,**
+  refuse `props_chart_loop_whole` at ε = 1e-12 in the `Interval`
+  re-derivation, an honest enclosure several hundred times loose:
+  `cylinder-and-torus-edge-misses-are-read-back-about-the-axis`, claimed
+  from NEARPOINT, with the measurements in its body.
+- **The bool5r hairline revolves refuse honestly.** At the default ε the
+  reader's margin equals the true value (5.0e-10 and 6.0e-10 m against a
+  1e-9 band): the geometry is in the band, so "asserts its body again"
+  was the wrong test. What is left is a question about the door's
+  admission:
+  `work/lathe/a-hairline-slit-the-revolve-admits-refuses-at-its-finish-on-the-faces-own-lever.md`.

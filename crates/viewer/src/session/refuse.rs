@@ -231,6 +231,30 @@ impl From<BundleRefusal> for Refusal {
     }
 }
 
+/// **Typed text that did not parse** ([`crate::session::parse_text`]):
+/// [`Refusal::Parse`] before a door raises it, said in its words, so a
+/// field that reports it without the door (`matetool::typed_value`) says
+/// the door's sentence and holds nothing but a parse refusal.
+#[derive(Debug, Clone)]
+pub struct ParseRefusal(pub Box<ParseError>);
+
+impl From<ParseRefusal> for Refusal {
+    fn from(refusal: ParseRefusal) -> Self {
+        Self::Parse(refusal.0)
+    }
+}
+
+impl core::fmt::Display for ParseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        parse_said(f, &self.0)
+    }
+}
+
+/// [`Refusal::Parse`]'s sentence.
+fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt::Result {
+    write!(f, "the expression did not parse: {error}")
+}
+
 /// Why an operation did not happen. Every arm is a value the chrome
 /// renders; none is a message this layer composed about someone else's
 /// failure.
@@ -1073,7 +1097,7 @@ impl Refusal {
             Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
-            Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
+            Self::Parse(error) => parse_said(f, error),
             Self::NoGesture => write!(f, "no drag is in progress"),
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::WrongGesture => write!(f, "that is not the drag in progress"),

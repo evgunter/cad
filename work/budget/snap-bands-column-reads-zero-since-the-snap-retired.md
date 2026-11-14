@@ -12,7 +12,7 @@ cost: E
 ## What
 
 The malign-band column snap is retired
-(`work/tess/the-lower-malign-arm-is-unwitnessed`). `mesh::budget::FaceMeasure::snap_bands`
+(`work/tesslane/the-lower-malign-arm-is-unwitnessed`). `mesh::budget::FaceMeasure::snap_bands`
 is now always 0, and `tools/tess-meter`'s CSV and `tools/tess-lint`'s reader
 keep the column so the baseline's shape does not move outside a re-cut.
 

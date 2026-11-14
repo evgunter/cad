@@ -2,10 +2,11 @@
 id: the-editor-verdict-re-evaluates-on-every-drag-frame
 kind: issue
 title: The placement editor derives its draft's bundle every frame and solves each change twice
-status: open
+status: closed
 opened: 2026-11-02
-priority: P3
-cost: E
+branch: placing/p3-editor-batch
+pr: 6919
+closed: 2026-11-14
 ---
 
 
@@ -22,3 +23,28 @@ The verdict memo is gone: the live door (`DocSession::bundle_door`) runs once pe
 - Each change pays two whole-document solves: one at its offer (`bundle_door`) and one again where `SetBundle` lands (`bundle_judged` in the `SetBundle` arm of `DocSession::perform`).
 
 **Owed.** Derive the proposal once per draft state, not once per frame, and land a change the door has just judged without solving it again (the op could carry the verdict's document, or the door's answer be memoised by history state and op). **Done when** a row draws the panel for N frames over one draft and counts one proposal, and a change counts one solve.
+
+## Answered (branch `placing/p3-editor-batch`)
+
+- **One solve per change** was already true at PR 6916's merge:
+  `DocSession::bundle_judgement` keeps the door's judgement per
+  (generation, op), and the `SetBundle` arm lands on it
+  (`DocSession::judged_bundle`). `bundle_editor::a_judged_change_lands_on_its_one_solve`
+  now holds it: the judgement asked twice is one `Arc`, and the
+  committed change's `bundle_landing` is that same `Arc`.
+- **One proposal per draft state** is new: `DocSession::mate_proposal`
+  keeps the editor's bundle per landed generation and
+  `MateTool::proposal_inputs`, and the panel's rows, its offer
+  (`MateTool::offer_proposed`) and both `draft_standing` callers read
+  it. `app::properties_pane_tests::frames_over_one_placement_draft_derive_one_proposal`
+  draws ten frames over one draft, typing into a value field among
+  them, and holds the session's proposal to one `Arc`.
+- **The memo's key is the proposal's whole input.** `MateTool::proposal`
+  reads the draft only through `MateTool::proposal_inputs`, which
+  destructures every `PlaceDraft` field, so a field can no longer be
+  read without being keyed.
+  `placement_target::a_retarget_and_a_struck_value_each_derive_a_fresh_proposal`
+  shows a retarget and a struck value each deriving afresh. It goes red
+  when either field is dropped from the key (both mutations were tried).
+  The panel reads the memo under the draft its controls just edited,
+  which is the state the offer reads, so an edit frame derives once.
