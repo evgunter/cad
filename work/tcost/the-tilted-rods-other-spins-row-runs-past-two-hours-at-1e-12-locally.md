@@ -62,3 +62,24 @@ So one union costs about 7× more at 1e-12 than at 1e-9, and about 4×
 more at 1e-9 than at 1e-6. The whole table runs 40 such cells. The cost
 grows with the band's tightness in the boolean itself, not in the test
 harness.
+
+## On the hosted runner (2026-11-14, GREEN `green/nightly-jobs`)
+
+The nightly's 1e-12 leg is where this row's cost lands. Its own times,
+from each leg's `full-suite-junit-<eps>` report:
+
+| nightly | head | 1e-12 | default | 1e-6 | 1e-12 leg wall |
+|---|---|---|---|---|---|
+| 43371638371 (11-13) | `e36675c1` | 1953 s, PASS | 236 s | 89 s | 90 min |
+| 43161026932 (11-12) | `da77d875` | 2923 s, PASS | 444 s | — | 117 min |
+| 42965378060 (11-11) | `b2916558` | still running at 2760 s when the leg's 120-minute limit cancelled it | — | — | cancelled, no report |
+
+On 11-11 and on 11-09 (42567046151) the whole 1e-12 leg ran into its
+120-minute limit and reported nothing for any 1e-12 test. This test was
+about a third of the leg's wall time on 11-13 and two fifths on 11-12.
+
+The nightly now runs the 1e-12 row as three shards under a 105-minute
+budget, with this test among twelve started first in its shard, so the
+leg finishes and reports with this cost as it is. The cost itself is
+this row's: at 2923 s it alone is 46% of a shard's budget, and a slower
+kernel path or runner moves that shard first.
