@@ -16,7 +16,6 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
   - `the-profile-drops-the-unit-directions-its-verbs-made`: holds the tour's stop. Ev approved the profile format's recorded directions on PR 6936. Dispatched on `boxfinish/profile-directions`; its doors half waits for `boxfinish/sweep-frames` to merge.
   - `tier-3-at-every-box-replay-leaf-multiplies-the-decisions`: parked on the two rows above. The multiple is mostly the bisection their refusals force, so it is measured again on the tree that has them.
 - **P1:**
-  - `check-1-reads-a-turning-frames-length-off-its-bracket`: a design question, measured before it goes to Ev.
   - `check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends`: a chart end that is an exact 0 or 1 reads as one. Dispatched on `boxfinish/chart-ends`.
   - `cylinder-and-torus-edge-misses-are-read-back-about-the-axis`, claimed from NEARPOINT, with the bead row's red on main (`a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`, claimed from LATHE) carried by it. Dispatched on `boxfinish/edge-turns`. `f64` is not behind the switch.
 - **P2:** `check-7s-volume-reading-is-loose-over-a-box`.
