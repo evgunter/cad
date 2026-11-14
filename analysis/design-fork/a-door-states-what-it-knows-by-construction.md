@@ -10,3 +10,7 @@ Protocol: `docs/DESIGN-FORK-PROTOCOL.md` as on main 2026-11-14.
 
 Dispatched 2026-11-14, concurrently, same problem statement, as subagents of the orchestrator's session.
 Models as dispatched: A = Fable 5.2, B = Opus 5.5 (to be confirmed from each agent's result).
+
+## First reports
+
+- **B** delivered 2026-11-14 (192,128 tokens, 404 s, harness figures). Verbatim: `a-door-states-what-it-knows-by-construction.B-first.md`.
