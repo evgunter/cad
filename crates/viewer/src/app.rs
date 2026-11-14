@@ -1258,7 +1258,7 @@ impl ViewerApp {
         let held = self.tools.mate().map(|tool| {
             tool.draft_standing(
                 session.busy(),
-                |tool| session.mate_proposal(tool),
+                |tool| session.mate_proposal(tool).map(|landed| landed.proposed),
                 |op| session.bundle_judgement(op),
             )
         });
@@ -4614,6 +4614,7 @@ mod properties_pane_tests {
                 .session
                 .mate_proposal(tool)
                 .expect("a run has landed")
+                .proposed
         };
         let first = proposed(&driven);
         let slide_x = painted

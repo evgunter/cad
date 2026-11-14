@@ -103,8 +103,8 @@ pub use op::{
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    BundleRefusal, GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer,
-    admits, admits_read,
+    BundleRefusal, GestureFrameFault, NodeKindWanted, ParseRefusal, Refusal, SaveChoice, Step,
+    VersionOffer, admits, admits_read,
 };
 pub use select::{
     EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing,
@@ -294,9 +294,9 @@ pub(crate) fn driven_refusal(
 ///
 /// # Errors
 ///
-/// [`Refusal::Parse`], carrying `parse_formula`'s own refusal.
-pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formula, Refusal> {
-    parse_formula(text, &doc.var_scope()).map_err(|error| Refusal::Parse(Box::new(error)))
+/// [`ParseRefusal`], carrying `parse_formula`'s own refusal.
+pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formula, ParseRefusal> {
+    parse_formula(text, &doc.var_scope()).map_err(|error| ParseRefusal(Box::new(error)))
 }
 
 /// **A profile editor's program with every unmoved argument of every
@@ -2784,7 +2784,7 @@ impl DocSession {
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
         let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(refusal) => return OpOutcome::refused(refusal),
+            Err(refusal) => return OpOutcome::refused(refusal.into()),
         };
         // An expression edit is available on a driven slot AND on a
         // literal one — the refusal is about writing a number over a
@@ -2884,7 +2884,7 @@ impl DocSession {
     fn set_variable_text(&mut self, var: VarId, text: &str) -> OpOutcome {
         let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(refusal) => return OpOutcome::refused(refusal),
+            Err(refusal) => return OpOutcome::refused(refusal.into()),
         };
         // Text typed over an index is its count.
         if let Some(edit) = props::index_count_edit(self.committed_doc(), var, expr.clone()) {
@@ -5000,16 +5000,18 @@ impl DocSession {
     /// **The placement editor's bundle** ([`crate::matetool::MateTool::proposal`])
     /// against the landed pair, kept per landed generation and the draft
     /// `tool` holds, so the panel's frames, the picture and the offer
-    /// derive one draft state once. `None` before any run lands.
+    /// derive one draft state once; with the landed document it was
+    /// derived against. `None` before any run lands.
     pub fn mate_proposal(
         &self,
         tool: &crate::matetool::MateTool,
-    ) -> Option<crate::matetool::Proposed> {
+    ) -> Option<crate::matetool::LandedProposal<'_>> {
         let landed = self.landed_generation()?;
         let (doc, ev) = self.landed_pair()?;
-        Some(self.proposals.get_or(landed, &tool.proposal_inputs(), || {
+        let proposed = self.proposals.get_or(landed, &tool.proposal_inputs(), || {
             Arc::new(tool.proposal(doc, ev, self.tol))
-        }))
+        });
+        Some(crate::matetool::LandedProposal { doc, proposed })
     }
 
     /// **Where the last `SetBundle` committed stands every copy, until

@@ -1289,19 +1289,31 @@ impl MateProposal {
 /// draft state ([`crate::session::DocSession::mate_proposal`]).
 pub type Proposed = Arc<Result<MateProposal, MateToolError>>;
 
-/// **What [`MateTool::proposal`] reads of the tool**: the draft's door,
-/// rows, typed numbers, target and struck values, and nothing of its
-/// offer, its active row or what a Place asks.
+/// **A proposal with the landed document it was derived against**: one
+/// value, so an offer cannot judge it against another document.
+#[derive(Debug, Clone)]
+pub struct LandedProposal<'d> {
+    /// The landed document.
+    pub doc: &'d Doc<ProfileProgram>,
+    /// The draft's bundle derived against it.
+    pub proposed: Proposed,
+}
+
+/// **What [`MateTool::proposal`] reads of the tool**, and all it reads:
+/// the proposal is derived from this value alone, so a memo keyed by it
+/// (`DocSession::mate_proposal`) cannot miss an input.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProposalInputs(Option<DraftInputs>);
 
-type DraftInputs = (
-    PlaceDoor,
-    Vec<MateRow>,
-    Vec<(Coord, Formula)>,
-    PlaceTarget,
-    Vec<ConstraintId>,
-);
+/// The draft's part of [`ProposalInputs`].
+#[derive(Debug, Clone, PartialEq)]
+struct DraftInputs {
+    door: PlaceDoor,
+    rows: Vec<MateRow>,
+    typed: Vec<(Coord, Formula)>,
+    target: PlaceTarget,
+    struck_values: Vec<ConstraintId>,
+}
 
 /// **A target as the editor's first row says it**: the space by
 /// [`Doc::spoken_space`], or "a new space".
@@ -1689,8 +1701,7 @@ pub fn typed_value(
     coord: Coord,
     text: &str,
 ) -> Result<Formula, TypedValueError> {
-    let by = crate::session::parse_text(doc, text)
-        .map_err(|refusal| TypedValueError::Parse(Box::new(refusal)))?;
+    let by = crate::session::parse_text(doc, text).map_err(TypedValueError::Parse)?;
     let wanted = coord.dimension();
     // A bare `0` is every dimension's zero: the text a zero value's field
     // shows ([`value_text`]) reads back as that zero.
@@ -1710,9 +1721,8 @@ pub fn typed_value(
 /// Why a typed value field's text is no value (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TypedValueError {
-    /// The text does not parse: the slot door's refusal
-    /// ([`Refusal::Parse`]).
-    Parse(Box<Refusal>),
+    /// The text does not parse, said as the slot door says it.
+    Parse(crate::session::ParseRefusal),
     /// The text is a quantity of another dimension than the freedom's.
     Dimension {
         /// The freedom.
@@ -2485,20 +2495,23 @@ impl MateTool {
         door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
         self.offer_proposed(
-            doc,
-            |tool| Some(Arc::new(tool.proposal(doc, ev, tol))),
+            |tool| {
+                Some(LandedProposal {
+                    doc,
+                    proposed: Arc::new(tool.proposal(doc, ev, tol)),
+                })
+            },
             door,
         )
     }
 
-    /// [`Self::offer`], with the draft's bundle derived by `propose`
-    /// against the landed document `doc` (the session's memo,
-    /// `DocSession::mate_proposal`); one `propose` cannot answer is not
-    /// offered yet.
-    pub fn offer_proposed(
+    /// [`Self::offer`], with the draft's bundle and the landed document
+    /// it was derived against answered by `propose` (the session's memo,
+    /// `DocSession::mate_proposal`); a draft `propose` cannot answer is
+    /// not offered yet.
+    pub fn offer_proposed<'d>(
         &mut self,
-        doc: &Doc<ProfileProgram>,
-        propose: impl FnOnce(&Self) -> Option<Proposed>,
+        propose: impl FnOnce(&Self) -> Option<LandedProposal<'d>>,
         door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
         if !self
@@ -2508,7 +2521,7 @@ impl MateTool {
         {
             return None;
         }
-        let proposed = propose(self)?;
+        let LandedProposal { doc, proposed } = propose(self)?;
         let placement = self.door().map(|door| door.placement);
         let formed = (*proposed)
             .as_ref()
@@ -2950,18 +2963,31 @@ impl MateTool {
         })
     }
 
-    /// **What [`Self::proposal`] reads of the tool**: equal between two
-    /// tools whose proposals against one landed pair are equal.
+    /// **What [`Self::proposal`] reads of the tool** ([`ProposalInputs`]).
+    /// Every field of the draft is named here, so a new one is either
+    /// read or set aside on purpose.
     #[must_use]
     pub fn proposal_inputs(&self) -> ProposalInputs {
         ProposalInputs(self.draft.as_ref().map(|draft| {
-            (
-                draft.door.clone(),
-                draft.rows.clone(),
-                draft.typed.clone(),
-                draft.target.clone(),
-                draft.struck_values.clone(),
-            )
+            let PlaceDraft {
+                door,
+                rows,
+                loaded_rows: _,
+                typed,
+                active: _,
+                target,
+                loaded_target: _,
+                struck_values,
+                held_back: _,
+                offer: _,
+            } = draft;
+            DraftInputs {
+                door: door.clone(),
+                rows: rows.clone(),
+                typed: typed.clone(),
+                target: target.clone(),
+                struck_values: struck_values.clone(),
+            }
         }))
     }
 
@@ -2979,7 +3005,7 @@ impl MateTool {
         ev: &Evaluation<f64>,
         tol: Tol,
     ) -> Result<MateProposal, MateToolError> {
-        let Some(draft) = self.draft.as_ref() else {
+        let ProposalInputs(Some(draft)) = self.proposal_inputs() else {
             return Err(MateToolError::NoDoor);
         };
         let live: Vec<(usize, &MateRow)> = draft

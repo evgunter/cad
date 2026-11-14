@@ -5,7 +5,7 @@ title: a refusal naming a placement's value slot says slide/spin value without t
 status: open
 opened: 2026-11-02
 priority: P3
-cost: E
+cost: M
 ---
 
 

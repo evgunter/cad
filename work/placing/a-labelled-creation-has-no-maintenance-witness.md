@@ -30,11 +30,11 @@ The kernel docs' disagreement the review saw (`edit.rs`'s `SetParam` doc against
 ## Done (branch `placing/p3-editor-batch`)
 
 The netting half is dropped as subsumed, the second of the two ways
-this row allows. No creation's run reports a maintenance row (both
-attempts above), so
-`node_labels::a_labelled_creation_nets_the_maintenance_its_own_run_reports`
-compared two empty lists. It is deleted. `labelled_as_one_undo` still
-holds every sampled creation's labelled outcome equal to its own
-unlabelled run, maintenance included, so a creation that someday
-strands something is netted under that check. The helper now answers
-only the node it made.
+this row allows: no creation's run reports a maintenance row (both
+attempts above). The row's other half stays, renamed
+`node_labels::a_labelled_creation_that_takes_the_product_over_is_one_undo`.
+It is the only sampled creation whose run re-points the product
+(`InsertNode` then `SetProduct`). It holds that run and its label to one
+undo, and the product to the fillet's, without the empty-list
+assertion. `labelled_as_one_undo`'s doc now says its maintenance
+equality is held, not witnessed.

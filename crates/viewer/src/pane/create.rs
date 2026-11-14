@@ -807,8 +807,10 @@ impl ViewerBehavior<'_> {
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
-        let proposed = self.session.mate_proposal(&tool);
-        let proposal = proposed.as_deref();
+        // Read under the draft as this frame's controls left it, the
+        // state the offer below reads: one derivation per edit.
+        let landed = self.session.mate_proposal(&edited);
+        let proposal = landed.as_ref().map(|landed| &*landed.proposed);
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match proposal {
             Some(Ok(proposal)) => proposal
@@ -882,9 +884,9 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                let error = self.session.landed_pair().map_or_else(
+                let error = landed.as_ref().map_or_else(
                     || error.clone(),
-                    |(landed, _)| error.clone().respoken(landed),
+                    |landed| error.clone().respoken(landed.doc),
                 );
                 crate::widgets::message(ui, ToolKind::Mate.refuses(&error).to_string());
             }
@@ -898,20 +900,21 @@ impl ViewerBehavior<'_> {
         let formed = if busy {
             None
         } else {
-            self.session.landed_pair().and_then(|(landed, _)| {
-                edited.offer_proposed(
-                    landed,
-                    |tool| self.session.mate_proposal(tool),
-                    |op| self.session.bundle_door(op),
-                )
-            })
+            edited.offer_proposed(
+                |tool| self.session.mate_proposal(tool),
+                |op| self.session.bundle_door(op),
+            )
         };
         // The viewport draws the draft off the same value; where the
         // draft draws nothing it draws the document, a committed change
         // still landing included (`ViewerApp::placement_preview`).
         let held = edited.draft_standing(
             busy,
-            |tool| self.session.mate_proposal(tool),
+            |tool| {
+                self.session
+                    .mate_proposal(tool)
+                    .map(|landed| landed.proposed)
+            },
             |op| self.session.bundle_judgement(op),
         );
         let said = match &held {

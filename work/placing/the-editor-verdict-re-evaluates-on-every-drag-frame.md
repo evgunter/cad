@@ -38,3 +38,12 @@ The verdict memo is gone: the live door (`DocSession::bundle_door`) runs once pe
   it. `app::properties_pane_tests::frames_over_one_placement_draft_derive_one_proposal`
   draws ten frames over one draft, typing into a value field among
   them, and holds the session's proposal to one `Arc`.
+- **The memo's key is the proposal's whole input.** `MateTool::proposal`
+  reads the draft only through `MateTool::proposal_inputs`, which
+  destructures every `PlaceDraft` field, so a field can no longer be
+  read without being keyed.
+  `placement_target::a_retarget_and_a_struck_value_each_derive_a_fresh_proposal`
+  shows a retarget and a struck value each deriving afresh. It goes red
+  when either field is dropped from the key (both mutations were tried).
+  The panel reads the memo under the draft its controls just edited,
+  which is the state the offer reads, so an edit frame derives once.
