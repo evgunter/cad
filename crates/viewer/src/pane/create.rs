@@ -1038,10 +1038,10 @@ impl ViewerBehavior<'_> {
 
     /// **The placement's "copy of" row**: the body its copy copies and the
     /// source it reads it through (VARIABLES VR4) — named, or the
-    /// placement's own — and the button that redefines that source as a
-    /// read of the selected body ([`SessionOp::RepointPlacements`]), as
-    /// the re-point offer does. A named source redefined here re-points
-    /// every placement reading it.
+    /// placement's own — and the button that re-points that source onto
+    /// the selected body ([`crate::session::DocSession::repoint_button`]),
+    /// disabled with the reason where the offer would withhold it. A named
+    /// source re-pointed here re-points every placement reading it.
     fn copy_of_row(&mut self, ui: &mut egui::Ui, tool: &MateTool) {
         let Some(door) = tool.door() else {
             return;
@@ -1059,30 +1059,15 @@ impl ViewerBehavior<'_> {
             .session
             .selection()
             .node()
-            .filter(|&node| node != door.placement && doc.read_of_node(node).is_some());
+            .filter(|&node| node != door.placement);
+        let button = self.session.repoint_button(source, selected);
         ui.horizontal(|ui| {
             let copied = doc.operation_of(body).map_or_else(
                 || doc.spoken_var(body).to_string(),
                 |node| doc.spoken(node).to_string(),
             );
             ui.label(format!("copy of: {copied}{through}"));
-            if ui
-                .add_enabled(
-                    selected.is_some(),
-                    egui::Button::new("copy the selected body"),
-                )
-                .on_hover_text(
-                    "the source reads the body selected in the tree; every placement reading \
-                     it copies that body",
-                )
-                .clicked()
-                && let Some(node) = selected
-            {
-                self.ops.push(SessionOp::RepointPlacements {
-                    source,
-                    onto: node.into(),
-                });
-            }
+            crate::widgets::repoint_button(ui, button, self.ops);
         });
     }
 

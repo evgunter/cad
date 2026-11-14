@@ -77,3 +77,36 @@ impl<K: PartialEq + Clone, V: Clone> GenerationMemo<K, V> {
         value
     }
 }
+
+/// **Values derived once per generation and key, every key kept**: a
+/// [`GenerationMemo`] for a question several rows of one frame ask under
+/// different keys, which one slot would answer by deriving each again
+/// every frame. A new generation clears every key.
+pub struct GenerationMap<K, V>(
+    std::sync::Mutex<Option<(Generation, std::collections::BTreeMap<K, V>)>>,
+);
+
+impl<K, V> Default for GenerationMap<K, V> {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(None))
+    }
+}
+
+impl<K: Ord + Clone, V: Clone> GenerationMap<K, V> {
+    /// The value kept for `generation` and `key`, or `derive`'s, kept.
+    pub fn get_or(&self, generation: Generation, key: &K, derive: impl FnOnce() -> V) -> V {
+        let mut memo = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let kept = match memo.as_mut() {
+            Some((at, kept)) if *at == generation => kept,
+            _ => {
+                &mut memo
+                    .insert((generation, std::collections::BTreeMap::new()))
+                    .1
+            }
+        };
+        kept.entry(key.clone()).or_insert_with(derive).clone()
+    }
+}

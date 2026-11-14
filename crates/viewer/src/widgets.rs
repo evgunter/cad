@@ -7,7 +7,7 @@
 //! This module is part of the `app` driver rather than a vocabulary —
 //! it names `egui`, and [`delete_button`] reads a
 //! [`crate::session::DocSession`] because the wording it draws is the
-//! session's own answer.
+//! session's own answer, as [`repoint_button`] draws one.
 //!
 //! None of the others reads the application or the session: the pane
 //! modules own that, and hand these numbers, units and labels.
@@ -1853,6 +1853,31 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
             .clicked(),
         (None, Some(text)) => button.on_hover_text(text).clicked(),
         (None, None) => button.clicked(),
+    }
+}
+
+/// **A re-point button** ([`crate::frame::RepointButton`]): a named
+/// source's row and a placement's "copy of" row both draw it, so both say
+/// the offer's verb and refuse where its check does, disabled with the
+/// reason on the hover a disabled button still shows.
+pub(crate) fn repoint_button(
+    ui: &mut egui::Ui,
+    button: crate::frame::RepointButton,
+    ops: &mut Vec<SessionOp>,
+) {
+    let response = ui.add_enabled(button.op.is_ok(), egui::Button::new(button.label).small());
+    match button.op {
+        Ok(op) => {
+            if response
+                .on_hover_text("every placement reading this source copies the selected body")
+                .clicked()
+            {
+                ops.push(op);
+            }
+        }
+        Err(why) => {
+            response.on_disabled_hover_text(why);
+        }
     }
 }
 

@@ -480,6 +480,14 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The re-point buttons read this generation**
+    /// ([`DocSession::repoint_button`]), each source row and "copy of" row
+    /// asking under its own source and selected body: each asks the same
+    /// check as an offer's row, so once per document change.
+    repoints: crate::generation::GenerationMap<
+        (VarId, Option<RecipeNodeId>),
+        crate::frame::RepointButton,
+    >,
     /// **The door's judgement of the placement editor's last bundle**
     /// ([`DocSession::bundle_judgement`]), kept per generation and op:
     /// the panel, the picture and the op's own landing ask it of one
@@ -1076,6 +1084,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
             landing: None,
@@ -1648,6 +1657,20 @@ impl DocSession {
     pub fn placement_offers(&self, node: RecipeNodeId) -> PlacementOffers {
         self.offers.get_or(self.generation, &node, || {
             crate::frame::placement_offers(self.committed_doc(), node, self.tol)
+        })
+    }
+
+    /// **The re-point button of `source` onto `onto`**
+    /// ([`crate::frame::repoint_button`]) of the committed document, read
+    /// once per generation, source and body and kept
+    /// (`DocSession::repoints`).
+    pub fn repoint_button(
+        &self,
+        source: VarId,
+        onto: Option<RecipeNodeId>,
+    ) -> crate::frame::RepointButton {
+        self.repoints.get_or(self.generation, &(source, onto), || {
+            crate::frame::repoint_button(self.committed_doc(), source, onto, self.tol)
         })
     }
 
@@ -6414,6 +6437,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            repoints: _,
             bundles: _,
             proposals: _,
             landing: _,
