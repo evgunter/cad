@@ -8,7 +8,9 @@
 //! little way along the blade, so two of the apex's edges dip into the
 //! blade and two rise out of it: the apex pierces the wall. The
 //! vertex-on-face pass mints the pierce's ring in the complete wall
-//! (`Body::ring_vertex`), and the union goes on to the join.
+//! (`Body::ring_vertex`), and the union goes on to the join;
+//! `a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`
+//! holds where it stops at each ε.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
