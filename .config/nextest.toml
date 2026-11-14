@@ -99,6 +99,8 @@ failure-output = "immediate-final"
 #    2.94 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in
 #   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
 #    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
+# and a slab under a taker driven over eight box widths, taken and not:
+#   14.36 s  editor-core::all a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip
 default-filter = """
 not (
   (binary_id(sweep::all) & test(=band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes)) |
@@ -345,7 +347,8 @@ not (
   (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
   (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side))) |
-  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same)))
+  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same))) |
+  (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip))
 )
 """
 
