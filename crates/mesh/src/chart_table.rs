@@ -73,12 +73,16 @@ pub(crate) enum ChartRow<'a> {
     Spline { grid: &'a NurbsCellGrid },
 }
 
-/// An analytic chart's row: its kind with the data its steps and
-/// certificate read, its surface, and its singular points.
+/// An analytic chart's row: its surface, the face's window on it, and
+/// its singular points. What the steps and the certificate read is the
+/// surface's own data ([`Self::kind`]), stored once, so a row's kind and
+/// its surface cannot disagree.
 pub(crate) struct AnalyticRow<'a> {
-    /// The chart's kind and the data its steps and certificate read.
-    pub kind: Analytic,
     surface: &'a Surface<f64>,
+    /// The face's window where the chart's steps read one: a cone face's
+    /// largest radius, a sphere face's latitude cosine nearest the
+    /// equator; unread on every other chart ([`Self::kind`]).
+    window: f64,
     singular: Vec<SingularPoint>,
 }
 
@@ -223,38 +227,42 @@ impl<'a> AnalyticRow<'a> {
         fk: FaceKey,
         surface: &'a Surface<f64>,
     ) -> Result<Self, TessellateError> {
-        let kind = match *surface {
+        let window = match *surface {
             Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
                 return Err(TessellateError::MissingEntity {
                     what: "an analytic chart row for a plane or a spline surface",
                 });
             }
-            Surface::Cylinder { radius, .. } => Analytic::Cylinder { radius },
-            Surface::Cone { half_angle, .. } => Analytic::Cone {
-                half_angle,
-                rho_max: crate::sizing::cone_face_rho_max(body, fk, half_angle)?,
-            },
-            Surface::Sphere { radius, .. } => Analytic::Sphere {
-                radius,
-                widest: crate::sizing::sphere_face_widest_cos(body, fk, surface)?,
-            },
-            Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => Analytic::Torus {
-                major: major_radius,
-                minor: minor_radius,
-            },
-            Surface::Spindle {
-                major_radius,
-                minor_radius,
-                ..
-            } => Analytic::Spindle {
-                major: major_radius,
-                minor: minor_radius,
-            },
+            Surface::Cone { half_angle, .. } => {
+                crate::sizing::cone_face_rho_max(body, fk, half_angle)?
+            }
+            Surface::Sphere { .. } => crate::sizing::sphere_face_widest_cos(body, fk, surface)?,
+            Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => f64::NAN,
         };
+        Self::new(surface, window)
+    }
+
+    /// **The row of an analytic `surface` with the face's `window`** (a
+    /// cone's largest radius, a sphere's widest latitude cosine; read on
+    /// no other chart): its singular points from
+    /// `topo::chart::Chart::poles`, each with where its row sits in the
+    /// chart's `v` domain. [`Self::of`] reads the window off the face; a
+    /// unit row hands one in.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::MissingEntity`] for a plane or a spline surface,
+    /// which have no analytic row, so [`Self::kind`] and [`Self::cert`]
+    /// meet only the analytic curved surfaces.
+    pub(crate) fn new(surface: &'a Surface<f64>, window: f64) -> Result<Self, TessellateError> {
+        if matches!(
+            surface,
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+        ) {
+            return Err(TessellateError::MissingEntity {
+                what: "an analytic chart row for a plane or a spline surface",
+            });
+        }
         let chart = topo::chart::Chart::of(surface).ok_or(TessellateError::MissingEntity {
             what: "an analytic surface's chart",
         })?;
@@ -274,15 +282,50 @@ impl<'a> AnalyticRow<'a> {
             })
             .collect();
         Ok(Self {
-            kind,
             surface,
+            window,
             singular,
         })
     }
 
+    /// **The chart's kind, with what its steps and certificate read**,
+    /// from the surface's own data and the face's window.
+    pub(crate) fn kind(&self) -> Analytic {
+        match *self.surface {
+            Surface::Cylinder { radius, .. } => Analytic::Cylinder { radius },
+            Surface::Cone { half_angle, .. } => Analytic::Cone {
+                half_angle,
+                rho_max: self.window,
+            },
+            Surface::Sphere { radius, .. } => Analytic::Sphere {
+                radius,
+                widest: self.window,
+            },
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => Analytic::Torus {
+                major: major_radius,
+                minor: minor_radius,
+            },
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => Analytic::Spindle {
+                major: major_radius,
+                minor: minor_radius,
+            },
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                unreachable!("AnalyticRow::new holds an analytic curved surface")
+            }
+        }
+    }
+
     /// The steps the chart's cell bound needs at `target` ([`ChartRow::steps`]).
     pub(crate) fn steps(&self, target: f64) -> (f64, f64) {
-        match self.kind {
+        match self.kind() {
             Analytic::Cylinder { radius } => (sagitta_step(target, radius), f64::INFINITY),
             Analytic::Cone {
                 half_angle,
@@ -303,7 +346,7 @@ impl<'a> AnalyticRow<'a> {
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
-        match self.kind {
+        match self.kind() {
             Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
                 (hu, lever * hu)
             }
@@ -329,7 +372,7 @@ impl<'a> AnalyticRow<'a> {
         (nu, nv): (usize, usize),
     ) -> f64 {
         #[allow(clippy::cast_precision_loss)]
-        let aspect = match self.kind {
+        let aspect = match self.kind() {
             Analytic::Sphere { .. } => 1.0 / geom::mid_param(v0, v1).cos(),
             Analytic::Cylinder { .. }
             | Analytic::Cone { .. }
@@ -346,29 +389,42 @@ impl<'a> AnalyticRow<'a> {
         uv: [[f64; 2]; 3],
         singular: [bool; 3],
     ) -> (f64, f64) {
-        match (self.kind, self.surface) {
-            (Analytic::Cylinder { radius }, &Surface::Cylinder { origin, axis, .. }) => (
+        match *self.surface {
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => (
                 cert::cert_cylinder(origin, axis, radius, tri),
                 cert::position_scale(origin, tri),
             ),
-            (Analytic::Sphere { radius, .. }, &Surface::Sphere { center, .. }) => (
+            Surface::Sphere { center, radius, .. } => (
                 cert::cert_sphere(center, radius, tri),
                 cert::position_scale(center, tri),
             ),
-            (Analytic::Cone { half_angle, .. }, _) => (
+            Surface::Cone { half_angle, .. } => (
                 cert::cert_cone(half_angle, uv, singular),
                 cert::cone_scale(half_angle, uv),
             ),
-            (Analytic::Torus { major, minor }, _) => {
-                let bound = cert::cert_torus(major, minor, uv);
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let bound = cert::cert_torus(major_radius, minor_radius, uv);
                 (bound, cert::uv_scale(bound, uv))
             }
-            (Analytic::Spindle { major, minor }, _) => {
-                let bound = cert::cert_spindle(major, minor, uv, singular);
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let bound = cert::cert_spindle(major_radius, minor_radius, uv, singular);
                 (bound, cert::uv_scale(bound, uv))
             }
-            (Analytic::Cylinder { .. } | Analytic::Sphere { .. }, _) => {
-                unreachable!("AnalyticRow::of builds a row's kind from its own surface")
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                unreachable!("AnalyticRow::new holds an analytic curved surface")
             }
         }
     }
@@ -404,7 +460,7 @@ impl<'a> AnalyticRow<'a> {
     /// cylinder's, which chords at its target alone
     /// (`work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
     pub(crate) fn chorded_to_lattice(&self) -> bool {
-        match self.kind {
+        match self.kind() {
             Analytic::Cylinder { .. } => false,
             Analytic::Cone { .. }
             | Analytic::Sphere { .. }
@@ -417,7 +473,7 @@ impl<'a> AnalyticRow<'a> {
     /// holds one: the sphere's ([`crate::trimmed::MAX_SPHERE_EDGE_CHORDS`],
     /// a projected circle passing near a pole), none elsewhere.
     pub(crate) fn chord_budget(&self) -> Option<usize> {
-        match self.kind {
+        match self.kind() {
             Analytic::Sphere { .. } => Some(crate::trimmed::MAX_SPHERE_EDGE_CHORDS),
             Analytic::Cylinder { .. }
             | Analytic::Cone { .. }
@@ -442,7 +498,7 @@ impl<'a> AnalyticRow<'a> {
     /// no singular point, and the torus and spindle are not developable:
     /// none of them, nor the spline row, answers.
     pub(crate) fn development(&self) -> Option<f64> {
-        match self.kind {
+        match self.kind() {
             Analytic::Cone { half_angle, .. } => Some(<f64 as geom_core::Real>::sin(half_angle)),
             Analytic::Cylinder { .. }
             | Analytic::Sphere { .. }
@@ -454,37 +510,10 @@ impl<'a> AnalyticRow<'a> {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(crate) mod tests {
-    use super::{Analytic, AnalyticRow, RowEnd};
+mod tests {
+    use super::{Analytic, AnalyticRow};
     use geom::Surface;
     use geom_core::{Point3, Vec3};
-
-    /// An analytic row of `surface` with the window `kind` states, as
-    /// [`AnalyticRow::of`] builds one without a body to read a window
-    /// from.
-    pub(crate) fn row(kind: Analytic, surface: &Surface<f64>) -> AnalyticRow<'_> {
-        let singular = topo::chart::Chart::of(surface)
-            .unwrap()
-            .poles()
-            .into_iter()
-            .map(|(point, v)| super::SingularPoint {
-                point,
-                v,
-                end: if v > 0.0 {
-                    RowEnd::Top
-                } else if v < 0.0 {
-                    RowEnd::Bottom
-                } else {
-                    RowEnd::Inside
-                },
-            })
-            .collect();
-        AnalyticRow {
-            kind,
-            surface,
-            singular,
-        }
-    }
 
     /// **The fold check reads the face's side through the bit.** On each
     /// analytic row, at a point off the carrier on either side of it,
@@ -565,7 +594,12 @@ pub(crate) mod tests {
             ),
         ];
         for (name, surface, kind, from, points) in &cases {
-            let row = row(*kind, surface);
+            let row = AnalyticRow::new(surface, 1.0).unwrap();
+            assert_eq!(
+                std::mem::discriminant(&row.kind()),
+                std::mem::discriminant(kind),
+                "{name}: the row's kind is its surface's"
+            );
             for sense in [true, false] {
                 for (side, p) in ["inside", "outside"].into_iter().zip(*points) {
                     let n = row.outward(sense, p).vec();

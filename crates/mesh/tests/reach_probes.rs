@@ -1481,4 +1481,3 @@ fn a_one_column_band_with_raised_rows_adds_no_lattice_point() {
         }
     }
 }
-

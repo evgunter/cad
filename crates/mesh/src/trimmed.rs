@@ -505,7 +505,7 @@ pub(crate) fn tessellate_trimmed(
             // adding a fixture in a way that *nothing in tree does
             // this* does not.
             debug_assert!(
-                !matches!(a.kind, Analytic::Cylinder { .. })
+                !matches!(a.kind(), Analytic::Cylinder { .. })
                     || nu != 2
                     || !id_repeats_apart(&polygon),
                 "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
@@ -3374,7 +3374,7 @@ pub(super) mod tests {
                 ),
             ];
             for (surface, kind) in &surfaces {
-                let row = crate::chart_table::tests::row(*kind, surface);
+                let row = crate::chart_table::AnalyticRow::new(surface, 1.0).unwrap();
                 assert!(
                     !row.singular_points().is_empty(),
                     "{kind:?}: a chart with a singular point"
@@ -3418,7 +3418,8 @@ pub(super) mod tests {
                 ),
             ] {
                 assert!(
-                    crate::chart_table::tests::row(kind, &surface)
+                    crate::chart_table::AnalyticRow::new(&surface, 1.0)
+                        .unwrap()
                         .singular_points()
                         .is_empty(),
                     "{kind:?}: no singular point"
@@ -3757,13 +3758,9 @@ pub(super) mod tests {
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let row = crate::chart_table::ChartRow::Analytic(crate::chart_table::tests::row(
-            crate::chart_table::Analytic::Sphere {
-                radius: 1.0,
-                widest: 1.0,
-            },
-            &sphere,
-        ));
+        let row = crate::chart_table::ChartRow::Analytic(
+            crate::chart_table::AnalyticRow::new(&sphere, 1.0).unwrap(),
+        );
         let tol = crate::sizing::SizingTols {
             delta: 1e-2,
             eps: crate::sizing::Eps::at(Tol::witness()),
@@ -3842,7 +3839,7 @@ pub(super) mod tests {
         use topo::FaceKey;
 
         use super::super::{CdtPlane, TrimmedFace, cdt_point, developed, significant};
-        use crate::chart_table::{Analytic, ChartRow, RowEnd, SingularPoint};
+        use crate::chart_table::{ChartRow, RowEnd, SingularPoint};
         use crate::types::{SphereTrimCause, TessellateError};
 
         fn cone(half_angle: f64) -> Surface<f64> {
@@ -3871,13 +3868,8 @@ pub(super) mod tests {
         #[test]
         fn the_development_keeps_apex_copies_one_and_mesh_vertices_apart() {
             let surface = cone(0.3);
-            let row = ChartRow::Analytic(crate::chart_table::tests::row(
-                Analytic::Cone {
-                    half_angle: 0.3,
-                    rho_max: 1.0,
-                },
-                &surface,
-            ));
+            let row =
+                ChartRow::Analytic(crate::chart_table::AnalyticRow::new(&surface, 1.0).unwrap());
             let tol = crate::sizing::SizingTols {
                 delta: 1e-2,
                 eps: crate::sizing::Eps::at(Tol::witness()),
