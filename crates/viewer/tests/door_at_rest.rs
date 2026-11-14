@@ -57,11 +57,11 @@ impl DoorService for Held {
     }
 }
 
-/// The composed die's unproven rows: its one unproven joint, and the
-/// two vertex identities its booleans decide at a point minted on an
-/// edge, each a `Meet` the door leaves unproven
+/// The composed die's unproven rows: the two vertex identities its
+/// booleans decide at a point minted on an edge, each a `Meet` the door
+/// leaves unproven; both its blend joints prove
 /// (`coincidence_door::the_door_proves_half_the_composed_dies_joints`).
-const DIE_UNPROVEN: usize = 3;
+const DIE_UNPROVEN: usize = 2;
 
 /// The `unproven-coincidence` findings of the landed report.
 fn unproven(session: &DocSession) -> usize {

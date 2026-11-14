@@ -25,11 +25,13 @@
 use std::f64::consts::PI;
 
 use crate::revolve_common::needle;
+use geom_brep::curve_pair::MeetFault;
+use geom_brep::roots::Unsettled;
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::{Point3, Tol, Vec3};
 use topo::JoinError;
 use topo::splitting::{SplitError, split};
-use topo::{CensusUnsupportedCause, ContactRecords, ContactRefusal, EulerOpError, ValidationError};
+use topo::{CensusUnsupportedCause, ContactRecords, EulerOpError, ValidationError};
 
 /// The pose's plane, and the tip's volume above it (the apex's side).
 fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f64>, f64) {
@@ -164,11 +166,14 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                         errs.iter().all(|e| matches!(
                             e,
                             ValidationError::CensusUnsupported {
-                                cause: CensusUnsupportedCause::ContactLane(
-                                    ContactRefusal::NotCertifiable { what }
-                                ),
+                                cause: CensusUnsupportedCause::Meeting(why),
                                 ..
-                            } if what.contains("could not settle a count")
+                            } if matches!(
+                                why.fault(),
+                                MeetFault::Unsettled(Unsettled::Meter {
+                                    row: "curve_pair_pose_basin"
+                                })
+                            )
                         )),
                         "{what}: tier 3′ as measured: {errs:?}"
                     );

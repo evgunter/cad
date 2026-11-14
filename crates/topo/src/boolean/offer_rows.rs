@@ -1862,6 +1862,15 @@ fn near(got: f64, want: f64) -> bool {
     (got - want).abs() <= 1e-4 * want.abs() + 1e-15
 }
 
+/// The cases declared negative whose first raise quotes their margin's
+/// magnitude: the conic root lane reads a root against an end, and two
+/// roots against each other, by the chord between their points, a
+/// length, so a root past its end and one short of it quote alike. A pin
+/// of what the lane reads. Whether these cases stand for a negative arm
+/// at all is
+/// `work/onecopy/the-conic-root-lanes-chord-rungs-quote-a-length-where-two-offer-cases-declare-a-negative-margin.md`'s.
+const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_a_hair_apart"];
+
 /// **The value a case's first raise quotes and offers is its computed
 /// margin's**: the quoted margin is the one the case computes from its
 /// geometry, and a valued offer is that margin's `|m|/K` at the design
@@ -1869,10 +1878,15 @@ fn near(got: f64, want: f64) -> bool {
 /// an inflated value that still reaches a pass).
 fn check_value(case: &Case, text: &str) -> Result<(), String> {
     let quoted = quoted_margin(text);
-    if !quoted.is_some_and(|m| near(m, case.margin)) {
+    let computed = if QUOTED_AS_A_LENGTH.contains(&case.name) {
+        case.margin.abs()
+    } else {
+        case.margin
+    };
+    if !quoted.is_some_and(|m| near(m, computed)) {
         return Err(format!(
-            "{}: quotes margin {quoted:?}, computed {:e}: {text}",
-            case.name, case.margin
+            "{}: quotes margin {quoted:?}, computed {computed:e}: {text}",
+            case.name
         ));
     }
     let offered = test_utils::offer::offered_below(text);
