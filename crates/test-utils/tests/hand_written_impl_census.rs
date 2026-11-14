@@ -270,7 +270,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 3] = [
         "crates/viewer/src/session.rs",
         "PartialEq",
         "Stood",
-        "work/placing/stood-eq-reads-its-fields-by-name.md",
+        "work/doors/stood-eq-reads-its-fields-by-name.md",
     ),
 ];
 

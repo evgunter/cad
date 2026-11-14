@@ -4,6 +4,8 @@ kind: issue
 title: topo hand-builds Indeterminates off the frame's log at five shipped sites; geom-brep's escalation census would refuse them
 status: open
 opened: 2026-11-13
+priority: P3
+cost: M
 ---
 
 Found by `carrier-eq-and-plane-eq-take-no-body` (branch `onedoor/carrier-eq-home`). Moving `plane_eq.rs` into `geom-brep` brought `unreadable_norm` under `geom-brep/tests/kstats_escalation_channel.rs` (`shipped_geom_brep_code_spells_no_indeterminate_literal`), and that unit re-minted it through `geom_core::k_stats::gate_rejection`. `topo` has no such census. Its scanner (`shipped_mints`), pointed at `crates/topo/src` at that branch's head, reports 18 hits:

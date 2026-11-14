@@ -4,6 +4,9 @@ kind: issue
 title: edge_join reads a joined vertex's pair at the vertex with the kept edge's tangent, a point read the whole-edge fold cannot take
 status: open
 opened: 2026-11-12
+priority: P3
+cost: M
+design: true
 ---
 
 

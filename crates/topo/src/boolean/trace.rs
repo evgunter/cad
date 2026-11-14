@@ -344,6 +344,17 @@ pub fn circle_crossings<T: Decide>(
         }
     };
     let rate = InfSpeed::new(radius);
+    let reach = geom_brep::ExtentBall::of_covered(
+        geom::cover::Cover::circle(geom::cover::Core {
+            axis: geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        })
+        .as_ref(),
+    )
+    .lever();
     let mut out = Vec::new();
     for point in points {
         let w = point - center;
@@ -367,13 +378,7 @@ pub fn circle_crossings<T: Decide>(
         }
         let velocity = v_ref * c - u_ref * s;
         out.push(crossing(
-            surface,
-            sense,
-            theta,
-            point,
-            velocity,
-            geom_brep::ExtentBall::of_circle(center, radius).lever(),
-            band,
+            surface, sense, theta, point, velocity, reach, band,
         )?);
     }
     order(

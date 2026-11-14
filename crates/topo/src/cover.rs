@@ -18,7 +18,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::live::{BoundaryMember, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
@@ -56,7 +56,7 @@ impl FaceUncovered {
 
     /// The refusal of a face whose carrier refused and whose arm read no
     /// boundary.
-    pub(crate) fn of_carrier(carrier: Uncovered) -> Self {
+    pub fn of_carrier(carrier: Uncovered) -> Self {
         Self {
             carrier,
             boundary: Vec::new(),
@@ -209,10 +209,7 @@ pub(crate) fn meet_within<T: Real>(
     match (a, b) {
         (Ok(a), Ok(b)) => within(&a.clone().meet(b.clone())),
         (Ok(one), Err(_)) | (Err(_), Ok(one)) => within(one),
-        (Err(_), Err(_)) => {
-            let poison = geom_core::poison();
-            geom_brep::ExtentBall::of_cover_from(None, Point3::new(poison, poison, poison))
-        }
+        (Err(_), Err(_)) => geom_brep::ExtentBall::of_covered(None),
     }
 }
 
@@ -234,7 +231,9 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// proves, one arm per kind, each constraint a stage of that one rule.
 ///
 /// - **Plane**: the convex hull of its boundary (each edge's cover,
-///   [`edge_cover`], and each isolated vertex).
+///   [`edge_cover`], and each isolated vertex). A ruled face (a plane, a
+///   cylinder, a cone) whose outer loop is a lone vertex has no bounding
+///   loop, and keeps its carrier's refusal.
 /// - **Cylinder**: the boundary's convex hull, met with the carrier's
 ///   wall over the heights the hull spans ([`Cover::wall`]), which holds
 ///   the face's level about its axis. The carrier is ruled along its
@@ -314,7 +313,13 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    // A lone-vertex outer loop bounds nothing: a ruled face holds no
+    // hull of it.
+    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
     match surface {
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
+            carrier
+        }
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
         Surface::Cylinder {
             origin,
@@ -392,6 +397,98 @@ fn face_cover_in<T: Decide>(
     }
 }
 
+/// **The farthest `face` stands from `at`**: its cover's far distance
+/// ([`face_cover`], [`Cover::distance_range`]), as a lever. It holds what
+/// bulges past the boundary (a sphere's far side, a cone's apex), and
+/// reads no null scaffolding as a bound.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    band: Band,
+) -> Result<geom_core::Lever<T>, FaceUncovered> {
+    let cover = face_cover(body, face, band)?;
+    Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
+}
+
+/// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`
+/// on `(x − at)·axis` over the face, its cover's range along `axis`
+/// ([`Cover::range_along`]) read from `at`.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_range_along<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    Ok(range_from(&face_cover(body, face, band)?, at, axis))
+}
+
+/// A cover's range along `axis` read from `at`: bounds on `(x − at)·axis`.
+fn range_from<T: Real>(cover: &Cover<T>, at: Point3<T>, axis: Vec3<T>) -> (T, T) {
+    let (lo, hi) = cover.range_along(axis);
+    let base = (at - Point3::origin()).dot(axis);
+    (lo - base, hi - base)
+}
+
+/// **How far `face` reaches from `at` either way along `axis`**:
+/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
+/// over the face ([`face_range_along`]), each at least zero, `at` being a
+/// point the reading is consumed from. They lever a tilt of `axis` read
+/// at `at`'s foot on it.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn face_axial_range<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<(T, T), FaceUncovered> {
+    let (lo, hi) = face_range_along(body, face, at, axis, band)?;
+    Ok(((T::zero() - lo).max(T::zero()), hi.max(T::zero())))
+}
+
+/// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
+/// measured from `at` against `cone`'s axis: its cover's window along
+/// the axis from the apex, met with `within`'s where the consumed region
+/// lies in a second face too ([`Cover::meet`]), and [`face_reach_from`]
+/// `at` as its lever.
+///
+/// # Errors
+///
+/// [`FaceUncovered`], as [`face_cover`].
+pub(crate) fn cone_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    (cone, within): (&Surface<T>, Option<&Cover<T>>),
+    band: Band,
+) -> Result<geom_brep::Reach<T>, FaceUncovered> {
+    let &Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!("the plane×cone arm's reach is asked of a cone")
+    };
+    let cover = face_cover(body, face, band)?;
+    let region = within.map_or_else(|| cover.clone(), |w| cover.clone().meet(w.clone()));
+    let (lo, hi) = range_from(&region, apex, axis);
+    let at_axis = (at - apex).dot(axis);
+    Ok(geom_brep::Reach::of_face(
+        at,
+        (at_axis - lo, hi - at_axis),
+        geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever(),
+    ))
+}
+
 /// **Whether a face on `cone` may hold its apex**: unless every loop's
 /// lift closes in the chart
 /// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
@@ -433,9 +530,11 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
 }
 
 /// **The boundary's cover**: each boundary edge's cover
-/// ([`edge_cover_linked`]), hulled with each isolated vertex. A face's
-/// region is not in it; a ruled one's is in its convex hull
-/// ([`Cover::convex`]).
+/// ([`edge_cover_linked`]), hulled with each isolated vertex and each
+/// placeholder's one point (a null edge whose two ends are one point,
+/// [`crate::null::is_placeholder`]); a null edge whose ends have parted
+/// is a gap, and has no cover. A face's region is not in it; a ruled
+/// one's is in its convex hull ([`Cover::convex`]).
 ///
 /// # Errors
 ///
@@ -450,6 +549,12 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
         let one = match member {
             BoundaryMember::Isolated { vertex, point } => {
                 Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
+            }
+            // A placeholder is a zero-length copy of its one point
+            // (`crate::null::is_placeholder`), which its neighbours hold.
+            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+                Cover::points(vec![body.member_point(&member)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
             }
             BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
                 .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
@@ -620,7 +725,7 @@ fn sphere_window<T: Decide>(
             SPHERE_SEAM,
             Margin::levered(
                 seam.get().dot(unit.get()),
-                geom_brep::ExtentBall::of_sphere(*center, *radius).lever(),
+                geom_brep::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever(),
             ),
             band,
         );
@@ -1181,3 +1286,7 @@ pub(crate) fn edge_end_point<T: Real>(
     .start;
     body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
 }
+
+#[cfg(test)]
+#[path = "cover_reach_rows.rs"]
+mod cover_reach_rows;
