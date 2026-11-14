@@ -25,3 +25,7 @@ and different tightness.
 
 One range, read by both, or a statement of what each needs that the
 other does not give.
+
+## 2026-11-14 — a third reading, and the interval helpers (from the chord rule's second review)
+
+`pcurve_cache::speed::harmonic_enclosure` is a third range of the same harmonic: `harmonic_range`'s reading with each value enclosed in interval arithmetic (the ends through `props::taylor::trig_range`), read by the projected conic's lever arms. `mesh::sizing::sphere_face_widest_cos` still reads the plain `f64` `harmonic_range`. Beside them, `speed.rs`' private interval helpers `dot`, `hyp`, `root_down` and `root_up` sit beside `patch_bound.rs`' interval `dot` (a method on its vector type): the same vector arithmetic in two places.

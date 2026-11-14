@@ -503,10 +503,9 @@ impl FaceLattice {
         curve: &geom_brep::EdgeCurve<f64>,
         ek: EdgeKey,
     ) -> Result<Ask, TessellateError> {
-        let mut joints = 1;
         let (t0, t1) = curve.params();
         let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
-        let cache = match self.reads {
+        let (cache, joints) = match self.reads {
             // The iso image of a circle, exactly: a rim's carrier
             // parameter is its azimuth, a meridian's its minor angle or
             // latitude. The classifier is total on circles; its `None`
@@ -524,7 +523,7 @@ impl FaceLattice {
                         ));
                     }
                 };
-                return Ok(Ask { speeds, joints });
+                return Ok(Ask { speeds, joints: 1 });
             }
             Reads::SphereRows => {
                 let cache = body.pcurve(hek).ok_or_else(|| {
@@ -534,7 +533,7 @@ impl FaceLattice {
                     )
                 })?;
                 sphere_image(cache.pcurve(), ek)?;
-                cache
+                (cache, 1)
             }
             Reads::SplineRows => {
                 let cache = body.pcurve(hek).ok_or_else(|| {
@@ -544,8 +543,8 @@ impl FaceLattice {
                          schedule has no certified UV step bound",
                     )
                 })?;
-                spline_image(cache.pcurve(), (t0, t1), ek, &mut joints)?;
-                cache
+                let joints = spline_image(cache.pcurve(), (t0, t1), ek)?;
+                (cache, joints)
             }
         };
         let speeds = cache
@@ -591,7 +590,8 @@ fn sphere_image(image: &Pcurve<f64>, ek: EdgeKey) -> Result<(), TessellateError>
 
 /// What a spline chart's row must be beyond a bounded speed: a form a
 /// spline chart mints, and an arc rim whose sub-arc joints the schedule
-/// can land on.
+/// can land on. Answers the sub-arc count the edge's count must be a
+/// multiple of: an arc rim's, `1` for every other row.
 ///
 /// THE CREASE CHORD POINT. Two sub-arcs of an arc rim meet at a knot of
 /// multiplicity two, a C⁰ crease of the chart in `u`, and the trimmed lane
@@ -604,8 +604,7 @@ fn spline_image(
     image: &Pcurve<f64>,
     (t0, t1): (f64, f64),
     ek: EdgeKey,
-    joints: &mut usize,
-) -> Result<(), TessellateError> {
+) -> Result<usize, TessellateError> {
     let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
     match image {
         Pcurve::IsoArc {
@@ -623,9 +622,9 @@ fn spline_image(
                          NURBS face)",
                     ));
                 }
-                *joints = lcm(*joints, spans);
+                return Ok(spans);
             }
-            Ok(())
+            Ok(1)
         }
         // A spiric's chart images live on its own cutting plane and the
         // two tori that hold it, a focal section's on a cone or a torus, a
@@ -646,7 +645,7 @@ fn spline_image(
         Pcurve::Harmonic { .. }
         | Pcurve::IsoLine { .. }
         | Pcurve::General(_)
-        | Pcurve::Fitted(_) => Ok(()),
+        | Pcurve::Fitted(_) => Ok(1),
     }
 }
 
@@ -862,15 +861,19 @@ mod tests {
     }
 
     /// For every side of every edge of `body` whose lattice the rule reads:
-    /// the steps against the lane's own step function at the face's target,
-    /// and the edge's count against the side's ask. Answers how many sides
-    /// each arm answered: the curved lane's, the sphere arm's, the spline
-    /// arm's.
+    /// the steps against the lane's own step function at the face's
+    /// target, computed here from the surface rather than read off the
+    /// lattice; and the edge's count against what the rule asks. On a line
+    /// or a circle, whose own count is the sagitta's, the count is exactly
+    /// the larger of that and every side's ask, settled on its joints.
+    /// Answers how many sides each arm answered (the curved lane's, the
+    /// sphere arm's, the spline arm's) and how many edges the rule raised
+    /// above their carrier's own count.
     #[allow(clippy::float_cmp)]
-    fn arms_on(body: &Body<f64>, delta: f64) -> [usize; 3] {
+    fn arms_on(body: &Body<f64>, delta: f64) -> [usize; 4] {
         let pass = chords_of(body, delta);
         let mut bounds = FaceBounds::new();
-        let mut seen = [0; 3];
+        let mut seen = [0; 4];
         for (ek, edge) in body.edges() {
             let curve = body
                 .get_curve_geom(edge.curve)
@@ -878,7 +881,9 @@ mod tests {
                 .certified()
                 .unwrap();
             let (t0, t1) = curve.params();
+            let span = t1 - t0;
             let n = pass.ids[&ek].len() - 1;
+            let mut asks = Vec::new();
             let sides = sides_of(body, ek).unwrap();
             for s in [sides.plus, sides.minus] {
                 let surface = crate::tessellate::face_surface(body, s.face).unwrap();
@@ -890,55 +895,136 @@ mod tests {
                 let target = crate::trimmed::face_target(body, s.face, delta).unwrap();
                 let want = match (&lattice.reads, surface) {
                     (Reads::Iso(_), geom::Surface::Sphere { radius, .. }) => {
-                        seen[0] += 1;
                         let widest = sphere_face_widest_cos(body, s.face, surface).unwrap();
                         sphere_grid_steps(target, *radius, widest)
                     }
+                    (
+                        Reads::Iso(_),
+                        geom::Surface::Torus {
+                            major_radius,
+                            minor_radius,
+                            ..
+                        },
+                    ) => torus_grid_steps(target, *major_radius, *minor_radius),
+                    (Reads::Iso(_), geom::Surface::Cylinder { radius, .. }) => {
+                        (sagitta_step(target, *radius), f64::INFINITY)
+                    }
+                    (Reads::Iso(_), geom::Surface::Cone { half_angle, .. }) => (
+                        cone_grid_step(
+                            target,
+                            *half_angle,
+                            cone_face_rho_max(body, s.face).unwrap(),
+                        ),
+                        f64::INFINITY,
+                    ),
                     (Reads::Iso(_), _) => {
-                        seen[0] += 1;
-                        lattice.steps
+                        panic!("{ek:?}: a curved-lane chart the row has no step for")
                     }
                     (Reads::SphereRows, _) => {
-                        seen[1] += 1;
                         crate::trimmed::sphere_lattice_steps(body, s.face, surface, delta).unwrap()
                     }
                     (Reads::SplineRows, _) => {
-                        seen[2] += 1;
                         let payload = surface.spline_chart().unwrap();
                         face_bound(&mut bounds, payload, s.face)
                             .unwrap()
                             .grid_steps(crate::nurbs_cert::lattice_budget(target))
                     }
                 };
+                seen[match lattice.reads {
+                    Reads::Iso(_) => 0,
+                    Reads::SphereRows => 1,
+                    Reads::SplineRows => 2,
+                }] += 1;
                 assert!(lattice.steps == want, "{ek:?}: steps {:?}", lattice.steps);
                 let ask = lattice
                     .speeds(body, s.half_edge, s.face, curve, ek)
                     .unwrap();
-                let rule = ceil_count(ask.speeds.0 * (t1 - t0), want.0)
+                let rule = ceil_count(ask.speeds.0 * span, want.0)
                     .unwrap()
-                    .max(ceil_count(ask.speeds.1 * (t1 - t0), want.1).unwrap());
-                assert!(
-                    n >= rule && n.is_multiple_of(ask.joints),
-                    "{ek:?}: {n} chords against the side's ask of {rule} (joints {})",
-                    ask.joints
-                );
+                    .max(ceil_count(ask.speeds.1 * span, want.1).unwrap());
+                asks.push((rule, ask.joints));
+            }
+            let own = match *curve.carrier() {
+                Curve3::Line(_) => Some(1),
+                Curve3::Circle(geom::Circle { radius, .. }) => Some(
+                    ceil_count(
+                        span,
+                        sagitta_step(edge_target(body, ek, delta).unwrap(), radius),
+                    )
+                    .unwrap(),
+                ),
+                _ => None,
+            };
+            if let Some(own) = own {
+                let expected = settle(own, &asks);
+                assert_eq!(n, expected, "{ek:?}: own {own}, asks {asks:?}");
+                if expected > own {
+                    seen[3] += 1;
+                }
+            } else {
+                for &(rule, joints) in &asks {
+                    assert!(
+                        n >= rule && n.is_multiple_of(joints),
+                        "{ek:?}: {n} chords against a side's ask of {rule} (joints {joints})"
+                    );
+                }
             }
         }
         seen
     }
 
-    /// **Each arm of the rule answers its lane's lattice, and the count
-    /// meets it.** One body per arm: a ball (the curved lane's sphere), the
-    /// pair of tilted balls (the trimmed sphere arm), a lofted cylinder (the
-    /// spline arm, whose arc rims carry crease joints). An arm that stops
-    /// answering leaves its body's tally at zero.
+    /// A revolved profile loop, about `y`.
+    fn revolved(lp: profile::ProfileLoop<f64>) -> Body<f64> {
+        let tol = geom_core::Tol::witness();
+        let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: geom_core::Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
+            .unwrap()
+            .body
+            .into_body()
+    }
+
+    /// **Each arm of the rule answers its lane's lattice, and the count is
+    /// what the rule asks.** One body per arm and chart: a ball (the curved
+    /// lane's sphere), a donut (its torus, whose rims the rule raises above
+    /// their own sagitta count: the binding case), a washer (its cylinders),
+    /// the pair of tilted balls (the trimmed sphere arm), a lofted cylinder
+    /// (the spline arm, whose arc rims carry crease joints). An arm that
+    /// stops answering leaves its body's tally at zero; a count off the
+    /// rule's ask on a line or circle reds in `arms_on`.
     #[test]
     fn each_arm_of_the_rule_answers_its_lanes_lattice() {
+        use geom_core::Point2;
+        use profile::RawLoop;
         let tol = geom_core::Tol::witness();
         let ball = sweep::test_support::ball_poled_y(1.0, geom_core::Vec3::new(0.0, 0.0, 0.0), tol);
         assert!(
             arms_on(&ball, 1e-2)[0] > 0,
             "the curved lane answers on a ball"
+        );
+        let donut = revolved(profile::test_support::bulge_loop(vec![
+            (Point2::new(2.0, -0.5), 1.0),
+            (Point2::new(2.0, 0.5), 1.0),
+        ]));
+        let on_donut = arms_on(&donut, 1e-2);
+        assert!(
+            on_donut[0] > 0 && on_donut[3] > 0,
+            "the curved lane answers on a donut, and raises a rim: {on_donut:?}"
+        );
+        let washer = revolved(profile::ProfileLoop::polygon([
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 1.0),
+        ]));
+        assert!(
+            arms_on(&washer, 1e-2)[0] > 0,
+            "the curved lane answers on a washer"
         );
         let one = |c| {
             sweep::test_support::finished(

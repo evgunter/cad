@@ -72,6 +72,12 @@ failure-output = "immediate-final"
 #   15.62 s  mesh::all lift_probes::the_spline_section_bodies_read_lifts_that_close
 #    2.87 s  mesh::all lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes
 #    1.73 s  mesh::all lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube
+# The spiric images' speed bounds over 70 poses each, every bound read on
+# graded pieces, and the chord rule's arms on five bodies, each meshed by
+# its chord pass (a local debug run):
+#    1.36 s  geom-brep pcurve_cache::speed_rows::a_spiric_wall_images_bound_dominates_it
+#    1.13 s  geom-brep pcurve_cache::speed_rows::a_spiric_cap_images_bound_dominates_it
+#    1.45 s  mesh chords::tests::each_arm_of_the_rule_answers_its_lanes_lattice
 default-filter = """
 not (
   (binary_id(sweep::all) & (test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |

@@ -9,13 +9,20 @@
 //! Every bound is a supremum over the span or over the image's whole
 //! period, never a sample. The spiric, focal-section and projected bounds
 //! and the general image's hull are read in outward-rounded interval
-//! arithmetic, so each dominates in floats as well as in reals. The
-//! harmonic, iso-line and arc-rim bounds are their closed forms in plain
-//! `f64`: each is attained, so its rounding can leave it an ulp either
-//! side of the true sup, a relative `ε` of the count it sizes.
+//! arithmetic, so each dominates in floats as well as in reals, with two
+//! decisions inside them taken at `f64`: whether a span holds a harmonic
+//! extremum's phase ([`harmonic_extremes`]) and whether it holds a
+//! projected line's nearest point ([`line_levers`]). A span whose end sits
+//! within rounding of either reads the end, which is below the extremum
+//! only to second order in that rounding. Where the spiric's pieces fall
+//! ([`spiric_breaks`]) is a choice, not a decision: any cover of the span
+//! is sound. The harmonic, iso-line and arc-rim bounds are their closed
+//! forms in plain `f64`: each is attained, so its rounding can leave it an
+//! ulp either side of the true sup, a relative `ε` of the count it sizes.
 //!
 //! A span is read forward: `t₀ ≤ t₁`, both finite, or the bound refuses
-//! ([`NoSpeedBound::NotASpan`]).
+//! ([`NoSpeedBound::NotASpan`]); an image with a non-finite coefficient
+//! refuses ([`NoSpeedBound::NonFinite`], [`finite_input`]).
 //!
 //! # Per form
 //!
@@ -191,33 +198,42 @@ const SPIRIC_GRADE: i32 = 60;
 /// The breaks of the pieces [`spiric_speeds`] reads over `[t0, t1]`: a
 /// period's [`SPIRIC_PIECES`] equal pieces, and toward each
 /// `t = π + 2kπ` in the span pieces shrinking by `√2`, [`SPIRIC_GRADE`]
-/// times. There
-/// `ρ` is least, and the image's rates peak within `√(2(R − r)/r)` of it,
-/// which on a fat tube is far narrower than an equal piece: a piece read
-/// whole pairs its least `ρ` with its widest `sin t`.
+/// times. There `ρ` is least, and the image's rates peak within
+/// `√(2(R − r)/r)` of it, which on a fat tube is far narrower than an
+/// equal piece: a piece read whole pairs its least `ρ` with its widest
+/// `sin t`.
+///
+/// The two constants are a typed-in schedule trading work for
+/// tightness, not a certified ratio: the bound dominates the image on
+/// any cover of the span, and they set only how close it comes (measured
+/// on `speed_rows`' poses). The image is periodic, so a span longer than
+/// a period reads `[0, τ]`'s pieces, and any other span at most a
+/// period's: the work is bounded whatever the span and wherever it
+/// lies. A span of no width is its one point's piece.
 fn spiric_breaks((t0, t1): (f64, f64)) -> Vec<f64> {
     use core::f64::consts::{PI, TAU};
+    if t1 - t0 > TAU {
+        return spiric_breaks((0.0, TAU));
+    }
     let step = TAU / f64::from(SPIRIC_PIECES);
     let mut breaks = vec![t0, t1];
-    let first = (t0 / step).floor();
-    let mut k = first;
-    while k * step < t1 {
-        breaks.push(k * step);
-        k += 1.0;
-    }
-    let mut m = ((t0 - PI) / TAU).floor();
-    while m.mul_add(TAU, PI) - step < t1 {
-        let centre = m.mul_add(TAU, PI);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let pieces = ((t1 - t0) / step).ceil() as u32;
+    breaks.extend((1..pieces).map(|j| f64::from(j).mul_add(step, t0)));
+    let m = ((t0 - PI) / TAU).floor();
+    for centre in [m.mul_add(TAU, PI), (m + 1.0).mul_add(TAU, PI)] {
         breaks.push(centre);
         for g in 1..=SPIRIC_GRADE {
             let reach = step * core::f64::consts::FRAC_1_SQRT_2.powi(g);
             breaks.extend([centre - reach, centre + reach]);
         }
-        m += 1.0;
     }
     breaks.retain(|&b| b >= t0 && b <= t1);
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
+    if breaks.len() < 2 {
+        return vec![t0, t1];
+    }
     breaks
 }
 
@@ -389,9 +405,16 @@ impl Levers {
     /// A lower bound on the distance from a torus's core circle
     /// (radius `major` in the plane `z = 0`): the distance from `(R, 0)`
     /// to the box `[ρ_lo, ρ_hi] × [z_lo, z_hi]` of the meridian half-plane.
+    /// Rounded down, in interval arithmetic.
     fn tube(self, major: f64) -> f64 {
-        let gap = |lo: f64, hi: f64, x: f64| (lo - x).max(x - hi).max(0.0);
-        gap(self.rho, self.rho_hi, major).hypot(gap(self.z.0, self.z.1, 0.0))
+        let i = Interval::point;
+        let gap =
+            |lo: f64, hi: f64, x: f64| i((i(lo) - i(x)).lo().max((i(x) - i(hi)).lo()).max(0.0));
+        hyp(
+            gap(self.rho, self.rho_hi, major),
+            gap(self.z.0, self.z.1, 0.0),
+        )
+        .lo()
     }
 }
 
@@ -583,4 +606,70 @@ fn harmonic_extremes(a: f64, b: f64, (t0, t1): (f64, f64)) -> (bool, bool) {
         geom::periodic_window_may_hold((tau, tau), (t0, t1), TAU),
         geom::periodic_window_may_hold((tau + PI, tau + PI), (t0, t1), TAU),
     )
+}
+
+/// Whether every coefficient an image's bound reads is finite. A
+/// non-finite one would answer a NaN bound, or a lever read as `0`, so
+/// [`Pcurve::speed_bound`](super::Pcurve::speed_bound) refuses it first.
+/// A spline image's weights are held positive and finite by its
+/// constructor.
+pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
+    use super::Pcurve;
+    let all = |xs: &[f64]| xs.iter().all(|x| x.is_finite());
+    let net2 = |c: &geom::NurbsCurve2<f64>| c.control().iter().all(|p| all(&[p.x, p.y]));
+    match image {
+        Pcurve::Harmonic { u, v } => {
+            let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
+            all(&[p0.x, p0.y, pa.x, pa.y, pb.x, pb.y, pl.x, pl.y])
+        }
+        Pcurve::IsoLine { p0, pl } => all(&[p0.x, p0.y, pl.x, pl.y]),
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            ends,
+            ..
+        } => all(&[p0.x, p0.y, pd.x, pd.y, *t0, *angle]) && all(ends),
+        Pcurve::General(c) | Pcurve::Fitted(c) => net2(c),
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image,
+        } => {
+            all(&[*major, *minor, *offset])
+                && match *image {
+                    SpiricImage::Cap { p0, pm, pa } => all(&[p0.x, p0.y, pm.x, pm.y, pa.x, pa.y]),
+                    SpiricImage::Wall { u0, v0, sense, .. } => all(&[u0, v0, sense]),
+                }
+        }
+        Pcurve::FocalSection(i) => all(&[i.u0, i.t0, i.v0, i.va, i.vb, i.vl, i.beta, i.sense]),
+        Pcurve::Projected(p) => {
+            let (u_off, v_off, v_sign) = p.deck();
+            let chart = match *p.chart() {
+                ProjectedChart::Cone { sin, cos, .. } => all(&[sin, cos]),
+                ProjectedChart::Torus { major } => major.is_finite(),
+                ProjectedChart::Plane | ProjectedChart::Cylinder | ProjectedChart::Sphere => true,
+            };
+            let v3 = |v: Vec3<f64>| all(&[v.x, v.y, v.z]);
+            let carrier = match p.carrier() {
+                FramedCarrier::Conic {
+                    centre,
+                    a,
+                    b,
+                    origin,
+                    span,
+                } => v3(*centre) && v3(*a) && v3(*b) && all(&[*origin, *span]),
+                FramedCarrier::Line {
+                    point,
+                    dir,
+                    origin,
+                    span,
+                } => v3(*point) && v3(*dir) && all(&[*origin, *span]),
+                FramedCarrier::Net(n) => n.control().iter().all(|q| all(&[q.x, q.y, q.z])),
+            };
+            chart && carrier && all(&[u_off, v_off, v_sign])
+        }
+    }
 }

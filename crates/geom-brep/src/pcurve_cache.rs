@@ -1641,6 +1641,9 @@ impl Pcurve<f64> {
         if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
             return Err(NoSpeedBound::NotASpan);
         }
+        if !speed::finite_input(self) {
+            return Err(NoSpeedBound::NonFinite);
+        }
         match self {
             Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
             Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
