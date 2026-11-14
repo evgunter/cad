@@ -11,7 +11,7 @@ cost: H
 
 Filed by the station-frames fork (DESIGN-FORK-LOG row 266, `[ev]` PR on `onehome/ev-station-roll`).
 
-**Today.** A skin's path is `NurbsCurve3<f64>`, a constant of the model, and no document's Sweep reaches `sweep_body` yet (`SWEEP_FRONTIER` in editor-core). So the roll is selected at `f64`: one reference vector per station, with each frame minted at the lane scalar (`crates/sweep/README.md` `[sweep.frame]`). The day the path is held at `T`, its roll depends on the variables. A frozen roll would then certify a family whose roll differs at first order from the body built at each point of the box.
+**Today.** A skin's path is `NurbsCurve3<f64>`, a constant of the model, and no document's Sweep reaches `sweep_body` yet (`SWEEP_FRONTIER` in editor-core). So the roll is selected at `f64`: one reference vector per station, with each frame minted at the lane scalar (DESIGN `[scalars]`: a lane scalar takes a choice from `f64`, never a claim; `crates/sweep/README.md` `[sweep.frame]` once the skin-turn unit lands). The day the path is held at `T`, its roll depends on the variables. A frozen roll would then certify a family whose roll differs at first order from the body built at each point of the box.
 
 **What a design for that day must solve**, measured on the probe commit `c9ea79bf` (`onehome/skin-turn`; a 48-station ribbon and a 65-station helix):
 - **Interval width.** A carry chained at `T` wraps: about ×1.2 per step, reaching 8.9e-7 at the helix's last station. A Lohner-style (wrap-free) carry grows additively, at about 2e-12 per step (4.6e-10 and 4.7e-10 at the last stations). That is still about two orders too wide at ε = 1e-9, where four of the five injectivity rows refuse, and all five refuse at 1e-12.

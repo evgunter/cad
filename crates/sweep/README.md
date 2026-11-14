@@ -282,17 +282,12 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The roll is chosen at `f64`, because the path is a constant of
-  the model** (DESIGN `[scalars]`: a lane scalar takes a choice from
-  `f64`, never a claim). The carry runs once at `f64` and selects each station's
-  roll as a reference vector; every scalar lane mints each station's
-  frame from the path's tangent read at that scalar and that vector,
-  one station at a time, and composes it onto its own start plane.
-  Station 0 is the start plane itself, and a step that a straight span
-  makes still (its two tangents one expression) reuses its
-  predecessor's reference. A path held at a lane scalar has a roll
-  that depends on the variables, and the selection no longer stands
-  (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
+- **The carry is a function of the `f64` path and the station count.**
+  It is computed once, its decisions taken there, and every scalar lane
+  composes it onto its own start plane; station 0 is the start plane
+  itself, and a step whose two tangents are equal bit for bit is the
+  identity with no rounding (the exact law's answer: its second
+  reflection is its first).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
