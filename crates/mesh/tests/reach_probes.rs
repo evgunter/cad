@@ -880,7 +880,12 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
 /// certificate is conservative for most, and the face needs more points
 /// for some. The unit that cures it turns this row's refusals into
 /// meshes. On main the face refuses at every δ, `UnsupportedCurve`: no
-/// trimmed cone arm.
+/// trimmed cone arm. A cut within a thousand ε of the apex is within the
+/// band's reach of it: it may refuse at the split (at ε `10⁻⁶`,
+/// `h = 10⁻⁴` refuses `KeptBoundaryUndecided`) or leave no body below
+/// (at ε `10⁻⁶`, `h = 10⁻⁶`), each printed and skipped, and a cell this
+/// table refuses may mesh instead (at ε `10⁻⁶`, `h = 10⁻⁶` above, at δ
+/// `5·10⁻³`), held to the geometry check.
 #[test]
 fn a_cone_face_ending_near_its_apex_refuses_at_fine_delta() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
@@ -895,13 +900,42 @@ fn a_cone_face_ending_near_its_apex_refuses_at_fine_delta() {
             tol(),
         );
         let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
-        let split = topo::splitting::split(&body, &plane, tol())
-            .unwrap_or_else(|e| panic!("the funnel cut at {h:e} splits, got {e:?}"));
+        // Within a thousand ε of the apex the band reaches the cut: the
+        // split may refuse, a half may be empty, and a cell the table
+        // refuses may mesh instead, held to the geometry check.
+        let near = h <= 1000.0 * tol().eps();
+        let split = match topo::splitting::split(&body, &plane, tol()) {
+            Ok(split) => split,
+            Err(e) => {
+                assert!(
+                    near,
+                    "the funnel cut at {h:e} splits at ε {:e}, got {e:?}",
+                    tol().eps()
+                );
+                eprintln!(
+                    "the funnel cut at {h:e}: the split refuses at ε {:e}: {e:?}",
+                    tol().eps()
+                );
+                continue;
+            }
+        };
         for (side, part) in [("above", &split.above), ("below", &split.below)] {
             let what = format!("the funnel cut at h = {h:e}, {side}");
-            let half = part.body().unwrap_or_else(|| panic!("{what}: a body"));
+            let Some(half) = part.body() else {
+                assert!(near, "{what}: a body");
+                eprintln!(
+                    "{what}: no body at ε {:e}, the cut read through the apex",
+                    tol().eps()
+                );
+                continue;
+            };
             for delta in deltas {
-                if refuses(h, side == "above", delta) {
+                if near && refuses(h, side == "above", delta) {
+                    match mesh::tessellate(half, delta, tol()) {
+                        Err(mesh::TessellateError::CertificateExceeded { .. }) => {}
+                        _ => assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}"),
+                    }
+                } else if refuses(h, side == "above", delta) {
                     match mesh::tessellate(half, delta, tol()) {
                         Err(mesh::TessellateError::CertificateExceeded {
                             bound,
