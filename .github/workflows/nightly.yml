@@ -330,10 +330,20 @@ jobs:
             tools/tess-meter
       - name: demos tour fmt + clippy
         if: '!cancelled() && matrix.row == ''dev-default'''
-        run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+        run: |
+          cd demos/tour
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: demos wild fmt + clippy
         if: '!cancelled() && matrix.row == ''dev-default'''
-        run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+        run: |
+          cd demos/wild
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: install cargo-nextest (pinned, official prebuilt)
         if: matrix.row == 'release-default'
         uses: ./.github/actions/install-nextest
@@ -367,26 +377,38 @@ jobs:
           diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         if: '!cancelled() && matrix.row == ''dev-default'''
-        run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+        run: |
+          cd tools/k-lint
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
         if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-lint
-          cargo fmt --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: tess-meter tool fmt + clippy + tests
         if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-meter
-          cargo fmt --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: mesh budget meter + certificate falsifier (feature = budget)
         if: matrix.row == 'dev-budget'
         run: |
-          cargo clippy -p mesh --all-targets --features budget -- -D warnings
-          cargo test -p mesh --features budget
+          rc=0
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings || rc=1
+          cargo test -p mesh --features budget --no-fail-fast || rc=1
+          exit $rc
       - name: tessellation-budget sweep (every tour scene, per face)
         if: matrix.row == 'release-budget'
         run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
@@ -538,7 +560,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/full-suite.tar.zst"
       - name: doc-tests
         if: '!cancelled()'
-        run: cargo test --doc --workspace
+        run: cargo test --doc --workspace --no-fail-fast
       - name: the slow set names only tests that exist (the whole workspace)
         if: '!cancelled() && steps.build.outcome == ''success'''
         run: |
@@ -768,12 +790,15 @@ jobs:
       - name: clippy (pncad-py, python feature)
         run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: build and install the wheel
+        id: wheel
+        if: '!cancelled()'
         run: |
           curl -LsSf --retry 5 "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
           maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
           python -m venv --clear "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/python" -m pip install target/wheels/pncad-*.whl "ty==$TY_VERSION"
       - name: run the Python suite
+        if: '!cancelled() && steps.wheel.outcome == ''success'''
         env:
           PNCAD_TY: ${{ runner.temp }}/venv/bin/ty
         run: |
