@@ -756,6 +756,7 @@ mod tests {
 
     #[test]
     fn an_analytic_outer_loop_reads_a_point_in_out_or_near_and_a_copy_past_the_pole() {
+        let eps = Tol::witness().eps();
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: 1.0,
@@ -775,7 +776,7 @@ mod tests {
                 read(1.0, 0.3),
                 read(4.5 + TAU, 0.3),
                 read(4.5, 0.3 + TAU),
-                read(PI + 1e-13, 0.3),
+                read(PI + 1e-3 * eps, 0.3),
             ],
             ["in", "out", "out", "out", "near"],
             "inside; a u period off; past the outer loop's reach; a v period off, its window \
@@ -825,8 +826,10 @@ mod tests {
 
     /// **The analytic reader against chains a bug in its clearance or its
     /// parity would misread.** A clearance that counts any positive chart
-    /// gap as clear reads the points `1e-12` off an edge, on an edge, and
-    /// in the sliver thinner than the band as a side; each must be near.
+    /// gap as clear reads the points a thousandth of `ε` off an edge, on
+    /// an edge, and in the sliver thinner than the band as a side; each
+    /// must be near. The offsets are in the run's `ε`, so the rows read
+    /// the same at every eps row.
     /// A parity that counts a grazing ray or a vertex twice misreads the
     /// notch's iso row and the diamond's vertices.
     ///
@@ -838,6 +841,10 @@ mod tests {
     #[test]
     fn the_analytic_reader_reads_notches_vertices_slivers_poles_and_apexes() {
         let band = Band::linear(Tol::witness()).unwrap();
+        // Offsets in the run's ε, which the eps rows sweep: well past the
+        // band on the clear side, well inside it on the other.
+        let eps = Tol::witness().eps();
+        let (clear, inside) = (1e3 * eps, 1e-3 * eps);
         let sphere = unit_sphere();
         let read = |o: &Outer<'_, f64>, u: f64, v: f64| word(o.side(Point2::new(u, v), band));
         let notch = chain(
@@ -862,12 +869,12 @@ mod tests {
                 read(&notch, 6.0, 0.29),
                 read(&notch, 6.0, 0.81),
                 read(&notch, 4.0, 1.2),
-                read(&notch, 4.0, 1.2 - 1e-6),
-                read(&notch, 4.0, 1.2 - 1e-12),
+                read(&notch, 4.0, 1.2 - clear),
+                read(&notch, 4.0, 1.2 - inside),
             ],
             ["in", "out", "in", "in", "in", "near", "in", "near"],
             "the notch: its iso rows' rays, its mouth, under and over it, on the top edge, \
-             1e-6 and 1e-12 inside it"
+             a thousand ε and a thousandth of ε inside it"
         );
         let diamond = chain(
             &sphere,
@@ -879,8 +886,8 @@ mod tests {
                 read(&diamond, 4.5, 0.3),
                 read(&diamond, 3.0, 0.3),
                 read(&diamond, 5.0, 1.0),
-                read(&diamond, 4.5, -0.5 + 1e-6),
-                read(&diamond, 4.5, -0.5 - 1e-6),
+                read(&diamond, 4.5, -0.5 + clear),
+                read(&diamond, 4.5, -0.5 - clear),
             ],
             ["in", "out", "out", "in", "out"],
             "the diamond: the ray through two vertices, outside it, and either side of its \
@@ -906,11 +913,11 @@ mod tests {
         );
         let sliver = chain(
             &sphere,
-            &[(4.0, 0.0), (5.0, 0.0), (5.0, 1e-11), (4.0, 1e-11)],
+            &[(4.0, 0.0), (5.0, 0.0), (5.0, inside), (4.0, inside)],
             Some(TAU),
         );
         assert_eq!(
-            read(&sliver, 4.5, 5e-12),
+            read(&sliver, 4.5, 0.5 * inside),
             "near",
             "a sliver thinner than the band"
         );
@@ -929,11 +936,12 @@ mod tests {
             [
                 read(&wedge, 1.0, 0.5),
                 read(&wedge, 1.0, 1e-3),
-                read(&wedge, 1.0, 1e-9),
+                read(&wedge, 1.0, inside),
                 read(&wedge, 1.0 + TAU, 0.5),
             ],
             ["in", "near", "near", "out"],
-            "the cone from its apex row: inside, 1e-3 and 1e-9 above the apex, a period off"
+            "the cone from its apex row: inside, 1e-3 and a thousandth of ε above the apex, a \
+             period off"
         );
     }
 
