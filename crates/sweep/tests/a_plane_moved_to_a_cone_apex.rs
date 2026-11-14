@@ -525,6 +525,9 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 /// and the union builds: `V_wedge + V_brick − overlap`, against the
 /// closed-form volume, tier 3 and `point_in_solid` on a grid. Read at
 /// the apex alone, 20 of the 24 refuse.
+///
+/// At ε 1e-6 that is the row's claim and not what is built: the first
+/// union misses its closed form, and the row is pinned there.
 #[test]
 fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
     // Pinned red at 1e-6: the first union builds 1.0e-6 under its closed

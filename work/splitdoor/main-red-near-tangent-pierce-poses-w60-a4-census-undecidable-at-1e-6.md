@@ -4,6 +4,8 @@ kind: issue
 title: Main red at ε 1e-6: near_tangent_pierce_poses' w60 nt e1 a4 d1e-7 prism ∪ cube fails tier 3′ CensusUndecidable
 status: open
 opened: 2026-11-01
+priority: P1
+cost: M
 ---
 
 Found by the TANGRIM inflection-ruling lane's outcome diff, on
@@ -37,3 +39,11 @@ Still red on main `b363f5fa1` with the same finding. In the nightly it passed at
 Bisected, first-parent, at ε 1e-6: green at `082c42d27`; red at `367ff259a`, the merge of PR 6212 (`splitdoor/prism-tilt-reach`, which changed `crates/topo/src/boolean/sectors.rs`, `insert.rs` and `vtxfac.rs`), whose first parent is `082c42d27`; red at `d05cc76c9`, `8a611050d`, `286c28f0a`, `e669a2f89` and `cda6d86c4`. So the boolean changed what it builds for this pose, and the census then cannot decide the body. Which finding leaves the boundaries unchecked is still owed, and whether the body PR 6212 builds here is right is SPLITDOOR's half of the question.
 
 The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`): the one wrong run, `w60 nt e1 a4 d1e-7, prism ∪ cube`, `CensusUndecidable`, `MayOverlap`. Take the pin off with the fix.
+
+## Moved to SPLITDOOR and banded (GREEN, 2026-11-14, PR 6934's fix pass)
+
+Moved from `work/restread/` by `git mv`, id and body unchanged: the merge that turned it red is SPLITDOOR's PR 6212, and the code it changed is the boolean's (`crates/topo/src/boolean/sectors.rs`, `insert.rs`, `vtxfac.rs`), not the census's.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep --test all -E 'test(=near_tangent_pierce_poses::near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed)'` (about 20 s in debug; take the `pinned_red` wrapper off the test to see the finding).
+
+Band: P1. The union returns a body and the census cannot decide it (`CensusUndecidable`, `MayOverlap`); nothing measured says the body is wrong, and the pose is a near-tangent pierce `1e-7` off at ε 1e-6, not everyday geometry. If the body is shown wrong (its volume against the pose's closed form, which the row's own check would read once tier 3′ passes), it is a live wrong answer and P0.

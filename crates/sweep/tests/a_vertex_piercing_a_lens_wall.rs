@@ -95,7 +95,7 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
     // At `ε = 1e-6` the run passes the join and meets the wall at the
     // inside/outside test; at every other row it stops before, at the
     // chord's at-rest certificate.
-    let past_the_join = tol.eps() == 1e-6;
+    let past_the_join = test_utils::kernel_limit::at_row(tol.eps(), &[1e-6]);
     for (what, x, y) in [("pyr ∪ blade", &pyr, &b), ("blade ∪ pyr", &b, &pyr)] {
         let got = topo::union(x, y, tol).map(|_| ());
         if past_the_join {

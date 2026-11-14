@@ -74,7 +74,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     // carrier's limb 2 read in band, where the row wants it built
     // (`work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`).
     let eps = Tol::witness().eps();
-    let (stops_at, says): (&[f64], &[&str]) = if eps == 1e-12 {
+    let (stops_at, says): (&[f64], &[&str]) = if test_utils::kernel_limit::at_row(eps, &[1e-12]) {
         (
             &[1e-12],
             &[
@@ -87,9 +87,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
         (
             &[1e-6],
             &[
-                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.65153454",
-                " pad=",
-                "want=81.651534544",
+                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534547 pad=6.7e-6 want=81.651534544",
             ],
         )
     };

@@ -574,9 +574,9 @@ rows! {
 /// another order and the builds part after decision 3996, the first
 /// difference at #3997 (then `pcurve_chart_azimuth_frame`)
 /// (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
-/// which NOTHING here pins).
+/// which this row does not pin).
 ///
-/// A pinned red at 1e-6 and 1e-12: the builds answer two
+/// In step it is a pinned red at 1e-6 and 1e-12: the builds answer two
 /// `period_near_mark` decisions with different signs, each on a margin
 /// of exactly 0 against `8.9e-16`, where the row owes no flip
 /// (`work/onecopy/main-red-revalue-boss-union-answers-two-period-near-mark-decisions-on-either-side-since-6482.md`).
@@ -588,6 +588,7 @@ fn revalue_boss_union() {
         "boss_union in step",
         &[
             "boss_union: the decisions the builds answered with different signs are not the owed ones",
+            "\"period_near_mark\", 0.0, 8.881784197001252e-16), (",
             "\"period_near_mark\", 0.0, 8.881784197001252e-16)], mode: Some(InStep), seen: {",
             "left: [\"period_near_mark\", \"period_near_mark\"]\n right: []",
         ],

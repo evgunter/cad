@@ -636,7 +636,9 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 m.enclosure.volume_pad
             );
             // The measure the ceiling's comment cites, held where it was taken.
-            if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
+            if row == "the lofted concave prism"
+                && test_utils::kernel_limit::at_row(Tol::witness().eps(), &[1e-6])
+            {
                 assert!(
                     (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
                     "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \

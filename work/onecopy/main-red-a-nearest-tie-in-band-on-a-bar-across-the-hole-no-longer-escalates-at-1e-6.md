@@ -24,3 +24,5 @@ Decide whether the union's new outcome is right: a join that no longer reads the
 Still red on main `b363f5fa1` with the same message, `T ∪ P: the tie escalates the ranking: None`: the union returns `Ok`. `T ∪ P` is the first of the row's six ops, so the other five are unread. The bisect above was re-run at its boundary and holds: green at `eeb308be6`, red at `cc58938c0`. The nightly agrees: it passed on 11-10 (main `50cfcf49`) and failed on 11-11 (main `b2916558`).
 
 The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`). Take the pin off with the fix.
+
+Reproduce: `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep --test all -E 'test(=germ_plane_torus_frame::a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name)'` (under a second; take the `pinned_red` wrapper off the test to see the message).

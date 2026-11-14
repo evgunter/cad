@@ -29,6 +29,10 @@ Each row stops at its first failing assertion, so the cells after it are unread.
 
 **What this row owes.** Each pose puts two carriers a fraction of ε apart: a tip `0.6 ε` off the split plane, a brick face `0.5 ε` over a cap, axes tipped inside the zero band. That they are now decided one carrier, with a face moved onto the kept record, is the reading the merge suggests; this lane did not measure it. The far-origin union's shift of `4/3 ε` was closed as correct with its bound re-derived (`a-far-origin-rods-caps-moved-onto-the-plates-record-move-the-union-volume-by-four-thirds-eps`). These four have not been derived. For each, decide whether the shift is the one record's by construction. If it is, restate the row's bound from the band and the faces' areas, with the argument. If a shift is larger than that, it is a wrong volume. This lane did not derive any of them, which is why the row is banded P0 until one is.
 
+**Read first** (from PR 6934's review, which re-ran the bisect by build and got these messages at `9e1484043`). For every row that prints an enclosure, the miss lies outside it: `parallel_cylinder_join` prints no pad, so its volume is a point enclosure 1.2e-7 to 2.8e-7 off; the cone cap misses by 1.0e-6 against ± 3.9e-8; the keel's halves miss conservation across a split by 5.2e-7. That is why the band is P0.
+
+**One thing not measured.** In the two `parallel_cylinder_join` rows, `want` is the closed form of the untipped pose: it ignores the tip. That it is exact enough for the tipped pose is argued (the tip's effect on the volume is second order in θ, so about 1e-13 at these tips) and not measured. Check it before reading the miss as the kernel's.
+
 `band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes` went red at the same merge with a different stop (the fixture's boolean returns no finished body); it is `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`.
 
 **Pinned** (`green/eps-1e-6`): each of the four is under `test_utils::pinned_red::row` at ε 1e-6, on the messages above. Take the pins off with the fix.

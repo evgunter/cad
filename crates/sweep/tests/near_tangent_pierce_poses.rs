@@ -416,7 +416,7 @@ fn check_pose_refusals(
 fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed() {
     // Pinned red at 1e-6: one pose's union builds a body the census
     // cannot decide, where the row wants every built body to pass tier 3′
-    // (`work/restread/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
+    // (`work/splitdoor/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],
