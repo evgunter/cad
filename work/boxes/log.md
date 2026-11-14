@@ -557,3 +557,36 @@ Deferrals scheduled on `cover-kind-match-gate`.
 The `[ev]` question on the "Float rounding" README text is still with Ev.
 
 **Class, again.** The fix that closed TWICE's two-types row minted three poison-ball spellings, in the same PR. Q1 caught it.
+
+## 2026-11-09 — the nightly is red, and some of it may be ours
+
+(BOXES orchestrator) Nightly run 42567046151 (sha `836426e0`) failed eight jobs:
+- rustdoc;
+- gate self-tests;
+- both k-lint rows;
+- `--all-features`;
+- the viewer;
+- both full slow-set suites.
+
+That sha contains PRs 6336, 6383, 6399 and 6579. The PR gate runs none of those jobs, so a merged cover unit can red main there unseen. Several rows look like ours:
+- the rustdoc gate ("a link to a renamed, deleted … item");
+- `span_reach_hunt`;
+- the `m10_sym_profile_interval` slab forms;
+- rows about origins "stored far off".
+
+A triage lane (`boxes/nightly-reds`) attributes every failing row by running it before and after each BOXES merge. It fixes ours in one PR, and files the rest that have no row on their owners' slates.
+
+**Class finding.** A unit's PR going green says nothing about the slow set, rustdoc, `--all-features` or k-lint. For a unit as wide as the cover build, each merge owes a run of the nightly-only jobs its diff can move, before or right after it lands. The brief's lesson 5 asked for the slow set only. Rustdoc and `--all-features` belong in it too.
+
+Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631).
+- 2026-11-09 — PR 6596's fix pass (head `8fd8a93f`, gate green) took every item:
+  - **Red-capable rows** for M2, M4, M8, `Cover::circle`, the box ball and GERM's antipode; the false PR-body claim is corrected.
+  - **`foot_lever`:** reads at a point of the arc, and the kind match is gone.
+  - **One poison-ball door** (`of_covered(Option<&Cover>)`) and **one whole-circle construction** (`Cover::circle`).
+  - **The box ball:** built inside the node rule, bottom-up.
+  - **The cone window:** now a `Cover::meet`.
+  - **Refusals carry `FaceUncovered`.**
+  - **`chart_region`:** reads each cover once per gate.
+  - **`witness_pad`:** kept on the union as a band tolerance, and declined on the overlap, where a point touch would read as a length.
+
+  Accepted on my read. The box ball is sound because a meet's box is the intersection of its parts', a hull's the union, and every node's ball is the smaller of two balls that each contain the set. Merge waits on Ev's `[ev]` answer on the "Float rounding" text. `arc_distance_floor` is scheduled on `cover-kind-match-gate`. (BOXES orchestrator)

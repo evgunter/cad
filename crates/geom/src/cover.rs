@@ -531,6 +531,13 @@ fn smaller<T: Real>(a: Ball<T>, b: Ball<T>) -> Ball<T> {
     )
 }
 
+/// **The one rule a ball is narrowed by**: a ball holding a region,
+/// and the ball about the region's box, whichever is the narrower;
+/// both hold it.
+fn boxed<T: Real>(ball: Ball<T>, bx: (Point3<T>, Point3<T>)) -> Ball<T> {
+    smaller(ball, box_ball(bx))
+}
+
 /// The ball about a box's centre out to its corners.
 fn box_ball<T: Real>((lo, hi): (Point3<T>, Point3<T>)) -> Ball<T> {
     let half = (hi - lo) * T::from_f64(0.5);
@@ -627,6 +634,21 @@ impl<T: Real> Cover<T> {
         };
         (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
             .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
+    }
+
+    /// **The whole circle** `core` names ([`Core`]): its turn's region,
+    /// which does not depend on where its seam is. The one construction
+    /// of a circle a reader holds by its centre, axis and radius; a
+    /// reader holding the carrier reads `Curve3::cover`. `None` for a
+    /// datum that is not a finite number.
+    pub fn circle(core: Core<T>) -> Option<Self> {
+        let axis = core.axis.dir.normalize();
+        let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
+        Self::arc(
+            &frame,
+            (core.radius, core.radius),
+            ParamWindow::new(T::zero(), T::tau()),
+        )
     }
 
     /// The axial slab: the solid cylinder of radius `|radius|` about the
@@ -871,7 +893,10 @@ impl<T: Real> Cover<T> {
         self.range_about(&(*site).into())
     }
 
-    /// **A ball holding the region**, as `(centre, radius)`.
+    /// **A ball holding the region**, as `(centre, radius)`: the tree's
+    /// own ball, or the ball about the region's box where that is the
+    /// narrower (a hull of many small pieces, whose balls combine about
+    /// their centres' midpoints).
     pub fn ball(&self) -> (Point3<T>, T) {
         self.0.ball()
     }
@@ -1046,31 +1071,29 @@ impl<T: Real> Node<T> {
     }
 
     fn ball(&self) -> Ball<T> {
+        self.ball_and_box().0
+    }
+
+    /// **The node's ball and its world box**, built in one pass: each
+    /// node's own ball (a piece's shape's, both balls of a meet, the ball
+    /// about a hull's two centres' midpoint) narrowed by the ball about
+    /// its box ([`boxed`]). A node's box is its children's: a meet's
+    /// support is the lesser and a hull's the greater along every row.
+    /// A chain is read as its left-deep form ([`fold`]), so each prefix
+    /// is a node of its own, its ball narrowed by its own box.
+    fn ball_and_box(&self) -> (Ball<T>, (Point3<T>, Point3<T>)) {
+        let narrowed = |own, bx| (boxed(own, bx), bx);
         match self {
-            Node::Piece(p) => p.ball(),
-            // Both balls hold the region, and so does the ball about the
-            // meet's box, which is narrower than either piece's where the
-            // two overlap only in part.
-            // Each prefix of the chain is the meet the left-deep form
-            // held there, so its ball is read as that meet's: the smaller
-            // of the prefix's and the next operand's, and of the ball
-            // about the prefix's box.
-            Node::Meet(all) => {
-                let mut ball = all[0].ball();
-                for k in 1..all.len() {
-                    let prefix = &all[..=k];
-                    let boxed =
-                        rows_box(&BoxAxes::World, |e| fold(prefix, |n| n.support(e), T::min));
-                    ball = smaller(smaller(ball, all[k].ball()), box_ball(boxed));
-                }
-                ball
-            }
-            Node::Hull(all) => fold(all, Node::ball, |(c0, r0), (c1, r1)| {
+            Node::Piece(p) => narrowed(p.shape_ball(), p.world_box()),
+            Node::Meet(all) => fold(all, Node::ball_and_box, |(b0, x0), (b1, x1)| {
+                narrowed(smaller(b0, b1), (x0.0.max(x1.0), x0.1.min(x1.1)))
+            }),
+            Node::Hull(all) => fold(all, Node::ball_and_box, |((c0, r0), x0), ((c1, r1), x1)| {
                 let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                (c, r)
+                narrowed((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
             }),
-            Node::Convex(inner) => inner.ball(),
+            Node::Convex(inner) => inner.ball_and_box(),
         }
     }
 }
@@ -1519,14 +1542,15 @@ impl<T: Real> Arc<T> {
             + self.frame.v_ref() * (self.semi_v * s)
     }
 
-    fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
+    /// The whole conic's ball: its centre, out to the Gram bound on its
+    /// frame's two semi-axis vectors.
+    fn ball(&self) -> Ball<T> {
         let (p, q) = (
             self.frame.u_ref * self.semi_u,
             self.frame.v_ref() * self.semi_v,
         );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
-        let whole = (self.frame.origin, r);
-        smaller(whole, box_ball(world))
+        (self.frame.origin, r)
     }
 }
 
@@ -1619,14 +1643,20 @@ impl<T: Real> Piece<T> {
         }
     }
 
+    /// The piece's ball under the one rule ([`boxed`]).
     fn ball(&self) -> Ball<T> {
+        boxed(self.shape_ball(), self.world_box())
+    }
+
+    /// The ball the shape names, before its box narrows it.
+    fn shape_ball(&self) -> Ball<T> {
         match self {
             Piece::Points(points) | Piece::Net(points) => points_ball(points),
             Piece::Segment(ends) => points_ball(ends),
-            Piece::Arc(arc) => arc.ball(self.world_box()),
+            Piece::Arc(arc) => arc.ball(),
             Piece::Slab(slab) => slab.ball(),
-            Piece::Frustum(f) => smaller(f.slab().ball(), box_ball(self.world_box())),
-            Piece::Patch(patch) => smaller(patch.tube.ball(), box_ball(self.world_box())),
+            Piece::Frustum(f) => f.slab().ball(),
+            Piece::Patch(patch) => patch.tube.ball(),
             Piece::Tube(tube) => tube.ball(),
         }
     }

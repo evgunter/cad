@@ -5,6 +5,7 @@ title: Opening the Edit door by a pick appends a fresh mate row, so the loaded b
 status: open
 opened: 2026-11-02
 cost: M
+priority: P3
 ---
 
 
