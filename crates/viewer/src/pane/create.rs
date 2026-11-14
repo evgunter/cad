@@ -807,12 +807,12 @@ impl ViewerBehavior<'_> {
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
-        let proposal = self.session.landed_pair().map(|(doc, ev)| {
-            tool.proposal(doc, ev, self.session.tol())
-                .map_err(|error| error.respoken(doc))
-        });
+        // Read under the draft as this frame's controls left it, the
+        // state the offer below reads: one derivation per edit.
+        let landed = self.session.mate_proposal(&edited);
+        let proposal = landed.as_ref().map(|landed| &*landed.proposed);
         let doc = self.session.committed_doc();
-        let coords: Vec<_> = match &proposal {
+        let coords: Vec<_> = match proposal {
             Some(Ok(proposal)) => proposal
                 .values
                 .iter()
@@ -821,7 +821,7 @@ impl ViewerBehavior<'_> {
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
-        match &proposal {
+        match proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
                 // person reads it ([`crate::matetool::value_text`]);
@@ -884,7 +884,11 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
+                let error = landed.as_ref().map_or_else(
+                    || error.clone(),
+                    |landed| error.clone().respoken(landed.doc),
+                );
+                crate::widgets::message(ui, ToolKind::Mate.refuses(&error).to_string());
             }
             None => {}
         }
@@ -896,19 +900,23 @@ impl ViewerBehavior<'_> {
         let formed = if busy {
             None
         } else {
-            self.session.landed_pair().and_then(|(landed, ev)| {
-                edited.offer(landed, ev, self.session.tol(), |op| {
-                    self.session.bundle_door(op)
-                })
-            })
+            edited.offer_proposed(
+                |tool| self.session.mate_proposal(tool),
+                |op| self.session.bundle_door(op),
+            )
         };
         // The viewport draws the draft off the same value; where the
         // draft draws nothing it draws the document, a committed change
         // still landing included (`ViewerApp::placement_preview`).
-        let held =
-            edited.draft_standing(busy, self.session.landed_pair(), self.session.tol(), |op| {
-                self.session.bundle_judgement(op)
-            });
+        let held = edited.draft_standing(
+            busy,
+            |tool| {
+                self.session
+                    .mate_proposal(tool)
+                    .map(|landed| landed.proposed)
+            },
+            |op| self.session.bundle_judgement(op),
+        );
         let said = match &held {
             crate::matetool::HeldDraft::Quiet => None,
             crate::matetool::HeldDraft::Refused(refusal) => Some((
@@ -1030,10 +1038,10 @@ impl ViewerBehavior<'_> {
 
     /// **The placement's "copy of" row**: the body its copy copies and the
     /// source it reads it through (VARIABLES VR4) — named, or the
-    /// placement's own — and the button that redefines that source as a
-    /// read of the selected body ([`SessionOp::RepointPlacements`]), as
-    /// the re-point offer does. A named source redefined here re-points
-    /// every placement reading it.
+    /// placement's own — and the button that re-points that source onto
+    /// the selected body ([`crate::session::DocSession::repoint_button`]),
+    /// disabled with the reason where the offer would withhold it. A named
+    /// source re-pointed here re-points every placement reading it.
     fn copy_of_row(&mut self, ui: &mut egui::Ui, tool: &MateTool) {
         let Some(door) = tool.door() else {
             return;
@@ -1047,34 +1055,16 @@ impl ViewerBehavior<'_> {
             Some(name) => format!(" through {name}"),
             None => String::new(),
         };
-        let selected = self
+        let button = self
             .session
-            .selection()
-            .node()
-            .filter(|&node| node != door.placement && doc.read_of_node(node).is_some());
+            .repoint_button(source, self.session.selection().node());
         ui.horizontal(|ui| {
             let copied = doc.operation_of(body).map_or_else(
                 || doc.spoken_var(body).to_string(),
                 |node| doc.spoken(node).to_string(),
             );
             ui.label(format!("copy of: {copied}{through}"));
-            if ui
-                .add_enabled(
-                    selected.is_some(),
-                    egui::Button::new("copy the selected body"),
-                )
-                .on_hover_text(
-                    "the source reads the body selected in the tree; every placement reading \
-                     it copies that body",
-                )
-                .clicked()
-                && let Some(node) = selected
-            {
-                self.ops.push(SessionOp::RepointPlacements {
-                    source,
-                    onto: node.into(),
-                });
-            }
+            crate::widgets::repoint_button(ui, button, self.ops);
         });
     }
 

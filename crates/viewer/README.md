@@ -2419,8 +2419,10 @@ stands with the document is one value (`MateTool::draft_standing`,
 panel's line and the picture's drawing of the draft both read. A draft
 that waits for the picture, not yet offered, is judged by the door
 and drawn as the judgement stands it: every copy the scratch solve
-stands elsewhere — the edited one and every copy mated to it — is
-drawn there, under the display frame of the space it stands in
+stands elsewhere — the edited one, every copy mated to it, and every
+copy placed from one of those, each read by its body's frame in its
+space (`pickindex::preview_copies`) — is drawn there if it is a copy
+of one body, under the display frame of the space it stands in
 (`display::PreviewedPlacement`), as the profile editor draws its draft
 in place of the committed loops; the line says it waits and is drawn.
 A waiting draft the door would refuse says the refusal; one that
@@ -2430,8 +2432,7 @@ the draft draws nothing, the picture draws the document, from its
 second source: the last change committed through the door
 (`DocSession::bundle_landing`) is drawn where its solve stands the
 copies until its run lands or an undo takes it out, whatever else
-changes meanwhile and whether or not the editor stays open. A copy
-placed from a previewed copy is drawn where it stands now.
+changes meanwhile and whether or not the editor stays open.
 **A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's
@@ -2473,8 +2474,8 @@ body (`frame::placement_offers`). Picked as the body itself (in the
 tree, or shown again in the View pane), it makes a new body, and that
 body offers, one explicit step per source, to redefine the sources the
 body's placements read onto it (`world::repoint_offer`,
-`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket (2
-copies) onto F", or for an anonymous source "Re-point the copy C5". A
+`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket onto
+F", or for an anonymous source "Re-point the copy C5 onto F". A
 placement reads its body through a source, `bracket = B`, so the
 re-point is one definition edit, `bracket = F`, through the kernel's
 takeover (`Recording::take_over`), with the `Rebind`s of what reads each
@@ -2488,12 +2489,14 @@ the new body itself reads (a cycle), one a reader could not take (a
 member left reading a member of no family), or one whose copies a pick
 reads that the re-point would strand has no button. The offer is read
 once per document change, not per frame. The offer is a reading of the
-document, not a question: it stands on every drawn body built, at any
-depth, on a body a source places (and on no placed copy), as a fact with
-its button — "bracket (2 copies) copies B, which this body is built on",
-"Re-point bracket onto G" — for as long as that is true, and nothing
-records a decline: not pressing it is the decline. The source's own row
-and the placement's "copy of" row re-point too. No gesture re-points a
+document, not a question: it stands on every drawn body that reads,
+at any depth, as a body, one a source places (and on no placed copy),
+as a fact with its button — "bracket (2 copies) copies B, which this
+body is built on", "Re-point bracket onto G" — for as long as that is
+true, and nothing records a decline: not pressing it is the decline. The source's own row
+and the placement's "copy of" row re-point too, onto the selected
+body, under the offer's verb and asking the offer's check: where it
+refuses, the button is disabled and says the refusal. No gesture re-points a
 placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
 `above ⊔ below`, its two halves standing where that body stood. A split

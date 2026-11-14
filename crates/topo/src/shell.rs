@@ -4634,7 +4634,7 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
 /// 32 valid shells the suite builds (spheres, domes and tori out of
 /// pairs, departure-floor refusals), so asking there would refuse them.
 /// The switch waits on those engine rows:
-/// `work/clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
+/// `work/embed/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
 enum CavityGate {
     /// The cavity is asked.
     Asks,

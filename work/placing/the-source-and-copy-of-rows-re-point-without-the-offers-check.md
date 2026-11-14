@@ -2,10 +2,13 @@
 id: the-source-and-copy-of-rows-re-point-without-the-offers-check
 kind: issue
 title: The source row and the copy-of row offer the re-point without the offer's refusal check, under a third verb each
-status: open
+status: closed
+branch: placing/repoint-buttons-one-check
+pr: 6948
 opened: 2026-11-13
 priority: P3
 cost: E
+closed: 2026-11-14
 ---
 
 

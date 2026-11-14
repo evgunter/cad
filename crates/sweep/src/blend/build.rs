@@ -71,7 +71,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::arms::corner_chart;
-use super::battery::{BlendRequest, Link, run_battery, sided};
+use super::battery::{BlendRequest, Link, ball_side, run_battery, sided};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
@@ -385,7 +385,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         let score = n_c.cross(n_a.cross(n_b).normalize()).norm().lo().abs();
         // The feet's directions, the one fold; a concave corner's chart
         // also swaps the first two to keep its handedness.
-        let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+        let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
         let (first, second) = if convex { (n_a, n_b) } else { (n_b, n_a) };
         let (u_ref, axis) = corner_chart([foot(first), foot(second), foot(n_c)]);
         Ok((score, u_ref, axis))

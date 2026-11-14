@@ -46,3 +46,19 @@ One of:
 - the reporting door is shown to be wrong to converge here.
 
 Then the three sites go back to the typed door at every ε.
+
+## Evidence added by BOXFINISH (2026-11-14, main `b363f5fa`)
+
+- **The major-1300 tube no longer reaches tier 3.** `sweep::revolve`
+  refuses it `OutsideSessionBox` (margin −302.5), hollow and solid, and
+  `verbs_tubewall_r1_probes.rs`'s `CASES` no longer holds it, so the
+  arms that name this row are unreachable.
+- **With the session box bypassed locally,** today's refusal is
+  `props_rim_span_winding` (`[0, 1.1524e-12]`), not
+  `props_chart_loop_whole`: `a-whole-turn-rims-headroom-is-read-through-a-one-ulp-tau`
+  beside this row.
+- **An in-box witness for `props_chart_loop_whole`:** a tube about the
+  axis (1,1,1)/√3, outer 2.5, wall 0.001, refuses from major about 300 m
+  at ε = 1e-12 (`[0, 2.63e-12]` at 300, `[0, 1.71e-11]` at 1100).
+  Measurements and the row that carries the fix:
+  `work/boxfinish/cylinder-and-torus-edge-misses-are-read-back-about-the-axis.md`.

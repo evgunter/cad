@@ -18,7 +18,7 @@ close, not scheduled by TRIM.
 
 ## What
 
-`chords::nurbs_tighten` turns a certified per-axis UV speed sup into a
+`chords::tighten` turns a certified per-axis UV speed sup into a
 chord count with
 
 ```text
@@ -26,7 +26,7 @@ n = n.max(ceil_count(su * span, hu)?).max(ceil_count(sv * span, hv)?)
 ```
 
 Every step of that is plain `f64`. The sup arrives outward-rounded
-(`general_uv_speeds` ends in `next_up`, and the `IsoLine`/`IsoArc`/
+(`geom_brep`'s `speed::general_speeds` ends in `next_up`, and the `IsoLine`/`IsoArc`/
 `Harmonic` arms end in exact `f64` structure), but the multiplication
 `su * span`, the division inside `ceil_count` (`(span / step).ceil()`)
 and the grid steps `hu`, `hv` from `FaceBounds::grid_steps` are not.
@@ -34,7 +34,7 @@ A count one short of what the certificate needs is a mesh whose
 boundary UV step exceeds the face's budget.
 
 It is **not specific to the `General` arm** — it is the shape of every
-arm in `nurbs_tighten`, and of the `Circle` arm's torus tightening and
+arm in `chords::tighten`, and of the `Circle` arm's torus tightening and
 `nurbs_chord_count`'s `curvature_step` beside them. That is why it is
 a class and not a TRIM-2 defect.
 
@@ -50,7 +50,7 @@ elsewhere in the kernel carry it.
 four times: `nurbs_cert::tests::{sample_worst, assert_dominates}`,
 `nurbs_cert::tests::first_derivative_sups_dominate_samples_and_refine_upward`,
 and (new in TRIM-2 PR-2)
-`chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`.
+`geom_brep`'s `speed_rows::general_speeds_dominate_the_sampled_image_speeds`.
 PR #2848 lands a fifth, `nurbs_cert::tests::Domination`.
 
 The obligation runs TOWARDS the new one: it samples **both sides of

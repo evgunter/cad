@@ -2397,7 +2397,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    neither of the zone's seam meridians: its section lies inside
     //    one half-band, which keeps it as a ring, and the mesher has no
     //    lane for a curved face with a ring
-    //    (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
+    //    (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
