@@ -14,3 +14,6 @@ Models as dispatched: A = Fable 5.2, B = Opus 5.5 (to be confirmed from each age
 ## First reports
 
 - **B** delivered 2026-11-14 (192,128 tokens, 404 s, harness figures). Verbatim: `a-door-states-what-it-knows-by-construction.B-first.md`.
+- **A** delivered 2026-11-14 (token and wall figures: see the harness notification, added below when it arrives). Verbatim: `a-door-states-what-it-knows-by-construction.A-first.md`.
+
+Neither designer saw the other's report before both were delivered.
