@@ -45,3 +45,35 @@ impl Generation {
         Self(self.0.saturating_add(1))
     }
 }
+
+/// **A value derived once per generation and key, and kept**: one slot,
+/// answered while both still match and derived again otherwise — what
+/// the session keeps for a question the panes ask every frame of the
+/// committed document. Behind a mutex because the panes ask through a
+/// shared borrow.
+pub struct GenerationMemo<K, V>(std::sync::Mutex<Option<(Generation, K, V)>>);
+
+impl<K, V> Default for GenerationMemo<K, V> {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(None))
+    }
+}
+
+impl<K: PartialEq + Clone, V: Clone> GenerationMemo<K, V> {
+    /// The value kept for `generation` and `key`, or `derive`'s, kept.
+    pub fn get_or(&self, generation: Generation, key: &K, derive: impl FnOnce() -> V) -> V {
+        let mut memo = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((at, kept, value)) = memo.as_ref()
+            && *at == generation
+            && kept == key
+        {
+            return value.clone();
+        }
+        let value = derive();
+        *memo = Some((generation, key.clone(), value.clone()));
+        value
+    }
+}
