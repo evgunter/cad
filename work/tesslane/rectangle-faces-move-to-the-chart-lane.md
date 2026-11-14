@@ -22,3 +22,7 @@ An iso-rectangle is the chart lane's case in which every boundary point is on a 
 Everything before this unit turns refusals into meshes and moves nothing the mesh emits today. This unit moves every swept face's mesh: the D9 replay digests, `docs/TESS-BUDGET.md` and the tour pins re-baseline at once. Both designers lean towards doing it and both say the choice need not be made until unit 4 has landed. It also re-cuts `crates/mesh/README.md` `[mesh.sizing]`'s list of lanes, which is ratified text.
 
 It goes to Ev as an `[ev]` PR with one measurement in hand: rectangle faces through the chart lane against the curved lane, triangle for triangle (`tools/tess-meter`). If the chart lane cannot match the curved lane's density on rectangles, the answer is to stop at unit 4.
+
+## On this unit's path (2026-11-14, from the lift measurement)
+
+Five of `crates/mesh/tests/common/`'s hand-built witnesses (keyway, oblique lens, slit, pole-crossing half cap, apex-crossing bowtie) store no pcurves: `Body::loop_lift` answers `LiftGap` on all ten of their loops, and `topo::mint_pcurves` accepts all five. A lane that reads stored lifts refuses them as built, so the rows that use them mint first or move with this unit (`lift_probes::the_unminted_witnesses_store_no_lift_and_mint_one`).

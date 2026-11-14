@@ -83,6 +83,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
+pub mod polygon_orientation;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
@@ -255,6 +256,7 @@ pub use pcurve_cache::{
     read_point_incidence, ruling_miss,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
+pub use polygon_orientation::PolygonOrientation;
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,

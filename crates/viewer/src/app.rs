@@ -7758,18 +7758,27 @@ mod properties_pane_tests {
                 ..face.clone()
             };
             self.app.perform_batch(vec![sketch_op(&on_body)]);
-            let union = self.offered();
+            let union = self.the_one(|node| matches!(node, pncad::document::Node::Union { .. }));
             self.repoint_onto(union, land);
             union
         }
 
-        /// The node the last creation offers the re-point from.
-        fn offered(&self) -> RecipeNodeId {
+        /// The one node of the kind `is` names — the body the row's
+        /// creation made, which the row re-points onto.
+        fn the_one(
+            &self,
+            is: impl Fn(&pncad::document::Node<pncad::document::ProfileProgram>) -> bool,
+        ) -> RecipeNodeId {
             let doc = self.app.session.committed_doc();
-            doc.ids()
+            let found: Vec<RecipeNodeId> = doc
+                .ids()
                 .into_iter()
-                .find(|&id| crate::world::repoint_offer(doc, id, self.app.session.tol()).is_some())
-                .expect("a body built on the extrude offers the re-point")
+                .filter(|&id| doc.node(id).is_some_and(&is))
+                .collect();
+            match found[..] {
+                [one] => one,
+                _ => panic!("one node of the kind the row names: {found:?}"),
+            }
         }
 
         /// The re-point `onto` offers, accepted; `land` pumps.
@@ -8028,7 +8037,7 @@ mod properties_pane_tests {
             radius: crate::test_support::len(0.0005),
             selection: rim,
         });
-        let filleted = driven.offered();
+        let filleted = driven.the_one(|node| matches!(node, pncad::document::Node::Fillet { .. }));
         driven.repoint_onto(filleted, true);
         let [held, ..] = driven.held();
         assert_ne!(

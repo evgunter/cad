@@ -531,9 +531,9 @@ impl PartialEq for Stood {
     }
 }
 
-/// **What [`crate::frame::placement_offers`] answers**: the sentence and
-/// each button's label and op.
-pub type PlacementOffers = (Option<String>, Vec<(String, SessionOp)>);
+/// **What [`crate::frame::placement_offers`] answers**: each row's
+/// sentence, button label and op.
+pub type PlacementOffers = Vec<crate::frame::PlacementOffer>;
 
 /// What the session knows because of the document under it: what is
 /// picked out of it, what a drag is previewing over it, what the last
