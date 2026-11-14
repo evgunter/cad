@@ -97,25 +97,28 @@ fn a_boxed_slab_reads_its_side_by_its_rays_and_is_taken() {
 }
 
 /// **A ray whose exit moves from one face to its neighbour across the
-/// box still reads**: over depths that hold `1.469` the bottom cap's
+/// box is set aside**: over depths that hold `1.469` the bottom cap's
 /// ray leaves through the top cap for some members and through the wall
-/// for others. Its count turns at its aim, before the exit, and the exit
-/// is one leaving crossing whichever face holds it: the edge between
-/// them, met in band, stands for both. Red against a walk that faults on
-/// an in-face reading past the crossing that reads.
+/// for others, and for one it runs through the edge between them. How
+/// far it passes that edge is then no one reading (`side_at_infinity_edge`,
+/// an enclosure from zero up), and an edge met on such a gap would stand
+/// for crossings only some members make. Over a box a hundredth as wide,
+/// wholly below, every member leaves through the top cap clear of the
+/// edge and the ray reads `Out`. Red against a walk that reads an
+/// undecided gap as an edge met in band.
 #[test]
-fn a_ray_whose_exit_moves_across_an_edge_over_the_box_still_reads() {
-    for (what, lo, hi) in [
-        ("leaving through the top cap", 1.40, 1.45),
-        ("leaving through either", 1.44, 1.50),
-        ("leaving through the wall", 1.49, 1.54),
-    ] {
-        assert_eq!(
-            bottom_cap_ray(lo, hi),
-            "Ok(Side(Out))",
-            "depth in [{lo}, {hi}], {what}"
-        );
-    }
+fn a_ray_whose_exit_moves_across_an_edge_over_the_box_is_set_aside() {
+    assert_eq!(
+        bottom_cap_ray(1.44, 1.445),
+        "Ok(Side(Out))",
+        "depth in [1.44, 1.445], leaving through the top cap"
+    );
+    let straddling = bottom_cap_ray(1.44, 1.50);
+    assert!(
+        straddling.starts_with("Ok(SetAside(Crossing(")
+            && straddling.contains("side_at_infinity_edge"),
+        "depth in [1.44, 1.50], leaving through either: {straddling}"
+    );
 }
 
 /// What a ray aimed straight down at the middle of the slab's top edge
@@ -134,37 +137,41 @@ fn top_edge_ray(x_edge: f64, lo: f64, hi: f64) -> String {
 /// **A ray that crosses the slab for some members of the box and misses
 /// it for others reads nothing.** Two rays come down at the aimed
 /// incidence onto the points where the top cap's edges over `x = 0` and
-/// `x = 1` lie at depth 1, both drifting the same way across `x`. One
-/// drifts into the slab: it enters through the wall or the top cap,
-/// whichever the depth puts there, and reads `Out` over the whole box.
-/// The other drifts out of it: where the slab is deeper than 1 it clips
-/// the corner under that edge, and where it is shallower it passes above
-/// the slab and crosses nothing, so over a box holding both no member's
-/// crossing is every member's, and it reads nothing. Over depths a
-/// tenth and more above 1 the same ray clips the corner for every
-/// member, and reads.
+/// `x = 1` lie at depth 1, both drifting the same way across `x`: one
+/// into the slab, one out of it. Where the slab is deeper than 1 the ray
+/// drifting out clips the corner under its edge; where it is shallower
+/// that ray passes above the slab and crosses nothing.
+///
+/// - Over depths wholly below 1 the ray drifting out reads nothing
+///   (which says which of the two it is) and the other reads `Out`.
+/// - Over depths wholly above 1 both read `Out`.
+/// - Over depths holding 1 neither reads: each runs through its edge
+///   for the member at depth 1, and the one drifting out has no
+///   crossing that is every member's.
+///
 /// Red against a ray that reads the crossing one member has.
 #[test]
 fn a_ray_that_only_some_members_of_the_box_cross_reads_nothing() {
     let over = |lo: f64, hi: f64| [0.0, 1.0].map(|x_edge| top_edge_ray(x_edge, lo, hi));
-    let straddling = over(0.975, 1.025);
-    let leaving = straddling
+    let below = over(0.9, 0.91);
+    let leaving = below
         .iter()
-        .position(|read| read != "Ok(Side(Out))")
-        .unwrap_or_else(|| panic!("one ray drifts out of the slab: {straddling:?}"));
+        .position(|read| read == "Ok(SetAside(Graze))")
+        .unwrap_or_else(|| panic!("one ray passes above the shallow slab: {below:?}"));
     assert_eq!(
-        straddling[1 - leaving],
+        below[1 - leaving],
         "Ok(Side(Out))",
-        "the ray drifting into the slab enters it for every member"
-    );
-    assert!(
-        straddling[leaving].starts_with("Ok(SetAside("),
-        "the ray only some members cross reads nothing: {}",
-        straddling[leaving]
+        "the ray drifting into the shallow slab enters it"
     );
     assert_eq!(
-        over(1.1, 1.14)[leaving],
-        "Ok(Side(Out))",
-        "the same ray, where every member's corner is clipped"
+        over(1.1, 1.14),
+        ["Ok(Side(Out))", "Ok(Side(Out))"],
+        "both rays cross every member of the deep slab"
     );
+    for read in over(0.975, 1.025) {
+        assert!(
+            read.starts_with("Ok(SetAside("),
+            "over depths holding 1 neither ray reads: {read}"
+        );
+    }
 }

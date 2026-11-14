@@ -355,9 +355,9 @@ struct EdgeGeo<T: Real> {
     /// The point keys `v0` and `v1` sit on; `None` for a segment no
     /// body holds.
     points: [Option<PointKey>; 2],
-    /// Unit direction v0 → v1.
+    /// The unit direction from `p0` to `p1`.
     dir: Vec3<T>,
-    /// Chord length (positive on tier-2 bodies).
+    /// The length from `p0` to `p1` (positive on tier-2 bodies).
     len: T,
     /// The two adjacent faces (structural-adjacency exclusions).
     f_plus: FaceKey,
@@ -11397,17 +11397,55 @@ fn interiors_meet<T: Decide>(
 fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     let chord = p1 - p0;
     EdgeGeo {
+        p1,
+        ..span_along(p0, chord.normalize(), chord.norm())
+    }
+}
+
+/// The census geometry of the span from `p0` along the unit `dir`, `len`
+/// long, which no body holds as an edge: its far end is `p0 + dir·len`.
+/// For a span given by where it starts and how it runs (a ray, an edge's
+/// stored line): its direction is the one given, where [`segment`]'s is
+/// read off two ends.
+fn span_along<T: Real>(p0: Point3<T>, dir: Vec3<T>, len: T) -> EdgeGeo<T> {
+    EdgeGeo {
         key: EdgeKey::default(),
         v0: VertexKey::default(),
         v1: VertexKey::default(),
         p0,
-        p1,
+        p1: p0 + dir * len,
         points: [None; 2],
-        dir: chord.normalize(),
-        len: chord.norm(),
+        dir,
+        len,
         f_plus: FaceKey::default(),
         f_minus: FaceKey::default(),
     }
+}
+
+/// **A line edge as its stored line holds it**: `edge`'s span from its
+/// carrier's point at the start of its interval, along the carrier's
+/// direction, to the interval's end, its keys and faces kept. A vertex
+/// is the body's cache of where an edge ends and the line is what the
+/// edge is (`[intent.stored]`), so a direction read off two vertices
+/// that share a boxed coordinate carries that box where the line holds
+/// none. `None` where the edge's certified line does not resolve.
+fn on_its_line<T: Real>(body: &Body<T>, edge: EdgeGeo<T>) -> Option<EdgeGeo<T>> {
+    let curve = body
+        .edges
+        .get(edge.key)
+        .and_then(|e| body.curves.get(e.curve))
+        .and_then(CurveGeom::certified)?;
+    let line = curve.carrier().as_line()?;
+    let (t0, t1) = curve.params();
+    let speed = line.dir.norm();
+    Some(EdgeGeo {
+        key: edge.key,
+        v0: edge.v0,
+        v1: edge.v1,
+        f_plus: edge.f_plus,
+        f_minus: edge.f_minus,
+        ..span_along(line.at(t0), line.dir / speed, (t1 - t0) * speed)
+    })
 }
 
 /// **How a ray's span passes one of a body's line edges** — the
@@ -11432,33 +11470,22 @@ pub(crate) struct LinePass<T: Real> {
 }
 
 /// Every line edge of `body` that `keep` holds (asked of its key and two
-/// faces), as the span from `from` along `dir` to advance `top` passes it
-/// ([`LinePass`]). The span keeps the direction it is given, which is not
-/// read back off its two ends: over a box the ends share `from`'s width
-/// and their difference would carry it twice. The closed form reads an
-/// advance in units of `dir`, as the ray's own crossings are. The caller
-/// keeps only edges whose line is not parallel to the span: the closed
-/// form divides by the sine of their angle.
+/// faces), as the span from `from` along the unit `dir` to advance `top`
+/// passes it ([`LinePass`]). Both spans are read as given: the ray's by
+/// its start and direction ([`span_along`]), each edge by its stored line
+/// ([`on_its_line`]). The caller keeps only edges whose line is not
+/// parallel to the span: the closed form divides by the sine of their
+/// angle.
 pub(crate) fn line_passes<T: Real>(
     body: &Body<T>,
     (from, dir, top): (Point3<T>, Vec3<T>, T),
     keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
 ) -> Vec<LinePass<T>> {
-    let ray = EdgeGeo {
-        key: EdgeKey::default(),
-        v0: VertexKey::default(),
-        v1: VertexKey::default(),
-        p0: from,
-        p1: from + dir * top,
-        points: [None; 2],
-        dir,
-        len: top,
-        f_plus: FaceKey::default(),
-        f_minus: FaceKey::default(),
-    };
+    let ray = span_along(from, dir, top);
     line_edges(body)
         .into_iter()
         .filter(|e| keep(e.key, e.f_plus, e.f_minus))
+        .filter_map(|e| on_its_line(body, e))
         .map(|e| {
             let closest = ee_lines_closest(&ray, &e);
             LinePass {

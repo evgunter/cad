@@ -93,7 +93,7 @@ pub(super) fn read<T: Decide>(
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
@@ -189,10 +189,10 @@ pub(super) fn read<T: Decide>(
                 continue;
             }
             let at = geom::mid_param(lo, hi);
-            // Where the ray comes closest to the edge behind `q`, it is
-            // nearest the edge at `q`, which the boundary pre-pass holds
-            // clear of both its faces; a passage whose span straddles `q`
-            // is read nowhere.
+            // Where the ray comes closest to the edge behind its start,
+            // it is nearest the edge at its start, which lies clear of
+            // both its faces (`edge_meets`); a passage whose span
+            // straddles the start is read nowhere.
             if ray.ahead(hi, rows.advance(), band) == Ok(Sign::Negative) {
                 continue;
             }
@@ -240,7 +240,7 @@ fn narrow<T: Decide>(
     band: Band,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
@@ -306,7 +306,7 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
-    let ray = ray.line;
+    let ray = ray.line();
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).seed();
@@ -324,8 +324,12 @@ fn passes<T: Decide>(
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
         Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
+        // Met only on a gap in band: one undecided over a box is no
+        // reading of the edge ([`super::edge_meets`]).
         Err(SpanRefusal::Carrier(refused)) => refused
             .escalation()
+            .ok()
+            .filter(crate::validate::in_band)
             .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
     }
 }

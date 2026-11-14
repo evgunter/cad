@@ -902,9 +902,11 @@ impl<T: Real> Line<T> {
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
     /// The line the ray runs along.
-    pub line: Line<T>,
+    line: Line<T>,
     /// The advance the ray starts at on its line; `None` at the line's
-    /// origin.
+    /// origin, which [`Ray::new`] builds so that its forward test reads
+    /// the advance itself, as it did before a ray could start elsewhere
+    /// (the same bits, and at the symbolic scalar the same expression).
     start: Option<T>,
 }
 
@@ -930,10 +932,28 @@ impl<T: Real> Ray<T> {
         }
     }
 
+    /// **The line the ray runs along**, for readings taken on the whole
+    /// line (a carrier's roots, an edge's closest approach), each an
+    /// advance from the line's origin. That origin is a point of the
+    /// line and not where the ray begins: the ray begins at
+    /// [`Ray::start`], the point [`Ray::start_point`].
+    #[must_use]
+    pub fn line(&self) -> Line<T> {
+        self.line
+    }
+
     /// The advance the ray starts at: `0` at its line's origin.
     #[must_use]
     pub fn start(&self) -> T {
         self.start.unwrap_or(T::zero())
+    }
+
+    /// The point the ray starts at: its line's origin, or the line's
+    /// point at the start's advance.
+    #[must_use]
+    pub fn start_point(&self) -> Point3<T> {
+        self.start
+            .map_or(self.line.origin, |start| self.line.at(start))
     }
 }
 
