@@ -608,3 +608,12 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
     - self-test gaps closed.
   - **Class finding, the build's recurring one in gate form:** a gate keyed on spellings is a second hand-written list. MAJOR-1 is a gate that would have pushed sites away from the one right place.
   - **The `foot_on` pivot is a design fork.** Two designers were dispatched (draw 112/242, recorded on `analysis/design-fork/foot-on-pivot`).
+- 2026-11-14: PR 6957's first fix pass (`419d4348cc`) passed delta review: APPROVE-WITH-FIXES.
+  - **Closed:** all three earlier MAJORs. Readers are a registry with an argued direction; ball reads whole statements; kind names resolve per file.
+  - **Checked clean:** `arcs.rs` after a disk-full truncation and restore; the radius 10³ → 100 change, honest because the 10³ cylinder fixture fails certification at ε = 1e-12 before the door runs; the self-test left out of lint, because a `ci.yml` edit puts the PR on the `all` tier, where the filed eps reds run.
+  - **New MAJOR, taken:** sums of three or more terms escape `ball` (non-overlapping regex pairing, plus an over-wide "two parenthesised sums" exclusion). The fix flattens each sum into its terms.
+  - **MINORs, taken:**
+    - the vertex pivot in `arcs_along` has no killing row;
+    - the registry's direction text is unchecked. A sweep of the lever entries is needed, because a longer arm decides zero less readily but nonzero more readily.
+    - registry lines are re-keyed on (file, fn, door), so that a swap of doors goes red.
+  - The `foot_on` fork converged after three rounds on the window's middle; it is `[ev]` PR 6968.
