@@ -630,6 +630,12 @@ pub enum SphereTrimCause {
     /// chart: a cone face on both nappes, through its apex. The lane
     /// triangulates a cone face in its development, which is one nappe's.
     BothNappes,
+    /// Two vertices of a cone face's loop at two chart locations develop
+    /// to one point: a vertex so near the apex, or two so near each other,
+    /// that the development the lane triangulates the face in (`trimmed`,
+    /// "The development") rounds them together, and the lane does not hold
+    /// two mesh vertices as one CDT vertex.
+    DevelopedMerge,
 }
 
 impl SphereTrimCause {
@@ -642,6 +648,7 @@ impl SphereTrimCause {
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
             Self::BothNappes => "both_nappes",
+            Self::DevelopedMerge => "developed_merge",
         }
     }
 }
@@ -888,6 +895,11 @@ impl TessellateError {
                     SphereTrimCause::BothNappes => {
                         "its loop runs onto both nappes of a cone, through the apex, and \
                          the trimmed lane meshes a cone face on one nappe"
+                    }
+                    SphereTrimCause::DevelopedMerge => {
+                        "two vertices of its loop lie so near each other, or one so near \
+                         the cone's apex, that the cone's development rounds them to one \
+                         point, and the trimmed lane does not merge two vertices"
                     }
                 };
                 write!(

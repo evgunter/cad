@@ -138,11 +138,12 @@
 //! (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
-//!   origin. The development rounds, so it is not injective: a polygon
-//!   point that would share a CDT vertex with one at another UV location
-//!   refuses typed rather than merge two mesh vertices, and a grid
-//!   candidate that would is dropped, as a candidate on a polygon point
-//!   is in the chart ([`TrimmedFace::insert_points`]).
+//!   origin. The development rounds, so it is not injective: a face
+//!   whose polygon point would share a CDT vertex with one at another UV
+//!   location refuses `SphereTrimShape { DevelopedMerge }` before its
+//!   first attempt ([`developed_merge`]) rather than merge two mesh
+//!   vertices, and a grid candidate that would is dropped, as a candidate
+//!   on a polygon point is in the chart ([`TrimmedFace::insert_points`]).
 //!   [`crate::cdt::ids_at_two_uvs`] still reads UV locations, so it names
 //!   the apex's id; the census of identified-vertex fan edges then counts
 //!   the apex's one fan, whose edges a single vertex's fan uses twice at
@@ -581,6 +582,13 @@ pub(crate) fn tessellate_trimmed(
         shared,
         tol,
     };
+    if let Some(i) = developed_merge(trimmed.plane(), &polygon, &singular) {
+        return Err(TessellateError::SphereTrimShape {
+            face: fk,
+            edge: polygon_edges[i],
+            cause: SphereTrimCause::DevelopedMerge,
+        });
+    }
     for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
@@ -1024,12 +1032,11 @@ impl TrimmedFace<'_> {
         // a pinch's vertices, or a vertex the walk meets again. The
         // development rounds, and puts every copy of the apex at one
         // point on purpose: there the copies of the singular vertex share
-        // one, and a polygon point that would share one with a polygon
-        // point at another UV location refuses typed, so no two mesh
-        // vertices merge that the chart keeps apart. A grid candidate
-        // landing on an earlier point is dropped, as in the chart: it is
-        // no mesh vertex yet.
-        let n_poly = self.polygon.len();
+        // one, and a face whose polygon points would share one apart from
+        // those has refused before its first attempt ([`developed_merge`]),
+        // so no two mesh vertices merge that the chart keeps apart. A grid
+        // candidate landing on an earlier point is dropped, as in the
+        // chart: it is no mesh vertex yet.
         let plane = self.plane();
         let inputs: Vec<(f64, f64, bool)> = self
             .polygon
@@ -1047,21 +1054,12 @@ impl TrimmedFace<'_> {
         let mut unique: Vec<SpadePoint<f64>> = Vec::with_capacity(inputs.len());
         let mut index_of: HashMap<(u64, u64), usize> = HashMap::with_capacity(inputs.len());
         let mut handle_of: Vec<FixedVertexHandle> = Vec::with_capacity(inputs.len());
-        let mut first: Vec<(SpadePoint<f64>, bool)> = Vec::with_capacity(n_poly);
-        for (k, &(u, v, singular)) in inputs.iter().enumerate() {
+        for &(u, v, singular) in &inputs {
             let p = cdt_point(plane, u, v, singular);
             let next = unique.len();
             let i = *index_of.entry((key(p.x), key(p.y))).or_insert(next);
             if i == next {
                 unique.push(p);
-                if k < n_poly {
-                    first.push((crate::cdt::spade_point(u, v), singular));
-                }
-            } else if k < n_poly {
-                let (at, was_singular) = first[i];
-                if !(at == crate::cdt::spade_point(u, v) || singular && was_singular) {
-                    return Err(TessellateError::Triangulation { face: fk });
-                }
             }
             handle_of.push(FixedVertexHandle::from_index(i));
         }
@@ -1563,6 +1561,34 @@ fn nappe(polygon: &[(f64, f64, u32)], singular: &HashSet<u32>) -> f64 {
         .iter()
         .any(|&(_, v, id)| !singular.contains(&id) && v < 0.0);
     if below { -1.0 } else { 1.0 }
+}
+
+/// **The first polygon point the development would merge with one at
+/// another UV location** (module docs, "The development", which points are
+/// one CDT vertex), as its index; `None` in the chart, whose map is
+/// injective on floored points. The copies of the singular vertex share
+/// the origin, and points at one UV location (a pinch's vertices, or a
+/// vertex the walk meets again) share a point as in the chart; any other
+/// two polygon points that the development's rounding or spade's floor
+/// put at one point are two mesh vertices the CDT would hold as one, and
+/// the face refuses `SphereTrimShape { DevelopedMerge }` at the second.
+fn developed_merge(
+    plane: CdtPlane,
+    polygon: &[(f64, f64, u32)],
+    singular: &HashSet<u32>,
+) -> Option<usize> {
+    if let CdtPlane::Lattice { .. } = plane {
+        return None;
+    }
+    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
+    let mut first: HashMap<(u64, u64), (SpadePoint<f64>, bool)> = HashMap::new();
+    polygon.iter().position(|&(u, v, id)| {
+        let apex = singular.contains(&id);
+        let p = cdt_point(plane, u, v, apex);
+        let at = crate::cdt::spade_point(u, v);
+        let (was, was_apex) = *first.entry((key(p.x), key(p.y))).or_insert((at, apex));
+        !(was == at || apex && was_apex)
+    })
 }
 
 /// **The developed point of chart point `(u, v)` on the cone of
@@ -3862,8 +3888,9 @@ pub(super) mod tests {
         ///   any two of them and the apex are collinear to spade's exact
         ///   predicate, and no triangle lies along a ruling;
         /// - a polygon point off the apex that would land on the apex's CDT
-        ///   point (its development under spade's floor) refuses typed rather
-        ///   than merge two mesh vertices the chart keeps apart;
+        ///   point (its development under spade's floor) is found before the
+        ///   first attempt (`developed_merge`), where the face refuses typed
+        ///   rather than merge two mesh vertices the chart keeps apart;
         /// - a grid candidate landing there is dropped: it is no mesh vertex.
         #[test]
         fn the_development_keeps_apex_copies_one_and_mesh_vertices_apart() {
@@ -3929,12 +3956,16 @@ pub(super) mod tests {
                 (0.9, 1.0, 3),
                 (0.2, 1.0, 2),
             ]);
-            assert!(
-                matches!(
-                    crushed.insert_points(&[], &HashSet::new()),
-                    Err(TessellateError::Triangulation { .. })
-                ),
-                "a polygon point off the apex landing on the apex's CDT point refuses typed"
+            assert_eq!(
+                super::super::developed_merge(crushed.plane(), crushed.polygon, &singular),
+                Some(1),
+                "a polygon point off the apex whose development lands on the apex's CDT point \
+                 merges two mesh vertices; the face refuses there"
+            );
+            assert_eq!(
+                super::super::developed_merge(wedge.plane(), wedge.polygon, &singular),
+                None,
+                "the apex copies alone share a point"
             );
         }
 
