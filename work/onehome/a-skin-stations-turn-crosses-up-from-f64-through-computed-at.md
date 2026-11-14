@@ -2,12 +2,17 @@
 id: a-skin-stations-turn-crosses-up-from-f64-through-computed-at
 kind: issue
 title: a skin's station turn crosses up from f64 through RigidMotion::computed_at, the one up door Ev's ruling on PR 5068 leaves no room for
-status: review
+status: closed
 opened: 2026-11-10
 priority: P1
 branch: onehome/skin-turn
 pr: 6949
+closed: 2026-11-14
 ---
+
+## Closed by PR 6949 (2026-11-14)
+
+`RigidMotion::computed_at` is gone, so no door carries a frame up from `f64` ("Crossing scalars", DESIGN `[scalars]`). The skin's carry chooses each station's roll at `f64` as one reference vector, and every lane mints each station's frame alone from the path's tangent read at its scalar (`PathCarry::minted`, `[sweep.frame]`). What moved is filed: three rows refuse at 1e-12 (`three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`), and the `Sym<Interval>` memory exhaustion is `work/sym/path-sweeps-exhaust-memory-at-sym-interval.md`.
 
 
 Filed by PR 6717 (ONEHOME rigid-motion, fork 258's final state: "no up door anywhere").
