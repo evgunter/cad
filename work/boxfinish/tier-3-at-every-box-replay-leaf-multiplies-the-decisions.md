@@ -2,11 +2,12 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: open
+status: parked
 opened: 2026-11-02
 priority: P0
 cost: H
 refs: [6371]
+blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -62,3 +63,44 @@ does now.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
+
+## Measured again (2026-11-14, main `b363f5fa`, switch off): mostly forced bisection
+
+BOXFINISH's M1 lane (`boxfinish/probe-switch-off`, `probe/M1-REPORT.md`).
+The numbers above are not today's: docm9's rows take 10 s, not 157 to
+299 s, and pass their main-era assertions; main's m10_8 pins are
+2835/2803/0.
+
+| row | switch on | off, as built | off, normals and ray substituted by hand |
+|---|---|---|---|
+| m10_8 plain decisions | 2835/2803/0 | 10851/12675/42 | 4227/4703 (1.49× / 1.68×) |
+| docm9 `a_certified_side_stops_at_the_seeds_edge` | 0.137 s | 9.96 s | 0.35 s |
+| docm9 `a_parameter_field_boxes_directly` | 0.132 s | 9.92 s | 0.36 s |
+| docm9 `the_query_does_not_touch_the_input_document` | 0.171 s | 10.22 s | 0.39 s |
+| m10_3 `driving_writes_nothing` | 0.26 s | 35.5 s | 0.69 s |
+
+- **The multiple is the refusals' bisection.** On m10_8 plain, 80 to 82%
+  of the extra decisions are 8 extra replays that refuse at the finish;
+  the finish on the 4 certifying quarters is the other 18 to 20%. One
+  finish runs per finishing leaf, none repeated.
+- **A finish whose rays read** costs 50 to 110 ms on a six-face slab at
+  `Sym<Interval>` (2 ms at `f64`); one that falls to the volume, 254 to
+  787 ms (`check-7s-volume-reading-is-loose-over-a-box`).
+- **Most of a finish repeats the door's own build.** Of 836 decisions a
+  finish makes, about 732 carry the names and counts the door's build
+  decided on the same body in the same leaf (`dihedral_arm` 168,
+  `dihedral_wedge` 168, `dihedral_sign` 84, `carrier_on_surface_1` and
+  `_2` 108 each, and smaller rows). Equal margins are inferred.
+- **A drive finishes one body many times.** In the tour, 3069 box-lane
+  finishes cover 255 distinct vertex fingerprints: the plate is one
+  body finished 1023 times, and 92% of the finishes repeat a body
+  already finished in the same drive. Finishes are 38% of its leaf
+  time. With a move, a leaf runs three finishes (the door, the moved
+  leaf's re-finish, the union's result).
+
+**So this row waits.** With the two substitutions every row above is
+inside the 1.0 s budget, which is this row's own closing test. It is
+parked on the two rows that remove the forced bisection, and is
+measured again on the tree that has them. What is then left (the
+repeated body, the build's decisions made twice) is filed from that
+measurement, not from this one.

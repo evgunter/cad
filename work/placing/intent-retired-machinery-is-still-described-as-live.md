@@ -2,10 +2,13 @@
 id: intent-retired-machinery-is-still-described-as-live
 kind: issue
 title: prose and one Python surface still describe INTENT-retired machinery as live (literal Frame, PlacedUnion, Datum, world pin)
-status: open
+status: closed
+pr: 6938
+branch: placing/p3p4-cleanup
 opened: 2026-11-02
 priority: P4
 cost: C
+closed: 2026-11-14
 ---
 
 
