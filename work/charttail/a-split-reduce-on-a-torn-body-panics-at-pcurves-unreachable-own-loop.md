@@ -16,6 +16,6 @@ panicked at crates/topo/src/pcurves.rs:3301:36:
 internal error: entered unreachable code: HalfEdgeKey(4v1) is a member of its own loop
 ```
 
-Replay with `CAD_FUZZ_SEED=0xcad1e9c2ceac697e cargo test -p topo --release --lib review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`. The line number is CI's merge of the branch with main; on main the `unreachable!` is the one whose message reads "is a member of its own loop", in `crates/topo/src/pcurves.rs`.
+It reproduces on main (`1cf560ac4`), the same panic at `crates/topo/src/pcurves.rs:3301`: `CAD_FUZZ_SEED=0xcad1e9c2ceac697e CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p topo --lib -- review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` (the row is compiled only without debug assertions, as CI's job runs it). The `unreachable!` is the one whose message reads "is a member of its own loop".
 
 Owed: a torn body reaching that walk refuses naming a row-four premise, as the fuzz row asserts of every read, and the seed is pinned as a deterministic row beside the fix (`docs/prompts/implementer-discipline.md` §8).
