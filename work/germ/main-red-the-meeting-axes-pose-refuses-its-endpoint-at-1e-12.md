@@ -78,3 +78,13 @@ on, it stops earlier: operand B does not finish (`VolumeUncomputable`,
 The row is pinned at 1e-12 on operand B's stop and cites both rows; when
 BOXFINISH's fix lands, the pin goes red on this row's stop, and the pin
 moves here.
+
+## Evidence from BOXFINISH's edge-turns unit (2026-11-14, PR 6946)
+
+With the cylinder's and torus's edge misses stated where they are exact,
+`verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`
+passes outright at ε = 1e-12, 1e-9 and 1e-6 on the branch's merged head
+(`origin/main` merged, 2026-11-14). The row admits two outcomes for the
+re-posed twin: it builds, or it takes the row's own fixture escape.
+Which one it took is unmeasured, as is whether this row's stop still
+reproduces. So the pin was lifted, not moved here.
