@@ -2,10 +2,13 @@
 id: chord-join-names-the-booleans-section-branch
 kind: issue
 title: "[topo.homes] chord_join, a root construction, names the boolean's Branch and borrows its test fixtures"
-status: dispatched
+status: closed
 opened: 2026-11-12
 priority: P2
 cost: M
+closed: 2026-11-14
+pr: 6929
+branch: onedoor/branch-move
 ---
 
 
@@ -57,3 +60,14 @@ re-point `boolean/`, `chord_join`, `chart_region` and `offset_derive`,
 and give `arc_sheet` and `spiric_cap` a home a root test may read
 (`test_support_fixtures`). Then `chord_join.rs`'s `names-boolean` line
 holds the miscount alone.
+
+## Closed (PR 6929, 2026-11-14)
+
+The boolean's `Branch` takes no `Body` and no arena key, so `[topo.homes]` rule 1 puts it in geom-brep. It moved there as `geom_brep::SectionPick` (`pair_section.rs`): a pick out of a section, as opposed to `SsiBranch` and `ConicBranch`, which are a branch's geometry.
+- Its doc defines Positive/Negative/Line in geom-brep's own terms: the sign of the margin that tells a two-loop section apart, and the order in which the pair's reading lists its lines.
+- `chord_join.rs` no longer names the boolean. `arc_sheet` (now `bezier_arc_sheet`) and `spiric_cap` moved to the root `test_support_fixtures`, and census's private `spiric_cap` twin folded into the moved one.
+- The engine-leaves pins fell (`chord_join` names-boolean 15 → 2, the remaining 2 being the row's predicted miscount) and none rose.
+- Filed from the review: `a-branch-picks-its-loop-in-two-matches` (P2).
+- This row's premise named `chart_region` and `offset_derive` as readers to re-point. Neither named the boolean's `Branch`, so they were left alone.
+
+Model-compare row: `docs/model-compare-log/rows/PR-6929.md`.

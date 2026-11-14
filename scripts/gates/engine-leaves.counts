@@ -63,9 +63,8 @@ crate-visible             155  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
-crate-visible               2  boolean/planar_lane_carrier_rows.rs
 crate-visible              20  boolean/records.rs
-crate-visible               8  boolean/reduce.rs
+crate-visible               7  boolean/reduce.rs
 crate-visible              19  boolean/refusal_routes.rs
 crate-visible              36  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
@@ -106,7 +105,7 @@ names-boolean               3  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               4  chart_region.rs
-names-boolean              15  chord_join.rs
+names-boolean               2  chord_join.rs
 names-boolean               7  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sphere_island_rows.rs
 names-boolean               9  clearance.rs
@@ -181,11 +180,9 @@ splitting-names-boolean     5  splitting/classify.rs
 splitting-names-boolean    11  splitting/containment.rs
 splitting-names-boolean    40  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
-splitting-names-boolean     2  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/section.rs
 splitting-names-boolean     1  splitting/section_loops.rs
 
-ambiguous Branch                         # census.rs
 ambiguous Cell                           # census.rs, clearance.rs, ring_path/graze_rows.rs
 ambiguous ConicArc                       # bound_side.rs, ring_path.rs
 ambiguous Crossing                       # chart_region.rs
@@ -228,7 +225,6 @@ ambiguous read                           # bound_side.rs, census.rs, census/curv
 ambiguous rect                           # chart_region.rs
 ambiguous section_report                 # lib.rs
 ambiguous sheet                          # chart_region.rs, chord_join/cone_ring_rows.rs, chord_join/sphere_island_rows.rs, chord_join/torus_ring_rows.rs, injective.rs, row_walk_proofs.rs
-ambiguous spiric_cap                     # census.rs
 ambiguous split                          # census/depth_gap.rs, clearance.rs, link/cone_fuzz.rs, props.rs
 ambiguous through_the_join               # both engines
 ambiguous uncrossable                    # test_support_samples.rs, validate.rs
