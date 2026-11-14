@@ -385,8 +385,10 @@ fn reads_negative<T: Decide>(x: T) -> bool {
         .is_some_and(|(lo, hi)| crate::param::mid_param(lo, hi) < 0.0)
 }
 
-/// **A least turn's `1 + c`**, for `k = from × to` and `c = from · to`
-/// of two unit directions, computed by the form whose divisor is at least
+/// **A least turn's `1 + c`**, for `c = from · to` of two unit
+/// directions and `k` their cross product as [`LeastTurn::between`]
+/// spells it (`from × to`, or `from × (from + to)` where `c` reads
+/// negative), computed by the form whose divisor is at least
 /// one ([`reads_negative`]): `1 + c` itself where `c` reads non-negative,
 /// else `|k|²/(1 − c)`, which loses no digit near the pole. Over the
 /// reals the two are one number. [`LeastTurn::between`] is its one
@@ -403,11 +405,13 @@ fn least_turn_one_plus_c<T: Decide>(k: Vec3<T>, c: T) -> T {
 /// **The least turn carrying the unit `from` onto the unit `to`**,
 /// `S = c·I + [k]× + k kᵀ / (1 + c)` with `c = from · to` and
 /// `k = from × to`: the turn about `k` by the angle between them, as the
-/// rational Rodrigues form with its angle eliminated. The one home of
-/// the turn's arithmetic: [`RigidMotion::least_turn`] mints its columns
-/// here, and every reader of the same turn (the mate chart's pole
-/// verdict, the viewer's snap) computes it here, so the turn a gesture
-/// writes and the turn the chart reads back are one expression.
+/// rational Rodrigues form with its angle eliminated. The home of the
+/// mate chart's and the snap's least turn: [`RigidMotion::least_turn`]
+/// mints its columns here, so the turn a gesture writes and the turn the
+/// chart reads back are one expression. [`RigidMotion::turned_between`]
+/// is a sibling: the same turn as a quaternion matrix, with the same
+/// axis spelling `a × (a + b)` and its own pole decision (ledger row
+/// F22). Whether the two become one is fork 270 (PR 6964).
 ///
 /// Each of its three numbers is taken by the spelling whose error scales
 /// with the turn's own geometry (geom-core README W1). Where `c` reads
@@ -3266,13 +3270,16 @@ mod construction_mint_rows {
     /// drawn pairs at each `δ` from `10⁻¹` to `10⁻⁹`, `|S·a − b|` is at
     /// most `MISS_ULPS · u`: `k = a × (a + b)` carries a rounding relative
     /// to its own length (the difference `S·a − b` of nearly equal
-    /// coordinates is exact, so the `f64` reading is the miss). The
-    /// direct `k = a × b` misses by about `0.6·u/δ` (`5·10⁸ u` at
-    /// `10⁻⁹`), and the row checks it does at every `δ ≤ 10⁻³`, so the
-    /// bound is the spelling's and no draw's.
+    /// coordinates is exact, so the `f64` reading is the miss).
     ///
     /// *Breaks if* the near-opposed turn's axis comes from a short `k`
-    /// again.
+    /// again: the direct `k = a × b` misses by about `0.6·u/δ`, past the
+    /// bound at every `δ` from `10⁻²` down (`5·10⁸ u` at `10⁻⁹`); at
+    /// `10⁻¹` it reads about `5u`, inside it, so the guard is the smaller
+    /// `δ`. The row also prints and checks the direct spelling's miss on
+    /// a test-local copy of that arithmetic (`direct_carry`), as an
+    /// illustration of the difference the spelling makes, not a guard on
+    /// the mint.
     #[test]
     fn the_least_turn_carries_from_onto_to_within_a_few_ulps_near_opposed() {
         // Measured worst over these draws, against an exact rational
