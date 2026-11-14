@@ -4,7 +4,7 @@ kind: issue
 title: The cylinder's and torus's per-edge whole-turn misses are read back about the axis, so their Interval width is charged as disagreement on a far generic-pose body
 status: open
 opened: 2026-10-19
-priority: P3
+priority: P2
 cost: E
 ---
 
