@@ -325,7 +325,8 @@ not (
   (binary_id(mesh::all) & (test(=reach_probes::a_turned_ball_meshes_its_whole_volume_at_every_radius) | test(=reach_probes::a_one_column_band_with_raised_rows_adds_no_lattice_point) | test(=reach_probes::a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors) | test(=reach_probes::a_one_column_wall_meshes_on_its_boundary_chords_alone) | test(=reach_probes::a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta) | test(=reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass) | test(=reach_probes::a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard) | test(=reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row) | test(=reach_probes::a_spiric_bounded_torus_wall_meshes_on_the_torus_row) | test(=reach_probes::a_cone_face_through_its_apex_meshes_at_every_scale_and_pose) | test(=reach_probes::a_cone_face_ending_near_its_apex_refuses_at_fine_delta))) |
   (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse)) |
   (binary_id(mesh::all) & (test(=lift_probes::the_spline_section_bodies_read_lifts_that_close) | test(=lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes) | test(=lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube))) |
-  (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar))
+  (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |
+  (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order))
 )
 """
 
