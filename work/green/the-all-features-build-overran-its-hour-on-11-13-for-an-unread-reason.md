@@ -21,9 +21,9 @@ step was doing then cannot be read.
 Until 2026-11-14 that step was `cargo nextest run --no-run`, which also
 runs every test binary's `--list` (strace, nextest 0.9.140), so the
 overrun was either the compile or a listing
-(`nightly-all-features-build-hung-once-with-a-test-binary-running`,
-closed). The step is now `cargo test --no-run` alone, and the listing is
-its own bounded step that names a binary that blocks.
+(`nightly-all-features-build-hung-once-with-a-test-binary-running`).
+The step is now `cargo test --no-run` alone, and nextest's listing is
+its own bounded step, which names the binary where it can.
 
 The other candidate is memory. Built locally on 4 cores and 15 GB with
 the nightly's env and feature list (the tree at `f42cadd6`), `rustc` for

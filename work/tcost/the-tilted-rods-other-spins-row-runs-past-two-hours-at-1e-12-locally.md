@@ -70,6 +70,7 @@ from each leg's `full-suite-junit-<eps>` report:
 
 | nightly | head | 1e-12 | default | 1e-6 | 1e-12 leg wall |
 |---|---|---|---|---|---|
+| 43561237293 (11-14) | `ff2b5f5d` | 2447 s, PASS | — | — | 115 min |
 | 43371638371 (11-13) | `e36675c1` | 1953 s, PASS | 236 s | 89 s | 90 min |
 | 43161026932 (11-12) | `da77d875` | 2923 s, PASS | 444 s | — | 117 min |
 | 42965378060 (11-11) | `b2916558` | still running at 2760 s when the leg's 120-minute limit cancelled it | — | — | cancelled, no report |

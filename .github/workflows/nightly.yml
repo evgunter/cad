@@ -219,6 +219,14 @@ jobs:
       - name: change filter self-test
         if: '!cancelled()'
         run: python3 scripts/ci-filter.py --selftest
+      # The nightly's own scripts: a full-suite-coverage that stopped seeing a
+      # short row, or a probe sweep that stopped on its first red, reads green.
+      - name: full suite coverage self-test
+        if: '!cancelled()'
+        run: python3 scripts/full-suite-coverage.py --selftest
+      - name: probe sweep self-test
+        if: '!cancelled()'
+        run: scripts/k_probe_sweep_selftest.sh
   any-first-mutant:
     # Every pin scripts/gates/any-climb-pins.counts names, run under the
     # first-refusal mutant (`--cfg any_first_mutant`): a pin that stays
@@ -1056,7 +1064,9 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, all-features, k-lint, python, topo-release, step-import, interval, renders]
+    # Every test row, so the tag is written once each has finished; ci-latency
+    # is the per-PR gate's latency alarm, not a row of the nightly's own.
+    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write

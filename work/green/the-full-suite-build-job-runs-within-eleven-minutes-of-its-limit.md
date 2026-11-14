@@ -25,6 +25,7 @@ the doc-tests, the slow-set name check, the topo scalpel and wasm32.
 | 42965378060 (11-11) | `b2916558` | 67 min | 75 min |
 | 43161026932 (11-12) | `da77d875` | 93 min | 105 min |
 | 43371638371 (11-13) | `e36675c1` | 97 min | 109 min |
+| 43561237293 (11-14) | `ff2b5f5d` | 98 min | 111 min |
 
 On 11-13 the scalpel took 10 min of the rest. If the build step reaches
 the limit, no archive is uploaded and none of the five full-suite legs

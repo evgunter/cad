@@ -59,16 +59,16 @@ filter=$(tr ' ' '|' <<<"$pins")
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 run() { # run NAME [RUSTFLAGS…]: every pin; its log and junit report to $work/NAME.*
-  local name=$1 target=${CARGO_TARGET_DIR:-target}
+  local name=$1 report=target/nextest/ci/junit.xml # nextest's store, under the workspace root
   shift
-  rm -f "$target/nextest/ci/junit.xml"
+  rm -f "$report"
   set +e
   RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --profile ci --no-fail-fast \
     --run-ignored all --ignore-default-filter \
     --success-output never --failure-output never \
     -E "test(/::($filter)\$/)" >"$work/$name.log" 2>&1
   set -e
-  cp "$target/nextest/ci/junit.xml" "$work/$name.xml" 2>/dev/null || true
+  cp "$report" "$work/$name.xml" 2>/dev/null || true
 }
 # The control: every pin, plain. A pin red without the mutant is red for
 # some other reason (a main red), so its red under the mutant says
