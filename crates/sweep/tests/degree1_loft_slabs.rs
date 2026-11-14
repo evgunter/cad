@@ -1,5 +1,5 @@
 //! **A degree-1 loft is one wall per segment per slab**
-//! (`work/tess/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`):
+//! (`work/tesslane/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`):
 //! through `k ≥ 3` sections at v-degree 1, `sweep::loft_body` builds
 //! `k − 1` two-section lofts glued at the shared sections, so every wall
 //! is a single-span ruled patch, each interior section is a ring of
@@ -490,7 +490,7 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
 /// and is at rest, and the first meshes to its integrated volume. The
 /// other two each carry a bulge-0 section, whose line rim on a creased
 /// wall meshes only at a δ whose chord points straddle no crease
-/// (`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
+/// (`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
 /// they are not meshed here.
 #[test]
 fn an_interior_arc_refined_by_its_neighbours_lofts() {
