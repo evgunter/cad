@@ -69,6 +69,20 @@ of main were merged in) or whether main's own gate is red on it.
 `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` (1.015 s once,
 under the bar the second time) is left in the fast set.
 
+## Seen flapping (2026-11-14, PR 6932)
+
+PR 6932 (workflow and script changes only) went red in `test (kernel)`'s
+default-eps step on run 43622391108 (head `a76a6805`, a merge of main),
+on four fast-set tests over the 1 s backstop:
+
+- `sweep::all snowman::a_tilted_slab_against_the_lens_builds_off_the_seam` 1.162 s
+- `sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order` 1.039 s
+- `sweep::all pis_arc_capped_poses::the_cut_cylinders_ellipse_face_takes_nothing_away` 1.035 s
+- `sweep::all pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` 1.006 s
+
+The same step was green on the PR's previous head (run 43617218864, 52
+minutes earlier).
+
 ## Instance (PR 6956, `green/goldens`, 2026-11-14)
 
 Run 43629119488 (head `728013904`, merged with main `a03a2471a`) failed `test (kernel)` on the fast-set bar alone, with every nextest row passing: five existing `sweep::all` rows between 1.001 and 1.097 s against the 1.0 s bar, in a diff that touches no kernel source.
