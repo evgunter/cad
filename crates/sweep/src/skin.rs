@@ -1865,7 +1865,8 @@ pub(crate) const SWEEP_STATION_STILL: &str = "sweep_station_still";
 /// reference vector. Each scalar lane then mints every station's frame
 /// alone, from the path's tangent read at that scalar and that
 /// reference ([`Self::place`]): a frame exists at a scalar only by
-/// being minted there, and no station's frame is built from another's.
+/// being minted there. A still station reuses its predecessor's
+/// rotation, one expression; no frame is composed from another's.
 pub(crate) struct PathCarry {
     /// The path, its data entering each lane as the constants it is.
     path: NurbsCurve3<f64>,
@@ -1940,21 +1941,20 @@ impl PathCarry {
         let samples = at
             .iter()
             .enumerate()
-            .map(|(station, t)| {
-                let (p, d) = path.ders1(*t);
-                UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
-                    .map(|t| (p, t))
-                    .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
-            })
+            .map(|(station, t)| read_tangent(path, station, *t, band))
             .collect::<Result<Vec<_>, _>>()?;
-        let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
         let o = Point3::origin();
         let start = RigidMotion::aimed(o, samples[0].1)
             .map_err(not_finite(0))?
             .u()
             .get();
+        // A station on its span's right knot reads the next span at
+        // `span_at`, so it is looked up just left of that knot: the two
+        // stations share a span when the later lies in the earlier's
+        // closed span.
         let span = |t: f64| path.span_at(t).map(|w| w.first_control());
+        let closed_span = |t: f64| span(t.next_down().max(lo));
         let mut turn: Option<RigidMotion<f64>> = None;
         let mut selected = vec![Selected {
             at: at[0],
@@ -1993,13 +1993,13 @@ impl PathCarry {
                     Some(c) => step.compose(c).map_err(not_finite(station))?,
                 });
             }
-            let first = span(at[station]);
+            let first = span(at[i]);
             selected.push(Selected {
                 at: at[station],
                 tangent: b,
                 reference: turn.map_or(start, |c| c.linear() * start),
                 straight: first.is_some()
-                    && first == span(at[i])
+                    && first == closed_span(at[station])
                     && first.is_some_and(|f| straight_by_data(path, f)),
             });
         }
@@ -2034,12 +2034,7 @@ impl PathCarry {
         let band = self.band;
         let path = self.path.map_scalar(T::from_f64);
         let o = Point3::origin();
-        let read = |station: usize, s: f64| {
-            let (p, d) = path.ders1(T::from_f64(s));
-            UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
-                .map(|t| (p, t))
-                .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
-        };
+        let read = |station: usize, s: f64| read_tangent(&path, station, T::from_f64(s), band);
         let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
             RigidMotion::from_aim_and_reference(
                 o,
@@ -2050,7 +2045,6 @@ impl PathCarry {
             )
             .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
         };
-        let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let first = &self.stations[0];
         let (p0, t0) = read(0, first.at)?;
         let unturn = frame(0, t0, first.reference)?
@@ -2060,7 +2054,7 @@ impl PathCarry {
         let (mut tangent, mut turn) = (t0, None);
         for (station, selected) in self.stations.iter().enumerate().skip(1) {
             let (p, t) = read(station, selected.at)?;
-            if !(selected.straight && still(tangent, t, selected.tangent, band)?) {
+            if !(selected.straight && still(tangent, t, selected.tangent, band)) {
                 turn = Some(
                     frame(station, t, selected.reference)?
                         .compose(unturn)
@@ -2109,6 +2103,25 @@ impl PathCarry {
 /// rotation carrying the start frame there, `None` for the identity.
 type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
 
+/// Station `station`'s point on `path` at `t` and its tangent, decided
+/// into a direction under `sweep_path_tangent`.
+fn read_tangent<T: Decide>(
+    path: &NurbsCurve3<T>,
+    station: usize,
+    t: T,
+    band: Band,
+) -> Result<(Point3<T>, UnitVec3<T>), SkinError> {
+    let (p, d) = path.ders1(t);
+    UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
+        .map(|t| (p, t))
+        .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
+}
+
+/// A station's placement that left the format.
+fn not_finite<E>(station: usize) -> impl Fn(E) -> SkinError {
+    move |_| SkinError::StationNotFinite { station }
+}
+
 /// Whether the span whose first control point is `first` is straight
 /// by its data: every control point of the span on the line through
 /// its first two distinct ones, exactly.
@@ -2123,15 +2136,14 @@ fn straight_by_data(path: &NurbsCurve3<f64>, first: usize) -> bool {
 }
 
 /// Whether a station's tangent `t`, read at `T`, is its predecessor's
-/// `kept`: each component of `t − kept` decides zero (ledger row F22:
+/// `kept`: each component of `t − kept` decides zero (ledger row F42:
 /// a dimensionless defect of a pair of directions against the metre
 /// band), and `kept` encloses the `f64` selection.
-fn still<T: Decide>(
-    kept: UnitVec3<T>,
-    t: UnitVec3<T>,
-    selected: Vec3<f64>,
-    band: Band,
-) -> Result<bool, SkinError> {
+///
+/// It decides only reuse. A station on a span straight only to its
+/// data's rounding, or whose tangents differ, is minted alone, which
+/// is always sound; so is one whose check escalates.
+fn still<T: Decide>(kept: UnitVec3<T>, t: UnitVec3<T>, selected: Vec3<f64>, band: Band) -> bool {
     let (k, d) = (kept.get(), t.get() - kept.get());
     let encloses = [(k.x, selected.x), (k.y, selected.y), (k.z, selected.z)]
         .into_iter()
@@ -2139,16 +2151,17 @@ fn still<T: Decide>(
             x.structure_bracket()
                 .is_some_and(|(lo, hi)| lo <= s && s <= hi)
         });
-    if !encloses {
-        return Ok(false);
-    }
-    for c in [d.x, d.y, d.z] {
-        match geom_core::k_stats::decide_flagged(SWEEP_STATION_STILL, c, band, "F22") {
-            Ok(Sign::Zero) => {}
-            Ok(_) | Err(_) => return Ok(false),
-        }
-    }
-    Ok(true)
+    encloses
+        && [d.x, d.y, d.z].into_iter().all(|c| {
+            match geom_core::k_stats::decide_flagged(SWEEP_STATION_STILL, c, band, "F42") {
+                Ok(Sign::Zero) => true,
+                Ok(Sign::Positive | Sign::Negative) => false,
+                // Not provably still: the station is re-minted from its
+                // own tangent, the conservative branch, so the
+                // escalation has nothing to refuse.
+                Err(Indeterminate { .. }) => false,
+            }
+        })
 }
 
 /// `i / (stations − 1)` for each of `stations ≥ 2` stations: `0` and
@@ -2183,6 +2196,9 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> 
             source,
         },
         (_, PathDirection::Chord) => SkinError::PathStationsCoincide { station },
+        // `rᵢ = Cᵢ·r₀` with `r₀ ⊥ t₀` and `Cᵢ` carrying `t₀` onto `tᵢ`,
+        // so the reference stands off the tangent to rounding: only a
+        // carry defect reaches this arm (its text ends as one).
         (_, PathDirection::Roll) => SkinError::PathRollAlongTangent { station },
         (_, PathDirection::Tangent) => SkinError::PathTangentVanishes { station },
     }

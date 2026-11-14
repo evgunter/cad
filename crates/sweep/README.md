@@ -283,15 +283,18 @@ and a fixed reference direction would read the world axes.
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
 - **The roll is chosen at `f64`, because the path is a constant of
-  the model** (DESIGN `[scalars]`: a lane scalar takes a choice from
-  `f64`, never a claim). The carry runs once at `f64` and selects each
-  station's roll as a reference vector; every scalar lane mints each
-  station's frame from the path's tangent read at that scalar and that
-  vector, one station at a time, and composes it onto its own start
-  plane. Station 0 is the start plane itself. A station on one span,
-  straight by its data, with its predecessor is still where its tangent
-  is checked at the lane scalar to be its predecessor's, and it reuses
-  its predecessor's rotation, one expression. A path held at a lane
+  the model** (DESIGN `[scalars]`: what a lane scalar takes from `f64`
+  is a choice, never a claim). Each station's roll is a continuous
+  value that depends on none of the document's variables, so it is a
+  choice; each station's frame is a claim, so every lane builds it. The
+  carry runs once at `f64` and chooses each station's roll as a
+  reference vector; every scalar lane mints each station's frame from
+  the path's tangent read at that scalar and that vector, and composes
+  it onto its own start plane. Station 0 is the start plane itself. A
+  station on one span, straight by its data, with its predecessor is
+  still where its tangent is checked at the lane scalar to be its
+  predecessor's: it reuses its predecessor's rotation, one expression,
+  and every other station is minted alone. A path held at a lane
   scalar has a roll that depends on the variables, and the selection no
   longer stands
   (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
@@ -313,8 +316,8 @@ and a fixed reference direction would read the world axes.
   `SkinError::PathUndecided`. A station whose frame has no roll at the
   lane scalar (its reference along its tangent read there) refuses as
   `SkinError::PathRollAlongTangent`, its in-band twin
-  `SkinError::PathUndecided` naming the roll. A path whose end tangent is its start
-  tangent reversed is not one of these: a planar U-turn sweeps, its
+  `SkinError::PathUndecided` naming the roll. A path whose end tangent
+  is its start tangent reversed is not one of these: a planar U-turn sweeps, its
   end frame the start frame turned a half turn about the plane's
   normal, and so does a semicircle between two stations.
 - **A section sits at its station's path parameter**: station `i` at

@@ -880,10 +880,11 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
     }
 
     /// Whether the skin's inputs have one `f64` value each: the
-    /// placements' channel (`channel_places`, present only where every
-    /// placement's start has a point value; [`sweep_body`] mints the
-    /// path's stations at `f64` there, and the lane's own placements,
-    /// minted at `T`, enclose them) and each section value, a point.
+    /// placements' channel (`channel_places`, present only where the
+    /// placements' start has a point value; [`sweep_body`] mints the
+    /// path's stations at `f64` from that start, as it mints the lane's
+    /// own placements at `T` from the lane's) and each section value, a
+    /// point.
     fn all_points(&self, channel_places: Option<&[SketchPlane<f64>]>) -> bool {
         let point = |v: T| v.point_value().is_some();
         channel_places.is_some()
@@ -1020,8 +1021,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     ///   loft. The skin is the `f64` one, the walls are lifted
     ///   ([`lift_loop_walls`]), and the caps and the stacking door read
     ///   the `f64` canonical form lifted onto the lane's own placements
-    ///   ([`ValidatedProfile::lift_onto`]), which enclose the planes the
-    ///   skin was selected on.
+    ///   ([`ValidatedProfile::lift_onto`]), minted from the path and
+    ///   start the skin's `f64` planes were minted from.
     /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
     ///   section of loops validated at `T` with its decisions certified
     ///   there. The skin's structure is what every value of the family
@@ -1047,16 +1048,17 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .channel(channel_places, self.v_degree, self.tol)?;
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         let places = self.places;
+        // `build` refused the placements that are not finite, the one
+        // refusal `lift_onto` has.
         let lifted: Vec<ValidatedProfile<T>> = canonical
             .iter()
             .zip(places)
-            .enumerate()
-            .map(|(section, (c, place))| {
-                c.clone()
-                    .lift_onto(*place)
-                    .map_err(|_| LoftError::PlacementNotFinite { section })
+            .map(|(c, place)| {
+                c.clone().lift_onto(*place).unwrap_or_else(|e| {
+                    unreachable!("{e}: `build` refused every placement that is not finite")
+                })
             })
-            .collect::<Result<_, _>>()?;
+            .collect();
         let strips = compatible_strips(&canonical, channel_places)
             .map_err(LoftError::Skin)?
             .iter()
