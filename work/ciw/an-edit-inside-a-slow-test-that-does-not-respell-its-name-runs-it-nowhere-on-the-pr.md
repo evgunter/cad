@@ -80,6 +80,8 @@ Two more slow rows show the same blind spot, from both sides.
   So neither fix ran hosted at any ε. The PR's evidence for both is a
   local run.
 
+- **PR 6934** (`green/eps-1e-6`, 2026-11-14): two of its thirteen slow rows were edited without their names on an added line (`a_vertex_piercing_a_lens_wall::a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`, a re-pinned stop inside the body; `m5_s11_concave_sense::loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`, a constant it reads). Each now has a doc line naming the test, which is what selects it. Even selected, a slow row runs on the PR at the default ε only, so an ε 1e-6 pin on one is checked by no PR step.
+
 
 ## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
 
