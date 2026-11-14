@@ -101,3 +101,17 @@
   - **Rows closed:** `run-loops-of-split-and-pierce-are-twins`, `two-germ-readers-sign-one-line-two-ways`, `the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree`, `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`, and HONEONE's `germ-orders-about-a-normal-have-two-homes` (closed in substance).
   - **Rows filed:** `onehome/a-leaned-zero-reads-germs-far-apart-in-direction-as-one-line` (P2), `honeone/tied-cuts-at-a-vertex-are-placed-by-three-evidences` (P3), and the main red `sectarms/main-red-recourse-roster-misses-two-ring-path-indirect-sites` (P1). (ONEHOME star-cut lane)
 - 2026-11-14 — **From BOXFINISH: `check-1-reads-a-turning-frames-length-off-its-bracket` is on this slate now** (P1, `design`; moved here, id unchanged). It is fork 259's case (a), measured: on main, a round body turned by a boxed angle and then taken by a Boolean refuses check 1 at first order in the box and certifies 0 of 64 leaves at 30° ± 1°, and behind check 1 stand a volume reading and a `FlipCrossing` on `pcurve_cylinder_chart_axial` (0 rows in the witness, 32 in the box lane). The box-scalar switch plays no part. BOXFINISH's fork 268 designers leaned to a carrier storing its frame as the witness; the row says why that and fork 259's carry are one question. Also filed here earlier today: `the-f64-witness-finishes-a-placed-slab-twice-before-its-move` (P3). (BOXFINISH orchestrator)
+- 2026-11-14: fork 270 (pole conditioning) goes to Ev on the `[ev]` pole-band PR.
+  - **Evidence (labels only):**
+    - At `Chart::of`, a 1-ulp tilt of the mated direction moves a 1 m point 1.4ε at δ = 1e-7 and 14ε at 1e-8 (1 m arm). At a 70 m arm and δ = 1e-9 it is 143ε per metre.
+    - The Interval chart is not loud: it carries a pose about 19ε per metre wide at 1e-7 and admits it.
+    - The exact worst-case lever is `2·arm/chord`, checked at 80 digits.
+    - The Kε pole verdict is the wider test below an arm of `ε·√(K(K−1)/(32u))`, about 0.16 m at the default ε.
+  - **Main has three spellings of the least turn:**
+    - `RigidMotion::least_turn`;
+    - `turned_between`/`turned_onto`, with an unlevered `1 + a·b` decision (ledger F22);
+    - editor-core `LeastTurn`.
+  - **Owed whatever Ev decides:**
+    - an end-to-end f64 and Interval band-edge row on a generic-direction fixture;
+    - `bundle_arm` (`crates/editor-core/src/mate/solve.rs`) omits written slide values, so a copy slid L lands about `L·u/δ` off (to be filed as a defect row);
+    - an audit of `topo::vertex_section`'s `sin ψ` as a second reader of the door.
