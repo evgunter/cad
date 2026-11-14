@@ -10,7 +10,9 @@
 //! - on an analytic chart, the **lattice** a lane lays from those steps
 //!   ([`AnalyticRow::lattice_steps`]: rows every `lever·h_u` on a ruled
 //!   chart, square in 3-D at the face's widest radius; periodic steps
-//!   capped at `sizing::MAX_ANGULAR_STEP`) and the plane the trimmed
+//!   capped at `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane
+//!   lays over a face's `v` window ([`AnalyticRow::lattice_rows`]: that
+//!   step's, or on the cone graded to the row's own radius) and the plane the trimmed
 //!   lane's triangulation runs in: the chart in its **metric**
 //!   ([`AnalyticRow::metric`]), or on the cone its **development**
 //!   ([`AnalyticRow::development`]);
@@ -59,7 +61,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, face_cells, lattice_budget, lattice_metric};
 use crate::sizing::{
-    cap_angular, cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps,
+    cap_angular, ceil_count, cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps,
 };
 use crate::types::TessellateError;
 
@@ -356,6 +358,69 @@ impl<'a> AnalyticRow<'a> {
         }
     }
 
+    /// **The interior rows of the trimmed lane's lattice over the face's
+    /// `v` window `(v0, v1)`**, at the row step `hv`
+    /// ([`Self::lattice_steps`]), ascending.
+    ///
+    /// Every chart but the cone: uniform, `⌈(v1 − v0)/hv⌉` gaps.
+    ///
+    /// **The cone: uniform in `√|v|`**, so the gap at slant `v` is
+    /// `hv·√(|v|/v_w)`, `v_w` the face's widest slant: `hv` there, and
+    /// shorter toward the apex. `hv = ρ_max·h_u` is the chord of the
+    /// widest rim whose sag is the lattice's target
+    /// (`sizing::cone_grid_step`); a chord of length `L` between radii
+    /// `ρ₁ ≤ ρ₂` sags at most `cos α·L²/(4ρ₁·(1 + cos(Δu/2)))`
+    /// (`cert::cone_chord_sag`, with `L² ≥ 4ρ₁ρ₂·sin²(Δu/2)`), which at
+    /// `L = hv·√(ρ₁/ρ_max)` is that target to second order in the step.
+    /// So each gap is the chord the target allows at the gap's own
+    /// radius, turned any way on the surface, and a triangle edge from a
+    /// lattice point to a boundary point a gap away is charged within it.
+    /// Uniform rows hold that at the widest radius alone: toward a small
+    /// end the first row stands many such chords from the boundary, and
+    /// the triangulation joins it to boundary points far round the axis,
+    /// truly past δ. The rows shape the triangulation and move no bound:
+    /// the certificate is the guarantee, and the arm has no theorem for a
+    /// triangle beside its boundary (`trimmed::UNPROVED_HEADROOM`).
+    /// `⌈2·(√v₁ − √v₀)·√v_w/hv⌉` gaps, at most twice the uniform count
+    /// (a face reaching its apex).
+    ///
+    /// # Errors
+    ///
+    /// `sizing::ceil_count`'s, for a count past `sizing::MAX_COUNT`.
+    pub(crate) fn lattice_rows(
+        &self,
+        (v0, v1): (f64, f64),
+        hv: f64,
+    ) -> Result<Vec<f64>, TessellateError> {
+        #[allow(clippy::cast_precision_loss)]
+        let lerp = |a: f64, b: f64, j: usize, n: usize| a + (b - a) * (j as f64 / n as f64);
+        match self.kind() {
+            Analytic::Cone {
+                half_angle,
+                rho_max,
+            } => {
+                // `√|v|` signed, so the map is monotone on either nappe.
+                let root = |v: f64| v.signum() * v.abs().sqrt();
+                let (s0, s1) = (root(v0), root(v1));
+                let widest = (rho_max / half_angle.sin()).sqrt();
+                let n = ceil_count(2.0 * (s1 - s0) * widest, hv)?;
+                Ok((1..n)
+                    .map(|j| {
+                        let s = lerp(s0, s1, j, n);
+                        s * s.abs()
+                    })
+                    .collect())
+            }
+            Analytic::Cylinder { .. }
+            | Analytic::Sphere { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => {
+                let n = ceil_count(v1 - v0, hv)?;
+                Ok((1..n).map(|j| lerp(v0, v1, j, n)).collect())
+            }
+        }
+    }
+
     /// **The metric the trimmed lane's triangulation runs in**: the
     /// lattice metric `k` (`nurbs_cert::lattice_metric`) of a uniform
     /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`.
@@ -405,11 +470,7 @@ impl<'a> AnalyticRow<'a> {
                 cert::position_scale(center, tri),
             ),
             Surface::Cone { half_angle, .. } => (
-                match std::env::var("CONE_CERT").as_deref() {
-                    Ok("zero") => 0.0,
-                    Ok("exact") => cert::cert_cone_exact(half_angle, uv, singular),
-                    _ => cert::cert_cone(half_angle, uv, singular),
-                },
+                cert::cert_cone(half_angle, uv, singular),
                 cert::cone_scale(half_angle, uv),
             ),
             Surface::Torus {

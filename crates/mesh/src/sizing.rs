@@ -480,9 +480,10 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 ///
 /// # The theorem
 ///
-/// [`crate::cert::cert_cone`] bounds a triangle by
-/// `cos α · ρ_maxᵀ · (1 − cos(Δu/2))`, with `ρ_maxᵀ` its largest
-/// radius and Δu its non-apex azimuth extent. The cone is ruled in v,
+/// [`crate::cert::cert_cone`] bounds a triangle by the largest sag of
+/// its chords, and a chord between radii `ρ₁ ≤ ρ₂` across `Δu` sags at
+/// most `cos α · ρ₂ · (1 − cos(Δu/2))`, with equality at `ρ₁ = ρ₂`
+/// (`cert::cone_chord_sag`). The cone is ruled in v,
 /// so rows never enter the bound, and the curved lane takes none: its
 /// only rows are the face's two rims (or a rim and the apex), both
 /// chorded within the column step `h` (the chord pass's tightening,

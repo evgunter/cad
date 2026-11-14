@@ -14,16 +14,12 @@
 //!   r − dist(c, T). Certificate `r − dist(c, T)` (exact
 //!   point–triangle distance). Handles pole-fan triangles with no UV
 //!   involvement.
-//! - **Cone** (half-angle α): with slant coords vᵢ ≥ 0, radii
-//!   ρᵢ = vᵢ·sin α, and azimuth span Δu ≤ π over the non-apex
-//!   vertices (the apex has ρ = 0 and drops out of the radial sum),
-//!   the slant residual m(p) = cos α·ρ_p − sin α·h_p of p = Σλᵢxᵢ
-//!   satisfies −cos α·sin α·v_maxᵀ·(1 − cos(Δu/2)) ≤ m ≤ 0, and
-//!   dist(p, cone) ≤ |m| (perpendicular distance to the generator ray
-//!   at p's azimuth; the foot's slant coordinate
-//!   ρ_p·sin α + h_p·cos α ≥ 0 on v ≥ 0 patches). The **triangle-local**
-//!   v_maxᵀ makes the bound scale with local radius, so apex-fan
-//!   triangles certify tightly.
+//! - **Cone** (half-angle α): the flat triangle's own deviation, in
+//!   closed form: the largest sag of its three chords, or its height
+//!   over the axis where the axis passes through it ([`cert_cone`]
+//!   carries the derivation). It reads each chord at its own two radii
+//!   and its own azimuth difference, so a chord from a small radius to a
+//!   large one is charged what it sags, which goes as the smaller.
 //! - **Torus** (R, r): the doubly-curved interpolation bound
 //!   `crate::sizing::torus_grid_steps` derives and inverts (its (★)):
 //!   with `Δu`, `Δv` the triangle's UV extents and the second-partial
@@ -130,68 +126,119 @@ pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
     (r - dist_point_triangle(center, tri[0], tri[1], tri[2])).max(0.0)
 }
 
-/// Cone certificate: `cos α · sin α · v_maxᵀ · (1 − cos(Δu/2))` over
-/// the non-apex vertices' azimuth span Δu (module docs); +∞ if
-/// Δu > π (the derivation's precondition — certifiably violated
-/// geometry fails loudly, never silently).
+/// **Cone certificate: the deviation of a flat triangle with its corners
+/// on one nappe**, corner `i` at azimuth `uᵢ` and slant `vᵢ` (radius
+/// `ρᵢ = |vᵢ|·sin α`, height `hᵢ = |vᵢ|·cos α`), an apex corner (`pole`)
+/// at `ρ = h = 0` whatever its `u`:
+///
+/// ```text
+/// max( D₁₂, D₂₃, D₃₁, A ),
+/// Dᵢⱼ = cos α · 2ρᵢρⱼ·sin²(Δuᵢⱼ/2) / (ρᵢ + ρⱼ + 2√(ρᵢρⱼ)·|cos(Δuᵢⱼ/2)|)
+/// A   = sin α · (the height at which the axis passes through the triangle)
+/// ```
+///
+/// # Derivation
+///
+/// Take the nappe as `h ≥ 0`, and write `f(p) = sin α·h(p) − cos α·ρ(p)`
+/// for a point at height `h` and distance `ρ` from the axis.
+///
+/// 1. **`dist(p, cone) ≤ f(p)` on the triangle.** The solid nappe
+///    `{f ≥ 0, h ≥ 0}` is convex and holds the corners, so it holds the
+///    triangle. In the meridian half-plane of `p`, `f(p)` is the distance
+///    from `p` to the generator's line, and its foot's slant
+///    `ρ·sin α + h·cos α ≥ 0` is on the generator.
+/// 2. **`f` peaks on an edge, or on the axis.** Where the triangle's
+///    plane meets the axis at one point `O`, both `h − h(O)` and `ρ` are
+///    homogeneous of degree one along a ray from `O`, so `f` is affine on
+///    each ray; every point of the triangle lies on a segment of such a
+///    ray that ends on the boundary or at `O`. Where the plane is
+///    parallel to the axis, `ρ` is constant and `h` affine along the
+///    axis's direction, and that segment ends on the boundary both ways.
+/// 3. **On the chord `i → j`**, `sin α·h` interpolates `cos α·ρ̄`,
+///    `ρ̄ = (1 − t)·ρᵢ + t·ρⱼ`, and the chord's radius is
+///    `√(ρ̄² − 4t(1 − t)·ρᵢρⱼ·sin²(θ/2))`, `θ ∈ [0, π]` the angle between
+///    the corners' azimuths: `f = cos α·(ρ̄ − ρ)`, concave in `t`. In the
+///    plane across the axis the chord's shadow is a segment of length `L`
+///    at distance `b` from the axis; along it `ρ = √(b² + s²)` and `ρ̄`
+///    has slope `κ = (ρⱼ − ρᵢ)/L`, `|κ| ≤ 1`, so `f` is stationary at
+///    `s/ρ = κ`, between the corners, where
+///    `f = cos α·(ρᵢ − κ·sᵢ − b·√(1 − κ²))`. With `L² = (ρᵢ + ρⱼ)² −
+///    4ρᵢρⱼ·cos²(θ/2)`, `b·L = ρᵢρⱼ·sin θ` and `sᵢ·L = ρᵢρⱼ·cos θ − ρᵢ²`
+///    that is `Dᵢⱼ`, a quotient of sums of non-negative terms. In the
+///    chart `sin²(θ/2) = sin²(Δu/2)` and `cos(θ/2) = |cos(Δu/2)|`, for
+///    any `Δu`. A chord at an apex corner lies on a ruling: `D = 0`.
+/// 4. **On the axis**, `f = sin α·h`. The axis passes through the
+///    triangle where the corners' shadows `qᵢ = ρᵢ·(cos uᵢ, sin uᵢ)`
+///    hold the origin: `qⱼ × qₖ = ρⱼρₖ·sin(uₖ − uⱼ)` of one sign for all
+///    three, the origin's barycentric weights up to their sum. Then
+///    `A = sin α·cos α·v₁v₂v₃·ΣSᵢ / Σ vⱼvₖSᵢ`, `Sᵢ = sin(uₖ − uⱼ)`, sums
+///    of one sign. On the triangle's boundary `A` is the chord's `D`, so
+///    a sign rounded either way there moves the maximum by rounding.
+///
+/// So the bound is the triangle's largest `f`, attained, and by (1) at
+/// least its distance from the cone. It reads no chart box: wide in
+/// azimuth at a small slant, across more than half a turn, or about the
+/// axis, a triangle is charged what it deviates.
+///
+/// # What it assumes
+///
+/// The corners are the chart's points `S(uᵢ, vᵢ)` (a boundary corner's
+/// carrier residual is the crate's stated slack, module docs), on one
+/// nappe: non-apex corners with `v` of both signs are no triangle of one
+/// nappe, and certify nothing (`+∞`). NaN-sticky: a poisoned corner
+/// poisons the certificate.
 pub fn cert_cone(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
-    let mut u_min = f64::INFINITY;
-    let mut u_max = f64::NEG_INFINITY;
-    let mut v_max: f64 = 0.0;
-    for i in 0..3 {
-        v_max = v_max.max(uv[i][1].abs());
-        if !pole[i] {
-            u_min = u_min.min(uv[i][0]);
-            u_max = u_max.max(uv[i][0]);
-        }
-    }
-    let du = u_max - u_min;
-    if du.is_nan() || du > core::f64::consts::PI {
-        return f64::INFINITY;
-    }
-    let (s_a, c_a) = (half_angle.sin(), half_angle.cos());
-    c_a * s_a * v_max * (1.0 - (du * 0.5).cos())
-}
-
-/// PROBE (measurement): the exact deviation of the flat triangle.
-pub fn cert_cone_exact(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
     if uv.iter().flatten().any(|x| x.is_nan()) {
         return f64::NAN;
     }
-    let off: Vec<[f64; 2]> = (0..3).filter(|&i| !pole[i]).map(|i| uv[i]).collect();
-    if off.iter().any(|p| p[1] > 0.0) && off.iter().any(|p| p[1] < 0.0) {
+    let off = |i: usize| !pole[i];
+    if (0..3).any(|i| off(i) && uv[i][1] > 0.0) && (0..3).any(|i| off(i) && uv[i][1] < 0.0) {
         return f64::INFINITY;
     }
-    let k = half_angle.sin() * half_angle.cos();
-    let chord = |a: [f64; 2], b: [f64; 2]| -> f64 {
-        let (va, vb) = (a[1].abs(), b[1].abs());
-        let half = 0.5 * (b[0] - a[0]);
-        let (s, c) = (half.sin(), half.cos().abs());
-        let den = va + vb + 2.0 * (va * vb).sqrt() * c;
-        if den > 0.0 { k * 2.0 * va * vb * s * s / den } else { 0.0 }
-    };
+    let (sin_a, cos_a) = (half_angle.sin(), half_angle.cos());
+    // Slants off the apex; an apex corner's is zero.
+    let v = [0, 1, 2].map(|i| if off(i) { uv[i][1].abs() } else { 0.0 });
     let mut bound: f64 = 0.0;
-    for i in 0..off.len() {
-        for j in (i + 1)..off.len() {
-            bound = bound.max(chord(off[i], off[j]));
-        }
+    for (i, j) in [(0, 1), (1, 2), (2, 0)] {
+        bound = bound.max(cone_chord_sag(
+            sin_a * cos_a,
+            v[i],
+            v[j],
+            uv[j][0] - uv[i][0],
+        ));
     }
-    if off.len() == 3 {
-        let sn = [
-            (off[2][0] - off[1][0]).sin(),
-            (off[0][0] - off[2][0]).sin(),
-            (off[1][0] - off[0][0]).sin(),
+    if pole == [false; 3] {
+        let s = [
+            (uv[2][0] - uv[1][0]).sin(),
+            (uv[0][0] - uv[2][0]).sin(),
+            (uv[1][0] - uv[0][0]).sin(),
         ];
-        let v = [off[0][1].abs(), off[1][1].abs(), off[2][1].abs()];
-        if sn.iter().all(|&x| x >= 0.0) || sn.iter().all(|&x| x <= 0.0) {
-            let num = v[0] * v[1] * v[2] * (sn[0] + sn[1] + sn[2]).abs();
-            let den = (v[1] * v[2] * sn[0] + v[2] * v[0] * sn[1] + v[0] * v[1] * sn[2]).abs();
-            if den > 0.0 {
-                bound = bound.max(k * num / den);
+        if s.iter().all(|&x| x >= 0.0) || s.iter().all(|&x| x <= 0.0) {
+            let weights = (v[1] * v[2] * s[0] + v[2] * v[0] * s[1] + v[0] * v[1] * s[2]).abs();
+            if weights > 0.0 {
+                let over_axis = v[0] * v[1] * v[2] * (s[0] + s[1] + s[2]).abs() / weights;
+                bound = bound.max(sin_a * cos_a * over_axis);
             }
         }
     }
     bound
+}
+
+/// **The largest sag of a chord of the cone** between slants `va`, `vb ≥
+/// 0` at azimuth difference `du` ([`cert_cone`], step 3), with
+/// `k = sin α·cos α`:
+/// `k · 2·va·vb·sin²(du/2) / (va + vb + 2√(va·vb)·|cos(du/2)|)`.
+/// At one slant it is `k·v·(1 − cos(du/2))`, the rim chord's sagitta
+/// `sizing::cone_grid_step` solves; from a small slant to a large one it
+/// tends to `k·2·v_small·sin²(du/2)`. Zero at the apex.
+pub(crate) fn cone_chord_sag(k: f64, va: f64, vb: f64, du: f64) -> f64 {
+    let (sin, cos) = (0.5 * du).sin_cos();
+    let span = va + vb + 2.0 * (va * vb).sqrt() * cos.abs();
+    if span > 0.0 {
+        k * 2.0 * va * vb * sin * sin / span
+    } else {
+        0.0
+    }
 }
 
 /// Torus certificate: `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` over the
@@ -405,10 +452,14 @@ pub(crate) fn uv_scale(bound: f64, uv: [[f64; 2]; 3]) -> f64 {
     bound * scale
 }
 
-/// The magnitude [`cert_cone`] rounds at: `cos α·sin α·v_maxᵀ`, the
-/// factor `1 − cos(Δu/2)` multiplies, which cancels at 1, times
-/// `1 + π` for the azimuth extent's own rounding (at most `π·ε` of that
-/// factor over a span `Δu ≤ π`).
+/// The magnitude a cone triangle's verdict rounds at: `cos α·sin α·
+/// v_maxᵀ`, times `1 + π`. [`cert_cone`]'s own arithmetic is relative to
+/// its bound; what rounds at this magnitude is the triangle it is handed.
+/// A lattice step is solved from `1 − cos(Δu/2)`, which cancels at 1
+/// (`sizing::cone_grid_step`), so the worst triangle's true sag sits
+/// within an ulp or two of `cos α·sin α·v_max` of δ, either side; and
+/// each azimuth is exact to an ulp of itself, at most `π·ε` of that
+/// factor over a span `Δu ≤ π`.
 pub(crate) fn cone_scale(half_angle: f64, uv: [[f64; 2]; 3]) -> f64 {
     let v_max = uv.iter().fold(0.0_f64, |m, p| m.max(p[1].abs()));
     half_angle.cos() * half_angle.sin() * v_max * (1.0 + core::f64::consts::PI)

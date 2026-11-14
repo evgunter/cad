@@ -29,9 +29,10 @@
 //! [`cert`]): plane — exact 0; cylinder — `r − dist(axis, T)` (radial
 //! convexity, exact); sphere — `r − dist(center, T)` (the triangle
 //! plane cuts the sphere in its circumcircle, exact); cone —
-//! `cos α · ρ_maxᵀ · (1 − cos(Δu/2))` (perpendicular distance to the
-//! generator ray at each point's azimuth; triangle-local max radius, so
-//! apex fans certify tightly); torus — `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`
+//! the flat triangle's own deviation, the largest sag of its three
+//! chords or its height over the axis (perpendicular distance to the
+//! generator ray at each point's azimuth, which peaks on an edge or on
+//! the axis); torus — `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`
 //! over the triangle's UV extents (linear interpolation against the
 //! closed-form second-partial sups `A = R + r·max cos φ`,
 //! `B = r·max |sin φ|`, `C = r` over the triangle's own φ range — the

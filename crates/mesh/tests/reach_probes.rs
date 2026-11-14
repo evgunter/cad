@@ -864,30 +864,25 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     );
 }
 
-/// **A cone face ending near its apex refuses at fine δ: this row pins
-/// a gap** (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
-/// The funnel of [`a_cone_face_through_its_apex_meshes_on_the_cone_row`]
-/// cut by the same tilted plane through `(0, h, 0)`: the half above the
-/// cut has a section ellipse within `h` of the apex. Measured: for
-/// `h ≤ 10⁻²` that half refuses `CertificateExceeded` at δ `10⁻³` and
-/// finer, and for `h ≤ 10⁻³` at `5·10⁻³` too (bound `1.03δ` to `8δ`);
-/// it meshes coarser, the half below the cut meshes at every δ, and a
-/// cut at `h = 0.02` meshes both halves at every δ. The lane triangulates
-/// the face in its development and certifies each triangle in the chart
-/// (`cert::cert_cone`), whose `Δu` reads the angle between points near
-/// the apex at its full width. With that certificate zeroed, all but two
-/// refusals measure within δ in truth, and those two are over: the
-/// certificate is conservative for most, and the face needs more points
-/// for some. The unit that cures it turns this row's refusals into
-/// meshes. On main the face refuses at every δ, `UnsupportedCurve`: no
-/// trimmed cone arm.
+/// **A cone face ending near its apex meshes at every δ.** The funnel of
+/// [`a_cone_face_through_its_apex_meshes_on_the_cone_row`] cut by the same
+/// tilted plane through `(0, h, 0)`: the half above the cut has a section
+/// ellipse within `h` of the apex, down to `h = 10⁻⁶`. Both halves mesh at
+/// every δ from `2·10⁻²` to `5·10⁻⁵`, and the mesh is the body's
+/// ([`geometry`]: within δ in truth, sampled).
+///
+/// Two things hold it. The cone's certificate is the flat triangle's own
+/// deviation (`mesh`'s `cert::cert_cone`), so a triangle joining the
+/// section's small end to a lattice row far round the axis is charged
+/// what it sags, at its small radius; and the arm's rows are graded to
+/// their own radius (`chart_table`'s `lattice_rows`), so the row next to
+/// the small end stands a certified chord from it. Under rows uniform in
+/// `v`, `h = 3·10⁻³` and `10⁻³` at `δ = 5·10⁻⁵` are truly past δ
+/// (`1.63δ`, `1.23δ`) and refuse.
 #[test]
-fn a_cone_face_ending_near_its_apex_refuses_at_fine_delta() {
+fn a_cone_face_ending_near_its_apex_meshes_at_every_delta() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [2e-2, 5e-3, 1e-3, 2e-4, 5e-5];
-    let refuses = |h: f64, above: bool, delta: f64| {
-        above && h <= 1e-2 && (delta <= 1e-3 || (delta <= 5e-3 && h <= 1e-3))
-    };
     for h in [0.02, 1e-2, 3e-3, 1e-3, 1e-4, 1e-6] {
         let body = finished(
             "the funnel",
@@ -900,23 +895,7 @@ fn a_cone_face_ending_near_its_apex_refuses_at_fine_delta() {
         for (side, part) in [("above", &split.above), ("below", &split.below)] {
             let what = format!("the funnel cut at h = {h:e}, {side}");
             let half = part.body().unwrap_or_else(|| panic!("{what}: a body"));
-            for delta in deltas {
-                if refuses(h, side == "above", delta) {
-                    match mesh::tessellate(half, delta, tol()) {
-                        Err(mesh::TessellateError::CertificateExceeded {
-                            bound,
-                            requested,
-                            ..
-                        }) if bound > requested => {}
-                        other => panic!(
-                            "{what}, δ = {delta:e}: refuses CertificateExceeded today, got {:?}",
-                            other.map(|m| m.patches.len())
-                        ),
-                    }
-                } else {
-                    assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}");
-                }
-            }
+            assert_at_every(&what, half, &deltas, &Got::Meshed);
         }
     }
 }
@@ -1481,42 +1460,6 @@ fn a_one_column_band_with_raised_rows_adds_no_lattice_point() {
                 "δ = {delta:e}: a wide wall of one column is {wide:?} triangles on no lattice \
                  point: width {width}, {triangles} triangles, {interior} lattice points"
             );
-        }
-    }
-}
-
-/// PROBE (measurement, asserts nothing): the near-apex table under the
-/// certificate `CONE_CERT` selects.
-/// `CONE_CERT=zero cargo nextest run -p mesh --run-ignored only -E 'test(near_apex_probe)' --no-capture`
-#[test]
-#[ignore = "a measurement, not a gate"]
-fn near_apex_probe() {
-    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
-    for h in [0.02, 1e-2, 3e-3, 1e-3, 1e-4, 1e-6] {
-        let body = finished(
-            "the funnel",
-            revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
-            tol(),
-        );
-        let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
-        let split = topo::splitting::split(&body, &plane, tol()).unwrap();
-        let half = split.above.body().unwrap();
-        for delta in [2e-2, 5e-3, 1e-3, 2e-4, 5e-5] {
-            eprintln!("CASE h {h:e} delta {delta:e}");
-            let r = match mesh::tessellate(half, delta, tol()) {
-                Ok(m) => {
-                    let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
-                    match geometry(half, &m, delta) {
-                        Ok(()) => format!("meshed {tris} tris, geometry ok"),
-                        Err(e) => format!("meshed {tris} tris, GEOMETRY: {e}"),
-                    }
-                }
-                Err(mesh::TessellateError::CertificateExceeded { bound, .. }) => {
-                    format!("CertificateExceeded {:.3}δ", bound / delta)
-                }
-                Err(e) => format!("{e:?}"),
-            };
-            eprintln!("RESULT h {h:e} delta {delta:e}: {r}");
         }
     }
 }
