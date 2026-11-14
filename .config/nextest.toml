@@ -65,6 +65,12 @@ failure-output = "immediate-final"
 #    0.45 s  mesh::all reach_probes::a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard
 #    0.35 s  mesh::all reach_probes::a_cone_face_bounded_by_a_section_ellipse_refuses_at_the_chart_roster
 #    0.33 s  mesh::all reach_probes::a_spiric_bounded_torus_wall_refuses_at_the_chart_roster
+# The lift measurements: the reach pins' bodies again, each loop's lift
+# sampled; the first is two booleans across a B-spline section (a local
+# run, 4 vCPUs):
+#   15.62 s  mesh::all lift_probes::the_spline_section_bodies_read_lifts_that_close
+#    2.87 s  mesh::all lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes
+#    1.73 s  mesh::all lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube
 default-filter = """
 not (
   (binary_id(sweep::all) & (test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |
@@ -302,7 +308,8 @@ not (
   (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_by_its_tools_seat_reads_the_tool_as_material) | test(=a_vertex_through_a_declared_seat::a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn) | test(=a_vertex_through_a_declared_seat::a_block_inside_the_seats_material_is_cut_away) | test(=a_vertex_through_a_declared_seat::a_tool_of_three_stacked_solids_is_one_material) | test(=a_vertex_through_a_declared_seat::a_piece_touching_the_seats_plate_at_a_line_or_point_rides_its_record) | test(=a_vertex_through_a_declared_seat::a_seat_whose_outlines_cross_builds) | test(=a_vertex_through_a_declared_seat::a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry))) |
   (binary_id(geom-brep) & (test(=pcurve_cache::closed_image_rows::a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart) | test(=pcurve_cache::closed_image_rows::no_closed_form_is_certified_past_its_miss) | test(=pcurve_cache::closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it) | test(=pcurve_cache::closed_image_rows::an_enclosing_patch_holds_its_chart) | test(=pcurve_cache::closed_image_rows::a_closed_form_on_its_carrier_certifies_in_every_spelling))) |
   (binary_id(mesh::all) & (test(=reach_probes::a_one_column_band_with_raised_rows_adds_no_lattice_point) | test(=reach_probes::a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors) | test(=reach_probes::a_one_column_wall_meshes_on_its_boundary_chords_alone) | test(=reach_probes::a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta) | test(=reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass) | test(=reach_probes::a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard) | test(=reach_probes::a_cone_face_bounded_by_a_section_ellipse_refuses_at_the_chart_roster) | test(=reach_probes::a_spiric_bounded_torus_wall_refuses_at_the_chart_roster))) |
-  (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse))
+  (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse)) |
+  (binary_id(mesh::all) & (test(=lift_probes::the_spline_section_bodies_read_lifts_that_close) | test(=lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes) | test(=lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube)))
 )
 """
 
