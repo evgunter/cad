@@ -259,7 +259,7 @@ pub(crate) struct Boundary {
     pub(crate) edges: Vec<Rim>,
     pub(crate) vertices: BTreeMap<VertexKey, Point3<Interval>>,
     /// **The hull of the face's outer loop on each chart axis**, `[u, v]`:
-    /// its lift ([`crate::pcurves::loop_lift`]) is one continuous chain,
+    /// its lift ([`crate::pcurves::Lift::read`]) is one continuous chain,
     /// so on a periodic axis the hull is on ONE sheet, not wrapped. A
     /// row that is a coordinate line whose moving coordinate is monotone
     /// gives its ends, which bound it; a harmonic or spiric wall row its enclosure over
@@ -1995,7 +1995,7 @@ fn zero_of(
 /// injectivity by kind is [`by_kind`]'s, decided for the face's own
 /// pairs. Its premise — the face's domain covers its carrier at most
 /// once — is the face validation's, and is not yet checked
-/// (`work/clear/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
+/// (`work/embed/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
 fn partial_zero(
     surface: &Surface<Interval>,
     b: &Boundary,
@@ -2569,8 +2569,12 @@ fn curved_walls<'a>(
             Some(w) => present_wall(piece, *e, w, None, near_edges, near_vertices, band),
             None => present_curved(piece, *e, None, near_edges, near_vertices, band),
         },
-        _ => corner_of(b, walls, near_edges)
+        _ => corner_of(b, walls, near_edges, &piece.local.vertices)
             .and_then(|c| present_corner(piece, c, near_edges, near_vertices, band))
+            .or_else(|| {
+                vertex_corner(piece, walls, near_edges, near_vertices)
+                    .map(|(v, l, o, h)| present_plane_vertex(piece, v, l, o, h, band))
+            })
             .unwrap_or_else(|| Err(beside_curve(piece, walls, first, near_edges, near_vertices))),
     })
 }
@@ -2607,7 +2611,8 @@ fn beside_curve(
             .collect();
         on_shared(v)
             && curved.iter().any(|&c| at_v.contains(&c) && at_v.len() > 1)
-            && corner_of(b, &at_v, near_edges).is_none_or(|c| reading(piece, c).is_none())
+            && corner_of(b, &at_v, near_edges, &[*v]).is_none_or(|c| reading(piece, c).is_none())
+            && vertex_corner(piece, &at_v, near_edges, near_vertices).is_none()
     });
     if unread_corner {
         return Unpresented::Structural;
@@ -3225,14 +3230,22 @@ struct Through {
     span: (f64, f64),
 }
 
-/// **The corner a cell's two walls make**: two open edges with exactly
-/// one end in common, one of them on the shared cell. `None` for
-/// anything else — two edges meeting at both ends among them. Neither
-/// restriction is needed for soundness: a lens's other end in reach is a
-/// vertex its reading refuses, and a shared `other` would only be left
-/// off the zero, which costs a certificate, never a wrong one. They keep
-/// such cells to the readings they had.
-fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corner> {
+/// **The corner a cell's two walls make**: two open edges with one end
+/// in common, one of them on the shared cell. Two edges meeting at both
+/// ends, a lens, make a corner at the one of its ends among `at` (the
+/// cell's local vertices), where exactly one is; `None` for anything
+/// else. A lens is read at one end like any corner: its other end lies
+/// outside `R`, which the curve reading's run passes on both column
+/// ends of, and which the line readings admit no other vertex into.
+/// Keeping a shared `other` off is not needed for soundness — it would
+/// only be left off the zero, which costs a certificate, never a wrong
+/// one — and keeps such cells to the readings they had.
+fn corner_of(
+    b: &Boundary,
+    walls: &[usize],
+    near_edges: &[usize],
+    at: &[VertexKey],
+) -> Option<Corner> {
     let &[e, f] = walls else {
         return None;
     };
@@ -3246,8 +3259,14 @@ fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corn
         .copied()
         .filter(|v| rf.ends.contains(v))
         .collect();
-    let &[vertex] = common.as_slice() else {
-        return None;
+    let vertex = match *common.as_slice() {
+        [v] => v,
+        [v, w] => match (at.contains(&v), at.contains(&w)) {
+            (true, false) => v,
+            (false, true) => w,
+            _ => return None,
+        },
+        _ => return None,
     };
     match (near_edges.contains(&e), near_edges.contains(&f)) {
         (true, false) => Some(Corner {
@@ -3790,6 +3809,195 @@ fn present_plane_corner<'a>(
         x,
         y: (0.0, y.1),
         zero: Zero::Side(Side::YLo, Along::of(surface, b, &[c.read])),
+        corner: true,
+        cache: Cache::default(),
+    })))
+}
+
+/// **A plane's corner at a vertex the pair shares alone**, where a line
+/// edge meets a conic one: the line, the conic, and the conic's chart
+/// curve. `None` for any other corner: the vertex not shared alone, a
+/// wall on the shared cell, or edges of other kinds.
+fn vertex_corner(
+    piece: &Piece<'_>,
+    walls: &[usize],
+    near_edges: &[usize],
+    near_vertices: &[VertexKey],
+) -> Option<(VertexKey, usize, usize, Harmonic)> {
+    let b = piece.boundary;
+    let (&[e, f], &[v]) = (walls, near_vertices) else {
+        return None;
+    };
+    if piece.whole || !matches!(piece.surface, Surface::Plane { .. }) {
+        return None;
+    }
+    if near_edges.contains(&e) || near_edges.contains(&f) {
+        return None;
+    }
+    let (re, rf) = (b.edges.get(e)?, b.edges.get(f)?);
+    let ends = |r: &Rim| r.ends[0] != r.ends[1] && r.ends.contains(&v);
+    if !(ends(re) && ends(rf)) || re.ends.iter().filter(|w| rf.ends.contains(w)).count() != 1 {
+        return None;
+    }
+    let (line, other) = if is_curved(piece.surface, re) {
+        (f, e)
+    } else {
+        (e, f)
+    };
+    let (rl, ro) = (b.edges.get(line)?, b.edges.get(other)?);
+    if is_curved(piece.surface, rl) || !is_curved(piece.surface, ro) {
+        return None;
+    }
+    let [u] = ro.uses.as_slice() else {
+        return None;
+    };
+    Some((v, line, other, chart_curve(piece.surface, ro, u)?))
+}
+
+/// **Present a plane's cell at a corner of a line and a conic whose
+/// vertex `V` is the shared cell alone** ([`vertex_corner`]), as the
+/// quadrant of an affine chart about `V` with its corner the zero
+/// (`Zero::Point`, as [`present_plane`] reads a corner of two lines).
+///
+/// The chart's first axis `A` is the line's direction away from `V`, so
+/// the line is `y = 0`, `x ≥ 0`; its second `B` is chosen on the line's
+/// face side with the conic's tangent at `V` strictly between `A` and
+/// `B` (a choice, not a decision: everything below is decided for it).
+/// `R` is the cell's affine hull widened to hold `V`. Nothing in reach
+/// of it bounds the face but the two edges, `V` the only vertex
+/// ([`only`]); `B` lies on the line's face side; and the conic's chart
+/// curve leaves `V` into `y > 0` and `x > 0` and stays there within `R`
+/// ([`leaves_line`], once per axis).
+///
+/// **Why the face's part of the cell lies in the quadrant `Q`**
+/// (`x ≥ 0, y ≥ 0`): `R` off `Q` is connected, holds no point of the
+/// boundary (the line is on `Q`'s side `y = 0`, the conic in `Q`'s
+/// interior, nothing else in reach), and meets the outside of the face
+/// near `V`, whose face side is the sector from `A` to the conic's
+/// tangent through `y > 0`, inside `Q`. So it lies outside the face.
+/// The face's part of the cell is in `R ∩ Q`, and of `Q`'s two sides
+/// only their common corner `V` is on the shared cell. A conic leaving
+/// into the line's other side is a reflex corner, which this reads at no
+/// depth: `Structural`.
+fn present_plane_vertex<'a>(
+    piece: &Piece<'a>,
+    v: VertexKey,
+    line: usize,
+    other: usize,
+    h: Harmonic,
+    band: Band,
+) -> Result<Presentation<'a>, Unpresented> {
+    let b = piece.boundary;
+    let surface = piece.surface;
+    let &Surface::Plane { normal, u_ref, .. } = surface else {
+        return Err(Unpresented::Local);
+    };
+    let (Some(e), Some(o)) = (b.edges.get(line), b.edges.get(other)) else {
+        return Err(Unpresented::Local);
+    };
+    let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
+        return Err(Unpresented::Local);
+    };
+    let (a, [vc, _]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
+    let vc = [vc.x, vc.y];
+    // The face lies left of the line's traversal about the outward
+    // normal: its face side is the traversal turned a quarter, by sense.
+    let start = if ue.plus { e.ends[0] } else { e.ends[1] };
+    let s = if b.sense { 1.0 } else { -1.0 };
+    let tau = if start == v { a } else { a.map(|x| -x) };
+    let n = [-tau[1] * at(s), tau[0] * at(s)];
+    let (t0, t1) = (span.0.lo(), span.1.hi());
+    let from_start = o.ends[0] == v;
+    let t_v = if from_start { t0 } else { t1 };
+    let away = if from_start { 1.0 } else { -1.0 };
+    let unit2 = |w: [f64; 2]| {
+        let l = w[0].hypot(w[1]);
+        (l.is_finite() && l > 0.0).then(|| [w[0] / l, w[1] / l])
+    };
+    let d1 = unit2([mid(a[0]), mid(a[1])]).ok_or(Unpresented::Local)?;
+    let tv = at(t_v);
+    let d2 = unit2(core::array::from_fn(|i| {
+        away * mid(-h.pa[i] * tv.sin() + h.pb[i] * tv.cos() + h.pl[i])
+    }))
+    .ok_or(Unpresented::Local)?;
+    // `B` leans back off the conic's tangent by a quarter of `A`, so the
+    // tangent is `A/4 + B`, strictly inside the quadrant.
+    let len = mid((a[0].powi(2) + a[1].powi(2)).sqrt());
+    let bv = [
+        at((d2[0] - 0.25 * d1[0]) * len),
+        at((d2[1] - 0.25 * d1[1]) * len),
+    ];
+    let lean = (n[0] * bv[0] + n[1] * bv[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt();
+    match interval_sign_as(lean, SELF_INTERSECTION_CORNER, band) {
+        Some(Sign::Positive) => {}
+        Some(Sign::Negative) => return Err(Unpresented::Structural),
+        _ => return Err(Unpresented::Local),
+    }
+    let det = a[0] * bv[1] - a[1] * bv[0];
+    let lin = |w: [Interval; 2]| {
+        [
+            (w[0] * bv[1] - w[1] * bv[0]) / det,
+            (a[0] * w[1] - a[1] * w[0]) / det,
+        ]
+    };
+    let cell = lin([iv(piece.u) - vc[0], iv(piece.v) - vc[1]]);
+    if !(cell[0].is_certified() && cell[1].is_certified()) {
+        return Err(Unpresented::Local);
+    }
+    let x = (cell[0].lo().min(0.0), cell[0].hi().max(0.0));
+    let y = (cell[1].lo().min(0.0), cell[1].hi().max(0.0));
+    if !(x.1 > 0.0 && y.1 > 0.0) {
+        return Err(Unpresented::Local);
+    }
+    let affine = Map::Affine { o: vc, a, b: bv };
+    let reach = Presented {
+        surface,
+        map: affine,
+        x,
+        y,
+        zero: Zero::None,
+        corner: true,
+        cache: Cache::default(),
+    };
+    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+    let ball = Ball::holding(reach.image((m(x), m(x)), (m(y), m(y))), reach.whole());
+    if !only(piece, &Local::of(b, ball, band), &[line, other], &[v]) {
+        return Err(Unpresented::Local);
+    }
+    let zero = at(0.0);
+    let base = lin([h.p0[0] - vc[0], h.p0[1] - vc[1]]);
+    let curve = ChartCurve::Harmonic(Harmonic {
+        p0: base,
+        pa: lin(h.pa),
+        pb: lin(h.pb),
+        pl: [zero, zero],
+    });
+    let v_ref = normal.cross(u_ref);
+    let speed = |w: [Interval; 2]| (u_ref * w[0] + v_ref * w[1]).norm().hi();
+    let speeds = [speed(a), speed(bv)];
+    let leaves = |held: Axis| {
+        leaves_line(
+            surface,
+            &curve,
+            (t0, t1),
+            from_start,
+            (held, 1.0),
+            [zero, zero],
+            (x, y),
+            speeds,
+            band,
+        )
+    };
+    leaves(Axis::V)?;
+    // The conic's tangent at `V` is inside `Q` by `B`'s choice, so a
+    // decided fall in `x` there is no reflex corner: not read here.
+    leaves(Axis::U).map_err(|_| Unpresented::Local)?;
+    Ok(Presentation::Of(Box::new(Presented {
+        surface,
+        map: affine,
+        x: (0.0, x.1),
+        y: (0.0, y.1),
+        zero: Zero::Point(Side::XLo, Side::YLo, v),
         corner: true,
         cache: Cache::default(),
     })))
@@ -6665,6 +6873,124 @@ mod presentation_rows {
             on_floor_by_line(&tangent, (0.98, 1.02), (-0.02, 0.02)),
             Read::Local,
             "the tangent join at (1, 0)"
+        );
+    }
+
+    /// **A lens is read at its one end in the cell** ([`corner_of`]): the
+    /// upper half of the unit disc, its arc (edge 0, shared) from `(1, 0)`
+    /// round to `(−1, 0)` and the diameter back, meets the diameter at
+    /// both ends. A cell holding one end is presented through that
+    /// corner; a cell holding both is not, but a smaller one may be, so
+    /// it is `Local`. Red, `Structural` at both, if a lens has no corner.
+    #[test]
+    fn a_lens_is_read_through_its_one_end_in_the_cell() {
+        let mut b = quarter(segment(20, [2, 1], (-1.0, 0.0), (1.0, 0.0)), Vec::new());
+        if let Some(e) = b.edges.first_mut() {
+            e.arc = e
+                .arc
+                .take()
+                .map(|(c, (t0, _))| (c, (t0, iv0(core::f64::consts::PI))));
+        }
+        b.vertices
+            .insert(vertex(2), Point3::new(iv0(-1.0), iv0(0.0), iv0(0.0)));
+        assert!(
+            matches!(
+                on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+                Read::Of(..)
+            ),
+            "the lens's end at (1, 0) is presented"
+        );
+        assert_eq!(
+            on_floor(
+                &b,
+                vec![0, 1],
+                vec![vertex(1), vertex(2)],
+                (-1.1, 1.1),
+                (-0.1, 1.1)
+            ),
+            Read::Local,
+            "a cell holding both ends"
+        );
+    }
+
+    /// [`present_plane`] of a [`quarter`] in the cell `u × v`, its local
+    /// edges the arc and the line and its local vertex `(1, 0)`, that
+    /// vertex alone shared: the zero it reads, or why it reads none.
+    fn at_vertex_alone(b: &Boundary, u: (f64, f64), v: (f64, f64)) -> Result<Zero, Read> {
+        let s = floor();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        match present_plane(&piece, &[], &[vertex(1)], band()) {
+            Ok(Presentation::Of(q)) => Ok(q.zero),
+            other => Err(read(other)),
+        }
+    }
+
+    /// **A plane's corner of a line and an arc at a vertex the pair
+    /// shares alone is its quadrant** ([`present_plane_vertex`]): the
+    /// quarter disc's line from the origin meets its arc at `(1, 0)`, a
+    /// convex corner, so a cell holding the vertex, or stopping short of
+    /// it, is presented with the corner its zero. Where the line leaves
+    /// the vertex the other way the corner is reflex (`Structural`);
+    /// where it runs along the arc's tangent the corner is straight,
+    /// which no quadrant holds (`Local`). With the face outside the
+    /// circle the arc bends back across the quadrant's second side
+    /// within a large enough cell, which is not presented: red if the
+    /// conic's rise along the line is not read.
+    #[test]
+    fn a_planes_corner_at_a_vertex_alone_is_its_quadrant() {
+        let convex = quarter(segment(20, [3, 1], (0.0, 0.0), (1.0, 0.0)), Vec::new());
+        for (u, v, what) in [
+            ((0.98, 1.02), (-0.02, 0.02), "about the vertex"),
+            (
+                (0.97, 0.995),
+                (0.0, 0.02),
+                "short of it, on the face's side",
+            ),
+        ] {
+            let got = at_vertex_alone(&convex, u, v);
+            assert!(
+                matches!(got, Ok(Zero::Point(Side::XLo, Side::YLo, v)) if v == vertex(1)),
+                "{what}: the quadrant's corner is the zero: {got:?}"
+            );
+        }
+        let reflex = quarter(segment(20, [3, 1], (2.0, 0.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            at_vertex_alone(&reflex, (0.98, 1.02), (-0.02, 0.02)).err(),
+            Some(Read::Structural),
+            "the reflex corner at (1, 0)"
+        );
+        let tangent = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            at_vertex_alone(&tangent, (0.98, 1.02), (-0.02, 0.02)).err(),
+            Some(Read::Local),
+            "the straight join at (1, 0)"
+        );
+        let mut outside = reflex;
+        outside.sense = false;
+        assert!(
+            matches!(
+                at_vertex_alone(&outside, (0.98, 1.02), (-0.02, 0.02)),
+                Ok(Zero::Point(..))
+            ),
+            "outside the circle, about the vertex"
+        );
+        assert_eq!(
+            at_vertex_alone(&outside, (0.5, 1.05), (-0.05, 0.6)).err(),
+            Some(Read::Local),
+            "outside the circle, the arc bending back within the cell"
         );
     }
 

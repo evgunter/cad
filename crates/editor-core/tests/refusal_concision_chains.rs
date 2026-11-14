@@ -960,9 +960,8 @@ mod kernel {
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
-            ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
-            RunImageIncidence, RingIslandUnread,
+            SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
+            SingularTurn, RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings, SectionDepartureGrazes,
@@ -1881,7 +1880,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                source: named("bool_plane_parallel"),
+                source: named("plane_eq_parallel"),
             },
         ),
         row(
@@ -2623,8 +2622,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
-            ("ApexUnlifted", J::ApexUnlifted { face }),
-            ("PoleEdgesCoincide", J::PoleEdgesCoincide { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {
@@ -2649,6 +2646,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RunImageNotYet {
                     face,
                     kind: geom::SurfaceKind::Sphere,
+                },
+            ),
+            (
+                "SingularTurn",
+                J::SingularTurn {
+                    face,
+                    miss: topo::pcurves::SingularMiss::EdgesCoincide,
                 },
             ),
             (

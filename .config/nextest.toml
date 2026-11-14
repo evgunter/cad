@@ -34,10 +34,31 @@ failure-output = "immediate-final"
 # runner):
 #    0.69 s  sweep::all a_ring_on_a_cone_face::the_rings_volume_brackets_its_closed_form_at_the_certified_scalar
 #    0.64 s  sweep::all a_ring_on_a_cone_face::the_rings_volume_brackets_its_closed_form_through_point_maps
+# The chart-branch guard reads every crate's sources (this session's
+# container):
+#    0.73 s  topo pcurves::lift_agreement_rows::no_file_outside_the_mint_pins_a_chart_branch
+# The bracket of the mixed corner filleted all round: every edge of a
+# plate, a boss and a bore, with its volume enclosures (a local run):
+#    0.50 s  sweep::all band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form
+# and its names through the document, both verbs, each evaluated three
+# times (a local run):
+#    0.87 s  editor-core::all band_mixed_corner_names::the_brackets_mixed_corners_name_each_entity_once_and_keep_their_names
+# The mixed corner at 60° and 120°, flush and inset, both verbs; the
+# reach's three typed refusals, two on the bracket; a bore wholly behind
+# a pair edge's line, two builds and four refusals (a local run):
+#    0.65 s  sweep::all band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form
+#    0.65 s  sweep::all band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed
+#    0.52 s  sweep::all band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter
+# A bicubic-by-bicubic composition, as slow on main as on PR 6873's
+# branch (0.47 s and 0.49 s locally, each in its own target; 1.00 s on
+# the hosted runner):
+#    1.00 s  geom-core::all m5_pr7b_tensor_compose::a_bicubic_bicubic_composition_completes_within_the_budget
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 default-filter = """
 not (
+  (binary_id(sweep::all) & (test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |
+  (binary_id(editor-core::all) & test(=band_mixed_corner_names::the_brackets_mixed_corners_name_each_entity_once_and_keep_their_names)) |
   (binary_id(geom-brep) & (test(=pair_section::spline_implicit::carry_rows::a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres) | test(=pair_section::spline_implicit::carry_rows::a_loop_on_the_wall_carries_none_by_name) | test(=pair_section::spline_implicit::carry_rows::each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses) | test(=pair_section::spline_implicit::carry_rows::two_arcs_closer_than_their_pads_carry_neither_by_name) | test(=pair_section::spline_implicit::node_rows::an_arc_to_a_node_carries_none_by_name) | test(=pair_section::spline_implicit::rest_rows::a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it) | test(=pair_section::spline_implicit::rest_rows::the_stand_off_is_decided_on_the_runs_band) | test(=pair_section::spline_implicit::rest_rows::an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube))) |
   (binary_id(sweep::all) & (test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest) | test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs) | test(=m6_loft_body::cut_loft_refuses_typed_naming_the_missing_boolean_layer) | test(=band_subdivided_side_walls::lofted_continuation_walls_carry_one_key_per_segment) | test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_ball_across_two_close_arcs_of_a_lofted_wall_refuses_by_name) | test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall) | test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_fork_inside_a_lofted_walls_face_closes_two_rings_on_the_wall) | test(=a_partner_across_a_lofted_wall_is_joined_on_its_section_value::a_fork_inside_and_across_the_rim_of_a_lofted_wall_refuses_its_re_homing_by_name))) |
   (binary_id(topo) & (test(=ring_path::spline_wall_rows::a_spline_wall_path_crosses_an_island_by_the_oracle_parity) | test(=ring_path::spline_wall_rows::a_spline_wall_path_arriving_on_a_side_reads_its_starts_side) | test(=ring_path::spline_wall_rows::a_path_on_a_distorted_wall_crosses_a_slanted_island_by_the_even_odd_oracle) | test(=ring_path::spline_wall_rows::an_island_across_a_closed_walls_seam_is_read_but_not_from_just_below_the_seam) | test(=chord_join::spline_wall_ring_rows::a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal) | test(=chord_join::spline_wall_ring_rows::a_spline_wall_island_places_its_bystanders))) |
@@ -54,6 +75,7 @@ not (
   (binary_id(editor-core) & (test(=names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op_at_every_pose) | test(=names::emit_topo::wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet))) |
   (binary_id(topo) & test(=boolean::sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=live::tests::every_door_that_hands_out_a_live_looks_up_first)) |
+  (binary_id(topo) & test(=pcurves::lift_agreement_rows::no_file_outside_the_mint_pins_a_chart_branch)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::spline_incidence::rows::a_samples_floor_is_below_a_chart_points_distance) | test(=pcurve_cache::spline_incidence::rows::the_door_reads_a_circle_against_a_ring_wall_at_interval) | test(=pcurve_cache::spline_incidence::rows::the_f64_charge_holds_where_its_rounding_is_a_bands_size))) |
   (binary_id(geom-brep::all) & (test(=pcurve_general::a_knot_crossing_anywhere_certifies_at_f64) | test(=pcurve_general::a_knot_crossing_anywhere_certifies_at_interval))) |
   (binary_id(topo::all) & (test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_bending_rim_certifies_at_f64) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_bending_rim_certifies_at_interval) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_band_scale_pose_ends_in_its_incidence_lever_at_f64) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_band_scale_pose_ends_in_its_incidence_lever_at_interval) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stored_row_off_its_wall_keeps_its_term_at_f64) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stored_row_off_its_wall_keeps_its_term_at_interval) | test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_at_interval))) |
@@ -122,7 +144,7 @@ not (
   (binary_id(topo::all) & (test(=a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt) | test(=a_corner_reads_only_its_own_sectors::the_corners_offer_executes))) |
   (binary_id(topo::all) & test(=recourse_roster::every_decided_name_has_its_door_and_every_site_is_read)) |
   (binary_id(geom-brep::all) & test(=recourse_roster::every_decided_name_is_read_and_every_site_is_listed)) |
-  (binary_id(geom-core::all) & test(=recourse_roster::every_decided_name_is_read_and_every_site_is_listed)) |
+  (binary_id(geom-core::all) & (test(=recourse_roster::every_decided_name_is_read_and_every_site_is_listed) | test(=m5_pr7b_tensor_compose::a_bicubic_bicubic_composition_completes_within_the_budget))) |
   (binary_id(editor-core::all) & test(=recourse_roster::every_decided_name_is_read_and_every_site_is_listed)) |
   (binary_id(test-utils::all) & test(=predicate_name_coverage::every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided)) |
   (binary_id(topo::all) & (test(=a_corrupted_row_is_never_read_as_its_carrier_off_the_face::a_corrupted_row_is_never_read_as_its_carrier_off_the_face) | test(=a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_fall_in_a_plate_builds_or_refuses_typed) | test(=a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_stand_out_of_a_plate_builds_or_refuses_typed))) |

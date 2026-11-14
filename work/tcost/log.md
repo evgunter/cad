@@ -2737,3 +2737,14 @@ group and took this program's green-main or gate-latency rows by
 `git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
 here was re-banded where it was test-side rather than production
 architecture; the row's own `## Re-banded` section says why.
+
+## 2026-11-14 — tracker review: this slate is cut back to cost
+
+Ev asked for a review of what other programs had filed here before any dispatch. Of 24 live rows:
+
+- **Moved to GREEN** (main reds, ids unchanged, re-banded P1): the far-off-origin union, the round keel at 1e-6, the filleted die, `revalue_boss_union`.
+- **Moved to HELPER** (one helper spelled several times, P4): `panic-hook-copies-swap-the-process-hook-around-each-capture`, `sweep-suites-re-spell-the-nurbs-walls-predicate`.
+- **Closed**: the probe-station row (a duplicate of ONEHOME's gather row; its four doubled counts are green) and the sphere-witness row (already in the slow set).
+- **Re-banded or re-priced**: the nine-censuses row P1 → P3 (test-side, a silent miss); the EFFORT-policy unit P4 → P3 and M, since it is the structural fix for both gated-marker rows and changes what CI runs; χ-not-genus P3 → P4; the three legacy `cost: D` rows re-priced; the two kernel levers E → M; the tilted-rod row C → M; `proptest-modules-in-src-ungated` parked on the EFFORT unit; the sphere-recut arm banded P4.
+- **Why the rows landed here.** `paths` holds `crates/*/tests/*`, so `work.py territory` names this program for any test file, and the filing rule sends a finding to the program whose ground it lands on. `program.md` now leads with the test that decides (the row's subject is what the suite costs) and where the other kinds go.
+- No P0 or P1 row is left, so no sitting is open here; the track stays `ready`. The row that matters most is the tilted rod's: on hosted runners it is 1953 s at 1e-12, in a job that ran 92 and 118 minutes against a 120-minute cap (nightlies 11-13 and 11-12). The cap itself is on GREEN's slate.

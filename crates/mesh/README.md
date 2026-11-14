@@ -48,8 +48,7 @@ worst triangle, and takes the coarsest step that bound allows.
 These are not sizing, and each says which kind it is where it is
 defined:
 - **structural:** `MAX_ANGULAR_STEP` keeps angle unwrapping unambiguous;
-  `MAX_COUNT` caps allocation; `trimmed::MAX_POLE_JUNCTIONS` bounds
-  the search for where a trimmed sphere loop's runs between poles lie.
+  `MAX_COUNT` caps allocation.
 - **quality:** `ASPECT_CAP` (A = 16, `docs/TESS-BUDGET.md`) is a
   heuristic that keeps the NURBS split from choosing a long thin strip.
   It is not a promise about triangle shape, and it can be replaced by

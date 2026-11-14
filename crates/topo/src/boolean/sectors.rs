@@ -75,8 +75,7 @@ use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
-use geom_brep::{EntersMaterial, OutwardNormal};
-use geom_core::NonzeroSign;
+use geom_brep::{EntersMaterial, OutwardNormal, PlaneDesc};
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -224,7 +223,7 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> Lever<T> {
-        self.start_reach.lever().max(self.end_reach.lever())
+        crate::star::span(self.start_reach, self.end_reach)
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// A sector at a cone's apex is read through its own arms
@@ -941,8 +940,8 @@ pub(super) fn tangent_lump<T: Decide>(
                 Margin::levered(sector_outward.vec().dot(n_ref), arm),
                 band,
             ) {
-                Ok(Sign::Positive) => super::plane_eq::PlaneRelation::SameOriented,
-                Ok(Sign::Negative) => super::plane_eq::PlaneRelation::SameOpposite,
+                Ok(Sign::Positive) => geom_brep::CarrierRelation::SameOriented,
+                Ok(Sign::Negative) => geom_brep::CarrierRelation::SameOpposite,
                 Ok(Sign::Zero) => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a tangent sector pair's outward normals are perpendicular",
@@ -1164,71 +1163,24 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
     reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
 }
 
-/// A unit direction with its **lean**: `|n_a × n_b| = sin φ` for two
-/// faces' line (a germ the faces' normals cross into), `1` for an edge,
-/// a bound, a tangent locus or any direction read off one carrier.
-/// Every reading of it against another direction levers by the lean
-/// ([`leaned_lever`]); read against a sector's bounds ([`rays_within`])
-/// the same lean scales the direction itself, its [`Leaned::line`].
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Leaned<T: geom_core::Real> {
-    /// The unit direction.
-    pub dir: Vec3<T>,
-    /// Its lean, in `(0, 1]`.
-    pub lean: T,
-}
+pub(super) use crate::star::Leaned;
 
-impl<T: geom_core::Real> Leaned<T> {
-    /// A direction read off one carrier: lean 1.
-    pub(super) fn upright(dir: Vec3<T>) -> Self {
-        Self {
-            dir,
-            lean: T::from_f64(1.0),
+pub(super) use crate::star::leaned_lever;
+
+/// The star's order refusals ([`crate::star::OrderFault`]) as the
+/// Boolean's: germs coincident to the tolerance are the sectors'
+/// coincidence; a sense in band, the direction sense's escalation.
+pub(super) fn order_fault(fault: crate::star::OrderFault) -> BooleanError {
+    use crate::star::OrderFault;
+    match fault {
+        OrderFault::Coincident(diag) => {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
         }
+        OrderFault::Sense(diag) => BooleanError::Escalated {
+            decision: BooleanDecision::DirectionSense,
+            diag,
+        },
     }
-
-    /// Two faces' line from its un-normalized cross `m = n_a × n_b`.
-    pub(super) fn of_line(m: Vec3<T>) -> Self {
-        Self {
-            dir: m.normalize(),
-            lean: m.norm(),
-        }
-    }
-
-    /// The direction scaled by its lean: two faces' line un-normalized.
-    pub(super) fn line(self) -> Vec3<T> {
-        self.dir * self.lean
-    }
-
-    /// The opposite ray, its lean unchanged.
-    pub(super) fn reversed(self) -> Self {
-        Self {
-            dir: -self.dir,
-            lean: self.lean,
-        }
-    }
-}
-
-/// **The lever a reading of two directions' sides carries, given their
-/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
-///
-/// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
-/// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
-/// turns their line in the reading's plane by up to `δ / sin φ`. A side
-/// read at `lever` therefore carries noise up to
-/// `lever · (δ₀ / s₀ + δ₁ / s₁)`, `sᵢ` each direction's lean (an edge's
-/// `δ` its own departure, its lean 1). Levered at `lever · min(s₀, s₁)`
-/// that noise is at most `lever · (δ₀ + δ₁)`: the two directions' own
-/// tolerances, whatever the faces' angle. One direction tilted within
-/// the zero therefore decides as the upright pose; two tilted the same
-/// way can add past it, as they do between two edges. Against an edge
-/// lying in the reading's plane, the reading is the edge's far end's
-/// offset from the face line's other face; an edge off that plane adds
-/// its own departure, foreshortened by `cos φ` ([`rays_within`]).
-pub(super) fn leaned_lever<T: geom_core::Real>(lever: Lever<T>, (l0, l1): (T, T)) -> Lever<T> {
-    // Unsourced lever: an arm scaled by a sine (the directions' lean),
-    // a length no source reads.
-    Lever::unsourced(lever.length() * l0.min(l1))
 }
 
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
@@ -1780,7 +1732,7 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+    let Some(PlaneDesc { origin, normal }) = crate::face_normal::face_plane(body, face) else {
         return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of(geom::plane_offset(origin, normal, p));
@@ -1803,7 +1755,7 @@ fn in_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
     match crate::face_normal::face_plane(body, face) {
-        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        Some(plane) => trim_read(body, face, plane.normal, p, band).map(Some),
         None => Ok(None),
     }
 }
@@ -2093,24 +2045,19 @@ pub(super) fn parallel_same_as<T: Decide>(
 }
 
 /// Whether two directions read parallel point the same way (`true`)
-/// or opposite ways, their cosine levered at `arm`
-/// ([`BooleanDecision::DirectionSense`]). A decided zero refuses with
-/// its decided margin, as the in-band arm does: both say the arm is
-/// too short to tell.
+/// or opposite ways: the star's one sense reading
+/// ([`crate::star::same_sense`], `germ_sense`), its zero or band refused
+/// as [`BooleanDecision::DirectionSense`].
 pub(super) fn direction_sense<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: Lever<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    Ok(
-        crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band)
-            .map_err(|diag| BooleanError::Escalated {
-                decision: BooleanDecision::DirectionSense,
-                diag,
-            })?
-            == NonzeroSign::Positive,
-    )
+    crate::star::same_sense(u, v, arm, band).map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::DirectionSense,
+        diag,
+    })
 }
 
 /// **Whether two coplanar sectors, one of each operand, overlap**: at
@@ -2497,7 +2444,7 @@ pub(super) fn pair_search<T: Decide>(
     (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
-    glued: impl Fn(FaceKey, FaceKey) -> Option<super::PlaneRelation>,
+    glued: impl Fn(FaceKey, FaceKey) -> Option<geom_brep::CarrierRelation>,
     band: Band,
 ) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
@@ -2803,7 +2750,7 @@ mod tests {
             ([&body, &body], [vertex, vertex]),
             [a, b],
             &contacts,
-            |_, _| Some(super::super::PlaneRelation::SameOpposite),
+            |_, _| Some(geom_brep::CarrierRelation::SameOpposite),
             band,
         )
     }
@@ -3135,7 +3082,7 @@ mod tests {
                 panic!("{arm:e}: an escalation: {err:?}");
             };
             assert_eq!(*decision, BooleanDecision::DirectionSense, "{arm:e}");
-            assert_eq!(diag.predicate, Some("bool_dir_same"), "{arm:e}");
+            assert_eq!(diag.predicate, Some("germ_sense"), "{arm:e}");
             assert_eq!(
                 diag.margin.diagnostic_f64_for_error_text().value(),
                 Some(arm),
@@ -3196,7 +3143,7 @@ mod tests {
                     .map(|v| (v.predicate, v.sign))
                     .collect::<Vec<_>>(),
                 if decided {
-                    vec![("bool_dir_same", Sign::Zero)]
+                    vec![("germ_sense", Sign::Zero)]
                 } else {
                     vec![]
                 },
@@ -4560,12 +4507,12 @@ mod tests {
         let aligned = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOriented,
+            geom_brep::CarrierRelation::SameOriented,
         );
         let opposed = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOpposite,
+            geom_brep::CarrierRelation::SameOpposite,
         );
         assert_ne!(
             aligned, opposed,

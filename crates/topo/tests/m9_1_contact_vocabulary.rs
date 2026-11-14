@@ -2,7 +2,7 @@
 //! C3/C4): the records replay bit-identically.
 //!
 //! The per-class verification tables and their ε rows live beside the
-//! ladders they exercise (`boolean::carrier_eq`,
+//! ladders they exercise (`geom_brep::carrier_eq`,
 //! `boolean::contact_verify`); this file pins the behaviour a CALLER
 //! can see.
 

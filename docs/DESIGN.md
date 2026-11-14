@@ -274,6 +274,7 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
+| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it | [edges] |
 | Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
@@ -404,6 +405,15 @@ curve pairs.
   the certificate is derived and carried at `T` (`SsiCertificate<T>`,
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
+- **What a lane scalar takes from `f64` is a choice, never a claim,
+  and the same across the box.** A choice is a discrete selection
+  (a structure, a branch, an order), checked at the lane scalar to
+  stay the same over the box, or a continuous value that depends on
+  none of the document's variables. A claim (a frame, which asserts
+  that it is a rotation; a certificate; a verdict) is built at the
+  lane scalar, from its own inputs and those choices. A continuous
+  value that varies over the box is no choice: chosen at the nominal
+  values, it is wrong everywhere else, so the lane builds it.
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -816,7 +826,7 @@ tiers".
      reader in the chart's own coordinates (measurement in a lifted
      coordinate, a loop's windings, the mesher's domain) reads the
      loops as stored, seams and wrap edges as the chart's cuts and a
-     wrap edge's tip through the lift's reset at its singular
+     wrap edge's tip through the lift's whole turn at its singular
      vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
      surface boundary, keeping each wrap tip's singular vertex as the
      datum of the face's side; an empty one on a closed surface is

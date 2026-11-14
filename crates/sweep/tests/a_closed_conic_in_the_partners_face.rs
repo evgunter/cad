@@ -400,8 +400,10 @@ fn the_fallback_cuts_a_closed_rim_beside_a_ring() {
         let root = |f| n.face_fragments_b.root(f);
         // The rows by the plane of the B face they name: the top at z 0,
         // the lid's bottom at z 1.
-        let level = |f: topo::FaceKey| match topo::face_carrier(&other, root(f)) {
-            Some(topo::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
+        let level = |f: topo::FaceKey| match topo::face_normal::face_carrier_desc(&other, root(f)) {
+            Some(geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc { origin, .. })) => {
+                (origin.z * 2.0).round() as i8
+            }
             c => panic!("{label}: a plane face, {c:?}"),
         };
         let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();
@@ -1913,7 +1915,7 @@ fn coaxial_equal_cylinders_build_every_op() {
 /// meridians, and turned besides. The ball keeps of the tube the cap
 /// above the rim's plane. Read without a mesh: a sphere face bounded by
 /// a circle off its chart's latitudes has no tessellation lane
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+/// (`work/tesslane/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
 #[test]
 fn a_rim_inside_a_ball_face() {
     let z0 = 1.0f64;

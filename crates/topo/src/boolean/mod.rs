@@ -22,7 +22,7 @@
 //!    each operand is a finished body, so no gate re-reads its tier 2;
 //!    **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
-//!    bit-equal oriented planes ([`plane_eq`]) refuse as
+//!    bit-equal oriented planes ([`geom_brep::plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
 //!    triggers the precondition (it is not coincidence; if it bites, it
 //!    bites later as a typed escalation — the ladder's honest shape).
@@ -74,7 +74,8 @@
 
 mod arcs;
 mod carrier_cross;
-pub mod carrier_eq;
+#[cfg(test)]
+mod carrier_ladder_rows;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
@@ -172,7 +173,6 @@ pub(crate) use ops::{
 mod material;
 #[cfg(test)]
 mod node_probe_rows;
-pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
 pub(crate) mod recl;
@@ -180,8 +180,8 @@ pub(crate) mod records;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub use refusal_routes::{
-    BooleanDecision, Coincide, CrossingDecision, DeclarationRead, LeverArm, PlaneRung,
-    SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention, WallRung,
+    BooleanDecision, Coincide, CrossingDecision, DeclarationRead, LeverArm, SectionRadius,
+    SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention, WallRung,
 };
 pub(crate) mod region;
 mod rim_wedge;
@@ -225,11 +225,8 @@ use crate::merge_faces::MergeCoplanarError;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
+use geom_brep::{CarrierDesc, CarrierRelation, CoincidenceMeasure, ConsumedExtent, PlaneRung};
 
-pub use carrier_eq::{
-    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
-    ConsumedExtent, carrier_eq,
-};
 pub use contain::{
     ArcEndGaps, CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
     curved_face_containment, placement_ending, placement_lever, placement_subject,
@@ -267,7 +264,6 @@ pub use ops::{
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use overlap::{OverlapRefusal, OverlapUnread, overlap};
-pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::{Parting, incident};
 #[cfg(feature = "sweep-testing")]
@@ -283,8 +279,7 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, face_carrier,
-    flush_pair_relation,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -387,9 +382,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | crate::census::LINE_WEDGE_BEFORE_ARRIVING
         | crate::census::LINE_WEDGE_TURN
         | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
-        "bool_plane_parallel" => PlaneRung::Parallel.subject(),
-        "bool_plane_orient" => PlaneRung::Orientation.subject(),
-        carrier_eq::CARRIER_CYL_AXIS_PARALLEL => refusal_routes::CYLINDER_AXES_PARALLEL,
+        "plane_eq_parallel" => PlaneRung::Parallel.subject(),
+        "plane_eq_orient" => PlaneRung::Orientation.subject(),
+        geom_brep::carrier_eq::CARRIER_CYL_AXIS_PARALLEL => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
@@ -1232,7 +1227,7 @@ impl<T: Real> GivenDecision<T> {
 pub(crate) struct Glue<T: Real> {
     /// Cross-operand glued face pairs, each with its class:
     /// classification treats a `Rest` or continuation pair's carriers as
-    /// the same carrier ([`mod@carrier_eq`] rung 2), and the result's
+    /// the same carrier ([`mod@geom_brep::carrier_eq`] rung 2), and the result's
     /// merge stage glues the pair's surviving coplanar-adjacent
     /// material (N3 `Merged`).
     pub(crate) pairs: Vec<GluedPair<T>>,
@@ -1470,7 +1465,7 @@ impl<T: Real> GluedPair<T> {
         }
         let read = carrier_pair::carrier_pair_decided(a, fa, b, fb, band);
         match read {
-            Ok(Ok(CarrierVerdict::One { relation, margin }))
+            Ok(Ok(geom_brep::CarrierVerdict::One { relation, margin }))
                 if Some(relation) == class.carrier_relation() =>
             {
                 let decided = [[fa].into(), [fb].into()];
@@ -1648,7 +1643,7 @@ pub(crate) fn readable_coincidence(
 }
 
 /// **A torus face of `pair` outside its ring convention**, as the
-/// carrier ladder refused it ([`CarrierEqError::OffRing`]), ended as the
+/// carrier ladder refused it ([`geom_brep::CarrierEqError::OffRing`]), ended as the
 /// pierce normal ends the same refusal: decided, the shape the kernel
 /// has no representation for ([`BooleanError::DegenerateTorus`]); in
 /// band, the convention half's escalation ([`BooleanDecision::Torus`]).
@@ -2082,7 +2077,7 @@ impl<T: Real> GluedPairs<T> {
         f1: FaceKey,
         o2: Operand,
         f2: FaceKey,
-    ) -> Result<carrier_eq::ConsumedExtent<T>, BooleanError> {
+    ) -> Result<ConsumedExtent<T>, BooleanError> {
         Self::key(o1, f1, o2, f2)
             .and_then(|key| Some(self.extent.get(&key)?.consumed()))
             .ok_or(BooleanError::ClassificationInvariant {
@@ -7925,8 +7920,8 @@ fn decided_site<T: Decide>(
 ) -> crate::DecisionSite {
     let plane = |body: &Body<T>, f| {
         matches!(
-            carrier_pair::face_carrier(body, f),
-            Some(carrier_eq::CarrierDesc::Plane { .. })
+            crate::face_normal::face_carrier_desc(body, f),
+            Some(CarrierDesc::Plane(_))
         )
     };
     if plane(a, fa) && plane(b, fb) {
@@ -8949,10 +8944,10 @@ fn validate_declarations<T: Decide>(
             .face(f)
             .map(|f| f.surface())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
-        if carrier_eq::in_inventory(surface.kind()) {
+        if geom_brep::carrier_eq::in_inventory(surface.kind()) {
             Ok(())
         } else {
-            Err(bad(operand, carrier_eq::OUTSIDE_REST_INVENTORY))
+            Err(bad(operand, geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY))
         }
     };
     for pair in &decls.pairs {
@@ -9685,7 +9680,7 @@ mod tests {
             let hits: Vec<FaceKey> = crate::query::all_faces(body)
                 .into_iter()
                 .filter(|&f| {
-                    matches!(face_carrier(body, f), Some(CarrierDesc::Plane { origin, normal })
+                    matches!(crate::face_normal::face_carrier_desc(body, f), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { origin, normal }))
                         if (origin.z - 1.0).abs() < 1e-12 && normal.z * sign > 0.5)
                 })
                 .collect();
@@ -9724,7 +9719,7 @@ mod tests {
             door.pairs
         );
         let read = carrier_pair::carrier_pair_decided(&a, fa, &b, fb, band);
-        let Ok(Err(carrier_eq::CarrierEqError::Undecided { coincidence, .. })) = read else {
+        let Ok(Err(geom_brep::CarrierEqError::Undecided { coincidence, .. })) = read else {
             panic!("the door's reading of the pair is undecided: {read:?}");
         };
         let pair = [(Operand::A, fa), (Operand::B, fb)];
@@ -9733,7 +9728,7 @@ mod tests {
         else {
             panic!("the reading is the poisoned datum: {coincidence:?}");
         };
-        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert_eq!(diag.predicate, Some("plane_eq_offset"), "{diag:?}");
     }
 
     /// The non-finite chord arm gives the cause and a recourse that can
@@ -9827,7 +9822,7 @@ mod tests {
         let diag = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
-            predicate: Some("bool_plane_offset"),
+            predicate: Some("plane_eq_offset"),
             terminal_sliver: false,
         };
         let face = FaceKey::default();

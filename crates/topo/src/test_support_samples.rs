@@ -237,7 +237,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     // The longest `what`s the raise sites write.
     v.extend(
         [
-            crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
+            geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -972,6 +972,15 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             cause: diag(),
         },
     ];
+    v.extend(
+        [
+            crate::pcurves::SingularMiss::EdgesCoincide,
+            crate::pcurves::SingularMiss::TwoNappes,
+            crate::pcurves::SingularMiss::NoLever,
+        ]
+        .into_iter()
+        .map(|miss| PcurveMintError::SingularTurn { half_edge, miss }),
+    );
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
         pcurve_certify_errors()

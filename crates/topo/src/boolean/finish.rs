@@ -91,6 +91,7 @@ fn promote_solid<T: Decide>(
     body: &mut Body<T>,
     completed: &[CompletedPolygonPair],
     operand: Operand,
+    tol: Tol,
 ) -> Result<PromotedSides, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut side_of: SecondaryMap<FaceKey, SideCode> = SecondaryMap::new();
@@ -112,8 +113,10 @@ fn promote_solid<T: Decide>(
             return Err(desync("null-face outer loop is neither role loop"));
         };
         // The transient section faces inherit the null face's surface
-        // (module docs — they die in the zip).
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        // (module docs — they die in the zip). The promoted ring lies on
+        // the other side of its loop, so on a chart with a singular set
+        // its rows are decided again, at the band.
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let (in_face, out_face) = if ring == in_loop {
             (promoted.face, face)
         } else {
@@ -226,8 +229,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     );
 
     // ---- Promotion, both solids (F9 roles as data). ----
-    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A)?;
-    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B)?;
+    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A, tol)?;
+    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B, tol)?;
 
     // ---- Distribution + selection, both solids. ----
     let a_solid =

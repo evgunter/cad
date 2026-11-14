@@ -5,7 +5,7 @@ title: offset_fit's composite forms X and Y on every cell, including the cells t
 status: open
 opened: 2026-09-03
 priority: P4
-cost: E
+cost: M
 ---
 
 

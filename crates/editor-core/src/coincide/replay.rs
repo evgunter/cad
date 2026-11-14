@@ -43,9 +43,10 @@
 
 use std::collections::BTreeMap;
 
+use geom_brep::CarrierRelation;
 use geom_core::sym::deferred;
 use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
-use topo::{CarrierRelation, FaceKey};
+use topo::FaceKey;
 
 use super::{Canceled, Component, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
 use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
@@ -442,7 +443,7 @@ fn carrier_verdict(
         return Some(Err(CarrierFail::Frame));
     };
     let kernel = || match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
-        Ok(Ok(topo::CarrierVerdict::One { relation, margin })) if relation == wanted => {
+        Ok(Ok(geom_brep::CarrierVerdict::One { relation, margin })) if relation == wanted => {
             Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,
@@ -480,7 +481,7 @@ fn one_cylinder(
     band: Band,
     stated: bool,
 ) -> Option<Result<(), (Component, Unestablished)>> {
-    use topo::boolean::CarrierDesc::Cylinder;
+    use geom_brep::CarrierDesc::Cylinder;
     let (
         Some(Cylinder {
             origin: oa,
@@ -495,8 +496,8 @@ fn one_cylinder(
             outward: sb,
         }),
     ) = (
-        topo::boolean::face_carrier(a, fa),
-        topo::boolean::face_carrier(b, fb),
+        topo::face_normal::face_carrier_desc(a, fa),
+        topo::face_normal::face_carrier_desc(b, fb),
     )
     else {
         return None;

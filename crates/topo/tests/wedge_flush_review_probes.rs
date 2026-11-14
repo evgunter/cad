@@ -11,10 +11,12 @@
 
 #![allow(clippy::expect_used, clippy::panic, clippy::print_stderr)]
 
+use geom_brep::CarrierDesc;
 use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::Body;
+use topo::face_normal::face_carrier_desc;
 use topo::test_support::{brick, face_facing, finished, mapped_cube};
-use topo::{Body, CarrierDesc, face_carrier};
 
 struct Pose {
     block_x: (f64, f64),
@@ -75,8 +77,10 @@ fn standoffs(
     tool: &Body<f64>,
     ft: topo::FaceKey,
 ) -> (f64, f64) {
-    let plane = |b: &Body<f64>, f| match face_carrier(b, f) {
-        Some(CarrierDesc::Plane { origin, normal }) => (origin, normal.normalize()),
+    let plane = |b: &Body<f64>, f| match face_carrier_desc(b, f) {
+        Some(CarrierDesc::Plane(geom_brep::PlaneDesc { origin, normal })) => {
+            (origin, normal.normalize())
+        }
         _ => panic!("plane"),
     };
     let off = |pts: &[Point3<f64>], (o, n): (Point3<f64>, Vec3<f64>)| {
@@ -111,7 +115,7 @@ fn row(label: &str, pose: &Pose, theta: f64) {
     let (block_off, tool_off) = standoffs(pose, theta, &block, fb, &tool, ft);
     let glue = match topo::flush_pair_relation(&block, fb, &tool, ft, band) {
         Ok(Ok(rel)) => format!("{rel:?}"),
-        Ok(Err(topo::PlaneEqError::Escalated { rung, diag })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { rung, diag })) => {
             format!("Esc({rung:?} {:.2}ε)", upper(diag.margin) / eps)
         }
         other => format!("{other:?}"),

@@ -956,7 +956,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         )
     };
     let glue_margin = match read(2e-9, design_band()) {
-        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             geom_core::test_support::upper(diag.margin)
         }
         other => panic!("in band at 2e-9: {other:?}"),
@@ -964,7 +964,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(D, design_band()),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart at D: {:?}",
         read(D, design_band())
@@ -974,7 +974,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(2e-9, tighter),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart below the glue door's offer {below:e}: {:?}",
         read(2e-9, tighter)
@@ -1094,7 +1094,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
     super::super::vtxfac::pierce_germ_dir(
         &s,
         Vec3::new(D.sin(), 0.0, D.cos()),
-        super::super::vtxfac::OutBound::Start,
+        crate::star::CutEnd::Start,
         band(),
     )
     .map(|_| ())
@@ -2483,6 +2483,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_ladder_rows.rs",
+        "a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean",
+        "BooleanDecision::Torus",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2559,7 +2565,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
-    ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
@@ -2893,6 +2898,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
+    (
+        "sectors.rs",
+        "order_fault",
+        "BooleanDecision::DirectionSense",
+        1,
+    ),
+    ("sectors.rs", "order_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),

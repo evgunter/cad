@@ -617,7 +617,7 @@ BOUND_AS = {
     "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
-    "PlaneRelation": "Coincidence.relation",
+    "CarrierRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `placement` and `output_ix`, or `node`.
@@ -1412,6 +1412,10 @@ BOUND_AS = {
     # Why an index is refused as declared crosses at the carrier's
     # second word (`count_not_count`, `within_no_index`).
     "IndexFault": "EditError.inner_variant",
+    # Why a source is refused as declared crosses at the carrier's second
+    # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
+    # `fresh`).
+    "SourceFault": "EditError.inner_variant",
     # Why a family's members could not be listed: the evaluator turns
     # it into its node refusal (`MemberCountFault::node_error`), so it
     # crosses as the tags `index_count` / `index_count_out_of_range`.
@@ -3651,6 +3655,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
     "EditError::PickPath": "EditError.variant",
+    "EditError::PlacementReadsNoSource": "EditError.variant",
+    "EditError::SourceRead": "EditError.variant",
     "EditError::ProductRead": "EditError.variant",
     "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",
@@ -3721,6 +3727,9 @@ MEMBERS_BOUND_AS = {
     "EditError::WitnessOnNonSketch": "EditError.variant",
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::TakeOverRepeatsCopy": "EditError.variant",
+    "EditError::TakeOverNotASource": "EditError.variant",
+    "EditError::TakeOverSharedSource": "EditError.variant",
+    "EditError::SourceReaderRefused": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",

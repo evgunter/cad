@@ -99,6 +99,8 @@ mod atrest_operation_rows_quiet;
 mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_mixed_corner_names.rs"]
+mod band_mixed_corner_names;
 #[path = "band_planar_cut_off_names.rs"]
 mod band_planar_cut_off_names;
 #[path = "band_planar_mitre_names.rs"]
@@ -255,6 +257,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "placement_values_direction.rs"]
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
@@ -910,6 +914,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "source_readers.rs"]
+mod source_readers;
 #[path = "split_joined_keys_tie.rs"]
 mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]

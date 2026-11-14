@@ -1829,7 +1829,7 @@ pub enum ValidationError {
     /// chart singularity** — a meridian walked out and back that stops
     /// short of the pole. Read
     /// at the joint between the edge's two halves by the incidence the
-    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// loop walk decides that joint's turn by (`crate::pcurves::pcurve_pass`,
     /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
     /// a distance of its own.
     WrapTipOffChartSingularity {
@@ -4147,6 +4147,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         }
         // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
+        M::SingularTurn { .. } => (
+            "a corner of the face on its surface's pole or apex names no one side of the point",
+            crate::pcurves::SINGULAR_TURN_RECOURSE,
+        ),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -6147,7 +6151,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    with no singular point refuses as such
 ///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
 ///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
-///    incidence is the one the joint resets by
+///    incidence is the one the joint's turn is decided by
 ///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
 ///    check 6's at-vertex placement reads too), and a joint check 8
 ///    itself refuses or leaves unread reports nothing more.
@@ -6193,7 +6197,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   (via booleans). The whole-body embedding certificate belongs to
 ///   the at-rest gate (`DESIGN.md` `[topology.tiers]`), not to this
 ///   pass, and is not built yet:
-///   `work/clear/the-at-rest-gate-certifies-embedding.md`.
+///   `work/embed/the-at-rest-gate-certifies-embedding.md`.
 /// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
 ///   its material arm are both exempt by kind there (implicit-form
 ///   gradients are poison on a spline chart), so such an edge carries
@@ -8652,8 +8656,8 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
     // chart singularities as vertices): every wrap edge's tip lies on its
-    // face's chart singularity, read by the incidence the joint resets
-    // its first channel by (`crate::pcurves::pcurve_pass`).
+    // face's chart singularity, read by the incidence the joint's turn
+    // is decided by (`crate::pcurves::pcurve_pass`).
     let pass = crate::pcurves::pcurve_pass(body, band);
     for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });
@@ -17418,7 +17422,9 @@ mod tests {
 
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
-        let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
+        let flipped = cube
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
@@ -17881,7 +17887,7 @@ mod tests {
         // that emits it.
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
-                what: crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
+                what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -17922,7 +17928,7 @@ mod tests {
     /// no way through yet, as the refusal standard asks of a dead end.
     #[test]
     fn no_census_decline_renders_without_a_repair_to_make() {
-        let what = crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY;
+        let what = geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY;
         // The chart lane's own row proves all thirteen of its arms
         // (`chart_region::tests::every_chart_region_arm_names_a_recourse`);
         // what this one adds is that the census's wrapper does not

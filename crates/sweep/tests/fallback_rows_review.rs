@@ -50,7 +50,7 @@ fn rounded(s: &str) -> String {
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
     rounded(&format!(
         "{:?}",
-        topo::face_carrier(body, f).expect("a carrier")
+        topo::face_normal::face_carrier_desc(body, f).expect("a carrier")
     ))
 }
 

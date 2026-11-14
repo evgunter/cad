@@ -262,7 +262,7 @@ fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
             refusal,
             crate::merge_faces::MergeCoplanarError::Escalated {
                 decision: crate::merge_faces::MergeDecision::Neighbours(
-                    crate::boolean::PlaneRung::Parallel
+                    geom_brep::PlaneRung::Parallel
                 ),
                 ..
             }

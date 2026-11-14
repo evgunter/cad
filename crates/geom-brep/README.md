@@ -28,6 +28,7 @@ escalated typed refusal, never a raw comparison.
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
+| The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
@@ -781,7 +782,7 @@ once around, read off the invariants a change of starting half-edge
 leaves alone: off the twin, at most one period on each periodic
 channel; through the twin, an odd number of half turns of azimuth, at
 most three, and no bound on the second channel, whose periods are not
-such an invariant there; and no azimuth winding counted across a reset.
+such an invariant there.
 A closed chart polygon is built only where the winding is zero and
 every joint's integer was decided with room past the joint bound. A
 vertex on the chart's singular set (a sphere's pole, a cone's apex) is
@@ -1637,8 +1638,8 @@ enters a face's term at a lever beyond the face.
   applies it to a surface. The carrier is unmoved; only where a reading
   takes the datum from moves. Intrinsic data stay: a sphere's or a
   torus's centre and a cone's apex. The coincidence verdict re-anchors
-  a cylinder pair at the foot of its extent's centre (`topo`'s
-  `carrier_eq::at_consumed_extent`), and a face's measure at its
+  a cylinder pair at the foot of its extent's centre
+  (`carrier_eq::at_consumed_extent`), and a face's measure at its
   anchor's `at` (`topo`'s `props::face_anchored`), at every scalar. A
   cylinder face's closed form takes its axis origin as the point its
   vector area is summed about and its flux levered from, so an origin

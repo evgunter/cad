@@ -126,7 +126,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
 }
 
 /// **A wide trimmed cylinder triangulates in the lattice metric**
-/// (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+/// (`work/tesslane/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
 /// The lane's lattice is square in 3-D, `hu` radians by `r·hu`, so in
 /// (θ, z) it is a strip of aspect ~1/r; triangulated there, an
 /// ellipse trim point between two rows fanned a sliver across many
@@ -245,7 +245,7 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
         .map(|(k, _)| k)
         .expect("the trimmed wall");
     let flipped = above
-        .flipped_face_sense_for_tests(wall)
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
         .expect("a live face");
     match mesh::tessellate(&flipped, 0.01, Tol::witness()) {
         Err(mesh::TessellateError::TrimLoopOrientation { face }) => assert_eq!(face, wall),

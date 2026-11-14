@@ -256,3 +256,18 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Filed:** `a-rows-zero-slides-across-a-read-refuse-once-an-edit-turns-the-read-into-their-plane` (P3), `the-pattern-gesture-evaluates-the-whole-document-to-read-its-pick` (P4), MSOLVE's `a-chains-no-two-in-a-row-rule-compares-read-axes-by-identity-not-by-line`, and `work/issues/main-red-two-slow-digest-rows-at-8ae2b9b` (both reviewers' N3).
   - **A container restart** killed the lane's background CI polls mid-pass. The lane was resumed and polled in the foreground. Lanes are told never to poll in the background; this one had.
   - **6394 now waits only on Ev's `[ev]` answer** on the oblique rule. (PLACING orchestrator)
+
+- 2026-11-13 — **Fork `placing-declined-offer` → `[ev]` PR 6915.** First reports: both designers said the offer is a derived fact, nothing declines it, and nothing is recorded. They disagreed on one fact about main: A said the offer lapses at the second feature, B said it moves to the chain's tip. The orchestrator read `world::repoint_offer` (`takes` is one read deep; `sources_of` is asked of the read body), and that reading matched A. In round 1, B adopted A's rule that the offer reaches any depth, and the two converged. A probe run confirmed the lapse: branch `placing/probe-offer-depth` `007a2f5b89`, test `probe_offer_depth::a_feature_on_an_unaccepted_fillet_offers_nothing`. After an unaccepted fillet and then a chamfer, neither node offers a re-point. Both designers found the same thing off the question: the source row's "read the selected body" and the "copy of" row's "copy the selected body" are enabled without asking `session::repoint_refusal`, while the offer asks it. So one list is computed two ways, and one edit has three verbs. Filed as `the-source-and-copy-of-rows-re-point-without-the-offers-check`.
+
+- 2026-11-14 — **PR 6916 merged** (the editor preview). The review history:
+  - a single full review: APPROVE-WITH-FIXES, five MINORs;
+  - fix pass 1 (`58f8b44cb4`);
+  - a targeted re-check of that pass: two MINORs, executed;
+  - fix pass 2 (`8284b4c4ea`), accepted on the orchestrator's read.
+
+  Accepted residue: while a change is still landing, another edit that moves a different copy shows that copy at its pre-edit pose until the run lands. The whole picture was stale in that window before, so this is no regression. Filed by the lane:
+  - `a-copy-placed-from-a-previewed-copy-is-not-carried` (P3);
+  - `reviewer-probes-sit-in-the-shipped-properties-pane-tests` (P4);
+  - CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature` (P4).
+
+- 2026-11-14 — **PR 6919 merged** (three P3 rows closed). Fix pass 1, which answered the full review, was accepted on the orchestrator's read. The hosted change filter ran only `test (app)`, so the changed `node_labels` and `placement_target` rows passed locally only (the lane's run). I withdrew my "open on the loaded bundle" ruling on `a-pick-opening-the-edit-door-starts-a-mate-row`, because the trial broke 51 rows and left the loaded-mate case open. That row is a design fork again. `a-refusal-naming-a-value-slot-drops-its-axis` is re-costed to M.

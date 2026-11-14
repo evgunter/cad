@@ -95,7 +95,8 @@ pub(crate) fn seam_siblings(body: &Body<f64>, tol: Tol) -> Vec<[FaceKey; 2]> {
 
 pub(crate) fn flipped(body: &Body<f64>, set: &[FaceKey]) -> Body<f64> {
     set.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k).unwrap()
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap()
     })
 }
 

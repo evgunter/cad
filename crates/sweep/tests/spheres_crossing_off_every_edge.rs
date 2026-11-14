@@ -91,7 +91,7 @@ enum Want {
     Draws,
     /// `SOUND`, and the mesher refuses a triangle folded over the chord
     /// beside it near a chart pole
-    /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+    /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     Folds,
     /// `SOUND`, and the mesher refuses at once: the tilted circle passes
     /// so near a chart pole that its uniform chord schedule asks one edge

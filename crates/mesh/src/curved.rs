@@ -1111,7 +1111,7 @@ fn grid_counts(
             // keeps the lattice — rows every `ρ_max·hu` slant metres,
             // which put interior columns between the sides — and the
             // certificate, not a theorem, is what holds it
-            // (`work/tess/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
+            // (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
             let nu = pole_columns(ceil_count(uspan, hu)?, has_pole);
             if nu == 1 {
                 return Ok((1, 1));
