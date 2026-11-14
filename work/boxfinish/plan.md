@@ -19,6 +19,7 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
 - **P1:**
   - `an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`: a design question the chart-ends review raised; weighed before `IsoArc` gets stored ends. `an-iso-arc-rims-end-reads-through-its-map-at-interval` is parked on it.
   - `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`: a split `Interval` loft still refuses check 7.
+  - `fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`: P0 if the tour's certified stop turns out to be held by it.
   - Landed: the chart ends (PR 6959) and the edge turns (PR 6946).
 - **P2:** `check-7s-volume-reading-is-loose-over-a-box`; `no-interval-fixture-exercises-a-leaf-that-does-not-finish-at-its-take`.
 - **Parked:** `delete-the-box-scalar-sweep-leaf-switch`, `blocked_on` the side-reader, extrude-mint, doors-read and cost rows.
