@@ -1,12 +1,13 @@
 ---
 id: trimmed-tessellation-lacks-torus-and-plane-arms
 kind: issue
-title: mesh tessellate_trimmed has no torus or plane arm - a spiric-bounded wall cannot mesh once the spiric carrier lands
-status: open
+title: the trimmed lane has no torus or cone arm - a torus wall bounded by a spiric and a cone face cut by an ellipse refuse at the chart roster
+status: parked
 opened: 2026-09-13
 refs: [1858]
 priority: P0
 cost: H
+blocked_on: [one-chart-table-and-the-lane-takes-every-analytic-chart]
 ---
 
 
@@ -52,3 +53,20 @@ territory: TESS (`crates/mesh/src/trimmed.rs`).
 Moved from `work/issues/` to `work/tess/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Measured on main (2026-11-14, TESSLANE; probes on `tesslane/measure-reach`)
+
+Run at `d6e1eb1f`, through the public doors, at three δ each; every result was the same at each δ.
+
+- **Torus wall bounded by a spiric: refuses, as filed.** The sectioned vessel quarter and the klein elbow, each through `topo::finish` and `topo::shell`, build, and `tessellate` answers `UnsupportedCurve` on the spiric edge, raised by `trimmed::trim_frontier` from `tessellate_trimmed`'s chart roster. The half-edges store `Pcurve::Spiric`.
+- **Plane cap bounded by a spiric: not a refusal.** `tessellate::lane_of` sends every plane to the planar lane, and both spiric-bounded caps return `Ok` from `planar::tessellate_planar`. The body refuses only for its torus wall, so no whole body pins the caps through `check_mesh` yet. This row's "plane arm" is not owed.
+- **Cone face cut by a section ellipse: refuses, as filed.** Both frusta split through `(0, 0.5, 0)` with normal `(sin 0.3, cos 0.3, 0)`; all four halves build and refuse at `trim_frontier` on the `Ellipse` edge. The stored image is `Pcurve::FocalSection` (the row's `ConeSection`). The same refusal stops all six booleans of a widening frustum against a brick tilted 10° (`cone_join_lane` C1), which is the cone half of `cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm`, now carried here.
+
+**What each pair has and lacks**, by function:
+
+| pair | present | absent |
+|---|---|---|
+| cone × ellipse | the image (`Pcurve::FocalSection`, which `trim_polygon` accepts); a 3-D chord bound (`sizing::ellipse_step`); a certificate (`cert::cert_cone`); the curved lane's step (`sizing::cone_grid_step`) | a UV speed bound for the image; a cone arm in `trimmed::Lane` and its lattice steps; an apex rule for the polygon |
+| torus × spiric | the image (`Pcurve::Spiric`); a 3-D chord bound (`sizing::spiric_step`); certificates (`cert::cert_torus`, `cert_spindle`); the curved lane's steps (`sizing::torus_grid_steps`) | a UV speed bound for the image; a torus arm and its lattice steps; a seam rule for a polygon crossing either period |
+
+**This row is one cell of a larger gap**, with `valid-ringed-torus-faces-build-but-cannot-be-meshed`, `a-notched-or-ringed-cylinder-wall-does-not-tessellate` and the sphere-pole rows: `lane_of` routes on the kinds of the OUTER loop's carriers, the trimmed lane constructs three arms (cylinder, sphere, NURBS), and both curved lanes return at a ring before reading any loop. What a non-rectangular curved face is meshed from is with designers before a unit is cut (`design: true`).

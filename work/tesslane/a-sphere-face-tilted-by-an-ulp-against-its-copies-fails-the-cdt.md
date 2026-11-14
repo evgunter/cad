@@ -1,10 +1,10 @@
 ---
 id: a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt
 kind: issue
-title: A PlacedUnion of a ball whose master is tilted by an ulp against exact copy frames fails the CDT at 1e-4
+title: a ball turned a quarter turn refuses the curved lanes CDT insert at its pole - the chart frame an ulp off its axis (first met as a PlacedUnion master against exact copy frames)
 status: open
 opened: 2026-10-20
-priority: P3
+priority: P0
 cost: M
 ---
 
@@ -19,3 +19,15 @@ The same document with both the master and the frames inexact, or both exact (`5
 **Done when** a sphere face whose pole is tilted by an ulp off its cutting plane's normal tessellates, or refuses with a typed reason that names that cause and not "corrupt geometry"; add that row.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## A plain ball turned a quarter turn refuses (2026-11-14, TESSLANE) — re-banded P0
+
+Met by the reach measurement at `d6e1eb1f`; pinned as `reach_probes::a_z_poled_ball_of_radius_root_two` on `tesslane/measure-reach`.
+
+`sweep::test_support::ball_poled_z(√2, 0)` is a revolved ball turned π/2 about `x` through `topo::transform_rigid`, the doors a user has. It refuses `Triangulation { face }` at δ 2e-2 and 5e-3. The same ball at radius 1 and at 0.3 meshes.
+
+**The site is settled**: the `insert` closure in `curved::tessellate_curved` (spade's `insert` errors), not `can_add_constraint`, on a pole entry with `u = −4.838e−49`, `v = ±π/2`. This is the question this row left open, answered for this witness.
+
+The quarter turn leaves the chart frame an ulp off the axis it means (a cosine of `6.1e-17`), which is this row's cause; the witness shows it needs no `PlacedUnion` and no cutting plane, only a turned ball. It is also why tube ∪ ball in `valid-ringed-torus-faces-build-but-cannot-be-meshed` reports `Triangulation` rather than its ring.
+
+**P0**: a whole ball that a user has rotated does not draw at an ordinary δ. Not yet measured: why radius √2 and not 1, and what `−4.838e−49` is a product of.
