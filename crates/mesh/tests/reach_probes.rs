@@ -1251,6 +1251,86 @@ fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
     );
 }
 
+/// **A cone face keeps no side its plane neighbour can make too.** The
+/// cone of [`a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard`]
+/// met by the same box, its edge scaled toward the apex by `s` (and
+/// shifted `xf·s` across the axis): the intersection is a sliver of
+/// three faces, a cone face between two section-ellipse arcs and the two
+/// plane faces those arcs bound. Each plane face's triangulation has no
+/// interior point, so it joins the points of its arc to one another; the
+/// cone face is one or two lattice cells across, so its triangulation
+/// joins boundary points too. A side both make is an edge of four
+/// triangles, which `tessellate` returns and only `check_mesh` sees: the
+/// trimmed lane's shared-side cure (`mesh::trimmed`, `attempt`) keeps the
+/// cone face off every such side. Each cell meshes, passes `check_mesh`
+/// and is the body's ([`geometry`]).
+///
+/// With the cone arm reading the ear alone, `s = 10⁻³` is non-manifold
+/// at every δ here in both orders, on the edge between mesh points five
+/// chord steps apart on one arc, under rows uniform in `v` and under the
+/// arm's graded rows alike; `s = 0.03`, `xf = 0`, `A ∩ B` at δ `2·10⁻²`
+/// is under the graded rows alone.
+///
+/// At the default ε all eight slivers are built and mesh. Off it the
+/// boolean refuses some `CurvedPierceUnsupported`, each printed and
+/// skipped: at ε `10⁻⁶` the two at `s = 10⁻³` (the other six mesh), and
+/// at ε `10⁻¹²` all eight, so there the row reads no mesh.
+#[test]
+fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
+    use core::f64::consts::FRAC_PI_6;
+    let height = 1.2 / FRAC_PI_6.tan();
+    let cone = posed(
+        "the cone",
+        revolved(&[(0.0, 0.0), (1.2, 0.0), (0.0, height)]),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
+    );
+    let turn = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        -50f64.to_radians(),
+    );
+    let mut meshed = 0;
+    for (s, xf) in [(1e-3, 0.0), (0.03, 0.0), (0.03, 0.5), (0.01, 0.0)] {
+        let edge = Point3::new(xf * s, height - 1.5 * s, 0.0);
+        let wedge = posed(
+            "the box",
+            brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol()),
+            Affine3::translation(edge - Point3::origin()) * turn,
+        );
+        // Off the default ε the boolean may not build a sliver.
+        let may_not_build = tol().eps() != geom_core::tolerance::DEFAULT_EPS;
+        for (op, run) in [
+            ("A ∩ B", topo::intersect(&cone, &wedge, tol())),
+            ("B ∩ A", topo::intersect(&wedge, &cone, tol())),
+        ] {
+            let what = format!("the cone met {s:e} under its apex, xf = {xf}, {op}");
+            let body = match run.as_ref().map(|r| r.body()) {
+                Ok(Some(body)) => &body.body,
+                other => {
+                    let other = format!("{:?}", other.map(|b| b.is_some()));
+                    assert!(
+                        may_not_build && other.contains("CurvedPierceUnsupported"),
+                        "{what}: a body at ε {:e}, got {other}",
+                        tol().eps()
+                    );
+                    eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+                    continue;
+                }
+            };
+            assert_at_every(&what, body, &[2e-2, 5e-3, 1e-3], &Got::Meshed);
+            meshed += 1;
+        }
+    }
+    eprintln!(
+        "{meshed} of 8 slivers built and meshed at ε {:e}",
+        tol().eps()
+    );
+    assert!(
+        meshed == 8 || tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+        "every sliver is built at the default ε ({meshed})"
+    );
+}
+
 /// **A cone wall holding a ring of ellipse arcs** (`sweep`'s
 /// `cone_join_lane`, pose T1): the unions and cone ∖ box refuse at the
 /// curved lane's ring guard; the other three ops trim the cone face's

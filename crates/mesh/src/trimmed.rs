@@ -66,10 +66,11 @@
 //! against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
 //! the chord beside it is dropped and rebuilt or refuses
-//! ([`TessellateError::FoldedTriangle`]), and a triangle on three
-//! consecutive boundary points (an ear of a chain the neighbour may cut
-//! too) is split by its centroid and rebuilt, or refuses
-//! ([`TessellateError::BoundaryEar`]). A **fitted** (rung-3) chart
+//! ([`TessellateError::FoldedTriangle`]), and a triangle a neighbouring
+//! face may make a side of too (on the cone arm a side joining two
+//! polygon points one neighbour holds both of; elsewhere an ear, three
+//! consecutive boundary points) is split by its centroid and rebuilt, or
+//! refuses ([`TessellateError::BoundaryEar`]). A **fitted** (rung-3) chart
 //! image still refuses typed on every chart: the chord pass has no
 //! certified UV chord-step bound for a fitted image (the
 //! boundary-tightening contract in `crate::chords`), and its first
@@ -553,6 +554,12 @@ pub(crate) fn tessellate_trimmed(
     // per-cell generation a cell-boundary line is shared by adjacent
     // cells, and dropping a location rather than one cell's copy of it
     // is what keeps the retry ladder strictly shrinking (module docs).
+    let across = match row {
+        ChartRow::Analytic(ref a) if a.development().is_some() => {
+            Some(faces_across(body, fk, face.outer, chords)?)
+        }
+        ChartRow::Analytic(_) | ChartRow::Spline { .. } => None,
+    };
     let mut dropped: HashSet<usize> = HashSet::new();
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
@@ -596,6 +603,7 @@ pub(crate) fn tessellate_trimmed(
         creases: creases.as_ref(),
         shared,
         tol,
+        across: across.as_ref(),
     };
     if let Some(i) = developed_merge(trimmed.plane(), &polygon, &singular) {
         return Err(TessellateError::SphereTrimShape {
@@ -770,6 +778,11 @@ struct TrimmedFace<'a> {
     creases: Option<&'a Creases>,
     shared: &'a [Point3<f64>],
     tol: &'a SizingTols,
+    /// On the cone arm, the faces across the loop's edges at each
+    /// boundary mesh id ([`faces_across`]), which the shared-side rule
+    /// reads ([`Self::attempt`]); `None` on every other arm, which reads
+    /// the ear.
+    across: Option<&'a HashMap<u32, Vec<FaceKey>>>,
 }
 
 /// One attempt's triangulation, between inserting its points and
@@ -912,18 +925,26 @@ impl TrimmedFace<'_> {
             folded,
             ears,
         } = self.emit(&at, &crossings, candidates, measure, falsification)?;
-        // THE EAR CURE (every analytic arm). A kept triangle on three
-        // consecutive points of the trim polygon is an ear of a boundary
-        // chain, and it is the same three mesh vertices whichever face
-        // cuts it: a neighbour across that chain that cuts it too
-        // (a plane cap, whose polygon is convex, cuts ears freely) makes
-        // the triangle twice, wound both ways, and their diagonal an edge
-        // of four. No patch sees that alone — each uses the diagonal
-        // twice, as any interior edge — so this face never keeps an ear:
-        // a point strictly inside it where the CDT runs, and so inside the
-        // polygon (`TrimmedFace::inside_point`), is inserted and the face
-        // rebuilt, which splits it.
-        // An ear the retry budget does not clear refuses typed
+        // THE SHARED-SIDE CURE (every analytic arm). A triangle side
+        // joining two points of the trim polygon is the same two mesh
+        // vertices whichever face makes it. Where one neighbouring face
+        // holds both points and they are not neighbours on the polygon,
+        // that face's triangulation may join them too (a plane cap, whose
+        // triangulation has no interior point, joins its boundary points
+        // freely): the side is then an interior edge of both patches, an
+        // edge of four triangles. No patch sees that alone, since each
+        // uses it twice, as any interior edge. So a face keeps no triangle
+        // with such a side: a point strictly inside it where the CDT runs,
+        // and so inside the polygon (`TrimmedFace::inside_point`), is
+        // inserted and the face rebuilt.
+        //
+        // The cone arm reads that rule as stated (`emit`, `faces_across`).
+        // The other analytic arms read its nearest case, the ear: a
+        // triangle on three consecutive polygon points, whose side across
+        // the middle one both faces of one chain can cut. That misses a
+        // side between points farther apart, and takes an ear at a vertex
+        // between two different neighbours, which neither can cut.
+        // A triangle the retry budget does not clear refuses typed
         // (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
         if !ears.is_empty() {
             if attempt == last_attempt() {
@@ -1383,26 +1404,49 @@ impl TrimmedFace<'_> {
                 (tri[0].y + tri[1].y + tri[2].y) / 3.0,
                 (tri[0].z + tri[1].z + tri[2].z) / 3.0,
             );
-            // An ear: three corners at consecutive places `i, i+1, i+2`
-            // of the polygon (cyclically), read on the analytic arms.
+            // A triangle a neighbouring face may make a side of too (the
+            // cure is `attempt`'s): on the cone arm a side joining two
+            // polygon points that are not neighbours on the polygon and
+            // that one other face holds both of; on the other analytic
+            // arms an ear, three corners at consecutive places `i, i+1,
+            // i+2` of the polygon (cyclically).
             if !refine_lane && n_poly >= 3 {
-                let at_places: Vec<&Vec<usize>> = vs
-                    .iter()
-                    .filter_map(|vtx| places.get(&vtx.fix().index()))
-                    .collect();
-                let consecutive = |a: usize, b: usize, c: usize| {
-                    let set = [a, b, c];
-                    set.iter().any(|&i| {
-                        set.contains(&((i + 1) % n_poly)) && set.contains(&((i + 2) % n_poly))
+                let on = vs.map(|vtx| places.get(&vtx.fix().index()));
+                let shared_side = |across: &HashMap<u32, Vec<FaceKey>>| {
+                    [(0, 1), (1, 2), (2, 0)].into_iter().any(|(a, b)| {
+                        let (Some(pa), Some(pb)) = (on[a], on[b]) else {
+                            return false;
+                        };
+                        let (PatchVertex::Shared(ia), PatchVertex::Shared(ib)) = (ids[a], ids[b])
+                        else {
+                            return false;
+                        };
+                        let neighbours = pa.iter().any(|&i| {
+                            pb.iter()
+                                .any(|&j| (i + 1) % n_poly == j || (j + 1) % n_poly == i)
+                        });
+                        !neighbours
+                            && across.get(&ia).is_some_and(|fa| {
+                                across
+                                    .get(&ib)
+                                    .is_some_and(|fb| fa.iter().any(|f| fb.contains(f)))
+                            })
                     })
                 };
-                if at_places.len() == 3
-                    && at_places[0].iter().any(|&a| {
-                        at_places[1]
-                            .iter()
-                            .any(|&b| at_places[2].iter().any(|&c| consecutive(a, b, c)))
-                    })
-                {
+                let ear = || {
+                    let consecutive = |a: usize, b: usize, c: usize| {
+                        let set = [a, b, c];
+                        set.iter().any(|&i| {
+                            set.contains(&((i + 1) % n_poly)) && set.contains(&((i + 2) % n_poly))
+                        })
+                    };
+                    let [Some(pa), Some(pb), Some(pc)] = on else {
+                        return false;
+                    };
+                    pa.iter()
+                        .any(|&a| pb.iter().any(|&b| pc.iter().any(|&c| consecutive(a, b, c))))
+                };
+                if self.across.map_or_else(ear, shared_side) {
                     ears.push(Self::inside_point(plane, &uv, developed, singular));
                 }
             }
@@ -1520,6 +1564,48 @@ impl TrimmedFace<'_> {
             ears,
         })
     }
+}
+
+/// **The faces across loop `lk`'s edges at each boundary mesh id of face
+/// `fk`**: for every edge of the loop, the face its other half-edge
+/// bounds, at each of the edge's chord ids (`crate::chords`), ends
+/// included, so a vertex's id holds the faces across both edges meeting
+/// there. Two polygon points that one face here holds both of are two
+/// points that face's own triangulation may join.
+///
+/// An edge the loop uses twice (a seam) has `fk` across it, and `fk` is
+/// left out: a side between two of its points is this face's own, made
+/// once by this one triangulation.
+fn faces_across(
+    body: &Body<f64>,
+    fk: FaceKey,
+    lk: topo::LoopKey,
+    chords: &ChordPass,
+) -> Result<HashMap<u32, Vec<FaceKey>>, TessellateError> {
+    let mut out: HashMap<u32, Vec<FaceKey>> = HashMap::new();
+    for (hek, ek, _) in crate::walk::loop_half_edges(body, lk, fk)? {
+        let other = body
+            .mate(hek)
+            .and_then(|mate| body.get_half_edge(mate))
+            .and_then(|he| body.get_loop(he.parent_loop))
+            .ok_or(TessellateError::MissingEntity {
+                what: "the face across an edge",
+            })?
+            .face;
+        if other == fk {
+            continue;
+        }
+        let ids = chords.ids.get(&ek).ok_or(TessellateError::MissingEntity {
+            what: "edge chords",
+        })?;
+        for &id in ids {
+            let at = out.entry(id).or_default();
+            if !at.contains(&other) {
+                at.push(other);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// `(u, v)` as the CDT sees it on `plane`, `singular` where the point
@@ -3860,6 +3946,7 @@ pub(super) mod tests {
                 creases: None,
                 shared: &[],
                 tol: &tol,
+                across: None,
             };
             let bits = |p: SpadePoint<f64>| (p.x.to_bits(), p.y.to_bits());
             for c in [dust, -dust] {
@@ -3976,6 +4063,7 @@ pub(super) mod tests {
                 creases: None,
                 shared: &[],
                 tol: &tol,
+                across: None,
             };
             let wedge = face(&[(0.2, 0.0, 1), (0.9, 0.0, 1), (0.9, 1.0, 3), (0.2, 1.0, 2)]);
             let plane = wedge.plane();
