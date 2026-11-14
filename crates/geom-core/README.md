@@ -338,7 +338,13 @@ This section is where that rule's parts live.
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
   carrier, each read as its cover), never from a length a caller
-  vouches for. `ExtentBall` is its ball payload.
+  vouches for. `ExtentBall` is its ball payload. A reach holds its
+  region as a cover and no carrier. Where a verdict reads its datum is
+  derived from the extent, never chosen: a datum fixed by a carrier's
+  form (an apex, a centre) is read there, and a datum free along an
+  axis is read at the middle of the extent's window along it. Its
+  lever is the extent's far distance from that point; the least over
+  all points is not owed.
 - **The session box** is one predicate over a body's largest
   `|coordinate|`, read from below off its vertices' and its edges' own
   points, never a carrier's stored terms: the box bounds each
