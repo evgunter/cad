@@ -90,6 +90,12 @@ failure-output = "immediate-final"
 #    2.97 s  topo side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has
 #    3.54 s  topo side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has
 #    0.46 s  topo side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side
+# and over the sweep doors' boxed bodies, with a ray given further along
+# its line read against curved bodies at `f64` (the second measured at
+# three times its count):
+#    2.94 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in
+#   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
+#    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
 default-filter = """
 not (
   (binary_id(sweep::all) & (test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |
@@ -333,7 +339,8 @@ not (
   (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse)) |
   (binary_id(mesh::all) & (test(=lift_probes::the_spline_section_bodies_read_lifts_that_close) | test(=lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes) | test(=lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube))) |
   (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |
-  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side)))
+  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side))) |
+  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same)))
 )
 """
 

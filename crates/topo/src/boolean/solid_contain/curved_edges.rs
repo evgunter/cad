@@ -324,12 +324,8 @@ fn passes<T: Decide>(
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
         Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
-        // Met only on a gap in band: one undecided over a box is no
-        // reading of the edge ([`super::edge_meets`]).
         Err(SpanRefusal::Carrier(refused)) => refused
             .escalation()
-            .ok()
-            .filter(crate::validate::in_band)
             .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
     }
 }
