@@ -2,7 +2,7 @@
 id: nightly-reds-default-eps-behaviour-rows
 kind: unit
 title: Nightly reds: the behaviour rows red at the default ε, and the viewer's door-at-rest pair
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M

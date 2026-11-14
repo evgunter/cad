@@ -2,7 +2,7 @@
 id: nightly-reds-the-1e-12-rows
 kind: unit
 title: Nightly reds: the rows red at ε 1e-12
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M

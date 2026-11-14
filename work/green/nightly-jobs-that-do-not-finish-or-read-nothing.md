@@ -2,7 +2,7 @@
 id: nightly-jobs-that-do-not-finish-or-read-nothing
 kind: unit
 title: Nightly jobs that do not finish, stop at their first red, or read no test
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M

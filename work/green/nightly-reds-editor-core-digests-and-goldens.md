@@ -2,7 +2,7 @@
 id: nightly-reds-editor-core-digests-and-goldens
 kind: unit
 title: Nightly reds: the editor-core digests and goldens, the STEP fixtures and the thread-count golden
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M

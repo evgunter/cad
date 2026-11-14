@@ -2,7 +2,7 @@
 id: nightly-reds-the-source-censuses
 kind: unit
 title: Nightly reds: six source censuses and two gate self-tests read a tree that moved under them
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M
