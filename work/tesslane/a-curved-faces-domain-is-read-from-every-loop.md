@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-14
 priority: P0
 cost: H
-blocked_on: [one-chart-table-and-the-lane-takes-every-analytic-chart, a-rings-lift-is-placed-against-its-outer-loop-in-one-place]
+blocked_on: [one-chart-table-and-the-lane-takes-every-analytic-chart]
 ---
 
 
