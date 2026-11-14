@@ -7,6 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/nightly-jobs
+pr: 6932
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13) and the run before it (43161026932). These are jobs, not tests: each one hides results rather than reporting a red.
