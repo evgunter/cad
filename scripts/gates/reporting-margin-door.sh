@@ -364,7 +364,7 @@ RS
       printf 'fn m%d(v: f64) -> MarginDiag { MarginDiag::enclosure(v, v) }\n' "$i" >> "$1/$path"
     done
   done
-  cat > "$1/crates/topo/src/validate.rs" <<'RS'
+  cat >> "$1/crates/topo/src/validate.rs" <<'RS'
 // Never call `m.diagnostic_f64_for_error_text()` here to decide, nor
 // compare against `MarginDiag::value(0.0)`.
 pub const WHY: &str = "m.diagnostic_f64_for_error_text() == MarginDiag::value(0.0)";
