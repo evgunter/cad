@@ -390,8 +390,8 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 /// `at`.** Its certified box, padded by the sweep's pad, clear of the
 /// ball's box answers at once. Otherwise a lower bound on the distance
 /// is decided against `radius`, read on the edge's own carrier
-/// ([`crate::splitting::containment::arc_distance_floor`]: a segment, a
-/// conic's own arc, any other carrier's ball and then its arc's
+/// ([`crate::splitting::containment::arc_distance_floor`]: a segment,
+/// any other carrier's cover, and then a spiric's or a spline's arc's
 /// pieces). A carrier with no cover over its span (a spline net carrying
 /// poison) is not clear.
 ///

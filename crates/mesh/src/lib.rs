@@ -318,6 +318,7 @@
 pub mod budget;
 mod cdt;
 pub mod cert;
+mod chart_table;
 mod chords;
 mod curved;
 // The per-face patch memo behind `tessellate_with`: its key, stated

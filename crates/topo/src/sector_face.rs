@@ -518,7 +518,8 @@ fn spline_normal<T: Decide>(
     let out = crate::live::proven(&body.half_edges, into, EntityId::HalfEdge).next;
     let (uv, arriving, own) = bound(into, false)?;
     let (_, leaving, next) = bound(out, true)?;
-    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), at).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), at).lever();
     // The face's corner sweeps counter-clockwise about its outward
     // normal from the edge leaving the vertex to the one arriving.
     geom_brep::chart_normal_beside(

@@ -93,7 +93,6 @@ crates/geom-brep/tests/props_cone_vector_area.rs	test	3	oracle
 crates/geom-brep/tests/r1_pxn_probes.rs	test	1	oracle
 crates/geom-brep/tests/review_arceval_r1_probes.rs	test	1	oracle
 crates/geom-brep/tests/review_r1_rational_probes.rs	test	1	oracle
-crates/geom-brep/tests/span_reach_differential.rs	test	1	oracle
 crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
@@ -115,8 +114,8 @@ crates/geom/tests/r2_turn_probes.rs	test	1	oracle
 crates/geom/tests/surfaces/review_m2_pr1_interval.rs	test	1	oracle
 crates/mesh/src/cert.rs	prod	1	re-pose
 crates/mesh/src/cert.rs	test	1	oracle
+crates/mesh/src/chart_table.rs	prod	1	pose
 crates/mesh/src/nurbs_cert.rs	test	8	oracle
-crates/mesh/src/trimmed.rs	prod	2	pose
 crates/mesh/src/walk.rs	test	1	oracle
 crates/mesh/tests/lift_probes.rs	test	1	oracle
 crates/pncad/tests/all.rs	test	1	oracle

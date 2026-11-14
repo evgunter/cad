@@ -2,10 +2,11 @@
 id: germ-takes-the-span-bounded-face-reach-alone
 kind: issue
 title: the germ frame and chord_join read a cylinder wall face's reach both whole-turn and span-bounded and escalate where they disagree
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: E
+closed: 2026-11-09
 ---
 
 ## What
@@ -45,3 +46,7 @@ the declared path took is told from one it did not. Nothing in stage 4
 builds the fix itself: taking `face_reach_from` alone where no
 declaration is carried, and retiring `face_reach_round_from` and
 `agreed_section`, is this program's. No row proves it yet.
+
+## Closed (2026-11-09)
+
+Fixed by BOXES `cover-levers`. `face_reach_round_from`, `agreed_section` and the straddle `pc_axis_plane_parallel_straddle` are gone. A wall face's reach across is its cover's far distance (`topo::cover::face_reach_from`), the one measure, and `chord_join::wall_face_section` reads the section once over it. Moved: the rim-patch rows (`chord_join`'s `a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn` and `the_germ_join_reads_a_rim_patch_at_its_cover`, and `join`'s `a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame`) now serve the rulings where they escalated. `span_reach_differential.rs` and the agreement fuzz were retired with the measure they compared. LEVER, the owner: please confirm on the PR.
