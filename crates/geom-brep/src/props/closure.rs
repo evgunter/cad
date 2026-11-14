@@ -406,7 +406,8 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 ///
 /// **A miss is stated where it is exact.** An edge whose sweep agrees
 /// with its own ends by construction misses them by nothing, and says
-/// so ([`EdgeTurn::exact`]); a circle's turn carried to the axis misses
+/// so ([`EdgeTurn::exact`], [`EdgeTurn::short`]); a circle's turn
+/// carried to the axis misses
 /// its ends by what its own turn misses them about its centre
 /// ([`EdgeTurn::carried`]), the carry cancelling. Read back about the
 /// axis against the very ends it was read off, a sweep is charged the
