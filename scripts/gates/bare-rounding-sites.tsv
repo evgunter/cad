@@ -196,7 +196,6 @@ crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/boolean/solid_contain.rs	prod	10	re-pose
-crates/topo/src/boolean/spline_region.rs	prod	8	re-pose
 crates/topo/src/boolean/spline_region_rows.rs	test	1	oracle
 crates/topo/src/boolean/vtxfac.rs	test	1	oracle
 crates/topo/src/boxes.rs	test	9	oracle
@@ -217,6 +216,7 @@ crates/topo/src/ring_path.rs	test	3	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose
+crates/topo/src/spline_trim.rs	prod	8	re-pose
 crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
 crates/topo/src/vertex_section.rs	prod	6	re-pose

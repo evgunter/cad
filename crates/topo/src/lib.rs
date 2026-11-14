@@ -237,6 +237,7 @@ pub(crate) mod seqgen;
 pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
+pub(crate) mod spline_trim;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;

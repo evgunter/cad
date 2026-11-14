@@ -76,7 +76,7 @@ crate-visible              10  boolean/sectors.rs
 crate-visible              41  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
-crate-visible              11  boolean/spline_region.rs
+crate-visible               5  boolean/spline_region.rs
 crate-visible               4  boolean/spline_region_rows.rs
 crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
