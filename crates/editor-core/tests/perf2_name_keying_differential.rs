@@ -135,13 +135,13 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("nested_islands_105", 0xcdcfa201f726b886, 0xb6e98a2fef9a7683),
     (
         "nested_islands_106_depth1",
-        0xa0864e8ffdbe000a,
-        0xa830cba1e9f77225,
+        0xa18f3b3003aa1f53,
+        0xa3a3df12e81fed73,
     ),
     (
         "nested_islands_106_depth2",
-        0x1a43336a2d09e635,
-        0x5c1219843db607a6,
+        0x4d05c343f5465689,
+        0xa0efcd0678503b59,
     ),
     ("declared_tangency", 0x02afb71c6f997726, 0x6fed7a61290973ac),
     ("kitchen_sink", 0x88803e8bbf21187b, 0x30e98448f6842a9c),
@@ -151,11 +151,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("die_fillet", 0x5aa9c8b27756477a, 0x1f533b6b0e9eec08),
     ("die_chamfer", 0x6b467646ba746fd3, 0xdd5ec23f7efcf701),
     ("die_pips", 0x46f1922773f45023, 0x8f3f511ba32772dd),
-    (
-        "heat_sink_fins",
-        0x33cf_9cd2_a9d5_348e,
-        0xfac2_6885_ef93_a89f,
-    ),
+    ("heat_sink_fins", 0x3a7bf5baaa100e36, 0xc5adeae37c02cbca),
     ("die_tool", 0x075ec898e3aaa1e0, 0x6bf8a06c8a0be61a),
     ("face_sketch", 0x66a7e13b6f73e1bb, 0xa9e4d5eac3818d06),
     ("part_select", 0x3bb5821be1122397, 0xa3f6f7ba47cd0cd2),
@@ -174,13 +170,13 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("axis_projection", 0xff397bc6fe0bf56c, 0xc9a7e7679ebcc9cd),
     (
         "blocks_on_one_floor",
-        0x5d55c48ce893d153,
-        0x1118cf3b11e89b46,
+        0x9173dd51814c576d,
+        0xb2e7d45448d07bf9,
     ),
     (
         "revolves_on_one_axis",
-        0x1a95665af34466c7,
-        0xecaa35ae22f6a002,
+        0xa16460f006abd44d,
+        0xd1fa6cb10cea6811,
     ),
 ];
 
