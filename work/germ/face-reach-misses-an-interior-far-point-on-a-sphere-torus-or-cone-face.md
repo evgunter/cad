@@ -2,10 +2,11 @@
 id: face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face
 kind: issue
 title: face_extent reads only a face's boundary, which misses a sphere's or torus's far side or a cone's apex inside the face
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
+closed: 2026-11-09
 ---
 
 Found by TANG's span-bounded conic reach.
@@ -42,3 +43,7 @@ a reach query of the face's one cover, which answers 2 here. (BOXES
 orchestrator)
 
 Moved from APEX to GERM on 2026-11-02, by `git mv`, when APEX merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Closed (2026-11-09)
+
+Fixed by BOXES `cover-levers`. The face reaches moved to `topo::cover` (`face_reach_from`, `face_range_along`, `face_axial_range`, `cone_face_reach`) and read the face's cover (`face_cover`), which holds a sphere's or torus's far side through its carrier's region met with its chart window, and a cone's apex wherever a loop winds round it (`cone_may_hold_apex`). The split's `face_extent`, chord_join's lanes and the germ frame all read them. GERM, the owner: please confirm on the PR.

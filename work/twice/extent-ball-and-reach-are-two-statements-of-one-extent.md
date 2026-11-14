@@ -2,11 +2,12 @@
 id: extent-ball-and-reach-are-two-statements-of-one-extent
 kind: issue
 title: ExtentBall and Reach are two types for the consumed extent
-status: open
+status: closed
 opened: 2026-10-07
 priority: P4
 cost: M
 design: true
+closed: 2026-11-09
 ---
 
 
@@ -61,3 +62,7 @@ measured span or face is a verdict-moving change that wants its own
 per-door differential. The type no longer stands in the way: a door
 that moves hands a `Reach::Span` or `Reach::Face` where it now hands a
 ball.
+
+## Closed (2026-11-09)
+
+Settled by BOXES `cover-levers`. Both now read the cover. `ExtentBall`'s per-kind constructors (`of_sphere`, `of_circle`, `of_conic`, `of_control_net(_from)`, `of_spiric_oval`, `of_torus`) fold into `of_cover`/`of_covered` of the consumed entity's cover; a test's ball is `ExtentBall::fixture`, counted by `lever-sources.sh`. `Reach::Span` levers over its span's cover; the carrier doors' ball is the face cover's ball (`carrier_pair::face_ball`). A door that moves to a `Reach::Span` or `Reach::Face` is still its own differential. TWICE, the owner: please confirm on the PR.
