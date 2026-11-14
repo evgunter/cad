@@ -10,7 +10,10 @@
 //!
 //! The thicknesses are in ε and the poses scale with it; the rows were
 //! measured at ε 1e-9 and 1e-6, and `Kε` itself is a knife-edge for
-//! every instrument, so the pins sit at 10.5ε, never at `Kε`.
+//! every instrument, so the pins sit at 10.5ε, never at `Kε`. That is
+//! the distance a pair's verdict wants; a volume read off a body 10.5ε
+//! across is another matter, its `f64` sum rounding by up to 8.6% of it
+//! ([`channel_rows`]).
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -607,10 +610,14 @@ fn assert_corners(what: &str, points: &[[f64; 3]], corners: &[[f64; 3]], w: f64)
 
 /// The shell volumes four runs of the moved upright channel `10.5ε`
 /// across read at ε 1e-9
-/// (`a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`), 8.0% to 8.6% short of its `w²` = 1.1025e-16,
-/// its corners where they belong: a pin of what is read, held to 1%. The
-/// wanted reading is `w²` within the 5% every other row holds
-/// (`work/onedoor/the-planar-face-reading-is-two-formulas-at-two-scalars.md`).
+/// (`a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`),
+/// 8.0% to 8.6% short of its `w²` = 1.1025e-16, its corners where they
+/// belong: a pin of what is read, held to 1%. The shortfall is the
+/// rounding of the `f64` sum, the far end of what [`channel_rows`]
+/// measures on every turned and moved row, so the digits past the third
+/// say what was printed and nothing more. The wanted reading is `w²`
+/// within the 5% every other row holds
+/// (`work/onedoor/a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505.md`).
 const MOVED_THIN_READS: [(&str, f64); 4] = [
     ("brick ∖ slab ∪ fill", -1.0141836835207821e-16),
     ("slab ∖ fill", 1.0080466258290497e-16),
@@ -624,12 +631,19 @@ const MOVED_THIN_READS: [(&str, f64); 4] = [
 /// corners the channel's; the bar through `∖` and `∩` in both orders is
 /// one shell, volume `area`, corners the channel's. Every operand and
 /// every built body passes tier 3′ with no contacts. The volumes are
-/// read to `1e-6` at ε 1e-6 and to 5% at ε 1e-9, where a turned bar's
-/// sums round by up to 2%, but for the runs [`MOVED_THIN_READS`] pins.
+/// read to `1e-6` at ε 1e-6 and to 5% at ε 1e-9, where the `f64` sums
+/// of a turned or moved bar round by a share of `w²` that grows as the
+/// bar thins. Measured, the largest per pose and width: aligned under
+/// 1% throughout; turned 4.8% at 10.5ε, 3.6% at 15ε, 1.1% at 21ε and
+/// under 1% at 30ε, leaning or upright; moved 3.1% at 12ε, 1.6% at 15ε
+/// and under 1% from 21ε, and at 10.5ε 2.7% in one run and 8.0% to 8.6%
+/// in the four [`MOVED_THIN_READS`] pins. So the 5% bar stands 0.2
+/// points clear of the turned 10.5ε runs.
 fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Want) {
     let e = tol.eps();
     let w = m * e;
-    let rel = if (e - 1e-9).abs() < 1e-18 { 5e-2 } else { 1e-6 };
+    let at_1e9 = (e - 1e-9).abs() < 1e-18;
+    let rel = if at_1e9 { 5e-2 } else { 1e-6 };
     let what = |op: &str| format!("{op} leaving a {m}ε channel, tilt {s}, {pose:?}, at ε {e:e}");
     let c = channel(pose, w, s, tol);
     let hollow = built(&what("brick ∖ slab"), topo::subtract(&c.big, &c.slab, tol));
@@ -699,7 +713,7 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
             .expect("the shell")
             .enclosure
             .volume;
-        let moved_thin = pose == Pose::Moved && m == 10.5 && s == 0.0 && rel == 5e-2;
+        let moved_thin = pose == Pose::Moved && m == 10.5 && s == 0.0 && at_1e9;
         match MOVED_THIN_READS
             .iter()
             .find(|(o, _)| moved_thin && *o == op)

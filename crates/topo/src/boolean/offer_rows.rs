@@ -10,7 +10,9 @@
 //! met on the way telling its own true story or logged under the row
 //! that owns it (the module docs there state the rule). Each case also
 //! states the margin its geometry gives, and the value it quotes and
-//! offers is checked against it.
+//! offers is checked against it, but for the two cases
+//! [`QUOTED_AS_A_LENGTH`] names, whose quote is held to that margin's
+//! magnitude.
 //!
 //! The census is by construction: every refusal kind that quotes a
 //! margin of its own is placed by an exhaustive match ([`quoting`]),
@@ -131,14 +133,20 @@ struct Case {
     key: &'static str,
     /// The margin its first raise quotes, computed from its geometry
     /// (signed): the offer a valued case makes is this margin's `|m|/K`,
-    /// and a withdrawn case executes that value.
+    /// and a withdrawn case executes that value. The two cases
+    /// [`QUOTED_AS_A_LENGTH`] names declare a negative margin and quote
+    /// its magnitude.
     margin: f64,
     door: Door,
     offer: Offer,
 }
 
 impl Case {
-    /// The side of zero its refused margin lies on.
+    /// The side of zero its declared margin lies on: the side of the
+    /// offering arm the census counts it under, which for the two cases
+    /// [`QUOTED_AS_A_LENGTH`] names is not the side their raise quotes,
+    /// so those two negative arms are counted with no case that
+    /// executes them.
     fn positive(&self) -> bool {
         self.margin > 0.0
     }

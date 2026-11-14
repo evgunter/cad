@@ -84,3 +84,21 @@ Two more slow rows show the same blind spot, from both sides.
 ## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
 
 PR 6931 (`green/default-eps`) pins or re-blesses six slow-set tests by editing their bodies and helpers. Its first gate run (head `447474cb7`) was green with the slow-set step lasting one second: the diff's added lines spelled none of the six names. The lane made each pin's comment name its test, and the second run (43555174396) is the one that ran them. Every lane that greens a nightly red is in this position, since greening a slow test is an edit inside it. On GREEN this turns "the gate is green" into no evidence at all for a pin PR, so the lanes now read the step log for which tests ran.
+
+**Comments written for the selector (PR 6931's fix pass).** The lane's
+answer was to make a comment beside each pin name the test that reads
+it. Those mentions exist so that an added line spells the name and the
+slow-set step selects the test; they are to go when the selector reads
+edits inside a test. They are:
+
+- `crates/sweep/tests/a_plane_near_a_needle_cones_apex.rs`, the module
+  header's last sentence;
+- `crates/sweep/tests/an_aimed_ray_from_far_reads_a_split_side_right.rs`,
+  `Read`'s doc (two test names);
+- `crates/topo/tests/shell_role_reader.rs`, `MOVED_THIN_READS`' doc;
+- `crates/topo/src/boolean/offer_rows.rs`, `QUOTED_AS_A_LENGTH`'s doc;
+- `crates/viewer/tests/door_at_rest.rs`, `DIE_UNPROVEN`'s doc.
+
+The review of that PR also read which rows the second run reached: each
+of the six once, at the default ε, in the slow-set step, and nowhere
+else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).

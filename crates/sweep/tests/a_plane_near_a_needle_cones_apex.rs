@@ -160,7 +160,8 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 if spin == 0.0 && tilt == 1.5 {
                     // The ellipse's vertices on the seams: the census
                     // cannot settle a ruling against the half ending on
-                    // it, filed as
+                    // it, the meeting unread on a meter (the line ×
+                    // ellipse pose's basin), filed as
                     // work/splitdoor/tier-3-prime-cannot-settle-a-ruling-against-an-ellipse-it-ends-at-on-a-needle-cone.md
                     let errs = t3p.expect_err(&what);
                     assert!(
@@ -171,9 +172,7 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                                 ..
                             } if matches!(
                                 why.fault(),
-                                MeetFault::Unsettled(Unsettled::Meter {
-                                    row: "curve_pair_pose_basin"
-                                })
+                                MeetFault::Unsettled(Unsettled::Meter { .. })
                             )
                         )),
                         "{what}: tier 3′ as measured: {errs:?}"

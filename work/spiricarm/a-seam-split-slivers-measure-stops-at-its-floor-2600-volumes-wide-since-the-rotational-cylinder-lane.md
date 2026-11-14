@@ -1,7 +1,7 @@
 ---
 id: a-seam-split-slivers-measure-stops-at-its-floor-2600-volumes-wide-since-the-rotational-cylinder-lane
 kind: issue
-title: A seam split's sliver side stops its measure at the floor with a volume bracket 2600 volumes wide, since the rotational lane reads the cylinder chart
+title: A seam split's sliver side stops its measure at the floor with a volume bracket 2600 volumes wide, since PR 6478 (spiricarm/rotational-lane-cylinder)
 status: open
 opened: 2026-11-14
 priority: P2
@@ -47,18 +47,33 @@ Bisected first-parent by running the test, from `839528164` (the merge
 of PR 6174, which added the row) to `898df16c9`: every one of nine
 steps is green up to `aef1e5892`, and `898df16c9`, the merge of PR 6478
 (`spiricarm/rotational-lane-cylinder`), is red with the message above.
-That PR's kernel change is `crates/topo/src/props/quad_lane.rs` (and
-two lines of `props.rs`, `boolean/ops.rs`). Which face of the sliver
-carries the width, and which rung of the lane stops, were not read.
+What is measured is the merge. That PR's kernel change is
+`crates/topo/src/props/quad_lane.rs` (and two lines of `props.rs`,
+`boolean/ops.rs`), and its branch name says the rotational lane took
+the cylinder chart, but that the sliver's wall goes through that lane
+was not run: which face of the sliver carries the width, which lane
+measures it and which rung stops are all unread. (The row's id says
+"since the rotational cylinder lane"; read it as "since that PR".)
 
 ## The pin
 
 `read` in that test file returns `Read::Unsettled` for a pose whose
 measure stops at `Stop::Floor` (any other unmet stop panics), having
-checked that the sides' brackets hold π; the census asserts the
+checked that the stopped side's volume half-width is `FLOOR_STOP_PAD`
+(7.039484e-7) within 1% either way, so a wider bracket is red too, and
+that the sides' brackets hold π; the census asserts the
 unsettled poses are exactly the four above at ε 1e-9 and none at the
-other rows. It turns red when any of them meets the resolution, or when
-another pose stops short.
+other rows, and the file's other reader of `read`
+(`a_seam_split_a_hair_off_tangency_reads_no_side_inside_out`) asserts
+its family has none. It turns red when any of the four meets the
+resolution or stops at another width, or when another pose stops short.
+
+Both nightlies that have run since (43371638371 and 43561237293) were
+searched for another test failing on an unmet measure (`Unmet {`, "the
+pinned resolution is met", "did not meet its resolution", in every
+failing test's stderr at all three ε rows, the all-features and viewer
+app jobs): this census is the only one. The all-features job of the
+first had no log to read.
 
 ## Wanted
 

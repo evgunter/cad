@@ -33,7 +33,10 @@ The cause is PR 6687 (`onecopy/needle-basin`, merge `f875961fe`,
 conic root lane now reads a root
 against an end, and two roots against each other, by the chord between
 their points (`curve_pair_span_end_chord`, `plane_crossing_roots_apart`,
-both `Margin::norm3`), where it read signed parameter differences. So
+both `Margin::norm3`), where it read signed parameter differences. That
+mechanism is a reading of the merge's diff; what was run is the test at
+the merge and its parent, and the STYLE review's mutant of the two
+rungs. So
 the root site reports a length: neither guess above (an unsigned
 report, or a stale declared sign) is wrong, and which end to change is
 a question about the offering census, since re-declaring the two cases
