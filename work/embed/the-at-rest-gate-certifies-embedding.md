@@ -591,13 +591,19 @@ would read in their place.
   - On closed conic edges the graph's piece now also holds the curve's
     parameters past the seam. Without that, the filleted drum refused:
     the curve runs an ulp past the seam through its join.
-- **Corner sides keep one band reading.** Removing it moves 6892's two-ball union
-  from `Holds` to `Uncertified` (Departure, at a meridian, depth 40).
-  At the pole, one face's corner is on one meridian and the other's on
-  the other, and the two meridians' stored planes differ by `1.2e-16`
-  rad. No plane built from an edge lists both, so a side at a corner
-  that the plane does not list is still read over the side. That is
-  the one band reading left under a plane.
+- **Corner sides kept one band reading; it is gone (seam lane, PR
+  6908).** Removing it moved 6892's two-ball union from `Holds` to
+  `Uncertified` (Departure, at a meridian, depth 40). At the pole, one
+  face's corner is on one meridian and the other's on the other, and
+  the two meridians' stored planes differed by `1.2e-16` rad (the
+  revolve placed the angle-π copy through its turned placement, whose
+  `sin π` rounds). The revolve now stores the angle-π meridian with the
+  angle-0 one's centre and its axis turned over. A conic's plane lists
+  every near conic whose stored frame is the same value
+  (`one_plane`), and `sign_on` reads membership only. At `f64` the
+  union holds. At `Interval` the small ball's centre is a bracket,
+  which is not one value, so its pole refuses
+  (`a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval`).
 - **Pins:**
   - topo's `a_plane_through_a_turning_line_edge_holds_it_for_every_member`
     (an `Interval` family whose line edge turns; red on a rounded `n`);

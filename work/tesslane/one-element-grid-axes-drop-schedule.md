@@ -54,3 +54,9 @@ A read-only lane re-read every member at `d6e1eb1f`. Nothing was run. No member 
 - The three lattice emitters (`tessellate_curved`, `uniform_candidates`, `per_cell_candidates`) each spell an interior lattice.
 
 Cost drops to M: what this row owes is the strip shape stated and pinned in the sphere, torus and spindle theorems, the class record made true, and the probe made able to fail. The NURBS member is re-banded on its own once measured.
+
+## The NURBS one-column band, measured (2026-11-14)
+
+Run at `d6e1eb1f` (probes `reach_probes::a_one_column_wall_meshes_on_its_boundary_chords_alone` and `a_one_column_band_with_raised_rows_adds_no_lattice_point` on `tesslane/measure-reach`). An ordinary thin blade reaches `nuc == 1`: a 2 × 0.01 rectangle lofted through `sweep::loft_body`. Its narrow walls are one band with one column and no lattice point at every δ tried; raised rows add nothing to the mesh. Every run meshes and passes `check_mesh`: across degree 2 and 3, even and uneven stations, twist 0.01–0.1 and bow 0.02–0.05 at six δ, the largest certificate on a one-column wall was 6.7 % of δ. The mesh's rows are the chord pass's boundary schedule (`chords::nurbs_tighten`, whole-patch steps), not the band's `nvc`: 458 triangles against 232 scheduled rows on one wall.
+
+So this member is not a refusal and not near δ. What it leaves is the reverse: a one-column wall is meshed by a schedule the band did not choose, far under δ, and the `LATTICE_SHARE` theorem's text does not describe it. No face that refuses or exceeds δ was constructed.
