@@ -749,3 +749,33 @@ fn a_judged_change_lands_on_its_one_solve() {
     );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
+
+/// **A value field's text that does not parse is refused in the slot
+/// door's words**: the same text typed into a placement's value field
+/// and into that value's slot is said one way.
+#[test]
+fn a_typed_value_that_does_not_parse_says_the_slot_doors_refusal() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-typed-parse", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
+    let text = "5 mm +";
+    let typed =
+        viewer::matetool::typed_value(session.committed_doc(), Coord::slide(TargetAxis::X), text)
+            .expect_err("the text does not parse");
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: bench.post_b,
+        slot: SlotId::ValueSlide {
+            constraint: slide_x,
+        },
+        text: text.to_owned(),
+    });
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    let slot = outcome.refusal.expect("the slot door refuses the text");
+    assert!(matches!(slot, Refusal::Parse(_)), "{slot:?}");
+    assert_eq!(
+        typed.to_string(),
+        slot.to_string(),
+        "the value field and the slot say one refusal"
+    );
+}

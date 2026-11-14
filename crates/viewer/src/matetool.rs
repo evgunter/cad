@@ -1677,8 +1677,8 @@ pub fn value_text(doc: &Doc<ProfileProgram>, by: &Formula) -> String {
 }
 
 /// **What a person typed in `coord`'s field, as its value**: the text
-/// read by the one parser over the document's variables, at the
-/// freedom's dimension.
+/// read by the one parse every text door runs
+/// (`crate::session::parse_text`), at the freedom's dimension.
 ///
 /// # Errors
 ///
@@ -1689,8 +1689,8 @@ pub fn typed_value(
     coord: Coord,
     text: &str,
 ) -> Result<Formula, TypedValueError> {
-    let by = pncad::document::parse_formula(text, &doc.var_scope())
-        .map_err(|error| TypedValueError::Parse(Box::new(error)))?;
+    let by = crate::session::parse_text(doc, text)
+        .map_err(|refusal| TypedValueError::Parse(Box::new(refusal)))?;
     let wanted = coord.dimension();
     // A bare `0` is every dimension's zero: the text a zero value's field
     // shows ([`value_text`]) reads back as that zero.
@@ -1710,8 +1710,9 @@ pub fn typed_value(
 /// Why a typed value field's text is no value (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TypedValueError {
-    /// The text does not parse.
-    Parse(Box<pncad::document::ParseError>),
+    /// The text does not parse: the slot door's refusal
+    /// ([`Refusal::Parse`]).
+    Parse(Box<Refusal>),
     /// The text is a quantity of another dimension than the freedom's.
     Dimension {
         /// The freedom.
@@ -1724,7 +1725,7 @@ pub enum TypedValueError {
 impl core::fmt::Display for TypedValueError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Parse(error) => write!(f, "{error}"),
+            Self::Parse(refusal) => write!(f, "{refusal}"),
             Self::Dimension { coord, found } => write!(
                 f,
                 "the {} is a {}, and the text is a {found}",

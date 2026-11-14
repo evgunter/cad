@@ -26,3 +26,12 @@ spellings.
 The shape of a fix: `typed_value` parses through `session::parse_text`
 and carries its `Refusal` (or its sentence), keeping its own dimension
 check after the parse, which is a question the slot door does not ask.
+
+## Fixed (branch `placing/p3-editor-batch`)
+
+`matetool::typed_value` parses through `session::parse_text`, and
+`TypedValueError::Parse` carries its `Refusal`. The dimension check
+stays after the parse. `bundle_editor::a_typed_value_that_does_not_parse_says_the_slot_doors_refusal`
+types `5 mm +` into a slide's value field and into that value's slot,
+and holds the two sentences equal. On main, the field said the bare
+parse error, without "the expression did not parse:".
