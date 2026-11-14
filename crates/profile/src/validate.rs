@@ -732,8 +732,8 @@ impl fmt::Display for ProfileError {
             ),
             Self::InconsistentDirection { at, which } => write!(
                 f,
-                "{at} disagrees with its vertices: {which} — author the segment through the \
-                 path lattice, which records the directions its verbs drew it along"
+                "{at} disagrees with its vertices, as {which}. Recourse: author the segment \
+                 through the path lattice, which records the directions its verbs drew it along"
             ),
             Self::DirectionBelowSceneResolution {
                 at,
@@ -742,8 +742,8 @@ impl fmt::Display for ProfileError {
                 headroom,
             } => write!(
                 f,
-                "{at}: {which} by {margin}, a difference this scene's magnitude cannot resolve \
-                 (headroom {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
+                "{at} records a direction this scene's magnitude cannot read, as {which} by \
+                 {margin} (headroom {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
             ),
             Self::InconsistentArc { at, check } => write!(
                 f,
