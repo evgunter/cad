@@ -140,7 +140,6 @@ WINDOW=16
 # THE REGISTER — `<file>|<fn>|<fragment>|<count>|<disposition>`.
 REGISTER=(
   "crates/editor-core/src/names/emit.rs|loop_half_edges||1|unaudited"
-  "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"

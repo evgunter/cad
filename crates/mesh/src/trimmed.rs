@@ -1976,9 +1976,9 @@ fn trim_orientation(
 /// The loops of a face's domain, outer loop first: the outer loop's lift
 /// and each ring's as the door placed it ([`topo::Body::face_lift`]).
 pub(crate) fn domain_loops(lift: &FaceLift<f64>) -> Vec<&Lift<f64>> {
-    core::iter::once(lift.outer())
-        .chain(lift.rings().iter().map(topo::pcurves::PlacedRing::lift))
-        .collect()
+    let mut loops = vec![lift.outer()];
+    loops.extend(lift.rings().iter().map(topo::pcurves::PlacedRing::lift));
+    loops
 }
 
 /// The pcurve-driven UV polygon of the face's domain, every loop of it
@@ -2024,7 +2024,7 @@ fn loop_polygon(
     nurbs_chart: bool,
     creases: Option<&Creases>,
     singular: &HashSet<u32>,
-) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
+) -> Result<LoopPoints, TessellateError> {
     if lift.is_empty() {
         return Err(TessellateError::EmptyLoop { face: fk });
     }
@@ -2188,7 +2188,7 @@ fn flatten_traversals(
     travs: &[Vec<(f64, f64, u32)>],
     edges: &[EdgeKey],
     singular: &HashSet<u32>,
-) -> Result<(Vec<(f64, f64, u32)>, Vec<EdgeKey>), TessellateError> {
+) -> Result<LoopPoints, TessellateError> {
     if travs.iter().any(Vec::is_empty) {
         return Err(TessellateError::MissingEntity {
             what: "edge chords",
@@ -2219,6 +2219,10 @@ fn flat_points<'t>(
             .chain(side.then_some((k, last)))
     })
 }
+
+/// One loop's points, each its chart `(u, v)` and mesh id in walk order,
+/// and beside them the edge each point's traversal walks.
+type LoopPoints = (Vec<(f64, f64, u32)>, Vec<EdgeKey>);
 
 /// **A face's trim polygon**: every loop of its domain, outer loop first
 /// and then the rings in the face's order, each in walk order, as one
