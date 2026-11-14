@@ -389,16 +389,84 @@ fn reads_negative<T: Decide>(x: T) -> bool {
 /// of two unit directions, computed by the form whose divisor is at least
 /// one ([`reads_negative`]): `1 + c` itself where `c` reads non-negative,
 /// else `|k|²/(1 − c)`, which loses no digit near the pole. Over the
-/// reals the two are one number. The one spelling of the choice: the
-/// least-turn mint ([`RigidMotion::least_turn`]) computes its divisor
-/// here, and so does any reader of the same turn.
-#[must_use]
-pub fn least_turn_one_plus_c<T: Decide>(k: Vec3<T>, c: T) -> T {
+/// reals the two are one number. [`LeastTurn::between`] is its one
+/// reader.
+fn least_turn_one_plus_c<T: Decide>(k: Vec3<T>, c: T) -> T {
     let one = T::one();
     if reads_negative(c) {
         k.dot(k) / (one - c)
     } else {
         one + c
+    }
+}
+
+/// **The least turn carrying the unit `from` onto the unit `to`**,
+/// `S = c·I + [k]× + k kᵀ / (1 + c)` with `c = from · to` and
+/// `k = from × to`: the turn about `k` by the angle between them, as the
+/// rational Rodrigues form with its angle eliminated. The one home of
+/// the turn's arithmetic: [`RigidMotion::least_turn`] mints its columns
+/// here, and every reader of the same turn (the mate chart's pole
+/// verdict, the viewer's snap) computes it here, so the turn a gesture
+/// writes and the turn the chart reads back are one expression.
+///
+/// Each of its three numbers is taken by the spelling whose error scales
+/// with the turn's own geometry (geom-core README W1). Where `c` reads
+/// negative (`reads_negative`), `k` is `from × (from + to)`, which is
+/// `from × to` over the reals: near opposed `from + to` is a difference
+/// of nearly opposite components, exact or nearly so, so `k` carries a
+/// rounding relative to its own length `sin δ` rather than about `u`
+/// against it, and the turn carries `from` onto `to` within a few `u` at
+/// every `δ`, the angle short of opposed
+/// (`the_least_turn_carries_from_onto_to_within_a_few_ulps_near_opposed`).
+/// `1 + c` is taken as `least_turn_one_plus_c` says. Where `c` reads
+/// non-negative both are the direct forms, unchanged.
+///
+/// It has no answer at its one pole, `from = −to`, where `1 + c` is
+/// zero; a reader decides the pole from [`Self::one_plus_c`] before it
+/// applies the turn.
+#[derive(Clone, Copy, Debug)]
+pub struct LeastTurn<T: Real> {
+    c: T,
+    k: Vec3<T>,
+    one_plus_c: T,
+}
+
+impl<T: Decide> LeastTurn<T> {
+    /// The least turn carrying `from` onto `to`.
+    #[must_use]
+    pub fn between(from: Vec3<T>, to: Vec3<T>) -> Self {
+        let c = from.dot(to);
+        // Which spelling of `k` is a choice of arithmetic, not a verdict:
+        // the two are one vector over the reals.
+        let k = if reads_negative(c) {
+            from.cross(from + to)
+        } else {
+            from.cross(to)
+        };
+        let one_plus_c = least_turn_one_plus_c(k, c);
+        Self { c, k, one_plus_c }
+    }
+
+    /// `1 + c`: zero at the pole, two where the directions agree.
+    #[must_use]
+    pub fn one_plus_c(&self) -> T {
+        self.one_plus_c
+    }
+
+    /// `S·v`.
+    #[must_use]
+    pub fn apply(&self, v: Vec3<T>) -> Vec3<T> {
+        v * self.c + self.k.cross(v) + self.k * (self.k.dot(v) / self.one_plus_c)
+    }
+
+    /// `S`, column by column.
+    #[must_use]
+    pub fn matrix(&self) -> Mat3<T> {
+        Mat3::from_cols(
+            self.apply(Vec3::unit_x()),
+            self.apply(Vec3::unit_y()),
+            self.apply(Vec3::unit_z()),
+        )
     }
 }
 
@@ -1118,14 +1186,14 @@ impl<T: Decide> RigidMotion<T> {
     /// **The least turn carrying the unit `from` onto the unit `to`**, as
     /// the rational Rodrigues form with its angle eliminated:
     /// `S·v = c·v + k × v + k (k · v)/(1 + c)` for `k = from × to`,
-    /// `c = from · to`, applied to the basis vectors. Rotating `from` onto
-    /// `to` about `k` by construction, with the turn's own `1 + c` taken
-    /// by the form whose divisor is at least one
-    /// ([`least_turn_one_plus_c`]): the mint chooses it, never its caller,
-    /// so the turn is rigid within rounding at every input
-    /// (`every_construction_mint_is_rigid_within_rounding_on_the_whole_sphere`).
-    /// Near opposed the turn is rigid but carries `from` onto `to` less
-    /// tightly (`the_least_turns_carry_near_opposed_is_its_pinned_bound`).
+    /// `c = from · to`, applied to the basis vectors ([`LeastTurn`], the
+    /// turn's one home). Rotating `from` onto `to` about `k` by
+    /// construction, each of `k` and `1 + c` taken by the spelling the
+    /// turn chooses, never its caller, so the turn is rigid within
+    /// rounding at every input
+    /// (`every_construction_mint_is_rigid_within_rounding_on_the_whole_sphere`)
+    /// and carries `from` onto `to` within a few `u` however near opposed
+    /// (`the_least_turn_carries_from_onto_to_within_a_few_ulps_near_opposed`).
     /// The origin is the coordinate origin.
     ///
     /// # Errors
@@ -1133,16 +1201,7 @@ impl<T: Decide> RigidMotion<T> {
     /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`]
     /// where a column is not finite (at the turn's pole, `1 + c = 0`).
     pub fn least_turn(from: UnitVec3<T>, to: UnitVec3<T>) -> Result<Self, RigidMotionError> {
-        let (f, t) = (from.get(), to.get());
-        let k = f.cross(t);
-        let c = f.dot(t);
-        let one_plus_c = least_turn_one_plus_c(k, c);
-        let col = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / one_plus_c);
-        let l = Mat3::from_cols(
-            col(Vec3::unit_x()),
-            col(Vec3::unit_y()),
-            col(Vec3::unit_z()),
-        );
+        let l = LeastTurn::between(from.get(), to.get()).matrix();
         for column in [l.c0, l.c1, l.c2] {
             finite(at(column), MotionPart::Linear)?;
         }
@@ -3175,52 +3234,110 @@ mod construction_mint_rows {
         RigidMotion::least_turn(from, to)
     }
 
-    /// **Near opposed, the least turn carries `a` onto `b` to a pinned
-    /// bound that grows as `1/δ`**, `δ` the angle short of opposed:
-    /// rigid within rounding throughout (the row above), but `k = a × b`
-    /// carries its components' rounding, about `u`, against a length
-    /// `δ`, so the turn's axis is off by about `u/δ` and `a` lands off `b`
-    /// by that much. Over 2000 drawn directions at each `δ` from `10⁻¹`
-    /// to `10⁻⁹`, the miss is at most `MISS_ULPS · u/δ` plus a few `u`.
-    /// Today's bound, measured, not a requirement met:
-    /// `work/onehome/the-least-turn-misses-its-target-by-u-over-delta-near-opposed.md`
-    /// owns the debt: measured here, `1.3·10⁻⁹` at `δ = 10⁻⁷` and
-    /// `1.2·10⁻⁷` at `10⁻⁹`, so a mate admitted about `10⁻⁷` from opposed
-    /// lands about `1.3ε` off at a 1 m arm at the default ε.
+    /// The near-opposed pair at `δ` short of opposed, `a` drawn and `b`
+    /// turned off `−a` by `δ` across a drawn direction.
+    fn near_opposed(d: &mut Draw, delta: f64) -> (UnitVec3<f64>, UnitVec3<f64>) {
+        let a = d.direction();
+        let across = loop {
+            let p = d.direction().get();
+            let r = p - a.get() * a.get().dot(p);
+            if r.norm() > 0.1 {
+                break unit(r);
+            }
+        };
+        (a, unit(-a.get() * delta.cos() + across.get() * delta.sin()))
+    }
+
+    /// `S·a` by the direct spelling `k = a × b` the turn takes where `c`
+    /// reads non-negative, at every `c`: the old near-opposed arm, which
+    /// the row below shows misses by `u/δ`.
+    fn direct_carry(a: Vec3<f64>, b: Vec3<f64>) -> Vec3<f64> {
+        let (k, c) = (a.cross(b), a.dot(b));
+        let one_plus_c = if c < 0.0 {
+            k.dot(k) / (1.0 - c)
+        } else {
+            1.0 + c
+        };
+        a * c + k.cross(a) + k * (k.dot(a) / one_plus_c)
+    }
+
+    /// **Near opposed, the least turn carries `a` onto `b` within a few
+    /// `u` at every `δ`**, `δ` the angle short of opposed. Over 2000
+    /// drawn pairs at each `δ` from `10⁻¹` to `10⁻⁹`, `|S·a − b|` is at
+    /// most `MISS_ULPS · u`: `k = a × (a + b)` carries a rounding relative
+    /// to its own length (the difference `S·a − b` of nearly equal
+    /// coordinates is exact, so the `f64` reading is the miss). The
+    /// direct `k = a × b` misses by about `0.6·u/δ` (`5·10⁸ u` at
+    /// `10⁻⁹`), and the row checks it does at every `δ ≤ 10⁻³`, so the
+    /// bound is the spelling's and no draw's.
     ///
-    /// *Breaks if* the carry near opposed gets worse than measured.
+    /// *Breaks if* the near-opposed turn's axis comes from a short `k`
+    /// again.
     #[test]
-    fn the_least_turns_carry_near_opposed_is_its_pinned_bound() {
-        // Measured worst: 0.6 at every δ from 10⁻¹ to 10⁻⁹.
-        const MISS_ULPS: f64 = 2.0;
+    fn the_least_turn_carries_from_onto_to_within_a_few_ulps_near_opposed() {
+        // Measured worst over these draws, against an exact rational
+        // oracle as well as here: under 3.
+        const MISS_ULPS: f64 = 6.0;
         let u = f64::EPSILON;
         let mut d = Draw(0x9e37_79b9_7f4a_7c15);
-        let mut worst_ratio = 0.0_f64;
         for k in 1..=9 {
             let delta = 10f64.powi(-k);
-            let mut worst = 0.0_f64;
+            let (mut worst, mut direct) = (0.0_f64, 0.0_f64);
             for _ in 0..2000 {
-                let a = d.direction();
-                let across = loop {
-                    let p = d.direction().get();
-                    let r = p - a.get() * a.get().dot(p);
-                    if r.norm() > 0.1 {
-                        break unit(r);
-                    }
-                };
-                let b = unit(-a.get() * delta.cos() + across.get() * delta.sin());
+                let (a, b) = near_opposed(&mut d, delta);
                 let Ok(turn) = least(a, b) else { continue };
                 worst = worst.max((turn.turn(a).get() - b.get()).norm());
+                direct = direct.max((direct_carry(a.get(), b.get()) - b.get()).norm());
             }
-            let bound = MISS_ULPS * u / delta + 4.0 * u;
-            eprintln!("δ = 1e-{k}: worst miss {worst:.3e}, bound {bound:.3e}");
-            worst_ratio = worst_ratio.max(worst / (u / delta));
-            assert!(
-                worst <= bound,
-                "δ = 1e-{k}: a lands {worst:e} off b, past {bound:e}"
+            eprintln!(
+                "δ = 1e-{k}: worst miss {:.2} u, the direct a × b's {:.3e} u",
+                worst / u,
+                direct / u
             );
+            assert!(
+                worst <= MISS_ULPS * u,
+                "δ = 1e-{k}: a lands {worst:e} off b, past {MISS_ULPS} u"
+            );
+            if k >= 3 {
+                assert!(
+                    direct > 0.1 * u / delta,
+                    "δ = 1e-{k}: the direct spelling misses by only {direct:e}, so the row no \
+                     longer tells the spellings apart"
+                );
+            }
         }
-        eprintln!("worst miss / (u/δ) = {worst_ratio:.1}");
+    }
+
+    /// **Where `c` reads non-negative the least turn is the direct
+    /// spelling, bit for bit**: `k = a × b`, `1 + c`, the Rodrigues
+    /// columns, over 4000 drawn pairs at `c ≥ 0`, so the near-opposed
+    /// spelling moves no bit of a turn in the near hemisphere.
+    #[test]
+    fn the_least_turn_in_the_near_hemisphere_keeps_the_direct_bits() {
+        let mut d = Draw(0x2545_f491_4f6c_dd1d);
+        let mut seen = 0;
+        while seen < 4000 {
+            let (a, b) = (d.direction().get(), d.direction().get());
+            let (k, c) = (a.cross(b), a.dot(b));
+            if c < 0.0 {
+                continue;
+            }
+            seen += 1;
+            let col = |v: Vec3<f64>| v * c + k.cross(v) + k * (k.dot(v) / (1.0 + c));
+            let want = Mat3::from_cols(
+                col(Vec3::unit_x()),
+                col(Vec3::unit_y()),
+                col(Vec3::unit_z()),
+            );
+            let got = LeastTurn::between(a, b).matrix();
+            for (g, w) in [(got.c0, want.c0), (got.c1, want.c1), (got.c2, want.c2)] {
+                assert_eq!(
+                    [g.x.to_bits(), g.y.to_bits(), g.z.to_bits()],
+                    [w.x.to_bits(), w.y.to_bits(), w.z.to_bits()],
+                    "a = {a:?}, b = {b:?}: the near-hemisphere turn moved a bit"
+                );
+            }
+        }
     }
 
     /// **Every construction mint is rigid within rounding at every
