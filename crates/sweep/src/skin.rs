@@ -2106,8 +2106,8 @@ type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
 /// Station `station`'s point on `path` at the parameter `at` and its
 /// tangent, decided into a direction under `sweep_path_tangent`: the
 /// path's point ([`NurbsCurve3::eval`]) and its derivative through the
-/// hodograph ([`hodograph_derivative`]). The `f64` carry and every lane
-/// read this one expression.
+/// hodograph ([`NurbsCurve3::derivative_at`]). The `f64` carry and every
+/// lane read this one expression.
 fn read_tangent<T: Decide>(
     path: &NurbsCurve3<T>,
     station: usize,
@@ -2115,84 +2115,9 @@ fn read_tangent<T: Decide>(
     band: Band,
 ) -> Result<(Point3<T>, UnitVec3<T>), SkinError> {
     let t = T::from_f64(at);
-    UnitVec3::new(hodograph_derivative(path, at), SWEEP_PATH_TANGENT, band)
+    UnitVec3::new(path.derivative_at(at), SWEEP_PATH_TANGENT, band)
         .map(|d| (path.eval(t), d))
         .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
-}
-
-/// **The path's derivative at `at`, through its hodograph**: the
-/// differences of the homogeneous control net, `p·(Qᵢ₊₁ − Qᵢ)/(uᵢ₊ₚ₊₁ −
-/// uᵢ₊₁)` for `Qᵢ = wᵢPᵢ`, summed against the degree `p − 1` basis on
-/// the interior knots; on a rational path `C′ = (A′ − W′·C)/W`, with
-/// `W` and `W′` the weight's value and derivative. It is the curve's
-/// derivative exactly, evaluated by fewer operations than the
-/// derivative recursion takes: the differences of the data enter once,
-/// so at `Interval` the tangent is about 20 times narrower (`crates/
-/// sweep/tests/a_station_frame_is_minted_to_its_floor.rs`).
-fn hodograph_derivative<T: Decide>(path: &NurbsCurve3<T>, at: f64) -> Vec3<T> {
-    let p = path.degree();
-    let knots = path.knot_values().values();
-    let control = path.control();
-    let weights = path.weights();
-    let k = path
-        .span_at(at)
-        .unwrap_or_else(|| unreachable!("a station's parameter lies in the path's domain"))
-        .index();
-    let t = T::from_f64(at);
-    let zero = Vec3::new(T::zero(), T::zero(), T::zero());
-    if p == 0 {
-        return zero;
-    }
-    let lower = basis(&knots[1..knots.len() - 1], k - 1, p - 1, t);
-    let degree = T::from_f64(f64::from(u32::try_from(p).unwrap_or(u32::MAX)));
-    let polynomial = path.constant_weight().is_some();
-    let (mut a1, mut w1) = (zero, T::zero());
-    for (r, n) in lower.iter().enumerate() {
-        let i = k - p + r;
-        let scale = degree / (knots[i + p + 1] - knots[i + 1]);
-        let (q0, q1) = if polynomial {
-            (
-                control[i] - Point3::origin(),
-                control[i + 1] - Point3::origin(),
-            )
-        } else {
-            (
-                (control[i] - Point3::origin()) * weights[i],
-                (control[i + 1] - Point3::origin()) * weights[i + 1],
-            )
-        };
-        a1 = a1 + (q1 - q0) * (scale * *n);
-        w1 = w1 + (weights[i + 1] - weights[i]) * (scale * *n);
-    }
-    if polynomial {
-        return a1;
-    }
-    let full = basis(knots, k, p, t);
-    let w = full
-        .iter()
-        .enumerate()
-        .fold(T::zero(), |acc, (r, n)| acc + weights[k - p + r] * *n);
-    (a1 - (path.eval(t) - Point3::origin()) * w1) / w
-}
-
-/// The `degree + 1` nonzero B-spline basis functions at `t` on the span
-/// `span` of `knots` (The NURBS Book, A2.2).
-fn basis<T: Real>(knots: &[T], span: usize, degree: usize, t: T) -> Vec<T> {
-    let mut n = vec![T::zero(); degree + 1];
-    let (mut left, mut right) = (vec![T::zero(); degree + 1], vec![T::zero(); degree + 1]);
-    n[0] = T::one();
-    for j in 1..=degree {
-        left[j] = t - knots[span + 1 - j];
-        right[j] = knots[span + j] - t;
-        let mut saved = T::zero();
-        for r in 0..j {
-            let tmp = n[r] / (right[r + 1] + left[j - r]);
-            n[r] = saved + right[r + 1] * tmp;
-            saved = left[j - r] * tmp;
-        }
-        n[j] = saved;
-    }
-    n
 }
 
 /// A station's placement that left the format.

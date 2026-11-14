@@ -52,7 +52,7 @@ Filed by the skin-turn lane (`onehome/skin-turn`), which mints each station's fr
 
 **Pinned.** The three rows are pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins lift with its fix.
 
-**Built: the hodograph tangent** (`onehome/sweep-walls-at-t`, 6655bf301). Every station reads its tangent through the path's hodograph, at `f64` and at every lane. The frames are minted at most 3.3e-14 wide, pinned by `crates/sweep/tests/a_station_frame_is_minted_to_its_floor.rs`. `a_long_helical_sweep_certifies_within_the_default_budget` passes at 1e-12, and its pin is lifted.
+**Built: the hodograph tangent** (`onehome/sweep-walls-at-t`, 6655bf301). Every station reads its tangent through the path's hodograph, at `f64` and at every lane. The frames are minted at most 3.3e-14 wide, pinned by `crates/sweep/tests/a_station_frame_is_minted_to_its_floor.rs`. `a_long_helical_sweep_certifies_within_the_default_budget` passes at 1e-12, and its pin is lifted. The read lives in `geom` (`NurbsCurve3::derivative_at`, PR 6952). With it the S duct's refusal moves from `pcurve_map_residual` to its cap rim's loop joint (`pcurve_loop_continuity` on `20v1`, ±1.9e-12), the closed spine's stays (`18v1`, ±4.5e-11), and both pins name those.
 
 **Traced: why `18v1` and `20v1` are General.** Each is a cap rim, a line on the wall's boundary row whose exact image is that row. The mint's iso selection (`geom-brep` `edge_nurbs.rs` `probe_pick`, from `topo` `pcurves.rs`'s boundary-iso schedule) rejects the right candidate by a hair:
 - On the closed spine its end miss encloses `[0, 1.40e-12]`; on the S duct `[0, 1.46e-12]`.

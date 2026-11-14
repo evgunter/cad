@@ -1679,6 +1679,63 @@ macro_rules! nurbs_curve {
                 )
             }
 
+            /// **The first derivative at `at`, read through the
+            /// hodograph**: the same derivative as [`Self::ders1`]'s,
+            /// evaluated as the derivative curve's own sum. The
+            /// homogeneous net's differences `p·(Qᵢ₊₁ − Qᵢ)/(uᵢ₊ₚ₊₁ −
+            /// uᵢ₊₁)`, `Qᵢ = wᵢPᵢ`, are summed against the degree `p − 1`
+            /// basis on the same knots
+            /// ([`spline::basis::basis_funs_to_degree_in`]); a rational
+            /// curve takes `C′ = (A′ − W′·C)/W`. The data's
+            /// differences enter once, so at an enclosure scalar of a
+            /// point parameter the derivative is about 20 times narrower
+            /// than the derivative recursion's. `at` is read in the span
+            /// [`Self::span_at`] locates (at a knot, the span starting
+            /// there); poison outside the domain's spans.
+            pub fn derivative_at(&self, at: f64) -> $Vector<T> {
+                let t = T::from_f64(at);
+                let p = self.knots.degree();
+                let Some(window) = self.span_at(at) else {
+                    return Self::poison_vector(t);
+                };
+                if p == 0 {
+                    return $Vector::<T>::zero();
+                }
+                let k = window.index();
+                let Some(lower) =
+                    spline::basis::basis_funs_to_degree_in(window.knot_span(), t, p - 1)
+                else {
+                    return Self::poison_vector(t);
+                };
+                let held = self.knots.values();
+                let w = self.weights.values();
+                let polynomial = self.constant_weight().is_some();
+                let mut a1 = $Vector::<T>::zero();
+                let mut w1 = T::zero();
+                for (r, n) in lower.iter().enumerate() {
+                    let i = k - p + r;
+                    let scale = spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]) * *n;
+                    let (q0, q1) = (self.control[i], self.control[i + 1]);
+                    if polynomial {
+                        a1 = a1 + (q1 - q0) * scale;
+                    } else {
+                        $(a1.$c = a1.$c + (q1.$c * w[i + 1] - q0.$c * w[i]) * scale;)+
+                        w1 = w1 + (w[i + 1] - w[i]) * scale;
+                    }
+                }
+                if polynomial {
+                    return a1;
+                }
+                let full = spline::basis::basis_funs_in(window.knot_span(), t);
+                let base = window.first_control();
+                let weight = full
+                    .iter()
+                    .enumerate()
+                    .fold(T::zero(), |acc, (j, n)| acc + w[base + j] * *n);
+                let c = window.eval_in_span(t);
+                $Vector::new($((a1.$c - c.$c * w1) / weight),+)
+            }
+
             /// Point, first and second derivative at `t` — the jet a
             /// consumer that wants more than one of them computes ONCE
             /// (the located-span walk over the window's `ders_in_span`;
