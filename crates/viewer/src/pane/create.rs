@@ -902,20 +902,36 @@ impl ViewerBehavior<'_> {
                 })
             })
         };
-        // A draft that writes no bundle is said above, as it is derived.
-        let refused = edited
-            .pending()
-            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)));
-        let waiting = formed.is_none() && busy && edited.differs_from_base();
-        if let Some(refusal) = refused {
-            let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
-            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);
-        } else if waiting {
-            let sentence = format!(
-                "{} the change waits for the picture to answer the document",
-                crate::pane::profile::PENDING
-            );
-            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Advisory);
+        // The viewport draws the draft off the same value; where the
+        // draft draws nothing it draws the document, a committed change
+        // still landing included (`ViewerApp::placement_preview`).
+        let held =
+            edited.draft_standing(busy, self.session.landed_pair(), self.session.tol(), |op| {
+                self.session.bundle_judgement(op)
+            });
+        let said = match &held {
+            crate::matetool::HeldDraft::Quiet => None,
+            crate::matetool::HeldDraft::Refused(refusal) => Some((
+                format!("{} {refusal}", crate::pane::profile::PENDING),
+                Tone::Actionable,
+            )),
+            crate::matetool::HeldDraft::WaitsUnwritten => Some((
+                format!(
+                    "{} the change waits for the picture to answer the document, and writes no bundle yet: the copy is drawn where the document stands it",
+                    crate::pane::profile::PENDING
+                ),
+                Tone::Advisory,
+            )),
+            crate::matetool::HeldDraft::Waits(_) => Some((
+                format!(
+                    "{} the change waits for the picture to answer the document: the copy is drawn where it would stand",
+                    crate::pane::profile::PENDING
+                ),
+                Tone::Advisory,
+            )),
+        };
+        if let Some((sentence, tone)) = said {
+            crate::widgets::message_toned(ui, sentence, &self.theme, tone);
         }
         let open = edited.differs_from_base() && formed.is_none();
         if crate::pane::profile::discard_control(ui, open) {

@@ -815,6 +815,29 @@ pub enum Reading {
     Value(ConstraintId),
 }
 
+/// **Where the placement editor's draft stands with the document**
+/// ([`MateTool::draft_standing`]): what the panel says of it, and what
+/// the picture draws of the draft. Where the draft draws nothing, the
+/// picture draws the document, which may be a committed change still
+/// landing (`DocSession::bundle_landing`).
+#[derive(Debug, Clone)]
+pub enum HeldDraft {
+    /// Nothing to say: the draft is its bundle; or the picture answers
+    /// the document, so the panel offers the draft as it is made; or it
+    /// waits and writes what the placement holds already.
+    Quiet,
+    /// The door refuses the draft — its last offer, or, while it waits,
+    /// the door's judgement of it — said as one refusal. The draft
+    /// draws nothing.
+    Refused(Arc<Refusal>),
+    /// It waits for the picture and derives no bundle yet (a seat
+    /// empty, said as it is derived). The draft draws nothing.
+    WaitsUnwritten,
+    /// It waits for the picture, and the door's scratch solve stands
+    /// every copy as this says: the picture draws them there.
+    Waits(Arc<crate::session::Stood>),
+}
+
 /// **Why a draft is held**: a refusal, one value however often it is
 /// said — two held drafts are the same state when they hold the same
 /// refusal, not two equal ones.
@@ -2515,6 +2538,44 @@ impl MateTool {
             .and_then(|draft| draft.offer.refused())
             .filter(|_| self.differs_from_base())
             .map(|held| &*held.0)
+    }
+
+    /// **Where the draft stands with the document** — the one value the
+    /// panel's line and the picture's drawing of the draft both read,
+    /// asked with the session's busy state, so they cannot disagree.
+    /// A refusal of its last offer holds it, said (a draft that writes
+    /// no bundle yet is said as it is derived, not here). Otherwise a
+    /// draft that differs from its bundle while the picture is `busy`
+    /// answering an older document waits, not yet offered: its bundle,
+    /// derived against the landed pair as the panel's rows are, is
+    /// judged by `judge` (`DocSession::bundle_judgement`, which keeps
+    /// the judgement the offer then reads).
+    pub fn draft_standing(
+        &self,
+        busy: bool,
+        landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+        tol: Tol,
+        judge: impl FnOnce(&SessionOp) -> crate::session::BundleJudgement,
+    ) -> HeldDraft {
+        let refused = self
+            .draft
+            .as_ref()
+            .and_then(|draft| draft.offer.refused())
+            .filter(|held| !matches!(*held.0, Refusal::Draft(_)));
+        if let Some(held) = refused.filter(|_| self.differs_from_base()) {
+            return HeldDraft::Refused(Arc::clone(&held.0));
+        }
+        if !(busy && self.differs_from_base()) {
+            return HeldDraft::Quiet;
+        }
+        let Some(proposal) = landed.and_then(|(doc, ev)| self.proposal(doc, ev, tol).ok()) else {
+            return HeldDraft::WaitsUnwritten;
+        };
+        match judge(&proposal.op()) {
+            Ok(Some(stood)) => HeldDraft::Waits(stood),
+            Ok(None) => HeldDraft::Quiet,
+            Err(refusal) => HeldDraft::Refused(Arc::new(refusal.into())),
+        }
     }
 
     /// The op the draft's last change formed, while it is landing.

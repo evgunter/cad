@@ -258,3 +258,14 @@ Newest entries at the bottom; the tail is the program's live status.
   - **6394 now waits only on Ev's `[ev]` answer** on the oblique rule. (PLACING orchestrator)
 
 - 2026-11-13 — **Fork `placing-declined-offer` → `[ev]` PR 6915.** First reports: both designers said the offer is a derived fact, nothing declines it, and nothing is recorded. They disagreed on one fact about main: A said the offer lapses at the second feature, B said it moves to the chain's tip. The orchestrator read `world::repoint_offer` (`takes` is one read deep; `sources_of` is asked of the read body), and that reading matched A. In round 1, B adopted A's rule that the offer reaches any depth, and the two converged. A probe run confirmed the lapse: branch `placing/probe-offer-depth` `007a2f5b89`, test `probe_offer_depth::a_feature_on_an_unaccepted_fillet_offers_nothing`. After an unaccepted fillet and then a chamfer, neither node offers a re-point. Both designers found the same thing off the question: the source row's "read the selected body" and the "copy of" row's "copy the selected body" are enabled without asking `session::repoint_refusal`, while the offer asks it. So one list is computed two ways, and one edit has three verbs. Filed as `the-source-and-copy-of-rows-re-point-without-the-offers-check`.
+
+- 2026-11-14 — **PR 6916 merged** (the editor preview). The review history:
+  - a single full review: APPROVE-WITH-FIXES, five MINORs;
+  - fix pass 1 (`58f8b44cb4`);
+  - a targeted re-check of that pass: two MINORs, executed;
+  - fix pass 2 (`8284b4c4ea`), accepted on the orchestrator's read.
+
+  Accepted residue: while a change is still landing, another edit that moves a different copy shows that copy at its pre-edit pose until the run lands. The whole picture was stale in that window before, so this is no regression. Filed by the lane:
+  - `a-copy-placed-from-a-previewed-copy-is-not-carried` (P3);
+  - `reviewer-probes-sit-in-the-shipped-properties-pane-tests` (P4);
+  - CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature` (P4).
