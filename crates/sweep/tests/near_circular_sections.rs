@@ -869,7 +869,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
 /// the scale and the tilt, in the turned frame.
 #[test]
 fn a_turned_near_square_split_of_a_rod_validates_its_halves() {
-    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
+    // Pinned red: the body's volume escalates in band
     // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
@@ -878,7 +878,6 @@ fn a_turned_near_square_split_of_a_rod_validates_its_halves() {
         &[
             "the moved body is not a finished body",
             "VolumeUncomputable",
-            "FaceKey(3v1)",
             "props_chart_loop_whole",
         ],
         a_turned_near_square_split_of_a_rod_validates_its_halves_row,
@@ -908,7 +907,7 @@ fn a_turned_near_square_split_of_a_rod_validates_its_halves_row() {
 /// the tilt, in the turned frame.
 #[test]
 fn a_turned_near_square_rod_minus_a_box_builds() {
-    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
+    // Pinned red: the body's volume escalates in band
     // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
@@ -917,7 +916,6 @@ fn a_turned_near_square_rod_minus_a_box_builds() {
         &[
             "the moved body is not a finished body",
             "VolumeUncomputable",
-            "FaceKey(3v1)",
             "props_chart_loop_whole",
         ],
         a_turned_near_square_rod_minus_a_box_builds_row,

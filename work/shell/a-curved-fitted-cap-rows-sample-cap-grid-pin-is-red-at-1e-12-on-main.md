@@ -93,3 +93,18 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 the cap's fit stopped at`); each pin goes red the day its row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
+
+## The pinned strings moved (GREEN `green/eps-1e-12`, 2026-11-14)
+
+PR 6820 (`onehome/rigid-motion`, merge `3d3fe2311`; first parent
+`f162f739d` matches the old strings) changed the offset fit's floor on
+‖E‖ to the larger of the per-coordinate mignitude and a hull reading.
+Both stops' `achieved` dropped, on the same grids and with the same
+refusal:
+
+- the fitted cap: 4.381898e-11 → 4.381818e-11 on (45, 48);
+- the spline cap: 3.2397369e-12 → 3.2397344e-12 on (48, 48).
+
+Both pins now hold the stop by its text and grid, without the digits of
+`achieved`, so a move far below ε no longer reds them. This row's
+finding (the grid) is unchanged.

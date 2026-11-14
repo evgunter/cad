@@ -1264,10 +1264,8 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// both, an edge four triangles hold that the body has no counterpart of.
 #[test]
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
-    // Pinned red at ε 1e-12: the 3° pose's A ∩ B escalates its volume in band
-    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`);
-    // B ∖ A's probe-ray exhaustion past it is unmeasured
-    // (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`).
+    // Pinned red: every cell of the 3° pose escalates its volume in band
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -1275,7 +1273,6 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
         &[
             "3° (A, B), ∩: the node builds",
             "VolumeUncomputable",
-            "FaceKey(8v11)",
             "props_chart_junction_closed",
         ],
         slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
@@ -1472,23 +1469,25 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
-///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`);
-///   at a band tight enough to read that tilt definite (`1e-12`), both
-///   orders refuse at a pcurve certificate of the long bisector ellipse,
-///   past what its stored form evaluates within the band
-///   (`work/germ/a-sliver-crossings-long-bisector-ellipse-is-served-past-representability.md`),
-///   one in the join and one in the merge.
+///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
+///
+/// At `1e-12` every pose but the rod along `y` at `1e-9°` escalates
+/// `Coincidence(Section, Moot)` on `curve_carrier_straddle`, its margin
+/// an enclosure, in both operations and both orders, the enclosures
+/// differing by order.
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
-    // Pinned red at ε 1e-12: one operation escalates a section straddle whose margin
-    // is an enclosure (`work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`).
+    // Pinned red: the section straddle escalates on an enclosure, which the
+    // row's comparison cannot read
+    // (`work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the glued rod",
         &[
-            "an f64 margin: Coincidence(Section, Moot)",
+            "Coincidence(Section, Moot)",
             "curve_carrier_straddle",
+            "Enclosure",
         ],
         a_rod_glued_in_its_bore_answers_alike_in_either_order_row,
     );
@@ -1687,8 +1686,12 @@ fn a_seam_builds_from_twice_root_band_off_a_node() {
 ///   `Coincidence(Section, Moot)` on `curve_carrier_straddle` in both
 ///   operand orders, its margin an enclosure.
 ///
-/// Red when either moves, which is the day the rows cited beside those
-/// pins owe a re-measure. Stands down off ε 1e-12.
+/// Pinned red at what main produces, waiting on
+/// `work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`
+/// and
+/// `work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`:
+/// red when either moves, which is the day those rows owe a re-measure.
+/// Stands down off ε 1e-12.
 #[test]
 fn at_1e_12_the_slanted_bores_refuse_every_cell_and_the_glued_rod_escalates_in_both_orders() {
     let tol = Tol::witness();

@@ -31,9 +31,10 @@ that stop and goes red the day the union builds.
 A first-parent bisect of main at 1e-12 over `50cfcf499..da77d8754`
 names `08f0298b1`, the merge of PR 6717 (`onehome/rigid-motion`, which
 rewrote `geom_core::linalg::rigid_motion`); its first parent `61844c4a7`
-passes. How the rigid-motion change reaches this witness's operands
-(placement of the spheres, or the frames their edges are certified in)
-is unmeasured; the escalating check is PCERT's `pcurve_envelope`
+passes. The witness's balls are placed by `topo::transform_rigid`
+(the test's `placed`: a turn, then a translation), the door that PR
+rewrites. Which of the two moves the envelope into band is not
+measured. The escalating check is PCERT's `pcurve_envelope`
 (`geom_brep::pcurve_cache`).
 
     CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --test all \

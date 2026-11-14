@@ -1810,8 +1810,11 @@ fn shell_4s_vessel_holds() {
     }
 }
 
-/// **A cylinder–cylinder tee refuses typed at the vertices its walls
-/// share alone.** Two radius-1 rods on crossing axes, one mitred by
+/// **A cylinder–cylinder tee builds at both scalars, and its injectivity
+/// refuses typed at the vertices its walls share alone.** At `Interval`
+/// the union builds at every ε, as the `f64` body: as many faces, edges
+/// and vertices, and a volume enclosure that brackets the `f64` volume.
+/// Two radius-1 rods on crossing axes, one mitred by
 /// their bisector plane (`crossing_equal_rods`' pair at spins `(0, 0)`,
 /// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
 /// junction never reaches the node plane `x = 0`: it ends where `B`'s
@@ -1827,7 +1830,8 @@ fn shell_4s_vessel_holds() {
 /// verdict is `Uncertified { Departure }` naming a vertex — never
 /// certified, never measured by distance.
 #[test]
-fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
+fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
+ {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
         use core::f64::consts::{FRAC_PI_2, PI};
         use geom_core::{Affine3, Vec3};
@@ -1841,10 +1845,8 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         let b = moved(&rod((0.2, 3.0)), &onto_x);
         topo::union(&a, &b, tol())
     }
-    // At `Interval` the union builds too, at every ε: the ruled region's
-    // span reads the rim's parameter within half a turn of its middle
-    // (`Period::near`), no longer through a floor a turn wide at the
-    // middle's antipode.
+    // At `Interval` the union builds, the ruled region's span reading the
+    // rim's parameter within half a turn of its middle (`Period::near`).
     match tee_at::<Interval>() {
         Ok(topo::BooleanResult::Body(iv)) => {
             // The same body as the `f64` lane's: as many faces, edges and

@@ -28,11 +28,16 @@ Err(Pieces(Probe`; it goes red the day the row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
 
-## Re-pinned (GREEN, 2026-11-14)
+## Not what the cell produces on main (GREEN, 2026-11-14)
 
-The row now stops before B ∖ A, at the 3° pose's A ∩ B
-(`VolumeUncomputable`, `props_chart_junction_closed`, since PR 6466), and
-the pin names that stop
-(`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`).
-Whether B ∖ A still exhausts its probe ray at 1e-12 is unmeasured on
-main; the pin still cites this row.
+From PR 6466 (`sectarms/cylinder-node-listing`, merge `c053873aa`) on,
+the 3° pose's B ∖ A at ε 1e-12 returns `ResultInvalid { NotFinished {
+VolumeUncomputable } }` on `props_chart_junction_closed`, with
+`SolidKey(3v1)` present. So the pieces sort ran, and `Pieces(Probe …
+RayExhausted)` is not what the cell produces; every other 3° cell refuses
+the same way. The row's pin now names that refusal and cites NEARPOINT's
+`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`,
+not this row. `bisector_nodes::at_1e_12_the_slanted_bores_refuse_every_cell_and_the_glued_rod_escalates_in_both_orders`
+asserts the six cells. Whether the probe ray still exhausts behind the
+volume refusal cannot be read until that refusal goes. Whether this row
+closes is TANG's call.

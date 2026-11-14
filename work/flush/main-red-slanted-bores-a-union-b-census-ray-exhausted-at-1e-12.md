@@ -29,13 +29,13 @@ union instead of by the pieces probe on the difference: likely one root.
 Add the union's finding to that row, or widen the pin, once the root is
 read.
 
-## Moved (GREEN, 2026-11-14)
+## Behind a volume refusal (GREEN, 2026-11-14)
 
-The A ∪ B census stop is gone at 1e-12: it cleared at PR 6466
-(`sectarms/cylinder-node-listing`, merge `c053873aa`; first parent
-`6775be78c` still stops here), and on main `2c843a2e7` A ∪ B passes and
-the row stops next at A ∩ B, `VolumeUncomputable` on
-`props_chart_junction_closed`
-(`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`).
-Nothing on main reproduces this row's finding; its owner can close it
-after confirming.
+From PR 6466 (`sectarms/cylinder-node-listing`, merge `c053873aa`) on,
+every cell of the 3° pose refuses its volume at ε 1e-12 (`ResultInvalid
+{ NotFinished { VolumeUncomputable } }`, `props_chart_junction_closed`),
+A ∪ B included, so its tier-3′ census is never reached. Its first parent
+`6775be78c` still stops at this row's census finding. Whether the census
+finding stands is unmeasured behind that refusal, not gone. The volume
+refusal is NEARPOINT's
+`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`.

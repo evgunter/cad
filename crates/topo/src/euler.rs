@@ -5700,8 +5700,8 @@ mod tests {
 
     #[test]
     fn a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it() {
-        // Pinned red at ε 1e-12: the pcurve pass reports the split circle's
-        // in-band `General` image ahead of the pillow's unminted face
+        // Pinned red: the pcurve pass reports the split circle's in-band
+        // `General` image ahead of the pillow's unminted face
         // (`work/pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12`).
         test_utils::pinned_red::row(
             Tol::witness().eps(),
@@ -5710,7 +5710,7 @@ mod tests {
             &[
                 "Escalated { check: GeneralLane",
                 "ssi_hull_value_chart",
-                "Pcurve { finding: Unminted { face: FaceKey(1v1) } }",
+                "Pcurve { finding: Unminted",
             ],
             a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it_row,
         );

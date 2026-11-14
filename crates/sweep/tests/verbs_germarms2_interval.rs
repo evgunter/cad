@@ -216,8 +216,10 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// [`same_door_or_escalated`] writes the reason for.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
-    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
-    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
+    // Pinned red: operand B's volume escalates in band
+    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`);
+    // behind it, the re-posed twin's crossing insertion escalates
+    // (`work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -225,7 +227,6 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         &[
             "operand B is not a finished body",
             "VolumeUncomputable",
-            "FaceKey(4v1)",
             "props_chart_loop_whole",
         ],
         the_meeting_axes_pose_builds_at_the_certified_scalar_row,

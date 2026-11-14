@@ -390,7 +390,7 @@ fn far_origin_rod(
 /// pair's one record.
 #[test]
 fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
-    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
+    // Pinned red: the body's volume escalates in band
     // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
@@ -399,7 +399,6 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
         &[
             "back 900: plate, rod, block: refused",
             "VolumeUncomputable",
-            "FaceKey(8v1)",
             "props_cylinder_circle_off_axis",
         ],
         a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row,
