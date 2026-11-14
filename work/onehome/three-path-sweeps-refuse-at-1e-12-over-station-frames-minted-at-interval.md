@@ -51,3 +51,16 @@ Filed by the skin-turn lane (`onehome/skin-turn`), which mints each station's fr
 **The refusal does not name the station frame.** Each refuses as the wall certificate's own text (`Pcurve(Escalated … pcurve_loop_continuity)`, `Euler(Certification … pcurve_map_residual)`), not as a typed refusal naming the station whose frame is too wide for the band. That is the same ask as the variable-path row's (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`, "Must hold"): a typed refusal naming the station frame.
 
 **Pinned.** The three rows are pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins lift with its fix.
+
+**Built: the hodograph tangent** (`onehome/sweep-walls-at-t`, 6655bf301). Every station reads its tangent through the path's hodograph, at `f64` and at every lane. The frames are minted at most 3.3e-14 wide, pinned by `crates/sweep/tests/a_station_frame_is_minted_to_its_floor.rs`. `a_long_helical_sweep_certifies_within_the_default_budget` passes at 1e-12, and its pin is lifted.
+
+**Traced: why `18v1` and `20v1` are General.** Each is a cap rim, a line on the wall's boundary row whose exact image is that row. The mint's iso selection (`geom-brep` `edge_nurbs.rs` `probe_pick`, from `topo` `pcurves.rs`'s boundary-iso schedule) rejects the right candidate by a hair:
+- On the closed spine its end miss encloses `[0, 1.40e-12]`; on the S duct `[0, 1.46e-12]`.
+- The rim's end parameter `t₁` is an enclosure, 5.2e-14 wide: the line's length between two vertices minted at `Interval`.
+- The candidate's `u = p₀ + (Δu/span)·t₁` is exactly 1, but interval dependency gives `1 ± 1.04e-13`, and the wall evaluated over that `u` is 2.6e-12 wide.
+
+So the General pcurve is no legitimate lane; the docs' claim stands. But the fix is not local. With the selection sampled at point parameters (a choice, which the certification then checks), the iso line is picked on both rows, and its own certificate escalates on the same dependency: `MapResidual`, sample 6, hi 1.035e-12 on the closed spine and 1.095e-12 on the S duct. The source is the rim edge's parameter range being an interval at `T`. Closing these two rows needs one of two things, either of which touches `topo` and `geom-brep` semantics:
+- the edge's parameter range held as points (a line carrier parameterized by a chosen span);
+- an iso-line evaluation and certificate that do not re-read the span.
+
+The General pcurve's naive interval evaluation is filed separately: `work/pcert/a-general-pcurve-evaluated-over-a-wide-parameter-widens-thousands-fold.md`.
