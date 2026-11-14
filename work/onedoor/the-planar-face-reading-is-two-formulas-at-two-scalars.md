@@ -45,3 +45,12 @@ part read along the loops' own unit normal `A⃗/|A⃗|` in place of the
 stored one, with `tilt_slack` levered by the in-plane offset only; it
 needs a certified normalisation at Interval and a check that its f64
 value keeps the exact rows (`crates/topo/tests/review_m3_pr55.rs`).
+
+## A possible instance (GREEN, 2026-11-14)
+
+A needle channel's `f64` shell volume rounds by up to 8.6% of `w²` at
+ε 1e-9 since PR 6505, the PR that moved the `f64` plane term to the fan
+about the face's anchor. Whether that term is what carries the error
+was not measured; the reads, the bisect and the pin are on their own
+row,
+`work/onedoor/a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505.md`.
