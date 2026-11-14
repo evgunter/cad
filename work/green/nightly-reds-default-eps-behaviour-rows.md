@@ -2,12 +2,13 @@
 id: nightly-reds-default-eps-behaviour-rows
 kind: unit
 title: Nightly reds: the behaviour rows red at the default ε, and the viewer's door-at-rest pair
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/default-eps
 pr: 6931
+closed: 2026-11-14
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
@@ -85,3 +86,7 @@ list above, each checked against the tree:
   `work/tint/the-seam-split-census-builds-no-pose-at-1e-12-so-neither-of-its-claims-can-fail-there.md`,
   `work/green/pins-a-green-lane-leaves-are-hand-kept-lists-keyed-by-name-or-float-tuple.md`,
   `work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`.
+
+## Closed (2026-11-14, PR 6931)
+
+The six are green at all three ε rows on the lane's and the reviewer's local runs; the gate ran them at the default ε only. Re-blessed: the needle cone's refusal on its typed cause (PR 6648) and the viewer pair's count (PR 6710). Pinned with rows on the owners: the two offer cases (ONECOPY, P3), the needle channel's f64 shell volume (ONEDOOR, P2: a rounding spread of up to 8.6% at 10.5ε since PR 6505, the body itself right), the seam split's sliver measure stopping at its floor (SPIRICARM, P2). Left for the next nightly to show: the `viewer app feature` job, which no run on the PR exercises; `work/coincide/main-red-two-door-at-rest-rows-on-the-2026-11-11-nightly` stays open until it does.
