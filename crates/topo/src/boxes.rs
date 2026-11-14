@@ -41,7 +41,7 @@
 //!   `face_reach` and its instance extents — read the same direction
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
-//!   gate's `reader` pins do not count them. Pass 2′'s curved-edge class
+//!   gate's reader registry does not list them. Pass 2′'s curved-edge class
 //!   (`census::Trees::curved`: [`edge_box`] of each curved edge, a
 //!   spline's control hull) reads the same direction: a loose box
 //!   admits a vertex to `census::curved::may_rest_on`, whose walk passes
@@ -219,12 +219,14 @@
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The doors are not
-//! recited: `scripts/gates/cover-kind-match.sh` pins every reference
-//! to a cover door (its `reader` kind) per file in every crate, a
-//! point-free one included, so a new door cannot land unargued. **It
-//! pins WHERE the doors are and not which way each reads**, which is
-//! the column that carries the argument above; that gap is `S234` and
-//! has an owner rather than a disclosure.
+//! recited here: `scripts/gates/cover-kind-match.sh` finds every
+//! reference to a public door of this module or of [`crate::cover`], in
+//! every crate and a point-free one included, and requires its line in
+//! `scripts/gates/cover-kind-match.readers`, per file and fn, with the
+//! direction it reads looseness in and the argument for it. A new reader
+//! lands by adding its line, so no door lands unargued. **The direction
+//! is recited, not computed**; that gap is `S234` and has an owner rather
+//! than a disclosure.
 //!
 //! [`sweep_pad`] is the band's own tolerance, sized so the padding can
 //! never lose an accepted pair at the sweep's door (its derivation
