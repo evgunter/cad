@@ -85,7 +85,7 @@ use geom::Surface;
 use geom_brep::SurfaceSide;
 use geom_core::{Circles, Point3, Real, Vec3};
 
-use super::battery::{BlendSide, Convexity, sided};
+use super::battery::{Convexity, ball_side, sided, signed};
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.
@@ -389,7 +389,7 @@ pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 /// `r·tan(φ/2)` for the outward-normal angle φ) — derived here once
 /// and consumed by predicate 2.
 ///
-/// `convexity` picks the side through [`Convexity::signed`]: on a
+/// `convexity` picks the side through [`signed`](crate::blend::battery::signed): on a
 /// concave chain the ball rolls on the far side of both supports, which
 /// is the same formula with `r` negated.
 #[must_use]
@@ -401,11 +401,11 @@ pub fn plane_plane_blend<T: Real>(
     radius: T,
     convexity: Convexity,
 ) -> EdgeBlend<T> {
-    let signed = convexity.signed(radius);
+    let signed = signed(convexity, radius);
     let d = n_a.dot(n_b);
     let one = T::one();
     let center = p - (n_a + n_b) * (signed / (one + d));
-    let side = convexity.ball_side(true);
+    let side = ball_side(convexity, true);
     let (a, b) = (
         SupportTrace::Straight { normal: n_a, side },
         SupportTrace::Straight { normal: n_b, side },
@@ -447,9 +447,9 @@ pub fn plane_plane_blend<T: Real>(
 /// side of both supports the chain's stored convexity verdict picks
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
-/// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
+/// That is ONE fold, [`signed`](crate::blend::battery::signed) (`±r`), homed on the verdict
 /// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
-/// and — as the side [`Convexity::ball_side`] — the shared sheet
+/// and — as the side [`ball_side`](crate::blend::ball_side) — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
 /// SPHERE its material is on is the pair's own second configuration
@@ -581,7 +581,7 @@ pub fn plane_sphere_blend<T: Real>(
 /// [`plane_sphere_room`] alike.
 struct PlaneSphereFold<T: Real> {
     /// The ball's signed depth into the plane's material
-    /// ([`Convexity::signed`]).
+    /// ([`signed`](crate::blend::battery::signed)).
     signed: T,
     /// The sphere centre's height over the plane along `n`.
     depth: T,
@@ -604,15 +604,15 @@ impl<T: Real> PlaneSphereFold<T> {
         sphere_convex: bool,
         convexity: Convexity,
     ) -> Self {
-        // The one fold (`Convexity::signed`): the ball is `r` INTO the
+        // The one fold (`battery::signed`): the ball is `r` INTO the
         // plane's material on a convex chain and `r` out of it on a
         // concave one.
-        let signed = convexity.signed(radius);
+        let signed = signed(convexity, radius);
         let depth = (sphere_c - origin).dot(n);
         // The same fold read against the sphere's stored sense: the ball
         // rests on the sphere's MATERIAL side — inside it — exactly when
         // that sense agrees with the chain's convexity.
-        let side = convexity.ball_side(sphere_convex);
+        let side = ball_side(convexity, sphere_convex);
         Self {
             signed,
             depth,
@@ -684,7 +684,7 @@ pub fn plane_sphere_room<T: Real>(
 /// [`SurfaceSide::Inner`] when the ball's centre lies on the side the
 /// support's chart normal points AWAY from — the support's material side
 /// on a `sense: true` face — and [`SurfaceSide::Outer`] when it lies on
-/// the side the chart normal points into; [`Convexity::ball_side`] is
+/// the side the chart normal points into; [`ball_side`](crate::blend::ball_side) is
 /// where it is read, from stored structure and never from a sampled
 /// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
 /// it as [`sided`], a conditional negation of the radius or of the
@@ -1305,12 +1305,12 @@ pub fn corner_ball<T: Real>(
     convexity: Convexity,
 ) -> CornerBall<T> {
     let [n1, n2, n3] = normals;
-    // The rest DEPTH: the NEGATIVE of the one fold, `Convexity::signed`,
+    // The rest DEPTH: the NEGATIVE of the one fold, `battery::signed`,
     // which every consumer spells as a FOOT displacement
     // (`corner_plan`'s `toward`, `plane_plane_blend`'s `signed`) — a foot
     // displaces opposite the depth by definition of tangency. The one
     // place the fold must stay a negation; `corner_plan` cites it.
-    let signed = -convexity.signed(radius);
+    let signed = -signed(convexity, radius);
     // Right-hand sides: (c − p₁)·n_i = (p_i − p₁)·n_i + signed.
     let anchor = verts[0];
     let rhs = [
@@ -1324,7 +1324,7 @@ pub fn corner_ball<T: Real>(
     let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
     // a concave one — the same fold as the centre's.
-    let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+    let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
     let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {

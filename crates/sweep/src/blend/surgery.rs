@@ -228,7 +228,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerLinks, OpenBand, RequestedBoundary, StationKind};
 use super::arms::BallSection;
 use super::battery::{
-    BatteryVerdict, BlendSide, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, blend_sense, face_clearance_margin,
     same_supports,
 };
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at, outward_of};
@@ -878,7 +878,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
-        let sense = rim.chain.first().convexity.blend_sense();
+        let sense = blend_sense(rim.chain.first().convexity);
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
@@ -934,7 +934,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // outward whatever the convexity is, and reading the verdict here
     // would flip a face that was already right.
     let band_sense = |convexity: Convexity| match kind {
-        BlendKind::Fillet => convexity.blend_sense(),
+        BlendKind::Fillet => blend_sense(convexity),
         BlendKind::Chamfer => true,
     };
     for (o, fk, surface) in &blend_rows {
@@ -1131,7 +1131,7 @@ fn corner_shell(
 /// support strips between the rim and the trimlines and a concave rim's
 /// identical carve ADDS them; the one sense the band carries is its
 /// face bit, folded from the chain's stored verdict at the door
-/// ([`Convexity::blend_sense`]).
+/// ([`blend_sense`](crate::blend::blend_sense)).
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,

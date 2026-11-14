@@ -293,14 +293,14 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
         .into()
 }
 
-/// **Whether a blend read a requested edge as tangent**: the request
-/// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
-/// some requested edge resolves as a smooth seam, which the verbs leave
-/// silently, or as a knife (a cusp or slit), whose convexity is the
-/// end `material_cusp_side` read rather than the dihedral's sign, or
-/// refuses as one. Each is a wedge the fold read tangent, so a row that
-/// guards a transverse corner against a false zero asks this rather
-/// than for one of them.
+/// **Whether a blend read a requested edge as tangent**: the edge's
+/// wedge fold read some requested edge's faces meeting smoothly — a
+/// smooth seam the verbs leave silently, a knife (a cusp or slit) whose
+/// link's convexity is the end the fold read (`material_cusp_side`)
+/// rather than a corner's sign, or a lamina the blend refuses — or the
+/// request (`outcome`) refused at a knife's room or at a lamina. A row
+/// that guards a transverse corner against a false tangency asks this
+/// rather than for one of them.
 #[must_use]
 pub fn read_as_tangent(
     body: &Body<f64>,
@@ -309,18 +309,28 @@ pub fn read_as_tangent(
     outcome: &Result<Blended<f64>, crate::blend::BlendError>,
     tol: Tol,
 ) -> bool {
-    use crate::blend::{BlendDecision, BlendError};
-    if matches!(outcome, Err(BlendError::KnifeEdge { .. })) {
+    use crate::blend::{BlendDecision, BlendError, UnsettledWedge};
+    let tangent = |e: &BlendError| {
+        matches!(
+            e,
+            BlendError::KnifeEdge { .. }
+                | BlendError::WedgeUnsettled {
+                    wedge: UnsettledWedge::Lamina,
+                    ..
+                }
+        )
+    };
+    if outcome.as_ref().is_err_and(tangent) {
         return true;
     }
     let band = Band::linear(tol).expect("the run's band");
     edges.iter().any(
         |&edge| match resolve_link(body, edge, size, band, BlendKind::Fillet) {
-            Ok(Resolved::Smooth(..)) | Err(BlendError::KnifeEdge { .. }) => true,
+            Ok(Resolved::Smooth(..)) => true,
             Ok(Resolved::Link(link)) => {
                 link.convexity_margin.predicate == BlendDecision::KnifeEnd.predicate()
             }
-            Err(_) => false,
+            Err(e) => tangent(&e),
         },
     )
 }

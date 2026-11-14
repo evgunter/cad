@@ -10,7 +10,11 @@
 //! poisoned margin escalates through [`super::BlendError::Escalated`]
 //! carrying the SAME recourse sentence as the definite arm — the
 //! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
-//! definite ones.
+//! definite ones. Predicate 5, each requested edge's wedge, is the one
+//! read through another door: the edge's wedge fold
+//! (`topo::edge_wedge_as`), which decides each corner's sign under the
+//! blend's own `fillet3_convexity_sign`, and whose in-band or mixed
+//! reading refuses as [`super::BlendError::WedgeUnsettled`].
 //!
 //! # The ordering claim, stated so it can be attacked
 //!
@@ -170,67 +174,51 @@ pub const CHAIN_SAMPLES: u32 = geom_brep::CERT_SAMPLES;
 /// cusp or slit), whose convex side is the material's.
 pub use geom_brep::Convexity;
 
-/// **What a chain's convexity says about its ball**: on a convex chain
-/// the rolling ball is INSIDE the material, the blend removes material
-/// and the blend face's chart normal is already the outward one; on a
-/// concave chain the ball rolls in the void, the blend adds material and
-/// the blend face's sense bit is `false`.
-pub trait BlendSide: Copy {
-    /// The sense bit a blend face on this chain mints with — read off
-    /// the STORED convexity verdict, never off a sampled normal
-    /// (S10/S11).
-    #[must_use]
-    fn blend_sense(self) -> bool;
-
-    /// `+radius` on a convex chain, `−radius` on a concave one
-    /// ([`Convexity`]'s impl).
-    #[must_use]
-    fn signed<T: Real>(self, radius: T) -> T;
-
-    /// Which side of a support with stored sense `sense` the ball rests
-    /// on ([`Convexity`]'s impl).
-    #[must_use]
-    fn ball_side(self, sense: bool) -> SurfaceSide;
+/// The sense bit a blend face on a chain of this convexity mints with —
+/// read off the STORED convexity verdict, never off a sampled normal
+/// (S10/S11): on a convex chain the rolling ball is INSIDE the material,
+/// the blend removes material, and the blend face's chart normal is
+/// already the outward one; on a concave chain the ball rolls in the
+/// void, the blend adds material, and the bit is `false`.
+#[must_use]
+pub fn blend_sense(convexity: Convexity) -> bool {
+    matches!(convexity, Convexity::Convex)
 }
 
-impl BlendSide for Convexity {
-    fn blend_sense(self) -> bool {
-        matches!(self, Self::Convex)
-    }
+/// **The ONE sign fold, homed.** `+radius` on a convex chain,
+/// `−radius` on a concave one: the displacement of a rest ball's
+/// FOOT from the ball's centre along its support's outward normal —
+/// into the material on a convex chain, where the ball is inside the
+/// material, out of it on a concave one, where the ball rolls in the
+/// void. Every arm that displaces by `±r` spells its side through
+/// this — [`super::arms::plane_plane_blend`]'s feet,
+/// [`super::arms::plane_sphere_blend`]'s spine depth,
+/// `open::planar::corner_plan`'s `toward` — and
+/// [`super::arms::corner_ball`] alone needs the rest DEPTH, which is
+/// this value's NEGATIVE by definition of tangency and is spelled
+/// there as `-signed(..)`, the one negation the fold keeps.
+#[must_use]
+pub fn signed<T: Real>(convexity: Convexity, radius: T) -> T {
+    sided(ball_side(convexity, true), radius)
+}
 
-    /// **The ONE sign fold, homed.** `+radius` on a convex chain,
-    /// `−radius` on a concave one: the displacement of a rest ball's
-    /// FOOT from the ball's centre along its support's outward normal —
-    /// into the material on a convex chain, where the ball is inside the
-    /// material, out of it on a concave one, where the ball rolls in the
-    /// void. Every arm that displaces by `±r` spells its side through
-    /// this — [`super::arms::plane_plane_blend`]'s feet,
-    /// [`super::arms::plane_sphere_blend`]'s spine depth,
-    /// `open::planar::corner_plan`'s `toward` — and
-    /// [`super::arms::corner_ball`] alone needs the rest DEPTH, which is
-    /// this value's NEGATIVE by definition of tangency and is spelled
-    /// there as `-signed(..)`, the one negation the fold keeps.
-    fn signed<T: Real>(self, radius: T) -> T {
-        sided(self.ball_side(true), radius)
-    }
-
-    /// **The same fold as a SIDE.** A support's stored sense bit says
-    /// which side of its chart its material is on; the ball rests on
-    /// that side exactly when the chain is convex, on the far side when
-    /// it is concave — `sense == blend_sense()`, the identity on a
-    /// convex chain. The shared sheet reduction hands each trace this
-    /// bit (`curved_arm`), the curvature headroom predicate reads which
-    /// of a support's bends the ball is inside off it
-    /// ([`radius_headroom`]), and the plane–sphere arm reads it against the
-    /// sphere's sense to pick the offset sphere (the ball centre is
-    /// INSIDE the sphere exactly when it rests on the sphere's material
-    /// side).
-    fn ball_side(self, sense: bool) -> SurfaceSide {
-        if sense == self.blend_sense() {
-            SurfaceSide::Inner
-        } else {
-            SurfaceSide::Outer
-        }
+/// **The same fold as a SIDE.** A support's stored sense bit says
+/// which side of its chart its material is on; the ball rests on
+/// that side exactly when the chain is convex, on the far side when
+/// it is concave — `sense == blend_sense(convexity)`, the identity on a
+/// convex chain. The shared sheet reduction hands each trace this
+/// bit (`curved_arm`), the curvature headroom predicate reads which
+/// of a support's bends the ball is inside off it
+/// ([`radius_headroom`]), and the plane–sphere arm reads it against the
+/// sphere's sense to pick the offset sphere (the ball centre is
+/// INSIDE the sphere exactly when it rests on the sphere's material
+/// side).
+#[must_use]
+pub fn ball_side(convexity: Convexity, sense: bool) -> SurfaceSide {
+    if sense == blend_sense(convexity) {
+        SurfaceSide::Inner
+    } else {
+        SurfaceSide::Outer
     }
 }
 
@@ -238,8 +226,8 @@ impl BlendSide for Convexity {
 /// direction `±n` spells**: `x`
 /// with the ball on the support's inner side, `−x` on its outer side —
 /// exact in every backend. The sheet arms spell it on the side
-/// [`BlendSide::ball_side`] derives from the chain's verdict, and
-/// [`BlendSide::signed`] is it on a support whose chart normal is the
+/// [`ball_side`] derives from the chain's verdict, and
+/// [`signed`] is it on a support whose chart normal is the
 /// outward one, so the one home is beside the side's provenance rather
 /// than inside either consumer.
 pub(super) fn sided<X: core::ops::Neg<Output = X>>(side: SurfaceSide, x: X) -> X {
@@ -618,7 +606,7 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
 /// A torus support never reaches it: no arm takes one ([`arm_roster`]),
 /// and the link refuses when its arm is classified, before predicate 1.
 ///
-/// The side is `convexity.ball_side(sense)` — the link's decided
+/// The side is `ball_side(convexity, sense)` — the link's decided
 /// convexity verdict read against the face's stored sense bit, the same
 /// side every arm's `R ∓ r` fold reads — so it is never re-derived from a
 /// sampled normal: a dihedral too near flat to decide escalated or
@@ -650,7 +638,7 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
+    let arm = geom_brep::min_radius_of_curvature_toward(s, p, ball_side(convexity, f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
     // infinity.
     let margin = radius * (T::one() - radius / arm);
@@ -665,6 +653,112 @@ pub fn radius_headroom<T: Decide + Bounds>(
             face,
             margin: classified(BlendDecision::RadiusHeadroom, margin, band, sign),
             radius: radius.lo(),
+        }),
+    }
+}
+
+// ---------------------------------------------------------------
+// Predicate 2 — face consumption.
+// ---------------------------------------------------------------
+
+/// **`fillet3_face_clearance`** — a conservative screen on whether
+/// every support face survives the blend.
+///
+/// Margin: `gap − setback_here − setback_there` in METERS, where
+/// `gap` is the Euclidean distance between two boundary features of
+/// one support face and each `setback` is that feature's trimline
+/// displacement — zero for a boundary the request does not blend.
+/// The screen runs over every PAIR of boundary edges of every support
+/// face, so a face with four blended edges (every planar face of the
+/// die) is judged against all six pairs, not only against the nearest
+/// non-blended neighbour. That is what stops the obvious hole: a
+/// single-edge test happily passes `r < L` on a face that two opposite
+/// blends at `r > L/2` erase between them.
+///
+/// # What this arm does NOT claim (fix pass F1)
+///
+/// It is a **screen**, and its name and its error say so. The two
+/// setbacks are subtracted from ONE straight-line gap, which is exact
+/// when the two boundary edges face each other (parallel, opposed
+/// inward normals — the box, and every prism's opposite cap edges) and
+/// CONSERVATIVE when they meet at an angle, because each blend then
+/// eats along its own inward normal rather than along the gap. The
+/// reviewer's witness is a unit hexagonal prism: this builds up to
+/// `r = 0.499` and refuses from `r = 0.51` against a gap of exactly
+/// `1.0`, the hexagon's SIDE
+/// (`m5_pr12_fix_pass::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`).
+/// That the cap survives to the apothem `0.866` is the witness's
+/// premise, derived from the hexagon and asserted by no row.
+///
+/// The screen is kept in that shape deliberately. Its error is worded
+/// as "cannot certify" rather than "consumes", so no false fact is
+/// asserted as a definite verdict; and it is conservative in the ONE
+/// direction the ordering claim depends on — it cannot pass a request
+/// whose support face really is consumed. Tightening it needs the
+/// inward-offset polygon's feasibility (a linear program over the
+/// face's own boundary, not the same setback algebra), which is
+/// recorded as a numbered deviation rather than guessed at here.
+///
+/// The setbacks come from [`super::arms`] — the same functions the
+/// constructor calls.
+///
+/// # Errors
+///
+/// [`BlendError::FaceClearanceUncertified`] /
+/// [`BlendError::Escalated`].
+///
+/// `cross_chain` says whether the two setbacks belong to two DIFFERENT
+/// requested chains — the caller knows, this screen does not — and
+/// rides into the refusal, whose recourse then names the SPLIT that
+/// re-meters each chain against the face the previous carve actually
+/// left (#935's boundary).
+pub fn face_clearance<T: Decide + Bounds>(
+    face: FaceKey,
+    gap: T,
+    setback_here: T,
+    setback_there: T,
+    cross_chain: bool,
+    band: Band,
+) -> Result<(), BlendError> {
+    face_clearance_margin(
+        face,
+        gap - setback_here - setback_there,
+        gap,
+        cross_chain,
+        band,
+    )
+}
+
+/// [`face_clearance`] with its margin already formed: the door the
+/// surgery's planar strip meter decides through, whose margin is the
+/// closed form of the screen's `gap − setback` over a strip's bounding
+/// rectangle rather than one subtraction (`surgery::strip_clearance`),
+/// and the reach's, whose margin is a support vertex's depth inside the
+/// strip its band replaces (`reach::screened`). `gap` is the
+/// measurement the refusal reports beside it.
+///
+/// # Errors
+///
+/// As [`face_clearance`].
+pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    gap: T,
+    cross_chain: bool,
+    band: Band,
+) -> Result<(), BlendError> {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::FaceClearance,
+        Margin::of(margin),
+        band,
+    )? {
+        Sign::Positive => Ok(()),
+        sign => Err(BlendError::FaceClearanceUncertified {
+            face,
+            margin: classified(BlendDecision::FaceClearance, margin, band, sign),
+            gap: measured(gap),
+            cross_chain,
         }),
     }
 }
@@ -713,6 +807,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
         }),
     }
 }
+
+// ---------------------------------------------------------------
+// The link's ball — does it exist at the radius (knife and rim room).
+// ---------------------------------------------------------------
 
 /// **`fillet3_knife_room` / `fillet3_ball_room`** — does the ball of
 /// this radius exist at this link? The margin is the offset traces'
@@ -988,112 +1086,6 @@ fn corner_independence<T: Decide>(
     }
 }
 
-// ---------------------------------------------------------------
-// Predicate 2 — face consumption.
-// ---------------------------------------------------------------
-
-/// **`fillet3_face_clearance`** — a conservative screen on whether
-/// every support face survives the blend.
-///
-/// Margin: `gap − setback_here − setback_there` in METERS, where
-/// `gap` is the Euclidean distance between two boundary features of
-/// one support face and each `setback` is that feature's trimline
-/// displacement — zero for a boundary the request does not blend.
-/// The screen runs over every PAIR of boundary edges of every support
-/// face, so a face with four blended edges (every planar face of the
-/// die) is judged against all six pairs, not only against the nearest
-/// non-blended neighbour. That is what stops the obvious hole: a
-/// single-edge test happily passes `r < L` on a face that two opposite
-/// blends at `r > L/2` erase between them.
-///
-/// # What this arm does NOT claim (fix pass F1)
-///
-/// It is a **screen**, and its name and its error say so. The two
-/// setbacks are subtracted from ONE straight-line gap, which is exact
-/// when the two boundary edges face each other (parallel, opposed
-/// inward normals — the box, and every prism's opposite cap edges) and
-/// CONSERVATIVE when they meet at an angle, because each blend then
-/// eats along its own inward normal rather than along the gap. The
-/// reviewer's witness is a unit hexagonal prism: this builds up to
-/// `r = 0.499` and refuses from `r = 0.51` against a gap of exactly
-/// `1.0`, the hexagon's SIDE
-/// (`m5_pr12_fix_pass::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`).
-/// That the cap survives to the apothem `0.866` is the witness's
-/// premise, derived from the hexagon and asserted by no row.
-///
-/// The screen is kept in that shape deliberately. Its error is worded
-/// as "cannot certify" rather than "consumes", so no false fact is
-/// asserted as a definite verdict; and it is conservative in the ONE
-/// direction the ordering claim depends on — it cannot pass a request
-/// whose support face really is consumed. Tightening it needs the
-/// inward-offset polygon's feasibility (a linear program over the
-/// face's own boundary, not the same setback algebra), which is
-/// recorded as a numbered deviation rather than guessed at here.
-///
-/// The setbacks come from [`super::arms`] — the same functions the
-/// constructor calls.
-///
-/// # Errors
-///
-/// [`BlendError::FaceClearanceUncertified`] /
-/// [`BlendError::Escalated`].
-///
-/// `cross_chain` says whether the two setbacks belong to two DIFFERENT
-/// requested chains — the caller knows, this screen does not — and
-/// rides into the refusal, whose recourse then names the SPLIT that
-/// re-meters each chain against the face the previous carve actually
-/// left (#935's boundary).
-pub fn face_clearance<T: Decide + Bounds>(
-    face: FaceKey,
-    gap: T,
-    setback_here: T,
-    setback_there: T,
-    cross_chain: bool,
-    band: Band,
-) -> Result<(), BlendError> {
-    face_clearance_margin(
-        face,
-        gap - setback_here - setback_there,
-        gap,
-        cross_chain,
-        band,
-    )
-}
-
-/// [`face_clearance`] with its margin already formed: the door the
-/// surgery's planar strip meter decides through, whose margin is the
-/// closed form of the screen's `gap − setback` over a strip's bounding
-/// rectangle rather than one subtraction (`surgery::strip_clearance`),
-/// and the reach's, whose margin is a support vertex's depth inside the
-/// strip its band replaces (`reach::screened`). `gap` is the
-/// measurement the refusal reports beside it.
-///
-/// # Errors
-///
-/// As [`face_clearance`].
-pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
-    face: FaceKey,
-    margin: T,
-    gap: T,
-    cross_chain: bool,
-    band: Band,
-) -> Result<(), BlendError> {
-    match classify(
-        BlendSite::Chain,
-        BlendDecision::FaceClearance,
-        Margin::of(margin),
-        band,
-    )? {
-        Sign::Positive => Ok(()),
-        sign => Err(BlendError::FaceClearanceUncertified {
-            face,
-            margin: classified(BlendDecision::FaceClearance, margin, band, sign),
-            gap: measured(gap),
-            cross_chain,
-        }),
-    }
-}
-
 /// The fold's decided sign as a link's [`ClassifiedMargin`]: the
 /// reading `predicate` decided, positive on a convex link.
 fn decided_as(
@@ -1151,11 +1143,13 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
-    // It is the edge's wedge read whole, as tier 3 reads it
-    // (`topo::edge_wedge`): every station's class, every corner's sign,
-    // and on a tangency its pairing and end, levered at the faces'
-    // extent.
-    let wedge = topo::edge_wedge(body, edge, band).ok_or_else(broken)?;
+    // It is the edge's wedge read whole, as tier 3 reads it: every
+    // station's class, every corner's sign, and on a tangency its
+    // pairing and end, levered at the faces' extent. The sign decides
+    // which body the blend builds, so it is recorded under the blend's
+    // own name (`geom_brep::DIHEDRAL_SIGN`'s docs).
+    let sign = BlendDecision::ConvexitySign.predicate();
+    let wedge = topo::edge_wedge_as(body, edge, band, sign).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
@@ -1169,12 +1163,12 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (convexity, convexity_margin, branch) = match wedge {
         geom_brep::WedgeVerdict::Crease { convexity, margin } => (
             convexity,
-            decided_as(geom_brep::DIHEDRAL_SIGN, convexity, margin, band),
+            decided_as(sign, convexity, margin, band),
             Branch::Rim,
         ),
         geom_brep::WedgeVerdict::Seam { margin, .. } => {
             let margin = margin.map(|reading| ClassifiedMargin {
-                predicate: "dihedral_wedge",
+                predicate: geom_brep::DIHEDRAL_WEDGE,
                 reading,
                 band,
                 sign: Sign::Zero,
@@ -1207,7 +1201,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             let toward = inward_unit(n_a, tau.normalize());
             (
                 convexity,
-                decided_as("material_cusp_side", convexity, margin, band),
+                decided_as(BlendDecision::KnifeEnd.predicate(), convexity, margin, band),
                 Branch::Knife(toward),
             )
         }
@@ -1527,7 +1521,7 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// which side of its chart its material is on, and the ball sits on
 /// that side exactly when the chain is CONVEX — on a concave chain it
 /// rolls in the void, the far side of every support — so the side
-/// handed to the trace is [`BlendSide::ball_side`] of that bit, the
+/// handed to the trace is [`ball_side`] of that bit, the
 /// identity on a convex chain. ONE fold with ONE home, `Convexity`:
 /// `signed` for the arms that displace by `±r` ([`plane_plane_blend`],
 /// [`super::arms::plane_sphere_blend`], `open::planar::corner_plan`),
@@ -1575,8 +1569,8 @@ fn curved_arm<T: Decide + Bounds>(
                 rim: p,
             };
             let (Some((ta, da)), Some((tb, db))) = (
-                sheet.trace(sa, convexity.ball_side(senses.0)),
-                sheet.trace(sb, convexity.ball_side(senses.1)),
+                sheet.trace(sa, ball_side(convexity, senses.0)),
+                sheet.trace(sb, ball_side(convexity, senses.1)),
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
@@ -1597,8 +1591,8 @@ fn curved_arm<T: Decide + Bounds>(
                 lever: extent.length(),
             };
             let (Some((ta, da)), Some((tb, db))) = (
-                sheet.trace(sa, convexity.ball_side(senses.0)),
-                sheet.trace(sb, convexity.ball_side(senses.1)),
+                sheet.trace(sa, ball_side(convexity, senses.0)),
+                sheet.trace(sb, ball_side(convexity, senses.1)),
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };

@@ -530,7 +530,7 @@ fn plane_wedge(na: Vec3<f64>, nb: Vec3<f64>) -> geom_brep::WedgeVerdict {
 /// **Predicate 5's trio**: the fold reads a definite corner by its sign,
 /// coplanar faces by their material, and a wedge too small to call
 /// escalates. A cube's edge resolves a convex link whose margin is the
-/// fold's `dihedral_sign`; the in-band corner refuses as the unsettled
+/// blend's `fillet3_convexity_sign`; the in-band corner refuses as the unsettled
 /// wedge, with the tangential sentence.
 #[test]
 fn trio_convexity_sign() {
@@ -543,11 +543,32 @@ fn trio_convexity_sign() {
         edges: vec![e],
         size: 0.1,
     };
+    let bracket = geom_core::k_stats::Bracket::open();
     let verdict = run_battery(&req, band()).expect("a cube edge resolves");
+    let recorded = bracket.finish();
     let link = verdict.chains[0].first();
     assert_eq!(link.convexity, Convexity::Convex);
-    assert_eq!(link.convexity_margin.predicate, "dihedral_sign");
+    assert_eq!(link.convexity_margin.predicate, "fillet3_convexity_sign");
     assert_eq!(link.convexity_margin.sign, Sign::Positive);
+    // The sign decides which body the blend builds, so the fold records
+    // it under the blend's own name, which the flip lane reads, and not
+    // under the shape reading's, which it passes over.
+    let named = |name| {
+        recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == name)
+            .count()
+    };
+    assert!(
+        named("fillet3_convexity_sign") > 0,
+        "the blend's sign is on the verdict log under its own name"
+    );
+    assert_eq!(
+        named(geom_brep::DIHEDRAL_SIGN),
+        0,
+        "and not as a shape reading"
+    );
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let sign = |v| match v {
         V::Crease { convexity, .. } => Some(convexity),

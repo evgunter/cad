@@ -259,7 +259,10 @@ fn census() -> PredicateCensus {
 /// **Decisions that word one question `geom_brep` decides**, under its
 /// one name: the second-order separation of two faces meeting smoothly,
 /// at a contact edge the surgery describes and at a requested edge the
-/// wedge fold reads. One quantity, one population.
+/// wedge fold reads. One quantity, one population. Listed rather than
+/// read from the source: `BlendDecision::predicate` spells each name
+/// through a `geom_brep` constant, and nothing at run time says which
+/// arm is a `geom_brep` question; the assertion checks each pair shares.
 const SHARED_QUESTIONS: &[(BlendDecision, BlendDecision)] =
     &[(BlendDecision::ContactSecondOrder, BlendDecision::LinkBend)];
 

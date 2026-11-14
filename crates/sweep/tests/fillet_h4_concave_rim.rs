@@ -6,7 +6,7 @@
 //! only material-side facts anywhere in the carve are folds of the
 //! chain's stored convexity verdict — the side the arms rest the ball
 //! on (`battery::curved_arm`, `arms::plane_sphere_blend`) and the band
-//! face's sense bit (`Convexity::blend_sense`) — never a sampled normal.
+//! face's sense bit (`battery::blend_sense`) — never a sampled normal.
 //!
 //! These rows are the concave side of what the convex closed-rim suites
 //! already pin, designed against one finding: a fold that is hardcoded

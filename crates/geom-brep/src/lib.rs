@@ -141,14 +141,14 @@ pub use description::{
 };
 pub use dihedral::{
     AlignmentReading, Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN,
-    DIHEDRAL_SIGN, Dihedral, DihedralClass, GRADIENT_ALIGNMENT_LEVER, GradientAlignment,
-    MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MixedStations,
-    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryRung, MustCarryVerdict,
-    PairRefusal, RestLocus, SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency,
-    WedgeEnd, WedgeEscalation, WedgeRung, classify_dihedral, classify_dihedral_reported,
-    classify_seam, folded_lever_arm, gradient_alignment, material_kappa_rel,
-    must_carry_description, must_carry_over_edge, normals_alignment, reask_chart, reask_pair,
-    rest_locus, tangent_second_order,
+    DIHEDRAL_SIGN, DIHEDRAL_WEDGE, Dihedral, DihedralClass, GRADIENT_ALIGNMENT_LEVER,
+    GradientAlignment, MATERIAL_CUSP_SIDE, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    MaterialPairing, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryRung, MustCarryVerdict, PairRefusal, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    SmoothJoin, Station, TANGENT_SECOND_ORDER, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_seam, folded_lever_arm,
+    gradient_alignment, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -162,7 +162,9 @@ pub use edge_nurbs::{
     is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
     probe_pick, sub_arc_joint,
 };
-pub use edge_wedge::{Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over};
+pub use edge_wedge::{
+    Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,

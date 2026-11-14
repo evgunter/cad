@@ -257,6 +257,20 @@ pub fn edge_wedge_over<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> WedgeVerdict {
+    edge_wedge_over_as(walk, reach, band, crate::DIHEDRAL_SIGN)
+}
+
+/// [`edge_wedge_over`], each corner's sign decided as `sign`: a reader
+/// whose sign decides which body it builds records the decision under a
+/// name of its own ([`crate::DIHEDRAL_SIGN`]'s docs), the geometry read
+/// the same.
+#[must_use]
+pub fn edge_wedge_over_as<T: Decide>(
+    walk: &WedgeWalk<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+    sign: &'static str,
+) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
     let classes = match class_pass(plus.surface, minus.surface, walk.stations(), reach, band) {
@@ -270,7 +284,7 @@ pub fn edge_wedge_over<T: Decide>(
         .into_iter()
         .map(|read| match read.dihedral {
             Dihedral::Corner(c) => c
-                .convexity(&read.station, senses, band)
+                .convexity(sign, &read.station, senses, band)
                 .map(|(sign, margin)| (read.sample, Read::Corner(sign, margin)))
                 .map_err(|e| e.at_station(read.sample)),
             Dihedral::Tangent(t) => Ok((read.sample, Read::Tangent(read.station, t))),
@@ -420,7 +434,7 @@ impl<T: Decide> StationHook<T> for MaterialReads {
     ) -> ControlFlow<WedgeEscalation> {
         let signed = material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let (end, margin) = match decide_nonzero_reported(
-            "material_cusp_side",
+            crate::MATERIAL_CUSP_SIDE,
             Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
