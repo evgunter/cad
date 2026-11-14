@@ -441,3 +441,8 @@ fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
         tally(&all)
     );
 }
+
+/// Reviewer hook: [`over`] for the review probes.
+pub(super) fn over_pub<R>(top: (f64, f64), read: impl FnOnce(&Body<Boxed>, Band) -> R) -> R {
+    over(top, (1.0, 1.0), read)
+}

@@ -1269,3 +1269,7 @@ mod pre_filter_tests {
 #[cfg(test)]
 #[path = "side_reader_boxed_brick_rows.rs"]
 mod boxed_brick_rows;
+
+#[cfg(test)]
+#[path = "side_reader_review_probes.rs"]
+mod review_probes;
