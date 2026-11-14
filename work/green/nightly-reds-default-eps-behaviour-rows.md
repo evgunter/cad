@@ -60,3 +60,28 @@ list above, each checked against the tree:
   unproven joint and two vertex identities) was left behind, and is now
   2. The coincide row named above (no row cancels the door between
   replay and discharge) is about something else and is untouched.
+
+## The fix pass (STYLE review of PR 6931, 2026-11-14)
+
+- The needle cavity's pin has its own row,
+  `work/onedoor/a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505.md`,
+  with every row's rounding before and since PR 6505: the four pinned
+  runs are the tail of one distribution that the PR widened from 2.4% to
+  8.6%, and two unpinned turned rows stand at 4.82%. The body is right;
+  P2 stands.
+- The seam-split pin now holds how wide the stopped measure is
+  (`FLOOR_STOP_PAD`, 1% either way), and the file's other reader of
+  `read` asserts its family has no such pose.
+- The viewer pair already had a row,
+  `work/coincide/main-red-two-door-at-rest-rows-on-the-2026-11-11-nightly.md`,
+  which this unit's list missed; it now carries the cause and the re-pin
+  and is left open for the nightly's `viewer app feature` job, which no
+  run on the PR exercises on that pair.
+- What the gate ran: each of the six once, at the default ε, in the
+  slow-set step. The 1e-6 and 1e-12 rows are this lane's local runs.
+- Both nightlies since (43371638371, 43561237293) were searched for
+  another test failing on an unmet measure: the census is the only one.
+- Filed: `work/tint/the-viewers-door-at-rest-rows-keep-by-hand-a-count-editor-core-owns.md`,
+  `work/tint/the-seam-split-census-builds-no-pose-at-1e-12-so-neither-of-its-claims-can-fail-there.md`,
+  `work/green/pins-a-green-lane-leaves-are-hand-kept-lists-keyed-by-name-or-float-tuple.md`,
+  `work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`.
