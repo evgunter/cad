@@ -1108,6 +1108,23 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         let (t0, t1) = cache.params();
         let a = image.eval(t0);
         let b = image.eval(t1);
+        if geom_core::k_stats::probe_tally::on() {
+            let w = crate::side_reader::probe_w::<T>;
+            eprintln!(
+                "[bf-quad] he={he:?} forward={} pcurve={} t0={} t1={} a=({}, {}) b=({}, {})",
+                le.forward,
+                format!("{:?}", cache.pcurve())
+                    .chars()
+                    .take(400)
+                    .collect::<String>(),
+                w(&t0),
+                w(&t1),
+                w(&a.x),
+                w(&a.y),
+                w(&b.x),
+                w(&b.y),
+            );
+        }
         let (ax, ay) = (
             exact(Interval::from_certified(a.x))?,
             exact(Interval::from_certified(a.y))?,

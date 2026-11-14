@@ -1277,6 +1277,7 @@ pub fn drive(
             cause,
         });
     }
+    geom_core::k_stats::probe_tally::dump("witness");
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
@@ -1448,6 +1449,18 @@ pub fn drive(
     if config.symbolic.enabled {
         decisions.frozen = memo.frozen();
     }
+    if geom_core::k_stats::probe_tally::on() {
+        eprintln!(
+            "[bf-drive] certified={} refused={} splits={} decisions sym={} num={} frozen={}",
+            certified.len(),
+            refused.len(),
+            splits,
+            decisions.symbolic,
+            decisions.numeric,
+            decisions.frozen
+        );
+        geom_core::k_stats::probe_tally::dump("drive");
+    }
     let accounting = account(analyzed, &root, &certified, &refused);
     Ok(ParamBoxVerdict {
         certified,
@@ -1550,12 +1563,18 @@ fn classify(
         ..lane_opts(stop)
     };
     if symbolic.enabled {
+        // PROBE (boxfinish/probe-switch-off): one line per leaf.
+        let probe = geom_core::k_stats::probe_tally::on();
+        let started = std::time::Instant::now();
+        let finishes = topo::finishes_on_this_thread();
+        let evals = std::cell::Cell::new(0u32);
         let (leaf, counts) = sym::with_session_memo_retry(
             symbolic.budget(),
             symbolic.rules,
             symbolic.retry,
             memo,
             || {
+                evals.set(evals.get() + 1);
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
                 leaf
             },
@@ -1563,18 +1582,51 @@ fn classify(
         if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
             return Err(stopped);
         }
-        return Ok((
-            classify_replay(
-                doc,
-                box_,
-                &leaf,
-                witness,
-                witness_vector,
-                witness_key,
-                counts,
-            ),
+        let verdict = classify_replay(
+            doc,
+            box_,
+            &leaf,
+            witness,
+            witness_vector,
+            witness_key,
             counts,
-        ));
+        );
+        if probe {
+            let spans: Vec<String> = box_
+                .order()
+                .iter()
+                .filter_map(|n| Some((n, box_.get(*n)?)))
+                .map(|(n, axis)| {
+                    let (lo, hi) = axis.span();
+                    format!("{}=[{lo:e},{hi:e}]", n.full())
+                })
+                .collect();
+            eprintln!(
+                "[bf-leaf] box {} evals={} finishes={} dt_ms={:.1} sym={} num={} verdict={}",
+                spans.join(" "),
+                evals.get(),
+                topo::finishes_on_this_thread() - finishes,
+                started.elapsed().as_secs_f64() * 1e3,
+                counts.symbolic,
+                counts.numeric,
+                match &verdict {
+                    LeafVerdict::Certified(_) => "CERTIFIED".to_owned(),
+                    LeafVerdict::Bisect => "BISECT".to_owned(),
+                    LeafVerdict::Refused(r) => format!("REFUSED {}", render_reason(r)),
+                }
+            );
+            for id in &leaf.order {
+                if let Some(NodeResult::Failed(e)) = leaf.result(*id) {
+                    let text = format!("{:?}", e.kind);
+                    eprintln!(
+                        "[bf-leaf]   node {} FAILED {}",
+                        id.0,
+                        text.chars().take(1800).collect::<String>()
+                    );
+                }
+            }
+        }
+        return Ok((verdict, counts));
     }
     let leaf: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
     if let Some(stopped) = crate::Stopped::of(leaf.outcome) {

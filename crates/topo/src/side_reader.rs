@@ -540,14 +540,40 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
-    match geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))? {
+    let rays = geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))?;
+    if geom_core::k_stats::probe_tally::on() {
+        eprintln!(
+            "[bf-side] scalar={} faces={} rays={}",
+            core::any::type_name::<T>(),
+            sel.faces().len(),
+            match &rays {
+                Rays::Side(side) => format!("Side({side:?})"),
+                Rays::InBand(pair) => format!("InBand({pair:?})"),
+                Rays::Unread { aimed, set_aside } =>
+                    format!("Unread aimed={aimed} set_aside={}", set_aside.len()),
+            }
+        );
+    }
+    match rays {
         Rays::Side(side) => Ok(Ok(side)),
         Rays::InBand(pair) => Ok(Err(SideUnread::InBand(pair))),
-        Rays::Unread { aimed, set_aside } => Ok(volume().map_err(|volume| SideUnread::Fallback {
-            volume,
-            aimed,
-            set_aside,
-        })),
+        Rays::Unread { aimed, set_aside } => {
+            let volume = volume();
+            if geom_core::k_stats::probe_tally::on() {
+                eprintln!(
+                    "[bf-side]   volume fallback -> {}",
+                    match &volume {
+                        Ok(side) => format!("Ok({side:?})"),
+                        Err(_) => "REFUSED".to_owned(),
+                    }
+                );
+            }
+            Ok(volume.map_err(|volume| SideUnread::Fallback {
+                volume,
+                aimed,
+                set_aside,
+            }))
+        }
     }
 }
 
@@ -693,21 +719,122 @@ fn aimed_ray<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Aimed, PointInSolidError> {
+    // PROBE (boxfinish/probe-switch-off): each aimed ray's decisions, by
+    // predicate, its escalations with their margins, and what it read.
+    if !geom_core::k_stats::probe_tally::on() {
+        return aimed_ray_inner(body, faces, geos, face, aim, normal, band);
+    }
+    let scope = geom_core::k_stats::Bracket::open();
+    let read = aimed_ray_inner(body, faces, geos, face, aim, normal, band);
+    let record = scope.finish();
+    geom_core::k_stats::relog(&record);
+    let mut by_name = std::collections::BTreeMap::<&'static str, u64>::new();
+    for v in &record.verdicts {
+        *by_name.entry(v.predicate).or_default() += 1;
+    }
+    eprintln!("[bf-ray]   definite: {by_name:?}");
+    for e in &record.escalations {
+        eprintln!("[bf-ray]   ESCALATED {:?}", e.source);
+    }
+    eprintln!("[bf-ray] => {face:?} read {read:?}");
+    read
+}
+
+/// PROBE: the enclosure a scalar's `Debug` shows, as `(lo, hi)`.
+pub(crate) fn probe_bounds<T: core::fmt::Debug>(x: &T) -> Option<(f64, f64)> {
+    let s = format!("{x:?}");
+    let grab = |key: &str| -> Option<f64> {
+        let rest = &s[s.find(key)? + key.len()..];
+        let end = rest
+            .find(|c: char| c == ',' || c == ' ' || c == '}' || c == ')')
+            .unwrap_or(rest.len());
+        rest[..end].trim().parse().ok()
+    };
+    match (grab("lo: "), grab("hi: ")) {
+        (Some(lo), Some(hi)) => Some((lo, hi)),
+        _ => s.trim().parse::<f64>().ok().map(|v| (v, v)),
+    }
+}
+
+/// PROBE: a scalar's enclosure and width, as text.
+pub(crate) fn probe_w<T: core::fmt::Debug>(x: &T) -> String {
+    match probe_bounds(x) {
+        Some((lo, hi)) => format!("[{lo:.9}, {hi:.9}] w={:.3e}", hi - lo),
+        None => format!("?{x:?}"),
+    }
+}
+
+/// PROBE: the midpoint of a scalar's enclosure, as a constant.
+fn probe_mid<T: Decide>(x: T) -> T {
+    probe_bounds(&x).map_or(x, |(lo, hi)| T::from_f64(0.5 * (lo + hi)))
+}
+
+/// PROBE: the local aim experiment, `BOXFINISH_AIM`: `dir` (the
+/// direction read off `out`, not off `aim - from`), `midaim` (the aim
+/// collapsed to its enclosure's midpoint), `mid` (aim, normal and reach
+/// collapsed, so the ray is a constant).
+fn probe_aim_mode() -> &'static str {
+    static MODE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    MODE.get_or_init(|| std::env::var("BOXFINISH_AIM").unwrap_or_default())
+}
+
+#[allow(clippy::too_many_arguments)] // the selection, the aim and the band
+fn aimed_ray_inner<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    geos: &[(FaceKey, FaceGeo<T>)],
+    face: FaceKey,
+    aim: Point3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<Aimed, PointInSolidError> {
     let (along, across) = AIM_INCIDENCE;
     let at = crate::census::witness(aim);
     let shell = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?
         .shell;
+    let mode = probe_aim_mode();
+    let trace = geom_core::k_stats::probe_tally::on();
+    let p3 = |p: Point3<T>| format!("({}, {}, {})", probe_w(&p.x), probe_w(&p.y), probe_w(&p.z));
+    let v3 = |p: Vec3<T>| format!("({}, {}, {})", probe_w(&p.x), probe_w(&p.y), probe_w(&p.z));
+    if trace {
+        eprintln!("[bf-ray] aim at {face:?} mode={mode:?}");
+        eprintln!("[bf-ray]   aim(as built)={}", p3(aim));
+        eprintln!("[bf-ray]   normal(as built)={}", v3(normal));
+    }
+    let (aim, normal) = match mode {
+        "mid" => (
+            Point3::new(probe_mid(aim.x), probe_mid(aim.y), probe_mid(aim.z)),
+            Vec3::new(probe_mid(normal.x), probe_mid(normal.y), probe_mid(normal.z)),
+        ),
+        "midaim" => (
+            Point3::new(probe_mid(aim.x), probe_mid(aim.y), probe_mid(aim.z)),
+            normal,
+        ),
+        _ => (aim, normal),
+    };
     // The ray is scratch: no output keeps its aim, and only the
     // crossings it reads decide.
     let (b1, b2) = normal.orthonormal_basis();
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
-    let d = (aim - from).normalize();
+    let far = beyond(body, faces, aim)?;
+    let far = if mode == "mid" { probe_mid(far) } else { far };
+    let from = aim + out * (far * T::from_f64(2.0));
+    let d = match mode {
+        "dir" | "mid" => (out * T::from_f64(-1.0)).normalize(),
+        _ => (aim - from).normalize(),
+    };
     let reach = selection_reach(body, faces, from)?;
+    if trace {
+        eprintln!("[bf-ray]   out={}", v3(out));
+        eprintln!("[bf-ray]   beyond={}", probe_w(&far));
+        eprintln!("[bf-ray]   from={}", p3(from));
+        eprintln!("[bf-ray]   d={}", v3(d));
+        eprintln!("[bf-ray]   reach={}", probe_w(&reach.length()));
+    }
     let crossings = match ray_crossings(
         body,
         geos,
