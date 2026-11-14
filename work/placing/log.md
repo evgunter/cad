@@ -256,9 +256,290 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Filed:** `a-rows-zero-slides-across-a-read-refuse-once-an-edit-turns-the-read-into-their-plane` (P3), `the-pattern-gesture-evaluates-the-whole-document-to-read-its-pick` (P4), MSOLVE's `a-chains-no-two-in-a-row-rule-compares-read-axes-by-identity-not-by-line`, and `work/issues/main-red-two-slow-digest-rows-at-8ae2b9b` (both reviewers' N3).
   - **A container restart** killed the lane's background CI polls mid-pass. The lane was resumed and polled in the foreground. Lanes are told never to poll in the background; this one had.
   - **6394 now waits only on Ev's `[ev]` answer** on the oblique rule. (PLACING orchestrator)
+- 2026-11-03 — **PR 6394 merged** (`f3682b81b4`). Ev answered the `[ev]` question with option (a): "yes accept, sorry i didn't realize that the clause implied rebaselining was not allowed (it's always allowed)".
+  - The last commit closed both placing pattern rows and MSOLVE's `a-ring-about-a-tilted-axis-slides-each-member-along-it`. It also added `docs/dual-review-log/rows/PR-6394.md`, from blinded coding with byte 155 (A = R2).
+    - **Tally: 0.** The one MAJOR was bilateral.
+    - **Flag:** R1 saw R2's command lines through `pgrep`. It contained no findings, so the pair is flagged but not excluded.
+  - **Class (Ev):** rebaselining existing documents is always allowed. A behaviour change that moves saved placements is reported in the PR body, not held for a ruling on its own account. The 6369 summary's "unchanged" claim still had to be measured, because it was a claim Ev read. (PLACING orchestrator)
+- 2026-11-03 — **Dispatched:** the placement editor's Place-then-live-edit, on `placing/place-live`.
+  - Row: `the-placement-editor-commits-on-apply-not-live`. Duplicate's retirement rides with it (`a-duplicate-freezes-a-mated-copy-into-literal-values`), as does the undo of 6356's `BodyPlaced` refusal and its once-placed `door_on` routing.
+  - FORMS #6403 is the editor to match. The 6353 build follows this unit. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578 is open**: Place, then live edits; Duplicate retires. Green at `e9dbbd4964`.
+  - **Review: single FULL.** Ev's rule is ratified (6388) and FORMS #6403 is the model, so no design is decided here. The held-draft state machine, staleness and undo steps carry real correctness risk, so the review carries claims.
+  - **Lane's judgements for the reviewer to test:** `BundleStale` kept; the solve is part of the door; Place lands in the body's own space; staleness is read against the committed document; the step measure is kept as `combine::clearing_step` for FORMS' reader; the `on_read` patch.
+  - **Filed:** `a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary`.
+  - **Possibly dissolved, for the review to judge:** `the-placement-editor-draws-no-preview-of-its-draft`, `the-editor-verdict-re-evaluates-on-every-drag-frame`, `the-edit-doors-base-and-its-staleness-read-two-documents`. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578's review is in**: APPROVE-WITH-FIXES (single FULL, `placing-review-6578`, frozen head `e9dbbd4964`).
+  - **MAJOR (demonstrated):** Undo with a held mate draft steps history and reloads the draft away. The profile editor spends the draft first. The cause is a re-spelled `Offer` that drifted from `drafts::Offer` (no `Landed`/`Deferred`/`undo_pending`).
+  - **MINORs:** a non-pick change made while landing is dropped silently; Discard's enabling differs from the profile editor; Place-made copies get no badge and stand outside the product (the filed row, now hitting every copy); the story helper bypasses the door; stale Apply/Create prose.
+  - **Lane's judgements (a)–(f):** all upheld.
+  - **Rows:** the base/staleness row is fixed in code but owes its done-when row; the per-frame row is half closed; the preview row is dissolved in substance, with parity to check.
+  - **Fix pass dispatched** to the implementer on all of it. The m3 row is P1: fixed in this pass if small, scheduled next otherwise.
+  - **Class:** a second editor built "to match" one already built re-spelled the first editor's state type rather than sharing it, and the copy drifted within one unit. Where parity is the requirement, share the type. (PLACING orchestrator)
+- 2026-11-08 — **PR 6578 merged** (`4bf1e8db59`). The fix pass was accepted on the orchestrator's read: `crate::offer::Offer` is now shared by both editors, and every item was fixed. The editor and Duplicate rows are closed. The base/staleness row closed with its done-when row. The per-frame and preview rows are narrowed and left open.
+- 2026-11-08 — **Design fork dispatched** on `a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary` (P1): is a Place-made placement a copy to the gesture vocabulary?
+  - Two designers (arm byte 233, label byte 163; the mapping is on `analysis/design-fork/placing-own-space-copy`).
+  - Brief: `~/.local/share/cad-work/placing-fork-ownspace-brief.md`. It states the problem only; the row's "Owed" sketch was not handed over.
+  - **The 6353 build waits on this fork**, because how a pick on a placed copy is seated is exactly what this fork decides. (PLACING orchestrator)
+- 2026-11-08 — **Own-space copy fork: the two designers agree on first reports.** Every placement is a copy wherever it stands; `copy_spaces` retires; Place stays in the body's own space; it is built inside the 6353 unit.
+  - **`[ev]` PR 6580** carries one README sentence and fork row 253. Built on its recommendation, not waiting for the answer: both designers agree, and it is D10 applied (no ratified text changes).
+  - **Designer-flagged errors** in the row and brief:
+    - the done-when's "a pick seats the body it places" contradicts 6353;
+    - the empty product is correct, because of the one product door;
+    - the carve-out excludes every construction's space, not only the own space.
+- 2026-11-08 — **Dispatched the 6353 build plus the 6580 ruling**, on `placing/copy-reads` (one unit, per both designers' sequencing):
+  - a feature on a copy reads the copy;
+  - a body feature offers the shared-variable re-point;
+  - every placement is a copy;
+  - delete splices by continuation, with 6280's probe rows brought in.
+  - **Review tier: dual, letter H** (ARCHITECTURE; concurrent arm). It changes the gesture vocabulary's seat rule across every feature gesture, which is broad and hard to reverse. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581 is open** (the 6353 build plus the 6580 ruling), green at `a18cc51459`.
+  - **Dual review, concurrent arm (letter H).** R1 = `placing-dual-6581-r1`, R2 = `placing-dual-6581-r2`, frozen head `a18cc51459`, identical brief (`~/.local/share/cad-work/placing-dual-6581-brief.md`).
+  - **`[ev]` added to 6581.** The question at the top asks whether the one-action per-placement re-point is what Ev meant by "change x = unfilleted_body to x = filleted_body". The alternative is a named alias variable, a kernel change that would go to designers.
+  - **Filed by the lane:**
+    - `a-takeover-leaves-a-re-pointed-copys-own-on-sides-on-the-old-source`: the kernel gap, worked around in the viewer;
+    - `a-labelled-creation-has-no-maintenance-witness`;
+    - evidence on DOCTAIL's `no-docedit-splices-a-deleted-node`. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581's dual pair is in** (concurrent, frozen head `a18cc51459`). R1: APPROVE-WITH-FIXES, no MAJOR. R2: NOT-MERGEABLE-AS-IS, three MAJORs, each demonstrated.
+  - **Correspondence pre-note:**
+    - **Bilateral:**
+      - the re-point button can be refused `WouldCycle`, because the offer excludes cycle placements and the action does not (R2 MAJOR, R1 MINOR; both executed);
+      - the `[ev]` question's omissions: a later Place still reads `B`, and the 6353 "named variable, say `bracket`" statement needs correcting;
+      - the `node_labels` netting row is a lost guard;
+      - the filed rows have no band;
+      - `on_sides_follow` is sound, its exposure not blocking;
+      - `construction_of_space` is stale and dead;
+      - the silent `steps > 64` cap;
+      - the permanent offer;
+      - parallel walkers and `⊔` re-authoring.
+    - **Unilateral R2 MAJOR (tally candidates):**
+      - M2: delete is not the inverse two features deep (`rebinds` misses names whose derivation reads a copy);
+      - M3: one operand left as `xs[k]` hands readers the whole family.
+    - **Unilateral R1:**
+      - a sketch on a copy does not say it is on the copy (its made node is the profile);
+      - `takeovers.rs` silently dropped its split case;
+      - a weakened volume assertion in `combine_ops`;
+      - `original_of` goes back one step only;
+      - an indexed read of a deleted fillet is dropped (unsure; may relate to M3).
+  - **Action:**
+    - correct 6581's `[ev]` question (done now that both reports are in);
+    - run the fix pass on the union. (PLACING orchestrator)
+- 2026-11-08 — **6581's `[ev]` question rewritten, with a correction.**
+  - **The correction:** on 6353 the orchestrator told Ev that placements share "the same named variable, say `bracket`" (VR2/VR7). They do not, because a body's output is exempt from naming. Ev's "offer to repoint that variable" was answered on that wrong premise, and fits a named alias most literally.
+  - **The question now offers:** (a) keep the per-placement re-point; (b) a named body variable the re-point redefines, which goes to designers as a follow-up. The use-difference both reviewers named is stated: a later Place still reads `B`.
+  - **Fix pass on the union dispatched** to the implementer.
+  - **Class:** a statement of fact made to Ev on an `[ev]` PR ("we already have X") was checked against neither the code nor the rule's exemptions, and Ev ruled on it. A factual premise given to Ev is measured in the code first, like an "unchanged" claim. (PLACING orchestrator)
+- 2026-11-08 — **PR 6581's fix pass is in**, green at `4103fdbc04`. All eleven items are reported fixed:
+  - one placement list now serves both the offer and the button;
+  - `rebinds` shares the names-layer walk;
+  - one member census, `sole_whole`; a member is handed over or refused typed (`Refusal::Unspliced`), never widened to its family;
+  - the sketch on a copy says so;
+  - the split case is restored;
+  - `original_of` reaches the body.
+
+  Filed: `a-declined-re-point-offer-stays-as-a-button` (P2, design). The netting row stays filed, with no witness.
+  - **A targeted re-check review** (Opus, outside the pair, as on 6300) was dispatched on the fix pass. The pass carried three MAJORs into kernel logic and adds a new refusal. (PLACING orchestrator)
+- 2026-11-08 — **6581 re-check: APPROVE-WITH-FIXES.** The three MAJORs are closed, demonstrated.
+  - **MINORs:**
+    - the cut-of-a-member refusal is too broad (member hand-over is still two rules);
+    - the split now writes `above ⊔ below` when a placement reads its target, undisclosed;
+    - a feature on a mirror of a copy goes stale after a re-point, because `rebinds`' copies loop and the forward path cover fewer chains than `verbatim_edge`.
+  - **Orchestrator ruling on the split:** a faithful reading of 6353. A split of a placed body makes a new body and offers the re-point, as a fillet does. The README and op docs are restated, with no `[ev]`.
+  - **Fix pass 2 dispatched.**
+  - **Disk:** the lane had left a 14 GB target behind, and the re-check's link died at 390 MB free. Deleted; 23 GB free. (PLACING orchestrator)
+- 2026-11-08 — **6581 fix pass 2 accepted on the orchestrator's read**, green at `d2db1b6201`.
+  - Member hand-over is now one rule, `continuation::Continued`. Refusals remain only at whole-read seats.
+  - The split re-point is disclosed in the README and op docs.
+  - `rebinds` shares `take_over::carrying_chains`. The forward mirror gap is filed on DOORS, P1: `work/doors/a-takeover-leaves-a-feature-on-a-mirror-of-the-copy-stale.md`, its done-when row in the suite `#[ignore]` citing it.
+  - One generic `Recarry` visitor.
+  - "Built on a copy" no longer depends on order.
+  - `MemberAtSeat` narrowing filed (P3).
+  - A pin citation was repointed after main moved a row from onehome to boxfinish.
+- **6581 now waits only on Ev:** 6580 (every placement is a copy) and the alias question at its top. The dual-review row and the closing state sync ride as its last commit after the answers. (PLACING orchestrator)
+- 2026-11-08 — **Five unbanded rows given priorities.**
+  - `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`: P1 M. It is Ev's 2026-11-01 direction, and since 6578 Place targets the body's own space, so it bites every cross-space mate. It is the next unit after 6581, because both touch `matetool.rs` and `session.rs`.
+  - The preview row: P2.
+  - The pick-starts-a-mate, per-frame and parse-wording rows: P3. (PLACING orchestrator)
+- 2026-11-09 — **`[ev]` PR 6580 approved and merged** (`1b31bac52e`). Ev: "it sounds like the actual change you're making is independent of this, so seems good".
+  - Ev reserved judgement on Place landing in the body's own space ("idk about").
+  - That point is recorded on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1, next unit after 6581), which goes to designers before its build.
+  - Fork row 253 is filled in. Match: both. (PLACING orchestrator)
+- 2026-11-09 — **Design fork dispatched** on `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space` (P1): how a placement's target is chosen at Place and changed later, under Ev's rule that a mate never changes it, with Ev's 6580 reservation on Place's own-space target.
+  - Three designers (arm byte 59; label byte 255 redrawn to 96); the mapping is on `analysis/design-fork/placing-target-space`.
+  - Brief: `~/.local/share/cad-work/placing-fork-target-brief.md`, problem only; the row's agent-written sketches are named as not decisions. (PLACING orchestrator)
+- 2026-11-09 — **Target-space fork: first reports are in, and they disagree.**
+  - **A:** Place asks where it goes (two picks), with a target field. A change that leaves old-space mates is held by the solving door and offers a strike button. Reads stranded in the old space are admitted and reported. Values keep their numbers and are not re-measured.
+  - **B:** Place lands in the body's own space, and the target is an editor seat. A change empties the old-space mates' `to` picks and is held. Stranded reads are held, naming the reader. Values keep their numbers. B is unsure between this and Place-asks-where.
+  - **C:** Place lands in the body's own space, with an "Into" row. Old-space mates are struck and the freedoms they set are measured where the copy stood. Stranded reads are admitted and reported, and Undo takes them back.
+  - **All three agree:**
+    - the checkbox goes;
+    - the target is an editable property of the placement;
+    - every door that re-targets a placement uses one live edit;
+    - D10 is unchanged.
+  - **Round 1 dispatched:** each designer is shown the other two. (PLACING orchestrator)
+- 2026-11-09 — **The target-space fork agreed after two rounds. `[ev]` PR 6600 is open** (README rewrite and fork row 254). The agreed answer:
+  - Place lands in the body's own space, with the target explicit on `SessionOp::Place`.
+  - The target is the editor's first row, and it is the one edit every re-targeting door uses. The checkbox goes.
+  - A `to` in another space is held, with an into button.
+  - Values keep their numbers.
+  - Old-space mates are kept, and the change is held until they are re-picked or struck.
+  - Stranded reads are admitted and reported.
+  - A combine refuses an existing copy from another space.
+  - **Owed to the build:** B's probe of `in_one_space` stranding another copy's mate, and A's citation correction (stage-3 §1 and §5′.1, not §3). The build is dispatched once 6581 merges, because both touch `matetool.rs` and `session.rs`. (PLACING orchestrator)
+- 2026-11-09 — **PR 6581 conflicts with main** after `775720d5b5`, main's member-read and family-enumeration change. The conflicts are in the README, `matetool.rs`, `session.rs` and `takeovers.rs`. The lane is merging main in, keeping one member rule, not two. Ev has not yet answered on 6581 or 6600. (PLACING orchestrator)
+- 2026-11-09 — **6581's merge of main accepted** (`20dd263959`, green).
+  - Each member question keeps one rule. Which member a pick reads is main's (`is_seen`, `seat_member`, `Port`); what a delete hands on is 6581's (`sole_whole`).
+  - `seat_member` is fixed to read through no copy.
+  - Two of main's new `combine_ops` rows are re-spelled to the ruling. This builds `a-pattern-of-a-copy-is-read-as-a-copy-of-its-source`, now in review on 6581.
+  - The lane renames one row name left lying. (PLACING orchestrator)
+- 2026-11-09 — **Ev answered 6581's question.** Ev wants (b), in Ev's own terms: "placements of bodies take a variable with the same rules as usual, ie that an anonymous variable can only be used in one place … you already have defined `bracket = B` … and must update this to `bracket = F` (perhaps with the gui giving you a shortcut for this)".
+  - **6581 merges with the offer as built.** The question said a (b) answer would leave it so, and Ev did not object.
+  - **Filed:** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` (P1 M), with Ev's words and a done-when. It is the next unit; `[ev]` 6600's target build follows it.
+  - **6581's dual-review row** is being coded blind (byte 164, even, so A = R1). (PLACING orchestrator)
+- 2026-11-09 — **PR 6581 merged** (`10159f74c8`). Four rows closed. Dual-review row PR-6581: tally 2 (R2's M2 and M3, demonstrated, unilateral; R1 raised no MAJOR).
+- 2026-11-09 — **Dispatched** `placements-of-a-body-share-a-named-variable-the-re-point-redefines` on `placing/named-source`, as Ev's 6581 workflow.
+  - **Review tier: dual, letter H.** It is a kernel naming rule for placement sources, broad and hard to reverse.
+  - **Design forks the row leaves open** (how the name comes into being, the exemption's reach) are the lane's to report, not to choose. `[ev]` 6600's target build follows. (PLACING orchestrator)
+- 2026-11-09 — **Conflict markers committed again**, in three placing rows, by the merge of main in `9e64a3e93d`. `git add -A` ran after a failed merge in the same shell line, and lint failed in that line without stopping the commit. Fixed forward by taking main's closed rows.
+  - **Class:** a merge and a commit must not share one `&&`-less shell line. Check `git diff --name-only --diff-filter=U` and gate the commit on lint (`lint | grep -q ok &&`). (PLACING orchestrator)
+- 2026-11-09 — **The named-source lane scoped and stopped.** Report: `~/.local/share/cad-work/placing-named-source-scoping.md`.
+  - **The finding:** Ev's `bracket = B` needs a body-alias variable. The kernel has none, and ratified DESIGN text excludes one ("Only an operation defines a shape"; a body variable is defined by a construction … or a placement).
+  - **Settled already:** VR2's no-minted-names rule (Ev, PR 4296); naming at the moment of sharing; delete-by-continuation extending to definition readers.
+  - **Six forks remain:** where the name comes from; how far the exemption retreats; what reads the name; hand editing; several aliases; what an alias may read.
+  - **Design fork dispatched** to two designers (arm byte 100, label byte 205; mapping on `analysis/design-fork/placing-named-source`). Brief: `~/.local/share/cad-work/placing-fork-named-brief.md`.
+  - **The lane is idle** at `/home/user/wt-named-source` until the ruling. (PLACING orchestrator)
+- 2026-11-09 — **Named-source fork: the first reports are in.**
+  - **Shared by A and B:** a `Body` variable defined as a read (an alias, or a source). The re-point redefines it, and a later Place follows it. There is a hand-edit row in the variables pane and one offer row per handle. No name is minted.
+  - **A:** a lone placement reads `B` directly. The exemption retreats for placement sources only, with its own refusal. Mate `on` sides are rebound. Place on a copy places what it copies.
+  - **B:** every placement reads a source, anonymous when alone. Ordinary VR2 names it at the second Place, and the exemption is unchanged. `on` sides select the source, so `on_sides_follow` goes. Place on `B` reads its source, and asks which when there are several.
+  - **Round 1 dispatched.** (PLACING orchestrator)
+- 2026-11-09 — **The named-source fork agreed after round 1. `[ev]` PR 6672 is open**, with the DESIGN wording and fork row 255. The agreed design:
+  - every placement reads a source variable (`VarDef::Source`), anonymous when alone;
+  - ordinary VR2 names it at the second Place;
+  - the re-point redefines it, plus its `Rebind`s, in one action;
+  - mate `on` sides select the source, so `on_sides_follow` goes;
+  - the output exemption is unchanged.
+  - **Offered to Ev, not assumed:** Place on a copy (reversing `PlaceOnACopy`), and whether two anonymous sources of one body are a finding (both designers lean no).
+  - **Small residual:** A keeps an "all" offer button as sugar; B does not mention one. It is left to the build.
+  - **Next:** the named-source lane builds on Ev's ruling. 6600's target build follows. (PLACING orchestrator)
+- 2026-11-12 — **`[ev]` PR 6600 approved and merged** (`97af755105`). Ev: "this sounds like a good plan". Ev was unsure what the held-`to` sentence meant, and the orchestrator explained it with an example on the PR.
+  - Main had moved, so the merge conflicted in the fork log. Both sides' rows were kept.
+  - The placement-target fork row is renumbered 254 → 261, because 254 collided with ROUND's row. 6672's named-source row is renumbered 255 → 260 for the same reason.
+- 2026-11-12 — **Dispatched the 6600 build** on `placing/target-row`.
+  - Row: `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`.
+  - **Review: single FULL.** The design is ratified, but the re-target edit spans four doors, the held-draft state and stranding, so the review carries claims.
+  - The named-source build waits on `[ev]` 6672. (PLACING orchestrator)
+- 2026-11-12 — **Ev on `[ev]` 6672** (a review comment on the source paragraph): "this sounds good but might be a little too detailed for this design document".
+  - **Trimmed** (`20bf41c6cd`): DESIGN keeps the rule only, and the mechanics move to VARIABLES VR4.
+  - **Read as approval of the design.** The two offered points default to: Place on a copy is not built (the refusal stays), and two anonymous sources raise no finding. Both are stated on the thread.
+  - It merges on green, and then the named-source build starts. (PLACING orchestrator)
+- 2026-11-12 — **`[ev]` PR 6672 merged** (`e996c00498`). Ev: "you should go ahead, but i'm not totally sure that this variable design i proposed is right … please feel free to push back on this decision".
+  - Ev's invitation to push back is recorded in VARIABLES VR4 itself and in fork row 260 (renumbered from 255), so a later reader meets it.
+  - **Sequencing:** the named-source build follows the target build that is now running, because both change `SessionOp::Place` (its target, and its name) and `session.rs`. The named-source lane, idle at `/home/user/wt-named-source`, is resumed when the target PR lands. (PLACING orchestrator)
+- 2026-11-12 — **PR 6850 is open** (the 6600 target build), green at `bc4feaf182`.
+  - **Single FULL review dispatched** (`placing-review-6850`).
+  - **Four lane decisions touch README sentences:** `movable_into_world`'s extra condition; `IntoOwnSpace` refusing on an old-space mate; "an operand that is no copy"; a family read whole keeping `SpaceMismatch`. The review judges each as a consequence of the ruling or a new decision. Any new decision goes to Ev on the PR before merge.
+  - **The lane filed** `a-combine-re-targets-a-copy-another-copy-is-mated-to`, a probe on main, fixed by 6850.
+  - **The orchestrator filed** COINCIDE's `main-red-two-door-at-rest-rows-on-the-2026-11-11-nightly` (P1). (PLACING orchestrator)
+- 2026-11-12 — **6850 review: NOT-MERGEABLE-AS-IS.**
+  - **M1** (demonstrated): [Into the loaded space] drops set-aside changes silently, then replays them unasked.
+  - **MINORs:**
+    - decision 1 is a new decision: `IntoWorld` falls back to a fresh copy for a mated copy;
+    - the `IntoOwnSpace` button is ungated and always refuses on mated world copies;
+    - decision 4 rewords a sentence Ev ratified in 6600;
+    - stale fixture docs.
+  - **Orchestrator ruling under 6600:** a door cannot hold a draft, so a door's re-target of a copy whose own mates read its space opens the placement editor with the target set, where the held change and strike show. This applies to both doors, and the fresh-copy fallback goes. It is a consequence of "every door uses the one edit" plus "the change is held", so it is not put to Ev.
+  - **Fix pass dispatched.**
+  - **Class (the reviewer's):** a set-aside draft state must be seen by every early return, and by `differs_from_base` and `holds_changes`. (PLACING orchestrator)
+- 2026-11-12 — **PR 6850's fix pass accepted on the orchestrator's read**, and the PR merged (`56ef8650ed`).
+  - M1 fixed: the set-aside draft is a typed `SetAside`, `offer` has one exit, and it is counted by `differs`/`holds`.
+  - Doors hold in the editor (`Refusal::TargetHeld` opens the editor with the target set); the fresh-copy fallback is gone.
+  - Values read off the old space are marked and struck.
+  - Cross-space test helpers are opt-in.
+  - Two rows closed.
+- 2026-11-12 — **The named-source lane resumed**, building the ratified 6672 design. **Review tier: dual, letter H.** (PLACING orchestrator)
+- 2026-11-12 — **PR 6850's fix pass accepted on the orchestrator's read**, and the PR merged (`56ef8650ed`).
+  - M1 fixed: the set-aside draft is a typed `SetAside`, `offer` has one exit, and it is counted by `differs`/`holds`.
+  - Doors hold in the editor (`Refusal::TargetHeld` opens the editor with the target set); the fresh-copy fallback is gone.
+  - Values read off the old space are marked and struck.
+  - Cross-space test helpers are opt-in.
+  - Two rows closed.
+- 2026-11-12 — **The named-source lane resumed**, building the ratified 6672 design. **Review tier: dual, letter H.** (PLACING orchestrator)
+- 2026-11-12 — **PR 6856 is open** (the 6672 named-source build), green at `e72081ff5d`.
+  - The lane put an `[ev]` question in the title: does a placement's own `on`-side selection of its source count as a second reader?
+  - **The orchestrator ruled it no fork.** Only reading (a), one reader, keeps both approved 6672 sentences true ("its own"; `on` sides select the source). `[ev]` is off the title, the PR comment says why, and VR2 gains the clause in the fix pass.
+  - **Moved baselines:** each placement mints one extra variable, which shifts ids. Digests are re-pinned and five `.pncad`/`.cad` files are regenerated. Rebaselining is always allowed (Ev, 6394); the review measures that the geometry is unchanged.
+  - **Dual review dispatched,** concurrent arm, letter H. R1 = `placing-dual-6856-r1`, R2 = `placing-dual-6856-r2`, frozen head `e72081ff5d`, identical brief (`~/.local/share/cad-work/placing-dual-6856-brief.md`). (PLACING orchestrator)
+- 2026-11-12 — **PR 6856's dual pair is in.** Both reviewers: NOT-MERGEABLE-AS-IS.
+  - **Correspondence pre-note:**
+    - **Bilateral MAJORs, both demonstrated:**
+      - a pattern of a revolve is refused `PlacementReadsNoSource` (`Node::place` and `place_read` wrap differently, and three copied rewrites hid it);
+      - a member placement's family source redefined onto a body writes a document that does not save (a source's kind is always `Body`).
+    - **Unilateral R1 MAJOR (tally candidate):** a source-only cycle (`a = b`, `b = a`) overflows the stack at the door and at load. R2's cycle probe went through nodes and refused, so this is a different path.
+    - **Bilateral MINORs:**
+      - Python `take_over` silently re-points copies the caller did not name;
+      - the `NotASource` text;
+      - the reader-count qualifier needs its VR2 sentence and is wider than claimed;
+      - the copied wrap rewrites;
+      - the `world()` identity helper.
+    - **Unilateral MINORs:**
+      - R1: member `on` sides select the body; the pattern-forces-naming UX note.
+      - R2: the façade `place(named output)` refuses (same root as the revolve MAJOR); `NothingPlaced` is dead; `OfferIsNamed` text; `mint_source` drops indices.
+  - **Fix pass on the union dispatched.**
+  - **Class (both reviewers):** test and Python wrappers that route every call through a fixed path hide a door bug that real callers hit. Tests must go through the door the product uses. (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 1 is in**, green at `b9242a56bd`.
+  - Source cycles are refused (`DefinitionCycle`), and every source walk is bounded (`source_steps`).
+  - One wrap rule: `Node::place` always writes `Source`, and the copied rewrites are deleted.
+  - Family-to-body redefinition is refused typed (`check_source_readers`), and the offer leaves it out.
+  - Member `on` sides select the source.
+  - The qualifier is narrowed to `on`-side seats, and VR2's clause is written.
+  - Python `take_over` refuses `TakeOverSharedSource`.
+  - **A targeted re-check** (Opus, outside the pair) is dispatched, as on 6581: kernel logic, and a new refusal set. (PLACING orchestrator)
+- 2026-11-12 — **6856 re-check: NOT-MERGEABLE-AS-IS.** It found two MAJORs, both demonstrated, both gaps the pass left open rather than regressions.
+  - **M1:** a selection of a source has no dependency on the source's body, so `shell(a.top)` followed by `a = shell` is admitted and saves.
+  - **M2:** `check_source_readers` re-asks node seats only, not definitions (a member source, a member selection), so the door still writes what the load refuses.
+  - **MINORs:**
+    - the offer restates the door's rule and drifts from it;
+    - deleting the family under a member placement writes an unsaveable file (this predates 6856 but is the same class);
+    - Python's new refusals have no rows.
+  - **Fix pass 2 dispatched.**
+  - **Class:** a door check and a load check that are two code paths drift apart. Each fix pass has found the door admitting what the load refuses. Share one checker. (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 2 is in**, green at `dc9ba897b4`.
+  - A selection of a source depends on the source's body.
+  - `check_source_readers` re-asks every definition reader through the load's own shared checks.
+  - The offer dry-runs the door.
+  - A source whose body is gone counts as stranded (VR7).
+  - Every source walk is bounded.
+  - VR4 gains one sentence, called out as a consequence.
+  - **A second targeted re-check is dispatched** to the same reviewer, on the diff only. Each prior round found MAJORs. (PLACING orchestrator)
+- 2026-11-12 — **6856 re-check round 2: NOT-MERGEABLE-AS-IS.**
+  - **One MAJOR, demonstrated:** a pick is a reader the redefinition check misses, so the door writes what the load refuses. This is the fourth reader kind missed across rounds.
+  - **MINORs:**
+    - the offer's dry run is not the action, so it misses `StrandedPick`;
+    - it costs a door run per candidate per frame, uncached (65 ms at 641 nodes in debug);
+    - a member source's rank is unchecked at rest.
+  - The round-1 MAJORs are closed. The load-semantics change and the VR4 sentence are judged faithful.
+  - **Orchestrator ruling, structural:** a source's redefinition, or a source handover, runs the load's own whole-document check, or its downstream-scoped equivalent. Door/load parity then holds by construction, so no more per-reader arms.
+  - **Fix pass 3 dispatched.** (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 3 accepted on the orchestrator's read** (`2daaf3b31a`).
+  - **The structural fix:** the door runs `persist::check::validate_document` after a source's `DefineVar`, so door/load parity holds by construction. Measured at 139 ms per door run at 641 nodes in debug, about one `save`.
+  - **Also in the pass:** the offer runs the action's own checks and is cached per generation; one rank rule; rows for the revolve's off-space combine.
+  - **The gate is red on one hosted Python row,** `TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses`. It was red only after main's PR 6872 merged in, and it passes locally on the branch and on main.
+    - Filed by the lane as `work/pcert/main-red-the-teapot-spout-join-refuses-join-on-the-hosted-runner.md`, on 6856's branch.
+    - The orchestrator's `workflow_dispatch` on main is refused 403 to this integration. Tonight's nightly is the first to include 6872 and decides it; a check-in is set for 09:45 UTC.
+  - The dual-review row is being coded blind (byte 170, even, so A = R1). (PLACING orchestrator)
+- 2026-11-13 — **The nightly settles 6856's teapot red: it is 6856's, not main's.**
+  - The 2026-11-13 nightly (`e36675c108`, which includes 6872) passed its Python suite on the hosted runner. So `TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses` is red only on 6856's head.
+  - The lane is root-causing it and withdrawing its filed main-red row.
+  - **Class:** "passes locally, red on the hosted runner" plus "it began at a main merge" is not evidence that a failure is main's. The nightly or a dispatch on main is. (PLACING orchestrator)
+
+- 2026-11-13 — **PR 6856 merged** (`a9df07339b`; the named source, fork row 260, `[ev]` 6672). Closing commit `5b073a5c89`: the dual-review row (tally 1) and the row closed. Correction to the entry above: the teapot red was not 6856's. The lane built the wheel as CI does (`maturin build`, dev profile, a 3.12 venv) and main alone at `f562166146`, the base of the red test-merge, fails the row; main at `63226c5024` passes it, as the nightly did. So it was a transient red on main, fixed before the nightly; the lane's earlier "passes locally" came from a release build. The filed main-red row blamed 6872 without evidence and is withdrawn. Class: reproduce a hosted red with CI's own build command (profile included) before assigning it to any tree. Not done: which main PR fixed it, and why dev and release diverge at this pose.
+
+- 2026-11-13 — Dispatched: the P2 `the-placement-editor-draws-no-preview-of-its-draft` to an implementer (branch `placing/editor-preview`). The P2 design row `a-declined-re-point-offer-stays-as-a-button` went to a design fork, `placing-declined-offer`: arm byte 234 (two designers), label byte 193, blinding recorded on `analysis/design-fork/placing-declined-offer`. The brief is `~/.local/share/cad-work/placing-fork-declined-brief.md`.
 
 - 2026-11-13 — **Fork `placing-declined-offer` → `[ev]` PR 6915.** First reports: both designers said the offer is a derived fact, nothing declines it, and nothing is recorded. They disagreed on one fact about main: A said the offer lapses at the second feature, B said it moves to the chain's tip. The orchestrator read `world::repoint_offer` (`takes` is one read deep; `sources_of` is asked of the read body), and that reading matched A. In round 1, B adopted A's rule that the offer reaches any depth, and the two converged. A probe run confirmed the lapse: branch `placing/probe-offer-depth` `007a2f5b89`, test `probe_offer_depth::a_feature_on_an_unaccepted_fillet_offers_nothing`. After an unaccepted fillet and then a chamfer, neither node offers a re-point. Both designers found the same thing off the question: the source row's "read the selected body" and the "copy of" row's "copy the selected body" are enabled without asking `session::repoint_refusal`, while the offer asks it. So one list is computed two ways, and one edit has three verbs. Filed as `the-source-and-copy-of-rows-re-point-without-the-offers-check`.
 
+- 2026-11-14 — **`[ev]` PR 6915 approved** (Ev: "this seems reasonable!") and merged, with fork row 266 filled in. The build is dispatched on branch `placing/offer-any-depth`. **PR 6916** (the editor preview) had a single full review: APPROVE-WITH-FIXES, five MINORs. Fix pass 1 answered them. A targeted re-check of that pass found two narrow MINORs, executed: the picture drew a never-offered draft while idle, and a second change while the offer was landing brought the snap-back back. Fix pass 2 is dispatched. Class: a fix pass that adds state (a memo, a landing) needs its own re-check. Here it grew the PR to about 2,000 lines and brought one defect of its own.
 - 2026-11-14 — **PR 6916 merged** (the editor preview). The review history:
   - a single full review: APPROVE-WITH-FIXES, five MINORs;
   - fix pass 1 (`58f8b44cb4`);
@@ -270,8 +551,11 @@ Newest entries at the bottom; the tail is the program's live status.
   - `reviewer-probes-sit-in-the-shipped-properties-pane-tests` (P4);
   - CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature` (P4).
 
+- 2026-11-14 — **I overstepped a ratification.** On PR 6917 I ruled that "built on a body" means "reads it as a body", and let the lane reword a README clause Ev had ratified on PR 6915 the same day. The PR's full review flagged it as a MAJOR: the clause's decision narrows, since a mirror plane or a face-sketch reference no longer offers. The question is now on PR 6917 as `[ev]`, with a recommendation (no) and the alternative (every read). The code stays as built until Ev answers. The class: an orchestrator "clarification" that changes what a just-ratified clause decides is a design change. It goes to Ev on the PR before the lane writes it, not after.
+- 2026-11-14 — PR 6919 (the P3 editor batch) had a full review: APPROVE-WITH-FIXES. Two MINORs, both executed: a deleted row was the only labelled creation that takes over the product, and no row shows the proposal memo refreshing on a retarget or a strike. A fix pass is dispatched. The orchestrator ruled on `a-pick-opening-the-edit-door-starts-a-mate-row` (design light, no ratified text): a pick that opens the Edit door opens on the loaded bundle alone, as the tree door and Transform do. That is to be built in the same pass if it is small.
 - 2026-11-14 — **PR 6919 merged** (three P3 rows closed). Fix pass 1, which answered the full review, was accepted on the orchestrator's read. The hosted change filter ran only `test (app)`, so the changed `node_labels` and `placement_target` rows passed locally only (the lane's run). I withdrew my "open on the loaded bundle" ruling on `a-pick-opening-the-edit-door-starts-a-mate-row`, because the trial broke 51 rows and left the loaded-mate case open. That row is a design fork again. `a-refusal-naming-a-value-slot-drops-its-axis` is re-costed to M.
 
+- 2026-11-14 — **Main is red, likely from PLACING.** The slow-set row `story_authoring::a_chess_rook_is_authored_probed_branched_and_reopened` panics: `MateTool::offer` answers `None` with nothing pending. PR 6938's lane found it, and it fails on main's own sources. The suspects are 6916 and 6919, merged today. No PR gate runs the slow set, and none of my lanes ran it. A fixer is dispatched on `placing/rook-story-red` to bisect and root-cause it. PR 6938 (the P3/P4 cleanup) is under a single full review. Class: a PLACING lane that changes the editor or session must run the viewer slow set locally before reporting green. The hosted change filter and the gate do not cover it. Every brief now says so.
 - 2026-11-14 — **PR 6938 merged** (P3/P4 cleanup; four PLACING rows closed, plus CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature`, which the lane carried). The review history: a single full review gave APPROVE-WITH-FIXES with two MINORs, and the fix pass was accepted on the orchestrator's read. The fix pass moved frame composition out of session into `pickindex::preview_copies`, so session composes nothing again, and closed a real `same_resolver` gap in `picked_heading`'s shortcut. Families placed from a previewed copy are filed as `a-family-placed-from-a-previewed-copy-is-not-carried` (P3). The viewer slow set ran as a superset (`--ignore-default-filter -p viewer --features app`): the only failures were the expected main reds.
 - 2026-11-14 — **PR 6917 merged** (the re-point offer reaches any depth and states a fact; the row is closed). Ev answered the `[ev]` follow-up on 6917 ("yes this sounds good"), read as the recommendation: "built on" means reads it as a body, and "built on a copy" narrows to match. That reading is stated at the top of the PR. Fork row 266 records it. The review history:
   - a single full review: APPROVE-WITH-FIXES, with a MAJOR (my unasked narrowing of a ratified clause) taken to Ev;
@@ -281,3 +565,5 @@ Newest entries at the bottom; the tail is the program's live status.
   On the fork-log numbering: row number 266 is also used by another program's row on main. Both rows are kept, as with the earlier 260 duplicates.
 
 - 2026-11-14 — **PR 6948 merged.** The three re-point buttons now share the offer's check and its verb. Review history: a single full review returned APPROVE-WITH-FIXES with two MINORs (the leftover filter, and the pane layer unguarded, shown by mutation B), and the orchestrator accepted the fix pass on its read. The widget now derives enabled from the checked value alone, and a widget test fails under both mutations. Filed by the lane: `a-re-point-button-checks-the-first-edit-not-the-takeovers-rebinds` (P3; the takeover's `Rebind` rounds can refuse after the static check; no witness yet). The re-point and delete buttons were added to VNEWS's open row on gated controls during a gesture. The viewer slow-set superset showed only the expected main reds.
+
+- 2026-11-14 — **PR 6947 merged** (main red). The cause was **PR 6856** (`afc6e6d919`), not 6916 or 6919. Since 6856, a second Place of a body with one anonymous source asks for a name, as ratified VR4 says. The rook story's test helper took the ask as "nothing to place", so the test was stale and the editor was right. 6856 also broke six editor-core slow-set id pins; they were re-pinned, with ids-only movement shown by masked dumps (rebaselining is always allowed, Ev 6394). The two `door_at_rest` reds are GREEN's existing row and predate PLACING's PRs. Correction: my earlier note had the two panics swapped. Hosted coverage of the fixed slow rows is the first nightly after merge. Class (again): 6856's dual review, re-checks and lane all ran no slow set. The standing rule logged above (a PLACING change to the editor or session runs the slow set locally) covers editor-core id pins too when a change mints nodes.
