@@ -49,8 +49,8 @@ def _escape_property(s: str) -> str:
 def _report_path() -> Path:
     with open(".config/nextest.toml", "rb") as f:
         name = tomllib.load(f)["profile"][PROFILE]["junit"]["path"]
-    target = Path(os.environ.get("CARGO_TARGET_DIR") or "target")
-    return target / "nextest" / PROFILE / name
+    # nextest's store sits under the workspace root whatever CARGO_TARGET_DIR says.
+    return Path("target") / "nextest" / PROFILE / name
 
 
 def _panic(text: str) -> list[str]:
