@@ -22,7 +22,7 @@ fn read(f: &Surface<f64>, g: &Surface<f64>, known: KnownPair<f64>) -> Section<f6
     classify_known(
         f,
         g,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.0)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.0)),
         None,
         Some(geom_brep::SsiLane::marched()),
         band(),

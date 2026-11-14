@@ -4,6 +4,9 @@ kind: issue
 title: A keys-only door cannot restate a pole turn: it drops the moved loop's rows
 status: open
 opened: 2026-11-12
+priority: P3
+cost: M
+design: true
 ---
 
 
