@@ -394,6 +394,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedCorner { .. } => "UnsupportedCorner",
         BlendError::SpineUnsupported { .. } => "SpineUnsupported",
         BlendError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
+        BlendError::WedgeUnsettled { .. } => "WedgeUnsettled",
         BlendError::Escalated { .. } => "Escalated",
         BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",

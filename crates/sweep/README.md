@@ -282,12 +282,25 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The carry is a function of the `f64` path and the station count.**
-  It is computed once, its decisions taken there, and every scalar lane
-  composes it onto its own start plane; station 0 is the start plane
-  itself, and a step whose two tangents are equal bit for bit is the
-  identity with no rounding (the exact law's answer: its second
-  reflection is its first).
+- **The roll is chosen at `f64`, because the path is a constant of
+  the model** (DESIGN `[scalars]`: what a lane scalar takes from `f64`
+  is a choice, never a claim). Each station's roll is a continuous
+  value that depends on none of the document's variables, so it is a
+  choice; each station's frame is a claim, so every lane builds it. The
+  carry runs once at `f64` and chooses each station's roll as a
+  reference vector; every scalar lane mints each station's frame from
+  the path's tangent read at that scalar and that vector, and composes
+  it onto its own start plane. Station 0 is the start plane itself. A
+  station on one span, straight by its data, with its predecessor is
+  still where its tangent is checked at the lane scalar to be its
+  predecessor's: it reuses its predecessor's rotation, one expression,
+  and every other station is minted alone. A station's tangent is the
+  path's derivative read through its hodograph, at `f64` and at every
+  lane alike, so a frame minted at a point path is about 3.3e-14 wide,
+  75–150 ulps of its order-1 coordinates. A path held at a lane
+  scalar has a roll that depends on the variables, and the selection no
+  longer stands
+  (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
@@ -303,8 +316,11 @@ and a fixed reference direction would read the world axes.
   sweeps with more stations; a kink that doubles back on itself (a
   hairpin corner) refuses at every station count, and only smoothing
   it cures it. Each is decided under the band, with its in-band twin
-  `SkinError::PathUndecided`. A path whose end tangent is its start
-  tangent reversed is not one of these: a planar U-turn sweeps, its
+  `SkinError::PathUndecided`. A station whose frame has no roll at the
+  lane scalar (its reference along its tangent read there) refuses as
+  `SkinError::PathRollAlongTangent`, its in-band twin
+  `SkinError::PathUndecided` naming the roll. A path whose end tangent
+  is its start tangent reversed is not one of these: a planar U-turn sweeps, its
   end frame the start frame turned a half turn about the plane's
   normal, and so does a semicircle between two stations.
 - **A section sits at its station's path parameter**: station `i` at
@@ -390,10 +406,10 @@ lentil's convex equator loses material to it, a two-sphere snowman's
 waist gains it, through one surgery.
 
 **A requested smooth edge is left as it is.** Predicate 5 reads each
-requested edge's dihedral through the kernel's one edge-wedge door,
-`geom_brep::classify_edge_wedge`: convex, concave, or a sign decided
-Zero read for its material side. Zero with the outward normals aligned
-is a smooth seam, wedge π (a bore's straight cut between its two
+requested edge's wedge whole through the kernel's one edge-wedge door,
+`topo::edge_wedge` (the fold tier 3 accepts a body by): a crease,
+convex or concave, or faces that meet smoothly, read for their material
+side. Smooth with the outward normals aligned is a smooth seam, wedge π (a bore's straight cut between its two
 half-cylinders, a chart seam, a profile fillet's tangent join): a ball
 resting on both faces touches them along the edge itself, so the blend
 of that edge is the edge, and requesting it is a silent no-op. The
@@ -402,12 +418,12 @@ from there on, so the result is the same request's with that edge left
 out; a request every edge of which is smooth returns the operand as it
 is, key for key.
 
-**A knife edge is filleted where its ball is defined.** Zero with the
+**A knife edge is filleted where its ball is defined.** Smooth with the
 normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
-the jet's question, not the dihedral's: `battery::knife_end` reads the
+the jet's question, not the dihedral's: the same fold reads the
 relative transverse curvature signed into the plus face's outward frame
-(`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
-the end with) under `fillet3_knife_end`. A cusp's ball rests in the
+(`geom_brep::material_kappa_rel`) under `material_cusp_side` at every
+station. A cusp's ball rests in the
 material crescent between the supports, the side a convex edge's takes;
 a slit's rests in the void crescent, as a concave edge's does; and the
 link carries that convexity, so every later predicate reads it as it
@@ -919,6 +935,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full revolve emits each PLANAR wall as one face: a disc's centre is
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
+- **A sweep's carriers come from its frames** (`docs/DESIGN.md`
+  [intent.stored], nothing flows back toward the description; [scalars],
+  a frame is built from its own inputs). A cap is its station's frame:
+  its normal is ± the frame's normal, signed by the profile's winding,
+  its origin is the frame's origin moved by the sweep, and its
+  reference direction is the frame's first axis. A wall, a rim and a
+  strut each take the frame turning a direction the sketch holds
+  (`crates/profile/README.md`, the profile format). No sweep fits a
+  plane to vertices it placed, or divides the difference of two of them
+  by its own length.
 - **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
   extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes, and the gaps between a full

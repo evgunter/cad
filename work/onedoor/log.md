@@ -497,4 +497,21 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - One reviewer (Opus): MERGEABLE-AFTER-MINORS, and the reachability argument holds. The fix pass took every item.
   - Two main reds have no row: `shell_role_reader` needle cavity and `recourse_roster` ring_path. They go to the sitting report.
   - Model-compare row `docs/model-compare-log/rows/PR-6927.md`.
+- 2026-11-14 — **PR [#6913](https://github.com/evgunter/cad/pull/6913) (wedge fold stage 3) accepted; the wedge row closes.**
+  - R1 (Opus) raised a MAJOR: the blend's sign was folded under `dihedral_sign`, so `first_cause` passed over it. Ruled by stage 2's DOCTAIL precedent.
+  - Fix 1 gave the fold's sign its reader's name (`_as`). R2 (Fable) said mergeable after minors and found the knife end in the same class.
+  - Fix 2 made the per-reader names one value, `FoldNames { sign, end }`, and closed the guard's swap hole.
+  - Cost is about 1.8× on the blend battery.
+  - Filed: `select-gs-q2-ground-no-longer-holds` (P3, design, Ev's).
+  - Model-compare row `docs/model-compare-log/rows/PR-6913.md`.
+  - (ONEDOOR orchestrator)
+- 2026-11-14 — **#6913 merged** (`58b0f3d880`). Its CI was red only on main's three kernel rows, identical in failure text to the earlier heads. The wedge row is closed.
+- 2026-11-14 — **Banded the 13 unbanded rows and dispatched four lanes in parallel:**
+  - the section-branch move: PR 6929;
+  - the `pcurves.rs` split;
+  - `SectionError::Corrupt` panics per D2: PR 6927;
+  - the revert door: PR 6935, from two converged designers.
+
+  Every lane stopped on the weekly usage limit at about 04:50 and resumed after the reset.
+  - Filed: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4), `a-branch-picks-its-loop-in-two-matches` (P2).
   - (ONEDOOR orchestrator)
