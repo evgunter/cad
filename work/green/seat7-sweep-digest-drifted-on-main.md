@@ -2,9 +2,10 @@
 id: seat7-sweep-digest-drifted-on-main
 kind: issue
 title: seat7_sweep_lowering's committed corner_table digest no longer matches on main
-status: open
+status: closed
 opened: 2026-11-01
 parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
 ---
 
 
@@ -50,3 +51,7 @@ masked, not the pin.
 - **`boss_union` is what this row still holds.** It read `0x74fcab092e34e83b` against `0x65453fae8b1d55d3` and is pinned at `0x5be66936f8d10205` (that reading under PR 6856's id move). It is **not bisected**: the pin `0x6545…` was cut by PR 6463 (`5714d610e`, 2026-11-03), the row was first seen red on `boss_union` at `151631cc` (2026-11-10), and it reads `0x74fc…` at every commit from `9a256348` to `d8e1c86d6`. `m10_p_fence`'s ids-masked row holds on main, so no vertex point moved since PR 6795.
 
 Owed: bisect first-parent `5714d610e..151631cc` on `boss_union`, move the finding to the program whose merge it is, and judge the move. The in-file PINNED paragraph names this row until then.
+
+## Closed (GREEN, `green/goldens`, PR 6956, 2026-11-14)
+
+Nothing is left here. `boss_union` is bisected to PR 6710 (`onecopy/edge-ends-turns`, merge `75a84e844`; green at `d3e3311b5`, the commit before) and its pinned, unjudged move is on `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`, banded and un-parented. `corner_table`'s is on `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`. The range the section above gives for `boss_union` is superseded by that bisect.

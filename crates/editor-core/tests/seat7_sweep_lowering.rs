@@ -232,7 +232,7 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `corner_table`, on
 /// `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`,
 /// and `boss_union`, on
-/// `BOSS_ROW`.
+/// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`.
 /// `die`, `cut_cylinder` and `kitchen_sink` are judged.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {

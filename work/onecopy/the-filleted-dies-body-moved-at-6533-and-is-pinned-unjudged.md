@@ -23,7 +23,7 @@ Filed by GREEN's `green/goldens` lane, from nightly 43371638371 (main `e36675c1`
 - `die_fillet` is pinned at `0x56293fdba9cabaed`. That is the reading above with PR 6856's id move over it (a placement mints its source, so every later id moved; with mint ids read by rank of first appearance the document's digest feed is byte-identical across that merge).
 - `filleted_die.step` is regenerated with `cargo run -p step-export --example export_fixtures -- crates/step-export/tests/fixtures`. The bytes that moved are in the PR that filed this row.
 
-`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked` holds on main, so no vertex point of `die_fillet` moved since that row was last cut (PR 6795, 2026-11-11). It cannot see a surface, a curve or an edge certificate, which is where a band's directions would show.
+`m10_p_fence`'s ids-masked row says nothing about this merge: it was last re-cut by PR 6795 (2026-11-11), after PR 6533. That no vertex moved is read off the STEP bytes, below.
 
 **Owed.** Say what PR 6533 changed in the filleted die's body and whether the new body is right. PR 6533 changes how a blend band reads its directions, so the body may be meant to move. If it is right, strike the PINNED paragraph in `seat4_verb_lowering.rs` and say so there; if it is wrong, that is a live wrong answer on a normal verb and this row is P0.
 
