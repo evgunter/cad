@@ -285,7 +285,7 @@ pub(crate) fn face_lift<T: Decide>(
         crate::boolean::spline_region::ring_decks(body, face, band)?
     } else {
         let periods = ChartPeriods::of(surface, band);
-        let reader = Outer::of(&outer, surface);
+        let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
         let mut decks = Vec::with_capacity(rings.len());
         for (&ring, lift) in rings.iter().zip(&read) {
@@ -395,12 +395,18 @@ impl<T: Decide> Piece<'_, T> {
 struct Outer<'a, T: Real> {
     pieces: Vec<Piece<'a, T>>,
     surface: &'a Surface<T>,
+    /// The second channel's period, where the chart is closed in it.
+    v_period: Option<geom_brep::Period<T>>,
     /// The chain's hull, `[u, v]`.
     reach: [(f64, f64); 2],
 }
 
 impl<'a, T: Decide> Outer<'a, T> {
-    fn of(lift: &'a Lift<T>, surface: &'a Surface<T>) -> Self {
+    fn of(
+        lift: &'a Lift<T>,
+        surface: &'a Surface<T>,
+        v_period: Option<geom_brep::Period<T>>,
+    ) -> Self {
         let mut pieces = Vec::with_capacity(2 * lift.rows().len());
         let ends: Vec<(Point2<T>, Point2<T>)> = lift
             .rows()
@@ -418,6 +424,15 @@ impl<'a, T: Decide> Outer<'a, T> {
             let next = ends[(i + 1) % ends.len()].0;
             pieces.push(Piece::Segment(ends[i].1, next));
         }
+        Self::from_pieces(pieces, surface, v_period)
+    }
+
+    /// The reader of the closed chain `pieces`.
+    fn from_pieces(
+        pieces: Vec<Piece<'a, T>>,
+        surface: &'a Surface<T>,
+        v_period: Option<geom_brep::Period<T>>,
+    ) -> Self {
         let mut reach = [(f64::INFINITY, f64::NEG_INFINITY); 2];
         for piece in &pieces {
             let b = piece.bbox();
@@ -433,6 +448,7 @@ impl<'a, T: Decide> Outer<'a, T> {
         Self {
             pieces,
             surface,
+            v_period,
             reach,
         }
     }
@@ -443,8 +459,20 @@ impl<'a, T: Decide> Outer<'a, T> {
     /// definitely positive, halved until they do; every way out of it is
     /// decided past the band, so a piece's gap inside it, metered by the
     /// window's arms, lower-bounds the way to the piece.
+    ///
+    /// The arms are read at `q`'s copy whose `v` is within half a period
+    /// of 0 on a chart closed in `v`: a deck translation is an isometry
+    /// of the chart, so the copy's window has the window's arms, and on
+    /// a sphere it is the copy between the pole rows the arms are stated
+    /// for.
     fn side(&self, q: Point2<T>, band: Band) -> Side {
         let size = self.reach.map(|(lo, hi)| hi - lo);
+        let v = self.v_period.map_or(q.y, |p| {
+            let length = p.length().value_channel();
+            #[allow(clippy::cast_possible_truncation)] // a whole number of periods
+            let k = (q.y.value_channel() / length + 0.5).floor() as i32;
+            q.y - p.times(k)
+        });
         let mut pending = None;
         for halving in 0..HALVINGS {
             let scale = 16.0 * f64::from(1u32 << halving);
@@ -452,7 +480,7 @@ impl<'a, T: Decide> Outer<'a, T> {
                 T::from_computed(size[0] / scale),
                 T::from_computed(size[1] / scale),
             );
-            let arms = match self.arms(q.y - rv, q.y + rv, band) {
+            let arms = match self.arms(v - rv, v + rv, band) {
                 Ok(arms) => arms,
                 Err(diag) => {
                     pending = pending.or(diag);
@@ -557,7 +585,16 @@ impl<'a, T: Decide> Outer<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RingMiss, Shift, Side, place_ring};
+    #![allow(clippy::unwrap_used)]
+
+    use core::f64::consts::{PI, TAU};
+
+    use geom::Surface;
+    use geom_brep::Period;
+    use geom_core::predicate::Band;
+    use geom_core::{Point2, Point3, Tol, Vec3};
+
+    use super::{Outer, Piece, RingMiss, Shift, Side, place_ring};
 
     /// The rule over a scripted reading: the shifts it tries and what it
     /// answers.
@@ -576,8 +613,6 @@ mod tests {
         .map(|s| [s.deck.u, s.deck.v]);
         (out, tried)
     }
-
-    const TAU: f64 = core::f64::consts::TAU;
 
     #[test]
     fn one_shift_in_places_the_ring_and_its_offset_is_whole_periods() {
@@ -636,6 +671,54 @@ mod tests {
             (wide, tried.len()),
             (Err(RingMiss::Copies), 0),
             "more shifts than the rule tries"
+        );
+    }
+
+    /// The rectangle `u ∈ [π, 2π]`, `v ∈ [−1.2, 1.2]` on the unit
+    /// sphere's chart, closed in both channels, as straight pieces.
+    fn sphere_half_band(surface: &Surface<f64>) -> Outer<'_, f64> {
+        let corners = [(PI, -1.2), (TAU, -1.2), (TAU, 1.2), (PI, 1.2)];
+        let at = |i: usize| Point2::new(corners[i % 4].0, corners[i % 4].1);
+        let pieces = (0..4).map(|i| Piece::Segment(at(i), at(i + 1))).collect();
+        Outer::from_pieces(pieces, surface, Some(Period::new(TAU)))
+    }
+
+    #[test]
+    fn an_analytic_outer_loop_reads_a_point_in_out_or_near_and_a_copy_past_the_pole() {
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let outer = sphere_half_band(&sphere);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let read = |u: f64, v: f64| match outer.side(Point2::new(u, v), band) {
+            Side::In => "in",
+            Side::Out => "out",
+            Side::Near(_) => "near",
+        };
+        assert_eq!(
+            [
+                read(4.5, 0.3),
+                read(1.0, 0.3),
+                read(4.5 + TAU, 0.3),
+                read(4.5, 0.3 + TAU),
+                read(PI + 1e-13, 0.3),
+            ],
+            ["in", "out", "out", "out", "near"],
+            "inside; a u period off; past the outer loop's reach; a v period off, its window \
+             read between the pole rows; within the band of the outer loop"
+        );
+        let placed = place_ring([Some(TAU), Some(TAU)], outer.reach, [4.5 - TAU, 0.3], |s| {
+            let [du, dv] = s.offset;
+            outer.side(Point2::new(4.5 - TAU + du, 0.3 + dv), band)
+        })
+        .map(|s| [s.deck.u, s.deck.v]);
+        assert_eq!(
+            placed,
+            Ok([1, 0]),
+            "a ring stored a u period below is moved up one"
         );
     }
 

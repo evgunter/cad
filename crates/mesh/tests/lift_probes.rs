@@ -24,7 +24,9 @@
 //! - a ring's lift starts on its own first image: 23 of the 24 rings
 //!   measured sit inside their outer loop's polygon as stored, and one,
 //!   a whole projected circle on a ball's half band, sits one `u` period
-//!   below it;
+//!   below it. `topo::Body::face_lift` places every one inside, the
+//!   displaced one moved that period, and answers that a seamless band's
+//!   outer loop does not close;
 //! - the spiric-bounded torus wall's outer loop is a simple polygon,
 //!   wound with its face;
 //! - at a cone's apex the lift runs along the row `v = 0` through the
@@ -634,6 +636,11 @@ impl Chain {
                 body.joint(he).is_some()
             )
         })?;
+        Ok(Self::of(&lift, samples))
+    }
+
+    /// `lift`, sampled.
+    fn of(lift: &topo::pcurves::Lift<f64>, samples: usize) -> Self {
         let rows = lift
             .rows()
             .iter()
@@ -649,14 +656,14 @@ impl Chain {
                     .collect()
             })
             .collect();
-        Ok(Self {
+        Self {
             forms: lift.rows().iter().map(|row| form(&row.pcurve)).collect(),
             decks: lift.rows().iter().map(|row| row.lift).collect(),
             winding: lift.winding().expect("a whole loop has a winding").deck,
             closes: lift.closes_in_chart(),
             window: lift.window().is_some(),
             rows,
-        })
+        }
     }
 
     /// The joints between consecutive rows, the closure joint left out.
@@ -726,6 +733,9 @@ struct LoopFact {
     /// Whether an edge of the face has both its half-edges on the face.
     seam: bool,
     chain: Result<Chain, String>,
+    /// For a ring, what `Body::face_lift` answers for it: the move that
+    /// places it and its moved lift, or the face's refusal.
+    placed: Option<Result<(Deck, Chain), String>>,
 }
 
 impl LoopFact {
@@ -765,6 +775,16 @@ fn loops_of(name: &str, body: &Body<f64>, samples: usize) -> Vec<LoopFact> {
             continue;
         }
         let seam = has_seam(body, fk);
+        let band = geom_core::Band::linear(tol()).expect("the probes' band");
+        let door = body.face_lift(fk, band).map_err(|e| format!("{e:?}"));
+        let placed = |i: usize| {
+            door.as_ref()
+                .map(|f| {
+                    let ring = &f.rings()[i];
+                    (ring.by, Chain::of(&ring.lift, samples))
+                })
+                .map_err(Clone::clone)
+        };
         let loops = core::iter::once((None, face.outer))
             .chain(face.rings.iter().enumerate().map(|(i, &lk)| (Some(i), lk)));
         for (ring, lk) in loops {
@@ -776,6 +796,7 @@ fn loops_of(name: &str, body: &Body<f64>, samples: usize) -> Vec<LoopFact> {
                 ring,
                 seam,
                 chain: Chain::read(body, lk, samples),
+                placed: ring.map(placed),
             });
         }
     }
@@ -895,6 +916,10 @@ struct RingFact {
     ring_hull: ((f64, f64), (f64, f64)),
     /// [`placements`].
     places: Vec<(i32, i32)>,
+    /// What `Body::face_lift` answers: the move that places the ring,
+    /// and whether every sample of the moved ring lies inside the outer
+    /// loop's polygon; or the face's refusal.
+    door: Result<((i32, i32), bool), String>,
     /// Twice the ring's signed area.
     area2: f64,
     /// Whether a row of the ring's or of the outer loop's lift is moved
@@ -928,6 +953,19 @@ fn rings_of(facts: &[LoopFact]) -> Vec<RingFact> {
             outer_hull: oc.hull(),
             ring_hull: rc.hull(),
             places: placements(f.chart, oc, rc),
+            door: match f.placed.as_ref().expect("a ring's door answer") {
+                Ok((by, moved)) => {
+                    assert!(!by.twin, "a ring is moved by a translation");
+                    let poly = oc.polygon();
+                    let inside = moved
+                        .rows
+                        .iter()
+                        .flatten()
+                        .all(|p| winding_number(&poly, *p) != 0);
+                    Ok(((by.u, by.v), inside))
+                }
+                Err(e) => Err(e.clone()),
+            },
             area2: shoelace(&rc.polygon()),
             twin: rc.decks.iter().chain(&oc.decks).any(|d| d.twin),
             forms: rc.forms.clone(),
@@ -942,7 +980,7 @@ fn ring_table(rings: &[RingFact]) -> String {
         let _ = writeln!(
             out,
             "{} | {:?} {} | ring {} {:?} | outer u {} v {} | ring u {} v {} | places {:?} | \
-             2A {:+.4} | twin {}",
+             door {:?} | 2A {:+.4} | twin {}",
             r.body,
             r.chart,
             if r.sense { '+' } else { '-' },
@@ -953,6 +991,7 @@ fn ring_table(rings: &[RingFact]) -> String {
             pair(r.ring_hull.0),
             pair(r.ring_hull.1),
             r.places,
+            r.door,
             r.area2,
             r.twin
         );
@@ -1490,8 +1529,11 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
     }
     let rings = rings_of(&banded);
     assert!(
-        rings.len() == 3 && rings.iter().all(|r| r.places.is_empty()),
-        "no move places a band's ring in its outer loop\n{}",
+        rings.len() == 3
+            && rings.iter().all(|r| r.places.is_empty()
+                && r.door.as_ref().is_err_and(|e| e.starts_with("OuterOpen"))),
+        "no move places a band's ring in its outer loop, and the door says the outer loop \
+         does not close\n{}",
         ring_table(&rings)
     );
     for pair in banded.chunks(2) {
@@ -1552,6 +1594,9 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
 /// is the one move that places it. On ball ∪ tube the same circle is
 /// two arcs and sits inside as stored.
 ///
+/// `Body::face_lift` answers the same move for every ring, and every
+/// sample of the ring it moves lies inside the outer loop's polygon.
+///
 /// Every ring runs clockwise where its face's `sense` is true, no row of
 /// a ringed face is moved by the sphere's involution, and the ball's
 /// ring and outer loop both lie between the pole rows `v = ±π/2`.
@@ -1580,9 +1625,14 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         let displaced = r.body == "the tube on the ball, B ∖ A";
         let want = if displaced { (1, 0) } else { (0, 0) };
         assert_eq!(
-            (r.places.as_slice(), hull_within(r.ring_hull, r.outer_hull)),
-            (&[want][..], !displaced),
-            "{} ring {}: the one move that places it, and whether it is inside as stored\n{}",
+            (
+                r.places.as_slice(),
+                hull_within(r.ring_hull, r.outer_hull),
+                &r.door
+            ),
+            (&[want][..], !displaced, &Ok((want, true))),
+            "{} ring {}: the one move that places it, whether it is inside as stored, and \
+             the door's move and whether the ring it moved is inside\n{}",
             r.body,
             r.ring,
             ring_table(&rings)
