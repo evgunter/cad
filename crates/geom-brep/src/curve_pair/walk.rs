@@ -282,7 +282,6 @@ fn polished_feet<T: Decide>(
 /// ([`Curve3::foot`]) where the held search stopped at an end of that
 /// interval, where the carrier's nearest point may lie outside it (module
 /// docs, "Why a stop's foot is held to its piece").
-#[allow(dead_code)]
 fn held_foot<T: Decide>(curve: &Curve3<T>, q: Point3<T>, near: T, p: Piece<T>) -> T {
     match curve.foot_within(q, near, (p.a.min(near), p.b.max(near))) {
         geom::HeldFoot::Inside(foot) => foot.seed(),
@@ -449,8 +448,8 @@ pub(super) fn meet<T: Decide>(
                 // Each foot held to its own piece, widened to the polished
                 // parameter where the polish left it: the window below
                 // certifies the candidate against the two pieces.
-                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
-                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
+                let t = held_foot(rb.curve(), ra.curve().eval(s), t, pb);
+                let s = held_foot(ra.curve(), rb.curve().eval(t), s, pa);
                 let candidate = super::Candidate {
                     point: ra.curve().eval(s),
                     ta: s,
