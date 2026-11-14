@@ -149,7 +149,7 @@ use crate::types::TessellateError;
 // non-iso carrier becomes, the band the separation test is read at,
 // the walk's rotation and pole handling, and the emission itself.
 use geom_core::period::Period;
-pub(crate) use topo::chart::{Chart, ChartKind};
+pub(crate) use topo::chart::Chart;
 pub(crate) use topo::chart_iso::{TAU, TravKind};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
@@ -299,39 +299,6 @@ pub(crate) struct UvPoint {
     pub id: u32,
     /// Whether this entry is a pole/apex corner.
     pub pole: bool,
-}
-
-/// The ids that appear at two or more DISTINCT UV locations among
-/// `entries` — the "one mesh vertex, two parameter locations" state
-/// that both tessellation lanes have to reason about, with ONE home.
-///
-/// **"Distinct" means what SPADE means by it**, which is why this
-/// compares `f64`s and not their bits. Spade's vertex lookup is
-/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0` are
-/// ONE spade vertex and two bit patterns. A `to_bits` compare would
-/// report "apart" exactly where spade dedupes, which is an invariant
-/// restated in a spelling that disagrees with the module it is about.
-/// Two entries spade merges are one CDT vertex and cannot be fanned
-/// apart; two it keeps can.
-///
-/// Both callers used to carry their own copy of that rule against
-/// their own polygon type (`curved::identified_ids` over
-/// [`UvPoint`], `trimmed::id_repeats_apart` over `(u, v, id)`
-/// triples), one of them documenting itself AS a copy. The rule is
-/// spade's, not either lane's, so it lives once and both lanes hand it
-/// their entries.
-pub(crate) fn ids_at_two_uvs(
-    entries: impl IntoIterator<Item = (f64, f64, u32)>,
-) -> std::collections::HashSet<u32> {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    let mut repeated: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    for (u, v, id) in entries {
-        #[allow(clippy::float_cmp)]
-        if seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)) {
-            repeated.insert(id);
-        }
-    }
-    repeated
 }
 
 /// The undirected key of the edge `(a, b)`: endpoints ascending.
@@ -604,7 +571,7 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///
 /// Every chart singularity lies ON THE AXIS — a sphere's poles, a
 /// cone's apex — so `radial(junction) > eps` covers them with one
-/// comparison rather than a match on [`ChartKind`], and in particular
+/// comparison rather than a match on [`topo::chart::ChartKind`], and in particular
 /// without consulting [`Chart::poles`].
 ///
 /// "One comparison for all of them" is a claim about the DECISION MADE
@@ -1540,6 +1507,7 @@ pub(crate) fn loop_polygon(
 mod tests {
     use super::*;
     use geom::Surface;
+    use topo::chart::ChartKind;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {

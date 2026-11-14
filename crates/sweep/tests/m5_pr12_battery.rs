@@ -17,7 +17,7 @@ use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
-use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
+use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, blend_sense, run_battery};
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
@@ -118,7 +118,7 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
         assert_eq!(link.arm, BlendArm::PlanePlaneCylinder);
         assert_eq!(link.convexity, Convexity::Convex);
         assert!(
-            link.convexity.blend_sense(),
+            blend_sense(link.convexity),
             "a convex blend mints sense = true"
         );
         assert_eq!(link.blend.spine_curvature, 0.0, "a straight spine");
@@ -415,7 +415,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
 }
 
 // ---------------------------------------------------------------------
-// Predicate 5 — fillet3_convexity_sign.
+// Predicate 5 — the edge's wedge, read whole (`dihedral_sign`).
 // ---------------------------------------------------------------------
 
 /// The notched prism's reflex edge is CONCAVE while its other vertical

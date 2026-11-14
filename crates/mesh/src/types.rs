@@ -125,15 +125,14 @@ pub enum TessellateError {
     /// An edge/carrier configuration outside the certified inventory:
     /// an illegal-rational (non-positive weight) or C⁰-kinked
     /// B-spline carrier (legal rational carriers meter through the
-    /// quotient-rule sagitta arm of `chords`), a trimmed face on a
-    /// chart whose TRIMMED-TESSELLATION lane is not written
-    /// (cone/torus, and a sphere bounded by anything but circles —
-    /// those charts mint stored pcurves, but the written trimmed lane's
-    /// geometry is the cylinder chart's and the circle-bounded
-    /// sphere's), or a trimmed face missing its stored pcurve caches (a
-    /// trimmed sphere face whose shape that arm does not mesh refuses
-    /// [`Self::SphereTrimShape`] instead). The conic-on-cylinder and tilted-circle-on-sphere
-    /// cases are CONSTRUCTION lanes (`trimmed`), not refusals.
+    /// quotient-rule sagitta arm of `chords`), a trimmed face missing
+    /// its stored pcurve caches, or one whose image is a form its chart
+    /// does not mint (a trimmed face whose shape about a singular row
+    /// the lane does not mesh refuses [`Self::SphereTrimShape`]
+    /// instead). Every chart has a trimmed arm (`trimmed`), and a face
+    /// it reaches is constructed there, not refused; the spindle arm is
+    /// reached by no door yet
+    /// (`work/tesslane/no-door-builds-a-trimmed-spindle-face.md`).
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
@@ -573,9 +572,11 @@ pub enum TessellateError {
         /// The face whose patch keeps the ear.
         face: FaceKey,
     },
-    /// A trimmed sphere face whose shape the sphere arm does not mesh
-    /// ([`SphereTrimCause`] names which), at `edge`, the boundary edge
-    /// that shows it.
+    /// A trimmed face on a chart with singular rows — a sphere's poles,
+    /// a cone's apex, a spindle sheet's apexes — whose shape about one
+    /// the trimmed lane does not mesh ([`SphereTrimCause`] names which;
+    /// `ChordBudget` is the sphere's alone), at `edge`, the boundary edge
+    /// that shows it. Named for the chart it was first raised on.
     SphereTrimShape {
         /// The refused face.
         face: FaceKey,
@@ -586,7 +587,8 @@ pub enum TessellateError {
     },
 }
 
-/// Why the trimmed lane's sphere arm refuses a face's shape
+/// Why the trimmed lane refuses a face's shape about a singular row of
+/// its chart, a pole of a sphere or an apex of a cone or a spindle sheet
 /// ([`TessellateError::SphereTrimShape`]).
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
@@ -604,17 +606,18 @@ pub enum TessellateError {
 /// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SphereTrimCause {
-    /// An edge's image runs past a chart pole mid-edge (`|v| > π/2`):
-    /// the arm meets a pole only at a loop vertex.
+    /// An edge's image runs past a singular row that ends the chart's
+    /// domain (a sphere's `|v| > π/2`) mid-edge: the lane meets a row's
+    /// point only at a loop vertex.
     PastPole,
-    /// The loop winds about a pole inside the face: a side other than a
-    /// pole side turns more than 3π/2 in azimuth, so the image does not
-    /// close in the chart.
+    /// The loop winds about a row's point inside the face: a side off the
+    /// row turns more than 3π/2 in azimuth, so the image does not close
+    /// in the chart.
     PoleInside,
     /// The loop visits one mesh vertex at two chart locations off a
-    /// pole (a seam traversed twice).
+    /// singular row (a seam traversed twice).
     SeamTwice,
-    /// A tilted circle's image comes so near a pole that the arm's
+    /// A projected image comes so near a singular row that its
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
     ThroughPole,
@@ -623,6 +626,20 @@ pub enum SphereTrimCause {
     /// tilted circle passing near a chart pole, whose uniform schedule is
     /// as fine everywhere as at its closest approach.
     ChordBudget,
+    /// The loop has points on both sides of a singular point inside the
+    /// chart: a cone face on both nappes, through its apex. The lane
+    /// triangulates a cone face in its development, which is one nappe's.
+    BothNappes,
+    /// Two vertices of a cone face's loop at two chart locations develop
+    /// to one point: a vertex so near the apex, or two so near each other,
+    /// that the development the lane triangulates the face in (`trimmed`,
+    /// "The development") rounds them together, and the lane does not hold
+    /// two mesh vertices as one CDT vertex.
+    DevelopedMerge,
+    /// A vertex of the loop lies within the run's band of a singular
+    /// point, undecided: the lane cannot say whether the loop turns the
+    /// face there, which the polygon's sides at that point follow.
+    SingularUndecided,
 }
 
 impl SphereTrimCause {
@@ -634,6 +651,9 @@ impl SphereTrimCause {
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
+            Self::BothNappes => "both_nappes",
+            Self::DevelopedMerge => "developed_merge",
+            Self::SingularUndecided => "singular_undecided",
         }
     }
 }
@@ -856,20 +876,20 @@ impl TessellateError {
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
                     SphereTrimCause::PastPole => {
-                        "an edge's image runs past a chart pole mid-edge, and the \
-                         sphere arm meets a pole only at a loop vertex"
+                        "an edge's image runs past a chart pole or apex mid-edge, and \
+                         the trimmed lane meets one only at a loop vertex"
                     }
                     SphereTrimCause::PoleInside => {
-                        "its loop winds about a chart pole inside the face, and the \
-                         sphere arm meshes a face that holds no pole inside it"
+                        "its loop winds about a chart pole or apex inside the face, and \
+                         the trimmed lane meshes a face that holds none inside it"
                     }
                     SphereTrimCause::SeamTwice => {
-                        "its loop visits one vertex at two chart locations off a pole \
-                         (a seam traversed twice)"
+                        "its loop visits one vertex at two chart locations off a pole or \
+                         apex (a seam traversed twice)"
                     }
                     SphereTrimCause::ThroughPole => {
-                        "a tilted circle of its boundary passes so near a chart pole \
-                         that its image's azimuth speed has no bound to size chords by"
+                        "an edge of its boundary passes so near a chart pole or apex that \
+                         its image's azimuth speed has no bound to size chords by"
                     }
                     SphereTrimCause::ChordBudget => {
                         "a tilted circle of its boundary passes so near a chart pole \
@@ -877,11 +897,25 @@ impl TessellateError {
                          budget; re-pose the sphere so its chart poles are away from \
                          its circles"
                     }
+                    SphereTrimCause::BothNappes => {
+                        "its loop runs onto both nappes of a cone, through the apex, and \
+                         the trimmed lane meshes a cone face on one nappe"
+                    }
+                    SphereTrimCause::DevelopedMerge => {
+                        "two vertices of its loop lie so near each other, or one so near \
+                         the cone's apex, that the cone's development rounds them to one \
+                         point, and the trimmed lane does not merge two vertices"
+                    }
+                    SphereTrimCause::SingularUndecided => {
+                        "a vertex of its loop lies so near a chart pole or apex that this \
+                         run's tolerance band cannot say whether it is one; mesh at the \
+                         band the body was built at, or move the vertex off the point"
+                    }
                 };
                 write!(
                     f,
-                    "tessellate: a trimmed sphere face is outside the sphere arm's \
-                     shapes — {what}",
+                    "tessellate: a trimmed face is outside the shapes the trimmed lane \
+                     meshes about its chart's poles and apexes — {what}",
                 )
             }
         }

@@ -494,3 +494,11 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
 - **22:25 — wedge stage 3 reported** (head `bb433c4d`, $18.23). The blend reads `topo::edge_wedge`, and the blend's own composition plus `classify_edge_wedge`/`EdgeWedge`/`PositiveArm` and the second `Convexity` are retired. **Guard by the compiler:** `Corner::convexity` and `Tangency::pairing` are crate-private to geom-brep, read only inside the fold. Refusals change: `NeverOpens` becomes `Lamina`, and a Mixed edge now refuses. No STOP; all reds are main's by text. PR [#6913](https://github.com/evgunter/cad/pull/6913) is opened with its head **frozen at `bb433c4d`**. First reviewer byte 236 (Opus), dispatched 22:58 (M, sequential).
 - 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6939 splits `crates/topo/src/pcurves.rs` while a BOXFINISH lane on `boxfinish/chart-ends` is changing how `side_image_of` (and `sweep::loft::describe_section_rim`) mint an `IsoLine`'s ends, so that a chart end that is an exact 0 or 1 is stored as one and read through `span_ends`. The two are coupled only by where the function lives: whichever lands second merges main and re-applies its edit at the new home. The lane is told. (BOXFINISH orchestrator)
+- 2026-11-14 — **PR [#6913](https://github.com/evgunter/cad/pull/6913) (wedge fold stage 3) accepted; the wedge row closes.**
+  - R1 (Opus) raised a MAJOR: the blend's sign was folded under `dihedral_sign`, so `first_cause` passed over it. Ruled by stage 2's DOCTAIL precedent.
+  - Fix 1 gave the fold's sign its reader's name (`_as`). R2 (Fable) said mergeable after minors and found the knife end in the same class.
+  - Fix 2 made the per-reader names one value, `FoldNames { sign, end }`, and closed the guard's swap hole.
+  - Cost is about 1.8× on the blend battery.
+  - Filed: `select-gs-q2-ground-no-longer-holds` (P3, design, Ev's).
+  - Model-compare row `docs/model-compare-log/rows/PR-6913.md`.
+  - (ONEDOOR orchestrator)

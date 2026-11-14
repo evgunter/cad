@@ -480,6 +480,14 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The re-point buttons read this generation**
+    /// ([`DocSession::repoint_button`]), each source row and "copy of" row
+    /// asking under its own source and selected body: each asks the same
+    /// check as an offer's row, so once per document change.
+    repoints: crate::generation::GenerationMap<
+        (VarId, Option<RecipeNodeId>),
+        crate::frame::RepointButton,
+    >,
     /// **The door's judgement of the placement editor's last bundle**
     /// ([`DocSession::bundle_judgement`]), kept per generation and op:
     /// the panel, the picture and the op's own landing ask it of one
@@ -493,13 +501,13 @@ pub struct DocSession {
         crate::matetool::Proposed,
     >,
     /// **The last `SetBundle` committed**, with where the door's scratch
-    /// solve of it stands every copy ([`DocSession::bundle_landing`]).
+    /// solve of it stands each copy ([`DocSession::bundle_landing`]).
     landing: Option<BundleLanding>,
 }
 
 /// **A committed `SetBundle` whose run may not have landed**: the
 /// generation it made, the placement and the bundle it wrote, and where
-/// its scratch solve stands every copy.
+/// its scratch solve stands each copy.
 #[derive(Debug, Clone)]
 struct BundleLanding {
     made: Generation,
@@ -509,40 +517,25 @@ struct BundleLanding {
 }
 
 /// **The door's judgement of a `SetBundle`**: where its scratch solve
-/// stands every copy, `None` for an op that writes what the placement
+/// stands each copy, `None` for an op that writes what the placement
 /// holds, or the refusal it would land with.
 pub type BundleJudgement = Result<Option<Arc<Stood>>, BundleRefusal>;
 
-/// **Where a scratch solve stands every copy**: each placement that
-/// evaluated, the space it stands in and its pose there.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// **Where a scratch solve stands each copy**: each placement that
+/// evaluated, the space it stands in and its pose there, beside the
+/// evaluation the solve read them off, which the picture composes each
+/// copy's frame from (`crate::pickindex::preview_copies`).
+#[derive(Debug, Clone)]
 pub struct Stood {
     /// Placement → its space and its pose in it.
     pub copies: std::collections::BTreeMap<RecipeNodeId, (VarId, Frame)>,
+    /// The scratch evaluation the poses were read off.
+    pub evaluation: Arc<Evaluation<f64>>,
 }
 
-impl Stood {
-    /// **Every copy this stands elsewhere than `drawn` does** — in
-    /// another space, or at another pose (bit for bit) — with its
-    /// space here, its pose in `drawn` and its pose here. A copy `drawn`
-    /// does not stand is left out: nothing of it is drawn to carry.
-    pub fn moved_from(
-        &self,
-        drawn: &pncad::document::SolvedPoses,
-    ) -> impl Iterator<Item = (RecipeNodeId, VarId, Frame, Frame)> + '_ {
-        let drawn: Vec<_> = self
-            .copies
-            .keys()
-            .map(|&copy| (drawn.space(copy), drawn.relative(copy)))
-            .collect();
-        self.copies
-            .iter()
-            .zip(drawn)
-            .filter_map(|((&copy, &(space, stands)), (was_in, was))| {
-                let was = was?;
-                (was_in != Some(space) || !was.bit_eq(&stands))
-                    .then_some((copy, space, was, stands))
-            })
+impl PartialEq for Stood {
+    fn eq(&self, other: &Self) -> bool {
+        self.copies == other.copies && Arc::ptr_eq(&self.evaluation, &other.evaluation)
     }
 }
 
@@ -1091,6 +1084,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
             landing: None,
@@ -1663,6 +1657,20 @@ impl DocSession {
     pub fn placement_offers(&self, node: RecipeNodeId) -> PlacementOffers {
         self.offers.get_or(self.generation, &node, || {
             crate::frame::placement_offers(self.committed_doc(), node, self.tol)
+        })
+    }
+
+    /// **The re-point button of `source` onto `onto`**
+    /// ([`crate::frame::repoint_button`]) of the committed document, read
+    /// once per generation, source and body and kept
+    /// (`DocSession::repoints`).
+    pub fn repoint_button(
+        &self,
+        source: VarId,
+        onto: Option<RecipeNodeId>,
+    ) -> crate::frame::RepointButton {
+        self.repoints.get_or(self.generation, &(source, onto), || {
+            crate::frame::repoint_button(self.committed_doc(), source, onto, self.tol)
         })
     }
 
@@ -4030,14 +4038,27 @@ impl DocSession {
                 }
             }
         };
-        let opts = self.eval_options();
-        let ev: Evaluation<f64> = pncad::document::evaluate(
-            doc,
-            None,
-            &pncad::document::CancelToken::new(),
-            &opts,
-            self.tol,
-        );
+        // The landed evaluation reads the pick where it answers the
+        // committed document under the resolver a run here would take;
+        // only where it does not is one run here.
+        let resolver = self.run_resolver();
+        let evaluated;
+        let ev: &Evaluation<f64> = match self.derived.landed.as_ref().filter(|run| {
+            (core::ptr::eq(run.doc.as_ref(), doc) || *run.doc == *doc)
+                && crate::evalseam::same_resolver(&run.resolver, &resolver)
+        }) {
+            Some(run) => &run.evaluation,
+            None => {
+                evaluated = pncad::document::evaluate(
+                    doc,
+                    None,
+                    &pncad::document::CancelToken::new(),
+                    &crate::evalseam::options(&resolver),
+                    self.tol,
+                );
+                &evaluated
+            }
+        };
         // The placement the candidates are written on, once: its source is
         // the door's to mint or share for `input` (VARIABLES VR4), and a
         // refusal here is no candidate's, so it fails loud.
@@ -4075,7 +4096,7 @@ impl DocSession {
                 .iter()
                 .find_map(|c| Some((c.id, c.value()?.coord)).filter(|(_, c)| c.read().is_some()))?;
             let at = *coord.read()?;
-            match editor_core::eval::bound_pose(scratch, &ev, coord.seat(id), at, self.tol).ok()? {
+            match editor_core::eval::bound_pose(scratch, ev, coord.seat(id), at, self.tol).ok()? {
                 PoseValue::Axis(line) => Some(line.dir().get()),
                 PoseValue::Direction { dir } if !axis => Some(dir.get()),
                 _ => None,
@@ -5046,12 +5067,14 @@ impl DocSession {
         let mut run = Recording::start(doc, self.tol);
         bundle_run(&mut run, placement, target, constraints.to_vec())
             .map_err(|error| BundleRefusal::Edit(Box::new(error.respoken(doc))))?;
-        let solved = pncad::document::solve_document(
+        let evaluation: Evaluation<f64> = pncad::document::evaluate(
             run.doc(),
-            &self.eval_options(),
+            None,
             &pncad::document::CancelToken::new(),
+            &self.eval_options(),
             self.tol,
         );
+        let solved = pncad::document::SolvedPoses::of(run.doc(), &evaluation);
         match (solved.fault(placement), solved.relative(placement)) {
             (Some(fault), _) => Err(BundleRefusal::Fails {
                 fault: Some(Box::new(fault.clone())),
@@ -5063,6 +5086,7 @@ impl DocSession {
                     .into_iter()
                     .filter_map(|copy| Some((copy, (solved.space(copy)?, solved.relative(copy)?))))
                     .collect(),
+                evaluation: Arc::new(evaluation),
             })),
             (None, None) => Err(BundleRefusal::Fails { fault: None }),
         }
@@ -6413,6 +6437,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            repoints: _,
             bundles: _,
             proposals: _,
             landing: _,

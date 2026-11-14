@@ -47,8 +47,8 @@ So it is charts plus images, not charts times images, and a face is never routed
 |---|---|---|
 | 1 | `one-chord-rule-over-each-boundary-images-speed-bound` | |
 | 2 | `one-chart-table-and-the-lane-takes-every-analytic-chart` | torus × spiric, cone × ellipse |
-| 3 | `a-curved-faces-domain-is-read-from-every-loop` | the ring guards |
-| 4 | `a-curved-face-is-routed-by-its-domain-not-its-carriers` | the notch; rings on a cylinder, cone, sphere and torus |
+| 3 | `a-curved-faces-domain-is-read-from-every-loop` | the ring guards; rings on a cylinder, cone, sphere and torus, which it routes to the chart lane |
+| 4 | `a-curved-face-is-routed-by-its-domain-not-its-carriers` | the notch; the carrier-kind predicates |
 | 5 | `one-containment-lemma-for-an-oblique-boundary` | three missing-theorem rows; independent of 2 to 4 |
 | 6 | `rectangle-faces-move-to-the-chart-lane` | the curved lane; Ev's call, with a density measurement |
 

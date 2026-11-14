@@ -91,14 +91,10 @@
 //! [`memo`]'s docs) and places a stored patch through the same fold the
 //! lane's fresh one takes, so its mesh is byte-identical to
 //! [`fn@tessellate`]'s. The chord points themselves are a pure function of
-//! (edge carrier + interval, endpoint vertex points, the adjacent
-//! faces' surface parameters, an adjacent cone face's largest rim
-//! radius, whether an adjacent cylinder face is trimmed, δ) — adjacent
-//! faces enter only through the grid, headroom and trimmed-NURBS
-//! boundary-step requirements, which reach a neighbour through one
-//! named door in [`chords`]. That
-//! module states what does and does not hold the door shut; nothing
-//! here adds to it.
+//! (edge carrier + interval, endpoint vertex points, each adjacent
+//! face's lattice and the half-edge's image on it, δ) — adjacent faces
+//! enter only through their target and the one chord rule in
+//! [`chords`], which that module states.
 //!
 //! # Structure kept, structure dropped
 //!
@@ -320,7 +316,9 @@
 // half, so a build without the feature exports the measurement types,
 // a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
+mod cdt;
 pub mod cert;
+mod chart_table;
 mod chords;
 mod curved;
 // The per-face patch memo behind `tessellate_with`: its key, stated
