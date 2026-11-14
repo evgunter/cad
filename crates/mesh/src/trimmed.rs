@@ -174,7 +174,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{OutwardNormal, Pcurve};
+use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -478,22 +478,7 @@ pub(crate) fn tessellate_trimmed(
             what: "degenerate trimmed boundary",
         });
     }
-    // THE ORIENTATION THE LOOP PROMISES, checked rather than read. The
-    // loop runs interior-left about the face's outward normal, and an
-    // analytic chart's normal `∂u × ∂v` is the surface's outward one,
-    // so the polygon runs counter-clockwise in the chart exactly when
-    // `sense` is true. The emit pass winds its triangles by the
-    // polygon's own shoelace; a polygon that contradicts the sense
-    // bounds the face's complement, and winding by it would ship that
-    // complement as a closed manifold mesh — so it refuses here. A
-    // spline chart's winding is not checked: the NURBS arm keeps the
-    // emit pass's reading.
-    if !nurbs_chart {
-        let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-        if (shoelace2(&poly2) > 0.0) != face.sense {
-            return Err(TessellateError::TrimLoopOrientation { face: fk });
-        }
-    }
+    let orientation = trim_orientation(fk, face.sense, nurbs_chart, &polygon)?;
     // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
     // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
     // the emit pass never collapses a pole fan (#678). Every other arm's
@@ -645,6 +630,7 @@ pub(crate) fn tessellate_trimmed(
     let trimmed = TrimmedFace {
         fk,
         sense: face.sense,
+        orientation,
         metric,
         surface,
         lane: &lane,
@@ -800,6 +786,11 @@ struct TrimmedFace<'a> {
     /// The face's orientation sense: its outward normal is the
     /// surface's when true ([`Self::outward`]).
     sense: bool,
+    /// The trim polygon's orientation in the chart
+    /// ([`trim_orientation`]), which the emitted triangles take. It is
+    /// the polygon's and not `sense` restated: on the spline arm
+    /// nothing compares the two.
+    orientation: PolygonOrientation,
     /// The lattice metric `k`: points enter the CDT at `(u/k, v)` times
     /// a uniform power of two, scaling the axis that grows
     /// ([`Self::cdt_point`]).
@@ -1222,10 +1213,9 @@ impl TrimmedFace<'_> {
         let (surface, shared, tol) = (self.surface, self.shared, self.tol);
         // Even-odd interior flags, then emission with certificates.
         let inside = classify_faces(cdt, crossings);
-        let flip = {
-            let poly2: Vec<[f64; 2]> = self.polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-            shoelace2(&poly2) < 0.0
-        };
+        // The CDT's triangles are counter-clockwise in the chart; the
+        // patch's take the polygon's orientation.
+        let flip = self.orientation == PolygonOrientation::Clockwise;
         // Pass 1: which grid candidates the kept triangles use; number
         // them in (v, u) row-major order over the FINAL kept set —
         // sorted by coordinates, not by candidate index, so refinement
@@ -1824,6 +1814,41 @@ fn trim_frontier(
     })
 }
 
+/// The orientation the trim polygon HAS in the chart, which the emit
+/// pass gives its triangles. On an analytic arm it is also CHECKED
+/// against the one the face promises ([`PolygonOrientation::of_face`]):
+/// a polygon that contradicts the sense bounds the face's complement,
+/// and emitting by it would ship that complement as a closed manifold
+/// mesh. The spline arm (`nurbs_chart`) takes the polygon's unchecked:
+/// its triangles follow the loop's stored traversal whatever the bit
+/// says.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] for a polygon of no signed area,
+/// or of a poisoned one: it bounds no region, and an orientation
+/// assumed for it would hand the CDT a boundary that crosses itself or
+/// lies on one line as though it were a face.
+/// [`TessellateError::TrimLoopOrientation`] on an analytic arm whose
+/// polygon is oriented against its face.
+fn trim_orientation(
+    fk: FaceKey,
+    sense: bool,
+    nurbs_chart: bool,
+    polygon: &[(f64, f64, u32)],
+) -> Result<PolygonOrientation, TessellateError> {
+    let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
+    let orientation = PolygonOrientation::of_signed_area(shoelace2(&poly2)).ok_or(
+        TessellateError::MissingEntity {
+            what: "degenerate trimmed boundary",
+        },
+    )?;
+    if !nurbs_chart && orientation != PolygonOrientation::of_face(sense) {
+        return Err(TessellateError::TrimLoopOrientation { face: fk });
+    }
+    Ok(orientation)
+}
+
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point, and on a
@@ -2300,6 +2325,7 @@ mod tests {
         ChartPoles, ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError,
         chain_creases, id_repeats_apart, trim_polygon,
     };
+    use geom_brep::PolygonOrientation;
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
 
@@ -2973,9 +2999,13 @@ mod tests {
                         a.0 * b.1.sin() - b.0 * a.1.sin()
                     })
                     .sum::<f64>();
-            let area = if face.sense { area } else { -area };
+            assert_eq!(
+                PolygonOrientation::of_signed_area(area),
+                Some(PolygonOrientation::of_face(face.sense)),
+                "face {fk:?}: the polygon is oriented as its face's sense says ({area})"
+            );
             assert!(
-                area > 0.0 && area < 4.0 * core::f64::consts::PI,
+                area.abs() < 4.0 * core::f64::consts::PI,
                 "face {fk:?}: equal-area {area}"
             );
             if pole_sides == 2 {
@@ -2986,6 +3016,62 @@ mod tests {
             with_poles >= 2,
             "both balls' remnants pass both poles: {with_poles}"
         );
+    }
+
+    /// [`super::trim_orientation`]'s three answers, on polygons written
+    /// out: the polygon's own orientation where it is the face's; a
+    /// typed refusal where an analytic arm's contradicts its face, and
+    /// the polygon's own on the spline arm, which does not compare; and
+    /// a refusal on every arm for a polygon of no signed area (a
+    /// figure-eight of equal lobes, three points on one line), which has
+    /// no orientation to assume.
+    #[test]
+    fn a_trim_polygon_is_oriented_as_read_and_one_of_no_area_refuses() {
+        use PolygonOrientation::{Clockwise, CounterClockwise};
+        let fk = FaceKey::default();
+        let poly = |uv: &[(f64, f64)]| -> Vec<(f64, f64, u32)> {
+            uv.iter().map(|&(u, v)| (u, v, 0)).collect()
+        };
+        let ccw = poly(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+        let cw: Vec<_> = ccw.iter().rev().copied().collect();
+        for (polygon, has) in [(&ccw, CounterClockwise), (&cw, Clockwise)] {
+            let promised = has == CounterClockwise;
+            for nurbs_chart in [false, true] {
+                assert_eq!(
+                    super::trim_orientation(fk, promised, nurbs_chart, polygon).ok(),
+                    Some(has),
+                    "{has:?}, spline arm {nurbs_chart}: oriented as its face is"
+                );
+            }
+            assert!(
+                matches!(
+                    super::trim_orientation(fk, !promised, false, polygon),
+                    Err(TessellateError::TrimLoopOrientation { face }) if face == fk
+                ),
+                "{has:?}: an analytic arm refuses a polygon against its face"
+            );
+            assert_eq!(
+                super::trim_orientation(fk, !promised, true, polygon).ok(),
+                Some(has),
+                "{has:?}: the spline arm takes the polygon's, whatever the bit"
+            );
+        }
+        let eight = poly(&[(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0)]);
+        let line = poly(&[(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]);
+        for (name, polygon) in [("figure-eight", &eight), ("collinear", &line)] {
+            for (sense, nurbs_chart) in [(true, false), (false, false), (true, true), (false, true)]
+            {
+                assert!(
+                    matches!(
+                        super::trim_orientation(fk, sense, nurbs_chart, polygon),
+                        Err(TessellateError::MissingEntity {
+                            what: "degenerate trimmed boundary"
+                        })
+                    ),
+                    "{name}, sense {sense}, spline arm {nurbs_chart}: no area, no orientation"
+                );
+            }
+        }
     }
 
     /// The tilted cylinder halves of `m5_pr11_trimmed` at radius `r`: a
@@ -3189,6 +3275,7 @@ mod tests {
                 let face = super::TrimmedFace {
                     fk: FaceKey::default(),
                     sense,
+                    orientation: PolygonOrientation::of_face(sense),
                     metric: 1.0,
                     surface,
                     lane,
@@ -3257,6 +3344,7 @@ mod tests {
             let face = super::TrimmedFace {
                 fk: FaceKey::default(),
                 sense: true,
+                orientation: PolygonOrientation::of_face(true),
                 metric: k,
                 surface: &sphere,
                 lane: &lane,

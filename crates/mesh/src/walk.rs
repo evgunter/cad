@@ -119,22 +119,21 @@
 //!   fixed anchor makes the branch pick a function of where the body
 //!   was placed, and the result is a wrong half-sphere, not a refusal.
 //!
-//!   That derivation is stated in the outward frame while `u_ref` /
-//!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
-//!   area vector is negated on a `sense: false` face before the
-//!   `atan2`; the walk's other read of the sense is the wrap strip's
-//!   winding ([`wrap_strip`]). The old
-//!   "assumes outward-oriented shells (true of every M2 body)" caveat
-//!   is thereby discharged rather than restated: a reversed face
-//!   stores its loop the other way round, so `A` flips and an
-//!   unmultiplied azimuth would be π off, selecting the complementary
-//!   branch and meshing the wrong half of the sphere. This is the
-//!   direct analogue of `geom_brep::props::curved`'s rimless-sphere
-//!   `s_f` — the same face kind, the same missing bit, the same fix.
+//!   That derivation is stated on the face's outward side while
+//!   `u_ref` / `v_ref` are the chart's, so the area vector is read
+//!   against the frame turned to the outward side
+//!   (`OutwardNormal::from_chart`): a reversed face stores its loop the
+//!   other way round, so `A` flips, and against the frame unturned its
+//!   azimuth would be π off, selecting the complementary branch and
+//!   meshing the wrong half of the sphere. This is the direct analogue
+//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. The walk's
+//!   other read of the sense is the wrap strip's orientation
+//!   ([`wrap_strip`]), through `geom_brep::PolygonOrientation`.
 
 use std::collections::HashMap;
 
 use geom::SurfaceKind;
+use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -880,12 +879,13 @@ struct WrapStrip {
 /// 3. the near tip, `travs[0]`'s start, where the walk opens; the other
 ///    tip is the far one.
 ///
-/// The far side stands one period from the near side. The period's sign
-/// winds the polygon counter-clockwise in the chart exactly when `sense`
-/// is set, which is how `curved` reads the face's side off it: a near
-/// side rising to the far point (the far `v` above the near) stands at
-/// the larger `u` when `sense` is set, and at the smaller when not. No
-/// turn at a tip and no area is read.
+/// The far side stands one period from the near side, across the
+/// polygon's region from it, and `orientation` is the one the face's
+/// polygon has (`PolygonOrientation::of_face`), which is how `curved`
+/// reads the face's side off it. The region is on the left of a counter-clockwise
+/// polygon's sides, so a near side rising to the far point (the far `v`
+/// above the near) has the far side at the smaller `u` there, and at the
+/// larger in a clockwise one. No turn at a tip and no area is read.
 ///
 /// # Errors
 ///
@@ -896,7 +896,7 @@ fn wrap_strip(
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
-    sense: bool,
+    orientation: PolygonOrientation,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -928,7 +928,11 @@ fn wrap_strip(
     };
     let rising = poles[far].1 > poles[near].1;
     Ok(Some(WrapStrip {
-        period: if rising == sense { -TAU } else { TAU },
+        period: if rising == orientation.interior_is_left() {
+            -TAU
+        } else {
+            TAU
+        },
         far: far_tip,
     }))
 }
@@ -1047,13 +1051,19 @@ pub(crate) fn loop_polygon(
         *first = true;
     }
     let no_rim = !kinds.rim;
-    // The face's S10 orientation sense (module docs, the pole-to-pole
-    // band): the side of the band's area vector, and the winding of the
-    // wrap strip.
+    // The face's orientation sense (module docs, the pole-to-pole
+    // band): the side of the band's area vector, and through
+    // `PolygonOrientation::of_face` the orientation of the wrap strip.
     let sense = face_record.sense;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(body, &travs, &poles, band, sense)?
+        wrap_strip(
+            body,
+            &travs,
+            &poles,
+            band,
+            PolygonOrientation::of_face(sense),
+        )?
     } else {
         None
     };
@@ -1230,25 +1240,21 @@ pub(crate) fn loop_polygon(
         // loop-local anchor makes that direction the loop's own rather
         // than its placement's ([`loop_area`]).
         let area = loop_area(&pts);
-        // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
-        // points along the face's OUTWARD normal side — but it is read
-        // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
-        // pick which azimuth half the band occupies. Those two frames
-        // differ by exactly the sense: a reversed face stores its
-        // loop the other way round, `area` flips, and the raw `atan2`
-        // would land π off — selecting the complementary meridian
-        // branch and meshing the wrong half of the sphere. Negating on
-        // a reversed face recovers the chart-frame azimuth for either
-        // sense. This is
-        // NOT the double-count hazard that forbids a multiply in
-        // `planar`/`curved`: nothing downstream re-derives this sign
-        // from the winding — `mid_az` only chooses a `2πk` branch, and
-        // the polygon's own winding (which does flip with the sense) is
-        // consumed separately by `curved`'s `flip`.
-        let chart_area = if sense { area } else { -area };
+        // `area` is the loop's 3-D vector area, so it lies on the face's
+        // OUTWARD side, and it is read against the chart's normals
+        // turned to that side. A rim-free loop that opens two columns
+        // runs pole to pole, so its chart is a sphere's or a spindle
+        // sheet's, and on both `u_ref` and `v_ref` are exactly the chart
+        // normals on the equator at azimuths 0 and π/2.
+        // Read against the frame unturned, a `sense: false` band's
+        // azimuth lands π off and the complementary half of the sphere
+        // is meshed. Nothing downstream re-derives this side from the
+        // polygon's orientation: `mid_az` only chooses a `2πk` branch.
+        let frame = chart.frame();
+        let outward = |normal: Vec3<f64>| OutwardNormal::from_chart(normal, sense).vec();
         let mid_az = geom::Azimuth::of(
-            chart_area.dot(chart.frame().v_ref()),
-            chart_area.dot(chart.frame().u_ref),
+            area.dot(outward(frame.v_ref())),
+            area.dot(outward(frame.u_ref)),
         )
         .near(0.0);
         Some(
@@ -1956,9 +1962,9 @@ mod tests {
     }
 
     /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
-    /// pole-to-pole arm spells it. The sense fold is omitted because
-    /// it is a bitwise negation of `area`: it cannot change how well
-    /// conditioned the fold that produced `area` was.
+    /// pole-to-pole arm spells it. The frame's turn to the outward side
+    /// is omitted because it negates both dots bitwise: it cannot change
+    /// how well conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
         area.dot(chart.frame().v_ref())
