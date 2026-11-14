@@ -1125,7 +1125,9 @@ fn torax_the_lune_cavity_volume_closed_form_matches_quadrature() {
 /// moved surface AT ITS OWN FACES — three surfaces per rim corner,
 /// which is what pins the mitre's azimuth too (a corner off the
 /// material bisector satisfies neither moved cap plane). MEASURED at
-/// this head: worst corner residual `2.01e-19` m; asserted at `1e-18`.
+/// this head: worst corner residual `2.25e-18` m, a cap plane's residual
+/// read from its station's origin on the axis, a fraction of an ulp of
+/// the corner's coordinates; asserted at `1e-17`.
 #[test]
 fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     let (r, t) = (0.3_f64, 0.05_f64);
@@ -1151,7 +1153,7 @@ fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     }
     println!("[torax] the reflex lune's worst corner residual: {worst:e}");
     assert!(
-        worst <= 1e-18,
+        worst <= 1e-17,
         "a corner stands {worst:e} m off one of its own moved surfaces"
     );
 }

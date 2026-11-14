@@ -56,3 +56,5 @@ Evidence: the row's `[rimscalar] the filleted drum` print, and
 side by no more than `few_ulps` lies outside it" clause) and `vacuous`.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+- 2026-11-14 — **Measured closed at its derivation** (BOXFINISH `boxfinish/sweep-frames`): the extrude's cylinder and rim circles now take `u_ref` from the sketch frame (here exact `(1, 0, 0)`) rather than `rim.normalize()` over rounding-width coordinates, and `self_intersection_proves_injectivity::a_filleted_drum_certifies_across_its_fillet` reads `Holds` at `Interval` as at `f64`; that row now asserts it. The touch concession's calibration is unchanged, so a band whose phase is wide for another reason would meet the same mechanism.

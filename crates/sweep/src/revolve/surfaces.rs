@@ -14,7 +14,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
-use geom_core::{Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Point2, Real, Vec3};
 
 use super::SweptSeg;
 use super::axis::{AxisFrame, WallKind};
@@ -81,9 +81,9 @@ pub(super) fn wall_surface<T: Real>(
 /// A latitude strut/rim spec: the sketch point's trajectory under the
 /// rotation family (`MappedSource::RevolvedPoint`), carrier the
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
-/// interval `(0, |θ|]`); `u_ref` points at the start point `q`, which
-/// lies on the seam side of the axis (`r > 0`), so it is the frame's
-/// `u₃`.
+/// interval `(0, |θ|]`); `u_ref` points at the sketch point placed,
+/// which lies on the seam side of the axis (`r > 0`), so it is the
+/// frame's `u₃`.
 ///
 /// Not `extrude`'s `extruded_strut_spec`, which mints the same
 /// topological edge out of the translation family: a line carrier over
@@ -92,23 +92,11 @@ pub(super) fn wall_surface<T: Real>(
 pub(super) fn revolved_strut_spec<T: Real>(
     point: Point2<T>,
     radius: T,
-    q: Point3<T>,
     frame: &AxisFrame<T>,
     theta: T,
     axis_c: Vec3<T>,
-    tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
-    let rim = q - center;
-    // **The revolve's rim identity** (`swept::register_rim_identity`
-    // carries why it is registered): `center` is the FOOT of the perpendicular
-    // from the sketch point to the axis and `radius` is that point's
-    // radial extent from the same axis, both placed by the same rigid
-    // `frame.place`, so `‖q − center‖ = radius` at every parameter
-    // value. Only the RIM: the span identity needs the far endpoint,
-    // and this builder is handed the start point and the angle, never
-    // `q_to` — see `work/blend/revolve-carriers-state-only-the-rim`.
-    crate::swept::register_rim_identity(rim, radius, tol);
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
             MappedSource::RevolvedPoint {

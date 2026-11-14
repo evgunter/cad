@@ -10,7 +10,10 @@
 //!
 //! Every row builds at `Sym<Interval>`, the scalar a drive replays a
 //! leaf in: at a bare `Interval` a boxed input does not build at all,
-//! since a vertex and the carrier through it are enclosed apart.
+//! since a vertex and the carrier through it are enclosed apart. A box
+//! on a depth or on a frame's angle is macroscopic; a box on a profile
+//! vertex is as narrow as a drive's leaves, which is where the profile's
+//! own validation decides.
 //!
 //! Two kinds of row. The first holds the guarantee where the truth is
 //! fixed across the box (a depth, a section's size, a profile's width,
@@ -69,6 +72,19 @@ fn in_session(f: impl FnOnce()) {
 
 /// Rounding, and nothing a box could add: a few ulps at unit scale.
 const ROUNDING: f64 = 1e-14;
+
+/// The half-width of a box on a profile vertex: a box the profile's
+/// validation decides over (a drive bisects to such boxes), and three
+/// orders past rounding, so a datum re-derived from boxed vertices reads
+/// its width.
+fn vertex_box() -> f64 {
+    tol().eps() / 64.0
+}
+
+/// A parameter boxed to `centre ± vertex_box()`.
+fn about(id: u64, centre: f64) -> S {
+    boxed(id, centre - vertex_box(), centre + vertex_box())
+}
 
 fn width<T: Bounds>(x: T) -> f64 {
     x.hi() - x.lo()
@@ -196,7 +212,7 @@ fn square<T: Real>(a: T) -> ProfileLoop<T> {
 #[test]
 fn a_lofts_caps_over_a_section_box_are_its_end_frames() {
     in_session(|| {
-        let a = boxed(0x10f7, 0.95, 1.05);
+        let a = about(0x10f7, 1.0);
         let places = [
             SketchPlane::<S>::xy(),
             SketchPlane::xy_at(Point3::new(lit(0.0), lit(0.0), lit(1.0))),
@@ -247,7 +263,7 @@ fn y_axis<T: Real>() -> RevolveAxis<T> {
 #[test]
 fn a_partial_revolves_caps_and_latitudes_over_a_width_box_are_exact() {
     in_session(|| {
-        let profile = Profile::new(SketchPlane::<S>::xy(), vec![band(boxed(0x2e1, 0.45, 0.55))])
+        let profile = Profile::new(SketchPlane::<S>::xy(), vec![band(about(0x2e1, 0.5))])
             .validate(tol())
             .unwrap();
         let revolved = revolve(
@@ -277,7 +293,7 @@ fn a_partial_revolves_caps_and_latitudes_over_a_width_box_are_exact() {
 #[test]
 fn a_full_revolves_latitudes_over_a_width_box_are_exact() {
     in_session(|| {
-        let profile = Profile::new(SketchPlane::<S>::xy(), vec![band(boxed(0x2e2, 0.45, 0.55))])
+        let profile = Profile::new(SketchPlane::<S>::xy(), vec![band(about(0x2e2, 0.5))])
             .validate(tol())
             .unwrap();
         let revolved = revolve(&profile, y_axis(), Revolution::Full, tol())
@@ -292,7 +308,7 @@ fn a_full_revolves_latitudes_over_a_width_box_are_exact() {
 #[test]
 fn a_revolved_circles_latitude_over_a_centre_box_is_exact() {
     in_session(|| {
-        let c = boxed(0x2e3, 1.95, 2.05);
+        let c = about(0x2e3, 2.0);
         let circle: ProfileLoop<S> = RawLoop::new([(
             Point2::new(c + lit(0.5), lit(0.0)),
             profile::Segment::Arc(geom_core::Arc2 {
@@ -402,8 +418,8 @@ fn assert_holds_its_members(
         }
     }
     assert!(
-        spread > 1e-6,
-        "{what}: the truth varies across the box ({spread}), so the row reads a width"
+        spread > 10.0 * ROUNDING,
+        "{what}: the truth varies across the box ({spread:e}), so the row reads a width"
     );
 }
 
@@ -432,7 +448,7 @@ fn a_frame_turned_by_a_boxed_angle_stores_every_members_direction() {
 /// holds every member's.
 #[test]
 fn a_wall_whose_edge_turns_with_a_boxed_vertex_stores_every_members_direction() {
-    let (lo, hi) = (0.9, 1.1);
+    let (lo, hi) = (1.0 - vertex_box(), 1.0 + vertex_box());
     let members = members(lo, hi).map(|h| slab(SketchPlane::xy(), quad(h, 0.0), 1.0));
     in_session(|| {
         let boxed_slab = slab(
@@ -448,7 +464,7 @@ fn a_wall_whose_edge_turns_with_a_boxed_vertex_stores_every_members_direction() 
 /// varies with it, and the stored enclosure holds every member's.
 #[test]
 fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direction() {
-    let (lo, hi) = (0.2, 0.3);
+    let (lo, hi) = (0.25 - vertex_box(), 0.25 + vertex_box());
     let members = members(lo, hi).map(|b| slab(SketchPlane::xy(), quad(1.0, b), 1.0));
     in_session(|| {
         let boxed_slab = slab(

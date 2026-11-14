@@ -77,8 +77,7 @@ fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, 
 /// **The M10-9 washer** — `sweep::revolve_washer`'s parametric
 /// annulus, inner radius `r` — on a sketch plane at `(d, d, d)`,
 /// revolved a full turn about the sketch's y axis: every vertex is a
-/// latitude carrier whose rim identity `revolve::full` /
-/// `revolve::surfaces` register.
+/// latitude carrier, aimed along the revolve's seam direction.
 fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(d, d, d)));
@@ -197,12 +196,12 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 /// - **The certified lane's stadium claims nothing about its arcs.** It
 ///   is written through the fixture door, which holds no tolerance and
 ///   so registers none of the lowering's endpoint facts, and the sweep
-///   registers only rigidity: the far placements it once built on the
-///   sweep's own rim and span registrations are typed refusals now —
-///   `EndpointEnd` at `(1e-6, 1e9)`, `MappedSource` at `(1e-9, 1e6)`,
-///   and `EndpointStart` from `3.7e7` out at `1e-9` and at every
-///   placement off the origin at `1e-12`, cells where rule G
-///   (`SymRules::canonical_root`) alone builds it over the sweep's
+///   registers only rigidity. Its arc carriers' `u_ref` is the placement
+///   turning the sketch radial, so the carrier is the description's own
+///   placement of the sketch arc and builds out to `(1e-6, 1e9)` and
+///   `(1e-9, 1e6)`; from `3.7e7` out at `1e-9` and at every placement
+///   off the origin at `1e-12` it is a typed `EndpointStart`, cells where
+///   rule G (`SymRules::canonical_root`) alone builds it over the sweep's
 ///   registrations. Never a contradiction, never a wrong answer
 ///   (`work/profiletail/fixture-built-sym-rows-lose-registered-discharges.md`).
 /// - **The certified lane is not a superset or a subset of either.**
@@ -228,20 +227,19 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   minted by revolve already, and the arc-free triangle do not move.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
-    // lane refuses the stadium at the furthest.
+    // ε = 1e-6: no lane refuses anything a session builds.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
     // lanes at 1e9, and at 3.7e7 the tier rescues two of the three
     // bodies the bare lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],

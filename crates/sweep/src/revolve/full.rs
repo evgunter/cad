@@ -475,7 +475,6 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         col,
         &hes,
         &qs,
-        &qs,
         frame,
         theta,
         axis_c,
@@ -839,7 +838,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: hes[i],
             },
             qpi[i],
-            revolved_strut_spec(wire.points[i], verts[i].r, qw[i], frame, half, axis_c, tol),
+            revolved_strut_spec(wire.points[i], verts[i].r, frame, half, axis_c),
             tol,
         )?;
         struts.push(Some(m));
@@ -941,10 +940,6 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             })
             .he_minus;
         let center = frame.foot3(wire.points[i]);
-        let rim = qpi[i] - center;
-        // The same rim identity as `revolve::surfaces`', at the same
-        // guarantee (its comment carries the argument).
-        crate::swept::register_rim_identity(rim, verts[i].r, tol);
         let spec = EdgeCurveSpec {
             // The return half of the whole turn's own range, on the
             // sketch placement: no turned placement is evaluated.

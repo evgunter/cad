@@ -63,8 +63,6 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
     };
     let center = frame.foot3(seg.a);
     let radius = cls.verts[0].r;
-    let from_far = ends.far - center;
-    swept::register_rim_identity(from_far, radius, tol);
     // The strut runs far to near. A turned far end is the sketch point
     // turned through `theta`, so the strut is that turn's own range run
     // back, on the sketch placement: no turned placement is evaluated.

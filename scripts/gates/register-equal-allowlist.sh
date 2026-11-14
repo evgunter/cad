@@ -67,18 +67,12 @@
 #     both facts it places: `register_rigidity` (the placed rim
 #     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`
 #     (the carrier at its span is the placed sketch landing, per
-#     component); and `register_rim_identity` (a revolve latitude
-#     carrier's `‖q − c‖ = r`). These three functions are the only
-#     bodies that call the method; `crates/sweep/src/extrude.rs` reaches rigidity
-#     THROUGH `register_rigidity` and therefore needs no entry.
-#   * `crates/sweep/src/revolve/surfaces.rs` and
-#     `crates/sweep/src/revolve/full.rs` — the latitude carriers, which
-#     build the same `Circle { u_ref: (q − center).normalize(), radius }`
-#     under the same guarantee (R2 MINOR-5: A1's "the unit of scope is
-#     the constructor" was applied to one of two). RIM ONLY: neither
-#     builder is handed the far endpoint, so the span identity has
-#     nothing to be stated about
-#     (`work/blend/revolve-carriers-state-only-the-rim`).
+#     component). These two functions are the only bodies that call
+#     the method; `crates/sweep/src/extrude.rs` reaches rigidity
+#     THROUGH `register_rigidity` and therefore needs no entry. The
+#     revolve's latitude carriers register nothing: their `u_ref` is the
+#     revolve's seam direction, so a latitude through its point is an
+#     identity the plain form proves.
 #
 # WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
 # source text, so a call reached through a macro, a re-export under
@@ -103,8 +97,6 @@ DEFINITION_SUBJECT='the files that DEFINE or re-export Real::register_equal, whe
 CALLER_HOMES=(
   crates/geom-core/src/arc.rs
   crates/sweep/src/swept.rs
-  crates/sweep/src/revolve/surfaces.rs
-  crates/sweep/src/revolve/full.rs
 )
 DEFINITION_HOMES=(
   crates/geom-core/src/real.rs

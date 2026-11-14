@@ -37,3 +37,5 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 - `crates/sweep/src/loft.rs` `LoftError` `Display`, `SeamStructure` (~295, "kernel bug, not an input fault"). Doors: the loft verbs. **Class 2, likely**: a wall that validated re-wraps.
 - `loft.rs` `LoftError` `Display`, `SectionStructure` (~300). **Class 2, likely**: `validate_loft` refuses counts and mismatched sections first (`SkinError::SectionShapeMismatch`), and a loopless section never leaves profile validation (`stacking_fold`'s doc).
+
+- 2026-11-14 — **The first two sites are gone** (BOXFINISH `boxfinish/sweep-frames`): a sweep's cap is its station's frame, so `CapPlaneError` (`Newell`, `Orientation`, `EdgeOn`) and every verb's `CapPlane` arm, with `ExtrudeError::SidePlane`, are deleted. The two `LoftError` second-pass sites stand.

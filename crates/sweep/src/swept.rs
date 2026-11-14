@@ -606,40 +606,6 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
-/// **A latitude circle's rim identity, registered** (M10-9;
-/// ERROR-DESIGN E12's "kept in reserve — discharge by provenance",
-/// taken): the distance from the point a circle carrier was built
-/// through to its centre IS its radius, stated by the builder that
-/// guarantees it ([`geom_core::Real::register_equal`]). Its callers are
-/// the revolve's latitude carriers (`revolve::surfaces`,
-/// `revolve::full`), and the comment at each carries the theorem.
-///
-/// **Why the tier cannot prove it for itself, measured.** The squared
-/// identity is a plain-form theorem wherever the coefficient ring can
-/// afford the expansion, and the unsquared one needs the outer `sqrt`
-/// discharged against an `abs` — `sqrt(X) = R` where `X = R²`, which
-/// holds only under a sign of `R` over the box. That is not a decision
-/// the construction takes, so no shipped rule folds it (M10-8's rule C
-/// did, folded on no document at the shipped 256-bit ring, needed ~640
-/// bits and up at a leaf cost of minutes, and is retired:
-/// `geom_core::sym`'s module docs, M10's closed
-/// `plate-rim-residual-needs-the-wide-coefficient-ring`). This door is
-/// the recourse E12 named for exactly that case.
-///
-/// **What it touches: nothing.** The registrant builds `rim.norm()`
-/// over the carrier's own centre and point and stores nothing, so no
-/// value anywhere changes.
-///
-/// `tol` is the run's ε, which the door's inexact witnesses compare at
-/// ([`geom_core::Real::register_equal`]). It ARRIVES from the caller —
-/// every registrant on this path is reached from a builder that already
-/// holds one, and kernel library code may not mint a tolerance witness.
-pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
-    rim.norm()
-        .register_equal(radius, tol)
-        .handle("a latitude carrier's ‖q − c‖ from its radius");
-}
-
 /// **A placed profile arc's rim IS its sketch rim** — the one fact the
 /// sweep registers about a profile arc, rigidity, stated where it is
 /// guaranteed ([`geom_core::Real::register_equal`]).

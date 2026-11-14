@@ -230,7 +230,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                 li,
                 col,
                 hes,
-                &points[li],
                 &rpoints[li],
                 frame,
                 theta,
@@ -469,7 +468,6 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     loop_index: usize,
     col: &Collapsed<T>,
     hes: &[topo::HalfEdgeKey],
-    qs: &[Point3<T>],
     rq: &[Point3<T>],
     frame: &AxisFrame<T>,
     theta: T,
@@ -495,7 +493,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             rq[j],
-            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c, tol),
+            revolved_strut_spec(segs[j].a, cls.verts[j].r, frame, theta, axis_c),
             tol,
         )?;
         struts.push(Some(m));

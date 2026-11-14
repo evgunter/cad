@@ -115,7 +115,7 @@
 //! discharge by PROVENANCE — and [`Sym::register_equal`] is it: a
 //! session-level record that two DAG nodes denote one function of the
 //! parameters, made by the site that GUARANTEES it
-//! (`sweep::swept::register_rim_identity`, whose doc comment carries
+//! (`sweep::swept::register_rigidity`, whose doc comment carries
 //! the proof), verified in the lane scalar at the moment it is made,
 //! refused typed when it lies, and consulted by a THIRD normal-form
 //! walk beside the plain one and the early one.
@@ -149,12 +149,9 @@
 //! states the identity about is the node the certifier asks about.
 //!
 //! The revolve's latitude carriers (`sweep::revolve::surfaces` and
-//! `::full`) mint the same circle under the same guarantee and state
-//! the RIM identity too — the same rule applied to the second
-//! constructor, not to the second identity
-//! (`sweep::swept::register_rim_identity`). Rim only: neither builder
-//! is handed the far endpoint, so a far-end identity has nothing to be
-//! stated about (`work/blend/revolve-carriers-state-only-the-rim`).
+//! `::full`) state nothing: their `u_ref` is the revolve's seam
+//! direction, so a latitude through its point is an identity the plain
+//! form proves.
 //!
 //! **Where the door may be called is an ALLOWLIST**, not a
 //! convention: `scripts/gates/register-equal-allowlist.sh` names the
