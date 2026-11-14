@@ -2269,40 +2269,11 @@ pub struct HalfGerm<T: Real> {
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
     pub dir: geom_core::Vec3<T>,
     /// The loop of its face pair's section the germ rides, decided once
-    /// where the germ is minted ([`Branch`]).
-    pub branch: Branch,
-}
-
-/// **Which loop of its face pair's section a germ rides.** On a pair the
-/// operation's section table holds, the loop is a component of the
-/// pair's carried section, by its index: the component the germ's site
-/// has its foot on ([`geom_brep::CarriedSection::site`]). On the pairs
-/// read by a frame, a section of two loops — a plane cutting a torus in
-/// two circles or two ovals — tells its loops apart by a margin at a
-/// point of the section (`ring_path::LoopSplit`); a section of two
-/// lines through a point — a plane through a cone's apex — tells its
-/// lines apart by the line a germ's site lies on, or at the point the
-/// line it runs along. Each is decided
-/// once, at the germ's site where the germ is minted, and every reader
-/// of the germ takes its loop from here: the join's matching and frames,
-/// and each side's chord. Both operands' germs of one slot carry the
-/// same branch, read at the A site.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Branch {
-    /// The section is one loop, loops sharing one frame, or one line;
-    /// or the germ runs along an edge, whose own curve it rides.
-    Only,
-    /// The loop on the split's positive side (a plane×torus section).
-    Positive,
-    /// The loop on its negative side.
-    Negative,
-    /// The component of the pair's carried section with this index: at
-    /// a node, the arc whose end the germ was minted from.
-    Component(usize),
-    /// The line with this index of a straight section of two lines
-    /// through one point: a plane through a cone's apex, in the order
-    /// the pair's one reading returns them (`join::apex_line`).
-    Line(usize),
+    /// at the germ's site where the germ is minted. Every reader of the
+    /// germ takes its loop from here: the join's matching and frames,
+    /// and each side's chord. Both operands' germs of one slot carry
+    /// the same branch, read at the A site.
+    pub branch: geom_brep::SectionPick,
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
