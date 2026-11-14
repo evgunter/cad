@@ -19,13 +19,32 @@ Filed by the skin-turn lane (`onehome/skin-turn`), which mints each station's fr
 | `a_long_helical_sweep_certifies_within_the_default_budget` | `pcurve_loop_continuity`, enclosure ±2.1e-12 |
 | `the_s_duct_walls_hold_against_themselves` | `pcurve_map_residual`, hi 1.0e-12 |
 
-**Why they refuse.** These rows build through `crates/sweep/src/loft.rs`'s enclosure arm. Its sections are points and the placements have an `f64` channel, so the walls are the `f64` skin lifted as points (`lift_loop_walls`). What is minted at `Interval` is the placements, and the caps and pcurves read on them. On the closed spine the wall poles are 0 wide and the placements 3.17e-13 (6.7e-16 on main), as measured by PR 6949's reviewer. So each refusal is a minted placement, and the caps built on it, read against point walls: `f64` geometry selected on the channel planes meets placements wider than the 1e-12 band's zero half-width allows. The fit does not amplify anything.
+**Why they refuse** (measured on `onehome/sweep-walls-at-t`, probes not committed). Two widths compound.
 
-**Open.** Two answers to choose between:
-- The enclosure arm reads its caps and pcurves on the channel planes the walls were selected on, with the minted placements admitted beside them as an enclosure.
-- The lane mints walls and caps alike at `T`, so the certificate compares like with like.
+1. **The station frame's floor.** The frame is about 1.4e-13 wide, and almost all of it is the derivative's enclosure:
+   - `NurbsCurve3::ders1` at `Interval` of a point parameter gives 3–17e-13 (relative 4–9e-14, a few hundred ulps). It comes from the interval de Boor recursion, not from hulling across knots: only the end stations sit on a knot.
+   - Normalizing (`UnitVec3::new`) adds almost nothing.
+   - `from_aim_and_reference` adds up to 2–3×, depending on the reference.
 
-Either way the per-station floor stays: the tangent's derivative enclosure, about 4e-13, and `from_aim_and_reference`'s residual. The wide-start-frame row (`a_loft_computes_its_walls_in_t.rs`) passes at 1e-12 at `Interval` and at `Sym<Interval>`.
+   Evaluating the derivative through the hodograph at `Interval` is just as sound and agrees with `f64`: control net `p·(Pᵢ₊₁ − Pᵢ)/Δu` from the data, then a degree-(p−1) Cox–de Boor. It gives:
+   - a derivative about 3e-14 wide, and a tangent about 6e-15;
+   - a frame about 1e-14, 14× narrower.
+
+   With it, `a_long_helical_sweep_certifies_within_the_default_budget` passes at 1e-12, and the other two still refuse.
+2. **The joint's lever.** The refusal is `topo`'s loop joint on a spline chart (`pcurves.rs` `spline_gap_closes`). On the closed spine it is half-edge `18v1`, at the wall chart's corner (1, 1):
+   - the entry is the half-edge's stored pcurve evaluated at its start parameter;
+   - the predecessor's exit is the exact point (1, 1);
+   - the gap is metered by the chart's sup stretch, u ×0.26 and v ×11.
+
+   The pcurve is a **general fitted NURBS (degree 5), not an iso line**. Its start parameter is an enclosure `[0.5 ± 2.7e-14]`, 5.4e-14 wide, and evaluating the pcurve there gives an entry `(1 ± 9.2e-11, 1 ± 9.2e-11)`, 1.83e-10 wide: about 3400× the parameter's width. Narrowing the frames 14× moves the entry by only 4% (1.83e-10 to 1.76e-10, margin ±4.7e-11 to ±4.5e-11). So the width is the interval evaluation of the fitted pcurve over a wide parameter, far wider than the geometry needs (the pcurve's own speed is order one). It is not a width the frame owes. The S duct behaves alike: with hodograph frames it moves to the same check on half-edge `20v1`, ±1.9e-12.
+
+**Ruled out:** building the walls at `T`. With the enclosure arm stepping aside wherever the lane's placements are not points:
+- the closed spine and the helix refuse with margins identical to 11 digits;
+- the S duct and the ribbon refuse earlier, at `CarrierKnotNotAPoint`, the carrier's non-point-knot frontier.
+
+**Open** (a design fork):
+- The joint's chart gap reads a fitted pcurve evaluated over an interval parameter. Does it owe that width, or should the stored pcurve on a wall boundary be the exact iso image (the loft's module docs claim every wall boundary stores one), or the evaluation be centred?
+- Should the station mint adopt the hodograph evaluation of the tangent? It is implementation, and it is not enough alone.
 
 **The closed INLANE row's premise no longer holds.** `work/inlane/a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps.md` was closed by PR 6138 on the premise that every station's rotation enters the lane scalar as a point (`RigidMotion::computed_at`). That door is gone, and the entries are no longer points. Its reproduction (the wide-start-frame row at `CAD_TOLERANCE_EPS=5e-13`) still passes, by the PR 6949 reviewer's run, so the row stays closed. These three rows are where the premise's loss shows.
 
