@@ -24,7 +24,7 @@ by a hull lower bound and a chart-point upper bound. Differences worth one home:
   rounding, and the charge is **written twice**: `splice/spline-region-charge`
   (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`)
   copied `Control`, `blend`, `refined`, `point_rounding` and the floor's
-  `rounding_charge` into topo's spline face reading (now `topo/src/spline_trim.rs`) instead of moving
+  `rounding_charge` into `topo/src/boolean/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
   them to one home, because a live PCERT branch
   (`pcert/spline-certificate-door`) was editing `spline_incidence.rs` at the
   time. topo's copy also charges the trim's pieces (`Piece::bbox`) and holds
