@@ -520,4 +520,8 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The fix pass took every item. The `worn` change was reverted toward the doc, since no row reaches that case.
   - CI's only reds were timing rows at the 1.0 s bar, off the PR's path and filed with green.
   - Model-compare row `docs/model-compare-log/rows/PR-6935.md`.
+- 2026-11-14 — **PR [#6929](https://github.com/evgunter/cad/pull/6929) (the section branch to geom-brep as `SectionPick`) accepted.**
+  - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, so no R2.
+  - The fix pass took every item and folded census's `spiric_cap` twin.
+  - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
   - (ONEDOOR orchestrator)
