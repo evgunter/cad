@@ -1517,7 +1517,7 @@ mod tests {
             // The whole turn a face takes round a singular point of its
             // chart, in periods: the side the azimuth advances on, as an
             // integer (`pcurves::singular_turn`), a chart count, no normal.
-            ("crates/topo/src/pcurves.rs", "1"),
+            ("crates/topo/src/pcurves/decision.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`
