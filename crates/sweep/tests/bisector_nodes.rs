@@ -1480,6 +1480,22 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   one in the join and one in the merge.
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
+    // Pinned red at ε 1e-12: one operation escalates a section straddle whose margin
+    // is an enclosure (`work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the glued rod",
+        &[
+            "an f64 margin: Coincidence(Section, Moot)",
+            "curve_carrier_straddle",
+        ],
+        a_rod_glued_in_its_bore_answers_alike_in_either_order_row,
+    );
+}
+
+/// The row [`a_rod_glued_in_its_bore_answers_alike_in_either_order`] runs, under its pin.
+fn a_rod_glued_in_its_bore_answers_alike_in_either_order_row() {
     let tol = Tol::witness();
     let default_band = tol.eps() == geom_core::tolerance::DEFAULT_EPS;
     let bore = finished(
