@@ -6666,6 +6666,9 @@ mod sphere_region_cover_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod apex_start_rows;
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_turn_rows;
+#[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
 #[cfg(test)]

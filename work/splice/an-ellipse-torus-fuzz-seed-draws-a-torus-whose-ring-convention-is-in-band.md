@@ -51,3 +51,10 @@ at, or the row reads a convention refusal in band as the escalation it
 is. Which one depends on whether the door's typed refusal is meant to
 be distinct from `Escalated`; that is SPLICE's call. Once it is fixed,
 pin the seed as a deterministic row beside the fix.
+
+## A second seed (BOXFINISH edge-turns, 2026-11-14)
+
+Seed `0xda3ffbd3eaed595f` at the default ε fails the same way on branch
+`boxfinish/edge-turns` (whose diff does not touch `curve_face`): margin
+9.914e-6 on `ring_torus_convention`, band (1e-6, 1e-5). It reproduces
+with `CAD_FUZZ_SEED=0xda3ffbd3eaed595f`.

@@ -659,6 +659,152 @@ fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
     );
 }
 
+/// **A torus loop's turns count every parallel's own tube turn**
+/// (`props_chart_loop_whole`), at `f64` and at the interval scalar, as
+/// [`a_torus_loop_of_many_meridians_turns_by_their_own_turns`] counts a
+/// meridian's azimuth. On a torus of radii `100ε` and `50ε`, a zig-zag of
+/// 400 parallel arcs across `u ∈ [0, 1]`, each a circle through three
+/// points of the tube climbing it by `0.45ε` (centred under `ε` off the
+/// axis and tipped under `ε` at its radius), turns the tube by `3.6` rad
+/// between them, and a meridian swept back closes it: the loop turns
+/// zero times. Read with its parallels as no tube turn, it turned a whole
+/// turn back: alone it wound the tube, and beside a whole meridian
+/// turning the other way it read as a seamless band. Counted whole, the
+/// zig-zag alone measures and with a whole meridian either way refuses
+/// ([`PropsError::LoopsWindChart`]).
+#[test]
+fn a_torus_loop_of_many_parallels_turns_by_their_own_turns() {
+    type P = [f64; 3];
+    let sub = |a: P, b: P| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let dot = |a: P, b: P| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let cross = |a: P, b: P| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let scale = |a: P, s: f64| [a[0] * s, a[1] * s, a[2] * s];
+    let add = |a: P, b: P| [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    let (rr, r0) = (100.0 * eps(), 50.0 * eps());
+    let at = |u: f64, v: f64| {
+        let rho = rr + r0 * v.cos();
+        [rho * u.cos(), rho * u.sin(), r0 * v.sin()]
+    };
+    // The circle through `a`, `m` and `b`, walked from `a` through `m`
+    // to `b`: its centre, unit normal, radius, `u_ref` (toward `a`) and
+    // the parameter at `b`.
+    let through = |a: P, m: P, b: P| {
+        let (ab, am) = (sub(m, a), sub(b, a));
+        let n = cross(ab, am);
+        let nn = dot(n, n);
+        let c = add(
+            a,
+            scale(
+                add(
+                    scale(cross(n, ab), dot(am, am)),
+                    scale(cross(am, n), dot(ab, ab)),
+                ),
+                0.5 / nn,
+            ),
+        );
+        let n = scale(n, nn.sqrt().recip());
+        let (x, y) = (sub(a, c), sub(b, c));
+        let r = dot(x, x).sqrt();
+        let x = scale(x, r.recip());
+        (c, n, r, x, dot(cross(x, y), n).atan2(dot(x, y)))
+    };
+    let (n, step) = (400usize, 0.45 * eps() / r0);
+    let v_start = -1.8;
+    let arcs: Vec<_> = (0..n)
+        .map(|i| {
+            let (u0, u1) = if i % 2 == 0 { (0.0, 1.0) } else { (1.0, 0.0) };
+            let v = v_start + i as f64 * step;
+            through(at(u0, v), at(0.5, v + 0.5 * step), at(u1, v + step))
+        })
+        .collect();
+    let v_end = v_start + n as f64 * step;
+    assert!(
+        v_end - v_start > 3.5,
+        "the parallels turn {} rad between them",
+        v_end - v_start
+    );
+    fn measure<T: geom_core::Decide>(
+        arcs: &[(P, P, f64, P, f64)],
+        (rr, r0): (f64, f64),
+        (v_start, v_end): (f64, f64),
+        with_meridian: Option<bool>,
+    ) -> Result<(), PropsError> {
+        let mut zig: Vec<LoopEdge<T>> = arcs
+            .iter()
+            .map(|&(c, n, r, x, t1)| {
+                edge(
+                    Curve3::circle(
+                        p3(c[0], c[1], c[2]),
+                        v3(n[0], n[1], n[2]),
+                        T::from_f64(r),
+                        v3(x[0], x[1], x[2]),
+                    ),
+                    0.0,
+                    t1,
+                    0,
+                    0,
+                )
+            })
+            .collect();
+        let meridian = |u: f64, (t0, t1): (f64, f64)| {
+            let (s, c) = u.sin_cos();
+            edge(
+                Curve3::circle(
+                    p3(rr * c, rr * s, 0.0),
+                    v3(s, -c, 0.0),
+                    T::from_f64(r0),
+                    v3(c, s, 0.0),
+                ),
+                t0,
+                t1,
+                0,
+                0,
+            )
+        };
+        zig.push(meridian(0.0, (v_end, v_start)));
+        let s = Surface::Torus {
+            center: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            major_radius: T::from_f64(rr),
+            minor_radius: T::from_f64(r0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        let ends = if with_meridian == Some(true) {
+            (0.0, TAU)
+        } else {
+            (TAU, 0.0)
+        };
+        let whole = vec![meridian(3.0, ends)];
+        let loops: Vec<&[LoopEdge<T>]> = if with_meridian.is_some() {
+            vec![&zig, &whole]
+        } else {
+            vec![&zig]
+        };
+        curved_face_loops(&s, &loops, true, band()).map(|_| ())
+    }
+    let run = |scalar: &str, f: &dyn Fn(Option<bool>) -> Result<(), PropsError>| {
+        for up in [true, false] {
+            assert_eq!(
+                f(Some(up)),
+                Err(PropsError::LoopsWindChart),
+                "with a whole meridian (up: {up}) at {scalar}"
+            );
+        }
+        assert_eq!(f(None), Ok(()), "the zig-zag alone at {scalar}");
+    };
+    let span = (v_start, v_end);
+    run("f64", &|m| measure::<f64>(&arcs, (rr, r0), span, m));
+    run("the interval scalar", &|m| {
+        measure::<geom_core::Interval>(&arcs, (rr, r0), span, m)
+    });
+}
+
 /// **A torus face whose parallels and meridians are long chains of arcs
 /// off centre measures**, at `f64` and at the interval scalar. A torus
 /// rectangle `u ∈ [0, U]`, `v ∈ [v_c − V, v_c + V]` about the inner or
