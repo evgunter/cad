@@ -125,10 +125,10 @@ fn corners<T: Decide + AtRestPolicy>(
     };
     let mut out: Vec<(ChartCorner, geom_core::Point3<T>)> = Vec::new();
     for (he, image) in rows {
-        let Ok((_, t0, t1)) = crate::pcurves::half_edge_carrier(body, *he) else {
+        let Ok(curve) = crate::pcurves::half_edge_curve(body, *he) else {
             continue;
         };
-        for p in image.pcurve().span_ends((t0, t1)) {
+        for p in image.pcurve().span_ends(curve.edge_span()) {
             let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
                 continue;
             };

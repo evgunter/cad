@@ -3632,7 +3632,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.params;
+        let (t0, t1) = row.params.ends();
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -3777,7 +3777,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.params;
+                            let (t0, t1) = row.params.ends();
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -3792,7 +3792,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.params;
+                    let (t0, t1) = row.params.ends();
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))

@@ -552,26 +552,32 @@ pub enum Pcurve<T: Real> {
     /// collapse rather than a boundary row, and the variant is the same
     /// one — nothing reads "boundary" off it.
     ///
-    /// **Its ends, where the mint states them.** `p0 + pl·t` read at an
-    /// end of its edge's span is that end through arithmetic, and at an
+    /// **Its ends, where they are stated.** `p0 + pl·t` read at an end of
+    /// its edge's span is that end through arithmetic, and at an
     /// enclosure scalar the arithmetic forgets what the construction
     /// knew: a rim whose span is a computed length `L` is minted with
     /// `pl = 1/L`, and `pl·L` encloses `1` without being it. A mint that
     /// places the image from one chart point at its edge's start to
     /// another at its end (a boundary row or column traversed whole)
     /// stores the two in `ends`, and [`Pcurve::span_ends`] reads them
-    /// there; every other image reads its ends through the map. Check 3
-    /// certifies a stored end at the span end it images
+    /// there; every other image reads its ends through the map. A stated
+    /// end is certified twice: check 3 reads it at the span end it images
     /// (`schedule_residuals`), so an end the carrier does not reach is
-    /// refused rather than read.
+    /// refused, and check 4's envelope carries its metred distance from
+    /// the map's value there, which the rectangle lane pads by.
     IsoLine {
         /// The chart point at `t = 0`.
         p0: Point2<T>,
         /// The velocity in chart coordinates (constant).
         pl: Vec2<T>,
         /// The chart points at the start and the end of the span of the
-        /// edge the image is stored on, as its mint placed them; `None`
-        /// where the mint placed the line by its map alone.
+        /// edge the image is stored on. `Some` holds what a mint stated
+        /// (a boundary row's corners, exact; the importer's column, whose
+        /// corners a banded selection chose), and, where an operation
+        /// moved one end of the span, the map's value there
+        /// ([`Pcurve::with_end_at`]: a split's cut, a re-anchored end, both
+        /// ends of a joined edge). `None` is an image placed by its map
+        /// alone, every end read through the map.
         ends: Option<[Point2<T>; 2]>,
     },
     /// The **circular-ARC rim** on a NURBS chart (M8-3): the chart
@@ -1052,6 +1058,34 @@ pub fn harmonic_form_of<T: Real>(u: Channel<T>, v: Channel<T>) -> HarmonicForm<T
     )
 }
 
+/// **The span of the edge an image is stored on**, the one span
+/// [`Pcurve::span_ends`] reads an image's ends over. It is handed out by
+/// the holders of that pairing, a cache ([`PcurveCache::edge_span`]) and
+/// an edge's certified curve ([`crate::EdgeCurve::edge_span`]), so no
+/// caller can ask an image for its ends over another span.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredSpan<T>(T, T);
+
+impl<T: Copy> StoredSpan<T> {
+    /// The span `(t0, t1)`, held by the caller that pairs it with its image.
+    pub(crate) fn new(t0: T, t1: T) -> Self {
+        Self(t0, t1)
+    }
+
+    /// A span stated by a suite, for an image it builds by hand.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn for_tests(t0: T, t1: T) -> Self {
+        Self(t0, t1)
+    }
+
+    /// The span's ends `(t0, t1)`.
+    #[must_use]
+    pub fn ends(self) -> (T, T) {
+        (self.0, self.1)
+    }
+}
+
 impl<T: Real> Pcurve<T> {
     /// The `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0` to
     /// `u1` at `t1`, the span of the edge it is minted for, with its two
@@ -1438,18 +1472,20 @@ impl<T: Real> Pcurve<T> {
 }
 
 impl<T: SpanLocate> Pcurve<T> {
-    /// The chart points at the two ends `(t0, t1)` of the span of the
-    /// edge this image is stored on: an [`Pcurve::IsoLine`]'s stated
-    /// `ends` where its mint placed them, the map's value there
-    /// ([`Pcurve::eval`]) otherwise. `(t0, t1)` is that edge's span, as
-    /// a cache's [`PcurveCache::params`] or an edge's interval holds it;
-    /// any other span reads the map.
-    pub fn span_ends(&self, (t0, t1): (T, T)) -> [Point2<T>; 2] {
+    /// The chart points at the two ends of `span`, the span of the edge
+    /// this image is stored on: an [`Pcurve::IsoLine`]'s stated `ends`
+    /// where it holds them, the map's value at the span's ends
+    /// ([`Pcurve::eval`]) otherwise. The ends are the edge's, which is why
+    /// the span is a [`StoredSpan`]: a sub-span cannot be asked.
+    pub fn span_ends(&self, span: StoredSpan<T>) -> [Point2<T>; 2] {
         match self {
             Pcurve::IsoLine {
                 ends: Some(ends), ..
             } => *ends,
-            _ => [self.eval(t0), self.eval(t1)],
+            _ => {
+                let (t0, t1) = span.ends();
+                [self.eval(t0), self.eval(t1)]
+            }
         }
     }
 
@@ -4936,6 +4972,12 @@ impl<T: Real> PcurveCache<T> {
         (self.param_start, self.param_end)
     }
 
+    /// [`Self::params`] as the span [`Pcurve::span_ends`] reads this
+    /// cache's image over.
+    pub fn edge_span(&self) -> StoredSpan<T> {
+        StoredSpan::new(self.param_start, self.param_end)
+    }
+
     /// The certification record of the run that admitted this cache.
     pub fn certificate(&self) -> &PcurveCertificate<T> {
         &self.certificate
@@ -5089,9 +5131,7 @@ impl<T: Decide> PcurveCache<T> {
                 // The iso lane (M6-3): closed-form like the harmonic one —
                 // no bracket obligation — so it shares this `Decide`-scalar
                 // door.
-                Pcurve::IsoLine { p0, pl, ends } => {
-                    run_iso_checks((*p0, *pl, *ends), t0, t1, carrier, surface, band)
-                }
+                iso @ Pcurve::IsoLine { .. } => run_iso_checks(iso, t0, t1, carrier, surface, band),
                 Pcurve::IsoArc {
                     p0,
                     pd,
@@ -5352,8 +5392,8 @@ impl<T: Decide> PcurveCache<T> {
                     band,
                     lane,
                 ),
-                Pcurve::IsoLine { p0, pl, ends } => run_iso_checks(
-                    (*p0, *pl, *ends),
+                iso @ Pcurve::IsoLine { .. } => run_iso_checks(
+                    iso,
                     self.param_start,
                     self.param_end,
                     carrier,
@@ -8446,7 +8486,7 @@ fn schedule_residuals<T: Decide>(
     // The first and last stations are the span's ends, read as the image
     // states them there: a stated end is certified where it is read.
     let last = CERT_SAMPLES - 1;
-    let [start, end] = pcurve.span_ends((stations.at(0), stations.at(last)));
+    let [start, end] = pcurve.span_ends(StoredSpan::new(stations.at(0), stations.at(last)));
     for i in 0..CERT_SAMPLES {
         let t = stations.at(i);
         let chart_point = match i {
@@ -9254,11 +9294,14 @@ fn side_of<T: Decide>(
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the harmonic lane's
 /// fidelity idiom transposed. Every slack is exactly zero on the
-/// minted path (the builder mints exact `0`/`1` chart values).
+/// minted path (the builder mints exact `0`/`1` chart values). A stated
+/// end ([`Pcurve::span_ends`]) adds its metred distance from the map's
+/// value at that end: the rectangle lane reads the stated end and pads
+/// by this envelope, so the pad covers the stated corner wherever the
+/// map leaves it.
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(
-    (p0, pl, ends): (Point2<T>, Vec2<T>, Option<[Point2<T>; 2]>),
+    pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -9295,12 +9338,15 @@ fn run_iso_checks<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
 
+    let &Pcurve::IsoLine { p0, pl, ends } = pcurve else {
+        unreachable!("run_iso_checks reads an IsoLine: both its callers dispatch on the variant")
+    };
+
     // ---- Check 3: the schedule, in metres through the map. ----
-    let pcurve = Pcurve::IsoLine { p0, pl, ends };
     let mut max_residual = T::zero();
     schedule_residuals(
         Record::Verdict,
-        &pcurve,
+        pcurve,
         Stations::Computed(t0, t1),
         carrier,
         surface,
@@ -9371,6 +9417,18 @@ fn run_iso_checks<T: Decide>(
             });
         }
     };
+    let off_map = ends.map_or(T::zero(), |stated| {
+        let mapped = [pcurve.eval(t0), pcurve.eval(t1)];
+        stated
+            .iter()
+            .zip(mapped)
+            .map(|(end, at)| {
+                stretch_u.to_meters((end.x - at.x).abs())
+                    + stretch_v.to_meters((end.y - at.y).abs())
+            })
+            .fold(T::zero(), |a, b| a.max(b))
+    });
+    let envelope = envelope + off_map;
     envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
@@ -15720,7 +15778,14 @@ mod tests {
             ),
             "a ruling past the patch's end is off the patch: {at_door:?}"
         );
-        let got = run_iso_checks((p0, pl, None), 0.0, 1.5, &carrier, &ruled_wall(), band());
+        let got = run_iso_checks(
+            &Pcurve::IsoLine { p0, pl, ends: None },
+            0.0,
+            1.5,
+            &carrier,
+            &ruled_wall(),
+            band(),
+        );
         match got {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(

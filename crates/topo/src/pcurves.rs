@@ -1132,7 +1132,7 @@ pub(crate) fn half_edge_face<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> FaceVi
 ///
 /// [`PcurveMintError::NoCarrier`] where the edge is null scaffolding.
 #[track_caller]
-fn half_edge_curve<T: Real>(
+pub(crate) fn half_edge_curve<T: Real>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, PcurveMintError> {
@@ -2464,8 +2464,8 @@ pub struct LiftedRow<T: Real> {
     /// this half-edge.
     pub pcurve: Pcurve<T>,
     /// The carrier interval the image is over, in the edge's forward
-    /// order.
-    pub params: (T, T),
+    /// order: the edge's span ([`geom_brep::Pcurve::span_ends`]).
+    pub params: geom_brep::StoredSpan<T>,
     /// Whether the chain traverses the image forward.
     pub plus: bool,
 }
@@ -2474,7 +2474,8 @@ impl<T: Real> LiftedRow<T> {
     /// The carrier parameters the chain enters and leaves the image at.
     #[must_use]
     pub fn entry_exit(&self) -> (T, T) {
-        entry_exit(self.plus, self.params.0, self.params.1)
+        let (t0, t1) = self.params.ends();
+        entry_exit(self.plus, t0, t1)
     }
 }
 
@@ -2559,7 +2560,7 @@ impl<T: Real> Lift<T> {
         self.rows
             .iter()
             .map(|row| {
-                let (t0, t1) = row.params;
+                let (t0, t1) = row.params.ends();
                 row.pcurve
                     .closed_form_span_box(t0, t1)
                     .map(|b| ((b.u_min, b.u_max), (b.v_min, b.v_max)))
@@ -2711,7 +2712,7 @@ impl<T: Decide> Lift<T> {
                     half_edge,
                     lift,
                     pcurve,
-                    params: row.params(),
+                    params: row.edge_span(),
                     plus: is_plus(body, half_edge),
                 })
             })
@@ -2807,18 +2808,23 @@ impl<T: Decide> Lift<T> {
             .collect();
         let winding = closes.then(|| Winding::of(walked.iter().filter_map(|pinned| pinned.3)));
         let mut rows = Vec::with_capacity(walked.len());
-        for (i, (((_, image), t0, t1, _), lift)) in
+        for (i, (((_, image), _, _, _), lift)) in
             walked.into_iter().zip(lift_decks(&elements)).enumerate()
         {
             let half_edge = charted[i].0;
             let pcurve = lift
                 .apply(image.pcurve(), surface, periods)
                 .ok_or(LiftRefusal::Joint(PinMiss::Discontinuity))?;
+            let params = half_edge_curve(body, half_edge)
+                .unwrap_or_else(|e| {
+                    unreachable!("{half_edge:?} was charted over its edge's certified curve: {e}")
+                })
+                .edge_span();
             rows.push(LiftedRow {
                 half_edge,
                 lift,
                 pcurve,
-                params: (t0, t1),
+                params,
                 plus: is_plus(body, half_edge),
             });
         }

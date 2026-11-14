@@ -11,7 +11,7 @@
 
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
-use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
+use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, StoredSpan};
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
 use std::sync::Arc;
@@ -36,7 +36,7 @@ fn a_row_placed_by_its_ends_reads_them_as_placed() {
     fn at<T: Decide + Bounds>(scalar: &str) {
         let span = (T::zero(), computed_length::<T>());
         let row = Pcurve::iso_row(T::one(), (T::zero(), T::one()), span);
-        let [a, b] = row.span_ends(span);
+        let [a, b] = row.span_ends(StoredSpan::for_tests(span.0, span.1));
         let read = [a.x, a.y, b.x, b.y].map(point);
         assert_eq!(
             read,
@@ -71,7 +71,7 @@ fn an_end_placed_short_of_the_charts_edge_reads_short() {
         let short = 1.0f64.next_down();
         let span = (T::zero(), computed_length::<T>());
         let row = Pcurve::iso_row(T::zero(), (T::zero(), T::from_f64(short)), span);
-        let [_, b] = row.span_ends(span);
+        let [_, b] = row.span_ends(StoredSpan::for_tests(span.0, span.1));
         assert_eq!(
             point(b.x).map(f64::to_bits),
             Some(short.to_bits()),
@@ -81,7 +81,7 @@ fn an_end_placed_short_of_the_charts_edge_reads_short() {
             unreachable!("iso_row mints an IsoLine")
         };
         let unstated = Pcurve::IsoLine { p0, pl, ends: None };
-        let [_, mapped] = unstated.span_ends(span);
+        let [_, mapped] = unstated.span_ends(StoredSpan::for_tests(span.0, span.1));
         let want = unstated.eval(span.1);
         assert_eq!(
             [mapped.x.lo(), mapped.x.hi()],
@@ -102,8 +102,8 @@ fn a_split_keeps_a_stated_end_only_on_the_child_that_keeps_it() {
     let row = Pcurve::iso_row(1.0, (0.0, 1.0), span);
     let cut = 0.8;
     let (first, second) = row.split_at(cut);
-    let [fa, fb] = first.span_ends((span.0, cut));
-    let [sa, sb] = second.span_ends((cut, span.1));
+    let [fa, fb] = first.span_ends(StoredSpan::for_tests(span.0, cut));
+    let [sa, sb] = second.span_ends(StoredSpan::for_tests(cut, span.1));
     let mapped = row.eval(cut);
     assert_eq!((fa.x, fa.y), (0.0, 1.0), "the first child keeps the start");
     assert_eq!((sb.x, sb.y), (1.0, 1.0), "the second child keeps the end");
@@ -179,6 +179,80 @@ fn a_stated_end_the_carrier_does_not_reach_is_refused() {
             ),
             "{scalar}: a stated end past where its edge ends is refused at the last station: \
              {got:?}"
+        );
+    }
+    at::<f64>("f64");
+    at::<Interval>("Interval");
+}
+
+/// The row `v = 0` from `u = 0` to `u = 1 − δ`, δ = ε/2, as `image`
+/// states it, certified on the unit chart (whose metric is the identity,
+/// so a chart gap is that many metres): its certificate's envelope.
+fn envelope_over_a_short_edge<T: Decide + Bounds>(
+    image: impl Fn((T, T)) -> Pcurve<T>,
+    scalar: &str,
+) -> (f64, f64) {
+    let delta = 0.5 * crate::shared::tol::eps();
+    let carrier = Curve3::line(
+        Point3::new(T::zero(), T::zero(), T::zero()),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    );
+    let span = (T::zero(), T::from_f64(1.0 - delta));
+    let cache = PcurveCache::certify(image(span), span.0, span.1, &carrier, &unit_chart(), band())
+        .unwrap_or_else(|e| panic!("{scalar}: the row certifies in band: {e:?}"));
+    (cache.certificate().envelope.hi(), delta)
+}
+
+/// **A stated end off its own map is in the envelope.** The map is the
+/// edge's own, stopping at `u = 1 − δ`; the stated ends are the chart's
+/// corners. Check 3 reads the stated end, in band, and passes; the
+/// rectangle lane reads `u = 1` and pads by `perimeter·envelope`, so the
+/// envelope must cover the stated end's δ from the map, or the pad does
+/// not cover the region the lane reads past the edge.
+#[test]
+fn a_stated_end_off_its_map_is_in_the_envelope() {
+    fn at<T: Decide + Bounds>(scalar: &str) {
+        let (envelope, delta) = envelope_over_a_short_edge::<T>(
+            |span| {
+                let Pcurve::IsoLine { p0, pl, .. } =
+                    Pcurve::iso_row(T::zero(), (T::zero(), span.1), span)
+                else {
+                    unreachable!("iso_row mints an IsoLine")
+                };
+                Pcurve::IsoLine {
+                    p0,
+                    pl,
+                    ends: Some([
+                        Point2::new(T::zero(), T::zero()),
+                        Point2::new(T::one(), T::zero()),
+                    ]),
+                }
+            },
+            scalar,
+        );
+        assert!(
+            envelope >= 0.99 * delta,
+            "{scalar}: the envelope {envelope:e} covers the stated end's {delta:e} off its map"
+        );
+    }
+    at::<f64>("f64");
+    at::<Interval>("Interval");
+}
+
+/// **A corner the mint states over a short edge is in the envelope.**
+/// `iso_row` derives the map from the stated corners, so over an edge
+/// that stops at `u = 1 − δ` the map runs `0 → 1` and departs the carrier
+/// by up to δ: check 4's envelope of the map says so.
+#[test]
+fn a_corner_the_mint_states_over_a_short_edge_is_in_the_envelope() {
+    fn at<T: Decide + Bounds>(scalar: &str) {
+        let (envelope, delta) = envelope_over_a_short_edge::<T>(
+            |span| Pcurve::iso_row(T::zero(), (T::zero(), T::one()), span),
+            scalar,
+        );
+        assert!(
+            envelope >= 0.99 * delta,
+            "{scalar}: the envelope {envelope:e} covers the map's {delta:e} past the carrier"
         );
     }
     at::<f64>("f64");

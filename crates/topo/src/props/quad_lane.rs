@@ -1107,7 +1107,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
         let (t0, t1) = cache.params();
-        let [a, b] = image.span_ends((t0, t1));
+        let [a, b] = image.span_ends(cache.edge_span());
         let (ax, ay) = (
             exact(Interval::from_certified(a.x))?,
             exact(Interval::from_certified(a.y))?,
@@ -1213,7 +1213,9 @@ type SegmentSlack = ((f64, f64), (f64, f64));
 
 /// How far an iso image's point at `t` may round from the vertex it
 /// images, per chart axis, from what it is computed from: an `IsoLine`
-/// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
+/// is `p₀ + l·t`, two roundings of those terms, or its stated end, which
+/// carries no rounding of its own and so takes the same slack as the map
+/// it stands beside (a bound, never tighter than needed); an `IsoArc` is
 /// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
 /// which rounds `g` itself by a few ulps of one, and through each
 /// sub-arc's Möbius change where its row's end weights differ
@@ -1392,7 +1394,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         let (t0, t1) = cache.params();
-        let [pa, pb] = image.span_ends((t0, t1));
+        let [pa, pb] = image.span_ends(cache.edge_span());
         let (a, b) = if le.forward {
             ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
         } else {

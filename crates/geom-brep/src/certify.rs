@@ -3106,6 +3106,12 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
+    /// [`Self::params`] as the span [`crate::Pcurve::span_ends`] reads
+    /// this edge's chart images over.
+    pub fn edge_span(&self) -> crate::StoredSpan<T> {
+        crate::StoredSpan::new(self.param_start, self.param_end)
+    }
+
     /// What the scalar's door gave this edge to carry
     /// ([`Real::Carries`]): the attachment-time certification record at
     /// a certifying scalar, nothing at a tangent-transport one.
