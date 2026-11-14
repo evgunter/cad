@@ -23,6 +23,8 @@ No volume is wrong: each body passes its four checks and its enclosure holds the
 
 **When.** The nightly's 1e-6 row passed the second and third on 11-03 (main `2d9dc809`) and failed all three on 11-04 (main `63cbd7c3`); the first is not in the 11-03 run and was red the first night it ran. The pads have widened since: `1.6e-7`, `3.8e-6`, `3.4e-6` on 11-04.
 
+**Bisected, first-parent, at ε 1e-6:** the second and third rows are green at `b2337e9e4`, `c02eb40cf`, `d6d0a7fe2`, `6775be78c`, `c053873aa` and `aef1e5892`, and red at `898df16c9`, the merge of PR 6478 (`spiricarm/rotational-lane-cylinder`), whose first parent is `aef1e5892`. The first row arrived in that merge and was red at 1e-6 when it arrived. Before the lane these runs refused at the volume lane; since it they build, and the lane's pad at 1e-6 is over the budget.
+
 **Same shape as a closed row.** `main-red-two-cylinder-sphere-volume-pads-pass-their-ceiling-at-1e-6-since-the-sphere-lane` (PR 6840) found the cylinder × sphere rows holding an ε-scaled pad to a fixed `1e-7`, and moved them to the resolution ceiling with measured guards. `cylinder-sphere-pad-ceilings-speak-four-vocabularies` is the class.
 
 **Owed.** Decide which side is wrong, as that row did: if the rotational lane's pad on these chorded walls is ε-scaled by construction, the three rows read a ceiling stated from the resolution (`judged_at_resolution`) with a measured guard; if not, the pad is too wide. Do not move the budget to fit the number. Say why the pads doubled between 11-04 and 11-13.
