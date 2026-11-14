@@ -184,7 +184,7 @@ impl<'a> ChartRow<'a> {
             },
             Surface::Cone { half_angle, .. } => Self::Cone {
                 half_angle,
-                rho_max: crate::sizing::cone_face_rho_max(body, fk)?,
+                rho_max: crate::sizing::cone_face_rho_max(body, fk, half_angle)?,
             },
             Surface::Sphere { center, radius, .. } => Self::Sphere {
                 center,
@@ -338,54 +338,90 @@ mod tests {
 
     /// **The fold check reads the face's side through the bit.** On each
     /// analytic row, at a point off the carrier on either side of it,
-    /// `outward` points away from the point of the axis (the centre)
-    /// beneath it exactly when `sense` is set.
+    /// `outward` points away from the point it is measured from exactly when
+    /// `sense` is set: the foot on the axis for a cylinder and a cone, the
+    /// centre for a sphere, the centre of the meridian circle through the
+    /// point for a torus.
     #[test]
     fn outward_points_off_the_axis_exactly_when_sense_is_set() {
         let o = Point3::new(0.0, 0.0, 0.0);
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
-        let cylinder = Surface::Cylinder {
-            origin: o,
-            axis: z,
-            radius: 1.0,
-            u_ref: x,
+        let foot = |p: Point3<f64>| Point3::new(0.0, 0.0, p.z);
+        let core = |p: Point3<f64>| {
+            let rho = (p.x * p.x + p.y * p.y).sqrt();
+            Point3::new(p.x / rho, p.y / rho, 0.0)
         };
-        let sphere = Surface::Sphere {
-            center: o,
-            radius: 1.0,
-            axis: z,
-            u_ref: x,
-        };
-        let rows = [
+        type From = fn(Point3<f64>) -> Point3<f64>;
+        type Case<'a> = (&'a str, Surface<f64>, ChartRow<'a>, From, [Point3<f64>; 2]);
+        let rows: [Case<'_>; 4] = [
             (
                 "cylinder",
-                &cylinder,
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
                 ChartRow::Cylinder {
                     origin: o,
                     axis: z,
                     radius: 1.0,
                 },
-                // The foot on the axis beneath the point.
-                (|p: Point3<f64>| Point3::new(0.0, 0.0, p.z)) as fn(Point3<f64>) -> Point3<f64>,
+                foot,
+                [Point3::new(0.6, 0.3, 0.2), Point3::new(1.2, 0.6, 0.4)],
             ),
             (
                 "sphere",
-                &sphere,
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
                 ChartRow::Sphere {
                     center: o,
                     radius: 1.0,
                     widest: 1.0,
                 },
                 |_| Point3::new(0.0, 0.0, 0.0),
+                [Point3::new(0.6, 0.3, 0.2), Point3::new(1.2, 0.6, 0.4)],
+            ),
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: core::f64::consts::FRAC_PI_4,
+                    u_ref: x,
+                },
+                ChartRow::Cone {
+                    half_angle: core::f64::consts::FRAC_PI_4,
+                    rho_max: 1.0,
+                },
+                foot,
+                [Point3::new(0.2, 0.1, 0.5), Point3::new(0.6, 0.3, 0.4)],
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 1.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                ChartRow::Torus {
+                    major: 1.0,
+                    minor: 0.5,
+                },
+                core,
+                [Point3::new(1.1, 0.0, 0.1), Point3::new(1.5, 0.4, 0.3)],
             ),
         ];
-        for (name, surface, row, from) in &rows {
+        for (name, surface, row, from, points) in &rows {
             for sense in [true, false] {
-                for (side, p) in [
-                    ("inside", Point3::new(0.6, 0.3, 0.2)),
-                    ("outside", Point3::new(1.2, 0.6, 0.4)),
-                ] {
+                for (side, p) in ["inside", "outside"].into_iter().zip(*points) {
                     let n = row
                         .outward(surface, sense, p)
                         .expect("an analytic row reads outward")

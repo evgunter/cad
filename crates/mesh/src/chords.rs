@@ -26,8 +26,8 @@
 //! `(h_u, h_v)` the face's steps at its target ([`FaceLattice::of`]) and
 //! `(s_u, s_v)` the per-axis speed of the image the face's lane reads
 //! ([`FaceLattice::speeds`]): the iso image on the curved lane, the
-//! stored row's [`Pcurve::speed_bound`] on the trimmed lane's sphere and
-//! spline arms. This is `crates/mesh/README.md` `[mesh.sizing]`'s *rim
+//! stored row's [`Pcurve::speed_bound`] on the trimmed lane's arms but
+//! the cylinder's. This is `crates/mesh/README.md` `[mesh.sizing]`'s *rim
 //! chords use the face's grid step*, stated once; a face reaches a count
 //! through it and through its target, and nowhere else.
 //!
@@ -321,7 +321,10 @@ fn tighten(
         };
         let (su, sv) = lattice.speeds(body, s.half_edge, s.face, curve, ek, &mut joints)?;
         let (hu, hv) = lattice.steps;
-        if let Reads::SphereRows = lattice.reads {
+        if let Reads::ChartRows {
+            pole_budget: true, ..
+        } = lattice.reads
+        {
             // An arc passing near a pole asks about `ρ_c·Δt/(r·d·h_u)`
             // chords at polar distance `d` (the schedule is uniform, so as
             // fine everywhere as at the closest approach). Past the arm's
@@ -370,9 +373,14 @@ enum Reads {
     /// (`topo::chart_iso::classify_kind`) on the face's chart, and reads
     /// no stored row (a spindle sheet stores none).
     Iso(topo::chart::Chart<f64>),
-    /// The trimmed lane's sphere arm reads the stored row: a parallel's
-    /// or a meridian's harmonic image, a tilted circle's projected one.
-    SphereRows,
+    /// The trimmed lane's analytic arms read the stored row: a rim's, a
+    /// meridian's or a ruling's harmonic image, a tilted circle's projected
+    /// one, a section conic's focal-section one, a spiric's. On a chart
+    /// with singular rows an image through one has no speed bound
+    /// (`SphereTrimShape { ThroughPole }`), and on the sphere each edge
+    /// is held to the arm's per-edge budget
+    /// (`trimmed::MAX_SPHERE_EDGE_CHORDS`).
+    ChartRows { singular: bool, pole_budget: bool },
     /// The trimmed lane's spline arm reads the stored row.
     SplineRows,
 }
@@ -381,9 +389,8 @@ impl FaceLattice {
     /// The lattice of face `fk` beside `curve`, or `None` for a face whose
     /// lane lays none the rule sizes against: the planar lane, the trimmed
     /// lane's cylinder arm (its boundary is chorded at its target alone,
-    /// `work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`),
-    /// and a face the trimmed lane's chart roster refuses. Its steps are
-    /// the face's chart row's ([`ChartRow::steps`]):
+    /// `work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
+    /// Its steps are the face's chart row's ([`ChartRow::steps`]):
     ///
     /// - **Curved lane**, beside a circle (its rims and meridians, the iso
     ///   sides its lattice is sized against: a ruling moves along a ruled
@@ -391,8 +398,8 @@ impl FaceLattice {
     ///   so the lane refuses that face at its own guard), at δ. Uncapped;
     ///   why the cap moves no count is at
     ///   [`crate::sizing::torus_grid_steps`].
-    /// - **Trimmed sphere arm**: at the face's target
-    ///   ([`crate::trimmed::arm_steps`]).
+    /// - **Trimmed lane's cone, sphere, torus and spindle arms**: at the
+    ///   face's target ([`crate::trimmed::arm_steps`]).
     /// - **Spline arm** (a described NURBS face or an approximating
     ///   surface's fit): the face's whole-patch certificate steps at the
     ///   lane's lattice budget, from the shared [`FaceBounds`] memo, so the
@@ -427,18 +434,11 @@ impl FaceLattice {
                     }
                     face_bound(bounds, payload, fk)?;
                 }
-                match *surface {
-                    geom::Surface::Cone { .. }
-                    | geom::Surface::Torus { .. }
-                    | geom::Surface::Spindle { .. } => return Ok(None),
-                    geom::Surface::Sphere { .. }
-                        if !crate::trimmed::takes_sphere_arm(body, fk, surface)? =>
-                    {
-                        return Ok(None);
-                    }
-                    _ => {}
-                }
                 let row = ChartRow::of(body, fk, surface, bounds)?;
+                let rows = |pole_budget| Reads::ChartRows {
+                    singular: !row.singular_rows().is_empty(),
+                    pole_budget,
+                };
                 match row {
                     ChartRow::Spline { .. } => Some(Self {
                         steps: row.steps(delta),
@@ -446,12 +446,15 @@ impl FaceLattice {
                     }),
                     ChartRow::Sphere { .. } => Some(Self {
                         steps: crate::trimmed::arm_steps(body, fk, &row, delta)?,
-                        reads: Reads::SphereRows,
+                        reads: rows(true),
                     }),
-                    ChartRow::Cylinder { .. }
-                    | ChartRow::Cone { .. }
-                    | ChartRow::Torus { .. }
-                    | ChartRow::Spindle { .. } => None,
+                    ChartRow::Cone { .. } | ChartRow::Torus { .. } | ChartRow::Spindle { .. } => {
+                        Some(Self {
+                            steps: crate::trimmed::arm_steps(body, fk, &row, delta)?,
+                            reads: rows(false),
+                        })
+                    }
+                    ChartRow::Cylinder { .. } => None,
                 }
             }
         })
@@ -487,21 +490,28 @@ impl FaceLattice {
                     )),
                 };
             }
-            Reads::SphereRows => {
+            Reads::ChartRows { .. } => {
                 let cache = body.pcurve(hek).ok_or_else(|| {
                     refuse(
-                        "trimmed sphere face half-edge carries no stored pcurve cache — \
+                        "trimmed analytic face half-edge carries no stored pcurve cache — \
                          without one the chord schedule has no UV step bound",
                     )
                 })?;
-                if !matches!(
-                    cache.pcurve(),
-                    Pcurve::Harmonic { .. } | Pcurve::Projected(_)
-                ) {
-                    return Err(refuse(
-                        "trimmed sphere face half-edge carries an image that is neither \
-                         harmonic nor projected — no sphere mint produces one",
-                    ));
+                match cache.pcurve() {
+                    Pcurve::Harmonic { .. }
+                    | Pcurve::Projected(_)
+                    | Pcurve::FocalSection(_)
+                    | Pcurve::Spiric { .. } => {}
+                    Pcurve::IsoLine { .. }
+                    | Pcurve::IsoArc { .. }
+                    | Pcurve::General(_)
+                    | Pcurve::Fitted(_) => {
+                        return Err(refuse(
+                            "trimmed analytic face half-edge carries an iso, arc-rim, \
+                             general or fitted image — those are a spline chart's forms, and \
+                             no analytic mint produces one",
+                        ));
+                    }
                 }
                 cache
             }
@@ -521,7 +531,7 @@ impl FaceLattice {
             .pcurve()
             .speed_bound(t0, t1)
             .map_err(|e| match (e, &self.reads) {
-                (NoSpeedBound::ThroughSingularSet, Reads::SphereRows) => {
+                (NoSpeedBound::ThroughSingularSet, Reads::ChartRows { singular: true, .. }) => {
                     TessellateError::SphereTrimShape {
                         face: fk,
                         edge: ek,

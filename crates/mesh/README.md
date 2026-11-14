@@ -39,9 +39,9 @@ worst triangle, and takes the coarsest step that bound allows.
   (`chords::tighten`): on each chart axis, a boundary's chord count is
   at least its image's speed along that axis
   (`geom_brep::Pcurve::speed_bound`) times the parameter span, over the
-  face's lattice step on that axis. The curved lane, the trimmed sphere
-  and the NURBS lane are sized by it; the trimmed cylinder's boundary is
-  chorded at its target alone.
+  face's lattice step on that axis. The curved lane, the trimmed lane's
+  cone, sphere, torus and spindle arms and the NURBS lane are sized by
+  it; the trimmed cylinder's boundary is chorded at its target alone.
 - **A lane without its theorem yet** keeps an explicitly named
   `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
   is to write the theorem, not to tune the factor.

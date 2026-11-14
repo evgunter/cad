@@ -43,18 +43,19 @@ fn tol() -> Tol {
 /// One `tessellate` answer, by the function that produced it.
 #[derive(Debug, PartialEq, Eq, Clone)]
 enum Got {
-    /// `Ok`, and `validate::check_mesh` passes.
+    /// `Ok`, `validate::check_mesh` passes, and the mesh is the body's
+    /// ([`geometry`]).
     Meshed,
-    /// `UnsupportedCurve` from `trimmed::trim_frontier` (the chart
-    /// roster's fallback in `tessellate_trimmed`): the named edge's
-    /// carrier, and the curved chart beside it.
-    Frontier(CurveKind, SurfaceKind),
     /// `UnsupportedCurve` from `chords::nurbs_chord_count`, in the chord
     /// pass, before any face is dispatched: a B-spline carrier with an
     /// interior knot of multiplicity equal to its degree.
     Kink(CurveKind),
     /// `UnsupportedCurve` from `trimmed::trim_polygon`'s crease check.
     Crease,
+    /// `SphereTrimShape { ChordBudget }` from `chords::tighten`: an edge
+    /// of a face on this chart asks the trimmed sphere arm's lattice for
+    /// more chords than its per-edge budget.
+    ChordBudget(SurfaceKind),
     /// `RingOnCurvedFace` on a face of this chart; `true` where the
     /// face's outer loop holds lines and circles only and no projected
     /// image, so `tessellate::lane_of` sent it to the curved lane and
@@ -114,31 +115,16 @@ fn carrier_of(body: &Body<f64>, ek: topo::EdgeKey) -> CurveKind {
         .kind()
 }
 
-/// The curved chart beside `ek`: the first of its two faces that is no
-/// plane.
-fn curved_side(body: &Body<f64>, ek: topo::EdgeKey) -> SurfaceKind {
-    let (a, b) = topo::readback::edge_sides(body, ek)
-        .expect("an edge's sides")
-        .faces();
-    [a, b]
-        .into_iter()
-        .map(|fk| kind_of(body, fk))
-        .find(|k| *k != SurfaceKind::Plane)
-        .unwrap_or(SurfaceKind::Plane)
-}
-
 fn got(body: &Body<f64>, delta: f64) -> Got {
     use mesh::TessellateError as E;
     match mesh::tessellate(body, delta, tol()) {
         Ok(m) => match mesh::validate::check_mesh(&m) {
-            Ok(()) => Got::Meshed,
+            Ok(()) => match geometry(body, &m, delta) {
+                Ok(()) => Got::Meshed,
+                Err(e) => Got::Other(format!("meshed, and {e}")),
+            },
             Err(e) => Got::Other(format!("meshed, and check_mesh refuses: {e:?}")),
         },
-        Err(E::UnsupportedCurve { edge, note })
-            if note.contains("trimmed-tessellation-lacks-torus-and-plane-arms") =>
-        {
-            Got::Frontier(carrier_of(body, edge), curved_side(body, edge))
-        }
         Err(E::UnsupportedCurve { edge, note }) if note.contains("C⁰ kink") => {
             Got::Kink(carrier_of(body, edge))
         }
@@ -147,6 +133,11 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         {
             Got::Crease
         }
+        Err(E::SphereTrimShape {
+            face,
+            cause: mesh::types::SphereTrimCause::ChordBudget,
+            ..
+        }) => Got::ChordBudget(kind_of(body, face)),
         Err(E::RingOnCurvedFace { face }) => {
             let outer = body.get_face(face).expect("the refused face").outer;
             let iso = loop_forms(body, outer).iter().all(|(carrier, image)| {
@@ -165,6 +156,63 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(e) => Got::Other(format!("{e:?}")),
     }
+}
+
+/// **The mesh is the body's**, which `check_mesh` cannot see: it
+/// encloses the body's own volume to within its chordal deficit, `δ` times
+/// the body's area, both read off the B-rep (`validate::check_volume`),
+/// and every triangle of an analytic curved face winds outward: its
+/// normal, as the mesh winds it, has a positive dot with the face's
+/// outward normal at the triangle's centroid
+/// (`geom_brep::implicit_outward_normal`). A face meshed as its
+/// complement, or wound inward, misses the volume by a face's worth; a
+/// triangle folded over a chord beside it points into the surface. The
+/// volume is not read on a body with a spline face: its mass properties
+/// cost seconds a δ there, and the rows meshing such bodies here are
+/// about their creases.
+fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), String> {
+    if !body
+        .faces()
+        .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
+    {
+        let at_rest = sweep::test_support::at_rest(body, tol());
+        let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
+        mesh::validate::check_volume(mesh, props.volume, props.surface_area, delta)
+            .map_err(|e| format!("its volume misses the body's: {e:?}"))?;
+    }
+    for patch in &mesh.patches {
+        let surface = body.face_surface(patch.face).expect("a live face");
+        if !matches!(
+            surface.kind(),
+            SurfaceKind::Cylinder
+                | SurfaceKind::Cone
+                | SurfaceKind::Sphere
+                | SurfaceKind::Torus
+                | SurfaceKind::Spindle
+        ) {
+            continue;
+        }
+        let sense = body.get_face(patch.face).expect("a live face").sense;
+        for t in &patch.triangles {
+            let [a, b, c] = t.map(|i| mesh.positions[i as usize]);
+            let normal = (b - a).cross(c - a);
+            let centroid = Point3::new(
+                (a.x + b.x + c.x) / 3.0,
+                (a.y + b.y + c.y) / 3.0,
+                (a.z + b.z + c.z) / 3.0,
+            );
+            let outward = geom_brep::implicit_outward_normal(surface, sense, centroid);
+            // A zero dot, or NaN where the foot is not one point, is not
+            // outward.
+            if normal.dot(outward.vec()).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
+                return Err(format!(
+                    "a {:?} face's triangle {t:?} winds against the face",
+                    surface.kind()
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// `body` answers `want` at every δ.
@@ -309,17 +357,17 @@ fn klein_elbow(r: f64) -> Body<f64> {
         .into_body()
 }
 
-/// **A hollowed partial revolve refuses at its cavity's torus wall.**
-/// `topo::shell` builds both hollows; each has plane caps and a torus
-/// wall bounded by spirics. The refusal is the trimmed lane's chart
-/// roster (`trim_frontier`), on a spiric edge of the torus wall, at
-/// every δ. Every plane cap a spiric bounds is the planar lane's
-/// (`tessellate::lane_of` sends every plane there), and the stored
-/// image on the wall's spiric half-edges is `Pcurve::Spiric`.
+/// **A hollowed partial revolve meshes, its cavity's torus wall on the
+/// torus row.** `topo::shell` builds both hollows; each has plane caps
+/// and a torus wall bounded by spirics, whose half-edges store
+/// `Pcurve::Spiric`. The trimmed lane meshes the wall from its chart row
+/// at every δ, and the mesh is the body's ([`geometry`]). Every plane cap
+/// a spiric bounds is the planar lane's (`tessellate::lane_of` sends every
+/// plane there).
 #[test]
-fn a_spiric_bounded_torus_wall_refuses_at_the_chart_roster() {
+fn a_spiric_bounded_torus_wall_meshes_on_the_torus_row() {
     let deltas = [5e-3, 1e-3, 2e-4];
-    let want = Got::Frontier(CurveKind::Spiric, SurfaceKind::Torus);
+    let want = Got::Meshed;
     for (what, operand, t) in [
         ("the sectioned vessel", vessel_quarter(), 1.0 / 128.0),
         ("the klein elbow", klein_elbow(0.275), 0.02),
@@ -360,16 +408,17 @@ fn a_spiric_bounded_torus_wall_refuses_at_the_chart_roster() {
     }
 }
 
-/// **A cone face cut by a tilted plane refuses at the chart roster.**
-/// Both frusta of `sweep`'s `reach_cone_split` rows, split through
+/// **A cone face cut by a tilted plane meshes on the cone row.** Both
+/// frusta of `sweep`'s `reach_cone_split` rows, split through
 /// `(0, 0.5, 0)` by the plane of normal `(sin 0.3, cos 0.3, 0)`: each
 /// half's cone faces carry the section `Ellipse` with its exact
-/// `Pcurve::FocalSection` image stored, and `trim_frontier` refuses.
+/// `Pcurve::FocalSection` image stored, and the trimmed lane meshes them
+/// from the face's chart row; the mesh is the body's ([`geometry`]).
 /// The widening frustum under C1's tilted brick (`sweep`'s
-/// `cone_join_lane`) refuses the same way in all six ops.
+/// `cone_join_lane`) meshes the same way in all six ops.
 #[test]
-fn a_cone_face_bounded_by_a_section_ellipse_refuses_at_the_chart_roster() {
-    let want = Got::Frontier(CurveKind::Ellipse, SurfaceKind::Cone);
+fn a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row() {
+    let want = Got::Meshed;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0),
@@ -425,12 +474,67 @@ fn a_cone_face_bounded_by_a_section_ellipse_refuses_at_the_chart_roster() {
     );
 }
 
+/// **A cone face through its apex meshes on the cone row.** The funnel
+/// (apex at the origin, rim of radius 1 at `y = 1`) split by the tilted
+/// plane of [`a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row`]:
+/// below the cut each half face's loop runs up one ruling from the apex,
+/// along the section ellipse, and down the other ruling back to it, so its
+/// polygon meets the apex row at two azimuths and keeps the apex there
+/// twice (`crate::chart_table`'s singular-row rule). Both halves mesh at
+/// every δ, and the mesh is the body's ([`geometry`]).
+#[test]
+fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.5, 0.0),
+        Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0),
+        tol(),
+    );
+    let funnel = revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+    let split = topo::splitting::split(&finished("the funnel", funnel, tol()), &plane, tol())
+        .unwrap_or_else(|e| panic!("the funnel splits, got {e:?}"));
+    for (side, part, rulings) in [("above", &split.above, 2), ("below", &split.below, 2)] {
+        let what = format!("the funnel, {side}");
+        let half = part.body().unwrap_or_else(|| panic!("{what}: a body"));
+        let loops: Vec<Vec<CurveKind>> = half
+            .faces()
+            .filter(|(fk, _)| kind_of(half, *fk) == SurfaceKind::Cone)
+            .map(|(_, face)| {
+                loop_forms(half, face.outer)
+                    .into_iter()
+                    .map(|(c, _)| c)
+                    .collect()
+            })
+            .collect();
+        let apex_loops = loops
+            .iter()
+            .filter(|l| !l.contains(&CurveKind::Circle))
+            .count();
+        assert!(
+            loops.len() == 2
+                && loops.iter().all(|l| {
+                    l.contains(&CurveKind::Ellipse)
+                        && l.iter().filter(|c| **c == CurveKind::Line).count() == rulings
+                })
+                && apex_loops == if side == "below" { 2 } else { 0 },
+            "{what}: two half faces, each an ellipse and two rulings, through the apex \
+             below the cut and to the rim above it: {loops:?}"
+        );
+        assert_at_every(&what, half, &[5e-3, 1e-3, 2e-4], &Got::Meshed);
+    }
+}
+
 /// **A ball across a cylinder's wall refuses in the chord pass.** The
 /// first pose of `sweep`'s `cylinder_sphere_frame` rows: the section is
-/// a B-spline carrier, on a cylinder face and a sphere face that store
-/// its `Pcurve::Projected` image. `chords::nurbs_chord_count` refuses
-/// the carrier itself, a C⁰ kink, before any face is dispatched, so
-/// neither the cylinder arm nor the chart roster is reached.
+/// two B-spline carriers, on a cylinder face and a sphere face that
+/// store their `Pcurve::Projected` images. The sphere face is the
+/// trimmed sphere arm's, and the first section edge the chord pass
+/// reaches asks its lattice for more chords than the arm's per-edge
+/// budget (`SphereTrimShape { ChordBudget }`), before the other edge's
+/// carrier is read: its projected image's speed bound is `1.4·10¹²` per
+/// unit of the carrier's parameter where its sampled speed is 21
+/// (`work/tesslane/a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose.md`).
+/// That other carrier has an interior knot of full multiplicity, a C⁰
+/// kink `chords::nurbs_chord_count` refuses.
 #[test]
 fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
     let cylinder = finished("the cylinder", rod(0.5, -1.0, 2.0), tol());
@@ -469,7 +573,12 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
                  projected image: {spline_faces:?}"
             );
         }
-        assert_at_every(op, body, &[2e-2, 5e-3, 1e-3], &Got::Kink(CurveKind::Nurbs));
+        assert_at_every(
+            op,
+            body,
+            &[2e-2, 5e-3, 1e-3],
+            &Got::ChordBudget(SurfaceKind::Sphere),
+        );
     }
 }
 
@@ -481,7 +590,7 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// the donut less the bar keep the ovals as rings of torus faces whose
 /// outer loops are iso circles, so `lane_of` sends them to the curved
 /// lane, whose ring guard refuses. The other three ops put the spirics
-/// on an outer loop and refuse at the chart roster.
+/// on an outer loop, and the trimmed lane meshes them on the torus row.
 #[test]
 fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
     let torus = bulge_loop(vec![
@@ -494,7 +603,6 @@ fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
         .into_body();
     let bar = brick::<f64>((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol());
     let ring = Got::Ring(SurfaceKind::Torus, true);
-    let frontier = Got::Frontier(CurveKind::Spiric, SurfaceKind::Torus);
     assert_six(
         "the donut and B2 (A the donut)",
         &finished("the torus", donut, tol()),
@@ -503,10 +611,10 @@ fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
         &[
             ring.clone(),
             ring.clone(),
-            frontier.clone(),
-            frontier.clone(),
+            Got::Meshed,
+            Got::Meshed,
             ring,
-            frontier,
+            Got::Meshed,
         ],
     );
 }
@@ -643,7 +751,8 @@ fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
 /// **A cone wall holding a ring of ellipse arcs** (`sweep`'s
 /// `cone_join_lane`, pose T1): the unions and cone ∖ box refuse at the
 /// curved lane's ring guard; the other three ops trim the cone face's
-/// outer loop by an ellipse and refuse at the chart roster.
+/// outer loop by an ellipse, and the trimmed lane meshes them on the cone
+/// row.
 #[test]
 fn a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard() {
     let height = 1.2 / FRAC_PI_6.tan();
@@ -664,7 +773,6 @@ fn a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard() {
         Affine3::translation(edge - Point3::origin()) * turn,
     );
     let ring = Got::Ring(SurfaceKind::Cone, true);
-    let frontier = Got::Frontier(CurveKind::Ellipse, SurfaceKind::Cone);
     assert_six(
         "T1 (A the cone)",
         &cone,
@@ -673,10 +781,10 @@ fn a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard() {
         &[
             ring.clone(),
             ring.clone(),
-            frontier.clone(),
-            frontier.clone(),
+            Got::Meshed,
+            Got::Meshed,
             ring,
-            frontier,
+            Got::Meshed,
         ],
     );
 }

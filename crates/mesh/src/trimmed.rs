@@ -16,17 +16,19 @@
 //!
 //! # Chart scope, stated
 //!
-//! Three charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
-//! walls; every split cylinder wall), **sphere** (a sphere face a
-//! circle tilted against its chart bounds — the sphere pairs, a ball
-//! cut by a tilted plane, the oblique fillet corners) and, since M7's montage
-//! skin-scenes unit, **described NURBS** (the loft/sweep
-//! walls — the frontier this header used to call "the banked
-//! trimmed-NURBS lane", now promoted; NURBS faces route here
-//! unconditionally, iso-rectangle or not, because the swept-rectangle
-//! walk has no NURBS chart; RATIONAL faces since M8-5, whose Hessian
-//! bound is the second-order quotient statement over the homogeneous
-//! nets).
+//! Every chart constructs here, from the face's chart row
+//! (`crate::chart_table`): the analytic charts — **cylinder** (M5 PR 11 —
+//! the tiltedcut walls; every split cylinder wall), **cone** (a frustum
+//! cut by a tilted plane), **sphere** (a sphere face a circle tilted
+//! against its chart bounds — the sphere pairs, a ball cut by a tilted
+//! plane, the oblique fillet corners), **torus** (a hollowed partial
+//! revolve's spiric-bounded wall) and **spindle sheet** — and, since M7's
+//! montage skin-scenes unit, **described NURBS** (the loft/sweep walls;
+//! NURBS faces route here unconditionally, iso-rectangle or not, because
+//! the swept-rectangle walk has no NURBS chart; RATIONAL faces since
+//! M8-5, whose Hessian bound is the second-order quotient statement over
+//! the homogeneous nets). An analytic face routes here by its outer
+//! loop's carriers (`crate::tessellate::lane_of`).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves
@@ -40,36 +42,36 @@
 //! a spline, sized from its own differenced control net
 //! (`geom_brep::Pcurve::speed_bound`) rather than a formula.
 //!
-//! The sphere arm's faces are bounded by circles: parallels and
-//! meridians carry their `Harmonic` image, and a tilted circle its
-//! `Projected` one, the chart's inverse of the carrier, which the walk
-//! reads exactly. The chord pass bounds each image's UV step by the
-//! arm's lattice steps from a closed form for the circle's
-//! `(u′(t), v′(t))` (`geom_brep::Pcurve::speed_bound`), and its
-//! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
-//! A pole the loop passes is a side of the trim polygon
+//! An analytic arm's boundary images are the analytic mints' closed
+//! forms, each read exactly at the chord pass's parameters: `Harmonic`
+//! (rims, meridians, rulings), `Projected` (a circle tilted against the
+//! chart, its inverse of the carrier), `FocalSection` (a cone's section
+//! conic) and `Spiric` (a torus's plane section). The chord pass bounds
+//! each image's UV step by the arm's lattice steps
+//! (`geom_brep::Pcurve::speed_bound`) — except the cylinder arm's, which
+//! is chorded at its target alone — and each triangle's certificate is
+//! the row's. A singular row the loop passes (a sphere's pole, a cone's
+//! apex, a spindle sheet's apex) is a side of the trim polygon
 //! ([`singular_row_shape`]): the loop's lift (`topo::Body::loop_lift`)
-//! runs along the pole's latitude through the face's turn there, so
-//! each run of the loop between two poles already sits where the face
-//! is. A face holding a pole inside it and a tilted circle
-//! passing so near a pole that its chord schedule asks one edge for more
-//! than the arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
-//! `chords::tighten`), refuse typed
-//! ([`TessellateError::SphereTrimShape`]). On both analytic arms a trim
-//! polygon wound against the face refuses typed
+//! runs along the row through the face's turn there, so each run of the
+//! loop between two such points already sits where the face is. A face
+//! holding a row's point inside it refuses typed
+//! ([`TessellateError::SphereTrimShape`]), and so does a tilted circle
+//! passing so near a sphere's pole that its chord schedule asks one edge
+//! for more than the sphere arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
+//! `chords::tighten`). On every analytic arm a trim polygon wound
+//! against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
 //! the chord beside it is dropped and rebuilt or refuses
 //! ([`TessellateError::FoldedTriangle`]), and a triangle on three
 //! consecutive boundary points (an ear of a chain the neighbour may cut
 //! too) is split by its centroid and rebuilt, or refuses
-//! ([`TessellateError::BoundaryEar`]). Conic and B-spline trims
-//! on cone/sphere/torus charts refuse typed naming that frontier (their
-//! pcurves mint since M6-3; the trimmed-lane geometry for them is
-//! unwritten). A **fitted** (rung-3) chart image still refuses typed
-//! on every chart: the chord pass has no certified UV chord-step
-//! bound for a fitted image (the boundary-tightening contract in
-//! `crate::chords`), and its first genuine consumer is the
-//! edge×NURBS-face boolean layer (the cut-loft unit).
+//! ([`TessellateError::BoundaryEar`]). A **fitted** (rung-3) chart
+//! image still refuses typed on every chart: the chord pass has no
+//! certified UV chord-step bound for a fitted image (the
+//! boundary-tightening contract in `crate::chords`), and its first
+//! genuine consumer is the edge×NURBS-face boolean layer (the cut-loft
+//! unit).
 //!
 //! # The lattice metric
 //!
@@ -83,7 +85,7 @@
 //! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
 //! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
 //! two near the mean realized aspect: of the NURBS schedule's bands, or
-//! of the cylinder arm's one uniform lattice; on the sphere arm the
+//! of an analytic arm's one uniform lattice; on the sphere arm the
 //! chart's own metric at the trim box's mid latitude, `1/cos v_mid`),
 //! where the lattice is near square. One face-wide `k` cannot square
 //! bands whose aspects
@@ -176,7 +178,7 @@ use crate::chart_table::{ChartRow, SingularRow, on_singular_row};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, lattice_metric};
 use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
-use crate::sizing::{SizingTols, ceil_count};
+use crate::sizing::{SizingTols, cap_angular, ceil_count};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
@@ -200,8 +202,8 @@ fn last_attempt() -> usize {
     MAX_GRID_RETRIES
 }
 
-/// **The trimmed cylinder's unproved headroom**: the lane sizes its
-/// lattice, and the chord pass chords this face's edges
+/// **The trimmed lane's unproved headroom**: the cylinder arm sizes its
+/// lattice, and the chord pass chords that face's edges
 /// (`chords::edge_target`), at this share of δ rather than at δ
 /// ([`face_target`]).
 ///
@@ -221,6 +223,11 @@ fn last_attempt() -> usize {
 /// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
 /// trim chord the lattice did not place
 /// (`work/tesslane/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
+/// The cone, torus and spindle arms read it for the same reason: each
+/// chart's cell bound is proved (`crate::chart_table`'s steps), and what
+/// is missing on every chart alike is the lemma that bounds a triangle
+/// beside a boundary run crossing lattice lines
+/// (`work/tesslane/one-containment-lemma-for-an-oblique-boundary.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
@@ -238,11 +245,10 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// circle far from the poles reaches it only at a δ about `10⁻⁹·r`.
 pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 
-/// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face one
-/// of this lane's two analytic arms meshes (the trimmed cylinder, the
-/// trimmed sphere), δ for every other face. The one statement both those
-/// arms size their lattices at and the chord pass chords the face's
-/// boundary at (`chords::edge_target`).
+/// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
+/// this lane meshes on an analytic chart, δ for every other face. The one
+/// statement those arms size their lattices at and the chord pass chords
+/// the face's boundary at (`chords::edge_target`).
 pub(crate) fn face_target(
     body: &Body<f64>,
     fk: FaceKey,
@@ -250,31 +256,20 @@ pub(crate) fn face_target(
 ) -> Result<f64, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
     let headroom = match surface {
-        Surface::Cylinder { .. } => {
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => {
             crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed
         }
-        Surface::Sphere { .. } => takes_sphere_arm(body, fk, surface)?,
-        _ => false,
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => false,
     };
     Ok(if headroom {
         delta * UNPROVED_HEADROOM
     } else {
         delta
     })
-}
-
-/// Whether the sphere face `fk` is the sphere arm's: the dispatch routes
-/// it here for a tilted circle ([`has_tilted_circle`]), and no conic or
-/// B-spline carrier bounds it (those still refuse at the chart roster,
-/// [`trim_frontier`]).
-pub(crate) fn takes_sphere_arm(
-    body: &Body<f64>,
-    fk: FaceKey,
-    surface: &Surface<f64>,
-) -> Result<bool, TessellateError> {
-    Ok(matches!(surface, Surface::Sphere { .. })
-        && !has_trim_carrier(body, fk)?
-        && has_tilted_circle(body, fk)?)
 }
 
 /// Does this face's outer loop carry a circle tilted against the face's
@@ -355,16 +350,6 @@ pub(crate) fn tessellate_trimmed(
     if !face.rings.is_empty() {
         return Err(TessellateError::RingOnCurvedFace { face: fk });
     }
-    // The arms this lane has not written yet refuse at its roster.
-    match *surface {
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
-            return Err(trim_frontier(body, fk, face.outer)?);
-        }
-        Surface::Sphere { .. } if has_trim_carrier(body, fk)? => {
-            return Err(trim_frontier(body, fk, face.outer)?);
-        }
-        _ => {}
-    }
     // The face's chart row (`crate::chart_table`). A spline face's is the
     // cell table under this FACE's key, which the chord pass assembled
     // from the same `Surface::spline_chart()` this lane reads: the memo
@@ -443,19 +428,37 @@ pub(crate) fn tessellate_trimmed(
         v1 = v1.max(v);
     }
     let (mut candidates, nurbs_stats, metric) = match row {
-        ChartRow::Cylinder { radius, .. } => {
-            // Sagitta-tight in u, rows every r·hu metres in v.
-            let (hu, _) = arm_steps(body, fk, &row, tol.delta)?;
-            let nu = ceil_count(u1 - u0, hu)?;
-            let nv = ceil_count(v1 - v0, radius * hu)?;
-            // The other half of #678's shape, checked where the count
-            // is: the fan needs ONE interior column between two
-            // boundary entries that share a mesh vertex, which is
-            // `nu == 2`. The only repeated id at two DISTINCT UVs in
-            // this arm is the full-2π seam double-traversal, and
-            // there `u1 - u0` is 2π against an `hu` the sagitta cap
-            // holds at ≤ π/4 — so the two never meet. Arithmetic, not
-            // an argument, and this is the line that says so.
+        ChartRow::Cylinder { .. }
+        | ChartRow::Cone { .. }
+        | ChartRow::Sphere { .. }
+        | ChartRow::Torus { .. }
+        | ChartRow::Spindle { .. } => {
+            // The row's steps at the face's target, the steps the chord
+            // pass bounded this face's boundary UV steps by (`arm_steps`).
+            // A ruled chart's rows fall every `lever·h_u` metres, square in
+            // 3-D at the face's widest radius; a torus's and a spindle
+            // sheet's periodic steps are capped as the curved lane caps
+            // them.
+            let (hu, hv) = arm_steps(body, fk, &row, tol.delta)?;
+            let (hu, hv) = match row {
+                ChartRow::Cylinder { radius: lever, .. }
+                | ChartRow::Cone { rho_max: lever, .. } => (hu, lever * hu),
+                ChartRow::Torus { .. } | ChartRow::Spindle { .. } => {
+                    (cap_angular(hu), cap_angular(hv))
+                }
+                ChartRow::Sphere { .. } | ChartRow::Spline { .. } => (hu, hv),
+            };
+            let nu = pole_side_columns(&polygon, &rows, (u0, u1), ceil_count(u1 - u0, hu)?)?;
+            let nv = ceil_count(v1 - v0, hv)?;
+            // The other half of #678's shape on the cylinder, checked
+            // where the count is: the fan needs ONE interior column
+            // between two boundary entries that share a mesh vertex,
+            // which is `nu == 2`. The only repeated id at two DISTINCT UVs
+            // on a cylinder is the full-2π seam traversed twice, and there
+            // `u1 - u0` is 2π against an `hu` the sagitta cap holds at
+            // ≤ π/4 — so the two never meet. Arithmetic, not an argument,
+            // and this is the line that says so. On a chart with singular
+            // rows `pole_side_columns` keeps the count off the shape.
             //
             // VACUOUS TODAY, and the search that says so was
             // adversarial rather than incidental: across the suite's
@@ -468,49 +471,39 @@ pub(crate) fn tessellate_trimmed(
             // adding a fixture in a way that *nothing in tree does
             // this* does not.
             debug_assert!(
-                nu != 2 || !id_repeats_apart(&polygon),
+                !matches!(row, ChartRow::Cylinder { .. }) || nu != 2 || !id_repeats_apart(&polygon),
                 "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
                  with a single interior column (nu = 2, nv = {nv}) — the shape \
                  #678's non-manifold fan needs (curved::pole_columns)"
             );
-            // The lattice is square in 3-D (`r·hu` by `hu` radians), so
-            // in (θ, v) it is a strip of aspect ~1/r: its CDT runs in the
-            // same lattice metric as the NURBS lane's, from its one
-            // lattice's realized spacing.
+            // The metric the CDT runs in. The sphere's is the chart's own
+            // at the box's mid latitude, `(u·cos v, v)` to the nearest
+            // power of two: there a small face's boundary circle is near
+            // round, so an ear on it usually has the face's interior
+            // points in its circumcircle and the CDT does not cut it. An
+            // ear on a boundary chain is the triangle of three consecutive
+            // chord points, which the neighbour across that chain may cut
+            // too. That is a steer, not a guarantee: what holds the line
+            // is the ear cure in `attempt`, which splits any ear the CDT
+            // keeps by its centroid. Every other chart's is its one
+            // lattice's realized spacing, as the NURBS lane's is its
+            // bands': a ruled lattice square in 3-D is a strip of aspect
+            // about `1/lever` in the chart, and a torus's is
+            // `√(r/(R + r))`.
             #[allow(clippy::cast_precision_loss)]
-            let aspect = ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64);
+            let metric = match row {
+                ChartRow::Sphere { .. } => 1.0 / geom::mid_param(v0, v1).cos(),
+                ChartRow::Cylinder { .. }
+                | ChartRow::Cone { .. }
+                | ChartRow::Torus { .. }
+                | ChartRow::Spindle { .. }
+                | ChartRow::Spline { .. } => ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64),
+            };
             (
                 uniform_candidates((u0, u1), (v0, v1), nu, nv),
                 None,
-                lattice_metric(std::iter::once(aspect)),
+                lattice_metric(std::iter::once(metric)),
             )
-        }
-        // The sphere: the steps the chord pass bounded this face's
-        // boundary UV steps by (`arm_steps`), over the trim box. The CDT
-        // runs in the chart's own metric at the box's mid latitude,
-        // `(u·cos v, v)` to the nearest power of two: there a small
-        // face's boundary circle is near round, so an ear on it usually
-        // has the face's interior points in its circumcircle and the CDT
-        // does not cut it. An ear on a boundary chain is the triangle of
-        // three consecutive chord points, which the neighbour across that
-        // chain may cut too. That is a steer, not a guarantee: what holds
-        // the line is the ear cure in `attempt`, which splits any ear the
-        // CDT keeps by its centroid.
-        ChartRow::Sphere { .. } => {
-            let (hu, hv) = arm_steps(body, fk, &row, tol.delta)?;
-            (
-                uniform_candidates(
-                    (u0, u1),
-                    (v0, v1),
-                    pole_side_columns(&polygon, &rows, (u0, u1), ceil_count(u1 - u0, hu)?)?,
-                    ceil_count(v1 - v0, hv)?,
-                ),
-                None,
-                lattice_metric(std::iter::once(1.0 / geom::mid_param(v0, v1).cos())),
-            )
-        }
-        ChartRow::Cone { .. } | ChartRow::Torus { .. } | ChartRow::Spindle { .. } => {
-            return Err(trim_frontier(body, fk, face.outer)?);
         }
         ChartRow::Spline { grid } => {
             let (mut cand, stats) = per_cell_candidates(
@@ -1685,41 +1678,6 @@ fn sort_candidates(cand: &mut [(f64, f64)]) {
     cand.sort_unstable_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)));
 }
 
-/// The typed frontier refusal for a trimmed face on a chart whose
-/// pcurves do not mint: names the offending edge and the REAL blocker.
-fn trim_frontier(
-    body: &Body<f64>,
-    fk: FaceKey,
-    lk: topo::LoopKey,
-) -> Result<TessellateError, TessellateError> {
-    for (ek, _) in crate::walk::loop_edges(body, lk, fk)? {
-        let curve = body
-            .get_edge(ek)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(
-            curve.carrier(),
-            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. }
-        ) {
-            return Ok(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "conic/B-spline/spiric trim on a plane, cone, sphere, torus or \
-                       spindle sheet chart — the only trimmed-face tessellation lanes \
-                       written are the \
-                       cylinder chart's, the NURBS chart's and the sphere chart's for \
-                       circle-bounded faces; the remaining analytic \
-                       charts have no trimmed lane (the spiric-bounded torus wall and \
-                       plane cap of a hollowed partial revolve land here: \
-                       `work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
-            });
-        }
-    }
-    Ok(TessellateError::MissingEntity {
-        what: "trimmed router fired without a trim carrier",
-    })
-}
-
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point, and on a
@@ -1800,10 +1758,7 @@ fn trim_polygon(
             // carrier's own parameter on every chart it lives on,
             // so the walk below — which samples the image at the
             // chord pass's parameters — reads them exactly as it reads
-            // a harmonic one. Unreachable at this head for a different
-            // reason: `tessellate_trimmed`'s chart roster has no torus
-            // or plane arm, so a spiric-bounded face refuses before
-            // this walk (`work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+            // a harmonic one.
             Pcurve::Spiric { .. } => {}
             // A focal section's image is likewise a closed form of the
             // carrier's own parameter, read exactly at the chord pass's
@@ -2642,7 +2597,10 @@ mod tests {
         let (mut faces, mut worst) = (0, 0.0f64);
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
-            if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
+            if !matches!(surface, geom::Surface::Sphere { .. })
+                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                    != crate::tessellate::Lane::Trimmed
+            {
                 continue;
             }
             faces += 1;
@@ -2668,6 +2626,259 @@ mod tests {
             "the worst boundary chord steps {worst} of a lattice step: the bound does not \
              set the schedule, so this row cannot see it loosened"
         );
+    }
+
+    /// The bodies the reach probes close this lane's cone and torus arms
+    /// on (`tests/reach_probes.rs`): the tour's torus-walled vessel and the
+    /// klein elbow, each revolved a quarter turn and hollowed, whose cavity
+    /// walls are torus faces bounded by spirics; and both frusta split by
+    /// the tilted plane through `(0, 0.5, 0)`, whose cone faces are bounded
+    /// by the section ellipse.
+    fn cone_and_torus_bodies() -> Vec<(String, topo::Body<f64>)> {
+        use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+        use profile::path::{Open, Start};
+        use profile::{ArcSweep, Center, Profile, ProfileLoop, RawLoop as _, SketchPlane};
+        use sweep::{Revolution, RevolveAxis, revolve};
+        let tol = Tol::witness();
+        let revolved = |lp: ProfileLoop<f64>, axis: RevolveAxis<f64>, turn| {
+            let profile = Profile::new(SketchPlane::xy(), vec![lp])
+                .validate(tol)
+                .unwrap();
+            revolve(&profile, axis, turn, tol).unwrap().body.into_body()
+        };
+        let y_axis = |x: f64, dir: f64| RevolveAxis {
+            origin: Point2::new(x, 0.0),
+            dir: Vec2::new(0.0, dir),
+        };
+        let at = |x: f64, y: f64| Point2::new(x / 64.0, y / 64.0);
+        let vessel: ProfileLoop<f64> = Open
+            .at(at(0.0, 0.0))
+            .line_to(at(5.0, 0.0), tol)
+            .unwrap()
+            .line_to(at(5.0, 4.0), tol)
+            .unwrap()
+            .line_to(at(9.0, 4.0), tol)
+            .unwrap()
+            .arc_to(
+                Center {
+                    c: at(6.0, 8.0),
+                    winding: ArcSweep::Ccw,
+                    p: at(9.0, 12.0),
+                },
+                tol,
+            )
+            .unwrap()
+            .line_to(at(7.0, 12.0), tol)
+            .unwrap()
+            .line_to(at(7.0, 24.0), tol)
+            .unwrap()
+            .line_to(at(0.0, 24.0), tol)
+            .unwrap()
+            .line_to(Start, tol)
+            .unwrap()
+            .into();
+        let disc = profile::test_support::bulge_loop(vec![
+            (Point2::new(-0.275, 0.0), 1.0),
+            (Point2::new(0.275, 0.0), 1.0),
+        ]);
+        let hollow = |body: topo::Body<f64>, t: f64| -> topo::Body<f64> {
+            let at_rest = topo::test_support::finished("the operand", body, tol);
+            topo::shell(&at_rest, t, tol).unwrap().body.into_body()
+        };
+        let mut out = vec![
+            (
+                "the sectioned vessel".to_owned(),
+                hollow(
+                    revolved(
+                        vessel,
+                        y_axis(0.0, 1.0),
+                        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+                    ),
+                    1.0 / 128.0,
+                ),
+            ),
+            (
+                "the klein elbow".to_owned(),
+                hollow(
+                    revolved(
+                        disc,
+                        y_axis(1.2, -1.0),
+                        Revolution::Partial(-core::f64::consts::FRAC_PI_2),
+                    ),
+                    0.02,
+                ),
+            ),
+        ];
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.5, 0.0),
+            Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0),
+            tol,
+        );
+        for (name, (r0, r1)) in [("narrowing", (1.0, 0.5)), ("widening", (0.5, 1.0))] {
+            let frustum = revolved(
+                profile::ProfileLoop::polygon(
+                    [(0.0, 0.0), (r0, 0.0), (r1, 1.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+                ),
+                y_axis(0.0, 1.0),
+                Revolution::Full,
+            );
+            let frustum = topo::test_support::finished("the frustum", frustum, tol);
+            let split = topo::splitting::split(&frustum, &plane, tol).unwrap();
+            for (side, part) in [("above", &split.above), ("below", &split.below)] {
+                let topo::splitting::SplitPart::Body(half) = part else {
+                    panic!("the {name} frustum has material {side} the cut");
+                };
+                out.push((
+                    format!("the {name} frustum, {side}"),
+                    topo::Body::clone(half),
+                ));
+            }
+        }
+        out
+    }
+
+    /// **The cone and torus arms' boundary chords step within their
+    /// lattice.** On every boundary chord of every cone and torus face the
+    /// trimmed lane meshes in [`cone_and_torus_bodies`], the image's UV step
+    /// is within the arm's steps (`chords::tighten` on
+    /// `geom_brep::Pcurve::speed_bound`, the spiric's and the focal
+    /// section's), at the three δ the reach probes mesh at. Beside each
+    /// edge it prints the chord count the edge is asked for, the count its
+    /// speed bound asks of this face's lattice, and the count the image's
+    /// sampled speed would ask (`--nocapture`), so an edge chorded past
+    /// what its image needs is seen.
+    #[test]
+    fn the_cone_and_torus_arms_boundary_chords_step_within_their_lattice() {
+        use std::collections::HashMap;
+        let mut faces = 0;
+        for (name, body) in cone_and_torus_bodies() {
+            for delta in [5e-3, 1e-3, 2e-4] {
+                let mut positions = Vec::new();
+                let mut vids = HashMap::new();
+                for (vk, p) in body.vertex_points() {
+                    #[allow(clippy::cast_possible_truncation)]
+                    vids.insert(vk, positions.len() as u32);
+                    positions.push(p);
+                }
+                let mut bounds = crate::nurbs_cert::FaceBounds::new();
+                let chords: ChordPass =
+                    crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
+                        .unwrap();
+                for (fk, face) in body.faces() {
+                    let surface = body.face_surface(fk).unwrap();
+                    if !matches!(
+                        surface,
+                        geom::Surface::Cone { .. } | geom::Surface::Torus { .. }
+                    ) || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                        != crate::tessellate::Lane::Trimmed
+                    {
+                        continue;
+                    }
+                    faces += 1;
+                    let row =
+                        crate::chart_table::ChartRow::of(&body, fk, surface, &bounds).unwrap();
+                    let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+                    for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
+                    {
+                        let image = body.pcurve(hek).unwrap().pcurve();
+                        let ts = &chords.params[&ek];
+                        let (t0, t1) = (ts[0], ts[ts.len() - 1]);
+                        let span = t1 - t0;
+                        let ask = |(su, sv): (f64, f64)| {
+                            let n =
+                                |s: f64, h: f64| if s == 0.0 { 1.0 } else { (s * span / h).ceil() };
+                            n(su, hu).max(n(sv, hv))
+                        };
+                        let bound = ask(image.speed_bound(t0, t1).unwrap());
+                        let samples = 4096;
+                        let mut sampled = (0.0f64, 0.0f64);
+                        #[allow(clippy::cast_precision_loss)]
+                        let at = |k: usize| image.eval(t0 + span * (k as f64 / samples as f64));
+                        for k in 0..samples {
+                            let (a, b) = (at(k), at(k + 1));
+                            #[allow(clippy::cast_precision_loss)]
+                            let dt = span / samples as f64;
+                            sampled.0 = sampled.0.max((b.x - a.x).abs() / dt);
+                            sampled.1 = sampled.1.max((b.y - a.y).abs() / dt);
+                        }
+                        // The carrier's own count at the edge's target, and
+                        // the one its sampled second derivative would ask
+                        // (`h²·sup|C″|/8 ≤ target`).
+                        let carrier = body
+                            .get_curve_geom(body.get_edge(ek).unwrap().curve)
+                            .unwrap()
+                            .certified()
+                            .unwrap()
+                            .carrier();
+                        let target = super::face_target(&body, fk, delta).unwrap();
+                        let own = match *carrier {
+                            geom::Curve3::Spiric {
+                                major_radius,
+                                minor_radius,
+                                offset,
+                                ..
+                            } => (span
+                                / crate::sizing::spiric_step(
+                                    target,
+                                    major_radius,
+                                    minor_radius,
+                                    offset,
+                                ))
+                            .ceil(),
+                            geom::Curve3::Ellipse(ref e) => {
+                                (span / crate::sizing::ellipse_step(target, e)).ceil()
+                            }
+                            _ => f64::NAN,
+                        };
+                        let mut curvature = 0.0f64;
+                        #[allow(clippy::cast_precision_loss)]
+                        let c = |k: usize| carrier.eval(t0 + span * (k as f64 / samples as f64));
+                        #[allow(clippy::cast_precision_loss)]
+                        let dt = span / samples as f64;
+                        for k in 1..samples {
+                            let d2 = (c(k + 1) - c(k)) - (c(k) - c(k - 1));
+                            curvature = curvature.max(d2.norm() / (dt * dt));
+                        }
+                        let own_sampled = (span * (curvature / (8.0 * target)).sqrt()).ceil();
+                        eprintln!(
+                            "{name}, δ {delta:e}, {:?} face {fk:?}, edge {ek:?} ({}): asked {}, \
+                             its bound asks {bound}, its sampled speed {}; its carrier asks \
+                             {own}, its sampled curvature {own_sampled}",
+                            surface.kind(),
+                            image_form(image),
+                            ts.len() - 1,
+                            ask(sampled)
+                        );
+                        let uv: Vec<_> = ts.iter().map(|&t| image.eval(t)).collect();
+                        for w in uv.windows(2) {
+                            let (du, dv) = ((w[1].x - w[0].x).abs(), (w[1].y - w[0].y).abs());
+                            assert!(
+                                du <= hu * (1.0 + 1e-9) && dv <= hv * (1.0 + 1e-9),
+                                "{name}, δ {delta:e}, face {fk:?} edge {ek:?}: a chord steps \
+                                 ({du}, {dv}) in UV, past the lattice's ({hu}, {hv})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        // Three walls (one on the vessel, two on the elbow) and two cone
+        // faces a half, at three δ.
+        assert_eq!(faces, 3 * (3 + 2 * 4), "the bodies' cone and torus faces");
+    }
+
+    /// The form of a stored chart image, for a row's report.
+    fn image_form(image: &geom_brep::Pcurve<f64>) -> &'static str {
+        match image {
+            geom_brep::Pcurve::Harmonic { .. } => "harmonic",
+            geom_brep::Pcurve::Spiric { .. } => "spiric",
+            geom_brep::Pcurve::FocalSection(_) => "focal section",
+            geom_brep::Pcurve::Projected(_) => "projected",
+            geom_brep::Pcurve::IsoLine { .. } => "iso line",
+            geom_brep::Pcurve::IsoArc { .. } => "iso arc",
+            geom_brep::Pcurve::Fitted(_) => "fitted",
+            geom_brep::Pcurve::General(_) => "general",
+        }
     }
 
     /// **An over-δ triangle on the sphere arm refuses typed through
@@ -2726,6 +2937,106 @@ mod tests {
                 end: RowEnd::Bottom,
             },
         ]
+    }
+
+    /// **A singular row's point is a side of the polygon on every chart
+    /// that has one** (`crate::chart_table`, the singular-row rule). For
+    /// each row of a sphere, a cone and a spindle sheet, a loop arriving
+    /// at the row's point along one `u` and leaving along another keeps
+    /// the point twice, once at each `u`; leaving along the same `u` it
+    /// keeps it once; and a loop turning just off the row keeps its corner
+    /// once. Dropping a chart's rows, or keeping a point the next traversal
+    /// starts from, reds here.
+    #[test]
+    fn each_singular_row_keeps_its_point_once_at_each_u() {
+        use crate::chart_table::ChartRow;
+        let o = geom_core::Point3::new(0.0, 0.0, 0.0);
+        let charts = [
+            (
+                "sphere",
+                ChartRow::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    widest: 1.0,
+                },
+            ),
+            (
+                "cone",
+                ChartRow::Cone {
+                    half_angle: 0.5,
+                    rho_max: 1.0,
+                },
+            ),
+            (
+                "spindle sheet",
+                ChartRow::Spindle {
+                    major: -0.5,
+                    minor: 1.0,
+                    apex: geom::sheet_apex(-0.5, 1.0).v,
+                },
+            ),
+        ];
+        for (name, row) in &charts {
+            let rows = row.singular_rows();
+            assert!(!rows.is_empty(), "{name}: a chart with a singular row");
+            for r in &rows {
+                // A `v` inside the domain, off the row.
+                let inside = match r.end {
+                    RowEnd::Top => r.v - 0.5,
+                    RowEnd::Bottom | RowEnd::Inside => r.v + 0.5,
+                };
+                let kept = |leave_u: f64, at: f64| {
+                    let travs = vec![
+                        vec![(0.3, inside, 1), (0.3, at, 9)],
+                        vec![(leave_u, at, 9), (leave_u, inside, 2)],
+                        vec![(leave_u, inside, 2), (0.3, inside, 1)],
+                    ];
+                    let points: Vec<(f64, f64)> = super::flat_points(&travs, &rows)
+                        .filter(|(_, p)| p.2 == 9)
+                        .map(|(_, p)| (p.0, p.1))
+                        .collect();
+                    points
+                };
+                assert_eq!(
+                    kept(1.2, r.v),
+                    [(0.3, r.v), (1.2, r.v)],
+                    "{name}, row {r:?}: the point at the arriving and the leaving u"
+                );
+                assert_eq!(
+                    kept(0.3, r.v),
+                    [(0.3, r.v)],
+                    "{name}, row {r:?}: leaving along the arriving u, the point once"
+                );
+                let off = (r.v + inside) / 2.0;
+                assert_eq!(
+                    kept(1.2, off).len(),
+                    1,
+                    "{name}, row {r:?}: a corner off the row is no side"
+                );
+            }
+        }
+        for (name, row) in [
+            (
+                "cylinder",
+                ChartRow::Cylinder {
+                    origin: o,
+                    axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    radius: 1.0,
+                },
+            ),
+            (
+                "torus",
+                ChartRow::Torus {
+                    major: 2.0,
+                    minor: 0.5,
+                },
+            ),
+        ] {
+            assert!(
+                row.singular_rows().is_empty(),
+                "{name}: no line of the chart is one point"
+            );
+        }
     }
 
     /// **`pole_side_columns` takes the lattice off #678's shape.** A
@@ -2789,7 +3100,10 @@ mod tests {
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
-            if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
+            if !matches!(surface, geom::Surface::Sphere { .. })
+                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                    != crate::tessellate::Lane::Trimmed
+            {
                 continue;
             }
             let (polygon, _) =
