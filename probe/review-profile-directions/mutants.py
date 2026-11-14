@@ -17,7 +17,8 @@ M = {
  'M12_axis_sign_flip': ('crates/profile/src/seg.rs', '        [Some(Sign::Zero), Some(s)] => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), s)),', '        [Some(Sign::Zero), Some(s)] => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), -s)),'),
 }
 env = dict(os.environ, CARGO_TARGET_DIR='/home/user/review-profile-directions-target', CARGO_PROFILE_DEV_OPT_LEVEL='1', CARGO_PROFILE_TEST_OPT_LEVEL='1', CARGO_PROFILE_TEST_DEBUG='line-tables-only', CARGO_PROFILE_DEV_DEBUG='line-tables-only')
-env.pop('CAD_DIR_PROBE', None)
+FULL = os.environ.get('FULL')
+if not FULL: env.pop('CAD_DIR_PROBE', None)
 names = sys.argv[1:] or list(M)
 for name in names:
     f, old, new = M[name]
@@ -26,10 +27,11 @@ for name in names:
     open(p, 'w').write(s.replace(old, new))
     try:
         pk = ['-p', 'profile'] + (['-p', 'geom-core'] if 'geom-core' in f else [])
-        r = subprocess.run(['cargo', 'nextest', 'run', *pk, '--no-fail-fast', '-E', 'test(/recorded_directions|path_differential|from_chord_radials|register_radials/)'], cwd=R, env=env, capture_output=True, text=True)
+        r = subprocess.run(['cargo', 'nextest', 'run', *pk, '--no-fail-fast', '-E', ('not test(no_production_source_writes_a_vertex_table)' if FULL else 'test(/recorded_directions|path_differential|from_chord_radials|register_radials/)')], cwd=R, env=env, capture_output=True, text=True)
         out = r.stdout + r.stderr
         fails = [l.strip() for l in out.splitlines() if l.strip().startswith('FAIL [')]
         summ = [l.strip() for l in out.splitlines() if 'Summary' in l or l.startswith('error')]
-        print(name, 'RED' if fails else ('BUILD-ERR' if 'error' in ''.join(summ) or not summ else 'GREEN(survived)'), summ[-1:] , *sorted(set(x.split(')')[-1].strip() for x in fails)), sep='\n  ', flush=True)
+        probes = sorted(set(l.strip()[:220] for l in out.splitlines() if 'DIRPROBE' in l))[:4]
+        print(name, *probes, 'RED' if fails else ('BUILD-ERR' if 'error' in ''.join(summ) or not summ else 'GREEN(survived)'), summ[-1:] , *sorted(set(x.split(')')[-1].strip() for x in fails)), sep='\n  ', flush=True)
     finally:
         open(p, 'w').write(s)

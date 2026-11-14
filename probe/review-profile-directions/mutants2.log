@@ -1,0 +1,37 @@
+M10_onto_no_swap
+  DIRPROBE director recorded=true got=(0.9995117584851364, 0.03124491398532608) want=(1.0, 0.0) err=3.1248728449766748e-2 |d|-1=0e0 a=(0.0, 0.0) b=(2.9802322387695313e-8, 0.0)
+  DIRPROBE start recorded=true got=(-0.32815526605643963, -0.9446237988529758) want=(0.0, -1.0) err=3.327948351372785e-1 |d|-1=-1.1102230246251565e-16 a=(0.0, 0.0) b=(-2.7, 0.455625)
+  DIRPROBE start recorded=true got=(-0.6000000000000001, 0.8) want=(-1.0, 0.0) err=8.944271909999159e-1 |d|-1=0e0 a=(0.0, 0.0) b=(1.0, 2.0)
+  DIRPROBE start recorded=true got=(0.47058823529411764, 0.8823529411764706) want=(0.0, -1.0) err=1.9402850002906638e0 |d|-1=0e0 a=(0.0, 0.0) b=(0.25, 1.0)
+  RED
+  ['error: test run failed']
+  profile::all arc_onto::an_interior_target_lands_a_directed_point_incoming_the_director
+  profile::all arc_onto::arc_onto_is_tangent_arc_to_reversed_bit_for_bit
+  profile::all arc_onto::from_a_leg_end_the_derived_departure_is_junction_checked
+  profile::all arc_onto::from_the_entry_the_derived_departure_is_starts_direction
+  profile::all arc_onto::start_with_a_director_is_the_classified_sharp_seam
+  profile::all arc_onto::the_b_closes_at_the_sharp_seam_and_validates
+  profile::all arc_onto::the_d_closes_with_the_token_supplied_and_validates
+  profile::all fillet_stored_tangency::no_door_output_is_refused_for_its_constructed_tangency
+  profile::all fillet_stored_tangency::the_corpus_stored_loops_dump_to_the_bit
+  profile::all generic_replay::no_corpus_row_escalates_at_interval
+  profile::all generic_replay::the_corpus_replays_at_interval_and_encloses_the_f64_lane
+  profile::all review_direction_slack::review_accepted_director_slack
+  profile::all tangent_arc_near_a_full_turn::near_behind_targets_land_on_their_end_vertex_at_both_scalars
+  profile::all tangent_arc_near_a_full_turn::the_rows_three_radii_keep_their_end_vertex
+  profile::all tangent_joints::no_coverage_corpus_row_leaves_a_joint_to_decide
+M6_point_target_director
+  DIRPROBE director recorded=true got=(0.9995117584851364, 0.03124491398532608) want=(1.0, 0.0) err=3.1248728449766748e-2 |d|-1=0e0 a=(0.0, 0.0) b=(2.9802322387695313e-8, 0.0)
+  RED
+  ['error: test run failed']
+  profile::all review_direction_slack::review_accepted_director_slack
+M13_tangent_records_none
+  DIRPROBE director recorded=true got=(0.9995117584851364, 0.03124491398532608) want=(1.0, 0.0) err=3.1248728449766748e-2 |d|-1=0e0 a=(0.0, 0.0) b=(2.9802322387695313e-8, 0.0)
+  RED
+  ['error: test run failed']
+  profile::all review_direction_slack::review_accepted_director_slack
+M14_bulge_records_none
+  DIRPROBE director recorded=true got=(0.9995117584851364, 0.03124491398532608) want=(1.0, 0.0) err=3.1248728449766748e-2 |d|-1=0e0 a=(0.0, 0.0) b=(2.9802322387695313e-8, 0.0)
+  RED
+  ['error: test run failed']
+  profile::all review_direction_slack::review_accepted_director_slack

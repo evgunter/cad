@@ -1,0 +1,15 @@
+eps 1e-9 side 2.9802322387695313e-8 (= 29.80 eps): accepted angle off 3.355600632157857e-2 rad (1.923 deg), accepted |d|-1 up to 3.355443199999997e-2; stored verbatim: Vec2 { x: 0.9994370500465787, y: 0.033549709301163355 }
+eps 1e-9 side 1.1920928955078125e-7 (= 119.21 eps): accepted angle off 8.38863259585348e-3 rad (0.481 deg), accepted |d|-1 up to 8.388608000000073e-3; stored verbatim: Vec2 { x: 0.9999648156279112, y: 0.008388534212699184 }
+eps 1e-9 l 1e-8: square refuses
+eps 1e-9 side 1.0000000000000001e-7 (= 100.00 eps): accepted angle off 1.0000041667135423e-2 rad (0.573 deg), accepted |d|-1 up to 1.0000000000000118e-2; stored verbatim: Vec2 { x: 0.99995, y: 0.00999987499921874 }
+eps 1e-9 side 1e0 (= 1000000000.00 eps): accepted angle off 9.999999999999999e-10 rad (0.000 deg), accepted |d|-1 up to 9.999999717180677e-10; stored verbatim: Vec2 { x: 1.0, y: 9.999999999999999e-10 }
+eps 1e-6 side 3.0517578125e-5 (= 30.52 eps): accepted angle off 3.276946619262074e-2 rad (1.878 deg), accepted |d|-1 up to 3.276800000000002e-2; stored verbatim: Vec2 { x: 0.999463129088, y: 0.03276360165830137 }
+eps 1e-6 side 1.220703125e-4 (= 122.07 eps): accepted angle off 8.192022906665184e-3 rad (0.469 deg), accepted |d|-1 up to 8.192000000000086e-3; stored verbatim: Vec2 { x: 0.999966445568, y: 0.008191931280235031 }
+eps 1e-6 l 9.999999999999999e-6: square refuses
+eps 1e-6 side 9.999999999999999e-5 (= 100.00 eps): accepted angle off 1.0000041667135424e-2 rad (0.573 deg), accepted |d|-1 up to 1.0000000000000118e-2; stored verbatim: Vec2 { x: 0.99995, y: 0.009999874999218741 }
+eps 1e-6 side 1e0 (= 1000000.00 eps): accepted angle off 1.0000000000000417e-6 rad (0.000 deg), accepted |d|-1 up to 1.0000000000287555e-6; stored verbatim: Vec2 { x: 0.9999999999995, y: 9.99999999999875e-7 }
+eps 1e-12 side 2.9103830456733704e-11 (= 29.10 eps): accepted angle off 3.4361428793326404e-2 rad (1.969 deg), accepted |d|-1 up to 3.435973836799999e-2; stored verbatim: Vec2 { x: 0.9994097041896413, y: 0.034354667391399446 }
+eps 1e-12 side 1.1641532182693481e-10 (= 116.42 eps): accepted angle off 8.589961001606732e-3 rad (0.492 deg), accepted |d|-1 up to 8.589934592000081e-3; stored verbatim: Vec2 { x: 0.9999631065118526, y: 0.008589855363472107 }
+eps 1e-12 l 1e-11: square refuses
+eps 1e-12 side 1e-10 (= 100.00 eps): accepted angle off 1.0000041667135421e-2 rad (0.573 deg), accepted |d|-1 up to 1.0000000000000118e-2; stored verbatim: Vec2 { x: 0.99995, y: 0.009999874999218738 }
+eps 1e-12 side 1e0 (= 1000000000000.00 eps): accepted angle off 9.999999999994796e-13 rad (0.000 deg), accepted |d|-1 up to 9.999778782790513e-13; stored verbatim: Vec2 { x: 1.0, y: 9.999999999994796e-13 }

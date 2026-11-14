@@ -1,0 +1,57 @@
+M1_reverse_no_negate
+  RED
+  ['error: test run failed']
+  profile::all recorded_directions::a_reversed_loop_swaps_its_radials_and_negates_its_directors
+M2_reverse_no_swap
+  RED
+  ['error: test run failed']
+  profile::all path_differential::arc_via_closing_matches_loopbuilder_close_arc_via
+  profile::all path_differential::arc_via_matches_loopbuilder_arc_to_via
+  profile::all recorded_directions::a_reversed_loop_swaps_its_radials_and_negates_its_directors
+  profile::all recorded_directions::bulge_and_tangent_arcs_record_their_centre_to_vertex_radials
+M3_lift_rederives
+  RED
+  ['error: test run failed']
+  profile::all recorded_directions::the_lift_carries_a_recorded_direction_and_never_rederives_it
+M4_check_accepts_all
+  RED
+  ['error: test run failed']
+  profile::all recorded_directions::a_tables_recorded_direction_is_checked_and_refused_typed
+M5_flip_sigma
+  RED
+  ['error: test run failed']
+  profile::all path_differential::tangent_arc_leg_matches_loopbuilder
+  profile::all recorded_directions::bulge_and_tangent_arcs_record_their_centre_to_vertex_radials
+M6_point_target_director
+  GREEN(survived)
+  ['Summary [   0.044s] 29 tests run: 29 passed, 702 skipped']
+M7_circle_radials_swapped
+  RED
+  ['error: test run failed']
+  profile::all path_differential::circle_matches_the_raw_corpus_convention
+  profile::all recorded_directions::a_circles_radials_are_exactly_plus_and_minus_x_over_a_box
+M8_bulge_sign_ignored
+  RED
+  ['error: test run failed']
+  geom-core arc::tests::from_chord_radials_are_the_centre_to_vertex_units
+  profile::all path_differential::arc_via_closing_matches_loopbuilder_close_arc_via
+  profile::all path_differential::arc_via_matches_loopbuilder_arc_to_via
+  profile::all recorded_directions::bulge_and_tangent_arcs_record_their_centre_to_vertex_radials
+M9_no_radial_registration
+  RED
+  ['error: test run failed']
+  profile::all recorded_directions::a_circles_radials_are_exactly_plus_and_minus_x_over_a_box
+M10_onto_no_swap
+  GREEN(survived)
+  ['Summary [   0.039s] 29 tests run: 29 passed, 702 skipped']
+M11_split_end_radial_k
+  RED
+  ['error: test run failed']
+  profile::all path_differential::circle_matches_the_raw_corpus_convention
+  profile::all recorded_directions::a_circles_radials_are_exactly_plus_and_minus_x_over_a_box
+M12_axis_sign_flip
+  RED
+  ['error: test run failed']
+  profile::all path_differential::single_fillet_after_leg_matches_loopbuilder_fillet
+  profile::all path_differential::tangent_arc_leg_matches_loopbuilder
+  profile::all recorded_directions::a_hop_along_an_axis_mints_its_director_with_no_width
