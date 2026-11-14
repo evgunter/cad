@@ -9382,7 +9382,7 @@ fn run_iso_checks<T: Decide>(
         // + |C(v(t)) − C(t)|                  (parameter-map slack).
         (false, true) => seam_envelope(
             payload,
-            (p0, pl),
+            (p0, pl, ends.map(|[a, b]| [a.y, b.y])),
             (t0, t1),
             carrier,
             (stretch_u, stretch_v),
@@ -9396,7 +9396,11 @@ fn run_iso_checks<T: Decide>(
         // row (a control-net copy) or an interior one (the collapse).
         (true, false) => seam_envelope(
             &payload.transposed(),
-            (Point2::new(p0.y, p0.x), Vec2::new(pl.y, pl.x)),
+            (
+                Point2::new(p0.y, p0.x),
+                Vec2::new(pl.y, pl.x),
+                ends.map(|[a, b]| [a.x, b.x]),
+            ),
             (t0, t1),
             carrier,
             (stretch_v, stretch_u),
@@ -9524,7 +9528,7 @@ fn traversed_column<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 fn seam_envelope<T: Decide>(
     payload: &geom::NurbsSurface<T>,
-    (p0, pl): (Point2<T>, Vec2<T>),
+    (p0, pl, stated): (Point2<T>, Vec2<T>, Option<[T; 2]>),
     (t0, t1): (T, T),
     carrier: &Curve3<T>,
     (stretch_u, stretch_v): (SupSpeed<T>, SupSpeed<T>),
@@ -9533,6 +9537,16 @@ fn seam_envelope<T: Decide>(
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<T, PcurveCertifyError> {
     let span = t1 - t0;
+    // The moving channel's reach for the domain gates below: the map's
+    // value at both span ends and, where they are stated, the stated
+    // ends, which the rectangle lane reads in their place. The gate
+    // decides on that reach; the envelope folds only the map's own
+    // excursion, since a stated end's distance from the map is already
+    // in it (`run_iso_checks`).
+    let reach = |a: T, b: T| {
+        let (lo, hi) = (a.min(b), a.max(b));
+        stated.map_or((lo, hi), |[x, y]| (lo.min(x).min(y), hi.max(x).max(y)))
+    };
     // **The LINE-carrier limb** (#388): a straight ruling
     // edge whose carrier was promoted to `Curve3::Line`
     // upstream (D7 curve recognition) claims the same
@@ -9586,10 +9600,12 @@ fn seam_envelope<T: Decide>(
         let v_at_0 = p0.y + pl.y * t0;
         let v_at_1 = p0.y + pl.y * t1;
         let (d0, d1) = b.knot_values().domain();
+        let (lo, hi) = reach(v_at_0, v_at_1);
+        let gate = escape((d0 - lo).max(hi - d1));
         let over = escape((d0 - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - d1));
         match decide(
             "pcurve_iso_domain",
-            Margin::metered_sup(over, stretch_v),
+            Margin::metered_sup(gate, stretch_v),
             band,
         )
         .map_err(esc)?
@@ -9722,6 +9738,8 @@ fn seam_envelope<T: Decide>(
     // carrier's (one domain, unless the carrier is reflected).
     let (r0, r1) = b.knot_values().domain();
     let (d0, d1) = c.knot_values().domain();
+    let (lo, hi) = reach(v_at_0, v_at_1);
+    let gate = escape((r0 - lo).max(hi - r1).max(d0 - t0).max(t1 - d1));
     let over = escape(
         (r0 - v_at_0.min(v_at_1))
             .max(v_at_0.max(v_at_1) - r1)
@@ -9730,7 +9748,7 @@ fn seam_envelope<T: Decide>(
     );
     match decide(
         "pcurve_iso_domain",
-        Margin::metered_sup(over, stretch_v),
+        Margin::metered_sup(gate, stretch_v),
         band,
     )
     .map_err(esc)?

@@ -7066,7 +7066,7 @@ mod tests {
     /// | `t0` (m) | legacy (m) | collapsed (m) | ULP | relative |
     /// |---|---|---|---|---|
     /// | 0     | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
-    /// | 1.7   | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
+    /// | 1.7   | 4.4409e-16 | 7.7716e-16 | 3.38e15 | +75 % |
     /// | 1e3   | 5.9064e-14 | 1.7053e-13 | 6.58e15 | **+189 %** |
     /// | 1e6   | 6.0536e-11 | 5.8208e-11 | 1.80e14 | **−3.85 %** |
     ///
@@ -7087,10 +7087,12 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: the description states its ends
-    /// (`EdgeDescriptionSpec::iso`), and check 3 reads the stated `v1` at
-    /// `t1` where the legacy reads the map there: 7.8e-16 m against
-    /// 4.4e-16 m.
+    /// Anchor 1.7 m: the two expressions agree, and the move is check 4's.
+    /// The description states its ends (`EdgeDescriptionSpec::iso`), the
+    /// map at `t1` stands one ulp from the stated `v1`, and the envelope
+    /// carries that ulp metred by the chart's `stretch_v = 3`, about
+    /// 3.4e-16 m; the certificate's residual is the larger of the
+    /// schedule's and the envelope, 7.8e-16 m against the legacy 4.4e-16 m.
     const D2_A1: i64 = 3_377_699_720_527_872;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;

@@ -8,14 +8,17 @@ use geom_core::{Decide, Real};
 
 use super::{
     ChartPeriods, DerivedRow, DescribedChart, PinMiss, WalkFail, WalkItem, edge_record, entry_exit,
-    entry_vertex, half_edge_carrier, half_edge_curve, is_plus, stored_edge, stored_reach,
-    walk_cycle, walk_item,
+    entry_vertex, half_edge_curve, is_plus, stored_edge, stored_reach, walk_cycle, walk_item,
 };
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
 use crate::live::proven;
 use crate::null::Scaffolding;
+
+/// A half-edge charted for a derived lift: its carrier, its window
+/// `(t0, t1)`, and that window as the span its row is read over.
+type Charted<T> = (HalfEdgeKey, geom::Curve3<T>, T, T, geom_brep::StoredSpan<T>);
 
 /// One face's boundary as this module's passes walk it: each loop's
 /// half-edge cycle, **whether that boundary already STORES a row**, and
@@ -494,16 +497,18 @@ impl<T: Decide> Lift<T> {
             return Err(LiftRefusal::Placeholder);
         };
         let sense = proven(&body.faces, face, EntityId::Face).sense;
-        let charted: Vec<(HalfEdgeKey, geom::Curve3<T>, T, T)> = halves
+        // Each half's carrier, its window, and that window as the span its
+        // row is read over, from one read of the edge's certified curve.
+        let charted: Vec<Charted<T>> = halves
             .iter()
             .filter_map(|&he| {
-                half_edge_carrier(body, he)
-                    .ok()
-                    .map(|(carrier, t0, t1)| (he, carrier, t0, t1))
+                let curve = half_edge_curve(body, he).ok()?;
+                let (t0, t1) = curve.params();
+                Some((he, curve.carrier().clone(), t0, t1, curve.edge_span()))
             })
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
-            let (he, carrier, t0, t1) = &charted[i];
+            let (he, carrier, t0, t1, _) = &charted[i];
             let pcurve =
                 chart_pcurve_over(carrier, *t0, *t1, surface, band).map_err(LiftRefusal::Image)?;
             Ok(walk_item(
@@ -549,15 +554,10 @@ impl<T: Decide> Lift<T> {
         for (i, (((_, image), _, _, _), lift)) in
             walked.into_iter().zip(lift_decks(&elements)).enumerate()
         {
-            let half_edge = charted[i].0;
+            let (half_edge, params) = (charted[i].0, charted[i].4);
             let pcurve = lift
                 .apply(image.pcurve(), surface, periods)
                 .ok_or(LiftRefusal::Joint(PinMiss::Discontinuity))?;
-            let params = half_edge_curve(body, half_edge)
-                .unwrap_or_else(|e| {
-                    unreachable!("{half_edge:?} was charted over its edge's certified curve: {e}")
-                })
-                .edge_span();
             rows.push(LiftedRow {
                 half_edge,
                 lift,

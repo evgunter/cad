@@ -258,3 +258,67 @@ fn a_corner_the_mint_states_over_a_short_edge_is_in_the_envelope() {
     at::<f64>("f64");
     at::<Interval>("Interval");
 }
+
+/// The row `v = 0` over the edge `u = t ∈ span` of the unit chart, its
+/// map the edge's own and its ends `ends` where given: `Ok(envelope)` or
+/// the refusal.
+fn row_over<T: Decide + Bounds>(
+    span: (f64, f64),
+    ends: Option<[f64; 2]>,
+) -> Result<f64, PcurveCertifyError> {
+    let f = T::from_f64;
+    let carrier = Curve3::line(
+        Point3::new(T::zero(), T::zero(), T::zero()),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    );
+    let (t0, t1) = (f(span.0), f(span.1));
+    let Pcurve::IsoLine { p0, pl, .. } = Pcurve::iso_row(T::zero(), (t0, t1), (t0, t1)) else {
+        unreachable!("iso_row mints an IsoLine")
+    };
+    let ends = ends.map(|e| e.map(|u| Point2::new(f(u), T::zero())));
+    PcurveCache::certify(
+        Pcurve::IsoLine { p0, pl, ends },
+        t0,
+        t1,
+        &carrier,
+        &unit_chart(),
+        band(),
+    )
+    .map(|cache| cache.certificate().envelope.hi())
+}
+
+/// **A stated end outside the chart's domain is gated as the map's would
+/// be.** The edge's own map stops at the domain's end and the stated end
+/// stands δ = ε/2 past it (at `u = 1 + δ`, and before it at `u = −δ`):
+/// it takes the verdict an edge whose own map runs that far takes, and
+/// where both certify, its envelope covers the excursion.
+#[test]
+fn a_stated_end_outside_the_domain_is_gated_as_the_map_would_be() {
+    fn at<T: Decide + Bounds>(scalar: &str) {
+        let delta = 0.5 * crate::shared::tol::eps();
+        for (what, inside, stated, reaching) in [
+            ("past", (0.0, 1.0), [0.0, 1.0 + delta], (0.0, 1.0 + delta)),
+            ("before", (0.0, 0.9), [-delta, 0.9], (-delta, 0.9)),
+        ] {
+            let by_ends = row_over::<T>(inside, Some(stated));
+            let by_map = row_over::<T>(reaching, None);
+            assert_eq!(
+                by_ends
+                    .as_ref()
+                    .map(|_| ())
+                    .map_err(core::mem::discriminant),
+                by_map.as_ref().map(|_| ()).map_err(core::mem::discriminant),
+                "{scalar}, {what}: a stated end and a map that far take one verdict: \
+                 {by_ends:?} against {by_map:?}"
+            );
+            if let Ok(envelope) = by_ends {
+                assert!(
+                    envelope >= 0.99 * delta,
+                    "{scalar}, {what}: the envelope {envelope:e} covers the {delta:e} excursion"
+                );
+            }
+        }
+    }
+    at::<f64>("f64");
+    at::<Interval>("Interval");
+}

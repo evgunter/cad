@@ -188,7 +188,13 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
             assert!(
                 matches!(
                     refusal.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable { .. }]
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::QuadratureUnsupported { what },
+                            ..
+                        },
+                        ..
+                    }] if what.contains("not exact structure")
                 ),
                 "{scalar}: check 7 refuses the re-minted wall: {refusal:?}"
             );

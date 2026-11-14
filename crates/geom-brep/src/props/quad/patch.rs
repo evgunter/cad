@@ -131,8 +131,13 @@ pub(super) fn composite_round_cost(
 /// caller's `Σ (metric edge length)·(pcurve envelope)` bound on the
 /// metric area between the true trim boundary and the rectangle; it
 /// widens the area directly and the flux through the patch's position
-/// magnitude bound. Exactly zero for minted (exact-in-family) iso
-/// pcurves.
+/// magnitude bound. For minted (exact-in-family) iso pcurves its only
+/// part is a stated end's distance from the map
+/// ([`crate::Pcurve::span_ends`]): zero at `f64` where the map reads the
+/// end exactly and an ulp or so of the end, metred by the chart's
+/// stretch, where it does not; at `Interval`, where a span end is a
+/// computed enclosure, about that enclosure's width times the stretch
+/// (some 1e-15 of it), never zero.
 ///
 /// The flux is signed by the CHART normal `S_u×S_v`; the caller owns
 /// the loop-winding sign (S10: winding-derived end to end).
