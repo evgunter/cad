@@ -33,7 +33,7 @@ use geom_core::{
     RigidMotion, Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
-use super::closure::{self, ChartLoop, EdgeTurn, Joint};
+use super::closure::{self, ChartLoop, EdgeTurn, Joint, turn_about};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
@@ -1456,31 +1456,34 @@ fn cylinder_windings<T: Decide>(
             let start = spans[i].0;
             let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
             // Every edge's turn about the axis between its own ends: a
-            // rim's stored turn about its own centre, carried to the axis
-            // at each end; a ruling's short turn, which a ruling certified
-            // axial may still make by `ε/R`.
+            // ruling's short turn, which a ruling certified axial may still
+            // make by `ε/R`; a rim's stored turn carried to the axis. The
+            // parse mints one rim per circle in loop order, so the loop's
+            // circles and its parsed rims pair one to one, and a count that
+            // disagrees either way refuses.
+            let mismatch = PropsError::NotIsoRectangle {
+                what: "a cylinder loop whose circles and parsed rims differ in number",
+            };
             let mut rim_turns = rims[start..end].iter().map(|&(_, du)| du);
             let pieces = edges
                 .iter()
                 .map(|e| {
-                    let (a, b) = e.traversal_ends();
-                    let arms = turn_arms(axis, a - origin, b - origin);
-                    let sweep = match e.carrier {
+                    let ends = e.traversal_ends();
+                    Ok([match e.carrier {
                         Curve3::Circle(geom::Circle {
                             frame: geom::Frame { origin: center, .. },
                             ..
                         }) => {
-                            let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
-                                what: "a cylinder loop with more circles than parsed rims",
-                            })?;
-                            du + about_axis(axis, center, origin, b)
-                                - about_axis(axis, center, origin, a)
+                            let du = rim_turns.next().ok_or(mismatch.clone())?;
+                            EdgeTurn::carried(axis, origin, center, du, ends, radius)
                         }
-                        _ => arms.1.atan2(arms.0),
-                    };
-                    Ok([EdgeTurn::new(sweep, arms, radius)])
+                        _ => EdgeTurn::short(axis, ends.0 - origin, ends.1 - origin, radius),
+                    }])
                 })
-                .collect::<Result<_, PropsError>>()?;
+                .collect::<Result<Vec<_>, PropsError>>()?;
+            if rim_turns.next().is_some() {
+                return Err(mismatch);
+            }
             let joints = edges
                 .iter()
                 .zip(edges.iter().cycle().skip(1))
@@ -1500,31 +1503,6 @@ fn cylinder_windings<T: Decide>(
         })
         .collect::<Result<_, _>>()?;
     closure::closed_form_windings(&chart_loops, band)
-}
-
-/// How much farther round the unit `axis` (through `origin`) the point
-/// `p` sits than round a circle's own centre `center`: the turn from
-/// `p − center` to `p − origin`. A stored turn about the circle's centre
-/// plus its value at the end less its value at the start is the turn
-/// about the axis. It is read clear of the branch cut while the axis
-/// passes inside the circle, less than a quarter turn from any point of
-/// it: decided for the face by [`closure::require_axis_inside`].
-fn about_axis<T: Real>(axis: Vec3<T>, center: Point3<T>, origin: Point3<T>, p: Point3<T>) -> T {
-    turn_about(axis, p - center, p - origin)
-}
-
-/// The signed angle about the unit `axis` from the offset `a` to the
-/// offset `b`, both from a point of the axis, the short way round.
-fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
-    let (dot, cross) = turn_arms(axis, a, b);
-    cross.atan2(dot)
-}
-
-/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
-/// the unit `axis` of the offsets `a` and `b` less their parts along it.
-fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
-    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
-    (a.dot(b), a.cross(b).dot(axis))
 }
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
@@ -2901,7 +2879,7 @@ struct ConeWinding<T: Real> {
 ///   its own centre, in the sense its axis makes with the cone's
 ///   (`props_cone_arc_sense`): it turns through its stored span, a whole
 ///   turn or more included, carried to the axis at each end
-///   ([`about_axis`]: its centre is within the band of the axis and its
+///   ([`closure::about_axis`]: its centre is within the band of the axis and its
 ///   ends are decided off it, so the axis passes inside it);
 /// - an ellipse on a cone is a plane section that meets every generator
 ///   of its nappe once, so its azimuth is monotone along it, in that
@@ -2962,6 +2940,13 @@ fn cone_loop_winding<T: Decide>(
     };
     let mut arm = T::zero();
     let mut through_apex = false;
+    // An edge's turn about the axis: a rim's carried in its traversal's
+    // sense, or a turn read in the stored sense, which the traversal
+    // flips.
+    enum Turn<T> {
+        Carried(EdgeTurn<T>),
+        Stored(T),
+    }
     // Each edge's step, and its radial directions (and whether on the
     // apex) at its traversal start and end.
     let mut steps = Vec::with_capacity(edges.len());
@@ -3005,7 +2990,6 @@ fn cone_loop_winding<T: Decide>(
             })
         };
         let mut lever = rho;
-        let mut own_turn = T::zero();
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
@@ -3018,9 +3002,16 @@ fn cone_loop_winding<T: Decide>(
                     },
                 ..
             }) => {
-                own_turn = sense(n, rho)? * (e.t1 - e.t0);
-                own_turn + about_axis(axis, center, apex, e.p1())
-                    - about_axis(axis, center, apex, e.p0())
+                let own = sense(n, rho)? * (e.t1 - e.t0);
+                let own = if e.forward { own } else { -own };
+                Turn::Carried(EdgeTurn::carried(
+                    axis,
+                    apex,
+                    center,
+                    own,
+                    e.traversal_ends(),
+                    lever,
+                ))
             }
             Curve3::Ellipse(geom::Ellipse {
                 frame: geom::Frame { axis: n, .. },
@@ -3047,31 +3038,21 @@ fn cone_loop_winding<T: Decide>(
                             Sign::Zero => return refuse("props_cone_arc_turn"),
                         };
                 }
-                thirds
+                Turn::Stored(thirds)
             }
-            _ => turn_about(axis, a, b),
+            _ => Turn::Stored(turn_about(axis, a, b)),
         };
         let ends = ((a, a_apex), (b, b_apex));
-        let (step, ends) = if e.forward {
-            (step, ends)
-        } else {
-            (-step, (ends.1, ends.0))
-        };
+        let ends = if e.forward { ends } else { (ends.1, ends.0) };
         // A generator's short turn and an ellipse's thirds agree with
         // their ends by construction; a rim's carried turn misses them by
         // what its own turn misses them about its centre.
-        pieces.push([match e.carrier {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            }) => {
-                let (ca, cb) = e.traversal_ends();
-                let own = if e.forward { own_turn } else { -own_turn };
-                EdgeTurn::carried(step, own, turn_arms(axis, ca - center, cb - center), lever)
-            }
-            _ => EdgeTurn::exact(step, lever),
-        }]);
-        steps.push((step, ends));
+        let turn = match step {
+            Turn::Carried(turn) => turn,
+            Turn::Stored(step) => EdgeTurn::exact(if e.forward { step } else { -step }, lever),
+        };
+        pieces.push([turn]);
+        steps.push((turn.sweep, ends));
     }
     // A loop through the apex has no winding, and no chart to read.
     let joints = if through_apex {
@@ -5524,8 +5505,8 @@ fn torus_chart_loop<T: Decide>(
         let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
         (xa * xb + ya * yb, xa * yb - ya * xb)
     };
-    // The short turn on a pair of arms.
-    let short = |(dot, cross): (T, T)| cross.atan2(dot);
+    // The principal angle on a pair of arms.
+    let principal = |(dot, cross): (T, T)| cross.atan2(dot);
     // How much farther round the tube a point sits about the core circle
     // than about a meridian's own centre: the turn, in the meridian's
     // plane, from `d` (the point less the meridian's centre) to `w` (the
@@ -5543,9 +5524,12 @@ fn torus_chart_loop<T: Decide>(
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
     };
     // Each piece's turn between its own ends: a parallel's stored azimuth
-    // turn about its own centre carried to the axis at each end, and its
-    // short tube turn; a meridian's stored tube turn about its own centre
-    // carried to the core circle at each end, and its short azimuth turn.
+    // turn carried to the axis ([`EdgeTurn::carried`], `du` this piece's
+    // own span) and its short tube turn; a meridian's short azimuth turn
+    // and its stored tube turn carried to the core circle. A meridian's
+    // tube miss is read back about the core circle against its ends, so
+    // it is charged their enclosures' width: about 1e-12 m a meridian on
+    // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
         let Curve3::Circle(geom::Circle {
@@ -5558,18 +5542,13 @@ fn torus_chart_loop<T: Decide>(
             });
         };
         let (wa, wb) = (a - center, b - center);
-        let (azimuth, tube) = (turn_arms(axis, wa, wb), tube_arms(wa, wb));
+        let tube = tube_arms(wa, wb);
         Ok(match p.step {
             TorusStep::Rim { du, .. } => {
                 closure::require_axis_inside(r_c, band)?;
                 [
-                    EdgeTurn::new(
-                        du + about_axis(axis, centre, center, b)
-                            - about_axis(axis, centre, center, a),
-                        azimuth,
-                        r_c,
-                    ),
-                    EdgeTurn::new(short(tube), tube, minor),
+                    EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
+                    EdgeTurn::exact(principal(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
@@ -5589,9 +5568,8 @@ fn torus_chart_loop<T: Decide>(
                         wb
                     },
                 );
-                let azimuth = turn_arms(axis, ua, ub);
                 [
-                    EdgeTurn::new(short(azimuth), azimuth, near(ua).min(near(ub))),
+                    EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
@@ -5619,7 +5597,7 @@ fn torus_chart_loop<T: Decide>(
         .map(|((e, next), piece)| {
             let (pa, pb) = (e.traversal_ends().1, next.traversal_ends().0);
             let (a, b) = (pa - center, pb - center);
-            let tube = (short(tube_arms(a, b)), minor);
+            let tube = (principal(tube_arms(a, b)), minor);
             match piece.apex_after {
                 // The apex junction has no azimuth gap to read. The loop's
                 // turns about the axis need a positive meter there (one at
@@ -6661,6 +6639,9 @@ mod sphere_region_cover_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod apex_start_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_turn_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;

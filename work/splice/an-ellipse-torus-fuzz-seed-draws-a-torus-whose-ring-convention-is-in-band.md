@@ -60,3 +60,6 @@ margin `9.631336879257417e-6` in the band (1e-6, 1e-5).
 A third, from the same lane's re-run (2026-11-14): seed
 `0xb27e31258ec89b00` reproduces on `origin/main` at `8eb399d8`, margin
 `7.579386505001449e-6`.
+A fourth, from BOXFINISH's edge-turns lane (2026-11-14), on a branch
+whose diff does not touch `curve_face`: seed `0xda3ffbd3eaed595f`
+(`CAD_FUZZ_SEED=0xda3ffbd3eaed595f`), margin `9.914e-6`.
