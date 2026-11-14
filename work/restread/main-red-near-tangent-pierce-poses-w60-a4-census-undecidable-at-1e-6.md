@@ -32,6 +32,8 @@ Moved from `work/issues/` to `work/restread/` on 2026-11-03, when the `work/issu
 
 ## Dated and pinned (GREEN, 2026-11-14)
 
-Still red on main `b363f5fa1` with the same finding. In the nightly it passed at ε 1e-6 on 11-01 (main `fbfebd92`) and has failed since 11-02 (main `8a440cfa`), so the merge lies between those two.
+Still red on main `b363f5fa1` with the same finding. In the nightly it passed at ε 1e-6 on 11-01 (main `fbfebd92`) and has failed since 11-02 (main `8a440cfa`).
+
+Bisected, first-parent, at ε 1e-6: green at `082c42d27`; red at `367ff259a`, the merge of PR 6212 (`splitdoor/prism-tilt-reach`, which changed `crates/topo/src/boolean/sectors.rs`, `insert.rs` and `vtxfac.rs`), whose first parent is `082c42d27`; red at `d05cc76c9`, `8a611050d`, `286c28f0a`, `e669a2f89` and `cda6d86c4`. So the boolean changed what it builds for this pose, and the census then cannot decide the body. Which finding leaves the boundaries unchecked is still owed, and whether the body PR 6212 builds here is right is SPLITDOOR's half of the question.
 
 The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`): the one wrong run, `w60 nt e1 a4 d1e-7, prism ∪ cube`, `CensusUndecidable`, `MayOverlap`. Take the pin off with the fix.
