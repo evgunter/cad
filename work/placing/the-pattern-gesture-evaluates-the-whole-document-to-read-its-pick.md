@@ -2,7 +2,8 @@
 id: the-pattern-gesture-evaluates-the-whole-document-to-read-its-pick
 kind: issue
 title: picked_heading evaluates the whole committed document on every pattern commit to read one pick's direction
-status: open
+status: dispatched
+branch: placing/p3p4-cleanup
 opened: 2026-11-02
 priority: P4
 cost: E
