@@ -7,6 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/default-eps
+pr: 6931
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
