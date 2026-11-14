@@ -1988,9 +1988,9 @@ mod tests {
     }
 
     /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
-    /// pole-to-pole arm spells it. The sense fold is omitted because
-    /// it is a bitwise negation of `area`: it cannot change how well
-    /// conditioned the fold that produced `area` was.
+    /// pole-to-pole arm spells it. The frame's turn to the outward side
+    /// is omitted because it negates both dots bitwise: it cannot change
+    /// how well conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
         area.dot(chart.frame().v_ref())

@@ -80,6 +80,7 @@ impl ChartWinding {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use geom::{NurbsSurface, Surface};
     use geom_core::spline::KnotVector;
