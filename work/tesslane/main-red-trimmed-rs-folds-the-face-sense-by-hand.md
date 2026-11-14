@@ -2,10 +2,11 @@
 id: main-red-trimmed-rs-folds-the-face-sense-by-hand
 kind: issue
 title: main red: crates/mesh/src/trimmed.rs negates three values by hand under a face's sense bit (topo face_normal fold census, slow set)
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: E
+branch: tesslane/sense-door
 ---
 
 **What fails.** topo's slow-set row `face_normal::tests::no_source_file_folds_the_bit_by_hand` (`crates/topo/src/face_normal.rs:916`) walks every `crates/*/src` file for a value negated by hand under a face's `sense` bit. Run on origin/main (2026-10-29, `cargo nextest run -p topo --lib -E 'test(=face_normal::tests::no_source_file_folds_the_bit_by_hand)' --run-ignored all`), it fails with six hits beyond its `sanctioned` list, from two sources: this row covers `crates/mesh/src/trimmed.rs`; the other, `crates/topo/src/injective.rs` (`clear/main-red-injective-rs-folds-the-face-sense-by-hand`), is filed beside it. Found by SPLICE's structural-rim lane while validating PR 5959, and reproduced by the SPLICE orchestrator.
@@ -26,3 +27,15 @@ cost: E
 Pinned: `face_normal::tests::no_source_file_folds_the_bit_by_hand` now expects `sanctioned` plus a separate `pinned` list naming this row's three `trimmed.rs` hits (`1.0`, `area`, `radial`), so any other hit fails the test, and the failure message names both lists. The repair landing fails it too, until the repair strikes them from `pinned`. The census walks source and stops on nothing, so un-pinning owes no re-measure. The `the_planar_sense_flip_lives_in_one_place` sibling (`intent/main-red-trace-rs-reads-as-a-planar-sense-flip-re-fork`) is green on main since #6087.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Unit (2026-11-14, TESSLANE)
+
+**Letter S. Tier: single review, STYLE.** The change is two sites and reads as right or wrong on sight; what is at risk is the shape of the fix (a third spelling of the fold, or a sanction that should have been a door), which is the style lane's ground.
+
+On main today the census is green on a `pinned` list of two hits, `radial` (`TrimmedFace::outward`) and `area` (a test's signed chart area); the `1.0` hit this row first listed is gone.
+
+- `TrimmedFace::outward` reads the face's outward direction through the sense door (`crates/topo/src/face_normal.rs` names the by-value doors), not by negating a per-arm radial vector under the bit. Whether the door's value is unit or raw matters only as far as `outward`'s callers read it; the unit says which they need.
+- The test's `area`: a door, or the `sanctioned` list with its reason, whichever is true of what it negates.
+- Both entries leave `pinned`.
+
+Branch `tesslane/sense-door`.
