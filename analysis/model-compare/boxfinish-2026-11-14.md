@@ -11,6 +11,7 @@ Protocol: e1c428efbb2. One /dev/urandom byte per draw: even = Opus, odd = Fable.
 | `the-profile-drops-the-unit-directions-its-verbs-made` | implementer, letter M, dual tier (sequential) | 122 | Opus | 2026-11-14 |
 | `cylinder-and-torus-edge-misses-are-read-back-about-the-axis` (PR 6946) | reviewer, single tier M (FULL), frozen head e010b7d7ad20 | 145 | Fable | 2026-11-14 |
 | `the-side-reader-cannot-read-a-solids-orientation-over-a-box` (PR 6958) | first reviewer, dual tier M (sequential), frozen head e51e52c99f6a | 215 | Fable | 2026-11-14 |
+| `check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends` (PR 6959) | reviewer, single tier M (FULL), frozen head ccd684b1a50c | 16 | Opus | 2026-11-14 |
 
 ## Row notes (for the rows; kept off the unit branches until each row lands)
 
@@ -21,3 +22,4 @@ Protocol: e1c428efbb2. One /dev/urandom byte per draw: even = Opus, odd = Fable.
   - Adjudication (unblinded): MINOR-1 TAKEN (residue wider than filed; overclaims). NOTE-1 TAKEN as a correction to the dispatch (claim 4 unrealizable through a door). NOTE-2 TAKEN (seam row blind to own-frame arms). NOTE-3 TAKEN as a filing (f64 refuses legal 200-arc far walls, pre-existing). NOTE-4 TAKEN (comment misdescribes the meridian term). NOTE-5 nothing owed. Style: Q1 (three spellings of the carried recipe; two conventions for `own`) TAKEN; Q2 (positional `rim_turns` pairing) TAKEN; Q5 header TAKEN; Q4 audit row TAKEN; Q3 (closure rows build `new` only; a vacuous assert; Debug-substring pin) TAKEN; Q1 test-helper duplication ARGUED DOWN (optional); Q6 unit rows not updated in the diff ARGUED DOWN (the orchestrator closes them).
   - Fix pass sent to the implementer's session 17:50 UTC.
 - **PR 6958 first reviewer:** session_013QoYWYeCGZKMSfN9EDto8K, configured claude-fable-5-2, dispatched 17:40 UTC on frozen head e51e52c99f6a.
+- **PR 6959, chart-ends.** Implementer: session_013QoYWXij6KKuw3nYzZoJd8, configured claude-opus-5-5. Dispatched 03:50 UTC; INTERRUPTED 06:38–16:33 UTC by the outage (one item body lost and rewritten, per its report); PR opened 17:19; report delivered 18:04 on head ccd684b1. Hosted CI on that head: lint, test (app), mesh, corrupt input green; test (kernel) red on the fast-set timing bar (three existing rows at 1.03–1.04 s) and on the three inherited ε rows. Reviewer (drawn): Opus, dispatched after this note.
