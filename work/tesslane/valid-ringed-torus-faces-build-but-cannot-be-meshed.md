@@ -4,9 +4,10 @@ kind: issue
 title: A valid body whose torus wall holds a spiric ring builds and measures, but tessellation refuses it RingOnCurvedFace as a kernel bug
 status: open
 opened: 2026-10-21
-priority: P2
+priority: P0
 cost: M
 refs: [5567]
+design: true
 ---
 
 
@@ -62,3 +63,15 @@ rings before its chart roster), so the fix this row owes covers it: the
 trimmed lane's even-odd classification over every loop.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Measured on main (2026-11-14, TESSLANE) — re-banded P0
+
+Run at `d6e1eb1f` (probes `reach_probes::a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard` and `a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard` on `tesslane/measure-reach`), the same at each of three δ.
+
+- **Torus.** A donut (2, 0.5) against bar B2 of `germ_plane_torus_spiric`: ∪ in both orders and donut ∖ bar refuse `RingOnCurvedFace` on the torus face; the other three ops refuse at `trimmed::trim_frontier` on a spiric edge of a torus outer loop, which is `trimmed-tessellation-lacks-torus-and-plane-arms`.
+- **Sphere.** A tube of radius 1 tilted 1.2 on a ball of radius √2: ball ∪ tube and ball ∖ tube refuse `RingOnCurvedFace` on the sphere face. ∩ in both orders and tube ∖ ball mesh through the trimmed sphere arm and pass `check_mesh`. Tube ∪ ball refuses `Triangulation` on the unringed half-band, which is `a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt`.
+- **The raising site is the curved lane's, every time**: `curved::tessellate_curved`'s ring guard, never `tessellate_trimmed`'s. `trimmed::has_trim_carrier` and `has_tilted_circle` read the outer loop only, and a ringed face's outer loop is iso, so `lane_of` answers `Curved`.
+- **What a ring has and lacks.** Present: every ring half-edge carries a stored image (`Spiric` and `Harmonic` on the torus rings, `Projected` on the sphere's), and the planar lane meshes rings (`planar::classify_faces`). Absent: `trim_polygon` reads `face.outer` only, both curved lanes return at their ring guard before reading a loop, and `lane_of`'s predicates do not read rings.
+- The refusal's `Display` still says no construction produces a ring on a curved face and that it is a kernel bug.
+
+**P0**: a union of a ball and a tube through it, or of a donut and a bar, is a normal verb on normal geometry, and the body cannot be drawn. It is one cell of the gap `trimmed-tessellation-lacks-torus-and-plane-arms` describes, and is with designers with it (`design: true`).

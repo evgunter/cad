@@ -1,11 +1,12 @@
 ---
 id: cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm
 kind: issue
-title: a cone face bounded by a conic section, or a sphere face bounded by a spline, has no trimmed-lane arm
-status: open
+title: a sphere face bounded by a spline has no trimmed-lane arm (its cone half is carried by the torus-and-cone row)
+status: parked
 opened: 2026-10-28
 priority: P2
 cost: H
+blocked_on: [a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses]
 ---
 
 
@@ -41,3 +42,8 @@ a projected spline image (the `General` arm's differenced-net hull is
 the model).
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Measured on main (2026-11-14, TESSLANE) — the cone half moved, the sphere half is blocked earlier
+
+- **Cone × ellipse** refuses at `trimmed::trim_frontier`, as filed. It is the same cell as `trimmed-tessellation-lacks-torus-and-plane-arms`'s cone case and is carried there at P0.
+- **Sphere × spline: `trim_frontier` is never reached.** A cylinder r 0.5 against a ball r 0.3 at `(0.5, 0, 0)` builds in all six ops, and all six refuse `UnsupportedCurve` ("B-spline carrier with a C⁰ kink (interior multiplicity = degree)") from `chords::nurbs_chord_count`, in the chord pass, before any face is dispatched. Three more poses gave the same. That is `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses`, which this row is parked on. No public construction was found that puts a C¹ spline on a sphere face, so the cell this row names has no witness yet. Read, not run: with a C¹ carrier the face would reach `trim_frontier`, since `takes_sphere_arm` excludes a face with a trim carrier; what the sphere arm then lacks is a UV speed bound for a projected net (`chords::sphere_uv_speeds` bounds a conic only).
