@@ -819,14 +819,14 @@ impl TrimChart {
         lift: &Lift<T>,
     ) -> Result<Vec<Piece>, SplineTrimGap> {
         if lift.is_empty() {
-            return Err(SplineTrimGap::Winds);
+            return Err(SplineTrimGap::NoClosedLift);
         }
         // A skipped placeholder's joints are the identity
         // (`Lift::read_past_placeholders`), so the members' elements
         // wind as the whole loop's.
         let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
-        if !Winding::of(elements.ok_or(SplineTrimGap::Winds)?).is_zero() {
-            return Err(SplineTrimGap::Winds);
+        if !Winding::of(elements.ok_or(SplineTrimGap::NoClosedLift)?).is_zero() {
+            return Err(SplineTrimGap::NoClosedLift);
         }
         let mut chain: Vec<Piece> = Vec::new();
         for row in lift {

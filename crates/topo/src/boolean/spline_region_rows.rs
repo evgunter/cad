@@ -1305,7 +1305,9 @@ fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
 /// knotted cut (`the_cut_rounding_bound_holds_a_knotted_cuts_drift`).
 #[test]
 fn the_cut_rounding_bound_holds_the_cut_drift() {
-    let mut rng = test_utils::fuzz::start("spline-trim-cut-drift");
+    // A stream's label is its identity (its seed is mixed from it), so
+    // these labels keep their spelling whatever the module is named.
+    let mut rng = test_utils::fuzz::start("spline-region-cut-drift");
     let mut worst = 0.0f64;
     for _ in 0..test_utils::fuzz::scaled(1000) {
         let (pu, pv) = (1 + rng.below(4), 1 + rng.below(4));
@@ -1521,7 +1523,7 @@ mod knotted {
     /// fractions) against Boehm's insertion in double-double.
     #[test]
     fn the_cut_rounding_bound_holds_a_knotted_cuts_drift() {
-        let rng = &mut test_utils::fuzz::start("spline-trim-knotted-drift");
+        let rng = &mut test_utils::fuzz::start("spline-region-knotted-drift");
         let mut worst = 0.0f64;
         for case in 0..test_utils::fuzz::scaled(600) {
             let (pu, pv) = (1 + rng.below(4), 1 + rng.below(4));
@@ -1622,7 +1624,7 @@ mod knotted {
     /// are not breaks), each piece then halved, against double-double.
     #[test]
     fn the_trim_pieces_rounding_bound_holds_their_drift() {
-        let rng = &mut test_utils::fuzz::start("spline-trim-piece-drift");
+        let rng = &mut test_utils::fuzz::start("spline-region-piece-drift");
         let mut worst = 0.0f64;
         for case in 0..test_utils::fuzz::scaled(1500) {
             let p = 1 + rng.below(4);
@@ -1933,7 +1935,7 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
 /// charged nothing, the drift passes the bound).
 #[test]
 fn a_shifted_pieces_rounding_bound_holds_its_drift() {
-    let mut rng = test_utils::fuzz::start("spline-trim-shift-drift");
+    let mut rng = test_utils::fuzz::start("spline-region-shift-drift");
     let mut worst = 0.0f64;
     for _ in 0..test_utils::fuzz::scaled(4000) {
         let w = 10f64.powf(rng.range(-4.0, 4.0));
@@ -1967,7 +1969,7 @@ fn a_shifted_pieces_rounding_bound_holds_its_drift() {
 /// the end charged nothing, the drift passes the bound).
 #[test]
 fn an_iso_images_ends_hold_their_evaluations_rounding() {
-    let mut rng = test_utils::fuzz::start("spline-trim-iso-end-drift");
+    let mut rng = test_utils::fuzz::start("spline-region-iso-end-drift");
     let mut worst = 0.0f64;
     for _ in 0..test_utils::fuzz::scaled(4000) {
         let p0 = Point2::new(rng.range(-1e4, 1e4), rng.range(-1e4, 1e4));

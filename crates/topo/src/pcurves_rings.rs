@@ -202,8 +202,9 @@ pub enum SplineTrimGap {
     /// A channel the chart is decided closed in states no period, or
     /// another one.
     Periods,
-    /// A loop's lift is empty, lacks a joint element, or winds.
-    Winds,
+    /// A loop's lift bounds no region: it is empty, lacks a joint
+    /// element, or winds.
+    NoClosedLift,
     /// A row is moved by a period on a channel the chart states but does
     /// not decide closed, or onto the twin sheet.
     Moved,
