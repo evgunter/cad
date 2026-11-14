@@ -1024,8 +1024,9 @@ fn cap_about(
 /// rectangle (every loft/sweep wall — their boundaries are iso
 /// lines with exact-structure `0`/`1` chart values).
 ///
-/// Structure checks are EXACT `f64` (C6: the minted chart values
-/// are exact by construction; a non-exact or non-rectangular
+/// Structure checks are EXACT `f64` (C6: the chart values a mint
+/// places are stored with the image and read as placed,
+/// [`Pcurve::span_ends`]; a non-exact or non-rectangular
 /// boundary refuses typed, naming the trimmed-NURBS lane as the
 /// cut-loft unit's). The direction the traversal walks its rectangle
 /// ([`rectangle_winding`]) IS the S10 orientation input —
@@ -1106,8 +1107,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
         let (t0, t1) = cache.params();
-        let a = image.eval(t0);
-        let b = image.eval(t1);
+        let [a, b] = image.span_ends((t0, t1));
         let (ax, ay) = (
             exact(Interval::from_certified(a.x))?,
             exact(Interval::from_certified(a.y))?,
@@ -1223,7 +1223,9 @@ type SegmentSlack = ((f64, f64), (f64, f64));
 fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
     let ulps = |x: f64| 4.0 * f64::EPSILON * x;
     match image {
-        Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
+        Pcurve::IsoLine { p0, pl, .. } => {
+            (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t)))
+        }
         Pcurve::IsoArc { p0, pd, ends, .. } => {
             let skew = ends
                 .windows(2)
@@ -2386,6 +2388,7 @@ mod tests {
             let bottom = Pcurve::IsoLine {
                 p0: Point2::new(-100.0, 0.0),
                 pl: Vec2::new(1.0, 0.0),
+                ends: None,
             };
             let at = |c: &Pcurve<f64>, t: f64| {
                 let p = c.eval(t);
@@ -2394,14 +2397,17 @@ mod tests {
             let right = Pcurve::IsoLine {
                 p0: Point2::new(0.7, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             };
             let top = Pcurve::IsoLine {
                 p0: Point2::new(0.7, 1.0),
                 pl: Vec2::new(-1.0, 0.0),
+                ends: None,
             };
             let left = Pcurve::IsoLine {
                 p0: Point2::new(0.0, 1.0),
                 pl: Vec2::new(0.0, -1.0),
+                ends: None,
             };
             let walk = [
                 (&bottom, 100.0, 100.7),

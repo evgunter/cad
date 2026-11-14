@@ -368,7 +368,7 @@ fn a_line_piece_the_closed_form_crosses_at_its_quarter_point_takes_its_row() {
     let he = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            Pcurve::IsoLine { p0, pl } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
+            Pcurve::IsoLine { p0, pl, .. } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
             _ => None,
         })
         .expect("a line rim on a wall row");

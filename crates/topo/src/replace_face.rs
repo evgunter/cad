@@ -2566,29 +2566,26 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
     out
 }
 
-/// The chart row an `IsoLine` image runs along over `(t0, t1)`: the
-/// axis it holds fixed, the parameter it holds it at, and its span
-/// along the row. `None` for a line that fixes neither parameter
-/// exactly — a slanted line is no row — or both, a point.
+/// The chart row an `IsoLine` image runs along over its edge's span
+/// `(t0, t1)`: the axis it holds fixed, the parameter it holds it at,
+/// and its span along the row, from the image's ends
+/// ([`geom_brep::Pcurve::span_ends`]). `None` for a line that fixes
+/// neither parameter exactly — a slanted line is no row — or both, a
+/// point, and for any other image.
 fn iso_image_row<T: Decide>(
-    p0: geom_core::Point2<T>,
-    pl: geom_core::Vec2<T>,
+    image: &geom_brep::Pcurve<T>,
     (t0, t1): (T, T),
 ) -> Option<(geom_brep::ChartAxis, T, (T, T))> {
+    let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *image else {
+        return None;
+    };
+    let [a, b] = image.span_ends((t0, t1));
     match (
         geom_core::is_exact_zero(pl.x),
         geom_core::is_exact_zero(pl.y),
     ) {
-        (true, false) => Some((
-            geom_brep::ChartAxis::U,
-            p0.x,
-            (p0.y + pl.y * t0, p0.y + pl.y * t1),
-        )),
-        (false, true) => Some((
-            geom_brep::ChartAxis::V,
-            p0.y,
-            (p0.x + pl.x * t0, p0.x + pl.x * t1),
-        )),
+        (true, false) => Some((geom_brep::ChartAxis::U, p0.x, (a.y, b.y))),
+        (false, true) => Some((geom_brep::ChartAxis::V, p0.y, (a.x, b.x))),
         _ => None,
     }
 }
@@ -2675,7 +2672,7 @@ fn plan_edge<'s, T: Decide>(
     let mut iso_section = false;
     if let (EdgeDescription::Chart(c), Surface::Approx(approx)) = (&description, new_surface)
         && c.surface == old_key
-        && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
+        && matches!(c.pcurve, geom_brep::Pcurve::IsoLine { .. })
     {
         let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let other = if group.contains(&fa) { fb } else { fa };
@@ -2683,7 +2680,7 @@ fn plan_edge<'s, T: Decide>(
         // The image's own line, read as a row only where it holds a
         // parameter EXACTLY fixed: an exact test can only refuse more
         // than a margined one, so it needs no band.
-        let row = iso_image_row(p0, pl, (t0, t1));
+        let row = iso_image_row(&c.pcurve, (t0, t1));
         // The hold is read on the OLD chart and the row extracted from
         // the new fit at the same `at`: the fit lives on the old
         // chart's own parameter rectangle, ends exact
@@ -2740,7 +2737,7 @@ fn plan_edge<'s, T: Decide>(
             };
             let description = EdgeDescriptionSpec::Chart {
                 surface: old_key,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, ends: None }),
                 wrap: c.wrap,
                 declared: None,
             };
@@ -3548,10 +3545,14 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
     use geom_brep::Pcurve;
     Some(match *pcurve {
         Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
-        Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pl,
-        },
+        Pcurve::IsoLine { p0, pl, ends } => {
+            let shifted = |p: geom_core::Point2<T>| geom_core::Point2::new(p.x, p.y + shift);
+            Pcurve::IsoLine {
+                p0: shifted(p0),
+                pl,
+                ends: ends.map(|e| e.map(shifted)),
+            }
+        }
         Pcurve::IsoArc {
             p0,
             pd,

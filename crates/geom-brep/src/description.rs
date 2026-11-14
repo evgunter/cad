@@ -283,8 +283,8 @@ impl<T: Real> SharedRow<T> {
 pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     let zero = |x: T| geom_core::is_exact_zero(x);
     match image {
-        Pcurve::IsoLine { p0, pl } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),
-        Pcurve::IsoLine { p0, pl } if zero(pl.x) && !zero(pl.y) => Some((false, p0.x)),
+        Pcurve::IsoLine { p0, pl, .. } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),
+        Pcurve::IsoLine { p0, pl, .. } if zero(pl.x) && !zero(pl.y) => Some((false, p0.x)),
         Pcurve::IsoArc { p0, pd, .. } if zero(pd.y) && !zero(pd.x) => Some((true, p0.y)),
         _ => None,
     }
@@ -706,18 +706,14 @@ impl<T: Real> EdgeDescriptionSpec<T> {
     }
 
     /// The `u = const` iso image of `surface`, on the carrier's own
-    /// parameter: `P(t) = (u, v0 + slope·(t − t0))` with
-    /// `slope = (v1 − v0)/(t1 − t0)` — the exact form every stored
+    /// parameter, from `v0` at `t0` to `v1` at `t1`
+    /// ([`crate::Pcurve::iso_column`]) — the exact form every stored
     /// cache of this class carries, which is what makes a description's
     /// image and a cache's image the same object.
     pub fn iso(surface: SurfaceKey, u: T, v0: T, v1: T, t0: T, t1: T) -> Self {
-        let slope = (v1 - v0) / (t1 - t0);
         Self::chart_image(
             surface,
-            crate::pcurve_cache::Pcurve::IsoLine {
-                p0: geom_core::Point2::new(u, v0 - slope * t0),
-                pl: geom_core::Vec2::new(T::zero(), slope),
-            },
+            crate::pcurve_cache::Pcurve::iso_column(u, (v0, v1), (t0, t1)),
         )
     }
 

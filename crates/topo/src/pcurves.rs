@@ -1156,7 +1156,6 @@ pub(crate) fn side_image_of<T: Decide>(
     wall: &Surface<T>,
     band: Band,
 ) -> Option<Pcurve<T>> {
-    use geom_core::{Point2, Vec2};
     let chart = wall.spline_chart()?;
     let span = t1 - t0;
     let picked = if matches!(carrier, geom::Curve3::Circle(..)) {
@@ -1166,19 +1165,12 @@ pub(crate) fn side_image_of<T: Decide>(
             chart.knot_values_u().domain(),
             chart.knot_values_v().domain(),
         );
-        let line = |p0: Point2<T>, pl: Vec2<T>| Pcurve::IsoLine { p0, pl };
-        let rows = [v0, v1].into_iter().flat_map(|y| {
-            [(u0, u1), (u1, u0)].map(|(a, b)| {
-                let slope = (b - a) / span;
-                line(Point2::new(a - slope * t0, y), Vec2::new(slope, T::zero()))
-            })
-        });
-        let columns = [u0, u1].into_iter().flat_map(|x| {
-            [(v0, v1), (v1, v0)].map(|(a, b)| {
-                let slope = (b - a) / span;
-                line(Point2::new(x, a - slope * t0), Vec2::new(T::zero(), slope))
-            })
-        });
+        let rows = [v0, v1]
+            .into_iter()
+            .flat_map(|y| [(u0, u1), (u1, u0)].map(|u| Pcurve::iso_row(y, u, (t0, t1))));
+        let columns = [u0, u1]
+            .into_iter()
+            .flat_map(|x| [(v0, v1), (v1, v0)].map(|v| Pcurve::iso_column(x, v, (t0, t1))));
         probe_pick(
             "pcurve_shared_side",
             carrier,
@@ -1433,15 +1425,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // here (its arm is the arc rim's); an ellipse or a spiric has no
         // exact class on a spline chart.
         let iso = line || matches!(carrier, geom::Curve3::Nurbs(_));
-        let columns = [cu0, cu1].into_iter().filter(|_| iso).flat_map(|x| {
-            [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
-                let slope = (v_at_t1 - v_at_t0) / span;
-                Pcurve::IsoLine {
-                    p0: Point2::new(x, v_at_t0 - slope * t0),
-                    pl: Vec2::new(T::zero(), slope),
-                }
-            })
-        });
+        let columns = [cu0, cu1]
+            .into_iter()
+            .filter(|_| iso)
+            .flat_map(|x| [(cv0, cv1), (cv1, cv0)].map(|v| Pcurve::iso_column(x, v, (t0, t1))));
         // A cap–wall rim traverses a boundary ROW, `u` moving —
         // offered to a spline only in a direction whose carrier is in
         // the row's own spline space (`RowSpace`: the row class
@@ -1465,13 +1452,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
             .collect();
         let rows = [cv0, cv1].into_iter().flat_map(|y| {
-            directions.iter().map(move |&(u_at_t0, u_at_t1)| {
-                let slope = (u_at_t1 - u_at_t0) / span;
-                Pcurve::IsoLine {
-                    p0: Point2::new(u_at_t0 - slope * t0, y),
-                    pl: Vec2::new(slope, T::zero()),
-                }
-            })
+            directions
+                .iter()
+                .map(move |&u| Pcurve::iso_row(y, u, (t0, t1)))
         });
         // Each pick is a lane choice (D3): a candidate the probe shows
         // is taken, and one it does not, in band or decided off, passes
@@ -1523,6 +1506,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .map(|y| Pcurve::IsoLine {
                     p0: Point2::new(f0.x - su * t0, y),
                     pl: Vec2::new(su, T::zero()),
+                    ends: None,
                 });
             let columns = [cu0, cu1, f0.x]
                 .into_iter()
@@ -1530,6 +1514,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .map(|x| Pcurve::IsoLine {
                     p0: Point2::new(x, f0.y - sv * t0),
                     pl: Vec2::new(T::zero(), sv),
+                    ends: None,
                 });
             if let Ok(Some(cand)) = probe_pick(
                 what,
@@ -1589,10 +1574,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // stated `v` map is a candidate only, since nothing here says
         // the two charts share the seam's parameterization.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
-            pcurve: Pcurve::IsoLine { p0, pl },
+            pcurve: Pcurve::IsoLine { p0, pl, ends },
             ..
         }) => {
-            // The neighbour's `v` map, verbatim, as a column of this
+            // The neighbour's `v` map and its stated `v` ends, verbatim, as a column of this
             // chart: at each chart boundary, then at the column the
             // start's measured foot names (a chart wider than the face
             // it trims). They lead the boundary-iso schedule, which
@@ -1604,6 +1589,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             let column = |x: T| Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
+                ends: ends.map(|e| e.map(|p| Point2::new(x, p.y))),
             };
             let at_foot = derive_chart_foot(carrier.eval(t0), surface)
                 .ok()
@@ -3165,18 +3151,18 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // sub-interval: a closed-form or projected image is derived
         // there, exactly as the mint derives it. A fitted, general or iso
         // image has no angular placement, and its children restrict the
-        // parent's (`Pcurve::is_placed`).
-        let placed_again = image.is_placed();
+        // parent's (`Pcurve::is_placed`, `Pcurve::split_at`).
         // A derivation that refuses over a child's span refuses the split
         // (fail-loud): the parent's image is not the child's row there.
-        let child = |a: T, b: T| {
-            if placed_again {
+        let placed_again = image.is_placed();
+        let (first, second) = if placed_again {
+            let child = |a: T, b: T| {
                 geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band).map_err(refused)
-            } else {
-                Ok(image.clone())
-            }
+            };
+            (child(t0, t)?, child(t, t1)?)
+        } else {
+            image.split_at(t)
         };
-        let (first, second) = (child(t0, t)?, child(t, t1)?);
         // The loop runs from the child the parent's entry fed into the
         // other: first into second on a plus half, the other way on a
         // minus one.
@@ -9049,6 +9035,7 @@ pub(crate) mod pole_slit_tests {
                 geom_brep::Pcurve::IsoLine {
                     p0: geom_core::Point2::new(0.0, v),
                     pl: geom_core::Vec2::new(1.0, 0.0),
+                    ends: None,
                 },
             ),
             carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -9073,6 +9060,7 @@ pub(crate) mod pole_slit_tests {
                     geom_brep::Pcurve::IsoLine {
                         p0: geom_core::Point2::new(u, v0),
                         pl: geom_core::Vec2::new(0.0, v1 - v0),
+                        ends: None,
                     },
                 ),
                 carrier: Curve3::line(p, q - p),
@@ -9211,6 +9199,7 @@ pub(crate) mod pole_slit_tests {
                 geom_brep::Pcurve::IsoLine {
                     p0: geom_core::Point2::new(u, 0.0),
                     pl: geom_core::Vec2::new(0.0, 1.0),
+                    ends: None,
                 },
             ),
             carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -9233,6 +9222,7 @@ pub(crate) mod pole_slit_tests {
                     geom_brep::Pcurve::IsoLine {
                         p0: geom_core::Point2::new(u0, v),
                         pl: geom_core::Vec2::new(u1 - u0, 0.0),
+                        ends: None,
                     },
                 ),
                 carrier: Curve3::line(p, q - p),
@@ -9366,6 +9356,7 @@ pub(crate) mod pole_slit_tests {
         let image = geom_brep::Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.5, 0.0),
             pl: geom_core::Vec2::new(0.0, 0.3),
+            ends: None,
         };
         let joint = |s: &Surface<f64>| {
             super::decide_plain_joint(
@@ -11109,6 +11100,7 @@ mod net_period_rows {
         let image = Pcurve::IsoLine {
             p0: Point2::new(f(0.5), f(entry_v)),
             pl: Vec2::new(f(0.0), f(0.1)),
+            ends: None,
         };
         decide_plain_joint(
             DescribedChart::of(&s).unwrap(),
@@ -11199,6 +11191,7 @@ mod net_period_rows {
             &Pcurve::IsoLine {
                 p0: Point2::new(0.0, 0.5),
                 pl: Vec2::new(0.3 * k, 0.0),
+                ends: None,
             },
             0.0,
             Point2::new(k, 0.5),
@@ -11283,6 +11276,7 @@ mod net_period_rows {
             &Pcurve::IsoLine {
                 p0: Point2::new(f(0.0), f(0.5)),
                 pl: Vec2::new(f(0.3), f(0.0)),
+                ends: None,
             },
             f(0.0),
             Point2::new(f(1.0), f(0.5)),

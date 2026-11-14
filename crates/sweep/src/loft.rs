@@ -1194,13 +1194,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
             section,
             source: None,
         })?,
-        _ => {
-            let slope = T::one() / (t1 - t0);
-            geom_brep::Pcurve::IsoLine {
-                p0: Point2::new(-slope * t0, T::one()),
-                pl: geom_core::Vec2::new(slope, T::zero()),
-            }
-        }
+        _ => geom_brep::Pcurve::iso_row(T::one(), (T::zero(), T::one()), (t0, t1)),
     };
     body.restate_stored_edge(
         edge,

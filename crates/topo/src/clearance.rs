@@ -4051,7 +4051,7 @@ fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<IsoIma
         }
     };
     match p {
-        Pcurve::IsoLine { p0, pl } => line(*p0, *pl),
+        Pcurve::IsoLine { p0, pl, .. } => line(*p0, *pl),
         Pcurve::IsoArc { p0, pd, .. } => line(*p0, *pd),
         Pcurve::Harmonic { u, v } => {
             let constant = |ch: &Channel<T>| match *ch {

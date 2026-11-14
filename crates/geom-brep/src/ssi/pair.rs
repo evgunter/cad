@@ -1181,10 +1181,12 @@ mod r2_line_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let image_b = crate::Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1231,10 +1233,12 @@ mod r2_line_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let image_b = crate::Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1336,6 +1340,7 @@ mod r2_ellipse_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image.clone()), (&b, image), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();

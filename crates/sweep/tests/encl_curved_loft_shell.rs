@@ -190,7 +190,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
                 if pl.y == 0.0 && (p0.y - z).abs() < 1e-9)
         })
         .count();
@@ -354,7 +354,7 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
         if !is_spline_wall(&walls, face) {
             continue;
         }
-        let geom_brep::Pcurve::IsoLine { p0, pl } = *cache.pcurve() else {
+        let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *cache.pcurve() else {
             continue;
         };
         // A row: `u` moves and `v` is fixed, strictly inside the chart.
@@ -552,7 +552,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
                 if pl.y == 0.0 && (p0.y - row).abs() < 1e-9)
         })
         .count();
@@ -1322,7 +1322,7 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         });
         let EdgeDescriptionSpec::Chart {
             surface,
-            image: Some(Pcurve::IsoLine { p0, pl }),
+            image: Some(Pcurve::IsoLine { p0, pl, .. }),
             ..
         } = spec.description
         else {

@@ -2546,10 +2546,11 @@ fn pcurve_entry<T: Decide + Bounds>(
 ) -> Result<Point2<T>, &'static str> {
     use geom_brep::Pcurve;
     match pcurve {
-        // Straight by variant: `P(t) = p0 + pl·t`.
-        Pcurve::IsoLine { p0, pl } => {
-            let t = if forward { t0 } else { t1 };
-            Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
+        // Straight by variant: `P(t) = p0 + pl·t`, its ends read as its
+        // mint placed them where it stored them.
+        Pcurve::IsoLine { .. } => {
+            let [start, end] = pcurve.span_ends((t0, t1));
+            Ok(if forward { start } else { end })
         }
         // The UV image lies on the straight segment `p0 → p0 + pd` by
         // variant; only the parameterization along it is
@@ -4303,6 +4304,7 @@ mod tests {
         let line = geom_brep::Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 1.0),
+            ends: None,
         };
         assert_pt(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), 0.25, 0.0);
         assert_pt(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), 1.25, 2.0);

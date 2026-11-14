@@ -353,6 +353,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             Pcurve::IsoLine {
                 p0: Point2::new(0.0, 0.0),
                 pl: Vec2::new(c, s),
+                ends: None,
             },
         ),
         ("Fitted", Pcurve::Fitted(Arc::new(lin()))),
