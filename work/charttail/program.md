@@ -9,7 +9,7 @@ prefix: charttail/
 tag: (CHARTTAIL orchestrator)
 ab_band: 14500-14599
 budget: 45
-paths: [crates/topo/src/pcurves.rs, crates/topo/src/cell_region.rs, crates/topo/src/chart_region.rs]
+paths: [crates/topo/src/pcurves.rs, crates/topo/src/pcurves/*, crates/topo/src/cell_region.rs, crates/topo/src/chart_region.rs]
 keep_out: [opened 2026-10-24 by CHART's priority-seam cut (CHART measured 88 budget points against 30) and joined on 2026-10-26 by CHART itself, which had closed every P0 and P1 row - every row moved with its id and body unchanged, and chart_region.rs and cell_region.rs came with CHART's rows - the region-door rows sit in crates/topo/src/boolean/region.rs and its doors, shared with the boolean programs, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - budget 45, not 30, because most of the dispatchable rows are E and the refusal-text rows are one sweep, and cutting the slate further would leave a thin P4 track the splitting rule warns against - the load is over 45 since CHART's fold, accepted (Ev, in chat, 2026-10-26) and its next orchestrator splits it when it opens - editor-core/src/clearance.rs is SHELL's and min-separation-tightening-crosses-the-drive is CLEAR's, props/quad/ is QUAD's - the declared-pair door rows wait on ATREST (see plan.md)]
 ---
 

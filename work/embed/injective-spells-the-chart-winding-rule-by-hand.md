@@ -38,3 +38,5 @@ Read the side through `PolygonOrientation::interior_is_left` where the scalar
 discipline of those sites allows it (they are generic over the scalar, and the
 home answers a bool, not a `T`), and strike the census entries that empties. If
 a site stays, say on its census line why the home does not serve it.
+
+**Evidence (GREEN, PR 6921, 2026-11-14; folded in from a duplicate filed before this row reached main).** The census side of the duplication: `face_normal`'s `sanctioned` list holds one identical `("crates/topo/src/injective.rs", "1.0")` tuple per quarter-turn copy, three now. A fourth plane presentation adds a fourth spelling and a fourth tuple, and the census cannot tell a fourth sanctioned quarter-turn from a new hand fold. Routing the copies through `PolygonOrientation` takes the tuples out with them.
