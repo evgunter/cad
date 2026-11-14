@@ -493,6 +493,10 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - (ONEDOOR orchestrator)
 - **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
 - **22:25 — wedge stage 3 reported** (head `bb433c4d`, $18.23). The blend reads `topo::edge_wedge`, and the blend's own composition plus `classify_edge_wedge`/`EdgeWedge`/`PositiveArm` and the second `Convexity` are retired. **Guard by the compiler:** `Corner::convexity` and `Tangency::pairing` are crate-private to geom-brep, read only inside the fold. Refusals change: `NeverOpens` becomes `Lamina`, and a Mixed edge now refuses. No STOP; all reds are main's by text. PR [#6913](https://github.com/evgunter/cad/pull/6913) is opened with its head **frozen at `bb433c4d`**. First reviewer byte 236 (Opus), dispatched 22:58 (M, sequential).
+- 2026-11-14 — **PR [#6927](https://github.com/evgunter/cad/pull/6927) (`SectionError::Corrupt` panics, D2) accepted.**
+  - One reviewer (Opus): MERGEABLE-AFTER-MINORS, and the reachability argument holds. The fix pass took every item.
+  - Two main reds have no row: `shell_role_reader` needle cavity and `recourse_roster` ring_path. They go to the sitting report.
+  - Model-compare row `docs/model-compare-log/rows/PR-6927.md`.
 - 2026-11-14 — **PR [#6913](https://github.com/evgunter/cad/pull/6913) (wedge fold stage 3) accepted; the wedge row closes.**
   - R1 (Opus) raised a MAJOR: the blend's sign was folded under `dihedral_sign`, so `first_cause` passed over it. Ruled by stage 2's DOCTAIL precedent.
   - Fix 1 gave the fold's sign its reader's name (`_as`). R2 (Fable) said mergeable after minors and found the knife end in the same class.
