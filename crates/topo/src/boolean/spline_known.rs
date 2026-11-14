@@ -23,7 +23,7 @@
 use geom::Surface;
 use geom_brep::KnownPair;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::{Band, Decide, Margin, Point2};
+use geom_core::{Band, Decide, Margin};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};
