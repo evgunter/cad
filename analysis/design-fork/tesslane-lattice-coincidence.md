@@ -73,3 +73,24 @@ What moved:
 After round 3: point 1, all three say refuse, but A and B have not seen C's instance, which changes what refusing costs and where it must be decided. Point 2: rounding (A, C), ε (B), and B has not seen C's body (i). Positions moved, so a fourth round follows.
 
 Harness figures for the round: A 253,371 tokens as reported, 85 s; B 273,975 tokens, 326 s; C: see below.
+C's round 3: 451,696 tokens as reported for the resumed run, 597 s.
+
+## Round 4, 2026-11-14
+
+Dispatched: all three, resumed. Shown: each the other two round-3 replies, whole. Asked: to reproduce or refute the two bodies built in round 3 and to re-answer points 1 and 2 with them in view. Replies are beside this file (`-round4-A.md`, `-round4-B.md`, `-round4-C.md`).
+
+What moved:
+
+- **A** reproduced the whole frustum on the tree's own crate (6,780 unresolved triangles on three boundary points at δ 1e-8, C's on-axis count) and checked the cut frustum by arithmetic. It holds rounding and refuse, and moved the refusal's place to where faces join the mesh, on every lane.
+- **B** reproduced both bodies with its own probe (226 on the cut frustum, with and without the clearance; 6,780 on the whole one) and withdrew ε: "least height exceeds ε" cannot be kept on a body valid at rest without the mesher reading ε. It holds refuse, now at the join on every lane, and withdrew its round-3 ground (that no valid body makes such a triangle): the corners are the mesher's chord points.
+- **C** changed nothing, closed its caveats (all 6,610 of the shifted run are in the cap's patch; the body's unresolved window is δ of about 3e-9 to 2e-8) and corrected its own account of the root: the tensor lattice's column count at the small end, which the chord pass follows.
+
+**Reconciliation ends: all three agree.** The recommendation, as a final state:
+
+1. The trimmed lane's lattice lays no node whose box of 1/16 of its own step each way, per chart axis, meets a side or point of the trim polygon or a crease line. The clearance is its own named quality constant. Nothing in the mesher reads ε or decides that two points are the same.
+2. Every triangle's winding is outward and resolved above its positions' rounding (`cert::rounding_allowance` at the triangle's scale). One definition; `tessellate` reads it where each face's triangles join the mesh, on every lane, and refuses a face with an unresolved triangle typed, under its own variant; the trimmed lane's emission check reads it to tell a fold from noise; a public check beside `check_volume` re-derives it. Shape is not otherwise promised.
+3. The small-rim instance has its own row.
+
+What is left between them is wording and where one backstop sits (A, B: the two exact drops become typed refusals; C: they stay as unreachable backstops).
+
+Harness figures for the round: A 268,377 tokens as reported, 78 s; C 470,718 tokens as reported, 803 s; B: see below.
