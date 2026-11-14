@@ -226,9 +226,24 @@ pub fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>
             if !(du > 0.0) {
                 return None;
             }
-            Some((pair[1] - pair[0]) * pair_scale(held, p, i)?)
+            derivative_pair(pair[0], pair[1], held, p, i)
         })
         .collect()
+}
+
+/// One entry of a derivative net: `(q1 − q0)·`[`span_derivative_scale`]
+/// for pair `i` of a degree-`p` spline over the `held` knot values —
+/// the step [`derivative_net`] takes per pair, for a caller that reads
+/// only the pairs one span's basis touches. `None` past the vector.
+/// The knot difference is the caller's to have checked.
+pub fn derivative_pair<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
+    q0: P,
+    q1: P,
+    held: &[T],
+    p: usize,
+    i: usize,
+) -> Option<V> {
+    Some((q1 - q0) * pair_scale(held, p, i)?)
 }
 
 /// The derivative scale of pair `i` of a degree-`p` spline over the

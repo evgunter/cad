@@ -55,6 +55,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    NameCarrier::Const("SWEEP_STATION_ROLL"),
+    NameCarrier::Const("SWEEP_STATION_STILL"),
     // The loft's pinned rim is an identity over its control rows, read
     // by `geom_brep::ladder::read_identity` under this constant's name.
     NameCarrier::Const("LOFT_RIM_PINNED"),
@@ -136,6 +138,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),
     ("sweep_path_turn", PATH),
+    ("sweep_station_roll", PATH),
+    ("sweep_station_still", PATH),
     ("cap_plane_orientation", CAP),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
@@ -185,6 +189,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::MaterialSide,
         sweep::blend::FILLET3_CHAIN_RECOURSE,
+    ),
+    (
+        BlendDecision::LinkBend,
+        sweep::blend::FILLET3_LINK_BEND_RECOURSE,
     ),
     (
         BlendDecision::KnifeEnd,
@@ -252,6 +260,16 @@ fn census() -> PredicateCensus {
     )
 }
 
+/// **Decisions that word one question `geom_brep` decides**, under its
+/// one name: the second-order separation of two faces meeting smoothly,
+/// at a contact edge the surgery describes and at a requested edge the
+/// wedge fold reads. One quantity, one population. Listed rather than
+/// read from the source: `BlendDecision::predicate` spells each name
+/// through a `geom_brep` constant, and nothing at run time says which
+/// arm is a `geom_brep` question; the assertion checks each pair shares.
+const SHARED_QUESTIONS: &[(BlendDecision, BlendDecision)] =
+    &[(BlendDecision::ContactSecondOrder, BlendDecision::LinkBend)];
+
 /// An escalation carrying `name`, its margin inside the run's band.
 fn escalation(name: Option<&'static str>) -> Indeterminate {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
@@ -282,7 +300,9 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
 /// through theirs, so none may appear at a decide site as a literal:
 /// one that did would be a gate metered outside its closed type. Every other name is listed with its door, and a listed
 /// name nothing decides is a stale entry. The blend's names are
-/// distinct, since two decisions under one name would fuse two K rows.
+/// distinct, since two decisions under one name would fuse two K rows,
+/// except where two decisions word one `geom_brep` question
+/// ([`SHARED_QUESTIONS`]).
 #[test]
 fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
     let census = census();
@@ -292,9 +312,16 @@ fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
         census.names
     );
     let blend: BTreeSet<&str> = BlendDecision::ALL.iter().map(|d| d.predicate()).collect();
+    for (a, b) in SHARED_QUESTIONS {
+        assert_eq!(
+            a.predicate(),
+            b.predicate(),
+            "{a:?} and {b:?} word one question"
+        );
+    }
     assert_eq!(
         blend.len(),
-        BlendDecision::ALL.len(),
+        BlendDecision::ALL.len() - SHARED_QUESTIONS.len(),
         "two blend decisions share a k_stats name"
     );
     let listed: BTreeSet<&str> = OTHER_DOORS.iter().map(|(n, _)| *n).collect();
@@ -427,13 +454,14 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 
 /// The decisions that pass on a negative sign as well as a positive one:
 /// the convexity sign on either side, the material side either way, a
-/// knife's end either way (a cusp or a slit), and the contact edge's
-/// second-order separation on any definite sign.
+/// knife's end either way (a cusp or a slit), and the second-order
+/// separation of a contact edge or a link on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
     BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
+    BlendDecision::LinkBend,
 ];
 
 /// **No tolerance is offered where none decides the margin passing**,
