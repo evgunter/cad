@@ -72,3 +72,15 @@ band needs that reading, or a typed refusal there, first.
 
 
 - 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).
+
+## Evidence from TESSLANE's lift measurement (2026-11-14)
+
+Pinned in `crates/mesh/tests/lift_probes.rs` (`a_loop_of_whole_turn_rims_ends_a_period_from_its_start`). The cone and torus cases this row calls unmeasured are run:
+
+| band, through the Euler doors | `topo::finish` | closed / geometric / pcurves validators | `mesh::tessellate` |
+|---|---|---|---|
+| cylinder pipe, oblique roof | finishes | clean / clean / clean | `RingOnCurvedFace` |
+| cone frustum | finishes | clean / clean / clean | `RingOnCurvedFace` |
+| torus band (minor angle ∓π/4) | `VolumeUncomputable` | clean / refuses / clean | `RingOnCurvedFace` |
+
+The torus payload is `NotIsoRectangle { what: "a torus face whose loops wind the torus (a seamless band): its chart Green form folds no winding loop" }`. Each band's outer loop and ring end one `u` period from their start (`closes_in_chart` false). No door-built pipe, cone, ball, washer or donut has such a loop. (TESSLANE orchestrator)
