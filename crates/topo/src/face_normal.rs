@@ -1491,7 +1491,7 @@ mod tests {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
         let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
-        // as D6 spells it, unless its own line says otherwise: a jet
+        // as D6 spells it: a jet
         // curvature measured along the plus face's outward normal, the
         // sphere's radial flux term `R·Area` and a closed surface's
         // whole flux, a witness's implicit residual read as its height
@@ -1502,17 +1502,6 @@ mod tests {
             // encloses, for a face whose chart image is empty.
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
-            // A test's trim polygon area in the sphere's equal-area chart
-            // frame, signed by the loop's chart winding.
-            ("crates/mesh/src/trimmed.rs", "area"),
-            // NOT a scalar: a loop's 3-D vector area, turned into the
-            // chart frame by the bit to read the band's azimuth
-            // (`walk`'s `chart_area`), a vector folded by hand
-            // (`work/tesslane/a-faces-chart-winding-rule-has-no-home-in-mesh.md`).
-            ("crates/mesh/src/walk.rs", "area"),
-            // A wrap strip's period: the far side's `u` displacement from
-            // the near side (`walk::wrap_strip`), a chart length, no normal.
-            ("crates/mesh/src/walk.rs", "TAU"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
             // The quarter-turn that rotates a line edge's chart direction
             // toward its face, in the plane's chart frame: once each in
