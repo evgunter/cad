@@ -36,7 +36,7 @@ use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 use crate::common::{axis_y, quad, validated};
 
-fn tol() -> Tol {
+pub(super) fn tol() -> Tol {
     Tol::witness()
 }
 
@@ -70,12 +70,15 @@ enum Got {
     Other(String),
 }
 
-fn kind_of(body: &Body<f64>, fk: topo::FaceKey) -> SurfaceKind {
+pub(super) fn kind_of(body: &Body<f64>, fk: topo::FaceKey) -> SurfaceKind {
     body.face_surface(fk).expect("a live face").kind()
 }
 
 /// The carrier kinds and stored image forms of a loop, edge by edge.
-fn loop_forms(body: &Body<f64>, lk: topo::LoopKey) -> Vec<(CurveKind, Option<&'static str>)> {
+pub(super) fn loop_forms(
+    body: &Body<f64>,
+    lk: topo::LoopKey,
+) -> Vec<(CurveKind, Option<&'static str>)> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary
     else {
         return Vec::new();
@@ -174,10 +177,10 @@ fn assert_at_every(what: &str, body: &Body<f64>, deltas: &[f64], want: &Got) {
     }
 }
 
-type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>);
+pub(super) type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>);
 
 /// Every op of `a` and `b` in both member orders.
-fn six(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
+pub(super) fn six(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
     [
         ("A ∪ B", topo::union(a, b, tol())),
         ("B ∪ A", topo::union(b, a, tol())),
@@ -207,7 +210,7 @@ fn assert_six(
     }
 }
 
-fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
+pub(super) fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
     finished(
         what,
         topo::transform_rigid(&raw, &geom_core::test_support::rigid(&pose, tol())).unwrap(),
@@ -216,7 +219,7 @@ fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
 }
 
 /// A disc of radius `r` about `(0, 0, z0)` extruded `depth` along `z`.
-fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
+pub(super) fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()])
@@ -229,7 +232,7 @@ fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
         .into_body()
 }
 
-fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
+pub(super) fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol())
         .unwrap()
@@ -238,7 +241,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
 }
 
 /// The frustum of radius `0.5 → 1` over `y ∈ [0, 1]`.
-fn widening() -> Body<f64> {
+pub(super) fn widening() -> Body<f64> {
     revolved(&[(0.0, 0.0), (0.5, 0.0), (1.0, 1.0), (0.0, 1.0)])
 }
 
@@ -246,7 +249,7 @@ fn widening() -> Body<f64> {
 
 /// The tour's torus-walled vessel meridian revolved a quarter turn
 /// (`sweep`'s `spiric_rim` rows build the same body).
-fn vessel_quarter() -> Body<f64> {
+pub(super) fn vessel_quarter() -> Body<f64> {
     let tol = tol();
     let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
     let (y_foot, y_shoulder, y_mouth) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0);
@@ -291,7 +294,7 @@ fn vessel_quarter() -> Body<f64> {
 }
 
 /// The disc of radius `r` revolved a quarter turn about `x = 1.2`.
-fn klein_elbow(r: f64) -> Body<f64> {
+pub(super) fn klein_elbow(r: f64) -> Body<f64> {
     let disc = bulge_loop(vec![
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
@@ -732,7 +735,7 @@ fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
 
 /// The section of a blade `2·scale` wide and `0.01·scale` thick, turned
 /// by `turn` about the sketch origin.
-fn blade(scale: f64, turn: f64) -> Section {
+pub(super) fn blade(scale: f64, turn: f64) -> Section {
     let (s, c) = turn.sin_cos();
     let p = |x: f64, y: f64| {
         let (x, y) = (x * scale, y * scale);
@@ -747,7 +750,7 @@ fn blade(scale: f64, turn: f64) -> Section {
 }
 
 /// A loft of [`blade`] sections at `zs`, each turned `rate·z`.
-fn lofted_blade(zs: &[f64], rate: f64, degree: usize) -> Body<f64> {
+pub(super) fn lofted_blade(zs: &[f64], rate: f64, degree: usize) -> Body<f64> {
     let sections: Vec<Section> = zs.iter().map(|&z| blade(1.0, rate * z)).collect();
     loft_body::<f64>(&sections, &stacked_at(zs), degree, tol())
         .unwrap_or_else(|e| {
