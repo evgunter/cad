@@ -32,3 +32,12 @@ The new charts size at the lane's existing named `UNPROVED_HEADROOM`; no new deb
 ## Unmeasured, owed before the spec
 
 Whether the torus wall's spiric-bounded loop lifts to a simple polygon, and how a lift reads at a cone apex (the lift measurement, branch `tesslane/measure-lift`).
+
+## Measured (2026-11-14; `crates/mesh/tests/lift_probes.rs`)
+
+Both things this row called unmeasured are run, on the bodies the reach probes build.
+
+- **The spiric-bounded torus wall's outer loop is a simple polygon** on all three walls (the vessel quarter, both faces of the klein elbow): no crossing or touch at 8, 32 or 128 chords an edge, all four joints meet, the winding is (0, 0), and it runs clockwise on `sense` false, which is what `tessellate_trimmed`'s orientation check asks of an analytic chart.
+- **A lift runs along a cone's apex row through the face's turn there, as at a sphere pole.** On each half of a full cone the arriving generator ends at `(u, 0)` and the leaving one starts at `(u ∓ π, 0)`, both at `v == 0.0` exactly; on a wedge the step is the wedge's angle. What `trim_polygon` does with it today is not that: `trimmed::at_pole` is false at `v = 0`, and `flat_points` keeps a traversal's last point only under `ChartPoles::Kept`, which only the sphere arm passes, so a cone polygon would keep one apex point, at the leaving azimuth.
+- **`Lift::window` and `azimuth_window` answer `None` on exactly the loops this unit adds**: every loop with a `Spiric`, `Projected`, `IsoLine` or `IsoArc` row. They answer only where every row is `Harmonic` or `FocalSection`. The face's window therefore comes from the image boxes unit 1 supplies.
+- Every one of the 181 door-built curved loops sampled reads a lift that closes and is a simple polygon, counter-clockwise on an outer loop exactly when `sense` is true.
