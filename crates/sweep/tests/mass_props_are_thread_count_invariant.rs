@@ -439,6 +439,15 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// 60, the merge's port with its divisor decision 406 and 1112, and the
 /// plane's foot in place of its slide 398 and 1104. The cost is
 /// `work/pcert/the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads.md`.
+///
+/// **Lines PINNED at what main reads, their moves unexplained**
+/// (`work/green/program.md`: a red is greened, not fixed, there):
+/// `tilted_cut_upper` at every ε row, `arc_loft_1e9eps` at 1e-12, and
+/// the two `Sym` bodies' `validate_geometric` lines at every ε row. No
+/// one has named the merges that moved them or said the new readings
+/// are right. The wanted answer is that account, on
+/// `work/green/main-red-the-four-thread-walk-misses-tilted-cut-uppers-serial-golden.md`;
+/// the pins hold the lines still so the next move reds.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
