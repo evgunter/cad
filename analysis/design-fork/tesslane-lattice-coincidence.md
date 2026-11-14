@@ -42,3 +42,19 @@ After round 1, all three recommend: the lattice lays no node within `c` steps of
 4. Whether the clearance is its own named constant (B) or reads the aspect cap (A leans; C's first report).
 
 Harness figures for the round: A 224,287 tokens (as reported for the resumed run), 181 s; B 242,565 tokens, 488 s; C: see below.
+C's round 1: 369,153 tokens as reported for the resumed run, 510 s.
+
+## Round 2, 2026-11-14
+
+Dispatched: all three, resumed. Shown: each the other two round-1 replies, whole, and the four points still apart as the orchestrator read them. Replies are beside this file (`-round2-A.md`, `-round2-B.md`, `-round2-C.md`).
+
+What moved:
+
+- **Point 4 closed.** All three: the clearance is its own named quality constant, 1/16, not a read of the aspect cap (A and C moved to B).
+- **Point 3 closed on the mechanism.** All three: the emission winding check's bare zero is named at the certificate's rounding allowance and answers three ways (outward, folded, unresolved). What "unresolved" does on three boundary points is point 1.
+- **Point 2 crossed.** A stayed at ε in the validator and B moved to ε (C's round-1 argument: boundary points carry ε of slack). C moved to the rounding allowance, on a census it ran this round over the mesh crate's integration suite on main (45,370 faces, 40.6 million triangles): no triangle is under 1e-9 m in least height or near rounding, and 972 sound triangles, well-shaped ones of tiny features among them, lie between 1e-9 and 1e-6 m, which an ε-scale check would call flat at the ε = 1e-6 row CI sweeps. A and B have not seen that census.
+- **Point 1 crossed.** A moved back to keeping a flat triangle of three boundary points (the mesher cannot remove a corner the body gave; its verdict is the body's validation's to give). B holds kept. C moved back to refusing it typed (fail-loud; the outward-winding promise stays whole; the analytic arms already refuse an exact zero). No instance exists: A, B and C each measured none (the issue-111 bodies; 50 meshes; the 40.6-million-triangle census).
+
+Positions moved and did not all meet, so a third round follows. Still apart: point 1 (kept: A, B; refused: C) and point 2 (ε: A, B; rounding: C).
+
+Harness figures for the round: A 235,918 tokens as reported, 48 s; B 257,592 tokens, 146 s; C: see below.
