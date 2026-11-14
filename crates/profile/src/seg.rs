@@ -170,8 +170,8 @@ pub(crate) enum SegIssue<T: Real> {
         /// ([`resolves`]'s margin).
         headroom: MarginDiag,
     },
-    /// A recorded direction is not a unit to rounding
-    /// (`segment_direction_length` classified |d| − 1 definitely off).
+    /// A recorded direction is not a unit
+    /// (`segment_direction_length` classified (|d| − 1)·ℓ definitely off).
     DirectionNotUnit {
         /// Which direction.
         which: RecordedDirection,
@@ -671,20 +671,6 @@ fn check_carrier<T: Decide>(
     Ok(())
 }
 
-/// The rounding a unit direction's length carries, in ulps of one: a
-/// chord over its length, a lowering's rational radial or a rotation of
-/// a unit, each a few roundings, stated as 8.
-const UNIT_LENGTH_ULPS: f64 = 8.0;
-
-/// **`segment_direction_length`'s band**: |d| − 1 is Zero within
-/// [`UNIT_LENGTH_ULPS`] of rounding and definite past twice that. A
-/// dimensionless band, since the reading is of a unit's length.
-fn unit_band() -> Band {
-    let zero = UNIT_LENGTH_ULPS * f64::EPSILON;
-    Band::new(zero, 2.0 * zero)
-        .unwrap_or_else(|e| unreachable!("a constant band of two positive bounds in order: {e}"))
-}
-
 /// The rounding a recorded direction carries into `segment_direction`'s
 /// miss ‖o + ℓ·d − p‖, in ulps of the check's scale, counted as
 /// [`ON_CARRIER_ULPS`] is: the direction's own (a chord's quotient, or a
@@ -763,13 +749,18 @@ fn check_direction<T: Decide>(
     which: RecordedDirection,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
-    // The direction is a unit to rounding, the format's word for it, read
-    // first and on its own: the miss below holds the angle to the band,
-    // and would hold the length only to ε/ℓ.
+    // The direction is a unit, the kernel's word: |d| − 1 at its lever
+    // ℓ is Zero at the band, the measure and lever check 1 reads a
+    // stored unit datum's `Length` by (`geom::convention::frame_margins`,
+    // `ε ∓ (‖u_ref‖ − 1)·arm` with the arm a circle's or cylinder's
+    // radius, which is ℓ for a radial; a line's or plane's direction has
+    // no `Length` margin there). Read first and typed: the miss below is
+    // at least |ℓ·|d| − ℓ| by the triangle inequality, so this reading
+    // refuses nothing the miss would accept; it names a stretch as one.
     match decide(
         Gate::SegmentDirectionLength,
-        Margin::of(d.norm() - T::one()),
-        unit_band(),
+        Margin::of((d.norm() - T::one()) * len),
+        band,
     )
     .map_err(SegIssue::escalated)?
     {

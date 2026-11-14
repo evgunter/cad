@@ -116,7 +116,7 @@
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
 //! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
-//! | `segment_direction_length` | a table's recorded direction's length less one, \|d\| − 1, at a rounding band (8–16 ulps), not the run's | dimensionless |
+//! | `segment_direction_length` | a table's recorded direction's length less one at its lever, (\|d\| − 1)·ℓ (ℓ the chord or radius): check 1's `Length` measure, `geom::convention::frame_margins` | direct |
 //! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex) | direct |
 //! | `segment_direction_resolution` | K·ε/(8·2⁻⁵²) less the reading's magnitude | direct |
 //! | `chord_side` | ⟂ distance to chord line | direct |
@@ -604,8 +604,9 @@ pub enum ProfileError {
         /// Which direction.
         which: RecordedDirection,
     },
-    /// A segment's recorded direction is not a unit to rounding
-    /// (`segment_direction_length`): the format's directions are units,
+    /// A segment's recorded direction is not a unit
+    /// (`segment_direction_length`: (|d| − 1)·ℓ definitely off at the
+    /// band, ℓ its chord or radius): the format's directions are units,
     /// and a table's is checked to be one before it is read against its
     /// vertices.
     DirectionNotUnit {
@@ -967,12 +968,18 @@ pub struct ValidatedSegment<T: Real> {
     /// construction made, carried verbatim, or for a segment that
     /// recorded none (or an arc read as a line) decided once, here, from
     /// its vertices ([`SegmentDirections`]). A consumer that needs a
-    /// direction reads it here. A table's is checked as two readings:
-    /// `|d| = 1` to rounding, and `‖o + ℓ·d − p‖` within the band (`o`
-    /// the start or centre, `p` the vertex, `ℓ` the chord or radius), so
-    /// its length is a unit's while its angle keeps the band's slack, up
-    /// to `ε/ℓ` off; an accepted one is stored as written, never
-    /// normalised or re-minted.
+    /// direction reads it here. A table's is checked as two readings at
+    /// the band: `(|d| − 1)·ℓ` Zero (a unit, by check 1's own `Length`
+    /// measure for a stored unit datum) and `‖o + ℓ·d − p‖` Zero (`o`
+    /// the start or centre, `p` the vertex, `ℓ` the chord or radius). So
+    /// its length and its angle each keep the band's slack, `ε/ℓ`; an
+    /// accepted one is stored as written, never normalised or re-minted.
+    /// At `Sym` the tier holds `|d| = 1` for a verb's direction over a
+    /// box; at plain `Interval` a direction with width reads its length
+    /// Zero while the box is narrower than the band at its lever, and
+    /// escalates past it (`work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md`
+    /// is that question for a turning frame). By inspection, no shipped
+    /// path validates a direction with width as a table at `Interval`.
     pub directions: SegmentDirections<T>,
 }
 

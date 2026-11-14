@@ -235,7 +235,7 @@ gates! {
     SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";
     /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at.
     SegmentDirection => "segment_direction", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction points at its vertex";
-    /// A table's recorded direction's length less one, against a band of rounding: the format's directions are units.
+    /// A table's recorded direction's length less one at its lever, (|d| − 1)·ℓ with ℓ the chord or radius, against the run's band: check 1's `Length` measure for a stored unit datum (`geom::convention::frame_margins`). At `Sym` the tier holds |d| = 1 for a verb's direction over a box; at plain `Interval` a direction with width escalates here where its box is wider than the band at ℓ (`work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md`); by inspection no shipped path validates such a table.
     SegmentDirectionLength => "segment_direction_length", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction is a unit";
     /// The magnitude a recorded direction's miss was read at, against the one where its f64 rounding reaches the band.
     SegmentDirectionResolution => "segment_direction_resolution", Lever(ARC_SCENE_RESOLUTION_RECOURSE), "whether the scene can read a recorded direction's miss of its vertex at its magnitude";
