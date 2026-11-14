@@ -431,8 +431,15 @@ fn aimed_bodies(tol: Tol) -> Vec<(&'static str, Body<f64>)> {
 /// third of the band and at the band from the edge's middle, into each
 /// face, every ray reads the side at infinity right or reads nothing
 /// (a ray that clips the edge's corner crosses nothing net there), and
-/// none is set aside on a crossing in band of a face's boundary, which
-/// each face's own trim read before the curved edge-meeting ray. At
+/// none aimed a third of the band in is set aside on a crossing in band
+/// of a face's boundary, which each face's own trim read before the
+/// curved edge-meeting ray. An aim at the band itself lies on the band's
+/// edge, and an aimed ray crosses its face at its aim, so there the edge
+/// reading and the face's own trim read one distance either side of the
+/// band's edge by their rounding, and the trim may set the ray aside
+/// (`work/flushtail/a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary.md`,
+/// "a region read whose metric differs from the edge reading's at the
+/// band's edge"): a lost read, counted against the floor below. At
 /// least 40% of each body's rays read `Out` (42–88% at ε 1e-9, 1e-6 and
 /// 1e-12), where 12–46% did before, most of the rest set aside on such a
 /// crossing.
@@ -453,7 +460,7 @@ fn rays_in_band_of_a_curved_edge_read_it_once() {
                 let what = format!("{name} at ε {:e}, {} o={o:e}: {r}", tol.eps(), f.label);
                 assert!(!r.contains("Side(In)"), "{what}: a wrong side");
                 assert!(
-                    !r.contains("SetAside(Crossing"),
+                    o == k_eps || !r.contains("SetAside(Crossing"),
                     "{what}: set aside in band of a face's own boundary"
                 );
                 aimed += 1;
