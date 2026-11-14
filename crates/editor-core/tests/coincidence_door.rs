@@ -3187,26 +3187,29 @@ fn rounded_mouth_volume() -> f64 {
 /// union builds at its exact volume: the ball's
 /// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
 /// ([`rounded_mouth_volume`]). At `Interval` each certifies at the
-/// default ε and at 1e-6, and escalates at 1e-12, so both stay beside the
-/// registry, which requires every lane green.
+/// default ε and at 1e-6; at 1e-12 the rounded mouth certifies too and
+/// the ball escalates, so both stay beside the registry, which requires
+/// every lane green.
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
 /// coaxial rows change in number or kind, or if its `Interval` outcome
 /// moves at any row.
 #[test]
 fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
-    for (cd, row, count, want) in [
+    for (cd, row, count, want, escalates_at_1e12) in [
         (
             crate::corpus::shaft_and_bearing::with_a_ball(),
             "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
             4,
             5.836_839_596_566_8,
+            true,
         ),
         (
             crate::corpus::shaft_and_bearing::rounded_mouth(),
             "Coaxial CoaxialCylinderTorus SameConstruction",
             2,
             rounded_mouth_volume(),
+            false,
         ),
     ] {
         let name = cd.name;
@@ -3235,17 +3238,19 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
             "{name}: the door's coaxial rows: {lines:?}"
         );
         let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
-        // Certified at the default ε and at 1e-6; at 1e-12 an escalation
-        // at whichever door reads it first (the ball's crossing
-        // insertion, the rounded mouth's curved pierce).
-        let at_1e12 = Tol::witness().eps() == 1e-12;
+        // Certified at every ε but the ball's at 1e-12, which escalates
+        // at its crossing insertion.
+        let escalates = escalates_at_1e12 && Tol::witness().eps() == 1e-12;
         match ev.nodes.get(&union) {
-            Some(editor_core::NodeResult::Ok(v)) if !at_1e12 => matches_f64(&cd, v),
+            Some(editor_core::NodeResult::Ok(v)) if !escalates => matches_f64(&cd, v),
             Some(editor_core::NodeResult::Failed(editor_core::NodeError {
                 kind: editor_core::NodeErrorKind::Boolean(e),
                 ..
-            })) if at_1e12 && format!("{e:?}").contains("Escalated") => {}
-            other => panic!("{name}: the union certifies at Interval off ε 1e-12: {other:?}"),
+            })) if escalates && format!("{e:?}").contains("Escalated") => {}
+            other => panic!(
+                "{name}: the union certifies at Interval, escalating only where pinned \
+                 (escalates at 1e-12: {escalates_at_1e12}): {other:?}"
+            ),
         }
     }
 }
