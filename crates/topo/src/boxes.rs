@@ -168,6 +168,11 @@
 //!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
+//! - `boolean::arcs`'s arcs along a tangent (`arcs_along`, each circle
+//!   edge's [`edge_cover_linked`](crate::cover::edge_cover_linked) read
+//!   as a ball) sizes the lever its tangent's alignment is read on: a
+//!   bigger cover lengthens it, so the alignment escalates more, never
+//!   rules an arc in or out wrongly.
 //! - the face reaches (`crate::cover::face_reach_from`,
 //!   `face_range_along`, `face_axial_range`, `cone_face_reach`, each a
 //!   read of [`face_cover`]) size the levers the split's sector rows,

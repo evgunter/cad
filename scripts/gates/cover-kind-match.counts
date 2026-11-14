@@ -63,7 +63,7 @@ reader 2 crates/sweep/src/blend/reach.rs
 arm 3 crates/sweep/src/blend/surgery.rs
 ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/topo/src/boolean/arcs.rs
-whole 1 crates/topo/src/boolean/arcs.rs
+reader 1 crates/topo/src/boolean/arcs.rs
 reader 1 crates/topo/src/boolean/carrier_pair.rs
 arm 4 crates/topo/src/boolean/carrier_touch.rs
 reader 1 crates/topo/src/boolean/carrier_touch.rs
@@ -122,7 +122,7 @@ arm 3 crates/topo/src/shell.rs
 reader 2 crates/topo/src/shell.rs
 arm 1 crates/topo/src/shell/tests/footprint_fuzz.rs
 reader 1 crates/topo/src/splitting/classify.rs
-arm 4 crates/topo/src/splitting/containment.rs
+arm 3 crates/topo/src/splitting/containment.rs
 reader 1 crates/topo/src/splitting/containment.rs
 arm 2 crates/topo/src/star/walk.rs
 arm 1 crates/topo/src/test_support_fixtures.rs
