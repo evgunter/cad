@@ -10,19 +10,15 @@
 //! edge of its face, so its lift crosses no row of the outer loop's.
 //!
 //! The rule is one; the reading of a point against the outer loop is
-//! two today. A spline chart's is its trim's, in the boolean engine
-//! (`boolean::spline_region`'s `Trim::place_in_cover`): the ray parity
-//! over the rows' Bézier pieces, metered by the chart's cells, which
-//! places its own rings by [`place_ring`]; this door answers a spline
-//! face [`RingPlacementError::SplineChart`]. An analytic chart's is
+//! one per chart family. A spline chart's is its trim's
+//! ([`crate::spline_trim`], `Trim::place_in_cover`): the ray parity over
+//! the rows' Bézier pieces, metered by the chart's cells, which the
+//! spline trim places its own rings by too. An analytic chart's is
 //! [`Outer::side`]: the same ray parity, clearance rule and window over
 //! the lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
 //! decided in metres through the chart's inf-side arms, so a point
 //! within the band of the outer loop, along the chart, is undecided
-//! rather than read on a side. The two loops are near line for line one
-//! loop over two box sources; they become one when the trim's reader
-//! moves to the crate root
-//! (`work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
+//! rather than read on a side.
 //! The work bounds below are the one home of both readers' bounds.
 //!
 //! **A row whose box does not tighten.** An `IsoArc`'s box is its whole
@@ -56,8 +52,8 @@ pub(crate) const RING_PLACE_ARM: &str = "ring_place_arm";
 /// the shifts one closed channel may try in [`place_ring`], where a
 /// channel past it answers [`RingMiss::Copies`]; and the product of a
 /// query's copies over both channels that the spline trim reads
-/// (`boolean::spline_region`'s `Trim::copies`, which reads it as
-/// `COPIES`), where a product past it reads `Near(None)`. Raising it
+/// (`crate::spline_trim`'s `Trim::copies`, which reads it as `COPIES`),
+/// where a product past it reads `Near(None)`. Raising it
 /// moves both.
 pub(crate) const SHIFTS: usize = 9;
 /// How many times a piece of an outer loop is halved before a point it
@@ -180,12 +176,13 @@ pub enum RingPlacementError {
         /// The in-band decision.
         cause: Option<Indeterminate>,
     },
-    /// This door does not read a spline chart yet. It says nothing about
-    /// the face's rings, which the spline trim places itself, by the
-    /// same rule, inside the boolean engine, where a door at the crate
-    /// root does not reach (`crates/topo/README.md` `[topo.homes]`;
-    /// `work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
-    SplineChart,
+    /// The face's chart is a spline and its trim is not read there: the
+    /// chart is a placeholder or has no Bézier cells (a weight not shown
+    /// positive), it states no period or another one on a channel it is
+    /// decided closed in, or a loop's chain has no piece reading (a row
+    /// of a kind the trim reads no pieces of, a box with no value, a row
+    /// moved onto the twin sheet).
+    SplineTrimUnread,
 }
 
 /// Why [`place_ring`] placed no ring: the rule's answer, before a ring
@@ -341,10 +338,10 @@ pub(crate) fn face_lift<T: Decide>(
         });
     }
     let surface = view.surface();
-    if surface.spline_chart().is_some() {
-        return Err(RingPlacementError::SplineChart);
-    }
-    let decks = {
+    let decks = if surface.spline_chart().is_some() {
+        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
+        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
+    } else {
         let periods = ChartPeriods::of(surface, band);
         let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));

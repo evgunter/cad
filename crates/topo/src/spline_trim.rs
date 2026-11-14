@@ -66,10 +66,11 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
+use crate::joint::Deck;
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::pcurves::Side;
+use crate::pcurves::{Lift, RingMiss, RingPlacementError, Shift, Side};
 use crate::validate::decide;
 
 /// A chart window's inf-side lever arm, gated as a length.
@@ -766,22 +767,22 @@ pub(crate) struct Trim {
     piece_visits: usize,
 }
 
-impl Trim {
-    /// The trim of `face` on `chart` (`cells` its Bézier decomposition);
-    /// `None` where a loop has no lift past its placeholders or winds, an image is of a kind
-    /// with no piece reading here, the lift applies a period the chart
-    /// is not decided closed in, or a ring's place in the outer loop's
-    /// cover is not decided.
-    pub(crate) fn of<T: Decide>(
-        body: &Body<T>,
-        face: FaceKey,
-        chart: &NurbsSurface<T>,
-        cells: &[Patch<T>],
-        caps: Caps,
-        band: Band,
-    ) -> Option<Self> {
-        let view = body.proven_face(face);
-        let surface = view.surface();
+/// **The chart a trim is read in**: its periods, its knot domain and
+/// the scale its images' ends are charged at.
+struct TrimChart {
+    /// The chart's period in each channel it is decided closed in.
+    periods: [Option<f64>; 2],
+    /// The chart's knot domain.
+    domain: Rect,
+    /// The chart coordinates' magnitude an image's evaluation rounds at:
+    /// the domain's, and a period past it.
+    scale: f64,
+}
+
+impl TrimChart {
+    /// The chart of `surface`, a spline `chart`; `None` where a channel
+    /// the chart is decided closed in states no period or another one.
+    fn of<T: Decide>(surface: &Surface<T>, chart: &NurbsSurface<T>, band: Band) -> Option<Self> {
         // The lift moves a row by the periods the chart STATES
         // ([`crate::pcurves::Lift::read`]), and a copy of a query is read a
         // period apart only on a channel the chart is DECIDED closed in.
@@ -813,48 +814,128 @@ impl Trim {
             u: (u0.value_channel(), u1.value_channel()),
             v: (v0.value_channel(), v1.value_channel()),
         };
-        // The chart coordinates' magnitude an image's evaluation rounds
-        // at: the domain's, and a period past it.
         let scale = [domain.u.0, domain.u.1, domain.v.0, domain.v.1]
             .into_iter()
             .chain(periods.iter().flatten().copied())
             .map(f64::abs)
             .fold(0.0, f64::max);
+        Some(Self {
+            periods,
+            domain,
+            scale,
+        })
+    }
+
+    /// **A loop's chain in this chart**: each row of `lift` as its image's
+    /// pieces over its edge's span, in its walk's direction, and the gap
+    /// at each joint closed by a segment. `None` where the lift is empty
+    /// or winds, a row is moved by a period the chart is not decided
+    /// closed in or onto the twin sheet, or an image has no piece reading.
+    fn chain<T: Decide>(&self, body: &Body<T>, lift: &Lift<T>) -> Option<Vec<Piece>> {
+        if lift.is_empty() {
+            return None;
+        }
+        // A skipped placeholder's joints are the identity
+        // (`Lift::read_past_placeholders`), so the members' elements
+        // wind as the whole loop's.
+        let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
+        if !Winding::of(elements?).is_zero() {
+            return None;
+        }
+        let mut chain: Vec<Piece> = Vec::new();
+        for row in lift {
+            if (row.lift.u != 0 && self.periods[0].is_none())
+                || (row.lift.v != 0 && self.periods[1].is_none())
+                || row.lift.twin
+            {
+                return None;
+            }
+            let (t0, t1) = row.params;
+            let mut run = image_pieces(&row.pcurve, t0, t1, self.scale)?;
+            if !walks_forward(body, row.half_edge) {
+                run = run.into_iter().rev().map(Piece::reversed).collect();
+            }
+            close_gap(&mut chain, run.first()?.first());
+            chain.extend(run);
+        }
+        let start = chain.first()?.first();
+        close_gap(&mut chain, start);
+        Some(chain)
+    }
+}
+
+/// **The ring door's spline arm** ([`crate::Body::face_lift`]): the deck
+/// that moves each of `rings` (each ring and its lift as read) into the
+/// region `outer`, the lift of `face`'s outer loop, bounds, decided by
+/// the ring rule against the outer loop's trim alone
+/// ([`Trim::ring_shift`]), the one the trim places its own rings by.
+///
+/// # Errors
+///
+/// [`RingPlacementError::SplineTrimUnread`] where the outer loop's trim
+/// or a ring's chain is not read; the rule's miss for the first ring it
+/// places nowhere, or more than once.
+pub(crate) fn ring_decks<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    outer: &Lift<T>,
+    rings: &[(LoopKey, &Lift<T>)],
+    band: Band,
+) -> Result<Vec<Deck>, RingPlacementError> {
+    let surface = body.proven_face(face).surface();
+    let Some(chart) = surface.spline_chart() else {
+        unreachable!("the spline arm is reached on a spline chart")
+    };
+    let unread = RingPlacementError::SplineTrimUnread;
+    if surface.is_placeholder_chart() {
+        return Err(unread);
+    }
+    let cells = bezier_cells(chart).ok_or(unread)?;
+    let sheet = TrimChart::of(surface, chart, band).ok_or(unread)?;
+    let trim = Trim::from_pieces(
+        sheet.chain(body, outer).ok_or(unread)?,
+        sheet.domain,
+        sheet.periods,
+        Caps::READ,
+    )
+    .ok_or(unread)?;
+    rings
+        .iter()
+        .map(|&(ring, lift)| {
+            let chain = sheet.chain(body, lift).ok_or(unread)?;
+            let Some(first) = chain.first() else {
+                unreachable!("a chain read is not empty")
+            };
+            trim.ring_shift(&cells, first.ends().0, band)
+                .map(|shift| shift.deck)
+                .map_err(|miss| miss.of(ring))
+        })
+        .collect()
+}
+
+impl Trim {
+    /// The trim of `face` on `chart` (`cells` its Bézier decomposition);
+    /// `None` where a loop's chain is not read past its placeholders
+    /// ([`TrimChart::chain`]), the chart states no period or another one
+    /// on a channel it is decided closed in, or a ring's place in the
+    /// outer loop's cover is not decided.
+    pub(crate) fn of<T: Decide>(
+        body: &Body<T>,
+        face: FaceKey,
+        chart: &NurbsSurface<T>,
+        cells: &[Patch<T>],
+        caps: Caps,
+        band: Band,
+    ) -> Option<Self> {
+        let view = body.proven_face(face);
+        let sheet = TrimChart::of(view.surface(), chart, band)?;
         let mut chains = Vec::new();
         for (lk, _, _) in view.loops() {
-            let lift = crate::pcurves::Lift::read_past_placeholders(body, lk).ok()?;
-            if lift.is_empty() {
-                return None;
-            }
-            // A skipped placeholder's joints are the identity
-            // (`Lift::read_past_placeholders`), so the members' elements
-            // wind as the whole loop's.
-            let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
-            if !Winding::of(elements?).is_zero() {
-                return None;
-            }
-            let mut chain: Vec<Piece> = Vec::new();
-            for row in &lift {
-                if (row.lift.u != 0 && periods[0].is_none())
-                    || (row.lift.v != 0 && periods[1].is_none())
-                    || row.lift.twin
-                {
-                    return None;
-                }
-                let (t0, t1) = row.params;
-                let mut run = image_pieces(&row.pcurve, t0, t1, scale)?;
-                if !walks_forward(body, row.half_edge) {
-                    run = run.into_iter().rev().map(Piece::reversed).collect();
-                }
-                close_gap(&mut chain, run.first()?.first());
-                chain.extend(run);
-            }
-            let start = chain.first()?.first();
-            close_gap(&mut chain, start);
-            chains.push(chain);
+            let lift = Lift::read_past_placeholders(body, lk).ok()?;
+            chains.push(sheet.chain(body, &lift)?);
         }
         let mut chains = chains.into_iter();
-        let outer = Self::from_pieces(chains.next()?, domain, periods, caps)?;
+        let outer = Self::from_pieces(chains.next()?, sheet.domain, sheet.periods, caps)?;
         let rings: Vec<Vec<Piece>> = chains.collect();
         outer.with_rings(cells, rings, band)
     }
@@ -895,21 +976,7 @@ impl Trim {
     ) -> Option<Self> {
         let mut pieces = self.pieces.clone();
         for ring in rings {
-            let [u, v] = ring.first()?.ends().0;
-            let shift = crate::pcurves::place_ring(
-                self.periods,
-                [self.reach.u, self.reach.v],
-                [u, v],
-                |shift| {
-                    let [du, dv] = shift.offset;
-                    match self.place_in_cover(cells, Rect::point(u + du, v + dv), band) {
-                        Place::In => Side::In,
-                        Place::Out => Side::Out,
-                        Place::Near(diag) => Side::Near(diag),
-                    }
-                },
-            )
-            .ok()?;
+            let shift = self.ring_shift(cells, ring.first()?.ends().0, band).ok()?;
             let [du, dv] = shift.offset;
             pieces.extend(ring.iter().map(|p| p.shifted(du, dv)));
         }
@@ -920,6 +987,31 @@ impl Trim {
             Caps {
                 cells: 0,
                 pieces: self.piece_visits,
+            },
+        )
+    }
+
+    /// **The ring rule over this trim** ([`crate::pcurves::place_ring`]):
+    /// the one shift that puts a ring whose chain starts at `at` in this
+    /// trim's region, each candidate read in the cover by
+    /// [`Self::place_in_cover`].
+    pub(crate) fn ring_shift<T: Decide>(
+        &self,
+        cells: &[Patch<T>],
+        [u, v]: [f64; 2],
+        band: Band,
+    ) -> Result<Shift, RingMiss> {
+        crate::pcurves::place_ring(
+            self.periods,
+            [self.reach.u, self.reach.v],
+            [u, v],
+            |shift| {
+                let [du, dv] = shift.offset;
+                match self.place_in_cover(cells, Rect::point(u + du, v + dv), band) {
+                    Place::In => Side::In,
+                    Place::Out => Side::Out,
+                    Place::Near(diag) => Side::Near(diag),
+                }
             },
         )
     }

@@ -658,6 +658,71 @@ fn a_face_across_a_closed_charts_seam_reads_its_region_and_its_hole() {
     }
 }
 
+/// **The ring door's deck on a spline face** ([`crate::Body::face_lift`]),
+/// on the square tube's face across its seam: the outer loop's lift runs
+/// over `u ∈ [−0.1, 0.1]`. The hole past the seam is stored at
+/// `u ∈ [0.02, 0.06]`, in that region, and stays; the hole before it is
+/// stored at `u ∈ [0.92, 0.96]`, a period away, and moves down one. Each
+/// moved ring's lift lies inside the outer loop's hull in `u`, which no
+/// other deck gives, so the row is red on a ring left where it is stored
+/// and on one moved the wrong way.
+#[test]
+fn the_ring_door_moves_a_spline_faces_ring_into_its_outer_loops_region() {
+    let chart = square_tube();
+    let outer = [
+        (0.9, 0.2),
+        (1.0, 0.2),
+        (1.1, 0.2),
+        (1.1, 0.8),
+        (1.0, 0.8),
+        (0.9, 0.8),
+    ];
+    let hull = |lift: &crate::pcurves::Lift<f64>| {
+        lift.rows()
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), row| {
+                let (a, b) = row.entry_exit();
+                let (p, q) = (row.pcurve.eval(a), row.pcurve.eval(b));
+                (lo.min(p.x).min(q.x), hi.max(p.x).max(q.x))
+            })
+    };
+    for (name, hole, deck) in [
+        (
+            "past the seam",
+            [(1.02, 0.4), (1.06, 0.4), (1.06, 0.6), (1.02, 0.6)],
+            0,
+        ),
+        (
+            "before the seam",
+            [(0.92, 0.4), (0.96, 0.4), (0.96, 0.6), (0.92, 0.6)],
+            -1,
+        ),
+    ] {
+        let (body, face) = holed_sheet(&chart, &outer, Some(&hole));
+        let lift = body
+            .face_lift(face, band())
+            .unwrap_or_else(|e| panic!("{name}: the door places the ring: {e:?}"));
+        let [ring] = lift.rings() else {
+            panic!("{name}: one ring, got {}", lift.rings().len())
+        };
+        assert_eq!(
+            ring.by(),
+            crate::joint::Deck {
+                u: deck,
+                v: 0,
+                twin: false
+            },
+            "{name}: the deck"
+        );
+        let (outer_lo, outer_hi) = hull(lift.outer());
+        let (lo, hi) = hull(ring.lift());
+        assert!(
+            outer_lo < lo && hi < outer_hi,
+            "{name}: the moved ring over u ∈ [{lo}, {hi}] lies inside the outer loop's [{outer_lo}, {outer_hi}]"
+        );
+    }
+}
+
 /// **A reading past its work caps stands unsettled**, never a verdict:
 /// a point of the carrier past the trim reads out at the caps every
 /// caller reads at, and unsettled with one kept cell allowed; the trim

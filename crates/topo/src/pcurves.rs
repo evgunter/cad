@@ -2462,7 +2462,8 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
 mod rings;
 pub use rings::{FaceLift, PlacedRing, RingPlacementError};
 pub(crate) use rings::{
-    HALVINGS, PIECE_DEPTH, PIECE_VISITS, SHIFTS, Side, WINDOW_SHARE, face_lift, place_ring,
+    HALVINGS, PIECE_DEPTH, PIECE_VISITS, RingMiss, SHIFTS, Shift, Side, WINDOW_SHARE, face_lift,
+    place_ring,
 };
 
 /// One half-edge of a [`Lift`].
