@@ -430,7 +430,7 @@ fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Ha
 
 /// One traversed half of a section loop: the corner it starts at, and
 /// what it runs along to the next.
-pub(crate) struct Half<T: Real> {
+struct Half<T: Real> {
     he: HalfEdgeKey,
     corner: Point3<T>,
     carrier: HalfCarrier<T>,
@@ -465,10 +465,7 @@ enum HalfCarrier<T: Real> {
 ///
 /// On a torn scratch body, a kernel bug: `l` is a loop the join
 /// completed on `body`, and every hop past it is a link.
-pub(crate) fn section_walk<T: Decide>(
-    body: &Body<T>,
-    l: LoopKey,
-) -> Result<Vec<Half<T>>, SectionError<T>> {
+fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
     let Some(loop_data) = body.get_loop(l) else {
         unreachable!(
             "the join's completed section names below loop {l:?}, which does not resolve: the \
@@ -561,16 +558,72 @@ mod winding_ending {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod torn_walk {
+    use geom_core::Tol;
+
     use super::section_walk;
     use crate::body::Body;
-    use crate::entity::LoopKey;
+    use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
 
-    /// The join's own loop is a record of the scratch body, so a miss is
-    /// a torn body and panics naming the loop (D2 row 4).
+    /// A cube, one of its loops and that loop's first half-edge.
+    fn cube() -> (Body<f64>, LoopKey, HalfEdgeKey) {
+        let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let (l, first) = body
+            .loops()
+            .find_map(|(l, data)| match data.boundary {
+                LoopBoundary::Cycle { first } => Some((l, first)),
+                LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        (body, l, first)
+    }
+
+    /// The sound loop the torn rows below start from walks whole, so each
+    /// of their panics is its tear's.
+    #[test]
+    fn a_sound_loop_walks_its_four_halves() {
+        let (body, l, first) = cube();
+        let halves = section_walk(&body, l).unwrap();
+        assert_eq!(halves.len(), 4, "a cube face's loop");
+        assert_eq!(halves[0].he, first, "the walk starts at the loop's first");
+    }
+
     #[test]
     #[should_panic(expected = "the join's completed section names below loop")]
     fn a_completed_sections_loop_that_does_not_resolve_panics() {
         let _ = section_walk(&Body::<f64>::new(), LoopKey::default());
+    }
+
+    #[test]
+    #[should_panic(expected = "does not claim it in either slot")]
+    fn a_half_its_edge_does_not_claim_panics_as_its_own_fault() {
+        let (mut body, l, first) = cube();
+        let other = body
+            .edges()
+            .find_map(|(e, data)| data.claim(first).is_none().then_some(e))
+            .unwrap();
+        body.get_half_edge_mut(first).unwrap().edge = other;
+        let _ = section_walk(&body, l);
+    }
+
+    #[test]
+    #[should_panic(expected = "'s curve names")]
+    fn an_edge_whose_curve_does_not_resolve_panics_naming_the_edge() {
+        let (mut body, l, first) = cube();
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let _ = section_walk(&body, l);
+    }
+
+    #[test]
+    #[should_panic(expected = "'s point names")]
+    fn a_corner_whose_point_does_not_resolve_panics_naming_the_vertex() {
+        let (mut body, l, first) = cube();
+        let start = body.get_half_edge(first).unwrap().start;
+        let point = body.get_vertex(start).unwrap().point;
+        body.points.remove(point);
+        let _ = section_walk(&body, l);
     }
 }
