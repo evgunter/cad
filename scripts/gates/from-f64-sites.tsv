@@ -144,6 +144,8 @@ crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
+crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
+crates/sweep/src/skin.rs	1	constant	s	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
