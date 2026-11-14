@@ -4,6 +4,8 @@ kind: issue
 title: Five sweep suites re-spell common::approx::nurbs_walls' non-placeholder NURBS face predicate inline
 status: open
 opened: 2026-09-26
+priority: P4
+cost: E
 ---
 
 
