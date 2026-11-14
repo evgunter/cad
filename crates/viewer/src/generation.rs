@@ -1,5 +1,6 @@
-//! A request's identity across the three seams: a monotone counter and
-//! nothing else.
+//! A request's identity across the three seams, a monotone counter, and
+//! the two memos the session keys by it: [`GenerationMemo`], one slot,
+//! and [`GenerationMap`], every key asked this generation.
 //!
 //! **This module depends on nothing** — not the kernel, not another
 //! module of this crate — and that is the whole reason it is a module
@@ -81,7 +82,10 @@ impl<K: PartialEq + Clone, V: Clone> GenerationMemo<K, V> {
 /// **Values derived once per generation and key, every key kept**: a
 /// [`GenerationMemo`] for a question several rows of one frame ask under
 /// different keys, which one slot would answer by deriving each again
-/// every frame. A new generation clears every key.
+/// every frame. A new generation clears every key, so it holds one
+/// value per key asked since the document last changed: a memo whose key
+/// is a draft that moves each frame within one generation (a bundle, a
+/// proposal) keeps one slot instead.
 pub struct GenerationMap<K, V>(
     std::sync::Mutex<Option<(Generation, std::collections::BTreeMap<K, V>)>>,
 );

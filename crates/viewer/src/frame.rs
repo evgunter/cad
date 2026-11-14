@@ -2629,13 +2629,14 @@ pub fn placement_offers(
         .rows
         .into_iter()
         .map(|row| {
-            let (who, what) = repointed(by, doc, row.source, &row.placements);
+            let said = repointed(by, doc, row.source, &row.placements);
             PlacementOffer {
                 said: format!(
-                    "{who} copies {}, which this body is built on",
+                    "{} copies {}, which this body is built on",
+                    said.counted,
                     by.read(row.body)
                 ),
-                label: repoint_label(&what, &by.node(node).to_string()),
+                label: repoint_label(&said.named, &by.node(node).to_string()),
                 op: SessionOp::RepointPlacements {
                     source: row.source,
                     onto: node.into(),
@@ -2645,28 +2646,41 @@ pub fn placement_offers(
         .collect()
 }
 
-/// **The source a re-point redefines, as its sentence and its button
-/// say it**: a named source with its copies, `bracket (2 copies)`, and
-/// by its name, `bracket`; an anonymous one as its placement's copy,
-/// `the copy C1`, both times.
+/// **The source a re-point redefines, as the offer's sentence and a
+/// re-point button say it** ([`repointed`]).
+struct Repointed {
+    /// In the sentence: `bracket (2 copies)`, or `the copy C1` for an
+    /// anonymous source.
+    counted: String,
+    /// On the button: `bracket`, or `the copy C1`.
+    named: String,
+}
+
+/// [`Repointed`] of `source`, which `placements` read.
 fn repointed(
     by: Speaker<'_>,
     doc: &Doc<ProfileProgram>,
     source: pncad::document::VarId,
     placements: &[RecipeNodeId],
-) -> (String, String) {
+) -> Repointed {
     match doc.var_name(source) {
         Some(name) => {
             let count = placements.len();
             let plural = if count == 1 { "y" } else { "ies" };
-            (format!("{name} ({count} cop{plural})"), name.to_string())
+            Repointed {
+                counted: format!("{name} ({count} cop{plural})"),
+                named: name.to_string(),
+            }
         }
         None => {
             let copy = placements
                 .first()
                 .map_or_else(|| by.read(source), |&copy| by.node(copy).to_string());
-            let who = format!("the copy {copy}");
-            (who.clone(), who)
+            let named = format!("the copy {copy}");
+            Repointed {
+                counted: named.clone(),
+                named,
+            }
         }
     }
 }
@@ -2693,7 +2707,7 @@ pub struct RepointButton {
 
 /// **The button that re-points `source` onto the selected body `onto`**
 /// ([`SessionOp::RepointPlacements`]), asking the check the offer's rows
-/// ask ([`crate::world::redefinable`]), so a re-point the offer withholds
+/// ask ([`crate::world::repoint_check`]), so a re-point the offer withholds
 /// is a disabled button here, saying why.
 pub fn repoint_button(
     doc: &Doc<ProfileProgram>,
@@ -2702,7 +2716,7 @@ pub fn repoint_button(
     tol: pncad::geom_core::Tol,
 ) -> RepointButton {
     let by = Speaker::of(doc);
-    let (_, what) = repointed(
+    let said = repointed(
         by,
         doc,
         source,
@@ -2710,13 +2724,13 @@ pub fn repoint_button(
     );
     let Some(node) = onto else {
         return RepointButton {
-            label: repoint_label(&what, "the selected body"),
+            label: repoint_label(&said.named, "the selected body"),
             op: Err(SELECT_A_BODY_TO_RE_POINT_ONTO.to_owned()),
         };
     };
     RepointButton {
-        label: repoint_label(&what, &by.node(node).to_string()),
-        op: crate::world::redefinable(doc, source, node, tol)
+        label: repoint_label(&said.named, &by.node(node).to_string()),
+        op: crate::world::repoint_check(doc, source, node, tol)
             .map(|()| SessionOp::RepointPlacements {
                 source,
                 onto: node.into(),

@@ -896,15 +896,17 @@ fn with(session: &DocSession, node: AuthoredNode, tol: Tol) -> (DocSession, Reci
 /// gesture with `C1` slid aside. The offer leaves `C1`'s source out,
 /// since `U` reads it; the button redefines `C2`'s alone, and lands.
 /// Shared by one named source, the two copies offer nothing: redefining
-/// it onto `U` would close a cycle through `C1`. The source row and the
-/// "copy of" rows re-point through the same check
-/// (`DocSession::repoint_button`): with U selected, `C1`'s "copy of"
-/// row and `bracket`'s source row are disabled, saying the op's refusal,
-/// and `C2`'s "copy of" row is the offer's button.
+/// it onto `U` would close a cycle through `C1`. The value the source
+/// row and the "copy of" rows draw (`DocSession::repoint_button`) asks
+/// the same check: with U selected, the one for `C1`'s source and the
+/// one for `bracket` hold the op's refusal, as does `C1`'s onto `C1`
+/// itself, and `C2`'s is the offer's button.
 ///
 /// *Breaks if* the action re-derives a source list other than the
-/// offer's (the button is refused `WouldCycle` on `C1`'s source), or a
-/// pane's re-point button stops asking the offer's check.
+/// offer's (the button is refused `WouldCycle` on `C1`'s source), or
+/// `DocSession::repoint_button` stops asking the offer's check. That
+/// the panes draw the value disabled where it refuses is
+/// `widgets::repoint_button_tests`'.
 #[test]
 fn the_offer_and_its_button_re_point_the_same_placements() {
     let tol = Tol::witness();
@@ -998,6 +1000,25 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
             why,
             viewer::shown(&refused),
             "gesture={gesture}: its own words"
+        );
+        // With C1 itself selected, C1's own row asks the check of C1 and
+        // says the op's refusal (the cycle), not that nothing is
+        // selected.
+        let onto_itself = session
+            .repoint_button(c1_source, Some(c1))
+            .op
+            .expect_err("C1's copy-of row is disabled with C1 selected");
+        let refused = session
+            .perform(SessionOp::RepointPlacements {
+                source: c1_source,
+                onto: c1.into(),
+            })
+            .refusal
+            .expect("the op refuses");
+        assert_eq!(
+            onto_itself,
+            viewer::shown(&refused),
+            "gesture={gesture}: C1 onto itself says the op's refusal"
         );
         let copy_of = session.repoint_button(doc.copied_read(c2).expect("C2's source"), Some(u));
         assert_eq!(

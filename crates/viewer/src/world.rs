@@ -806,7 +806,7 @@ pub fn repoint_targets(
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter_map(|source| {
             let placements = placements_of_var(doc, source);
-            (!placements.is_empty() && redefinable(doc, source, onto, tol).is_ok()).then_some(
+            (!placements.is_empty() && repoint_check(doc, source, onto, tol).is_ok()).then_some(
                 RepointRow {
                     body,
                     source,
@@ -827,7 +827,7 @@ pub fn repoint_targets(
 ///
 /// The refusal [`crate::session::SessionOp::RepointPlacements`] would
 /// land with.
-pub fn redefinable(
+pub fn repoint_check(
     doc: &Doc<ProfileProgram>,
     source: VarId,
     onto: RecipeNodeId,

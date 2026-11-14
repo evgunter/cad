@@ -1055,12 +1055,9 @@ impl ViewerBehavior<'_> {
             Some(name) => format!(" through {name}"),
             None => String::new(),
         };
-        let selected = self
+        let button = self
             .session
-            .selection()
-            .node()
-            .filter(|&node| node != door.placement);
-        let button = self.session.repoint_button(source, selected);
+            .repoint_button(source, self.session.selection().node());
         ui.horizontal(|ui| {
             let copied = doc.operation_of(body).map_or_else(
                 || doc.spoken_var(body).to_string(),

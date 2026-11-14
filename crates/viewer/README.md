@@ -2494,7 +2494,9 @@ at any depth, as a body, one a source places (and on no placed copy),
 as a fact with its button — "bracket (2 copies) copies B, which this
 body is built on", "Re-point bracket onto G" — for as long as that is
 true, and nothing records a decline: not pressing it is the decline. The source's own row
-and the placement's "copy of" row re-point too. No gesture re-points a
+and the placement's "copy of" row re-point too, onto the selected
+body, under the offer's verb and asking the offer's check: where it
+refuses, the button is disabled and says the refusal. No gesture re-points a
 placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
 `above ⊔ below`, its two halves standing where that body stood. A split
