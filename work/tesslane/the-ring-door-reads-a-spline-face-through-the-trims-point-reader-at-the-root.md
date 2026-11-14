@@ -19,9 +19,9 @@ The final state is that the trim's point reader lives at the crate root, the doo
 
 ## What moves, by name (`crates/topo/src/boolean/spline_region.rs`)
 
-- The trim: `Trim` (`of`, `placed`, `from_pieces`, `with_rings`, `place`, `place_in_cover`, `read_window`, `principal`, `exits_clear`, `copies`, `copy`), `Place`, `Piece`, `Rect`, `gap`, `close_gap`, `walks_forward`, `image_pieces`, `bezier_pieces`, `half_width`, `window_arms`, and the `Placed` alias.
+- The trim: `Trim` (`of`, `from_pieces`, `with_rings`, `place`, `place_in_cover`, `read_window`, `principal`, `exits_clear`, `copies`, `copy`), `Place`, `Piece`, `Rect`, `gap`, `close_gap`, `walks_forward`, `image_pieces`, `bezier_pieces`, `half_width`, and `window_arms`.
 - The cells it meters by: `Patch` and its impl, `bezier_cells`, `bezier_insertions`, `refined`, `blend`, `point_rounding`, `middle`, `tracks`, `mutant`.
-- Their constants: `SPLINE_REGION_TRIM`, `SPLINE_REGION_ARM`, `PIECE_DEPTH`, `PIECE_VISITS`, `COPIES`, and `Caps`, which the carrier walk shares.
+- Their predicate names and caps: `SPLINE_REGION_TRIM`, `SPLINE_REGION_ARM`, and `Caps`, which the carrier walk shares. The work bounds already live at the root.
 - What stays in the engine: `spline_face_placement`, `spline_chart_placement`, `read`, `read_capped`, `carrier_walk`. They reach the cells and the trim at the root.
 - The module docs' *The trim, in the chart* and *Rounding* sections move with the code. Its predicate names (`bool_spline_region_*`) are a K name's prefix, which `[topo.homes]` says names the module that decides; renaming them is part of the move.
 
@@ -30,7 +30,7 @@ The final state is that the trim's point reader lives at the crate root, the doo
 `scripts/gates/engine-leaves.sh`, run through `scripts/run-gates.sh` (which sets `GATE_BASE`):
 - **Root to engine is refused.** The root naming `boolean` raises `names-boolean`, as `pcurves_rings.rs` calling `spline_region::ring_decks` did on 3a's first head.
 - **Crate-wide items in the engine are refused.** A `pub(crate)` item in the engine raises `crate-visible boolean/spline_region.rs`.
-- **Engine to root is allowed.** `spline_region` already imports `crate::pcurves::{RingMiss, Side}`.
+- **Engine to root is allowed.** `spline_region` already imports `crate::pcurves::Side` and the work bounds.
 
 ## Rows that read this code today
 
@@ -41,6 +41,22 @@ The final state is that the trim's point reader lives at the crate root, the doo
 
 Each of those rows would cite the new home after the move. The move is on SPLICE's and the boolean programs' ground, and is announced on their logs at dispatch.
 
-## Not measured
+## One reader, not two
 
-Whether any door-built body has a ring on a spline face. A boolean through a lofted or swept wall is where one would come from. Every one of the 24 rings `crates/mesh/tests/lift_probes.rs` measures is on an analytic chart. Measure that before pricing the unit against its need.
+Review of `a-rings-lift-is-placed-against-its-outer-loop-in-one-place` found that the analytic reader (`pcurves_rings.rs`, `Outer::side` and `Outer::parity`) is near line for line the trim's (`Trim::read_window` and `Trim::copy`). Both use:
+- the same clear-in-either-channel rule;
+- the same `continue` ladder;
+- the same half-open `v ≥ q_v` parity;
+- `Near` at the depth limit.
+
+What differs is the box source: Bézier pieces with rounding charges on a spline chart, `Pcurve::chart_box` on an analytic one. So the loop can be one, over a piece reading (box, ends, halves) that each family supplies, with each family keeping its own boxes. Then `with_rings` decides what it decides now. This unit makes them one. The work bounds are already one home (`pcurves::{SHIFTS, PIECE_DEPTH, PIECE_VISITS, HALVINGS, WINDOW_SHARE}`, which the trim reads).
+
+The other ray-parity readers in `topo` are the class to sweep when the loop is made one:
+- `chart_region`'s `ray_walk` and `point_in_polygon`;
+- `splitting/containment.rs`'s `point_in_vertex_polygon` and `point_in_loop`;
+- the point-in-face door's model-space ray cast that `validate.rs` reports (its `GRAZED` ending);
+- `cell_region`, which reads in model space and draws no chart polygon, so is likely not in the class.
+
+## Measured since filing
+
+A door-built body does close a ring on a spline face: `crates/sweep/tests/a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs`, `a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall`. Every operation there refuses at the inside/outside test before finishing, so the ring exists mid-operation only. No at-rest body today holds a ring on a spline face, and so none reaches `SplineChart`.

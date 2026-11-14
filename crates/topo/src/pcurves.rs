@@ -2461,7 +2461,9 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
 #[path = "pcurves_rings.rs"]
 mod rings;
 pub use rings::{FaceLift, PlacedRing, RingPlacementError};
-pub(crate) use rings::{RingMiss, Side, face_lift, place_ring};
+pub(crate) use rings::{
+    HALVINGS, PIECE_DEPTH, PIECE_VISITS, SHIFTS, Side, WINDOW_SHARE, face_lift, place_ring,
+};
 
 /// One half-edge of a [`Lift`].
 #[derive(Clone, Debug)]
@@ -2637,7 +2639,8 @@ impl<T: Decide> Lift<T> {
 
     /// [`Lift::read`] in another gauge: the chain moved by `start`, each
     /// row's lift `start` composed after its own, and its image moved by
-    /// that sum from the stored row.
+    /// that sum from the stored row — rounded afresh, so not [`Lift::read`]'s
+    /// image moved by `start` bit for bit.
     ///
     /// # Errors
     ///

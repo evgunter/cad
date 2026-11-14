@@ -781,7 +781,7 @@ fn loops_of(name: &str, body: &Body<f64>, samples: usize) -> Vec<LoopFact> {
             door.as_ref()
                 .map(|f| {
                     let ring = &f.rings()[i];
-                    (ring.by, Chain::of(&ring.lift, samples))
+                    (ring.by(), Chain::of(ring.lift(), samples))
                 })
                 .map_err(Clone::clone)
         };
@@ -1316,12 +1316,27 @@ fn windings(facts: &[LoopFact]) -> Vec<(String, String)> {
 ///   mid-edge onto the mirror nappe, ends a period from its start.
 ///
 /// None of the five finishes; what `topo::finish` finds is pinned.
+/// `Body::face_lift` answers each curved face of them, as built, `Gap`:
+/// a face with no stored rows has no sheet to place a ring in.
 #[test]
 fn the_unminted_witnesses_store_no_lift_and_mint_one() {
     let built = unminted_witnesses();
     let stored: usize = built.iter().map(|(_, body)| body.pcurves().count()).sum();
     assert_eq!(stored, 0, "the witnesses store no image as built");
     let unminted = census(&built, SAMPLES);
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    for (name, body) in &built {
+        for (fk, _) in body.faces() {
+            if kind_of(body, fk) == SurfaceKind::Plane {
+                continue;
+            }
+            let door = body.face_lift(fk, band);
+            assert!(
+                matches!(door, Err(topo::pcurves::RingPlacementError::Gap(_))),
+                "{name}: a face with no stored rows has no sheet for its rings: {door:?}"
+            );
+        }
+    }
     assert_eq!(
         unminted.len(),
         10,

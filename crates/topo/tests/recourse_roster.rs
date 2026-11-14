@@ -128,6 +128,12 @@ const PCURVES: Door = Door {
     prefixes: &["pcurve_"],
     error: std::any::type_name::<topo::PcurveMintError>,
 };
+/// The ring door's reading of a point against an analytic face's outer
+/// loop (`pcurves`' ring rule, `Body::face_lift`).
+const RING_PLACE: Door = Door {
+    prefixes: &["ring_place_"],
+    error: std::any::type_name::<topo::pcurves::RingPlacementError>,
+};
 /// A unit test's own fixture, decided in `#[cfg(test)]` code under
 /// `src`; no door reports it.
 const UNIT_TEST: Door = Door {
@@ -150,6 +156,7 @@ const DOORS: &[&Door] = &[
     &CHART_REGION,
     &SHELL,
     &PCURVES,
+    &RING_PLACE,
     &UNIT_TEST,
 ];
 
@@ -360,6 +367,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
     NameCarrier::Const("SPHERE_SEAM"),
+    NameCarrier::Const("RING_PLACE_ARM"),
+    NameCarrier::Const("RING_PLACE_CLEAR"),
     NameCarrier::Const("SPLINE_REGION_ARM"),
     NameCarrier::Const("SPLINE_REGION_CARRIER"),
     NameCarrier::Const("SPLINE_REGION_TRIM"),

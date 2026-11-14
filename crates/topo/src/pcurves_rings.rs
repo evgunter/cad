@@ -9,18 +9,30 @@
 //! ([`place_ring`]). One point decides the whole ring: a ring meets no
 //! edge of its face, so its lift crosses no row of the outer loop's.
 //!
-//! The rule is one; where a point lies against the outer loop is read
-//! the chart's way, as a joint is (`decide_joint` reads a spline chart's
-//! joints apart from an analytic chart's). A spline chart's reading is
-//! its trim's, in the boolean engine: the ray parity over the rows'
-//! Bézier pieces, metered by the chart's cells, which places its own
-//! rings by [`place_ring`]; this door answers a spline face
-//! [`RingPlacementError::SplineChart`]. An analytic
-//! chart's is [`Outer::side`]: the same parity over the lifted rows'
-//! chart boxes ([`Pcurve::chart_box`]), every clearance decided in
-//! metres through the chart's inf-side arms, so a point within the band
-//! of the outer loop, along the chart, is undecided rather than read on
-//! a side.
+//! The rule is one; the reading of a point against the outer loop is
+//! two today. A spline chart's is its trim's, in the boolean engine
+//! (`boolean::spline_region`'s `Trim::place_in_cover`): the ray parity
+//! over the rows' Bézier pieces, metered by the chart's cells, which
+//! places its own rings by [`place_ring`]; this door answers a spline
+//! face [`RingPlacementError::SplineChart`]. An analytic chart's is
+//! [`Outer::side`]: the same ray parity, clearance rule and window over
+//! the lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
+//! decided in metres through the chart's inf-side arms, so a point
+//! within the band of the outer loop, along the chart, is undecided
+//! rather than read on a side. The two loops are near line for line one
+//! loop over two box sources; they become one when the trim's reader
+//! moves to the crate root
+//! (`work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
+//! The work bounds below are the one home of both readers' bounds.
+//!
+//! **A row whose box does not tighten.** An `IsoArc`'s box is its whole
+//! segment's, a `Fitted` or `General` image's its whole net's, and a
+//! `Spiric` image's its whole period's ([`Pcurve::chart_box`]), so
+//! halving such a piece never clears it of a point inside that box: the
+//! reading spends [`PIECE_VISITS`] and answers `Near`, so the ring
+//! answers [`RingPlacementError::Undecided`]. The measured outer loops
+//! are all `Harmonic`
+//! (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
 
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve};
@@ -40,15 +52,21 @@ pub(crate) const RING_PLACE_CLEAR: &str = "ring_place_clear";
 /// length.
 pub(crate) const RING_PLACE_ARM: &str = "ring_place_arm";
 
-/// The shifts one closed channel may try.
-const SHIFTS: usize = 9;
-/// How many times a piece of the outer loop is halved before a point it
-/// is not clear of reads near it.
-const PIECE_DEPTH: usize = 52;
-/// The piece visits one reading may make.
-const PIECE_VISITS: usize = 1 << 14;
-/// How many times the window round a point is halved for its arms.
-const HALVINGS: u32 = 6;
+/// The shifts one closed channel may try, and the copies of a query the
+/// spline trim reads on a closed chart: a work bound, not a fact about
+/// the face. A channel past it answers [`RingMiss::Copies`].
+pub(crate) const SHIFTS: usize = 9;
+/// How many times a piece of an outer loop is halved before a point it
+/// is not clear of reads near it: a work bound, read as `Near`.
+pub(crate) const PIECE_DEPTH: usize = 52;
+/// The piece visits one reading may make: a work bound, read as `Near`.
+pub(crate) const PIECE_VISITS: usize = 1 << 14;
+/// How many times the window round a point is halved for its arms: a
+/// work bound, read as `Near` where no window's arms gate positive.
+pub(crate) const HALVINGS: u32 = 6;
+/// The first window round a point is this share of the reach in each
+/// channel.
+pub(crate) const WINDOW_SHARE: f64 = 16.0;
 
 /// **A face's loops in one sheet** ([`crate::Body::face_lift`]): its
 /// outer loop's lift as read, and each ring's moved into the region the
@@ -73,17 +91,37 @@ impl<T: Real> FaceLift<T> {
     }
 }
 
-/// One ring of a [`FaceLift`].
+/// One ring of a [`FaceLift`]: a placement the door decided, so it is
+/// built by the door alone.
 #[derive(Clone, Debug)]
 pub struct PlacedRing<T: Real> {
+    r#loop: LoopKey,
+    by: Deck,
+    lift: Lift<T>,
+}
+
+impl<T: Real> PlacedRing<T> {
     /// The ring.
-    pub r#loop: LoopKey,
+    #[must_use]
+    pub fn r#loop(&self) -> LoopKey {
+        self.r#loop
+    }
+
     /// The deck translation that moved the ring's lift
     /// ([`crate::Body::loop_lift`]) into its outer loop's region.
-    pub by: Deck,
-    /// The moved lift: each row's lift is `by` composed after the one
-    /// [`crate::Body::loop_lift`] reads.
-    pub lift: Lift<T>,
+    #[must_use]
+    pub fn by(&self) -> Deck {
+        self.by
+    }
+
+    /// The moved lift: each row's lift is [`Self::by`] composed after
+    /// the one [`crate::Body::loop_lift`] reads, and each image moved
+    /// by that sum from the stored row ([`Lift::read_from`]), so it is
+    /// rounded afresh, not the read image plus `k·p` bit for bit.
+    #[must_use]
+    pub fn lift(&self) -> &Lift<T> {
+        &self.lift
+    }
 }
 
 /// Why a face's rings have no place in its outer loop's sheet
@@ -117,36 +155,41 @@ pub enum RingPlacementError {
         ring: LoopKey,
     },
     /// The outer loop's reach spans more shifts of a channel than the
-    /// rule tries.
+    /// rule tries ([`SHIFTS`], a work bound), or a shift's count of
+    /// periods has no `i32`.
     Copies {
         /// The ring.
         ring: LoopKey,
     },
     /// A shift's point is within the band of the outer loop along the
-    /// chart, or its reading ran past its caps: the in-band decision, if
-    /// one stopped it.
+    /// chart, or its reading ran past its work bounds (a row whose box
+    /// does not tighten, module docs), or no window round it has arms
+    /// (a sphere ring stored on the twin sheet, past the pole rows): the
+    /// in-band decision, if one stopped it.
     Undecided {
         /// The ring.
         ring: LoopKey,
         /// The in-band decision.
         cause: Option<Indeterminate>,
     },
-    /// This door does not read a spline chart yet: it says nothing about
-    /// the face's rings, which the spline trim places itself, by the same
-    /// rule, inside the boolean engine, which a door at the crate root
-    /// does not reach (`crates/topo/README.md` `[topo.homes]`;
+    /// This door does not read a spline chart yet. It says nothing about
+    /// the face's rings, which the spline trim places itself, by the
+    /// same rule, inside the boolean engine, where a door at the crate
+    /// root does not reach (`crates/topo/README.md` `[topo.homes]`;
     /// `work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
     SplineChart,
 }
 
-/// Why [`place_ring`] placed no ring.
+/// Why [`place_ring`] placed no ring: the rule's answer, before a ring
+/// key names it, since the spline trim reads the rule with no door to
+/// answer through ([`RingMiss::of`] is the door's).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum RingMiss {
     /// No shift places it.
     NoShift,
     /// Two do.
     Shifts,
-    /// Too many shifts to try.
+    /// Too many shifts to try, or a count with no `i32`.
     Copies,
     /// A shift's reading is undecided.
     Undecided(Option<Indeterminate>),
@@ -195,7 +238,8 @@ pub(crate) struct Shift {
 /// # Errors
 ///
 /// [`RingMiss`]: no candidate reads in, a second one does, one is
-/// undecided, or a channel has more than [`SHIFTS`] candidates.
+/// undecided, or a channel has more than [`SHIFTS`] candidates or a
+/// count of periods past `i32`.
 pub(crate) fn place_ring(
     periods: [Option<f64>; 2],
     reach: [(f64, f64); 2],
@@ -212,15 +256,12 @@ pub(crate) fn place_ring(
         if n > SHIFTS as f64 {
             return None;
         }
-        #[allow(clippy::cast_possible_truncation)] // within `SHIFTS` of a floor
-        Some(
-            (0..=n as usize)
-                .map(|i| {
-                    let m = lo + i as f64;
-                    (m as i32, m * p)
-                })
-                .collect(),
-        )
+        (0..=n as usize)
+            .map(|i| {
+                let m = lo + i as f64;
+                Some((whole(m)?, m * p))
+            })
+            .collect()
     };
     let (Some(us), Some(vs)) = (shifts(0), shifts(1)) else {
         return Err(RingMiss::Copies);
@@ -245,6 +286,13 @@ pub(crate) fn place_ring(
         }
     }
     found.ok_or(RingMiss::NoShift)
+}
+
+/// `m`, a whole number, as an `i32`, where it has one.
+fn whole(m: f64) -> Option<i32> {
+    // `i32::MIN` and `i32::MAX + 1` are exact in `f64`.
+    #[allow(clippy::cast_possible_truncation)] // in range, and whole
+    (m >= f64::from(i32::MIN) && m < -f64::from(i32::MIN)).then_some(m as i32)
 }
 
 /// **The door** ([`crate::Body::face_lift`]).
@@ -315,11 +363,18 @@ pub(crate) fn face_lift<T: Decide>(
         }
         decks
     };
+    // A ring that stays is the lift already read; a moved one is read
+    // again in its new gauge, from the stored rows.
     let rings = rings
         .into_iter()
+        .zip(read)
         .zip(decks)
-        .map(|(ring, by)| {
-            let lift = Lift::read_from(body, ring, by).map_err(RingPlacementError::Gap)?;
+        .map(|((ring, lift), by)| {
+            let lift = if by == Deck::IDENTITY {
+                lift
+            } else {
+                Lift::read_from(body, ring, by).map_err(RingPlacementError::Gap)?
+            };
             Ok(PlacedRing {
                 r#loop: ring,
                 by,
@@ -463,24 +518,24 @@ impl<'a, T: Decide> Outer<'a, T> {
     /// the band. A window round `q` is taken whose chart arms gate
     /// definitely positive, halved until they do; every way out of it is
     /// decided past the band, so a piece's gap inside it, metered by the
-    /// window's arms, lower-bounds the way to the piece.
-    ///
-    /// The arms are read at `q`'s copy whose `v` is within half a period
-    /// of 0 on a chart closed in `v`: a deck translation is an isometry
-    /// of the chart, so the copy's window has the window's arms, and on
-    /// a sphere it is the copy between the pole rows the arms are stated
-    /// for.
+    /// window's arms, lower-bounds the way to the piece. The arms are
+    /// read at `q`'s copy within half a `v` period of 0: a deck
+    /// translation is an isometry of the chart.
     fn side(&self, q: Point2<T>, band: Band) -> Side {
         let size = self.reach.map(|(lo, hi)| hi - lo);
-        let v = self.v_period.map_or(q.y, |p| {
-            let length = p.length().value_channel();
-            #[allow(clippy::cast_possible_truncation)] // a whole number of periods
-            let k = (q.y.value_channel() / length + 0.5).floor() as i32;
-            q.y - p.times(k)
-        });
+        let v = match self.v_period {
+            None => q.y,
+            Some(p) => {
+                let length = p.length().value_channel();
+                let Some(k) = whole((q.y.value_channel() / length + 0.5).floor()) else {
+                    return Side::Near(None);
+                };
+                q.y - p.times(k)
+            }
+        };
         let mut pending = None;
         for halving in 0..HALVINGS {
-            let scale = 16.0 * f64::from(1u32 << halving);
+            let scale = WINDOW_SHARE * f64::from(1u32 << halving);
             let (ru, rv) = (
                 T::from_computed(size[0] / scale),
                 T::from_computed(size[1] / scale),
@@ -592,7 +647,7 @@ impl<'a, T: Decide> Outer<'a, T> {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
     use geom::Surface;
     use geom_brep::Period;
@@ -648,6 +703,9 @@ mod tests {
         );
     }
 
+    /// The second `In` is scripted: no outer loop the readers read gives
+    /// two copies of one point inside it, so a rule that took the first
+    /// `In` and went on is red here alone.
     #[test]
     fn no_shift_two_shifts_and_an_undecided_one_answer_typed() {
         let reach = [(0.0, TAU), (0.0, TAU)];
@@ -725,6 +783,212 @@ mod tests {
             Ok([1, 0]),
             "a ring stored a u period below is moved up one"
         );
+    }
+
+    /// The closed chain through `corners` on `surface`'s chart, as
+    /// straight pieces, closed in `v` by `v_period` where given.
+    fn chain<'a>(
+        surface: &'a Surface<f64>,
+        corners: &[(f64, f64)],
+        v_period: Option<f64>,
+    ) -> Outer<'a, f64> {
+        let n = corners.len();
+        let at = |i: usize| Point2::new(corners[i % n].0, corners[i % n].1);
+        let pieces = (0..n).map(|i| Piece::Segment(at(i), at(i + 1))).collect();
+        Outer::from_pieces(pieces, surface, v_period.map(Period::new))
+    }
+
+    fn word(side: Side) -> &'static str {
+        match side {
+            Side::In => "in",
+            Side::Out => "out",
+            Side::Near(_) => "near",
+        }
+    }
+
+    fn unit_sphere() -> Surface<f64> {
+        Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The analytic reader against chains a bug in its clearance or its
+    /// parity would misread.** A clearance that counts any positive chart
+    /// gap as clear reads the points `1e-12` off an edge, on an edge, and
+    /// in the sliver thinner than the band as a side; each must be near.
+    /// A parity that counts a grazing ray or a vertex twice misreads the
+    /// notch's iso row and the diamond's vertices.
+    ///
+    /// Two near readings are the reader being conservative, not the
+    /// geometry being in band: a point `1e-4` below a sphere's pole row,
+    /// and one `1e-3` above a cone's apex row. The window must hold a
+    /// positive azimuth arm, and no window it halves to (the reach over
+    /// `16·2⁵`) stays off the pole or the apex there.
+    #[test]
+    fn the_analytic_reader_reads_notches_vertices_slivers_poles_and_apexes() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let sphere = unit_sphere();
+        let read = |o: &Outer<'_, f64>, u: f64, v: f64| word(o.side(Point2::new(u, v), band));
+        let notch = chain(
+            &sphere,
+            &[
+                (PI, -1.2),
+                (TAU, -1.2),
+                (TAU, 0.3),
+                (5.5, 0.3),
+                (5.5, 0.8),
+                (TAU, 0.8),
+                (TAU, 1.2),
+                (PI, 1.2),
+            ],
+            Some(TAU),
+        );
+        assert_eq!(
+            [
+                read(&notch, 4.0, 0.3),
+                read(&notch, 6.0, 0.5),
+                read(&notch, 4.0, 0.8),
+                read(&notch, 6.0, 0.29),
+                read(&notch, 6.0, 0.81),
+                read(&notch, 4.0, 1.2),
+                read(&notch, 4.0, 1.2 - 1e-6),
+                read(&notch, 4.0, 1.2 - 1e-12),
+            ],
+            ["in", "out", "in", "in", "in", "near", "in", "near"],
+            "the notch: its iso rows' rays, its mouth, under and over it, on the top edge, \
+             1e-6 and 1e-12 inside it"
+        );
+        let diamond = chain(
+            &sphere,
+            &[(4.5, -0.5), (5.5, 0.3), (4.5, 1.0), (3.5, 0.3)],
+            Some(TAU),
+        );
+        assert_eq!(
+            [
+                read(&diamond, 4.5, 0.3),
+                read(&diamond, 3.0, 0.3),
+                read(&diamond, 5.0, 1.0),
+                read(&diamond, 4.5, -0.5 + 1e-6),
+                read(&diamond, 4.5, -0.5 - 1e-6),
+            ],
+            ["in", "out", "out", "in", "out"],
+            "the diamond: the ray through two vertices, outside it, and either side of its \
+             lowest vertex"
+        );
+        let cap = chain(
+            &sphere,
+            &[(0.0, 1.0), (TAU, 1.0), (TAU, FRAC_PI_2), (0.0, FRAC_PI_2)],
+            Some(TAU),
+        );
+        assert_eq!(
+            [
+                read(&cap, 1.0, 1.3),
+                read(&cap, 1.0, 1.55),
+                read(&cap, 1.0, FRAC_PI_2 - 1e-4),
+                read(&cap, 1.0, 0.9),
+                read(&cap, 1.0, 1.3 + TAU),
+                read(&cap, 1.0 + TAU, 1.3),
+            ],
+            ["in", "in", "near", "out", "out", "out"],
+            "the polar cap: inside, near the pole row, 1e-4 under it, under the cap, and a \
+             period off in either channel"
+        );
+        let sliver = chain(
+            &sphere,
+            &[(4.0, 0.0), (5.0, 0.0), (5.0, 1e-11), (4.0, 1e-11)],
+            Some(TAU),
+        );
+        assert_eq!(
+            read(&sliver, 4.5, 5e-12),
+            "near",
+            "a sliver thinner than the band"
+        );
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wedge = chain(
+            &cone,
+            &[(0.0, 0.0), (TAU, 0.0), (TAU, 1.0), (0.0, 1.0)],
+            None,
+        );
+        assert_eq!(
+            [
+                read(&wedge, 1.0, 0.5),
+                read(&wedge, 1.0, 1e-3),
+                read(&wedge, 1.0, 1e-9),
+                read(&wedge, 1.0 + TAU, 0.5),
+            ],
+            ["in", "near", "near", "out"],
+            "the cone from its apex row: inside, 1e-3 and 1e-9 above the apex, a period off"
+        );
+    }
+
+    /// **A sphere ring stored on the twin sheet answers undecided.** Its
+    /// point `(u + π, π − v)` names the same point of the sphere as one
+    /// inside the half band, but no translation reaches it, and its window
+    /// lies past the pole rows, where the azimuth arm is zero
+    /// (`azimuth_lever_inf` holds `|v|` at `π/2`).
+    #[test]
+    fn a_sphere_ring_on_the_twin_sheet_answers_undecided() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let sphere = unit_sphere();
+        let half = chain(
+            &sphere,
+            &[(PI, -1.2), (TAU, -1.2), (TAU, 1.2), (PI, 1.2)],
+            Some(TAU),
+        );
+        let at = [4.5 - PI, PI - 0.3];
+        let placed = place_ring([Some(TAU), Some(TAU)], half.reach, at, |s| {
+            half.side(Point2::new(at[0] + s.offset[0], at[1] + s.offset[1]), band)
+        })
+        .map(|s| s.deck);
+        assert_eq!(
+            placed,
+            Err(RingMiss::Undecided(None)),
+            "the twin sheet's ring"
+        );
+    }
+
+    /// **A torus places a ring by a move in both channels**, and an outer
+    /// loop nearly a whole `v` period tall still holds one copy.
+    #[test]
+    fn a_torus_places_a_ring_in_both_channels() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let square = chain(
+            &torus,
+            &[(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)],
+            Some(TAU),
+        );
+        let place = |o: &Outer<'_, f64>, at: [f64; 2]| {
+            place_ring([Some(TAU), Some(TAU)], o.reach, at, |s| {
+                o.side(Point2::new(at[0] + s.offset[0], at[1] + s.offset[1]), band)
+            })
+            .map(|s| [s.deck.u, s.deck.v])
+        };
+        assert_eq!(
+            place(&square, [1.0 - TAU, 1.0 + TAU]),
+            Ok([1, -1]),
+            "stored a period off in each channel"
+        );
+        let tall = chain(
+            &torus,
+            &[(0.5, -3.0), (1.5, -3.0), (1.5, 3.0), (0.5, 3.0)],
+            Some(TAU),
+        );
+        assert_eq!(place(&tall, [1.0, 0.0]), Ok([0, 0]), "a loop 6 rad tall");
     }
 
     #[test]

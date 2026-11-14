@@ -97,11 +97,10 @@ use geom_core::{
 
 use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
-use crate::joint::Deck;
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::pcurves::{RingMiss, Side};
+use crate::pcurves::Side;
 use crate::splitting::Escalation;
 use crate::validate::decide;
 
@@ -113,21 +112,15 @@ pub(crate) const SPLINE_REGION_ARM: &str = "bool_spline_region_arm";
 /// A query's clearance from the face's trim along the chart.
 pub(crate) const SPLINE_REGION_TRIM: &str = "bool_spline_region_trim";
 
-/// A trim with each ring's move, or why it has none ([`Trim::placed`]).
-type Placed = Result<(Trim, Vec<Deck>), Option<(LoopKey, RingMiss)>>;
-
 /// How many times a kept cell is quartered at most, a backstop behind
 /// the band's own floor ([`Patch::extent`]).
 const CELL_DEPTH: usize = 48;
 /// The kept cells one reading may visit ([`Caps`]).
 const CELL_VISITS: usize = 1 << 13;
-/// How many times a trim piece is halved before a query it is not clear
-/// of reads near the trim.
-const PIECE_DEPTH: usize = 52;
-/// The piece visits one query's trim reading may make ([`Caps`]).
-const PIECE_VISITS: usize = 1 << 14;
-/// The copies of a query a closed chart's periods may ask for.
-const COPIES: usize = 9;
+// The trim's work bounds are the ring rule's, at the crate root
+// (`crate::pcurves`): one home for both readers of a point against a
+// loop, and the one count for a ring's shifts and a query's copies.
+use crate::pcurves::{HALVINGS, PIECE_DEPTH, PIECE_VISITS, SHIFTS as COPIES, WINDOW_SHARE};
 
 /// **The spline arm of [`super::contain::curved_face_placement`]** (module
 /// docs): the point `q`, already off every boundary edge, against `face`,
@@ -1059,22 +1052,6 @@ impl Trim {
         caps: Caps,
         band: Band,
     ) -> Option<Self> {
-        Self::placed(body, face, chart, cells, caps, band)
-            .ok()
-            .map(|(trim, _)| trim)
-    }
-
-    /// [`Self::of`], with each ring's move ([`Self::with_rings`]), and
-    /// why there is none: `Err(None)` where the trim is not read before
-    /// a ring is placed, `Err(Some(..))` where a ring has no place.
-    fn placed<T: Decide>(
-        body: &Body<T>,
-        face: FaceKey,
-        chart: &NurbsSurface<T>,
-        cells: &[Patch<T>],
-        caps: Caps,
-        band: Band,
-    ) -> Placed {
         let view = body.proven_face(face);
         let surface = view.surface();
         // The lift moves a row by the periods the chart STATES
@@ -1093,11 +1070,11 @@ impl Trim {
             .enumerate()
         {
             if let Some(o) = o {
-                let s = s.ok_or(None)?.length().value_channel();
+                let s = s?.length().value_channel();
                 #[allow(clippy::float_cmp)] // one knot domain's length, read twice
                 let agree = s == o.length().value_channel();
                 if !agree {
-                    return Err(None);
+                    return None;
                 }
                 periods[k] = Some(s);
             }
@@ -1117,16 +1094,16 @@ impl Trim {
             .fold(0.0, f64::max);
         let mut chains = Vec::new();
         for (lk, _, _) in view.loops() {
-            let lift = crate::pcurves::Lift::read_past_placeholders(body, lk).map_err(|_| None)?;
+            let lift = crate::pcurves::Lift::read_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
-                return Err(None);
+                return None;
             }
             // A skipped placeholder's joints are the identity
             // (`Lift::read_past_placeholders`), so the members' elements
             // wind as the whole loop's.
             let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
-            if !Winding::of(elements.ok_or(None)?).is_zero() {
-                return Err(None);
+            if !Winding::of(elements?).is_zero() {
+                return None;
             }
             let mut chain: Vec<Piece> = Vec::new();
             for row in &lift {
@@ -1134,24 +1111,23 @@ impl Trim {
                     || (row.lift.v != 0 && periods[1].is_none())
                     || row.lift.twin
                 {
-                    return Err(None);
+                    return None;
                 }
                 let (t0, t1) = row.params;
-                let mut run = image_pieces(&row.pcurve, t0, t1, scale).ok_or(None)?;
+                let mut run = image_pieces(&row.pcurve, t0, t1, scale)?;
                 if !walks_forward(body, row.half_edge) {
                     run = run.into_iter().rev().map(Piece::reversed).collect();
                 }
-                close_gap(&mut chain, run.first().ok_or(None)?.first());
+                close_gap(&mut chain, run.first()?.first());
                 chain.extend(run);
             }
-            let start = chain.first().ok_or(None)?.first();
+            let start = chain.first()?.first();
             close_gap(&mut chain, start);
-            chains.push((lk, chain));
+            chains.push(chain);
         }
         let mut chains = chains.into_iter();
-        let (_, outer) = chains.next().ok_or(None)?;
-        let outer = Self::from_pieces(outer, domain, periods, caps).ok_or(None)?;
-        let rings: Vec<(LoopKey, Vec<Piece>)> = chains.collect();
+        let outer = Self::from_pieces(chains.next()?, domain, periods, caps)?;
+        let rings: Vec<Vec<Piece>> = chains.collect();
         outer.with_rings(cells, rings, band)
     }
 
@@ -1181,18 +1157,17 @@ impl Trim {
 
     /// **This outer trim with `rings` in its cover**, each moved by the
     /// ring rule ([`crate::pcurves::place_ring`]) with this trim's own
-    /// reading of a point in the cover ([`Self::place_in_cover`]), and the
-    /// move of each.
+    /// reading of a point in the cover ([`Self::place_in_cover`]); `None`
+    /// where a ring has no place.
     fn with_rings<T: Decide>(
         self,
         cells: &[Patch<T>],
-        rings: Vec<(LoopKey, Vec<Piece>)>,
+        rings: Vec<Vec<Piece>>,
         band: Band,
-    ) -> Placed {
+    ) -> Option<Self> {
         let mut pieces = self.pieces.clone();
-        let mut decks = Vec::with_capacity(rings.len());
-        for (lk, ring) in rings {
-            let [u, v] = ring.first().ok_or(None)?.ends().0;
+        for ring in rings {
+            let [u, v] = ring.first()?.ends().0;
             let shift = crate::pcurves::place_ring(
                 self.periods,
                 [self.reach.u, self.reach.v],
@@ -1206,12 +1181,11 @@ impl Trim {
                     }
                 },
             )
-            .map_err(|miss| Some((lk, miss)))?;
+            .ok()?;
             let [du, dv] = shift.offset;
             pieces.extend(ring.iter().map(|p| p.shifted(du, dv)));
-            decks.push(shift.deck);
         }
-        let trim = Self::from_pieces(
+        Self::from_pieces(
             pieces,
             self.domain,
             self.periods,
@@ -1220,8 +1194,6 @@ impl Trim {
                 pieces: self.piece_visits,
             },
         )
-        .ok_or(None)?;
-        Ok((trim, decks))
     }
 
     /// **Where the query `q` lies against the trim** (module docs): `In`
@@ -1253,11 +1225,11 @@ impl Trim {
         let (du, dv) = self.domain.size();
         let (su, sv) = q.size();
         let reach = (
-            if su > 0.0 { su } else { du / 16.0 },
-            if sv > 0.0 { sv } else { dv / 16.0 },
+            if su > 0.0 { su } else { du / WINDOW_SHARE },
+            if sv > 0.0 { sv } else { dv / WINDOW_SHARE },
         );
         let mut pending = None;
-        for halving in 0..6 {
+        for halving in 0..HALVINGS {
             let scale = f64::from(1u32 << halving);
             let (ru, rv) = (reach.0 / scale, reach.1 / scale);
             let window = Rect {
