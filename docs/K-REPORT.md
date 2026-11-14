@@ -878,6 +878,25 @@ it. The rule (2) spelling it checks a rostered mint's `target_len`
 against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
 ε-coupled family is held to.
 
+**Roster change (ONEDOOR face pair): a pairing is read only behind the
+reading that decided the faces parallel.** `geom_brep::classify_material_pairing_as`
+retires. Each of its readers reads the fact its own question is about,
+so the rows it carried change meaning:
+
+| name | carrier | what moved |
+|---|---|---|
+| `link_normal` | a named `const` (`LINK_NORMAL`), decided through the link's door | was the two faces' carriers' outward normals at the point, levered by the folded arm; now one sector's outward normal carried the links' reach off the point against the coplanar sector's plane, in metres. Does not pool with its earlier samples |
+| `at_rest_quiet_opposed`, `at_rest_quiet_axes_parallel`, `at_rest_quiet_centred` | retired | the quieting rule reads the facing of the pose the `Gap` is read in (`geom_brep::carrier_pose`); their samples end |
+| `carrier_pose_planes_parallel`, `carrier_pose_axes_parallel` | `geom_brep::Directions::name` (`POSE_PLANES_PARALLEL`, `POSE_AXES_PARALLEL`) | new: the pose's parallelism of two planes' normals or two axes, the sine levered at the faces' arm. The measure's gap and distance read it, and the quieting rule through the gap; `editor_core`'s `bool_plane_parallel` and `carrier_cyl_axis_parallel` samples end there (the names stay with `topo`'s carrier ladder, a different reading) |
+| `carrier_pose_round_side`, `carrier_pose_round_larger`, `carrier_pose_axis_along_plane` | named `const`s in `geom_brep::carrier_pose` | renamed from `gap_round_side`, `gap_round_larger`, `gap_axis_parallel_to_plane`, same margins; they pool with them |
+| `carrier_pose_planes_facing` | a named `const` (`POSE_PLANES_FACING`), through `geom_brep::normals_alignment` | new: two parallel planes' outward normals' cosine over the gap's arm, read only where a facing is asked |
+| `contact_tangent_opposed`, `tangent_gap_orientation`, `material_wedge_side` | the caller's name, handed to `geom_brep::normals_alignment` | the outward normals' cosine, as before; each name's samples pool. A decided zero now also decides the lever (`gradient_alignment_lever`) |
+| `gradient_alignment_lever` | a named `const` (`GRADIENT_ALIGNMENT_LEVER`) | new: the lever a perpendicular verdict stands behind, decided positive only where a cosine read zero |
+
+`census::ee_cross_backed` reads the pair's carrier relation, so the
+`dihedral_arm`, `dihedral_wedge` and `material_wedge_side` readings it
+took at each edge crossing end there.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
@@ -3878,3 +3897,36 @@ tests. The phrase dates from when the row ran in two places: hosted
 local script is gone. The re-wording belongs with this report's other
 stale `ci.yml` sites, on
 `work/instr/k-report-still-names-ci-yml-for-the-k-lint-row.md`.
+
+## Census note (2026-11-13): the carrier ladder's plane rows take their modules' prefixes
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the carrier ladder (`carrier_eq.rs`) and its planar arm (`plane_eq.rs`)
+out of `topo::boolean` to `geom-brep`'s root, since neither takes a
+`Body` nor an arena key, and a K name's prefix is the module that
+decides the margin. The `bool_` prefix named the Boolean, which no
+longer decides these. Each name below is one site and one population,
+so each is renamed and nothing pools: margins, bands, outcomes and
+order are untouched, only the `predicate` column moves, and the census
+count is the same on both sides.
+
+| old | new | decided in |
+|---|---|---|
+| `bool_plane_parallel` | `plane_eq_parallel` | `geom_brep::plane_eq` |
+| `bool_plane_orient` | `plane_eq_orient` | `geom_brep::plane_eq` |
+| `bool_plane_offset` | `plane_eq_offset` | `geom_brep::plane_eq` |
+| `bool_plane_reach` | `carrier_plane_reach` | `geom_brep::carrier_eq` |
+| `bool_plane_reach_straddle` | `carrier_plane_reach_straddle` | `geom_brep::carrier_eq` |
+
+The plane reach rows take `carrier_eq`'s own prefix, which their
+siblings (`carrier_sphere_reach`, `carrier_cyl_reach`,
+`carrier_cone_reach` and their straddles) and the ladder's data rows
+(`carrier_sphere_center`, …) already carry. None of the five new
+spellings was decided anywhere at the merge base. Three of the old
+spellings are in committed snapshots, as the sweeps wrote them:
+`bool_plane_parallel` (10928 rows in each `m4-eps-*.csv.gz`, 10977 in
+each `m5-eps-*.csv.gz`, 10989 in each `m7-eps-*.csv.gz`), and
+`bool_plane_orient` and `bool_plane_offset` (353, 366 and 366 each).
+The two reach rows appear in no committed CSV. The committed CSVs and
+the addenda above keep the old spellings.

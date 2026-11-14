@@ -3320,10 +3320,18 @@ class VarDecl:
         count of another dimension or a `within` that is no index
         (`index`); a reader of two indices neither within the other
         refuses `indices_unrelated`."""
+    @staticmethod
+    def source(body: _BodyArg) -> VarDecl:
+        """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
+        as a read of `body` (a node, a port, a member `op[i]`, a pick or
+        another source), which placements read their body through.
+        Declared under a name, several placements share it
+        (`Doc.place(bracket, …)`); redefining it re-points every placement
+        reading it."""
     @property
     def expr(self) -> Formula | None:
-        """The defining expression, or None for a free variable or an
-        index."""
+        """The defining expression, or None for a free variable, an
+        index or a source."""
     @property
     def value(self) -> FreeVar | None:
         """The free value, or None for a defined variable or an index."""
@@ -4565,11 +4573,13 @@ class SegTag:
     BandFoot: Final[SegTag]
     BandCross: Final[SegTag]
     BandCut: Final[SegTag]
+    BandSection: Final[SegTag]
     BandSlit: Final[SegTag]
     Inner: Final[SegTag]
     Rim: Final[SegTag]
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
+    HostFoot: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -7094,8 +7104,8 @@ class Coincidence:
     `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
-    `profile_junction`, `vertex_fusion`, `iso_join` or
-    `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`
+    `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
+    `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
     claiming nothing of the materials. `rung` is the door's rung that

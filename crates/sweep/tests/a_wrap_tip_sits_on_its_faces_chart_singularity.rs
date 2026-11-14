@@ -44,9 +44,13 @@ fn tol() -> Tol {
 }
 
 /// Whether the joint the mint stored at `he` (into `he` from its loop's
-/// predecessor) is a reset.
+/// predecessor) is one whole turn on the principal sheet: the face
+/// wrapping a singular point at an edge's tip.
 fn resets(body: &Body<f64>, he: HalfEdgeKey) -> bool {
-    body.joint(he).is_some_and(topo::JointElement::is_reset)
+    body.joint(he).is_some_and(|e| {
+        let deck = e.deck();
+        deck.u.abs() == 1 && deck.v == 0 && !deck.twin
+    })
 }
 
 /// **A meridian spur of the unit sphere** from the equator vertex at
@@ -599,7 +603,9 @@ fn a_small_tip_cap_reads_its_side_off_its_tip_and_measures() {
 #[test]
 fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     let (body, face, _) = small_tip_cap();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let got = topo::validate_geometric(&flipped, tol()).expect_err("flipped refuses");
     assert!(
         got.contains(&ValidationError::CurvedSenseInverted { face }),
@@ -626,11 +632,21 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     );
 
     let (body, face, _) = small_tip_cone();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
+    // The tip's strut is outside the flipped face, so the whole turn
+    // its loop takes at the apex is the wrong way round and the loop
+    // does not close.
     assert_eq!(
         topo::validate_geometric(&flipped, tol()),
-        Err(vec![ValidationError::CurvedSenseInverted { face }]),
-        "the cone flipped: the side reader alone"
+        Err(vec![
+            ValidationError::CurvedSenseInverted { face },
+            ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::LoopNotClosed { face },
+            },
+        ]),
+        "the cone flipped: the side reader, and the loop that no longer closes"
     );
 }
 

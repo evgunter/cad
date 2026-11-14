@@ -57,7 +57,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{Body, BooleanError, JoinError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -679,8 +679,7 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
             }
             let a = topo::test_support::finished(
                 "the tilted cylinder",
-                topo::transform_rigid(&cyl, &geom_core::test_support::rigid(&turn, tol()), tol())
-                    .unwrap(),
+                topo::transform_rigid(&cyl, &geom_core::test_support::rigid(&turn, tol())).unwrap(),
                 tol(),
             );
             for offset in offsets() {
@@ -739,7 +738,7 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
                             if single_site
                                 && matches!(
                                     j.error(),
-                                    SplitJoinError::SingleSiteSectionLoop { count: 1 }
+                                    JoinError::SingleSiteSectionLoop { count: 1 }
                                 ) =>
                         {
                             Ok(())
@@ -784,7 +783,6 @@ fn tangent_boolean(build: Build, sweep: f64, t: f64, held: bool, what: &str) -> 
         topo::transform_rigid(
             &build(phase, sweep),
             &geom_core::test_support::rigid(&turn, tol()),
-            tol(),
         )
         .unwrap(),
         tol(),
@@ -908,7 +906,6 @@ fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {
         topo::transform_rigid(
             &two_arc_holed_block(FRAC_PI_2, TAU),
             &geom_core::test_support::rigid(&turn, tol()),
-            tol(),
         )
         .unwrap(),
         tol(),

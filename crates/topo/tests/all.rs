@@ -93,10 +93,14 @@ mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
 mod a_spline_faces_stated_image_ends_by_its_carriers_incidence;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
+#[path = "a_verdict_moves_only_the_faces_it_read.rs"]
+mod a_verdict_moves_only_the_faces_it_read;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
 mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
+#[path = "an_operand_with_no_solid.rs"]
+mod an_operand_with_no_solid;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]

@@ -50,7 +50,7 @@ fn rounded(s: &str) -> String {
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
     rounded(&format!(
         "{:?}",
-        topo::face_carrier(body, f).expect("a carrier")
+        topo::face_normal::face_carrier_desc(body, f).expect("a carrier")
     ))
 }
 
@@ -198,7 +198,7 @@ pub(crate) fn extruded(loops: Vec<profile::ProfileLoop<f64>>, z0: f64, h: f64) -
     };
     let body = sweep::extrude(&profile, depth, tol).unwrap().body;
     let up = geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, z0));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol)).unwrap()
 }
 
 pub(crate) fn square(h: f64) -> profile::ProfileLoop<f64> {

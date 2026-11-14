@@ -1672,6 +1672,17 @@ pub mod bounds_allowlist {
     //! neither the first rung's call nor those reads compile, and dropping
     //! `CertifiedEnclosure` fails that call likewise.
     //!
+    //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
+    //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's
+    //! certificate for a sphere, cylinder or torus beside a spline chart,
+    //! and `residual_nurbs_limbs`, the body it shares with
+    //! `plane_nurbs_limbs`, ride at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `plane_nurbs_limbs`'s bound and nothing wider. Necessity: the shared
+    //! body is the plane lane's own, which calls `chart_image` and the
+    //! rung-3 door at that bound, and the twin is a second door onto it;
+    //! drop either term and neither call compiles.
+    //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
     //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
@@ -1730,8 +1741,9 @@ pub mod bounds_allowlist {
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
-    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
-    //! disclosed here rather than left to be discovered: check 1's
+    //! not at the grep.** ONE `lo` and ONE `hi` call appear in
+    //! `validate.rs`, and they are disclosed here rather than left to be
+    //! discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
     //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
@@ -1740,7 +1752,11 @@ pub mod bounds_allowlist {
     //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
     //! for the axisymmetric kinds of both, the frame's unit-ness and
     //! orthogonality stated as ε-slack margins at the kind's radius), the
-    //! representability read. The certified half's own
+    //! representability read. Its `hi` decides nothing either: the datum
+    //! passes on `lo` alone, and `hi` only says which refusal a margin not
+    //! passed is reported as, outside the convention where the whole
+    //! bracket is, undecided where it straddles zero (ONEHOME fork 259).
+    //! The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
     //! its convention with zero — a radius that is zero, negative or poison
@@ -1761,7 +1777,7 @@ pub mod bounds_allowlist {
     //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
     //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
     //! counts the file's bracket reads over the code view against the
-    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
+    //! two disclosed here and reds on a third. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.

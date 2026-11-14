@@ -489,14 +489,18 @@ pub(crate) fn cone_face_reach<T: Decide>(
     ))
 }
 
-/// **Whether a face on `cone` may hold its apex**: unless every loop is
-/// decided to close in the chart ([`closes_in_chart`], over
-/// `chart_window::face_loop_azimuth_travels`). The apex is
-/// the chart's pole, and a bounded face holding it has a loop that
-/// winds round it a whole turn, where a loop that closes in the chart
-/// leaves it outside. Every loop, not the outer alone: a file's
-/// designated outer bound can be a hole, and the loop enclosing the
-/// apex then a ring. A loop not read, or a refusal reading one, may
+/// **Whether a face on `cone` may hold its apex**: unless every loop's
+/// lift closes in the chart
+/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
+/// every vertex of it is decided off the apex. The lift is decided
+/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
+/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
+/// pole, and a bounded face holding it has a loop that winds round it a
+/// whole turn, or one that passes through it, where a loop that closes
+/// in the chart clear of it leaves it outside. Every loop, not the
+/// outer alone: a file's designated outer bound can be a hole, and the
+/// loop enclosing the apex then a ring. A loop whose lift is not
+/// decided, or a vertex whose incidence on the apex is undecided, may
 /// hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
@@ -504,22 +508,25 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     cone: &Surface<T>,
     band: Band,
 ) -> bool {
-    let travels = constraint(|| {
-        crate::chart_window::face_loop_azimuth_travels(body, cone, face, band).map_err(|_| ())
-    });
-    travels.is_none_or(|loops| !loops.into_iter().all(|t| t.is_some_and(closes_in_chart)))
-}
-
-/// **Whether a loop whose net travel round a chart's period is `travel`
-/// closes in the chart**: decided within half a turn of zero for every
-/// value the scalar stands for. A loop that closes returns to where it
-/// entered (net zero); one that winds round the period travels a whole
-/// turn, so half a turn separates the two and the test needs no band.
-/// The one reading of it for the face cover's walks: the torus chart
-/// window's wrap guard and the cone's apex rule. (`pcurves::loop_windings`
-/// asks it of a loop's stored certified rows, for W2's certificate.)
-pub(crate) fn closes_in_chart<T: SpanLocate>(travel: T) -> bool {
-    travel.is_bounded() && (T::pi() - travel.abs()).structure_positive()
+    let Surface::Cone { apex, .. } = cone else {
+        return true;
+    };
+    let Some(view) = body.face(face) else {
+        return true;
+    };
+    view.cycles().any(|(_, cycle)| {
+        let closes =
+            constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
+                .is_some_and(|lift| lift.closes_in_chart());
+        !closes
+            || cycle.iter().any(|&he| {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+                constraint(|| {
+                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+                }) != Some(false)
+            })
+    })
 }
 
 /// **The boundary's cover**: each boundary edge's cover
@@ -782,8 +789,18 @@ fn hull_of<T: Real>((a, b): (T, T), (c, d): (T, T)) -> (T, T) {
 pub(crate) type WindowStep<'a, T> =
     Option<(&'a geom_brep::PcurveCache<T>, geom_brep::Pcurve<T>, bool)>;
 
+/// One LOOP, as the window walk reads it: its half-edges' steps, and
+/// whether its stored lift closes in the chart
+/// ([`crate::pcurves::Lift::closes_in_chart`]): `false` for a loop that
+/// winds a channel, and for one with no lift to read.
+#[derive(Clone)]
+pub(crate) struct WindowLoop<'a, T: Real> {
+    pub(crate) steps: Vec<WindowStep<'a, T>>,
+    pub(crate) closes: bool,
+}
+
 /// **A torus face's chart window, from its boundary's stored certified
-/// pcurves — the ONE walk, for every lane.**
+/// pcurves — one fold of its loops' lift, for every lane.**
 ///
 /// The caller hands over its own arena traversal as loops of
 /// [`WindowStep`]s and nothing else: the face cover's torus arm and the
@@ -814,11 +831,11 @@ pub(crate) type WindowStep<'a, T> =
 ///   torus constructor seams its walls — so this is a latent hole
 ///   rather than a live one, and it is closed by refusing the class.
 ///
-/// The wrap test is the loop's NET travel per channel: a loop that
-/// closes in the chart returns to its entry point, so the signed sum
-/// of `P(exit) − P(entry)` over its half-edges is zero, while a loop
-/// that wraps sums to `± τ`. Half a period separates the two, so the
-/// test needs no `Band` and no `decide`.
+/// The wrap test is the loop's winding, read off its lift
+/// ([`crate::pcurves::Lift::closes_in_chart`]): the joint elements
+/// composed once around are the identity exactly when the loop returns
+/// to its entry point, an integer reading that needs no `Band` and no
+/// `decide`.
 ///
 /// # The slack, and the bound it holds under
 ///
@@ -843,9 +860,6 @@ pub(crate) struct TorusChartWindow<T: Real> {
     u: Option<(T, T)>,
     v: Option<(T, T)>,
     envelope: T,
-    /// The current loop's signed travel per channel; `None` once a
-    /// loop has been abandoned or has wrapped.
-    net: Option<(T, T)>,
     loops: usize,
     ok: bool,
 }
@@ -891,7 +905,6 @@ impl<T: SpanLocate> TorusChartWindow<T> {
             u: None,
             v: None,
             envelope: T::zero(),
-            net: Some((T::zero(), T::zero())),
             loops: 0,
             ok: true,
         }
@@ -904,7 +917,6 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         if self.loops > 1 {
             self.ok = false;
         }
-        self.net = Some((T::zero(), T::zero()));
     }
 
     /// One half-edge of the open loop. The window reads a torus chart's
@@ -912,7 +924,7 @@ impl<T: SpanLocate> TorusChartWindow<T> {
     /// section among them) abandons it — which widens the box to the
     /// whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
-        let Some((cache, image, forward)) = step else {
+        let Some((cache, image, _)) = step else {
             self.ok = false;
             return;
         };
@@ -922,27 +934,21 @@ impl<T: SpanLocate> TorusChartWindow<T> {
             return;
         };
         let (u, v) = ((b.u_min, b.u_max), (b.v_min, b.v_max));
-        let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
+        if image.harmonic_form().is_none() {
             self.ok = false;
             return;
-        };
+        }
         self.u = Some(self.u.map_or(u, |a| hull_of(a, u)));
         self.v = Some(self.v.map_or(v, |a| hull_of(a, v)));
         self.envelope = self.envelope.max(cache.certificate().envelope);
-        self.net = self.net.map(|(a, b)| (a + travel.0, b + travel.1));
     }
 
     /// Close the open loop: it must return to where it entered the
     /// chart rather than wrap a channel (the type docs).
-    pub(crate) fn close_loop(&mut self) {
-        let Some((nu, nv)) = self.net else {
-            self.ok = false;
-            return;
-        };
-        if !(closes_in_chart(nu) && closes_in_chart(nv)) {
+    pub(crate) fn close_loop(&mut self, closes: bool) {
+        if !closes {
             self.ok = false;
         }
-        self.net = None;
     }
 
     /// Abandon the window outright — the caller's own arm for a loop
@@ -968,33 +974,7 @@ impl<T: SpanLocate> TorusChartWindow<T> {
     }
 }
 
-/// One half-edge's SIGNED travel in each chart channel, in the
-/// direction the loop traverses it — `P(exit) − P(entry)`, the datum
-/// [`TorusChartWindow`]'s wrap guard sums. `None` for a pcurve outside
-/// the harmonic family.
-pub(crate) fn harmonic_travel<T: Real>(
-    pcurve: &geom_brep::Pcurve<T>,
-    t0: T,
-    t1: T,
-    forward: bool,
-) -> Option<(T, T)> {
-    let (p0, pa, pb, pl) = pcurve.harmonic_form()?;
-    let at = |t: T| {
-        let (s, c) = t.sin_cos();
-        (
-            p0.x + pa.x * c + pb.x * s + pl.x * t,
-            p0.y + pa.y * c + pb.y * s + pl.y * t,
-        )
-    };
-    let (entry, exit) = if forward {
-        (at(t0), at(t1))
-    } else {
-        (at(t1), at(t0))
-    };
-    Some((exit.0 - entry.0, exit.1 - entry.1))
-}
-
-/// **The face's loops, as [`WindowStep`]s**, read a loop at a time
+/// **The face's loops, as [`WindowLoop`]s**, read a loop at a time
 /// through [`FaceView::boundary_by_loop`]: the window
 /// steps the face cover's torus arm and the construction rows read.
 ///
@@ -1012,10 +992,10 @@ pub(crate) fn harmonic_travel<T: Real>(
 pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Vec<Vec<WindowStep<'_, T>>> {
+) -> Vec<WindowLoop<'_, T>> {
     body.proven_face(face)
         .boundary_by_loop()
-        .map(|(_, members, _)| {
+        .map(|(lk, members, _)| {
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
                 .filter_map(|member| match member {
@@ -1023,12 +1003,26 @@ pub(crate) fn face_window_steps<T: Decide>(
                     BoundaryMember::Isolated { .. } => None,
                 })
                 .collect();
-            let halves: Vec<HalfEdgeKey> = cycle.iter().map(|&(he, _)| he).collect();
-            let lifted = crate::pcurves::lifted_images(body, &halves);
-            cycle
+            // The window's slack is each STORED row's certified envelope
+            // ([`TorusChartWindow::step`]), so the lift read is the stored
+            // one: a lift decided at the band, as the cone arm's
+            // ([`cone_may_hold_apex`]), has no certificate to widen by. A
+            // loop with a gap in its rows has no lift (`LiftGap`, the
+            // read's one refusal), and says so in its steps: every one is
+            // `None`, which abandons the window for the whole tube.
+            let lift = crate::pcurves::Lift::read(body, lk).ok();
+            let closes = lift
+                .as_ref()
+                .is_some_and(crate::pcurves::Lift::closes_in_chart);
+            let mut lifted: slotmap::SecondaryMap<HalfEdgeKey, geom_brep::Pcurve<T>> =
+                slotmap::SecondaryMap::new();
+            for row in lift.into_iter().flatten() {
+                lifted.insert(row.half_edge, row.pcurve);
+            }
+            let steps = cycle
                 .into_iter()
-                .zip(lifted)
-                .map(|((he, edge), image)| {
+                .map(|(he, edge)| {
+                    let image = lifted.remove(he);
                     let Some(claim) = edge.claim(he) else {
                         unreachable!(
                             "{} names {} on its loop, and its edge does not claim it",
@@ -1040,30 +1034,32 @@ pub(crate) fn face_window_steps<T: Decide>(
                         .zip(image)
                         .map(|(c, image)| (c, image, claim.plus))
                 })
-                .collect()
+                .collect();
+            WindowLoop { steps, closes }
         })
         .collect()
 }
 
-/// **The ONE walk**, over a face's loops of [`WindowStep`]s — see
-/// [`TorusChartWindow`]. A loop that yields NO half-edge (a lone
+/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
+/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
+/// no branch. A loop that yields NO half-edge (a lone
 /// vertex) abandons the window: it carries no chart image, so the walk
 /// cannot see what bounds the face's chart region.
 pub(crate) fn torus_chart_window<T: SpanLocate>(
-    loops: &[Vec<WindowStep<'_, T>>],
+    loops: &[WindowLoop<'_, T>],
     major: T,
     minor: T,
 ) -> Option<TorusWindowPair<T>> {
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        for step in lp {
+        for step in &lp.steps {
             acc.step(step);
         }
-        if lp.is_empty() {
+        if lp.steps.is_empty() {
             acc.abandon();
         } else {
-            acc.close_loop();
+            acc.close_loop(lp.closes);
         }
     }
     acc.finish(major, minor)

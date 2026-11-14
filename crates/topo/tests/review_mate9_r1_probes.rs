@@ -255,3 +255,77 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
          {found:?}"
     );
 }
+
+/// **A recorded pair on two planes the faces' extent reads apart answers
+/// no crossing, though the crossing's own short edge reads them one.**
+/// Two blocks whose top faces lie at `z = 0.5`, materials below, the
+/// second overlapping the first, and the second tilted about the line
+/// `y = 0.5, z = 0.5` along `x` by an angle that puts its far corners
+/// past the band off the first's plane (three times the band's escalation
+/// over a metre): two distinct carriers. The first's edge along that line
+/// and the second's short edge across it (`0.02` long, so it stands under
+/// the band's zero off the first plane) cross at `(0.5, 0.5, 0.5)`, both
+/// edges in both carriers within the band. The pair of the two tops is
+/// recorded. Read over the shorter edge, the two planes are one at the
+/// crossing and their materials one side, which named the crossing
+/// same-side; read once over the two faces, as the confirm pass reads the
+/// pair, the carriers are distinct and the pair holds no crossing, so the
+/// crossing stays the plain hard finding and names no verdict. Red if a
+/// recorded pair's side is read off the crossing's edge where its faces
+/// are two carriers.
+#[test]
+fn a_recorded_pair_on_two_carriers_names_no_side_at_a_crossing() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let first: common::Prism<f64> = common::prism_z(
+        &[(0.3, 0.5), (1.2, 0.5), (1.2, 1.2), (0.3, 1.2)],
+        0.0,
+        0.5,
+        tol,
+    );
+    let second: common::Prism<f64> = common::prism_z(
+        &[(0.5, 0.49), (0.5, 0.51), (0.2, 0.9), (0.2, 0.1)],
+        0.2,
+        0.5,
+        tol,
+    );
+    let tilt = geom_core::RigidMotion::rotation_about_axis(
+        geom_core::Point3::new(0.5, 0.5, 0.5),
+        geom_core::UnitVec3::exact_x(),
+        3.0 * band.escalate(),
+    )
+    .unwrap();
+    let tilted = topo::transform_rigid(&second.body, &tilt).unwrap();
+    let mut body = first.body;
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &tilted).unwrap();
+    let (top, other_top) = (first.top_face, keys.face(second.top_face).unwrap());
+    assert!(
+        matches!(
+            topo::boolean::carrier_pair_relation(&body, top, &body, other_top, band),
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
+        ),
+        "the premise: over the two faces the tops are two carriers"
+    );
+    let at_the_line = |w: &String| w.contains("(0.5, 0.5, 0.5)");
+    for (what, found) in [
+        ("bare", structural(&body, &ContactRecords::default())),
+        (
+            "recorded",
+            structural(&body, &declared(&body, &[(top, other_top)])),
+        ),
+    ] {
+        let crossings: Vec<_> = crossing_witnesses(&found)
+            .into_iter()
+            .filter(|(w, _)| at_the_line(w))
+            .collect();
+        assert_eq!(
+            crossings.len(),
+            1,
+            "{what}: the crossing on the line is a hard finding: {found:?}"
+        );
+        assert!(
+            crossings.iter().all(|(_, side)| side.is_none()),
+            "{what}: and names no side: {crossings:?}"
+        );
+    }
+}

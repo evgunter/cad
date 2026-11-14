@@ -137,11 +137,13 @@ pub struct TangentSpanBounds<T: Real> {
 /// `topo::validate` (`TangentNotIntrinsic` is demanded only inside it),
 /// and the declared-contact verifier in
 /// `topo::boolean::contact_verify` (which gates on it before taking any
-/// per-sample verdict). The stored set, the demanded set, the
-/// certifiable set and the verifiable set are therefore ONE set BY
-/// CONSTRUCTION — a tangency the certificate cannot store is never
-/// stored intrinsic, never demanded and never accepted as a declared
-/// contact. The lane gates only that intrinsic answer: the rule and
+/// per-sample verdict). The four read this one predicate, so the set
+/// each gates on is one set. It is a set of (carrier kind, surface
+/// kinds) triples, and a triple inside it is not thereby certifiable: a
+/// torus's meridian against its band is in the lane, and its witness
+/// certificate refuses (below). What reads per station cannot see that
+/// either: the stations are interior, and the meridian's `κ_rel`
+/// vanishes at an end. The lane gates only that intrinsic answer: the rule and
 /// tier 3 both read the second order on every definitely-smooth pair,
 /// lane or not, and refuse an in-band reading either way. Widening this
 /// predicate widens all four at once, which is the property that makes
@@ -173,29 +175,25 @@ pub struct TangentSpanBounds<T: Real> {
 /// a configuration that misses coaxiality pays for the miss
 /// continuously rather than through a gate.
 ///
-/// **The scope of that claim, stated exactly (fix pass F3).** An
-/// earlier draft of this comment asserted that circle tangency
-/// between two distinct elementary surfaces of revolution FORCES the
-/// coaxial configuration. That is false, and the reviewer's
-/// counterexample is in `tests/review_pr12_meridian_probe.rs`: a
-/// sphere centred on a torus's spine circle is tangent to the torus
-/// along a whole MERIDIAN (minor) circle, whose axis is
-/// perpendicular to the torus's, not parallel to it. The class is
-/// real, it is jet-determinate, and it is INSIDE this lane.
+/// **The claim's scope.** Circle tangency between two distinct
+/// elementary surfaces of revolution does not force the coaxial
+/// configuration (`tests/review_pr12_meridian_probe.rs`): a sphere
+/// centred on a torus's spine circle is tangent to the torus along a
+/// whole MERIDIAN (minor) circle, whose axis is perpendicular to the
+/// torus's. The class is real, it is jet-determinate, and it is INSIDE
+/// this lane.
 ///
-/// What actually happens there is the honest outcome and not a hole:
-/// the deviation measured below is large, so the span bounds are
+/// There the deviation measured below is large, so the span bounds are
 /// large, and certification refuses LOUDLY
-/// (`ResidualExceeded { TangentHull }`) instead of certifying
-/// something it has not bounded. The residual risk is therefore
-/// narrow and named: tier 3's must-carry could demand an intrinsic
-/// description on such an edge while this arm cannot certify it —
-/// **in-lane but uncertifiable**. No constructor in the kernel mints
-/// that configuration today (the fillet arms produce coaxial contact
-/// circles; revolve's joins are coaxial latitude circles), so the
-/// class is latent; closing it needs either a meridian-aware bound or
-/// a lane predicate that can see the configuration, and that is
-/// recorded as a numbered deviation rather than papered over here.
+/// (`ResidualExceeded { TangentHull }`) instead of certifying something
+/// it has not bounded: **in-lane but uncertifiable**. A blend's section
+/// is of this class: where a rounded outline's line link meets an arc
+/// link, the cylinder band and the torus band meet G1 along the rolling
+/// ball's section, the torus's meridian, and `κ_rel` vanishes where the
+/// section meets the cap, so no witness certificate can pass there. The
+/// section is a row of both bands' charts, known in advance; the shared
+/// row (`crate::row_contact`) is the structural selector that states it,
+/// and asks no jet margin of it.
 pub fn tangent_certificate_lane<T: Real>(
     carrier: &Curve3<T>,
     s1: &Surface<T>,

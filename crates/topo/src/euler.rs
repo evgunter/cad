@@ -1187,7 +1187,7 @@ pub enum EulerOpError {
     /// faces under-determine (`OnPair`): whether a child stays smooth
     /// along its own span is in band, at a station of the must-carry
     /// rule over the child
-    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// (a first-order [`geom_brep::WedgeRung`]).
     ///
     /// Unreached for a tangency: the dihedral escalates on its arm only
     /// over a child whose extent lies inside the band, and the
@@ -1205,7 +1205,7 @@ pub enum EulerOpError {
     /// [`Body::split_edge`](crate::construction::Construct::split_edge) of a smooth edge (a tangency or a pair):
     /// whether the two faces curve apart along a child or share their
     /// curvature there is in band (`"tangent_second_order"`,
-    /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
+    /// [`geom_brep::WedgeRung::Bend`]). The rule meters
     /// the sagitta over the child's own extent, so a short child can be
     /// in band where its parent was jet-determinate: the child is
     /// certifiable as neither the tangency nor the pair (D4 ¶3).
@@ -2971,6 +2971,7 @@ impl<T: Decide> Body<T> {
                 let new = body.new_site_face(
                     face_key,
                     &surface,
+                    ParentSide::With,
                     !carried,
                     with(SiteHalf::NewMinus, new_side),
                 )?;
@@ -3131,8 +3132,13 @@ impl<T: Decide> Body<T> {
             &[loop_key],
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None);
-                let new =
-                    body.new_site_face(face_key, &surface, !carried, vec![SiteHalf::NewMinus])?;
+                let new = body.new_site_face(
+                    face_key,
+                    &surface,
+                    ParentSide::With,
+                    !carried,
+                    vec![SiteHalf::NewMinus],
+                )?;
                 Ok(vec![old, new])
             },
             &certified,
@@ -4249,6 +4255,7 @@ impl<T: Decide> Body<T> {
         SiteFace {
             rows_from: face,
             surface,
+            sense: view.sense(),
             moved: false,
             loops,
         }
@@ -4283,10 +4290,20 @@ impl<T: Decide> Body<T> {
         &self,
         from: FaceKey,
         surface: &FaceSurface<T>,
+        side: ParentSide,
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
         let from_data = self.proven_face(from);
+        // The bit the door writes ([`Body::resolve_face_surface`]): the
+        // stated one, or the one the door's topology derives.
+        let sense = match *surface {
+            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => sense,
+            FaceSurface::Inherit => match side {
+                ParentSide::With => from_data.sense(),
+                ParentSide::Against => !from_data.sense(),
+            },
+        };
         let chart = match surface {
             FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
@@ -4298,6 +4315,7 @@ impl<T: Decide> Body<T> {
         Ok(SiteFace {
             rows_from: from,
             surface: chart,
+            sense,
             moved,
             loops: vec![SiteLoop::Rewired(halves)],
         })

@@ -335,6 +335,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          swaps and re-descriptions can orphan keys",
     ),
     (
+        "one_record_across",
+        "reads its verdict's edge and two faces' keys and writes only through `one_record`, whose \
+         re-chart (`set_face_surfaces_certifying`, `set_face_surfaces_describing`'s body) \
+         declares the tier-1 postcondition",
+    ),
+    (
         "set_edge_curve",
         "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
          `set_face_surface`'s terms",
@@ -420,7 +426,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "opens a debug-only surgery scope (`crate::surgery`). The depth is not an arena \
          and tier 1 does not see it; what asserts is the close, in the door that opened it",
     ),
-    ("set_face_sense", "writes one `bool`; sense is tier 3's"),
+    (
+        "set_face_sense",
+        "writes one `bool`, and drops the face's pcurve rows where the flip changes the side \
+         they state; sense and row coherence are tier 3's",
+    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     (

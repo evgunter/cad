@@ -7,56 +7,43 @@
 //! rungs, in order:
 //!
 //! 1. **Geometric trilean (definite-different)**: parallelism margin
-//!    `‖n₁ × n₂‖·arm` (`bool_plane_parallel`, the arm the extent's
+//!    `‖n₁ × n₂‖·arm` (`plane_eq_parallel`, the arm the extent's
 //!    radius, the offsets read at its centre) definitely positive ⇒
-//!    [`PlaneRelation::Distinct`]; else offset margin `(d₁ − σ·d₂)`
-//!    (`bool_plane_offset`, σ the orientation sign) definitely nonzero
+//!    [`CarrierRelation::Distinct`]; else offset margin `(d₁ − σ·d₂)`
+//!    (`plane_eq_offset`, σ the orientation sign) definitely nonzero
 //!    ⇒ parallel-but-offset ⇒ `Distinct`.
 //! 2. **Zero glues** (D10, Booleans): an offset margin decided Zero is
 //!    one plane, `SameOriented` or `SameOpposite` by the decided
 //!    orientation, and the decided margin rides out with the verdict
-//!    for the caller to record ([`crate::coincidence`]). An offset in
-//!    band is a sliver and refuses ([`PlaneEqError::Undecided`]):
+//!    for the caller to record. An offset in
+//!    band is a sliver and refuses ([`CarrierEqError::Undecided`]):
 //!    near-coincidence never silently becomes contact (F6).
 //!
 //! In-band parallelism and orientation margins escalate typed
-//! ([`PlaneEqError::Escalated`]), naming the rung that could not decide
+//! ([`CarrierEqError::Escalated`]), naming the rung that could not decide
 //! ([`PlaneRung`]). Whether two planes are one construction is not the
 //! kernel's question: the document's coincidence door decides it
 //! (D10, Coincidence). A pair an operation glued is read through its
 //! record, never through this ladder (`[coincidence.booleans]`).
 
-use super::carrier_eq::{CarrierVerdict, CoincidenceMeasure, ConsumedExtent};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use crate::carrier_eq::{
+    CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure, ConsumedExtent,
+};
+use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
-use crate::validate::{decide_nonzero, decide_reported};
 use geom_core::NonzeroSign;
-
-/// The relation between two oriented planes — the PLANE SPELLING of
-/// the one carrier verdict.
-///
-/// One type, not two: `Rest` generalizes to every carrier kind
-/// ([`mod@super::carrier_eq`]), so a caller that handles "same carrier"
-/// for planes handles it for spheres and cylinders by construction
-/// rather than by remembering to.
-pub use super::carrier_eq::CarrierRelation as PlaneRelation;
-
-/// Typed refusal of [`oriented_plane_eq`] — the plane spelling of the
-/// one carrier refusal (see [`PlaneRelation`] for why it is one type).
-/// The `Undecided` arm carries the RELATION the ladder decided before
-/// refusing — see the enum's own docs.
-pub use super::carrier_eq::CarrierEqError as PlaneEqError;
+use geom_core::k_stats::{decide_nonzero, decide_reported};
 
 /// Which rung of the plane ladder could not decide
-/// ([`PlaneEqError::Escalated`]).
+/// ([`CarrierEqError::Escalated`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(strum::EnumIter))]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum PlaneRung {
-    /// Whether the two planes are parallel (`bool_plane_parallel`). An
+    /// Whether the two planes are parallel (`plane_eq_parallel`). An
     /// in-band margin is a sliver.
     Parallel,
     /// Whether the two planes face the same way or opposite ways
-    /// (`bool_plane_orient`). Its margin is the normals' cosine levered
+    /// (`plane_eq_orient`). Its margin is the normals' cosine levered
     /// at the caller's arm, asked only once parallelism has read within
     /// the zero band at that arm, so `|cos| ≈ 1` and the rung refuses
     /// only where the arm itself is within the band. Each door ends it
@@ -64,9 +51,11 @@ pub enum PlaneRung {
     /// cross-operand doors from the corner's sense (`refusal_routes::CORNER_SENSE`), the merge and the
     /// maximal-faces gate from their own decisions.
     Orientation,
-    /// Whether the two planes' normals can be read at all: the
-    /// parallelism rung's norm read definitely negative, poisoned input
-    /// (`unreadable_norm`). No move of the parts reads it.
+    /// Whether the two planes are parallel over the extent, where the
+    /// parallelism margin decided a sign a norm cannot take: negative,
+    /// which only a negative lever arm gives (`unreadable_norm`). No
+    /// caller's extent reads negative, so it is the kernel's defect, and
+    /// no move of the parts reads it.
     Norm,
 }
 
@@ -78,7 +67,9 @@ impl PlaneRung {
         match self {
             Self::Parallel => "whether the two planes are parallel",
             Self::Orientation => "whether the two planes face the same way or opposite ways",
-            Self::Norm => "whether the normals of two faces can be read",
+            Self::Norm => {
+                "whether two planes are parallel over an extent whose lever arm reads negative"
+            }
         }
     }
 }
@@ -102,29 +93,29 @@ pub struct PlaneDesc<T: geom_core::Real> {
 /// **`oriented_plane_eq`** — module docs for the ladder. `extent` is
 /// the region the verdict is consumed on — the offsets are read at its
 /// centre and the angular margins levered at its radius
-/// ([`super::carrier_eq::ConsumedExtent`]); `band` the run's linear
+/// ([`ConsumedExtent`]); `band` the run's linear
 /// band.
 ///
 /// # Errors
 ///
-/// [`PlaneEqError`] — sliver escalation, or an undecided coincidence.
+/// [`CarrierEqError`] — sliver escalation, or an undecided coincidence.
 pub fn oriented_plane_eq<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
     extent: &ConsumedExtent<T>,
     band: Band,
-) -> Result<PlaneRelation, PlaneEqError> {
+) -> Result<CarrierRelation, CarrierEqError> {
     plane_ladder(p1, p2, extent, band).map(CarrierVerdict::relation)
 }
 
 /// The ladder itself (module docs), with the margin that decided a
 /// coincidence: the offset's decided Zero.
-pub(super) fn plane_ladder<T: Decide>(
+pub(crate) fn plane_ladder<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
     extent: &ConsumedExtent<T>,
     band: Band,
-) -> Result<CarrierVerdict, PlaneEqError> {
+) -> Result<CarrierVerdict, CarrierEqError> {
     // Offsets read at the extent's centre (`d = n̂·(origin − c)`) for
     // the geometric rungs, which lever the angular data at its radius.
     let centre = extent.reach.center();
@@ -136,7 +127,7 @@ pub(super) fn plane_ladder<T: Decide>(
     let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     // The offset's Zero below decides one plane only with this one, so
     // the row's margin stands for both.
-    let parallel = match decide_reported("bool_plane_parallel", parallel_margin, band) {
+    let parallel = match decide_reported("plane_eq_parallel", parallel_margin, band) {
         Ok(
             tilt @ Decided {
                 sign: Sign::Positive,
@@ -147,15 +138,14 @@ pub(super) fn plane_ladder<T: Decide>(
             sign: Sign::Zero,
             margin,
         }) => margin,
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => {
-            // A norm cannot be definitely negative — poisoned input.
-            return Err(unreadable_norm(band));
-        }
+        Ok(
+            norm @ Decided {
+                sign: Sign::Negative,
+                ..
+            },
+        ) => return Err(unreadable_norm(norm, band)),
         Err(diag) => {
-            return Err(PlaneEqError::Escalated {
+            return Err(CarrierEqError::Escalated {
                 rung: PlaneRung::Parallel,
                 diag,
             });
@@ -171,19 +161,19 @@ pub(super) fn plane_ladder<T: Decide>(
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
     // under. A zero has no side to read, so it is the gate's rejection.
-    let side = decide_nonzero("bool_plane_orient", sign_margin, band).map_err(|diag| {
-        PlaneEqError::Escalated {
+    let side = decide_nonzero("plane_eq_orient", sign_margin, band).map_err(|diag| {
+        CarrierEqError::Escalated {
             rung: PlaneRung::Orientation,
             diag,
         }
     })?;
     let sigma = side.unit::<T>();
     let relation = match side {
-        NonzeroSign::Positive => PlaneRelation::SameOriented,
-        NonzeroSign::Negative => PlaneRelation::SameOpposite,
+        NonzeroSign::Positive => CarrierRelation::SameOriented,
+        NonzeroSign::Negative => CarrierRelation::SameOpposite,
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
-    match CoincidenceMeasure::decide("bool_plane_offset", offset_margin, band) {
+    match CoincidenceMeasure::decide("plane_eq_offset", offset_margin, band) {
         Ok(
             offset @ Decided {
                 sign: Sign::Positive | Sign::Negative,
@@ -198,24 +188,36 @@ pub(super) fn plane_ladder<T: Decide>(
             relation,
             margin: margin.jointly(parallel),
         }),
-        Err(coincidence) => Err(PlaneEqError::Undecided {
+        Err(coincidence) => Err(CarrierEqError::Undecided {
             coincidence,
             relation,
         }),
     }
 }
 
-/// The parallelism rung's refusal of a norm that read definitely
-/// negative: poisoned input, with no margin to report.
-pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
-    PlaneEqError::Escalated {
+/// The parallelism rung's refusal of a margin decided definitely
+/// negative (`norm`, the rung's own reading). `‖n₁ × n₂‖` is never
+/// negative, so the sign is the lever arm's: an extent whose radius
+/// reads negative, which no caller's extent is. A norm passes on a zero
+/// or positive sign, so the refusal is the gate's rejection of that
+/// sign, minted and logged by the funnel's door
+/// ([`geom_core::k_stats::gate_rejection`]): the decided margin, tagged
+/// with the rejected sign. Unreadable input (a NaN) never reaches here:
+/// it escalates on the parallelism rung itself.
+///
+/// # Panics
+///
+/// Where `norm` is no definite negative verdict on its margin against
+/// `band` (the door's own precondition); the ladder hands it only that.
+pub(crate) fn unreadable_norm(norm: Decided, band: Band) -> CarrierEqError {
+    CarrierEqError::Escalated {
         rung: PlaneRung::Norm,
-        diag: Indeterminate {
-            margin: MarginDiag::INVALID,
+        diag: geom_core::k_stats::gate_rejection(
+            "plane_eq_parallel",
+            norm,
             band,
-            predicate: Some("bool_plane_parallel"),
-            terminal_sliver: false,
-        },
+            geom_core::SizedPass::NonNegative,
+        ),
     }
 }
 
@@ -223,19 +225,13 @@ pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Band;
+    use crate::carrier_eq::fixtures::{OrientationPose, orientation_in_zero_band, plane};
     use geom_core::Tol;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
-
-    fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
-        PlaneDesc {
-            origin: Point3::from_array(o),
-            normal: Vec3::from_array(n),
-        }
-    }
+    use geom_core::MarginDiag;
 
     /// **A coincidence of planes is a theorem only when parallelism is
     /// one too.** Both planes pass through the extent's centre, so the
@@ -269,7 +265,7 @@ mod tests {
                 .expect("one plane");
             (rel, discharge(margin))
         });
-        assert_eq!(got, (PlaneRelation::SameOriented, false));
+        assert_eq!(got, (CarrierRelation::SameOriented, false));
     }
 
     /// **Zero glues, whatever the planes' descriptions** (D10): two
@@ -280,8 +276,8 @@ mod tests {
         let p1 = plane([1.0, 2.0, 5.0], [0.0, 0.0, 1.0]);
         let p1_rev = plane([1.0, 2.0, 5.0], [-0.0, -0.0, -1.0]);
         for (other, want) in [
-            (p1, PlaneRelation::SameOriented),
-            (p1_rev, PlaneRelation::SameOpposite),
+            (p1, CarrierRelation::SameOriented),
+            (p1_rev, CarrierRelation::SameOpposite),
         ] {
             let got = plane_ladder(&p1, &other, &ConsumedExtent::arm(1.0), band()).unwrap();
             let Some((rel, margin)) = got.one() else {
@@ -321,7 +317,7 @@ mod tests {
         let offset_flip = plane([0.0, 0.0, 4.0], [0.0, 0.0, -1.0]);
         assert_eq!(
             oriented_plane_eq(&p1, &offset_flip, &ConsumedExtent::arm(1.0), band()).unwrap(),
-            PlaneRelation::Distinct
+            CarrierRelation::Distinct
         );
     }
 
@@ -338,14 +334,14 @@ mod tests {
             .expect("a quarter-ε offset decides zero")
             .one()
             .expect("one plane");
-        assert_eq!(rel, PlaneRelation::SameOriented);
+        assert_eq!(rel, CarrierRelation::SameOriented);
         assert_eq!(
             margin.kind(),
             geom_core::MarginKind::Value,
             "the decided margin rides: {margin:?}"
         );
         let err = read(plane([f64::NAN, 0.0, 5.0], [0.0, 0.0, 1.0])).unwrap_err();
-        let PlaneEqError::Undecided {
+        let CarrierEqError::Undecided {
             coincidence: CoincidenceMeasure::Unreadable(diag),
             ..
         } = err
@@ -353,7 +349,7 @@ mod tests {
             panic!("a NaN offset decides nothing: {err:?}");
         };
         assert!(diag.margin.is_invalid(), "poisoned: {diag:?}");
-        assert_eq!(diag.predicate, Some("bool_plane_offset"));
+        assert_eq!(diag.predicate, Some("plane_eq_offset"));
     }
 
     /// A near-miss in the sliver band escalates typed.
@@ -366,7 +362,7 @@ mod tests {
         let err = oriented_plane_eq(&p1, &p2, &ConsumedExtent::arm(1.0), band()).unwrap_err();
         assert!(matches!(
             err,
-            PlaneEqError::Undecided {
+            CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Undecided(_),
                 ..
             }
@@ -374,52 +370,83 @@ mod tests {
     }
 
     /// **An orientation decided zero is the nonzero gate's rejection, on
-    /// the log, and ends as before.** Two parallel planes read over an arm
-    /// inside the zero band have `|cos|·arm = arm` there, so the
-    /// orientation reads Zero, which has no side: the escalation carries
-    /// that decided margin, tagged Zero, and is on the frame's log. The
-    /// tag is the gate's alone: every door's ending renders the same as
-    /// on the untagged margin.
+    /// the log.** Two parallel planes read over an arm inside the zero
+    /// band (`fixtures::orientation_in_zero_band`) have `|cos|·arm = arm`
+    /// there, so the orientation reads Zero, which has no side: the
+    /// escalation carries that decided margin, `cos · arm`, tagged Zero,
+    /// and is the one escalation on the frame's log.
     #[test]
     fn an_orientation_decided_zero_is_the_gates_rejection_on_the_log() {
-        use crate::boolean::BooleanError;
         use geom_core::k_stats::Bracket;
         let band = band();
-        let up = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
-        for frac in [0.1, 0.5, 1.0] {
-            let arm = frac * band.zero();
-            let extent = ConsumedExtent::new(geom_brep::ExtentBall::fixture(Point3::origin(), arm));
-            for (other, cos) in [(up, 1.0), (down, -1.0)] {
-                let bracket = Bracket::open();
-                let got = oriented_plane_eq(&up, &other, &extent, band);
-                let log = bracket.finish();
-                let what = format!("arm {arm:e}, cos {cos}");
-                let Err(PlaneEqError::Escalated {
-                    rung: PlaneRung::Orientation,
-                    diag,
-                }) = got
-                else {
-                    panic!("{what}: the orientation reads zero: {got:?}");
-                };
-                assert_eq!(diag.predicate, Some("bool_plane_orient"), "{what}");
-                assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero), "{what}");
-                assert_eq!(
-                    log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
-                    vec![diag],
-                    "{what}: the rejection is the one escalation on the log"
-                );
-                let untagged = Indeterminate {
-                    margin: MarginDiag::value(cos * arm),
-                    ..diag
-                };
-                let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, d);
-                assert_eq!(
-                    text(diag).render(geom_brep::recourse::Reading::Build),
-                    text(untagged).render(geom_brep::recourse::Reading::Build),
-                    "{what}: the ending reads the margin, not the gate's tag"
-                );
-            }
+        for OrientationPose {
+            what,
+            up,
+            other,
+            extent,
+            cos_arm,
+        } in orientation_in_zero_band(band)
+        {
+            let bracket = Bracket::open();
+            let got = oriented_plane_eq(&up, &other, &extent, band);
+            let log = bracket.finish();
+            let Err(CarrierEqError::Escalated {
+                rung: PlaneRung::Orientation,
+                diag,
+            }) = got
+            else {
+                panic!("{what}: the orientation reads zero: {got:?}");
+            };
+            assert_eq!(diag.predicate, Some("plane_eq_orient"), "{what}");
+            assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero), "{what}");
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(cos_arm),
+                "{what}"
+            );
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "{what}: the rejection is the one escalation on the log"
+            );
+        }
+    }
+
+    /// **A parallelism read over a negative arm is the norm gate's
+    /// rejection, on the log.** Two perpendicular planes over an extent
+    /// whose radius is `-1`: the parallelism margin `‖n₁ × n₂‖ · arm` is
+    /// `-1`, a sign a norm cannot take, so the ladder refuses on the
+    /// `Norm` rung with that decided margin tagged Negative, under
+    /// `plane_eq_parallel`, the one escalation on the frame's log.
+    #[test]
+    fn a_parallelism_over_a_negative_arm_is_the_norm_gates_rejection_on_the_log() {
+        use geom_core::k_stats::Bracket;
+        let band = band();
+        let flat = plane([0.0; 3], [0.0, 0.0, 1.0]);
+        let wall = plane([0.0; 3], [1.0, 0.0, 0.0]);
+        for (x, y) in [(flat, wall), (wall, flat)] {
+            let bracket = Bracket::open();
+            let got = oriented_plane_eq(&x, &y, &ConsumedExtent::arm(-1.0), band);
+            let log = bracket.finish();
+            let Err(CarrierEqError::Escalated {
+                rung: PlaneRung::Norm,
+                diag,
+            }) = got
+            else {
+                panic!("the norm's own rung: {got:?}");
+            };
+            assert_eq!(diag.predicate, Some("plane_eq_parallel"));
+            assert_eq!(diag.margin.rejected_sign(), Some(Sign::Negative));
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(-1.0)
+            );
+            assert!(!diag.terminal_sliver);
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "the rejection is the one escalation on the log"
+            );
         }
     }
 }

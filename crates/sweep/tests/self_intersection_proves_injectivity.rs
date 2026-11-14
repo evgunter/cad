@@ -19,6 +19,8 @@
 //!   on the shared cell, and their minimum separation is `[0, 0]`;
 //! - large curved bodies certify within the default budget, their
 //!   cell-pair counts printed;
+//! - a windowed tube holds across its caps' circles, where each cap's
+//!   two semicircles meet on the walls' seams;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -62,7 +64,7 @@ use topo::clearance::{
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{arc_spine_places, normal_start_place, quad};
+use crate::common::{arc_spine_places, bulge, normal_start_place, quad};
 use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
@@ -556,6 +558,42 @@ fn a_revolved_cone_holds() {
     holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
 }
 
+/// **The box `2 × 1` at depth `h = 1 ± 1e-2` holds at `Sym<Interval>`**:
+/// a family, each plane the engine builds through a shared edge built
+/// from that edge's own stored direction at the lane scalar.
+#[test]
+fn a_box_family_holds_at_sym_interval() {
+    use geom_core::sym::with_session_rules;
+    use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
+    use sweep::ExtrudeSide;
+    type S = Sym<Interval>;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let ((), _) = with_session_rules(budget, SymRules::shipped(), || {
+        let h: S = Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("h")),
+            Interval::from_bounds(1.0 - 1e-2, 1.0 + 1e-2),
+        );
+        let profile = validated::<S>(&quad([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]));
+        let body = Body::clone(
+            &extrude(
+                &profile,
+                Extrusion::Distance {
+                    depth: h,
+                    side: ExtrudeSide::Along,
+                },
+                tol(),
+            )
+            .expect("the family extrudes")
+            .body,
+        );
+        let report = injective(&body, None, BUDGET);
+        assert_holds("the box at h = 1 ± 1e-2", &report, &body);
+    });
+}
+
 /// **A pyramid holds**: a square base and an apex — four planar faces
 /// meeting at the apex, two of each pair of opposite ones sharing only
 /// that vertex.
@@ -756,6 +794,126 @@ fn a_full_torus_certifies_by_kind() {
             report.receipt
         );
     }
+}
+
+/// **A windowed tube holds across its caps' circles at both scalars**
+/// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
+/// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
+/// which meet where the two half-tube walls' seams land. A cap cell at
+/// such a vertex has no presentation, so the pair is decided by the
+/// cap's carrier against the wall alone, whose side on the shared
+/// meridian is read off the meridian's closed form: the centred form's
+/// error there shrinks only with the cell's length squared, and the
+/// pair ran to the depth floor.
+#[test]
+fn a_windowed_tubes_caps_hold_against_its_walls_at_both_scalars() {
+    fn tube<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Arc {
+                t0: at(0.25),
+                t1: at(1.75),
+            },
+            at(0.5),
+            tol(),
+        )
+        .expect("the wedge builds")
+        .body
+        .into_body()
+    }
+    holds_at_both("the windowed tube", tube(), tube());
+}
+
+/// **A stepped ring's floor holds against its end caps**: an L section
+/// revolved three quarters of a turn about `y`. The step's floor is an
+/// annulus, and its line edge on each end cap meets the floor's two rim
+/// arcs. At the step's wall the cap is a reflex corner of two lines,
+/// which no presentation reads, so the floor is presented through its
+/// line–arc corner and the cap's plane separates it.
+#[test]
+fn a_stepped_rings_floor_holds_against_its_end_caps() {
+    fn ring<T: Scalar>() -> Body<T> {
+        let profile = validated::<T>(&[ProfileLoop::polygon(
+            [
+                (1.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.5, 1.0),
+                (1.5, 0.5),
+                (1.0, 0.5),
+            ]
+            .map(|(x, y)| Point2::new(x, y)),
+        )]);
+        let turn = Revolution::Partial(T::from_f64(1.5 * core::f64::consts::PI));
+        revolve(&profile, axis_y(), turn, tol())
+            .unwrap()
+            .body
+            .into_body()
+    }
+    holds_at_both("the stepped ring", ring(), ring());
+}
+
+/// **A filleted cube corner's ball holds against the faces it touches
+/// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
+/// filleted. The corner's sphere is charted with a pole at the vertex
+/// it shares with one face alone, tangent to it there, so neither
+/// carrier separates the pair; a plane through the vertex does, the
+/// sphere read across the pole as a collapsed side of its chart.
+#[test]
+fn a_filleted_corners_ball_holds_against_a_face_at_its_pole() {
+    fn corner<T: Scalar>() -> Body<T> {
+        let cube = sweep::test_support::cube::<T>(1.0, tol());
+        let at_corner: Vec<topo::EdgeKey> = cube
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|&e| {
+                let (s, t) = cube.edge_vertices(e).unwrap();
+                [s, t].into_iter().any(|v| {
+                    let p = *cube.get_point(cube.get_vertex(v).unwrap().point).unwrap();
+                    [p.x, p.y, p.z]
+                        .into_iter()
+                        .all(|c| (mid(c) - 1.0).abs() < 1e-9)
+                })
+            })
+            .collect();
+        assert_eq!(at_corner.len(), 3, "three edges meet at the corner");
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&cube, tol()),
+            &at_corner,
+            T::from_f64(0.25),
+            tol(),
+        )
+        .map_err(|e| e.error)
+        .expect("the corner fillets")
+        .body
+        .into_body()
+    }
+    holds_at_both("the filleted corner", corner(), corner());
+    let body: &Body<f64> = &corner::<f64>();
+    let ball = body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| kind(body, k) == "sphere")
+        .expect("the corner's ball");
+    let alone: Vec<FaceKey> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            kind(body, k) == "plane" && touching_pairs(body).contains(&(k.min(ball), k.max(ball)))
+        })
+        .collect();
+    assert_eq!(
+        alone.len(),
+        3,
+        "the ball touches the three faces at its corners"
+    );
 }
 
 /// **A long helical sweep certifies within the default budget**: a
@@ -1094,6 +1252,83 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
+/// full turn: the meridian band between two lines `30°` off the axis
+/// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
+/// and the band between two arcs about a centre off the axis, radii
+/// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
+/// two faces share nothing, so only the distance test decides them.
+/// Both hold at both scalars, each splitting under a quarter of the
+/// default budget (about 3,100 and 6,600 splits). Red where the support
+/// test reads an analytic cell by its box: two slanted patches' boxes
+/// overlap until the cells are about as small as the gap, which costs
+/// about 39,000 and 32,000 splits.
+#[test]
+fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
+    fn conical<T: Scalar>() -> Body<T> {
+        let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
+        let (slant, across) = (1.6, 0.05 / c);
+        let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+        revolved_about_y_at(
+            vec![
+                p(0.4, 2.0),
+                p(0.4 + slant * s, 2.0 - slant * c),
+                p(0.4 + across + slant * s, 2.0 - slant * c),
+                p(0.4 + across, 2.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    fn toroidal<T: Scalar>() -> Body<T> {
+        let centre = Point2::new(1.6, 1.0);
+        let at = |r: f64, a: f64| {
+            let a = a.to_radians();
+            Point2::new(centre.x + r * a.cos(), centre.y + r * a.sin())
+        };
+        let (outer, inner) = (0.825, 0.775);
+        let (o0, o1, i1, i0) = (
+            at(outer, 120.0),
+            at(outer, 240.0),
+            at(inner, 240.0),
+            at(inner, 120.0),
+        );
+        let p = |q: Point2<f64>, b: f64| (q.map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![
+                p(o0, bulge(o0, o1, centre)),
+                p(o1, 0.0),
+                p(i1, bulge(i1, i0, centre)),
+                p(i0, 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    for (what, reports) in [
+        (
+            "the conical wall",
+            holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
+        ),
+        (
+            "the toroidal wall",
+            holds_at_both(
+                "the toroidal wall",
+                toroidal::<f64>(),
+                toroidal::<Interval>(),
+            ),
+        ),
+    ] {
+        for report in &reports {
+            assert!(
+                report.receipt.splits < BUDGET / 4,
+                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt
+            );
+        }
+    }
+}
+
 // ------------------------------------------- a face across its seam
 
 /// **A cylinder face across its chart's seam, pierced by a planar face
@@ -1239,6 +1474,7 @@ fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",
         Surface::Torus { .. } => "torus",
+        Surface::Sphere { .. } => "sphere",
         _ => "other",
     }
 }
@@ -1355,11 +1591,7 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
     let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
-    finished(
-        "moved",
-        topo::transform_rigid(b, &rigid, tol()).unwrap(),
-        tol(),
-    )
+    finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
 /// The box `(-50, 50)² × (-100, top)`, at rest: a half-space below
@@ -1629,10 +1861,18 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 9,
-        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
-         the mitre's ellipse ({:?})",
+        report.receipt.refused, 8,
+        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
+         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
         report.receipt
+    );
+    assert!(
+        report
+            .across
+            .iter()
+            .any(|(&(a, b), &n)| kind(tee, a) == "plane" && kind(tee, b) == "plane" && n > 0),
+        "the mitre against B's cap is certified across their line: {:?}",
+        report.across
     );
 }
 
@@ -1659,7 +1899,7 @@ fn a_folded_oblique_cut_reads_violated_off_its_corners() {
         let mut folded = cut.clone().into_body();
         let over = Affine3::translation(Vec3::new(0.3, 0.0, 0.0)).map(T::from_f64);
         let rigid = geom_core::test_support::rigid(&over, tol());
-        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        let copy = topo::transform_rigid(&cut, &rigid).unwrap();
         topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
         folded
     }
@@ -1940,7 +2180,7 @@ fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
         let mut folded = cut.clone().into_body();
         let over = Affine3::translation(Vec3::new(0.2, 0.25, 0.0)).map(T::from_f64);
         let rigid = geom_core::test_support::rigid(&over, tol());
-        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        let copy = topo::transform_rigid(&cut, &rigid).unwrap();
         topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
         folded
     }
@@ -2209,7 +2449,7 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
         let home = lens_loft::<T>();
         let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
         let motion = geom_core::RigidMotion::translation(by).expect("a translation");
-        let away = topo::transform_rigid(&home, &motion, tol()).expect("the loft moves");
+        let away = topo::transform_rigid(&home, &motion).expect("the loft moves");
         let walls: Vec<FaceKey> = home
             .faces()
             .map(|(k, _)| k)
@@ -2748,4 +2988,49 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
         filled(&charts) > 0 && filled(&edges) > 0,
         "the walk read through the memos: charts {charts:?}, edges {edges:?}"
     );
+}
+
+// ------------------------------------------------ a sphere's pole
+
+/// **Two coaxial balls' union holds, its poles read**: the snowman of
+/// `snowman.rs`, radii 1 and 0.8 on centres 1.4 apart. Each ball is two
+/// half-bands of one sphere meeting along a meridian circle and at the
+/// two poles, and the union keeps one pole of each. A cell holding a
+/// pole is near both meridians and the pole, and the pole is the whole
+/// latitude line `v = ±π/2` of the chart, so no split moves a cell off
+/// it. Read as a collapsed side, the polar cells certify against the
+/// meridians' plane; read as a loose vertex, every polar strip of one
+/// half-band against every one of the other split until the walk ran
+/// out of its 65,536 pairs, at depth 32.
+#[test]
+fn a_two_ball_union_holds_with_its_poles_read() {
+    fn snowman<T: Scalar>() -> Body<T> {
+        let ball = |r: f64, y: f64| {
+            let p = |y: f64, bulge: f64| {
+                (
+                    Point2::new(T::from_f64(0.0), T::from_f64(y)),
+                    T::from_f64(bulge),
+                )
+            };
+            sweep::test_support::finished(
+                "the ball",
+                revolved_about_y_at::<T>(
+                    vec![p(y - r, 1.0), p(y + r, 0.0)],
+                    Revolution::Full,
+                    tol(),
+                ),
+                tol(),
+            )
+        };
+        let union =
+            topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
+        Body::clone(&union.body().expect("a body").body)
+    }
+    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
+        assert!(
+            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+            "the poles cost a few hundred pairs, not the budget: {:?}",
+            report.receipt
+        );
+    }
 }

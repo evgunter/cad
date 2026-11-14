@@ -68,9 +68,7 @@ mod insert;
 pub(crate) mod join;
 pub(crate) mod neighborhood;
 pub(crate) use neighborhood::{EntryFault, bound_side};
-// `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
-// `chord_join` reads rather than minting a second copy.
-pub(crate) mod order;
+mod order;
 pub(crate) mod pieced_arc;
 #[cfg(test)]
 pub(crate) mod reassembly;
@@ -92,15 +90,13 @@ use crate::null::NullEdge;
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{
-    ConicCrossingsCase, SectionEndReading, SectionPinMiss, SplitJoinError,
-};
+use crate::chord_join::{ApexSectionReading, JoinError};
 pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
 pub use finish::{
-    PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
+    FinishDesync, PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
 };
 pub use neighborhood::{BoundClass, classify_neighborhood};
 pub use section::{
@@ -127,132 +123,13 @@ pub struct SplitPlane<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionGermReading {
     /// Whether a face meets the plane along a line there
-    /// (`split_germ_line`).
+    /// (`germ_line`, the star's germ rule).
     Line,
-    /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// The order of two germs about the plane's normal (`germ_side`,
+    /// `germ_sense`, `germ_order`, the star's one order), or of
     /// two along one tangent by how their sections curve off it
     /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,
-}
-
-/// How the section table's reading of a plane against a cone disagrees
-/// with the walk, which read the plane crossing one of the cone's
-/// sub-sectors at its apex: the split's
-/// ([`SplitReduceError::ApexSection`]) and the Boolean's pierce
-/// ([`crate::BooleanError::ApexSection`]) one vocabulary and one
-/// rating, a typed disagreement.
-///
-/// **NOT carried to the façade's curated list, and that is a decision
-/// rather than an omission** (`scripts/payload-rung-sweep.py` names
-/// this rung; the disposition table cites this paragraph as its home).
-/// A Rust caller can already name and match it — `pncad` re-exports
-/// `topo` whole — and each refusal's sentence names the disagreement and
-/// states its own recourse: move the face so it passes clear of the
-/// cone's tip, or through it clearly across the cone. Every arm is the
-/// section table and the walk disagreeing, a kernel limit no caller
-/// steers by arm.
-///
-/// **The falsifier is a caller that acts on the arm by itself**: a
-/// driver that nudges a part one way on `ClosedOffApex` and another on
-/// `NoRulingInside`. Then carry it and delete this paragraph and the
-/// disposition row with it.
-#[derive(Debug)]
-pub enum ApexSectionReading {
-    /// The table reads the plane's section of the cone as a closed
-    /// conic, standing off the apex.
-    ClosedOffApex,
-    /// The table reads the plane's section of the cone as an open conic
-    /// (a parabola or a hyperbola), standing off the apex: the walk read
-    /// the plane through it ([`SplitJoinError::OpenConicChord`] at the
-    /// table).
-    OpenOffApex,
-    /// The table refused the pair for a cause other than an open conic.
-    Refused(Box<SplitJoinError>),
-    /// The table's section rulings through the apex: none of them lies
-    /// inside the sub-sector the walk read the plane crossing.
-    NoRulingInside,
-    /// Both of the table's section rulings lie inside one sub-sector,
-    /// across which the walk read the plane's side monotone.
-    BothRulingsInside,
-}
-
-impl ApexSectionReading {
-    /// **The table reads the plane's section of the cone as a conic clear
-    /// of the apex**, which the walk read the plane through: one
-    /// disagreement, open or closed, and its one home. A closed conic is
-    /// the table's section ([`Self::ClosedOffApex`]); an open one is its
-    /// refusal ([`SplitJoinError::OpenConicChord`], [`Self::OpenOffApex`],
-    /// through [`Self::of_table_refusal`]).
-    #[must_use]
-    pub const fn clear_of_apex(open: bool) -> Self {
-        if open {
-            Self::OpenOffApex
-        } else {
-            Self::ClosedOffApex
-        }
-    }
-
-    /// **The reading of the table's refusal of the plane against the
-    /// cone**: an open conic is the plane clear of the apex
-    /// ([`Self::clear_of_apex`]); any other refusal is carried whole
-    /// ([`Self::Refused`]).
-    #[must_use]
-    pub fn of_table_refusal(section: SplitJoinError) -> Self {
-        match section {
-            SplitJoinError::OpenConicChord { .. } => Self::clear_of_apex(true),
-            other => Self::Refused(Box::new(other)),
-        }
-    }
-
-    /// **What this reading is to a ladder** (the Boolean's vertex-on-face
-    /// climb reads it, [`crate::BooleanError::ApexSection`]): the table and
-    /// the walk disagreeing on one apex is a kernel fault, and the table's
-    /// own refusal stands as it does ([`SplitJoinError::refusal`]).
-    ///
-    /// # Errors
-    ///
-    /// [`geom_core::ladder::Aborts`] for a disagreement, and the table
-    /// refusal's own aborts.
-    pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
-        match self {
-            // An open conic is the disagreement, however it was built
-            // ([`Self::clear_of_apex`]), never the join's limit.
-            Self::Refused(section)
-                if matches!(**section, SplitJoinError::OpenConicChord { .. }) =>
-            {
-                Err(geom_core::ladder::Aborts)
-            }
-            Self::Refused(section) => section.refusal(),
-            Self::ClosedOffApex
-            | Self::OpenOffApex
-            | Self::NoRulingInside
-            | Self::BothRulingsInside => Err(geom_core::ladder::Aborts),
-        }
-    }
-
-    /// The disagreement in words, completing "a plane passes through the
-    /// tip of a cone, and …": the one wording the split's and the
-    /// Boolean's refusals both read.
-    pub(crate) fn what(&self) -> &'static str {
-        match self {
-            Self::ClosedOffApex => {
-                "the section it cuts in the cone reads as a closed curve clear of the tip"
-            }
-            Self::OpenOffApex => {
-                "the section it cuts in the cone reads as an open curve clear of the tip"
-            }
-            Self::Refused(_) => "the section it cuts in the cone does not read there",
-            Self::NoRulingInside => {
-                "no line of the section it cuts in the cone leaves the tip where the plane \
-                 crosses the cone there"
-            }
-            Self::BothRulingsInside => {
-                "both lines of the section it cuts in the cone leave the tip where the plane \
-                 crosses the cone once there"
-            }
-        }
-    }
 }
 
 /// Why the germs round a vertex fix no corners of the section there
@@ -293,6 +170,28 @@ pub enum PlaneSide {
 }
 
 impl PlaneSide {
+    /// The side a decided offset's sign names: the one reading of a
+    /// sign as a side of a plane.
+    #[must_use]
+    pub const fn of_sign(sign: geom_core::Sign) -> Self {
+        match sign {
+            geom_core::Sign::Negative => Self::Below,
+            geom_core::Sign::Zero => Self::On,
+            geom_core::Sign::Positive => Self::Above,
+        }
+    }
+
+    /// The side as the star's cut reads it ([`crate::star::apart`]):
+    /// `Some(true)` above, `Some(false)` below, `None` on the plane.
+    #[must_use]
+    pub const fn strict(self) -> Option<bool> {
+        match self {
+            Self::Below => Some(false),
+            Self::On => None,
+            Self::Above => Some(true),
+        }
+    }
+
     /// The side as a refusal names it.
     #[must_use]
     pub fn word(self) -> &'static str {
@@ -1074,7 +973,7 @@ pub enum SplitError {
     Reduce(SplitReduceError),
     /// The joining stage refused (incl. the degenerate one-sided
     /// tangency section).
-    Join(SplitJoinError),
+    Join(JoinError),
     /// The finish stage refused (incl. the degenerate-component net).
     Finish(SplitFinishError),
     /// The pcurve minting pass refused (M5 PR 6): a curved face's
@@ -1094,8 +993,8 @@ impl From<SplitReduceError> for SplitError {
     }
 }
 
-impl From<SplitJoinError> for SplitError {
-    fn from(e: SplitJoinError) -> Self {
+impl From<JoinError> for SplitError {
+    fn from(e: JoinError) -> Self {
         Self::Join(e)
     }
 }
@@ -1339,38 +1238,4 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(result)
-}
-
-#[cfg(test)]
-mod apex_section_standing_rows {
-    use geom_core::ladder::{Aborts, Refusal};
-
-    use super::ApexSectionReading;
-    use crate::SplitJoinError;
-    use crate::entity::FaceKey;
-
-    /// **An apex section stands by its reading** (the Boolean's
-    /// vertex-on-face climb reads it): the table and the walk disagreeing
-    /// is a kernel fault, and the table's own refusal stands as it does.
-    /// Red where a reading reverts to one standing for all.
-    #[test]
-    fn an_apex_section_stands_by_its_reading() {
-        for disagrees in [
-            ApexSectionReading::ClosedOffApex,
-            ApexSectionReading::OpenOffApex,
-            ApexSectionReading::NoRulingInside,
-            ApexSectionReading::BothRulingsInside,
-        ] {
-            assert_eq!(disagrees.refusal(), Err(Aborts), "{disagrees:?}");
-        }
-        let unarmed = ApexSectionReading::Refused(Box::new(SplitJoinError::SectionUnarmed {
-            face: FaceKey::default(),
-            divided: geom::SurfaceKind::Plane,
-            wall: geom::SurfaceKind::Nurbs,
-        }));
-        assert_eq!(unarmed.refusal(), Ok(Refusal::Limit), "a section not built");
-        let mixed =
-            ApexSectionReading::Refused(Box::new(SplitJoinError::UnpairedLooseEnds { count: 2 }));
-        assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
-    }
 }

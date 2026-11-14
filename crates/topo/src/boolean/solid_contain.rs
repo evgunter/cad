@@ -214,7 +214,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::plane_desc_of;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
@@ -222,6 +222,7 @@ use crate::splitting::containment::{
     Escalation, LoopContainment, PointInLoopError, SCHEDULE, point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::PlaneDesc;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
@@ -652,7 +653,7 @@ impl PointInSolidError {
                  surface, which the inside/outside test has no way yet to cross. The \
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
-                super::kind_word(*kind)
+                kind.word()
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -740,7 +741,7 @@ impl std::error::Error for PointInSolidError {}
 /// and a region reads the sense itself.
 pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// A planar face: a point on it and its OUTWARD normal.
-    Plane(Point3<T>, Vec3<T>),
+    Plane(PlaneDesc<T>),
     /// A cylinder wall face: the ray/wall quadratic's roots, each tested
     /// against the face's own region, read from its boundary edges
     /// ([`super::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
@@ -946,10 +947,9 @@ fn face_geo_arms<T: Decide>(
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
-        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
-            *origin,
-            plane_outward_normal(f.record(), *normal).vec(),
-        )),
+        Surface::Plane { origin, normal, .. } => {
+            Ok(FaceGeo::Plane(plane_desc_of(f.record(), *origin, *normal)))
+        }
         &Surface::Cylinder {
             origin,
             axis,
@@ -1489,29 +1489,27 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    // A window the loop walk cannot derive is a face this chart cannot
-    // express, NOT a broken body: the walk needs a closed-form chart
-    // image for every boundary edge and a branch it can pin across each
-    // junction, and a face that denies it either is out of the class.
-    // Only the in-band arm is an escalation.
-    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
-        Ok(Some(w)) => w,
-        Ok(None) => return Ok(None),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
-        | Err(crate::chord_join::SplitJoinError::OrderEscalated { diag }) => {
-            return Err(escalate(diag));
+    // The window is the lift's: the face's boundary in the chart,
+    // decided here at the band, since containment reads bodies
+    // mid-operation too. A face whose outer loop has an image with no
+    // closed-form box, a joint that names no branch, or a turn on the
+    // chart's singular set that nothing decides, is out of the class,
+    // NOT a broken body: only the in-band arm is an escalation. A key
+    // that does not resolve, or a boundary that does not close in its
+    // chart, is not a class statement, and keeps the arena claim's own
+    // door.
+    let raw = {
+        use crate::chart_window::ChartWindowError;
+        match crate::chart_window::face_azimuth_window(body, face, band) {
+            Ok(Some(w)) => w,
+            Ok(None) | Err(ChartWindowError::Unread | ChartWindowError::Singular(_)) => {
+                return Ok(None);
+            }
+            Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
+            Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
+                return Err(PointInSolidError::CorruptFace { face });
+            }
         }
-        // A CORRUPTION-shaped refusal is not a class statement and must
-        // not wear one: a key the walk could not resolve, or a boundary
-        // that does not close, keeps the arena claim's own door — the
-        // same distinction `bool_planar_chord_spec` draws between a key
-        // that does not resolve and a key of the wrong kind.
-        Err(crate::chord_join::SplitJoinError::Corrupt { .. })
-        | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
-            return Err(PointInSolidError::CorruptFace { face });
-        }
-        // The honest remainder: a walk this chart cannot express.
-        Err(_) => return Ok(None),
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
     // attains every azimuth of its latitude range, so its azimuth window
@@ -2121,7 +2119,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     match *geo {
-        FaceGeo::Plane(origin, normal) => {
+        FaceGeo::Plane(PlaneDesc { origin, normal }) => {
             // Orientation-free: a residual compared against Zero
             // answers the same whichever way the normal points,
             // and `point_in_face` below is ray parity (ditto).
@@ -4314,7 +4312,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // ---- Each planar face's plane, crossed once. ----
     let mut planes: Vec<PlaneCross<T>> = Vec::new();
     for &(face, ref geo) in geos {
-        let FaceGeo::Plane(origin, normal) = *geo else {
+        let FaceGeo::Plane(PlaneDesc { origin, normal }) = *geo else {
             continue;
         };
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });

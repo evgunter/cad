@@ -1292,7 +1292,7 @@ fn face_boundary_points<T: Decide>(
 /// **The lever is the pair's own extent, per vertex.** Door 1 reads
 /// the same disagreement as one displacement over a ball enclosing both
 /// faces, the tilt levered to the ball's far reach and summed with the
-/// offset (`bool_plane_reach` via `carrier_eq::pair_door_reading`).
+/// offset (`carrier_plane_reach` via `carrier_eq::pair_door_reading`).
 /// Here the tilt's contribution to each term is `r·sin θ` with `r` that
 /// vertex's own distance from the carrier origin, and the offset term
 /// rides in the same length. A tilt a peg absorbs and a tilt that opens

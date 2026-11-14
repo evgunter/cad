@@ -161,7 +161,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{
     AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
-    SpiricLoops,
+    SectionUnbuilt,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2470,30 +2470,52 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    0.105). The vertex-on-face pass reads the wall's outward normal
     //    at the chart point the sweep placed the pierce at, and mints the
     //    pierce's ring there with the wall's rows standing as found.
-    //    The join then frames the germ pair of the lower stem's torus
-    //    wall (A) against the leaf's lower cap (B), the cap the tube
-    //    crosses in two chords. That plane is tilted against the torus's axis, so it
-    //    cuts a general spiric quartic whose loops wind round the tube,
-    //    and C5 routes that section to its unbuilt general rung
-    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). It refuses
-    //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
-    //    Behind it is the section of the leaf's NURBS walls against the
-    //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
-    //    declared frontier stands the lily walls down before this one.
+    //
+    //    The join's germ mint then carries the germ pair of the lower
+    //    stem's torus wall (A) against the leaf's ridge wall (B), and
+    //    that pair's section is a torus × spline one, read whole over
+    //    the wall's chart. The section hugs the leaf's lower cap rim,
+    //    within a hundredth of the wall's chart of the root station
+    //    along the middle two thirds of the rim. The reading refuses at
+    //    its accounting, which exceeds the subdivision's 200000-cell
+    //    budget, and the section value hands that on as `Unaccounted`.
+    //    The cells go to the wall's corner at the margin of the root,
+    //    more than a centimetre outside the tube: the accounting clears a
+    //    cell by the torus's canonical quartic over the cell's box, and
+    //    on a torus this thin (ring/pipe ~83) that bound is far wider
+    //    than the form's own variation over the cell, so a cell there
+    //    clears only once it is under half a millimetre across
+    //    (`work/ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells.md`).
+    //    It refuses the same way at 1e-9 and 1e-6.
+    //
+    //    Past the germ mint, the join frames the torus wall against the
+    //    leaf's lower cap, the cap the tube crosses in two chords. That
+    //    plane is tilted against the torus's axis, so it cuts a general
+    //    spiric quartic whose loops wind round the tube, and C5 routes
+    //    that section to its unbuilt general rung
+    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
+    //    the lower stem's declared frontier stands the lily walls down
+    //    before this one.
     wall(
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            // The leaf's lower cap is its first loft station's plane:
-            // through the root, square to the sheath's direction there.
-            let (root, (sheath_dir, _, _), _, _) = leaf_a_spine(tol);
-            let lower_cap = |f| match leaf_a.face_surface(f) {
-                Some(pncad::topo::Surface::Plane { origin, normal, .. }) => {
-                    let n = Vec3::new(normal.x.f(), normal.y.f(), normal.z.f());
-                    let o = Point3::new(origin.x.f(), origin.y.f(), origin.z.f());
-                    n.cross(sheath_dir).norm() < 1e-9 && (o - root).dot(n).abs() < 1e-9
+            // The leaf's ridge wall: of its two NURBS walls, the one
+            // whose control points about the root stand on the ridge
+            // side of the root's chord, `+v` of the sheath's frame.
+            let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
+            let ridge_wall = |f| match leaf_a.face_surface(f) {
+                Some(pncad::topo::Surface::Nurbs(n)) => {
+                    let lean: f64 = n
+                        .control()
+                        .iter()
+                        .map(|c| Point3::new(c.x.f(), c.y.f(), c.z.f()))
+                        .filter(|c| (*c - root).norm() < 0.1)
+                        .map(|c| (c - root).dot(sheath_up))
+                        .sum();
+                    lean > 0.0
                 }
                 _ => false,
             };
@@ -2512,17 +2534,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             };
             matches!(
                 e,
-                BooleanError::GermSectionSpiric {
+                BooleanError::GermSectionUnbuilt {
                     a_face,
                     a_kind: SurfaceKind::Torus,
                     b_face,
-                    b_kind: SurfaceKind::Plane,
-                    loops: SpiricLoops::AroundTube,
-                    section: pncad::geom_brep::SectionError::RoutesToGeneralRung {
-                        pair: "plane×torus",
-                        ..
-                    },
-                } if lower_tube(*a_face) && lower_cap(*b_face)
+                    b_kind: SurfaceKind::Nurbs,
+                    why: SectionUnbuilt::Refused(
+                        pncad::geom_brep::SectionError::Unaccounted { cause }
+                    ),
+                } if lower_tube(*a_face) && ridge_wall(*b_face) && cause.contains("cell budget")
             )
         },
         "join the long leaf to the stem it grows from",

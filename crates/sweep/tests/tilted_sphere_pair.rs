@@ -36,12 +36,7 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    let b = topo::transform_rigid(
-        &b,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let b = topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", b, Tol::witness())
 }
 
@@ -192,12 +187,8 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             Tol::witness(),
         );
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
-        let b = topo::transform_rigid(
-            &b,
-            &geom_core::RigidMotion::translation(to).unwrap(),
-            Tol::witness(),
-        )
-        .unwrap();
+        let b =
+            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap()).unwrap();
         finished("the ball", b, Tol::witness())
     };
     let (a, b) = (ball_iv(BASE), ball_iv(BASE + Vec3::new(1.4, 0.0, 0.0)));
@@ -389,7 +380,9 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             if on_b_only && !on_b {
                 continue;
             }
-            let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+            let inverted = body
+                .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                .expect("the face");
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
                 Err(vec![
@@ -461,7 +454,9 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
             continue;
         }
         encoded += 1;
-        let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+        let inverted = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("the face");
         let errors = topo::validate_geometric(&inverted, tol).expect_err("tier 3 refuses");
         assert!(
             errors.contains(&topo::ValidationError::CurvedSenseInverted { face: k }),
@@ -593,6 +588,32 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         ),
         "δ 0: the arc through the pole refuses not yet on its azimuth sector (the general \
          lane's own gap, PCERT E1's P3), got {out:?}"
+    );
+}
+
+/// **The nearest of those sections builds on its own.** The section
+/// `δ = 1e-5` off the pole divides a face whose boundary passes the
+/// pole on the chart's twin sheet, and its insertion splits an edge
+/// there: the children's joint is the face's turn at the pole, read
+/// off the two carriers' tangents, where an azimuth read off the
+/// child's image is half a turn off its edge's direction and refused
+/// the split (`CrossingInsertion`, `SplitJointUndecided`). Held apart
+/// from the row above so it stands at every ε row, whatever the arc
+/// through the pole does there.
+#[test]
+fn the_section_nearest_a_pole_splits_at_the_poles_joint() {
+    let c = Vec3::new(2.0, 2.0, 0.5);
+    let d: f64 = 1e-5;
+    let s = 0.7 + d;
+    let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+    let (a, b) = (ball(1.0, c), ball(1.0, c + lean));
+    let out = run(BooleanOp::Union, &a, &b)
+        .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
+    let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
+    assert_solid(
+        &format!("δ {d}"),
+        body,
+        2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4),
     );
 }
 

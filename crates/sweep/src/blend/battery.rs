@@ -41,14 +41,14 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip, inward_unit,
-    line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip,
+    inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
-    strip_ring, unbuilt_geometry, unresolved, unwalked,
+    strip_ring, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, KnifeRefusal,
@@ -478,6 +478,11 @@ pub struct BatteryVerdict<T: Real> {
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
+    /// The mixed corners predicate 6 admitted with all three edges
+    /// requested ([`mixed_corner_square`]), each once, sorted by vertex.
+    /// The corner's plan reads which edge is odd and which face is `E`
+    /// off this list rather than re-deriving them.
+    pub(crate) mixed: Vec<MixedVertex>,
     /// The requested edges predicate 5 read as smooth seams
     /// ([`LinkWedge::Smooth`]), each with the decided-Zero margin it
     /// read, in request order: in no chain, and left as they are. The
@@ -511,6 +516,21 @@ enum EndVerdict<T: Real> {
     /// A turn: its two requested links, in key order, and its
     /// unrequested edge, for [`turn_at`] to decide once per vertex.
     Turn(Box<[Link<T>; 2]>, EdgeKey),
+    /// A mixed corner with all three edges requested.
+    Mixed(MixedVertex),
+}
+
+/// **A mixed corner predicate 6 admitted with all three edges
+/// requested** ([`mixed_corner_square`]): the odd edge, whose convexity
+/// differs from the other two, and `E`, the face it does not lie in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MixedVertex {
+    /// The corner's vertex.
+    pub(crate) vertex: VertexKey,
+    /// The odd edge.
+    pub(crate) odd: EdgeKey,
+    /// The face the pair shares, `E`.
+    pub(crate) host: FaceKey,
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -1058,11 +1078,12 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// predicate admits it on both, for both verbs: the chamfer's ruled
 /// strip and flat patch take no convexity argument, and the rolling
 /// ball's corner — its ball, its contact feet, its octant chart —
-/// folds the side as one verdict. A MIXED corner has no patch, because
-/// the patch would change sides mid-corner, and no rule of its own yet:
-/// [`corner_at`] asks this predicate at a mixed vertex only where the
-/// request wants one of those, and reads the independence alone where
-/// a uniform rule's cut-off or mitre ends the band.
+/// folds the side as one verdict. A MIXED corner has no such patch,
+/// because the patch would change sides mid-corner: [`corner_at`] asks
+/// this predicate at a mixed vertex only where the request wants a rule
+/// that is not built, and reads the independence alone where a uniform
+/// rule's cut-off or mitre ends the band or all three edges build the
+/// mixed corner ([`mixed_corner_square`]).
 ///
 /// # Errors
 ///
@@ -1952,7 +1973,11 @@ fn chain_turns<T: Decide + Bounds>(
         // Each tangent heads INTO the junction, so a smooth joint reads
         // them opposed.
         let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
-        match chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band) {
+        let g1 = chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band);
+        if g1.is_ok() && !same_supports(body, a, b)? {
+            band_g1(body, a, b, *v, band)?;
+        }
+        match g1 {
             // At a Zero `sin θ` over a definitely positive arm the two
             // unit tangents are within the band of `±1` apart, so the
             // dot's sign is certain on any enclosure; it is read, not
@@ -1995,6 +2020,73 @@ fn chain_turns<T: Decide + Bounds>(
         }
     }
     Ok((turns, tangent))
+}
+
+/// Whether two links lie between the same two support SURFACES, in
+/// either slot order: then one arm of one pair blends both, and their
+/// bands are one surface through the junction. Surfaces and not faces,
+/// because the band is a function of the surfaces: two faces of one
+/// surface (a seam-split wall's half-bands) give one band. Which FACE a
+/// mixed rim's links share is the carve's question, and
+/// `surgery::resolve_mixed_rim` asks it of faces.
+pub(crate) fn same_supports<T: Real>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+) -> Result<bool, BlendError> {
+    let surface = |f: FaceKey| -> Result<SurfaceKey, BlendError> {
+        body.get_face(f)
+            .map(|fd| fd.surface)
+            .ok_or_else(|| unresolved(EntityId::Face(f), "a link's support"))
+    };
+    let (a0, a1) = (surface(a.face_a)?, surface(a.face_b)?);
+    let (b0, b1) = (surface(b.face_a)?, surface(b.face_b)?);
+    Ok((a0, a1) == (b0, b1) || (a0, a1) == (b1, b0))
+}
+
+/// **`fillet3_chain_g1` over the BANDS at a junction between links on
+/// different supports**: the two links' balls at the junction rest in
+/// one section, margin the distance between their section centres in
+/// meters. Zero is the shared section along which the two bands meet
+/// G1; a definite distance is supports creasing at the junction, where
+/// the two bands share no section.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedChain`] on a definite distance or a band
+/// with no section, [`BlendError::Escalated`] in band.
+fn band_g1<T: Decide>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(), BlendError> {
+    let p = body
+        .get_vertex(vertex)
+        .and_then(|x| body.get_point(x.point))
+        .copied()
+        .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
+    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
+        return Err(unbuilt_chain(
+            a.edge,
+            "a chain's links meet on different supports where a band has no rolling-ball \
+             section",
+        ));
+    };
+    let site = BlendSite::Joint { vertex };
+    match classify(
+        site,
+        BlendDecision::ChainG1,
+        Margin::of(ca.centre.distance(cb.centre)),
+        band,
+    )? {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(unbuilt_chain(
+            a.edge,
+            "the supports crease at a junction, so its two bands share no section",
+        )),
+    }
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
@@ -2063,7 +2155,7 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
         // lines meet at one corner and are closed by an arc tangent to
         // both, so its one run starts and ends at that corner, where the
         // end names two of three edges, the turn
-        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain`).
+        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_into_one_open_mixed_chain`).
         debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
     }
     runs.into_iter()
@@ -2229,6 +2321,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // request, whose count of the vertex's edges decides the end.
     let mut end_faces = Vec::new();
     let mut turns: Vec<Turn<T>> = Vec::new();
+    let mut mixed: Vec<MixedVertex> = Vec::new();
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
@@ -2243,7 +2336,8 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         let [l1, l2] = &*links;
                         turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
                     }
-                    Some(EndVerdict::Turn(..)) | None => {}
+                    Some(EndVerdict::Mixed(m)) if !mixed.contains(&m) => mixed.push(m),
+                    Some(EndVerdict::Turn(..) | EndVerdict::Mixed(..)) | None => {}
                 }
             }
         }
@@ -2251,6 +2345,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     end_faces.sort_by_key(|(v, _)| *v);
     end_faces.dedup_by_key(|(v, _)| *v);
     turns.sort_by_key(|t| t.vertex);
+    mixed.sort_by_key(|m| m.vertex);
 
     Ok(BatteryVerdict {
         chains,
@@ -2259,6 +2354,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         end_faces,
         joints,
         turns,
+        mixed,
         smooth,
     })
 }
@@ -2373,6 +2469,13 @@ fn is_seam_vertex<T: Decide>(
         _ => false,
     }
 }
+
+/// The refusal for a request that stops where its edge runs on
+/// smoothly into an edge it does not name: part of a tangent run
+/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
+/// Its recourse asks for the whole run.
+pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs smoothly into an \
+     unrequested one, against a face tangent to its support";
 
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.
@@ -2961,10 +3064,12 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// from a chamfer and from a fillet the section [`cap_transverse`]
 /// picks. The patch needs the vertex's three edges of one convexity;
 /// at a plane–plane end where they mix, one edge and the two that round
-/// alike end as they do at a uniform vertex, and any other request
-/// refuses [`CornerConfig::MixedConvexity`] through [`corner_config`]
-/// ([`mixed_end_is_built`]). A curved link's end at a mixed vertex is
-/// judged as at a uniform one: its open-chain door refuses it.
+/// alike end as they do at a uniform vertex, all three build the mixed
+/// corner where [`mixed_corner_square`] admits it, and the odd edge with
+/// one other refuses [`CornerConfig::MixedConvexity`] through
+/// [`corner_config`] ([`mixed_end_is_built`]). A curved link's end at a
+/// mixed vertex is judged as at a uniform one, short of all three: its
+/// open-chain door refuses it.
 /// The uniform trihedron returns `None`: the carved trihedral
 /// configuration has no tag of its own ([`CornerConfig::ThreeConvexEdges`]
 /// names the convex one, and by Ev's ruling on PR 1935 none names the
@@ -3059,6 +3164,29 @@ fn corner_at<T: Decide + Bounds>(
         )
         .map(|()| None);
     }
+    // A request that stops where its edge runs on smoothly: an edge at
+    // the end it does not name meets one of the link's supports
+    // smoothly, so the outline runs on past the end, tangentially, and
+    // the band would stop against a face tangent to its own support.
+    // That is the end's situation whatever the link's arm, and it is
+    // read before anything a cut-off or a corner would read.
+    for e in edges.iter().filter(|e| !requested.contains(e)) {
+        if let Ok(Resolved::Smooth(..)) = resolve_link(body, *e, radius, band, kind) {
+            let sides = topo::readback::edge_sides(body, *e).map_err(|_| {
+                unresolved(
+                    EntityId::Edge(*e),
+                    "a smooth edge's two faces at a chain end",
+                )
+            })?;
+            let (f, g) = sides.faces();
+            if [f, g].iter().any(|&x| x == link.face_a || x == link.face_b) {
+                return Err(super::surgery::unbuilt_run_out(
+                    EntityId::Vertex(vertex),
+                    PARTIAL_TANGENT_RUN,
+                ));
+            }
+        }
+    }
     // Between planes, how many of the three edges the request names
     // decides the end; the link's own edge is one of them. Any other
     // band's end is judged as a corner alone, and the surgery's door
@@ -3145,18 +3273,41 @@ fn corner_at<T: Decide + Bounds>(
     // A mixed vertex wants the patch's uniformity only where the request
     // asks for the patch or for the mixed corner's own rule; a curved
     // link's end is judged as at a uniform vertex, where its open-chain
-    // door says what it builds.
-    if matches!(convex, 0 | 3) || (plane_plane && !mixed_end_is_built(&resolved, requested, convex))
-    {
-        corner_config(vertex, valence, convex, normals, radius, band)?;
-    } else {
-        corner_independence(vertex, normals, radius, band)?;
+    // door says what it builds. All three named is the mixed corner's
+    // own rule, built between planes where `E` is square to the odd edge.
+    let odd_is_convex = convex == 1;
+    let odd = resolved.iter().find(|l| {
+        !matches!(convex, 0 | 3) && matches!(l.convexity, Convexity::Convex) == odd_is_convex
+    });
+    let mut mixed = None;
+    match odd {
+        Some(odd) if named == 3 => {
+            let host = mixed_corner_square(
+                vertex,
+                odd,
+                &resolved,
+                &faces,
+                normals,
+                (radius, kind),
+                band,
+            )?;
+            corner_independence(vertex, normals, radius, band)?;
+            mixed = Some(MixedVertex {
+                vertex,
+                odd: odd.edge,
+                host,
+            });
+        }
+        Some(odd) if !plane_plane || mixed_end_is_built(&resolved, requested, odd.edge) => {
+            corner_independence(vertex, normals, radius, band)?;
+        }
+        _ => corner_config(vertex, valence, convex, normals, radius, band)?,
     }
     if !plane_plane {
         return Ok(None);
     }
     match (named, end_normal) {
-        (3, _) => Ok(None),
+        (3, _) => Ok(mixed.map(EndVerdict::Mixed)),
         (2, _) => {
             let mut requested_links = resolved.into_iter().filter(|l| requested.contains(&l.edge));
             let (Some(l1), Some(l2), None) = (
@@ -3182,23 +3333,75 @@ fn corner_at<T: Decide + Bounds>(
     }
 }
 
+/// **The mixed corner with all three edges requested** (a vertex whose
+/// three edges mix convexity): the odd band is cut off in `E`, the face
+/// the odd edge does not lie in, and the pair runs on through a link
+/// resting on `E` and on the odd band. Built where every link is
+/// plane–plane and `E` is square to the odd edge
+/// ([`cap_transverse`]'s circle), and returns `E`; an oblique `E`
+/// refuses, the fillet [`BlendError::SpineUnsupported`] (its link would
+/// be a canal surface) and the chamfer [`CornerConfig::MixedConvexity`]
+/// (`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
+/// as does a curved link at the corner.
+///
+/// # Errors
+///
+/// As above; [`BlendError::Escalated`] on an in-band tilt.
+fn mixed_corner_square<T: Decide + Bounds>(
+    vertex: VertexKey,
+    odd: &Link<T>,
+    links: &[Link<T>],
+    faces: &[FaceKey],
+    normals: [Vec3<T>; 3],
+    (radius, kind): (T, BlendKind),
+    band: Band,
+) -> Result<FaceKey, BlendError> {
+    let convex = links
+        .iter()
+        .filter(|l| matches!(l.convexity, Convexity::Convex))
+        .count();
+    let unbuilt =
+        || super::surgery::unbuilt_corner_config(vertex, CornerConfig::MixedConvexity { convex });
+    if links.len() != 3 || !links.iter().all(|l| l.arm.is_plane_plane()) {
+        return Err(unbuilt());
+    }
+    let Some(slot) = faces
+        .iter()
+        .position(|f| *f != odd.face_a && *f != odd.face_b)
+    else {
+        return Err(unbuilt());
+    };
+    let Curve3::Line(spine) = &odd.blend.trim_a.0 else {
+        return Err(unbuilt());
+    };
+    match cap_transverse(vertex, normals[slot], spine.dir, radius, odd.arm_len, band)? {
+        EndSection::Circle => Ok(faces[slot]),
+        _ => match kind {
+            BlendKind::Fillet => Err(BlendError::SpineUnsupported {
+                edge: odd.edge,
+                supports: "plane–(cylinder band) at a mixed corner whose shared face is \
+                           oblique to the odd edge (a canal surface)",
+            }),
+            BlendKind::Chamfer => Err(unbuilt()),
+        },
+    }
+}
+
 /// **Whether a plane–plane end at a vertex whose three edges mix
 /// convexity is one the uniform rules already build.** The ODD edge is
 /// the one whose convexity differs from the other two, the PAIR. One
 /// requested edge, odd or of the pair, ends in the cut-off; the pair
 /// alone meets in the mitre, which at the reflex sector of their shared
-/// face is a join over the corner's wedge. The odd edge together with
-/// any other edge there wants the mixed corner's own rule (the odd band
-/// cut off, the pair carried through), which is not built. `convex` is
-/// the vertex's count of convex edges, `1` or `2`.
-fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], convex: usize) -> bool {
-    let odd_is_convex = convex == 1;
+/// face is a join over the corner's wedge. All three is the mixed
+/// corner ([`mixed_corner_square`]). The odd edge with one other refuses
+/// here: the fillet's for good, its partner's band having to stop where
+/// that edge runs smoothly into the cut-off arc, and the chamfer's until
+/// its own rule is built.
+fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], odd: EdgeKey) -> bool {
     let mut named = links.iter().filter(|l| requested.contains(&l.edge));
     match (named.next(), named.next(), named.next()) {
         (Some(_), None, None) => true,
-        (Some(a), Some(b), None) => [a, b]
-            .iter()
-            .all(|l| matches!(l.convexity, Convexity::Convex) != odd_is_convex),
+        (Some(a), Some(b), None) => a.edge != odd && b.edge != odd,
         _ => false,
     }
 }
@@ -3357,6 +3560,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             run_of.push((l.edge, ids[i]));
         }
     }
+    // Links of one chain whose bands cannot meet: those joined along the
+    // chain (either way round on a closed one) by links turning less
+    // than a half turn in all. Each link's band lies within its own window (the
+    // slab between a straight link's end normals, the wedge of an arc's),
+    // and the windows of two links joined by such a run lie on either side
+    // of it, so the pair is not a question; their sampled gap against
+    // both setbacks would refuse two arcs flanking a short flat whatever
+    // the flat's own length. A turning read near the half turn screens.
+    let apart = chain_apart(body, chains)?;
     let run =
         |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
     let members = |e: EdgeKey| -> Vec<EdgeKey> {
@@ -3405,6 +3617,9 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 }
                 if decided.contains(&(*ei, *ej)) || decided.contains(&(*ej, *ei)) {
+                    continue;
+                }
+                if apart.contains(&(*ei, *ej)) || apart.contains(&(*ej, *ei)) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries,
@@ -3471,6 +3686,98 @@ fn consumption_sweep<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The pairs of one chain's links that are not a clearance question**
+/// ([`consumption_sweep`]): two links joined along the chain — on a
+/// closed chain one way round or the other, on an open one along it —
+/// by links whose turnings sum to less than a half turn; and on an open
+/// chain, an edge at either end that the chain does not hold against
+/// each link the run to that end turns less than a half turn from, which
+/// the plan meters in closed form (below). A link's turning is its arc's sweep, a line's zero; a
+/// carrier of another kind turns a half turn, so it joins nothing. The
+/// sum is read for selection only: a sum not certainly below the half
+/// turn leaves the pair to the screen.
+///
+/// **What it rests on: the spine bound `r < ρ/2`** that predicate 3
+/// (spine regularity) enforces on every arc of radius `ρ`, so no spindle
+/// torus is built. A
+/// link's band then lies within its own window, the slab between a
+/// straight link's end normals or the wedge of an arc's, and windows of
+/// links joined by a run turning less than a half turn lie on either
+/// side of it. A spindle torus's band would reach back across its own
+/// wedge's planes, and two such windows could meet; admitting spindle
+/// tori would take this argument's margin away. The argument reads only
+/// the links between the pair, so it holds on an open chain as on a
+/// closed one: where the chain ends is no part of it.
+// Premise, enforced upstream: every arc of radius `ρ` carries a ball of
+// radius `r < ρ/2` (predicate 3, spine regularity), so each link's band
+// stays inside its own window and no spindle torus reaches back across
+// its wedge's planes.
+fn chain_apart<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+) -> Result<Vec<(EdgeKey, EdgeKey)>, BlendError> {
+    let mut apart = Vec::new();
+    for chain in chains {
+        let closed = matches!(chain.closure, ChainClosure::Closed);
+        let links: Vec<&Link<T>> = chain.links().collect();
+        let n = links.len();
+        let mut turning = Vec::with_capacity(n);
+        for l in &links {
+            let (c, t0, t1) = carrier_of(body, l.edge)?;
+            turning.push(match c {
+                Curve3::Line(_) => T::zero(),
+                Curve3::Circle(_) => (t1 - t0).abs(),
+                _ => T::pi(),
+            });
+        }
+        // Walk order along the chain, so links `i` and `i + 1` meet.
+        let half = T::pi();
+        let below = |sum: T| (sum - half).hi() < 0.0;
+        // A closed chain's pair `(i, i + k)` is joined one way round by
+        // the links between; an open chain's only by those before `n`.
+        for i in 0..n {
+            let reach = if closed { n.saturating_sub(1) } else { n - i };
+            for k in 2..reach {
+                let j = (i + k) % n;
+                let ahead = (1..k)
+                    .map(|m| turning[(i + m) % n])
+                    .fold(T::zero(), |a, b| a + b);
+                if below(ahead) {
+                    apart.push((links[i].edge, links[j].edge));
+                }
+            }
+        }
+        // An open chain's END: an edge the chain does not hold at its
+        // first or last vertex (an end face's rim) against each other
+        // link the run to that end turns less than a half turn from.
+        // The link at the end meets that edge, and the chain's other
+        // links' strips on their supports are metered against it in
+        // closed form by the plan (`surgery::ring_clearance_pass`, arms
+        // (d) and (e)), each within its own window, so the screen's
+        // sampled gap against a setback is no question there.
+        if let ChainClosure::Open { head, tail } = chain.closure {
+            let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
+            for (v, end) in [(head, 0), (tail, n - 1)] {
+                let at = fan_at(body.edges_of_vertex(v)).ok_or_else(|| {
+                    unwalked(EntityId::Vertex(v), "an open chain's end, for its edges")
+                })?;
+                let others: Vec<EdgeKey> = at
+                    .into_iter()
+                    .filter(|e| !chain_edges.contains(e))
+                    .collect();
+                for i in (0..n).filter(|&i| i != end) {
+                    let between = if i < end { i + 1..end + 1 } else { end..i };
+                    let turned = between.map(|m| turning[m]).fold(T::zero(), |a, b| a + b);
+                    if below(turned) {
+                        apart.extend(others.iter().map(|&e| (links[i].edge, e)));
+                    }
+                }
+            }
+        }
+    }
+    Ok(apart)
 }
 
 /// **The rings of a support `face` that the strip meter decides**, each

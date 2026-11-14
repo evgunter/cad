@@ -107,7 +107,9 @@ fn c_block(o: Vec3<f64>) -> BooleanBody<f64> {
 /// sector), reads the arc on the wrong side of the floor, sets the
 /// lever past the face's own
 /// edges (the short arc's carrier then reads below the floor at it), or
-/// does not read the tangent wall's bend.
+/// does not read the tangent wall's bend, along the tip or at the
+/// ridge's two ends, where the wall's corner lies on the floor's plane (a
+/// sheet tangent to a planar face along a line).
 #[test]
 fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
     let ridges: [(&str, Corners); 4] = [

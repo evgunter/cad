@@ -153,6 +153,7 @@ pub(crate) enum SegTag {
     BandFoot,
     BandCross,
     BandCut,
+    BandSection,
     BandSlit,
     // Shell
     Inner,
@@ -160,6 +161,8 @@ pub(crate) enum SegTag {
     HoleRim,
     // Repetition
     Member,
+    // Blend, appended
+    HostFoot,
 }
 
 impl SegTag {
@@ -203,6 +206,8 @@ impl SegTag {
             Self::EndArc => s::SegTag::EndArc,
             Self::Mitre => s::SegTag::Mitre,
             Self::TurnFoot => s::SegTag::TurnFoot,
+            Self::BandSection => s::SegTag::BandSection,
+            Self::HostFoot => s::SegTag::HostFoot,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -858,10 +863,14 @@ pub(crate) fn select_refusal(
             "the comparand of a distance must be a length".to_string()
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
-        R::NoMember { member, .. } => format!(
-            "the read holds no member at {member:?}: read a member the family has, one value \
-             per index"
-        ),
+        R::NoMember { member, .. } => {
+            let member: Vec<String> = member.iter().map(u32::to_string).collect();
+            format!(
+                "the read holds no member at [{}]: read a member the family has, one value \
+                 per index",
+                member.join(", ")
+            )
+        }
         R::Family { .. } => "a selection reads one body, and this read is a family read \
                               whole: select from one member of it, `xs[i]`"
             .to_string(),
@@ -958,6 +967,8 @@ mod growth_tripwire {
             s::SegTag::EndArc => SegTag::EndArc,
             s::SegTag::Mitre => SegTag::Mitre,
             s::SegTag::TurnFoot => SegTag::TurnFoot,
+            s::SegTag::BandSection => SegTag::BandSection,
+            s::SegTag::HostFoot => SegTag::HostFoot,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,

@@ -164,16 +164,21 @@ impl<T: Decide> Body<T> {
                 )
             })
         };
-        let refused = |refusal| match refusal {
-            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
-                escalation,
-            )) => EulerOpError::SplitSmoothEscalated {
-                edge,
-                diag: escalation.diag(),
-            },
-            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(diag)) => {
-                EulerOpError::SplitSmoothBendEscalated { edge, diag }
+        // The rule's escalation by the order that raised it: the bend, or
+        // the first-order class.
+        let escalated = |escalation: geom_brep::MustCarryEscalation| {
+            let diag = escalation.diag();
+            match escalation.rung() {
+                geom_brep::MustCarryRung::Bend => {
+                    EulerOpError::SplitSmoothBendEscalated { edge, diag }
+                }
+                geom_brep::MustCarryRung::Arm | geom_brep::MustCarryRung::Wedge => {
+                    EulerOpError::SplitSmoothEscalated { edge, diag }
+                }
             }
+        };
+        let refused = |refusal| match refusal {
+            geom_brep::PairRefusal::InBand(escalation) => escalated(escalation),
             geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
                 edge,
                 mixed: Some(stations),
@@ -226,26 +231,7 @@ impl<T: Decide> Body<T> {
             | geom_brep::EdgeDescriptionSpec::Scaffold(_) => return Ok(spec),
         };
         let [ka, kb] = pair.keys();
-        // The parent's two faces, each beside the key it lies on: the
-        // region the rest is read over.
-        let sides = crate::readback::edge_sides_of(
-            self,
-            edge,
-            crate::live::proven(&self.edges, edge, EntityId::Edge),
-        );
-        let face_on = |k| {
-            [sides.plus, sides.minus]
-                .into_iter()
-                .find(|side| side.surface == k)
-                .map(|side| side.face)
-        };
-        let rest = crate::rest_locus(
-            self,
-            [(ka, face_on(ka)), (kb, face_on(kb))],
-            &spec.carrier,
-            (spec.param_start, spec.param_end),
-            band,
-        );
+        let rest = crate::rest_locus([ka, kb]);
         let description = geom_brep::must_carry_description(
             geom_brep::SmoothJoin {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],
@@ -260,8 +246,7 @@ impl<T: Decide> Body<T> {
                 witness,
             },
             band,
-            |_, diag| EulerOpError::SplitSmoothEscalated { edge, diag },
-            |_, diag| EulerOpError::SplitSmoothBendEscalated { edge, diag },
+            escalated,
             |mixed| EulerOpError::SplitSmoothRefuted { edge, mixed },
         )?
         .spec(rest);

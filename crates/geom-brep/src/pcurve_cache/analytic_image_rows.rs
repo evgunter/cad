@@ -458,7 +458,7 @@ fn frame(g: &mut fuzz::Rng) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let mut v = || Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
     let (a, b) = (v(), v());
     let normal = a.normalize();
-    let u_ref = (b - normal * b.dot(normal)).normalize();
+    let u_ref = super::closed_image_rows::across(b, normal);
     let mut p = || g.range(-10.0, 10.0);
     (Point3::new(p(), p(), p()), normal, u_ref)
 }
@@ -483,9 +483,29 @@ fn knots(g: &mut fuzz::Rng, degree: usize) -> Vec<f64> {
 /// certifies at both scalars.
 #[test]
 fn a_stated_image_on_its_carrier_certifies() {
-    let mut g = fuzz::start("analytic_image_on_its_carrier");
+    stated_images_on_their_carriers(&mut fuzz::start(ON_ITS_CARRIER));
+}
+
+/// The no-false-refusal row's sweep label.
+const ON_ITS_CARRIER: &str = "analytic_image_on_its_carrier";
+
+/// **A cone's General image whose station read wide at `Interval`**: the
+/// no-false-refusal row at the sweep seed that drew it (filed as
+/// `main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12`). A degree-1
+/// image on a cone's ruling over `[0.260, 0.917]` read its sample 5 at
+/// `[0, 6.8e-12]` at ε 1e-12 when the stations were computed at the
+/// scalar; read at held stations (PR 6857) it certifies.
+#[test]
+fn a_cone_general_image_at_its_sweep_seed_certifies() {
+    stated_images_on_their_carriers(&mut fuzz::pinned_sweep(
+        ON_ITS_CARRIER,
+        0xbc20_d21a_e8ad_d37e,
+    ));
+}
+
+fn stated_images_on_their_carriers(g: &mut fuzz::Rng) {
     for _ in 0..fuzz::scaled(16) {
-        let (origin, axis, u_ref) = frame(&mut g);
+        let (origin, axis, u_ref) = frame(g);
         let chart = Chart::ALL[g.below(3)];
         let surface = match chart {
             Chart::Plane => Surface::Plane {
@@ -507,7 +527,7 @@ fn a_stated_image_on_its_carrier_certifies() {
             },
         };
         let degree = 1 + g.below(3);
-        let knots = knots(&mut g, degree);
+        let knots = knots(g, degree);
         let count = knots.len() - degree - 1;
         let rational = g.below(2) == 0;
         let weights: Vec<f64> = (0..count)
@@ -566,6 +586,169 @@ fn a_stated_image_on_its_carrier_certifies() {
                     fuzz::replay()
                 );
             }
+        }
+    }
+}
+
+/// **A correct cone image is read at its schedule's points**: the
+/// seed `0x3f4f8ff23555b906` case of [`a_stated_image_on_its_carrier_certifies`],
+/// a cubic on a cone's ruling `u = 2.87` about 13 m from the origin over
+/// `[0.0968, 0.6776]`. At `Interval` its schedule's sample 5 read
+/// `[0, 1.03e-12]` when the station was computed at the scalar: the
+/// station's few ulps, taken through each de Boor level of the image
+/// and of the carrier apart, gave each point a width of about 5e-13. Read
+/// at a point the widest sample is 2.0e-13, its evaluation's own width,
+/// under half the finest band, and the image certifies at both scalars.
+///
+/// Built with `PCERT_RADIAL_PAIR_MUTANT=stated-station-computed` (the
+/// stations computed at the scalar again) the width goes red at every ε,
+/// and the certificate at ε 1e-12.
+#[test]
+fn a_cone_image_at_a_steep_sample_certifies() {
+    /// The schedule's widest read at `f64`, at the computed stations.
+    const F64_MAX_RESIDUAL: f64 = 3.552_713_678_800_501e-15;
+    let surface = Surface::Cone {
+        apex: Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339),
+        axis: Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
+        half_angle: 0.8623104825780505,
+        u_ref: Vec3::new(
+            -0.6624868025539791,
+            -0.7404071868429866,
+            -0.11361528996160745,
+        ),
+    };
+    let knots = vec![
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1448541102786573,
+        0.38149502320106765,
+        0.4138752100816112,
+        0.46603094511314475,
+        0.7183742614667262,
+        0.9279904547268244,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    ];
+    let v = [
+        3.78504987258565,
+        5.549067600844245,
+        6.367562884966736,
+        6.785334441285725,
+        7.91473224335402,
+        8.866765782593482,
+        9.885385134220844,
+        10.652871665246401,
+        12.245560720605674,
+        13.501791563036706,
+    ];
+    let control: Vec<Point2<f64>> = v
+        .iter()
+        .map(|&v| Point2::new(2.87484430612695, v))
+        .collect();
+    let weights = vec![1.0; control.len()];
+    let kv = KnotVector::clamped(knots, 3).unwrap();
+    let image = NurbsCurve2::new(kv.clone(), control.clone(), weights.clone()).unwrap();
+    let net = NurbsCurve3::new(
+        kv,
+        control.iter().map(|p| surface.eval(p.x, p.y)).collect(),
+        weights,
+    )
+    .unwrap();
+    let span = (0.09677920633227259, 0.6775887288383383);
+
+    // The read's width, at a band no reading of this image is near.
+    let c = Interval::from_f64;
+    let (surface_i, carrier) = (
+        surface.map_scalar(c),
+        Curve3::Nurbs(Arc::new(net.map_scalar(c))),
+    );
+    let pcurve = Pcurve::General(Arc::new(image.map_scalar(c)));
+    let coarse = geom_core::Band::linear_at(geom_core::Tol::witness(), 1e-6).unwrap();
+    let cert = super::PcurveCache::certify_stated_bound(
+        super::stated::StatedDoor::of(&surface_i, &pcurve),
+        super::stated::EdgeSpan {
+            params: (c(span.0), c(span.1)),
+            outer: span,
+        },
+        &carrier,
+        &surface_i,
+        coarse,
+        crate::FittedLane::certified(),
+    )
+    .unwrap_or_else(|e| panic!("a correct image certifies at a coarse band: {e:?}"));
+    let width = geom_core::Bounds::hi(cert.max_residual);
+    assert!(
+        width < 0.5e-12,
+        "the schedule's read at Interval is its evaluation's width, under half of 1e-12: {width:e}"
+    );
+    // At `f64` the held stations are the schedule's own, so its read is
+    // the one the computed stations gave, to the bit.
+    let carrier_f64 = Curve3::Nurbs(Arc::new(net.clone()));
+    let pcurve_f64 = Pcurve::General(Arc::new(image.clone()));
+    let f64_cert = super::PcurveCache::certify_stated_bound(
+        super::stated::StatedDoor::of(&surface, &pcurve_f64),
+        super::stated::EdgeSpan {
+            params: span,
+            outer: span,
+        },
+        &carrier_f64,
+        &surface,
+        coarse,
+        crate::FittedLane::certified(),
+    )
+    .unwrap_or_else(|e| panic!("a correct image certifies at f64: {e:?}"));
+    assert_eq!(
+        f64_cert.max_residual.to_bits(),
+        F64_MAX_RESIDUAL.to_bits(),
+        "the schedule's read at f64 is the computed stations' own: {:e}",
+        f64_cert.max_residual
+    );
+
+    let stated = Image::General(Arc::new(image));
+    for door in DOORS {
+        let got = (door.certify)(&surface, &stated, &net, span);
+        assert!(
+            got.is_ok(),
+            "at {}: a correct cone image certifies: {got:?}",
+            door.name
+        );
+    }
+}
+
+/// **A stated image's stations at `f64` are the schedule's**: the held
+/// schedule the stated route reads (`EdgeSpan::stations`, over the edge's
+/// outer ends as the edge certificate passes them) is bit for bit
+/// [`crate::certify::sample_param`] over `[t0, t1]` at every sample, on a
+/// whole span, a sub-span, a span off the unit interval and one far from
+/// zero, so holding the stations moves no `f64` read.
+///
+/// Built with `PCERT_RADIAL_PAIR_MUTANT=stated-station-mirrored` (the
+/// held schedule run backwards over its ends) this row goes red.
+#[test]
+fn a_stated_images_stations_are_the_schedules_at_f64() {
+    let spans = [
+        (0.0, 1.0),
+        (0.09677920633227259, 0.6775887288383383),
+        (-3.7, 12.1),
+        (1000.0, 1000.3),
+    ];
+    for (t0, t1) in spans {
+        let span = super::stated::EdgeSpan {
+            params: (t0, t1),
+            outer: crate::carrier_net::outer_ends((t0, t1)),
+        };
+        let stations = span.stations();
+        for i in 0..crate::certify::CERT_SAMPLES {
+            let (held, computed) = (stations.at(i), crate::certify::sample_param(t0, t1, i));
+            assert_eq!(
+                held.to_bits(),
+                computed.to_bits(),
+                "over [{t0}, {t1}], station {i}: held {held} is the schedule's {computed}"
+            );
         }
     }
 }
@@ -861,7 +1044,10 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
     assert!(
         matches!(
             super::StatedDoor::of(&surface, &image),
-            Some(super::StatedDoor::Patch { .. })
+            super::StatedDoor::Patch {
+                class: super::patch::PatchClass::Ruling,
+                ..
+            }
         ),
         "the iso line routes to the ruling's patch"
     );

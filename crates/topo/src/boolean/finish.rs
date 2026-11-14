@@ -41,10 +41,10 @@ use super::shell_witness::{
 use super::zip::SeamCorrespondence;
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
+use crate::carve::{carve, single_solid};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
-use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -91,6 +91,7 @@ fn promote_solid<T: Decide>(
     body: &mut Body<T>,
     completed: &[CompletedPolygonPair],
     operand: Operand,
+    tol: Tol,
 ) -> Result<PromotedSides, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut side_of: SecondaryMap<FaceKey, SideCode> = SecondaryMap::new();
@@ -112,8 +113,10 @@ fn promote_solid<T: Decide>(
             return Err(desync("null-face outer loop is neither role loop"));
         };
         // The transient section faces inherit the null face's surface
-        // (module docs — they die in the zip).
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        // (module docs — they die in the zip). The promoted ring lies on
+        // the other side of its loop, so on a chart with a singular set
+        // its rows are decided again, at the band.
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let (in_face, out_face) = if ring == in_loop {
             (promoted.face, face)
         } else {
@@ -226,14 +229,14 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     );
 
     // ---- Promotion, both solids (F9 roles as data). ----
-    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A)?;
-    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B)?;
+    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A, tol)?;
+    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B, tol)?;
 
     // ---- Distribution + selection, both solids. ----
     let a_solid =
-        single_solid(&red.a).map_err(|_| desync("operand A is not a single-solid body"))?;
+        single_solid(&red.a).map_err(|e| super::CarveStep::Kept(Operand::A).refused(e))?;
     let b_solid =
-        single_solid(&red.b).map_err(|_| desync("operand B is not a single-solid body"))?;
+        single_solid(&red.b).map_err(|e| super::CarveStep::Kept(Operand::B).refused(e))?;
     debug_assert_contacts_undecisive(
         &red.contacts,
         (&red.a, b_pristine),
@@ -274,9 +277,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- Carve both kept sub-bodies (keys preserved). ----
     let a_kept = carve(&red.a, a_solid, &a_kept_shells)
-        .map_err(|_| desync("carving the kept A component failed"))?;
+        .map_err(|e| super::CarveStep::Kept(Operand::A).refused(e))?;
     let mut b_kept = carve(&red.b, b_solid, &b_kept_shells)
-        .map_err(|_| desync("carving the kept B component failed"))?;
+        .map_err(|e| super::CarveStep::Kept(Operand::B).refused(e))?;
     let carved_lineage = [
         super::discard::carved_lineage(&red.a, &a_kept),
         super::discard::carved_lineage(&red.b, &b_kept),
@@ -289,7 +292,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- The combine door. ----
     let mut body = a_kept;
-    let solid = single_solid(&body).map_err(|_| desync("kept A component is not one solid"))?;
+    let solid = single_solid(&body).map_err(|e| super::CarveStep::Combine.refused(e))?;
     let graft = graft_solid(&mut body, solid, &b_kept, tol)?;
 
     // ---- Seam bookkeeping in result keys. ----
@@ -319,7 +322,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     // ---- Seam vertex correspondence from the pair records: the
     // surviving end of each pair's A edge ↔ the surviving end of its
     // B edge (exactly one each — the other went with the discarded
-    // component). ----
+    // component). A vertex may take several correspondents, one per
+    // pair or ring run that cuts it, and the zip reads which belong to
+    // one cone of the result (`zip::split_cones`). ----
     let mut a_attr: SecondaryMap<crate::entity::EdgeKey, crate::null::NullEdge> =
         SecondaryMap::new();
     let mut b_attr: SecondaryMap<crate::entity::EdgeKey, crate::null::NullEdge> =
@@ -331,11 +336,6 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
     }
     let mut vertex_map = SeamCorrespondence::new();
-    // Each A survivor's v-v pairs, each with the B survivor it gave.
-    let mut vv_partners: BTreeMap<VertexKey, BTreeMap<(VertexKey, VertexKey), VertexKey>> =
-        BTreeMap::new();
-    // Each A survivor's pierce runs, each with the B survivor it gave.
-    let mut pierce_runs: BTreeMap<VertexKey, Vec<(super::PairSite, VertexKey)>> = BTreeMap::new();
     for pair in &red.null_pairs {
         let aa = a_attr
             .get(pair.a_edge)
@@ -359,39 +359,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
             (None, Some(v)) => v,
             _ => return Err(desync("pair B edge has not exactly one surviving end")),
         };
-        let bs = vertex_map.entry(a_survivor).or_default();
-        bs.insert(b_survivor);
-        let pairs = vv_partners.entry(a_survivor).or_default();
-        let mut one_each = true;
-        if let super::PairSite::VertexVertex(c) = pair.site {
-            one_each = pairs
-                .insert((c.a, c.b), b_survivor)
-                .is_none_or(|old| old == b_survivor);
-        }
-        if let super::PairSite::VertexAOnFaceB(_) | super::PairSite::VertexBOnFaceA(_) = pair.site {
-            pierce_runs
-                .entry(a_survivor)
-                .or_default()
-                .push((pair.site, b_survivor));
-        }
-        // An A vertex several crossing pairs cut lies on one seam per
-        // pair, with that pair's B vertex: every B correspondent is one
-        // pair's, and the pairs share their A vertex. A piercing vertex
-        // that keeps several In runs lies on its seam once per run, with
-        // that run's ring copy; a ring copy, once per run it holds, of
-        // the pierces of its face at its point (`vtxfac::mint_ring`).
-        let shared_cut = one_each
-            && pairs
-                .keys()
-                .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
-            && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
-        let one_ring = pierce_runs.get(&a_survivor).is_some_and(|runs| {
-            runs.iter().all(|&(site, _)| red.one_ring(site, runs[0].0))
-                && runs.iter().map(|&(_, b)| b).collect::<BTreeSet<_>>() == *bs
-        });
-        if bs.len() > 1 && !shared_cut && !one_ring {
-            return Err(desync("conflicting seam vertex correspondence"));
-        }
+        vertex_map.entry(a_survivor).or_default().insert(b_survivor);
     }
 
     // A kept vertex in result keys: A's survive the carve in place,

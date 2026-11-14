@@ -53,7 +53,9 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+pub mod carrier_eq;
 mod carrier_net;
+pub mod carrier_pose;
 pub mod carrier_resolution;
 pub mod certify;
 pub mod chart_image;
@@ -102,10 +104,12 @@ pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
+pub mod plane_eq;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod row_contact;
 pub mod rows;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
@@ -114,7 +118,16 @@ pub mod tangent;
 pub mod torus_convention;
 pub mod variety;
 
+pub use carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
+    ConsumedExtent, carrier_eq,
+};
 pub use carrier_net::CarrierEnclosureRefusal;
+pub use carrier_pose::{
+    CarrierPose, CarrierPoseRefusal, Directions, Nest, POSE_AXES_PARALLEL, POSE_AXIS_ALONG_PLANE,
+    POSE_PLANES_FACING, POSE_PLANES_PARALLEL, POSE_ROUND_LARGER, POSE_ROUND_SIDE, PlanePair,
+    PlaneRound, Posed, RoundPair, carrier_pose, directions_parallel,
+};
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
@@ -127,14 +140,15 @@ pub use description::{
     Structural, authority_of,
 };
 pub use dihedral::{
-    Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DIHEDRAL_SIGN,
-    Dihedral, DihedralClass, DihedralReading, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MixedStations, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
-    SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd,
-    WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
-    classify_material_pairing_as, classify_seam, dihedral_class, folded_lever_arm,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
+    AlignmentReading, Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN,
+    DIHEDRAL_SIGN, Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation,
+    GRADIENT_ALIGNMENT_LEVER, GradientAlignment, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    MaterialPairing, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryRung, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace,
+    SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_edge_wedge, classify_seam,
+    folded_lever_arm, gradient_alignment, material_kappa_rel, must_carry_description,
+    must_carry_over_edge, normals_alignment, reask_chart, reask_pair, rest_locus,
     tangent_second_order,
 };
 pub use dihedral_side::{
@@ -145,11 +159,11 @@ pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
     CarrierDomainRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
-    analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
-    nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
-    sub_arc_joint,
+    analytic_rung3, arc_rim_candidates, arc_rim_measured, curved_nurbs_limbs, first_within,
+    is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
+    probe_pick, sub_arc_joint,
 };
-pub use edge_wedge::{Bend, WedgeVerdict, WedgeWalk, edge_wedge_over};
+pub use edge_wedge::{Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
@@ -158,8 +172,9 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup,
-    edge_reach_bounds, points_diameter, points_lever_from, polygon_half_perimeter,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
+    edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
+    polygon_half_perimeter, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -239,10 +254,12 @@ pub use pcurve_cache::{
     iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
     read_point_incidence, ruling_miss,
 };
+pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
+pub use row_contact::{RowContact, analytic_row_contact, analytic_shared_row};
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,

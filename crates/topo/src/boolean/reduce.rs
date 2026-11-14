@@ -64,7 +64,6 @@
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
-use super::plane_eq::PlaneDesc;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
@@ -75,10 +74,10 @@ use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
 use crate::separating::Item;
-use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
+use geom_brep::PlaneDesc;
 use geom_brep::curve_face::circle_roots::{CircleRoots, door_refusal};
 use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 use geom_brep::roots::{Roots, Unsettled};
@@ -403,8 +402,8 @@ pub(crate) fn index(k: usize) -> u32 {
 /// faces can reach under every op is certified or typed; the doors are
 /// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
 /// operands as given: the op enters through the op tables (an
-/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
-/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the
+/// surviving copy of a coincident pair, [`super::tables::surviving_copy`]) and the
 /// join's reading of the subtrahend's normals reversed (`stands_on`).
 /// ∖ reverts the kept subtrahend pieces only after classification
 /// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void
@@ -501,7 +500,7 @@ pub(super) struct UnsupportedPair {
 /// The rung is kind-generic and it is not kind-blind: what a
 /// declaration may name is bounded by the certified carrier inventory
 /// (`validate_declarations`' `inventory_face`, which is
-/// [`mod@super::carrier_eq`]'s rung list). A kind with no rung cannot
+/// [`mod@geom_brep::carrier_eq`]'s rung list). A kind with no rung cannot
 /// survive into a declaration, so it can never be covered here — one
 /// list decides both, and widening this gate is exactly and only
 /// widening that ladder.
@@ -650,13 +649,6 @@ pub(super) fn certified<T: geom_core::Real>(
         })
 }
 
-/// [`crate::face_normal::face_plane`] as the plane ladder's
-/// description: the same point and OUTWARD normal, `None` where that
-/// door answers `None`.
-pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    crate::face_normal::face_plane(body, face).map(|(origin, normal)| PlaneDesc { origin, normal })
-}
-
 /// A vertex of the swept solid `x`, whose slit tips at rest are `tips`,
 /// against the planar `face` of the other, `y`, at its offset from the
 /// face's plane through `origin` along the stored `normal` the door
@@ -692,24 +684,14 @@ fn vertex_face_side<T: Decide>(
             reference: geom_brep::ReferenceNormal::of_face_outward(outward),
         })
     };
+    // A far vertex's side is read in the frame the section reads the
+    // bounds' sides in, the face's outward one, by the door's one
+    // evaluation of an offset.
     let far = |far: VertexKey| {
         let q = x.resolve_vertex_point(far, crate::live::Proven);
-        let decided = geom_core::k_stats::decide_reported(
-            "bool_vertex_face_side",
-            Margin::of(geom::plane_offset(plane.origin, plane.normal, q)),
-            band,
-        )
-        .map_err(VertexRefusal::Offset)?;
-        Ok(match decided.sign {
-            Sign::Negative => SplitSide::Below,
-            Sign::Positive => SplitSide::Above,
-            Sign::Zero => SplitSide::On,
-        })
+        Offset::of(plane.origin, plane.normal, q).side_as("bool_vertex_face_side", band)
     };
-    let offset = Offset {
-        value: geom::plane_offset_rounded(origin, normal, at),
-        normal,
-    };
+    let offset = Offset::of(origin, normal, at);
     crate::vertex_section::decide_vertex_on_plane(
         "bool_vertex_face_side",
         (x, tips),
@@ -747,7 +729,7 @@ fn vertex_refusal(
 
 /// F7: the maximal-faces precondition through the coincidence ladder —
 /// same surface key, or Same±-oriented planes its margins decide one
-/// ([`super::oriented_plane_eq`]), across any edge ⇒
+/// ([`geom_brep::oriented_plane_eq`]), across any edge ⇒
 /// [`BooleanError::NonMaximalFaces`]; a near-coplanar dihedral surfaces
 /// as the predicate's own typed escalation instead. The ladder reads a
 /// ball about the shared edge's start that holds the edge, so the offset
@@ -783,7 +765,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }
             continue;
         }
-        let (Some(p1), Some(p2)) = (plane_desc(body, f1), plane_desc(body, f2)) else {
+        let (Some(p1), Some(p2)) = (
+            crate::face_normal::face_plane(body, f1),
+            crate::face_normal::face_plane(body, f2),
+        ) else {
             continue;
         };
         let at = body.resolve_vertex_point(
@@ -807,21 +792,21 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 None
             }
         };
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
+        let extent = geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
             cover.as_ref(),
             at,
         ));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
-        match super::oriented_plane_eq(&p1, &p2, &extent, band) {
-            Ok(super::PlaneRelation::Distinct) => {}
+        match geom_brep::oriented_plane_eq(&p1, &p2, &extent, band) {
+            Ok(geom_brep::CarrierRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Undecided { coincidence, .. }) => {
+            Err(geom_brep::CarrierEqError::Undecided { coincidence, .. }) => {
                 let pair = [(operand, f1), (operand, f2)];
                 return Err(BooleanError::CoplanarNeighbours {
                     operand,
@@ -829,10 +814,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     offset: super::readable_coincidence(coincidence, pair)?,
                 });
             }
-            Err(super::PlaneEqError::Escalated { rung, diag }) => {
+            Err(geom_brep::CarrierEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(rung, diag));
             }
-            Err(super::PlaneEqError::OffRing { torus, refusal }) => {
+            Err(geom_brep::CarrierEqError::OffRing { torus, refusal }) => {
                 return Err(super::off_ring_torus(
                     torus,
                     refusal,
@@ -997,7 +982,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // the M3 lane below (bit-identically for line edges, plus
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
-            let Some(plane) = plane_desc(y, face) else {
+            let Some(plane) = crate::face_normal::face_plane(y, face) else {
                 // The tree's overlap is a world-axis one: a curved face
                 // the edge, or either face the edge lies on, is apart
                 // from along a direction that turns with the operands
@@ -1763,9 +1748,11 @@ fn settle_in_plane<T: Decide>(
         // and panics on a stale one; the plane's `None` is then a face
         // that is not planar.
         let bounding = face_vertices(y, lie.face);
-        let plane = plane_desc(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
-            what: "a face an edge lies in lost its plane",
-        })?;
+        let plane = crate::face_normal::face_plane(y, lie.face).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a face an edge lies in lost its plane",
+            },
+        )?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -4307,7 +4294,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             match super::carrier_pair::carrier_pair_relation(x, pf, y, face, band) {
-                Ok(Ok(super::carrier_eq::CarrierRelation::Distinct)) => true,
+                Ok(Ok(geom_brep::CarrierRelation::Distinct)) => true,
                 Err(super::carrier_pair::PairUnread::OutsideInventory) => {
                     match x.proven_face(pf).surface() {
                         geom::Surface::Nurbs(sheet) => {
@@ -6606,9 +6593,11 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
     for &lies in lying_in {
         match lies {
             LyingIn::Plane(face) => {
-                let plane = plane_desc(y, face).ok_or(BooleanError::ClassificationInvariant {
-                    what: "a face an edge lies in lost its plane",
-                })?;
+                let plane = crate::face_normal::face_plane(y, face).ok_or(
+                    BooleanError::ClassificationInvariant {
+                        what: "a face an edge lies in lost its plane",
+                    },
+                )?;
                 let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
                 read_on_plane(
                     (x, x_is, tips),
@@ -8404,9 +8393,10 @@ mod clearance_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand};
     use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
+    use geom_brep::PlaneRung;
     use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {

@@ -11,7 +11,7 @@
 //! are compared (`geom_core::test_support::twins` reads both). A bare
 //! cosine/sine (the audited class
 //! (c) defects fixed in this unit: `bool_join_facing`,
-//! `bool_strut_order`, `bool_plane_orient`, `pm_census_ee_parallel`,
+//! `germ_order`, `plane_eq_orient`, `pm_census_ee_parallel`,
 //! `point_in_loop_arm`, `split_join_frame_arm`) is scale-INVARIANT
 //! and an area/volume is scale-QUADRATIC/CUBIC — both break the
 //! elementwise ratio this suite asserts.

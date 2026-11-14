@@ -21,7 +21,7 @@ use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::Notation;
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
+use crate::session::{Creation, NodeKindWanted, PlaceTarget, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -688,6 +688,41 @@ impl ViewerBehavior<'_> {
                 ),
             }),
         );
+        self.place_ask_ui(ui, &tool, &mut edited);
+        if let Some(target) = tool.target() {
+            let doc = self.session.committed_doc();
+            let loaded = tool.loaded_target().cloned();
+            ui.horizontal(|ui| {
+                ui.label(format!(
+                    "into: {}",
+                    crate::matetool::said_target(doc, target)
+                ));
+                let picking = tool.picking_target();
+                if ui
+                    .selectable_label(picking, "pick a body")
+                    .on_hover_text("the next pick names the space of the body it lands on")
+                    .clicked()
+                {
+                    edited.pick_target();
+                }
+                if ui.button("the world").clicked() {
+                    edited.set_target(PlaceTarget::space(pncad::document::VarId::WORLD));
+                }
+                if ui.button("a new space").clicked() {
+                    edited.set_target(PlaceTarget::NewSpace);
+                }
+                if let Some(loaded) = loaded.filter(|loaded| loaded != target)
+                    && ui.button("where it is").clicked()
+                {
+                    edited.set_target(loaded);
+                }
+            });
+        }
+        let off_target = self
+            .session
+            .landed_pair()
+            .map(|(doc, ev)| tool.off_target(doc, ev))
+            .unwrap_or_default();
         for (at, row) in tool.rows().iter().enumerate() {
             ui.horizontal(|ui| {
                 if ui
@@ -716,18 +751,61 @@ impl ViewerBehavior<'_> {
                 }
             });
             mate_picks_row(ui, &tool, at, by, &self.theme);
+            if let Some(&(_, space)) = off_target
+                .iter()
+                .find(|(reading, _)| *reading == crate::matetool::Reading::Mate(at))
+            {
+                self.off_target_row(
+                    ui,
+                    &tool,
+                    &mut edited,
+                    &format!("mate {}'s to", at + 1),
+                    space,
+                );
+            }
         }
+        // A loaded value along a direction or about an axis reads its
+        // space too, and is marked the same way.
+        for (reading, space) in &off_target {
+            if let crate::matetool::Reading::Value(id) = reading {
+                let coord = tool
+                    .door()
+                    .and_then(|door| door.base.constraints.iter().find(|c| c.id == *id))
+                    .and_then(|c| c.value())
+                    .map_or_else(
+                        || "a value".to_owned(),
+                        |v| format!("the {} value", v.coord.name()),
+                    );
+                self.off_target_row(ui, &tool, &mut edited, &coord, *space);
+            }
+        }
+        // A target change leaves the mates reading the space it leaves
+        // as written: one button strikes them all.
+        if let (Some(loaded), Some((doc, ev))) = (tool.loaded_target(), self.session.landed_pair())
+            && let Some(old) = crate::matetool::MateTool::target_space(loaded)
+        {
+            let mut read_off: Vec<crate::matetool::Reading> = Vec::new();
+            for (reading, space) in &off_target {
+                if *space == old && !read_off.contains(reading) {
+                    read_off.push(*reading);
+                }
+            }
+            let reading = read_off.len();
+            if reading > 0
+                && tool.target() != Some(loaded)
+                && ui
+                    .button(format!(
+                        "strike the {reading} that read {}",
+                        doc.spoken_space(old)
+                    ))
+                    .clicked()
+            {
+                edited.strike_reading(doc, ev, old);
+            }
+        }
+        self.copy_of_row(ui, &tool);
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
-        }
-        if tool.door().is_some() {
-            let mut into = tool.into_target_space();
-            if ui
-                .checkbox(&mut into, "move the copy into the target's space")
-                .changed()
-            {
-                edited.set_into_target_space(into);
-            }
         }
         let proposal = self.session.landed_pair().map(|(doc, ev)| {
             tool.proposal(doc, ev, self.session.tol())
@@ -854,6 +932,165 @@ impl ViewerBehavior<'_> {
             *open = edited;
         }
         ui.separator();
+    }
+
+    /// **What a Place asks before it is made** ([`crate::matetool::PlaceAsk`],
+    /// VARIABLES VR4): the name field, opened empty, where the body's one
+    /// source is anonymous and placing it again shares it (VR2: nothing
+    /// proposes a name); a button per source where several read the body.
+    fn place_ask_ui(&mut self, ui: &mut egui::Ui, tool: &MateTool, edited: &mut MateTool) {
+        let doc = self.session.committed_doc();
+        match tool.asking() {
+            None => {}
+            Some(crate::matetool::PlaceAsk::Name { source, .. }) => {
+                let read = doc
+                    .source(*source)
+                    .map_or_else(|| doc.spoken_var(*source), |body| doc.spoken_var(body.read));
+                crate::widgets::message_toned(
+                    ui,
+                    ToolKind::Mate.says(&format_args!(
+                        "placing {read} again shares its source: name it"
+                    )),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+                let mut commit = None;
+                let mut cancel = false;
+                ui.horizontal(|ui| {
+                    let Some(text) = edited.name_text_mut() else {
+                        return;
+                    };
+                    let field = ui.add(egui::TextEdit::singleline(text).desired_width(120.0));
+                    let entered =
+                        field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    let name = pncad::document::VarName::new(text.trim());
+                    let button = ui.add_enabled(name.is_ok(), egui::Button::new("Name and place"));
+                    let button = match &name {
+                        Ok(_) => button,
+                        Err(fault) => button.on_disabled_hover_text(fault.to_string()),
+                    };
+                    if entered || button.clicked() {
+                        commit = name.ok();
+                    }
+                    cancel = ui.button(crate::widgets::CANCEL).clicked();
+                });
+                if let Some(name) = commit
+                    && let Some(op) = edited.place_named(name)
+                {
+                    self.ops.push(op);
+                } else if cancel {
+                    edited.cancel_ask();
+                }
+            }
+            Some(crate::matetool::PlaceAsk::Source { sources, .. }) => {
+                crate::widgets::message_toned(
+                    ui,
+                    ToolKind::Mate.says(&format_args!(
+                        "the body is placed through {} sources: place one",
+                        sources.len()
+                    )),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+                let mut chosen = None;
+                ui.horizontal_wrapped(|ui| {
+                    for &source in sources {
+                        if ui.button(doc.spoken_var(source).to_string()).clicked() {
+                            chosen = Some(source);
+                        }
+                    }
+                    if ui.button(crate::widgets::CANCEL).clicked() {
+                        edited.cancel_ask();
+                    }
+                });
+                if let Some(source) = chosen
+                    && let Some(op) = edited.place_through(doc, source)
+                {
+                    self.ops.push(op);
+                }
+            }
+        }
+    }
+
+    /// **The placement's "copy of" row**: the body its copy copies and the
+    /// source it reads it through (VARIABLES VR4) — named, or the
+    /// placement's own — and the button that redefines that source as a
+    /// read of the selected body ([`SessionOp::RepointPlacements`]), as
+    /// the re-point offer does. A named source redefined here re-points
+    /// every placement reading it.
+    fn copy_of_row(&mut self, ui: &mut egui::Ui, tool: &MateTool) {
+        let Some(door) = tool.door() else {
+            return;
+        };
+        let doc = self.session.committed_doc();
+        let Some(source) = doc.copied_read(door.placement) else {
+            return;
+        };
+        let body = doc.through_sources(source).read;
+        let through = match doc.var_name(source) {
+            Some(name) => format!(" through {name}"),
+            None => String::new(),
+        };
+        let selected = self
+            .session
+            .selection()
+            .node()
+            .filter(|&node| node != door.placement && doc.read_of_node(node).is_some());
+        ui.horizontal(|ui| {
+            let copied = doc.operation_of(body).map_or_else(
+                || doc.spoken_var(body).to_string(),
+                |node| doc.spoken(node).to_string(),
+            );
+            ui.label(format!("copy of: {copied}{through}"));
+            if ui
+                .add_enabled(
+                    selected.is_some(),
+                    egui::Button::new("copy the selected body"),
+                )
+                .on_hover_text(
+                    "the source reads the body selected in the tree; every placement reading \
+                     it copies that body",
+                )
+                .clicked()
+                && let Some(node) = selected
+            {
+                self.ops.push(SessionOp::RepointPlacements {
+                    source,
+                    onto: node.into(),
+                });
+            }
+        });
+    }
+
+    /// **One marked reading of another space**: `what` (a mate's `to`, a
+    /// value) is in `space` while the placement is into another, said,
+    /// with `"Into <space>"` beside it as a target change of its own.
+    fn off_target_row(
+        &self,
+        ui: &mut egui::Ui,
+        tool: &MateTool,
+        edited: &mut MateTool,
+        what: &str,
+        space: pncad::document::VarId,
+    ) {
+        let doc = self.session.committed_doc();
+        let into = tool.target().map_or_else(String::new, |target| {
+            crate::matetool::said_target(doc, target)
+        });
+        let read = doc.spoken_space(space);
+        ui.horizontal(|ui| {
+            crate::widgets::message_toned(
+                ui,
+                ToolKind::Mate.says(&format_args!(
+                    "{what} is in {read}; this placement is into {into}"
+                )),
+                &self.theme,
+                Tone::Actionable,
+            );
+            if ui.button(format!("Into {read}")).clicked() {
+                edited.retarget_into(space);
+            }
+        });
     }
 
     /// The `Add part…` door: the open document's own directory,

@@ -47,12 +47,7 @@ pub(crate) fn cone(pose: Affine3<f64>) -> AtRestBody<f64> {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2);
     finished(
         "the cone",
-        topo::transform_rigid(
-            &body,
-            &geom_core::test_support::rigid(&(pose * spin), tol),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&(pose * spin), tol)).unwrap(),
         tol,
     )
 }
@@ -81,7 +76,6 @@ pub(crate) fn wedge(s: f64, pose: Affine3<f64>) -> AtRestBody<f64> {
         topo::transform_rigid(
             &raw,
             &geom_core::test_support::rigid(&(pose * to * turn), tol),
-            tol,
         )
         .unwrap(),
         tol,
@@ -316,11 +310,31 @@ fn the_overlap_is_its_grid_integral() {
     );
 }
 
+/// **One body reads alike whichever operand was written first**: the
+/// two ∪ orders' volume enclosures, `widths[0]` and `widths[1]`, are as
+/// wide as each other within a factor of three. A plane face's measure
+/// is read about a point its storage does not move
+/// (`geom_brep::props::face_anchor`); read about the first point of its
+/// loops, each plane face is levered from wherever its traversal starts,
+/// and the two orders' widths stand 7.7 times apart (measured).
+fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
+    let [ab, ba, ..] = widths[..] else {
+        return;
+    };
+    assert!(
+        ab.max(ba) <= 3.0 * ab.min(ba),
+        "cone ∪ box reads {ab:e} wide, box ∪ cone {ba:e}: one body's width depends on the order \
+         its operands were written in"
+    );
+}
+
 /// **The ring's volume at the certified scalar.** T1 built at
 /// `Interval` (the cone revolved from the same triangle, the box turned
 /// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
 /// the lune as a ring on the cone face, pass tier 3 and their volume
-/// enclosures bracket the closed forms (about 1.3e-11 wide, measured).
+/// enclosures bracket the closed forms (2.6e-11 and 5e-11 wide for the
+/// two ∪ orders, measured), as wide as each other in both orders
+/// ([`one_body_reads_alike_in_both_orders`]).
 /// At the 1e-12 row the build stops before the volume, typed: the join
 /// certifies each section on its surfaces, and that residual's
 /// enclosure, ±1.3e-12 wide, escalates against the band's 1e-12.
@@ -342,7 +356,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     let spin = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), iv(FRAC_PI_2));
     let c = finished(
         "the cone",
-        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol), tol).unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol)).unwrap(),
         tol,
     );
     let e = edge_point(0.6);
@@ -355,16 +369,12 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     let raw = brick::<Interval>((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
     let x = finished(
         "the box",
-        topo::transform_rigid(
-            &raw,
-            &geom_core::test_support::rigid(&(to * turn), tol),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&(to * turn), tol)).unwrap(),
         tol,
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;
     let i = overlap(0.6);
+    let mut widths = Vec::new();
     for (op, r, want) in [
         ("cone ∪ box", topo::union(&c, &x, tol), vc + 216.0 - i),
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
@@ -376,7 +386,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
                     &r,
                     Err(topo::BooleanError::Join(j)) if matches!(
                         j.error(),
-                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
+                        topo::JoinError::Euler(topo::EulerOpError::Certification {
                             error: topo::CertifyError::Escalated { .. }
                         })
                     )
@@ -403,7 +413,9 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
             v.lo(),
             v.hi()
         );
+        widths.push(v.hi() - v.lo());
     }
+    one_body_reads_alike_in_both_orders(&widths);
 }
 
 /// **A ringed cone face's sense is checked against its boundary.** In
@@ -476,7 +488,7 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
     ));
     let c = finished(
         "the cone",
-        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol), tol).unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol)).unwrap(),
         tol,
     );
     let e = edge_point(0.6);
@@ -489,11 +501,12 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
     let raw = brick::<Interval>((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
     let x = finished(
         "the box",
-        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&placed, tol), tol).unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&placed, tol)).unwrap(),
         tol,
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;
     let i = overlap(0.6);
+    let mut widths = Vec::new();
     for (op, r, want) in [
         ("cone ∪ box", topo::union(&c, &x, tol), vc + 216.0 - i),
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
@@ -515,5 +528,7 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
             v.lo(),
             v.hi()
         );
+        widths.push(v.hi() - v.lo());
     }
+    one_body_reads_alike_in_both_orders(&widths);
 }

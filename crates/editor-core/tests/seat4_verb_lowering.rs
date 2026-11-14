@@ -593,13 +593,36 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every row here reproduces main's value at all three ε
 /// rows, so nothing else moved.
+///
+/// RE-BLESSED, `crossing_slots` and `kiss_carry`, for a boolean that
+/// leaves each glued one-carrier pair's faces on one surface record
+/// (DESIGN `[coincidence.door]`): the moved faces' surface keys and
+/// senses feed the digest. The same value at all three ε rows;
+/// `m10_p_fence`'s f64 row and its ids-masked geometry row held, so no
+/// point moved.
+///
+/// RE-BLESSED, `crossing_slots`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
+///
+/// RE-BLESSED, `crossing_slots` only, after PR 6832. A vertex pair's
+/// null edges now pair from the side the op keeps; before, where two
+/// crossings met, they paired in the records' order. So a subtract
+/// builds its null edges in another order and its faces take other
+/// arena keys, which the digest feeds. A probe at that merge read every
+/// cell by its geometry and found every name denoting what it denoted;
+/// nothing here guards that (filed as
+/// `work/onedoor/name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena.md`).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x97af_3180_7c08_6585_u64),
+        ("crossing_slots", 0xd17d_36af_80b3_4d6b_u64),
         ("heat_sink", 0x4010_8826_71c7_f1f3),
-        ("kiss_carry", 0xc2d4_fb1d_406b_316c),
+        ("kiss_carry", 0xc72b_0f2e_7ec6_8bd7),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -756,7 +779,10 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x9677_fb20_d315_0d6f,
+        // Re-measured when the placement came to mint its source
+        // (VARIABLES VR4): the ids after it moved.
+        got,
+        0x1940_9a5c_6c12_d622,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

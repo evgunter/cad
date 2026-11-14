@@ -79,10 +79,10 @@ impl GlueClass {
     /// The carrier relation a one-carrier class glues under: its
     /// [`Self::relation`] as the carrier ladder spells it. `None` for a
     /// tangency, whose carriers are distinct.
-    pub(crate) const fn carrier_relation(self) -> Option<crate::boolean::CarrierRelation> {
+    pub(crate) const fn carrier_relation(self) -> Option<geom_brep::CarrierRelation> {
         match self.relation() {
-            crate::Relation::SameOriented => Some(crate::boolean::CarrierRelation::SameOriented),
-            crate::Relation::SameOpposite => Some(crate::boolean::CarrierRelation::SameOpposite),
+            crate::Relation::SameOriented => Some(geom_brep::CarrierRelation::SameOriented),
+            crate::Relation::SameOpposite => Some(geom_brep::CarrierRelation::SameOpposite),
             _ => None,
         }
     }
@@ -135,9 +135,9 @@ pub enum ContactRefusal {
         /// The escalating predicate's diagnostics.
         diag: Indeterminate,
     },
-    /// The configuration is outside the class's certifiable set — the
-    /// demanded set IS the certifiable set (C3's order-k boundary),
-    /// so this refuses typed rather than sampling. Carries what was
+    /// The configuration is outside the class's certificate lane, where
+    /// nothing is demanded or certified (C3's order-k boundary), so this
+    /// refuses typed rather than sampling. Carries what was
     /// asked for, never a fallback verdict.
     NotCertifiable {
         /// Why the configuration is outside the lane.

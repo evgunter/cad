@@ -643,13 +643,9 @@ impl From<Arc<topo::Body<f64>>> for HostBody {
 
 impl Body {
     /// **An evaluated value's body as the host holds it**: shared, not
-    /// copied, where it is read as it is held; a body the read-out
-    /// mapped into its space is construction state.
-    pub(crate) fn host(body: pncad::document::ReadIn<f64>) -> HostBody {
-        match body {
-            pncad::document::ReadIn::Held(held) => HostBody::Held(held),
-            pncad::document::ReadIn::Mapped(body) => HostBody::Plain(body),
-        }
+    /// copied, as the read-out holds it, a moved body finished too.
+    pub(crate) fn host(body: pncad::document::Held<f64>) -> HostBody {
+        HostBody::Held(body)
     }
 
     /// A body with no contact records — every door but those that have
@@ -3067,7 +3063,7 @@ impl Coincidence {
     /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
-    /// `profile_junction`, `vertex_fusion`, `iso_join` or `census_at_rest`.
+    /// `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or `smooth_join`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

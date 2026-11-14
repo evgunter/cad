@@ -1,7 +1,7 @@
 //! **`carrier_eq`** — the oriented-carrier-equality ladder,
 //! kind-generalized (CONTACT-DESIGN C4's `Rest` table).
 //!
-//! [`super::oriented_plane_eq`] answers "same plane?" through two
+//! [`crate::oriented_plane_eq`] answers "same plane?" through two
 //! rungs: definite geometric difference, else a coincidence decided by
 //! its margin — Zero glues, in band refuses. `Rest` generalizes S1's
 //! planar vocabulary to every carrier kind, so the ladder generalizes
@@ -12,10 +12,10 @@
 //!
 //! | kind | defining data | margins, each at its named lever arm |
 //! |------|---------------|--------------------------------------|
-//! | plane | origin, outward normal | `bool_plane_parallel` (·arm), `bool_plane_offset` |
+//! | plane | origin, outward normal | `plane_eq_parallel` (·arm), `plane_eq_offset` |
 //! | sphere | centre, radius | `carrier_sphere_center`, `carrier_sphere_radius` |
 //! | cylinder | axis line, radius | `carrier_cyl_axis_parallel` (·arm), `carrier_cyl_axis_offset`, `carrier_cyl_radius` |
-//! | torus | centre, axis line, both radii | the pair's own coincidence ([`geom_brep::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
+//! | torus | centre, axis line, both radii | the pair's own coincidence ([`crate::tori_coincide`]): `carrier_torus_axis_parallel` (·the larger major radius), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius`, `tt_coincident` |
 //! | cone | apex, axis line, half-angle | `carrier_cone_apex`, `carrier_cone_axis_parallel` (·arm), `carrier_cone_half_angle` (·arm) |
 //!
 //! The lever arms: an ANGULAR margin (two normalized directions
@@ -28,8 +28,8 @@
 //! its coincidence reads the whole ring, its tilt levered at the larger
 //! major radius, so a datum past the band moves the ring by that much
 //! somewhere, not necessarily on the faces. Its `Apart` is the ring's;
-//! the face-pair door asks the faces for a witness of it
-//! ([`super::carrier_pair::carrier_pair_decided`]).
+//! the face-pair door, which holds the faces, asks them for a witness
+//! of it ([`PairDoorReading::RingApart`]).
 //!
 //! **At the face-pair door a coincidence is read as one
 //! displacement**, not datum by datum: each datum just inside the band
@@ -50,31 +50,31 @@
 //! peg's convex wall against a bore's concave wall is the curved
 //! spelling of two boxes' opposed faces. Aligned coincidence is
 //! CONTAINMENT, not contact (the C1 lemma); the carrier ladder
-//! reports it honestly as `SameOriented` and the CONTACT doors
-//! ([`super::contact_verify::rest_pair_verdict`]) are what refuse it.
+//! reports it honestly as `SameOriented`, and it is the caller's
+//! contact door that refuses it.
 //!
 //! **A margin decided Zero glues** (D10, Booleans). Two independently
 //! authored spheres with equal radii and centres are one carrier
 //! exactly as two equal planes are, and the decided margin rides out
-//! with the verdict ([`CarrierVerdict`]) for the caller to record
-//! ([`crate::coincidence`]). Whether they are one CONSTRUCTION is the
+//! with the verdict ([`CarrierVerdict`]) for the caller to record.
+//! Whether they are one CONSTRUCTION is the
 //! document's coincidence door's question, never the kernel's. A datum
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
-use geom_brep::ladder::{IdentityLadder, Kept};
+use geom_core::ladder::{IdentityLadder, Kept};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use crate::validate::decide_reported;
+use geom_core::k_stats::decide_reported;
 
-use super::plane_eq::{PlaneDesc, PlaneRung, plane_ladder};
+use crate::plane_eq::{PlaneDesc, PlaneRung, plane_ladder};
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.
 ///
-/// This is ONE type across kinds — `plane_eq` re-exports it as
-/// `PlaneRelation`, the spelling its planar callers use. A parallel
-/// per-kind verdict enum would let a caller handle "same carrier" for
-/// planes and forget it for cylinders.
+/// This is ONE type across kinds, the plane ladder's
+/// ([`crate::oriented_plane_eq`]) included. A parallel per-kind verdict
+/// enum would let a caller handle "same carrier" for planes and forget
+/// it for cylinders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CarrierRelation {
     /// Same carrier, same material side (the ⁺ case of Eq. 15.3 and
@@ -132,8 +132,8 @@ impl CarrierVerdict {
     }
 }
 
-/// Typed refusal of [`carrier_eq`]; re-exported by `plane_eq` as
-/// `PlaneEqError`.
+/// Typed refusal of [`carrier_eq`] and of the plane ladder
+/// ([`crate::oriented_plane_eq`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CarrierEqError {
     /// A rung of the plane ladder could not decide: the only rungs that
@@ -163,15 +163,29 @@ pub enum CarrierEqError {
     /// A torus outside its ring convention, whose coincidence the ring's
     /// bound does not hold for: which torus of the pair, and the
     /// convention's refusal, which ends in the half's lever
-    /// ([`geom_brep::TorusConvention::sized`]). The body's own validity
+    /// ([`crate::TorusConvention::sized`]). The body's own validity
     /// refuses such a torus (`ValidationError::DegenerateTorus`), but the
     /// ladder also reads bodies no validation has passed.
     OffRing {
         /// The torus refused, in the order the pair was read.
-        torus: geom_brep::PairSide,
+        torus: crate::PairSide,
         /// Its refusal.
-        refusal: geom_brep::TorusRefusal,
+        refusal: crate::TorusRefusal,
     },
+}
+
+impl CarrierEqError {
+    /// The margin the refusal quotes: the escalated rung's, or the
+    /// undecided coincidence's measure; `None` for a torus off its ring
+    /// convention, whose refusal is the convention's and not a margin.
+    #[must_use]
+    pub const fn reported(&self) -> Option<Indeterminate> {
+        match *self {
+            Self::Escalated { diag, .. } => Some(diag),
+            Self::Undecided { coincidence, .. } => Some(coincidence.reported()),
+            Self::OffRing { .. } => None,
+        }
+    }
 }
 
 /// What an undecided coincidence's measure read
@@ -180,7 +194,7 @@ pub enum CarrierEqError {
 pub enum CoincidenceMeasure {
     /// A datum, or the displacement over the pair's extent, did not
     /// decide: in band, or read `Zero` from below and past the band from
-    /// above, a straddle ([`geom_brep::ladder::data_beneath_sum`]).
+    /// above, a straddle ([`geom_core::ladder::data_beneath_sum`]).
     Undecided(Indeterminate),
     /// A datum is not finite: poisoned input, which no move of the
     /// faces reads.
@@ -203,17 +217,17 @@ impl CoincidenceMeasure {
     /// unreadable whatever sign it reads: an infinite offset is no more a
     /// locus than a NaN one.
     ///
-    /// [`ladder::decided`]: geom_brep::ladder::decided
-    pub(crate) fn decide<T: Decide>(
+    /// [`ladder::decided`]: geom_core::ladder::decided
+    pub fn decide<T: Decide>(
         name: &'static str,
         margin: Margin<T>,
         band: Band,
     ) -> Result<Decided, Self> {
-        geom_brep::ladder::decided(name, margin, band).map_err(Self::of_kept)
+        geom_core::ladder::decided(name, margin, band).map_err(Self::of_kept)
     }
 
     /// A measure that did not decide zero, as what it is ([`Kept::of`]).
-    pub(crate) fn not_zero(diag: Indeterminate) -> Self {
+    pub fn not_zero(diag: Indeterminate) -> Self {
         Self::of_kept(Kept::of(diag))
     }
 
@@ -235,13 +249,9 @@ impl CoincidenceMeasure {
 /// normal would make the Same± verdict a statement about nothing.
 #[derive(Clone, Copy, Debug)]
 pub enum CarrierDesc<T: geom_core::Real> {
-    /// A plane, by a point on it and its unit outward normal.
-    Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
-        /// The unit outward normal (of the face, not of the chart).
-        normal: Vec3<T>,
-    },
+    /// A plane, by a point on it and its unit outward normal: the
+    /// plane ladder's own description.
+    Plane(PlaneDesc<T>),
     /// A sphere, by centre and radius.
     Sphere {
         /// The centre.
@@ -321,27 +331,29 @@ impl<T: geom_core::Real> CarrierDesc<T> {
 }
 
 /// **The region a carrier verdict is consumed on**: a ball enclosing
-/// both faces ([`geom_brep::ExtentBall`]). The ball bounds the
+/// both faces ([`crate::ExtentBall`]). The ball bounds the
 /// displacement between the carriers from ABOVE at every consumed
 /// point, and levers the angular data.
 #[derive(Clone, Copy, Debug)]
 pub struct ConsumedExtent<T: geom_core::Real> {
     /// A ball enclosing both faces.
-    pub reach: geom_brep::ExtentBall<T>,
+    pub reach: crate::ExtentBall<T>,
 }
 
 impl<T: geom_core::Real> ConsumedExtent<T> {
     /// The extent a ball enclosing it names.
     #[must_use]
-    pub fn new(reach: geom_brep::ExtentBall<T>) -> Self {
+    pub fn new(reach: crate::ExtentBall<T>) -> Self {
         Self { reach }
     }
 
     /// The ball of radius `arm` about the origin: the extent a bare arm
-    /// names, for the rows that meter at one.
-    #[cfg(test)]
-    pub(crate) fn arm(arm: T) -> Self {
-        Self::new(geom_brep::ExtentBall::fixture(Point3::origin(), arm))
+    /// names, for the rows that meter at one (test builds, and `topo`'s
+    /// through `test-support`).
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn arm(arm: T) -> Self {
+        Self::new(crate::ExtentBall::fixture(Point3::origin(), arm))
     }
 }
 
@@ -358,7 +370,7 @@ macro_rules! inventory_named {
 /// kind (a spline, a fitted surface) has no description to compare
 /// (`carrier_pair::PairUnread::OutsideInventory`), and is not
 /// declarable.
-pub(crate) const INVENTORY: [geom::SurfaceKind; 5] = [
+pub const INVENTORY: [geom::SurfaceKind; 5] = [
     geom::SurfaceKind::Plane,
     geom::SurfaceKind::Sphere,
     geom::SurfaceKind::Cylinder,
@@ -367,13 +379,13 @@ pub(crate) const INVENTORY: [geom::SurfaceKind; 5] = [
 ];
 
 /// Is `kind` in the ladder's [`INVENTORY`]?
-pub(crate) fn in_inventory(kind: geom::SurfaceKind) -> bool {
+pub fn in_inventory(kind: geom::SurfaceKind) -> bool {
     INVENTORY.contains(&kind)
 }
 
 /// The refusal of a glued face outside [`INVENTORY`], at the glue door
 /// and in the contact lane.
-pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
+pub const OUTSIDE_REST_INVENTORY: &str = concat!(
     "a glued face's surface kind is outside the Rest ladder's inventory (",
     inventory_named!(),
     ")"
@@ -386,7 +398,7 @@ pub(crate) const OUTSIDE_REST_INVENTORY: &str = concat!(
 /// the faces' tangent cones at its witnesses, which it reads for these
 /// two kinds; a torus or cone pair stays the census's
 /// (`work/atrest/curved-copies-filling-one-volume-read-as-undecidable.md`).
-pub(crate) fn exact_curved<T: geom_core::Real>(s: &geom::Surface<T>) -> bool {
+pub fn exact_curved<T: geom_core::Real>(s: &geom::Surface<T>) -> bool {
     matches!(
         s,
         geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
@@ -409,8 +421,8 @@ pub fn carrier_eq<T: Decide>(
     carrier_eq_reading(c1, c2, extent, band).map(CarrierVerdict::relation)
 }
 
-/// [`carrier_eq`] with the reading that decided it, which a
-/// coincidence's row records ([`crate::coincidence`]): each datum read
+/// [`carrier_eq`] with the reading that decided it, which the caller
+/// records as the coincidence's row: each datum read
 /// on its own, the angular ones levered at the extent
 /// ([`at_consumed_extent`]).
 pub(crate) fn carrier_eq_reading<T: Decide>(
@@ -426,12 +438,12 @@ pub(crate) fn carrier_eq_reading<T: Decide>(
 /// ([`pair_door_reading`]): the ladder's verdict, or two tori the ring
 /// reads apart, which the faces need not be.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum PairDoorReading {
+pub enum PairDoorReading {
     /// The ladder's verdict.
     Verdict(CarrierVerdict),
     /// Two tori whose ring a datum reads apart
-    /// ([`geom_brep::TorusCoincidence::Apart`]): the door asks the faces
-    /// for a witness of it ([`super::carrier_pair::carrier_pair_decided`]).
+    /// ([`crate::TorusCoincidence::Apart`]): the caller's face-pair
+    /// door, which holds the faces, asks them for a witness of it.
     RingApart {
         /// The orientation the two tori's senses make.
         relation: CarrierRelation,
@@ -446,7 +458,7 @@ impl PairDoorReading {
     /// The reading as the ladder's verdict: the ring apart is two
     /// carriers, on its datum's reading.
     #[must_use]
-    pub(super) const fn verdict(self) -> CarrierVerdict {
+    pub(crate) const fn verdict(self) -> CarrierVerdict {
         match self {
             Self::Verdict(verdict) => verdict,
             Self::RingApart { by, .. } => CarrierVerdict::Apart(by),
@@ -464,27 +476,7 @@ fn ladder_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     let (c1, c2, arm) = at_consumed_extent(c1, c2, extent.reach);
     let verdict = match (&c1, &c2) {
-        (
-            CarrierDesc::Plane {
-                origin: o1,
-                normal: n1,
-            },
-            CarrierDesc::Plane {
-                origin: o2,
-                normal: n2,
-            },
-        ) => plane_ladder(
-            &PlaneDesc {
-                origin: *o1,
-                normal: *n1,
-            },
-            &PlaneDesc {
-                origin: *o2,
-                normal: *n2,
-            },
-            extent,
-            band,
-        ),
+        (CarrierDesc::Plane(p1), CarrierDesc::Plane(p2)) => plane_ladder(p1, p2, extent, band),
         (
             CarrierDesc::Sphere {
                 center: p1,
@@ -540,28 +532,28 @@ fn ladder_reading<T: Decide>(
                 coincidence,
                 relation: same,
             };
-            return match geom_brep::tori_coincide(
+            return match crate::tori_coincide(
                 torus((*p1, *a1, *r1, *t1)),
                 torus((*p2, *a2, *r2, *t2)),
                 band,
             ) {
-                geom_brep::TorusCoincidence::One(margin) => {
+                crate::TorusCoincidence::One(margin) => {
                     Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                         relation: same,
                         margin,
                     }))
                 }
-                geom_brep::TorusCoincidence::Apart { by, upper, .. } => {
+                crate::TorusCoincidence::Apart { by, upper, .. } => {
                     Ok(PairDoorReading::RingApart {
                         relation: same,
                         by,
                         upper,
                     })
                 }
-                geom_brep::TorusCoincidence::Undecided(diag) => {
+                crate::TorusCoincidence::Undecided(diag) => {
                     Err(undecided(CoincidenceMeasure::not_zero(diag)))
                 }
-                geom_brep::TorusCoincidence::OffRing { torus, refusal } => {
+                crate::TorusCoincidence::OffRing { torus, refusal } => {
                     Err(CarrierEqError::OffRing { torus, refusal })
                 }
             };
@@ -595,14 +587,14 @@ fn ladder_reading<T: Decide>(
 /// the pair only where the displacement's upper bound over the pair's
 /// extent decides Zero too ([`coincident_over_extent_as`]). A torus pair's
 /// coincidence already stands on that bound
-/// ([`geom_brep::tori_coincide`]), and a torus pair the ring reads apart
+/// ([`crate::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
 /// ([`PairDoorReading::RingApart`]).
 ///
 /// # Errors
 ///
 /// As [`carrier_eq`].
-pub(super) fn pair_door_reading<T: Decide>(
+pub fn pair_door_reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
@@ -630,7 +622,9 @@ type Datum<T> = (&'static str, Margin<T>);
 /// The names the sphere's, cylinder's and cone's data are decided under.
 const CARRIER_SPHERE_CENTER: &str = "carrier_sphere_center";
 const CARRIER_SPHERE_RADIUS: &str = "carrier_sphere_radius";
-pub(super) const CARRIER_CYL_AXIS_PARALLEL: &str = "carrier_cyl_axis_parallel";
+/// The cylinder axes' parallelism, the name a caller routes its
+/// escalation by.
+pub const CARRIER_CYL_AXIS_PARALLEL: &str = "carrier_cyl_axis_parallel";
 const CARRIER_CYL_AXIS_OFFSET: &str = "carrier_cyl_axis_offset";
 const CARRIER_CYL_RADIUS: &str = "carrier_cyl_radius";
 const CARRIER_CONE_APEX: &str = "carrier_cone_apex";
@@ -689,8 +683,8 @@ fn cone_data<T: Decide>(
 /// A torus description's data as the pair's coincidence reads them.
 fn torus<T: geom_core::Real>(
     (center, axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
-) -> geom_brep::TorusData<T> {
-    geom_brep::TorusData {
+) -> crate::TorusData<T> {
+    crate::TorusData {
         center,
         axis,
         major_radius,
@@ -703,15 +697,15 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
     v - axis * v.dot(axis)
 }
 
-pub(crate) use geom_brep::line_tilt;
+use crate::line_tilt;
 
 /// **The arm the ladder levers a pair's angular data at** over
 /// `reach` ([`at_consumed_extent`]'s third part): the reach from the
 /// pivot each kind's position datum is read at.
-pub(super) fn consumed_arm<T: geom_core::Real>(
+pub fn consumed_arm<T: geom_core::Real>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    reach: geom_brep::ExtentBall<T>,
+    reach: crate::ExtentBall<T>,
 ) -> geom_core::Lever<T> {
     at_consumed_extent(c1, c2, reach).2
 }
@@ -720,7 +714,7 @@ pub(super) fn consumed_arm<T: geom_core::Real>(
 /// consumed over `reach`**: each description anchored where its
 /// position datum is read nearest the extent's centre, and the lever
 /// arm for its angular data, the extent's farthest reach from that
-/// pivot ([`geom_brep::ExtentBall`]'s module docs). Each datum is
+/// pivot ([`crate::ExtentBall`]'s module docs). Each datum is
 /// decided on its own: a definite one says the carriers differ, and the
 /// face-pair door then reads the data as one sum
 /// ([`coincident_over_extent_as`]).
@@ -728,10 +722,11 @@ pub(super) fn consumed_arm<T: geom_core::Real>(
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
 /// - cylinder — the axis offset is read at the second description's
-///   axis point, which moves along its axis to the foot of the
-///   extent's centre;
+///   axis point, re-anchored along its axis at the foot of the
+///   extent's centre ([`crate::anchored_at`], the one re-anchoring a
+///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
-///   ([`geom_brep::tori_coincide`]), and the pair passes through;
+///   ([`crate::tori_coincide`]), and the pair passes through;
 /// - cone — the angular data are read from the first apex, widened by
 ///   the apexes' separation so the arm holds from either.
 ///
@@ -740,7 +735,7 @@ pub(super) fn consumed_arm<T: geom_core::Real>(
 fn at_consumed_extent<T: geom_core::Real>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    reach: geom_brep::ExtentBall<T>,
+    reach: crate::ExtentBall<T>,
 ) -> (CarrierDesc<T>, CarrierDesc<T>, geom_core::Lever<T>) {
     let centre = reach.center();
     let (c1, c2, pivot) = match (*c1, *c2) {
@@ -753,7 +748,7 @@ fn at_consumed_extent<T: geom_core::Real>(
                 outward,
             },
         ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
-            let foot = reach.foot_on(geom::Line { origin, dir: axis });
+            let foot = crate::anchored_at(origin, crate::Forgets::Axis(axis), centre);
             (
                 c1,
                 CarrierDesc::Cylinder {
@@ -782,7 +777,7 @@ fn at_consumed_extent<T: geom_core::Real>(
 /// first datum's reading), standing for the sum's Zero too
 /// ([`MarginDiag::jointly`]). Where it decides past the band beside the
 /// data, the two straddle it under the kind's straddle row
-/// ([`geom_brep::ladder::data_beneath_sum`]); the data bound the
+/// ([`geom_core::ladder::data_beneath_sum`]); the data bound the
 /// carriers' separation from below, not the displacement over the
 /// extent, so the straddle says only that neither answers for it. Where
 /// it decides nothing, the refusal carries its reading.
@@ -803,7 +798,7 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   `t` turns its own to, its generator turned by no more than those
 ///   two angles;
 /// - torus — the pair's coincidence already stands on its own bound
-///   ([`geom_brep::tori_coincide`]), and reads nothing more here.
+///   ([`crate::tori_coincide`]), and reads nothing more here.
 fn coincident_over_extent_as<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
@@ -824,14 +819,14 @@ fn coincident_over_extent_as<T: Decide>(
             sign: Sign::Zero,
             margin,
         }) => Ok(data.jointly(margin)),
-        upper => Err(geom_brep::ladder::data_beneath_sum(
+        upper => Err(geom_core::ladder::data_beneath_sum(
             straddle, data, upper, band,
         )),
     }
 }
 
 /// [`reading`]'s rows: each kind's predicate and its straddle row.
-const PLANE_REACH: (&str, &str) = ("bool_plane_reach", "bool_plane_reach_straddle");
+const PLANE_REACH: (&str, &str) = ("carrier_plane_reach", "carrier_plane_reach_straddle");
 const SPHERE_REACH: (&str, &str) = ("carrier_sphere_reach", "carrier_sphere_reach_straddle");
 const CYL_REACH: (&str, &str) = ("carrier_cyl_reach", "carrier_cyl_reach_straddle");
 const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_straddle");
@@ -843,19 +838,19 @@ const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_stra
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    reach: geom_brep::ExtentBall<T>,
+    reach: crate::ExtentBall<T>,
     sigma: T,
 ) -> Option<((&'static str, &'static str), T)> {
     Some(match (*c1, *c2) {
         (
-            CarrierDesc::Plane {
+            CarrierDesc::Plane(PlaneDesc {
                 origin: o1,
                 normal: n1,
-            },
-            CarrierDesc::Plane {
+            }),
+            CarrierDesc::Plane(PlaneDesc {
                 origin: o2,
                 normal: n2,
-            },
+            }),
         ) => {
             let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
@@ -921,7 +916,7 @@ fn reading<T: Decide>(
 }
 
 /// The curved arms' rungs: the kind's margin list read as an identity
-/// ladder ([`geom_brep::ladder::read_identity`]). A datum decided apart
+/// ladder ([`geom_core::ladder::read_identity`]). A datum decided apart
 /// means `Distinct`, every datum decided Zero is one carrier, and
 /// otherwise the ladder's undecided datum is the typed `Undecided`
 /// refusal.
@@ -935,7 +930,7 @@ fn data_rungs<T: Decide>(
     } else {
         CarrierRelation::SameOpposite
     };
-    match geom_brep::ladder::read_identity(margins.iter().copied(), band) {
+    match geom_core::ladder::read_identity(margins.iter().copied(), band) {
         IdentityLadder::Apart { decided, .. } => Ok(CarrierVerdict::Apart(decided)),
         IdentityLadder::Zero(Some(margin)) => Ok(CarrierVerdict::One {
             relation: same,
@@ -952,17 +947,30 @@ fn data_rungs<T: Decide>(
     }
 }
 
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::*;
-    use geom_core::Tol;
+/// **The carrier ladder's test fixtures**, one spelling of each for
+/// this crate's rows and `topo`'s (through `test-support`): each kind's
+/// description from plain arrays, and the orientation rung's zero-band
+/// poses. The band is each row's own: minting the witness is a test's
+/// act, never library code's (`scripts/gates/witness-not-ambient.sh`).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod fixtures {
+    use super::{CarrierDesc, ConsumedExtent};
+    use crate::plane_eq::PlaneDesc;
+    use geom_core::{Band, Point3, Vec3};
 
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
+    /// A plane through `o` with outward normal `n`.
+    #[must_use]
+    pub fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
+        PlaneDesc {
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
+        }
     }
 
-    fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A sphere about `c` of radius `r`.
+    #[must_use]
+    pub fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Sphere {
             center: Point3::from_array(c),
             radius: r,
@@ -970,7 +978,9 @@ mod tests {
         }
     }
 
-    fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A cylinder through `o` along `a` of radius `r`.
+    #[must_use]
+    pub fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cylinder {
             origin: Point3::from_array(o),
             axis: Vec3::from_array(a),
@@ -979,7 +989,15 @@ mod tests {
         }
     }
 
-    fn torus(c: [f64; 3], a: [f64; 3], major: f64, minor: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A torus about `c` on axis `a`.
+    #[must_use]
+    pub fn torus(
+        c: [f64; 3],
+        a: [f64; 3],
+        major: f64,
+        minor: f64,
+        outward: bool,
+    ) -> CarrierDesc<f64> {
         CarrierDesc::Torus {
             center: Point3::from_array(c),
             axis: Vec3::from_array(a),
@@ -989,13 +1007,66 @@ mod tests {
         }
     }
 
-    fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A cone from `apex` along `a`.
+    #[must_use]
+    pub fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cone {
             apex: Point3::from_array(apex),
             axis: Vec3::from_array(a),
             half_angle,
             outward,
         }
+    }
+
+    /// One pose of [`orientation_in_zero_band`].
+    pub struct OrientationPose {
+        /// The pose, as a row's message names it.
+        pub what: String,
+        /// The plane `z = 0`, facing up.
+        pub up: PlaneDesc<f64>,
+        /// `up` itself, or its flip.
+        pub other: PlaneDesc<f64>,
+        /// A ball about the origin whose arm lies inside the zero band.
+        pub extent: ConsumedExtent<f64>,
+        /// The orientation's margin there: the normals' cosine times
+        /// the arm.
+        pub cos_arm: f64,
+    }
+
+    /// **The orientation rung's zero-band poses**: the plane `z = 0`
+    /// facing up against its flip and against itself, each over an arm
+    /// inside the zero band. Parallelism reads zero at that arm, and
+    /// the orientation's margin `cos · arm` lies within the zero band
+    /// too, so the rung refuses.
+    #[must_use]
+    pub fn orientation_in_zero_band(band: Band) -> Vec<OrientationPose> {
+        let up = plane([0.0; 3], [0.0, 0.0, 1.0]);
+        let down = plane([0.0; 3], [0.0, 0.0, -1.0]);
+        [0.1, 0.5, 1.0]
+            .into_iter()
+            .flat_map(|frac| {
+                let arm = frac * band.zero();
+                [(down, -1.0), (up, 1.0)].map(|(other, cos)| OrientationPose {
+                    what: format!("arm {arm:e}, cos {cos}"),
+                    up,
+                    other,
+                    extent: ConsumedExtent::arm(arm),
+                    cos_arm: cos * arm,
+                })
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::fixtures::{cone, cyl, sphere, torus};
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// **Two cone descriptions are one carrier when they describe one
@@ -1015,7 +1086,7 @@ mod tests {
         // kinds without one are the spline and the fitted surface, which
         // `geom` holds as a net rather than as data a rung can compare
         // (`geom::Surface::nurbs`), and the spindle sheet, whose rung is
-        // not written yet (`face_carrier` answers it `None`). A new
+        // not written yet (`face_carrier_desc` answers it `None`). A new
         // analytic kind turns this red until the ladder carries it or
         // is named here.
         for kind in geom::SurfaceKind::ALL {
@@ -1038,7 +1109,8 @@ mod tests {
         let arm = 2.0;
         let one = cone([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5, true);
         let read = |other: &CarrierDesc<f64>| {
-            pair_door_reading(&one, other, &at(arm), b).map(PairDoorReading::verdict)
+            pair_door_reading(&one, other, &ConsumedExtent::arm(arm), b)
+                .map(PairDoorReading::verdict)
         };
         for (what, other) in [
             ("itself", one),
@@ -1090,11 +1162,6 @@ mod tests {
         );
     }
 
-    /// A ball of radius `arm` about the origin.
-    fn at(arm: f64) -> ConsumedExtent<f64> {
-        ConsumedExtent::arm(arm)
-    }
-
     /// **The summed bound reads at the face-pair door only.** Two
     /// spheres whose centres stand `0.6·ε` apart and whose radii differ
     /// by `0.6·ε`: each datum decides zero, their sum (`1.2·ε`) does not.
@@ -1107,7 +1174,7 @@ mod tests {
         let e = band().zero();
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
-        match carrier_eq_reading(&a, &b, &at(1.0), band()) {
+        match carrier_eq_reading(&a, &b, &ConsumedExtent::arm(1.0), band()) {
             Ok(CarrierVerdict::One {
                 relation: CarrierRelation::SameOriented,
                 margin,
@@ -1119,7 +1186,7 @@ mod tests {
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
-        match pair_door_reading(&a, &b, &at(1.0), band()) {
+        match pair_door_reading(&a, &b, &ConsumedExtent::arm(1.0), band()) {
             Err(CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Undecided(diag),
                 ..
@@ -1182,7 +1249,7 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         for radius in [f64::NAN, f64::INFINITY] {
             let poisoned = sphere([apart, 0.0, 0.0], radius, true);
-            match carrier_eq(&a, &poisoned, &at(1.0), b) {
+            match carrier_eq(&a, &poisoned, &ConsumedExtent::arm(1.0), b) {
                 Err(CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::Unreadable(diag),
                     ..
@@ -1197,7 +1264,7 @@ mod tests {
 
     /// **An infinite coincidence datum is a limit, recorded as an
     /// escalation and never as a verdict**: the ladder's one non-finite
-    /// rule ([`geom_brep::ladder::decided`]), read here too.
+    /// rule ([`geom_core::ladder::decided`]), read here too.
     #[test]
     fn an_infinite_datum_is_unreadable_and_recorded_as_an_escalation() {
         for poison in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
@@ -1223,7 +1290,7 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.0, 0.0, 0.0], 2.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1236,7 +1303,7 @@ mod tests {
         let a = sphere([1.0, 0.0, 0.0], 2.0, true);
         let b = sphere([1.0, 0.0, 0.0], 2.0, true);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOriented
         );
     }
@@ -1255,14 +1322,14 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
         );
         let definite = sphere([0.0, 0.0, 0.0], 2.001, false);
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1276,7 +1343,7 @@ mod tests {
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         let b = cyl([0.0, 0.0, 5.0], [0.0, 0.0, -1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1287,7 +1354,7 @@ mod tests {
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         let b = cyl([0.5, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1310,7 +1377,7 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
@@ -1322,7 +1389,7 @@ mod tests {
             false,
         );
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1342,12 +1409,12 @@ mod tests {
         let tilt = b.zero() * 0.1;
         let tilted = cyl([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "at a 1 m arm the tilt is below the band: one carrier"
         );
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1e6), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1e6), band()).unwrap(),
             CarrierRelation::Distinct,
             "at a 1000 km arm the tilt is definite: two carriers"
         );
@@ -1361,7 +1428,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1374,7 +1441,7 @@ mod tests {
         let a = torus([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([1.0, 2.0, 3.0], [0.0, 0.0, -1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1388,7 +1455,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1410,7 +1477,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+                carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
                 CarrierRelation::Distinct,
                 "{which}"
             );
@@ -1433,7 +1500,7 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
@@ -1446,7 +1513,7 @@ mod tests {
             false,
         );
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1464,100 +1531,10 @@ mod tests {
         let tilt = b.escalate() * 0.3;
         let tilted = torus([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "the swing at the ring is definite"
         );
-    }
-
-    /// **Two torus faces are one carrier exactly where their pair's pose
-    /// decides them one surface** ([`geom_brep::tori_coincide`]), whatever
-    /// extent the faces span, read at the face-pair door
-    /// ([`super::super::carrier_pair_decided`]). The poses are the ring
-    /// of `R = 2`, `r = 0.5` tilted so its far side swings `0.3ε`, slid
-    /// `0.6ε` along and across its axis, its tube in the band, and its
-    /// tube a thousand escalation widths wider, whose faces' corners
-    /// witness it. Each pair is two opposed patches of one chart window,
-    /// a quarter turn and a smaller one.
-    #[test]
-    fn the_ladder_reads_two_tori_as_their_pose_does() {
-        use crate::boxes::tests::torus_wall;
-        let b = band();
-        let e = b.zero();
-        let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {
-            let axis = axis.normalize();
-            geom::Surface::Torus {
-                center,
-                axis,
-                major_radius: major,
-                minor_radius: minor,
-                u_ref: axis.orthonormal_basis().0,
-            }
-        };
-        let ring = (Point3::origin(), Vec3::unit_z(), 2.0, 0.5);
-        for (what, other, one) in [
-            (
-                "tilted",
-                (Point3::origin(), Vec3::new(0.148 * e, 0.0, 1.0), 2.0, 0.5),
-                Some(true),
-            ),
-            (
-                "slid",
-                (Point3::new(0.6 * e, 0.0, 0.6 * e), Vec3::unit_z(), 2.0, 0.5),
-                Some(true),
-            ),
-            (
-                "in band",
-                (
-                    Point3::origin(),
-                    Vec3::unit_z(),
-                    2.0,
-                    0.5 + 0.5 * (e + b.escalate()),
-                ),
-                None,
-            ),
-            (
-                "apart",
-                (
-                    Point3::origin(),
-                    Vec3::unit_z(),
-                    2.0,
-                    0.5 + 1000.0 * b.escalate(),
-                ),
-                Some(false),
-            ),
-        ] {
-            let pose = match geom_brep::TorusTorusPose::decide(&surface(ring), &surface(other), b)
-                .expect("two tori")
-            {
-                Err(geom_brep::TorusPoseRefusal::Coincident) => Some(true),
-                Err(geom_brep::TorusPoseRefusal::Undecided { .. }) => None,
-                Ok(_) => Some(false),
-                Err(refusal) => panic!("{what}: the pose refused {refusal:?}"),
-            };
-            assert_eq!(pose, one, "{what}: the pose");
-            for us in [(0.3, 1.9), (0.3, 0.9)] {
-                let wall = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {
-                    let axis = axis.normalize();
-                    let u_ref = axis.orthonormal_basis().0;
-                    torus_wall(center, axis, u_ref, major, minor, us, (-0.7, 0.8))
-                };
-                let (a, fa) = wall(ring);
-                let (mut o, fo) = wall(other);
-                let sense = a.get_face(fa).unwrap().sense;
-                o.set_face_sense(fo, !sense).unwrap();
-                let read = match crate::boolean::carrier_pair_decided(&a, fa, &o, fo, b) {
-                    Ok(Ok(CarrierVerdict::One {
-                        relation: CarrierRelation::SameOpposite,
-                        ..
-                    })) => Some(true),
-                    Ok(Ok(CarrierVerdict::Apart(_))) => Some(false),
-                    Ok(Err(CarrierEqError::Undecided { .. })) => None,
-                    other => panic!("{what}: the door read {other:?}"),
-                };
-                assert_eq!(read, pose, "{what}: the door over {us:?}");
-            }
-        }
     }
 
     /// **Data each within ε whose bound sums past it are undecided at
@@ -1576,10 +1553,7 @@ mod tests {
             1.0,
             true,
         );
-        let ext = ConsumedExtent::new(geom_brep::ExtentBall::fixture(
-            Point3::new(1.0, 0.0, 0.0),
-            1e-3,
-        ));
+        let ext = ConsumedExtent::new(crate::ExtentBall::fixture(Point3::new(1.0, 0.0, 0.0), 1e-3));
         assert!(matches!(
             carrier_eq(&ring, &other, &ext, b),
             Err(CarrierEqError::Undecided { .. })
@@ -1596,100 +1570,19 @@ mod tests {
         let spindle = torus([0.0; 3], [0.0, 0.0, 1.0], 1.0, 1.5, true);
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 2.0, 0.5, true);
         for (x, y, side) in [
-            (ring, spindle, geom_brep::PairSide::Second),
-            (spindle, ring, geom_brep::PairSide::First),
+            (ring, spindle, crate::PairSide::Second),
+            (spindle, ring, crate::PairSide::First),
         ] {
-            match carrier_eq(&x, &y, &at(1.0), band()) {
+            match carrier_eq(&x, &y, &ConsumedExtent::arm(1.0), band()) {
                 Err(CarrierEqError::OffRing {
                     torus,
                     refusal:
-                        geom_brep::TorusRefusal {
-                            convention: geom_brep::TorusConvention::Ring,
-                            verdict: geom_brep::TorusVerdict::Refused(_),
+                        crate::TorusRefusal {
+                            convention: crate::TorusConvention::Ring,
+                            verdict: crate::TorusVerdict::Refused(_),
                         },
                 }) => assert_eq!(torus, side, "the refusal names the spindle"),
                 other => panic!("the spindle on the {side:?} side: {other:?}"),
-            }
-        }
-    }
-
-    /// **A torus off its ring convention ends at the Boolean as the
-    /// pierce normal ends it** (`boolean::off_ring_torus`), never as
-    /// poison: the face it names refused in band as the half's
-    /// escalation ([`super::super::BooleanDecision::Torus`]) and decided as
-    /// [`super::super::BooleanError::DegenerateTorus`], each ending in the
-    /// half's lever, on the operand and face of the torus the ladder
-    /// named.
-    #[test]
-    fn a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean() {
-        use super::super::{BooleanDecision, BooleanError, Operand, off_ring_torus};
-        use geom_brep::TorusConvention::{Ring, Tube};
-        let b = band();
-        let mid = 0.5 * (b.zero() + b.escalate());
-        let key = |n: u64| crate::entity::FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
-        let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 2.0, 0.5, true);
-        let tube = "reshape the torus so its tube is clearly thicker than the tolerance";
-        let ring_lever = "make the tube radius clearly smaller than the ring radius";
-        for (what, major, minor, half, in_band, lever) in [
-            ("tube in band", 2.0, mid, Tube, true, tube),
-            ("tube negative", 2.0, -0.5, Tube, false, tube),
-            ("ring in band", 0.5 + mid, 0.5, Ring, true, ring_lever),
-            ("horn", 0.5, 0.5, Ring, false, ring_lever),
-            ("spindle", 0.5, 2.0, Ring, false, ring_lever),
-        ] {
-            let off = torus([0.0; 3], [0.0, 0.0, 1.0], major, minor, true);
-            for (side, (x, y), named) in [
-                (
-                    geom_brep::PairSide::Second,
-                    (ring, off),
-                    (Operand::B, key(2)),
-                ),
-                (
-                    geom_brep::PairSide::First,
-                    (off, ring),
-                    (Operand::A, key(1)),
-                ),
-            ] {
-                let what = format!("{what}, {side:?}");
-                let Err(CarrierEqError::OffRing { torus, refusal }) =
-                    carrier_eq(&x, &y, &at(1.0), b)
-                else {
-                    panic!("{what}: the ladder refuses the convention");
-                };
-                assert_eq!(torus, side, "{what}");
-                let err =
-                    off_ring_torus(torus, refusal, [(Operand::A, key(1)), (Operand::B, key(2))]);
-                match (&err, in_band) {
-                    (
-                        BooleanError::Escalated {
-                            decision: BooleanDecision::Torus(got),
-                            ..
-                        },
-                        true,
-                    ) => assert_eq!(*got, half, "{what}"),
-                    (
-                        BooleanError::DegenerateTorus {
-                            convention,
-                            operand,
-                            face,
-                            ..
-                        },
-                        false,
-                    ) => {
-                        assert_eq!(*convention, half, "{what}");
-                        assert_eq!(
-                            (*operand, *face),
-                            named,
-                            "{what}: the face the ladder named"
-                        );
-                    }
-                    _ => panic!("{what}: the half's refusal, got {err:?}"),
-                }
-                let text = err.render(geom_brep::recourse::Reading::Build);
-                assert!(
-                    text.contains(lever) && !text.contains("not finite"),
-                    "{what}: the half's lever: {text}"
-                );
             }
         }
     }
@@ -1702,7 +1595,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOriented
         );
     }
@@ -1714,11 +1607,11 @@ mod tests {
         let t = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, false);
         assert_eq!(
-            carrier_eq_reading(&t, &c, &at(1.0), band()),
+            carrier_eq_reading(&t, &c, &ConsumedExtent::arm(1.0), band()),
             Ok(CarrierVerdict::TwoKinds)
         );
         assert_eq!(
-            carrier_eq_reading(&c, &t, &at(1.0), band()),
+            carrier_eq_reading(&c, &t, &ConsumedExtent::arm(1.0), band()),
             Ok(CarrierVerdict::TwoKinds)
         );
     }
@@ -1726,13 +1619,13 @@ mod tests {
     /// Kinds do not compare: a plane is not a cylinder at any radius.
     #[test]
     fn kind_mismatch_is_distinct() {
-        let p = CarrierDesc::Plane {
+        let p = CarrierDesc::Plane(PlaneDesc {
             origin: Point3::origin(),
             normal: Vec3::new(0.0, 0.0, 1.0),
-        };
+        });
         let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         assert_eq!(
-            carrier_eq(&p, &c, &at(1.0), band()).unwrap(),
+            carrier_eq(&p, &c, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1751,57 +1644,16 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, -1.0),
         };
         let via_carrier = carrier_eq(
-            &CarrierDesc::Plane {
-                origin: p1.origin,
-                normal: p1.normal,
-            },
-            &CarrierDesc::Plane {
-                origin: p2.origin,
-                normal: p2.normal,
-            },
-            &at(1.0),
+            &CarrierDesc::Plane(p1),
+            &CarrierDesc::Plane(p2),
+            &ConsumedExtent::arm(1.0),
             band(),
         )
         .unwrap();
         let direct =
-            crate::boolean::plane_eq::oriented_plane_eq(&p1, &p2, &at(1.0), band()).unwrap();
+            crate::plane_eq::oriented_plane_eq(&p1, &p2, &ConsumedExtent::arm(1.0), band())
+                .unwrap();
         assert_eq!(via_carrier, direct);
         assert_eq!(direct, CarrierRelation::SameOpposite);
-    }
-
-    /// **The curved ladder's material side is the faces' `outward`
-    /// bits.** One cylinder face against itself, against its reverted
-    /// body, and against a twin with its sense flipped, each pair both
-    /// ways: the reverted and the flipped pair read opposed.
-    #[test]
-    fn the_curved_ladder_reads_a_reverted_face_as_opposed() {
-        use CarrierRelation::{SameOpposite, SameOriented};
-        let mut body = crate::Body::<f64>::new();
-        let (face, _) = crate::test_support_fixtures::unit_cyl_sheet(
-            &mut body,
-            None,
-            (0.0, 1.0),
-            (0.0, 1.0),
-            true,
-            Tol::witness(),
-        );
-        let reverted = body.revert().unwrap();
-        let mut flipped = body.clone();
-        flipped.set_face_sense(face, false).unwrap();
-        for (name, other, rung) in [
-            ("itself", &body, SameOriented),
-            ("its reverted body", &reverted, SameOpposite),
-            ("its sense flipped", &flipped, SameOpposite),
-        ] {
-            for (x, y) in [(&body, other), (other, &body)] {
-                assert_eq!(
-                    crate::boolean::carrier_pair::carrier_pair_relation(x, face, y, face, band())
-                        .unwrap()
-                        .unwrap(),
-                    rung,
-                    "the curved ladder, a face against {name}"
-                );
-            }
-        }
     }
 }

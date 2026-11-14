@@ -263,7 +263,8 @@ fn ball() -> Body<f64> {
 fn flip_all(body: &Body<f64>) -> Body<f64> {
     let keys: Vec<_> = body.faces().map(|(k, _)| k).collect();
     keys.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k).expect("live face key")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key")
     })
 }
 
@@ -724,7 +725,7 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
     // check 7 is consulted at all.
     let half_flipped = {
         let band = ball.faces().next().expect("the ball has faces").0;
-        ball.flipped_face_sense_for_tests(band)
+        ball.flipped_face_sense_for_tests(band, geom_core::Tol::witness())
             .expect("live face key")
     };
 
