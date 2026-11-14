@@ -1829,12 +1829,15 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 
 /// **A ringless cone face near its apex meshes into a non-manifold
 /// edge: this row pins a wrong mesh**
-/// (`work/tesslane/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`).
+/// (`work/tesslie/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`,
+/// one step up from `work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
 /// T1's cone and its box at `s = 0.03` ([`t1_toward_the_apex`]): A ∩ B
 /// and B ∩ A keep no ring, `tessellate` returns `Ok` at `δ = 5·10⁻³`,
 /// and `check_mesh` refuses an edge four triangles use. The same on
 /// main, and at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the pose
-/// (`CurvedPierceUnsupported`).
+/// (`CurvedPierceUnsupported`). The answer pinned is what `check_mesh`
+/// says of the mesh on this base; a cure of the shared chord's diagonal
+/// turns it into a sound mesh, and the row is re-pinned then.
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four() {
     let (a, b) = t1_toward_the_apex(0.03);

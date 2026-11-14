@@ -36,7 +36,34 @@ Measured (`Tol::witness()`, both trees):
 Pinned for the first row by `reach_probes::a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four`.
 
 `tessellate` does not run `check_mesh` (its doc says so), so a caller that
-does not run it gets a mesh that is not a closed manifold. Not diagnosed:
-which faces share the edge, and whether it is the cone arm's development
-near the apex (`the-cone-arm-certifies-the-triangle-its-development-makes`
-is changing the cone arm's lattice there) or the box's planar faces.
+does not run it gets a mesh that is not a closed manifold.
+
+## Its class
+
+One step up from `two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge`:
+the same pocket with a diagonal in place of the ear's short side.
+
+## The cause (measured by the lane that owns the cone arm, on five cells; not re-verified here)
+
+The body is sound: `at_rest` passes, and the mesh passes `check_volume`.
+The four-use edge joins two points of one shared ellipse chord chain that
+are not neighbours on it (four or five chord steps apart). The plane face
+across that chain has no interior points, so its triangulation uses chords
+of the chain freely, and it uses that chord as an interior edge; the cone
+face, one or two lattice cells across, uses the same chord as an interior
+edge between two of its lattice points. No triangle is made twice and none
+sits on three consecutive chord points, so the trimmed lane's ear test
+cannot fire. Over a 288-mesh grid of that builder every failure is one edge
+used twice by a plane patch and twice by the cone patch.
+
+## What is owed (not chosen here)
+
+- The cone arm's part is being cured in PR 6965: a kept triangle side may
+  not join two non-adjacent boundary points that one neighbouring face also
+  holds; the triangle's inside point is queued and the face rebuilt, as for
+  an ear.
+- Lane-wide, the same side can be kept by a trimmed cylinder, sphere or
+  torus face, by the NURBS arm and by the curved lane. The ear row's "what
+  is left" names the backstop that would turn every such mesh into a typed
+  refusal on every lane: a census of triangle uses across patches where
+  `tessellate` joins them.
