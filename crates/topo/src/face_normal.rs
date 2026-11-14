@@ -37,9 +37,8 @@
 //! by-value curved fold is [`geom_brep::implicit_outward_normal`],
 //! which normalizes and gates nothing: it reads the normal at `p`'s
 //! foot on the carrier, which is the normal at `p` where `p` is on it,
-//! and its callers (the contact verifier, the dihedral's material
-//! pairing, a blend battery's supports) certify the point themselves
-//! where they need it on the carrier. [`face_outward_normal_at_foot`]
+//! and a caller that needs `p` on the carrier certifies it itself.
+//! [`face_outward_normal_at_foot`]
 //! is that fold by key, for a point no reading places on the carrier.
 //! The two readings can differ in the last ulps on the same input, so
 //! neither substitutes for the other: a caller that wants the gate
@@ -1492,11 +1491,11 @@ mod tests {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
         let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
-        // as D6 spells it: a jet curvature measured along the plus
-        // face's outward normal, the sphere's radial flux term
-        // `R·Area` and a closed surface's whole flux, a witness's
-        // implicit residual read as its height above the face, a loop's
-        // chart-frame area, an offset distance into the material.
+        // as D6 spells it, unless its own line says otherwise: a jet
+        // curvature measured along the plus face's outward normal, the
+        // sphere's radial flux term `R·Area` and a closed surface's
+        // whole flux, a witness's implicit residual read as its height
+        // above the face, an offset distance into the material.
         let mut sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
@@ -1506,6 +1505,10 @@ mod tests {
             // A test's trim polygon area in the sphere's equal-area chart
             // frame, signed by the loop's chart winding.
             ("crates/mesh/src/trimmed.rs", "area"),
+            // NOT a scalar: a loop's 3-D vector area, turned into the
+            // chart frame by the bit to read the band's azimuth
+            // (`walk`'s `chart_area`), a vector folded by hand
+            // (`work/tesslane/a-faces-chart-winding-rule-has-no-home-in-mesh.md`).
             ("crates/mesh/src/walk.rs", "area"),
             // A wrap strip's period: the far side's `u` displacement from
             // the near side (`walk::wrap_strip`), a chart length, no normal.
