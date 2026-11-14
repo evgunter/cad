@@ -25,7 +25,7 @@ The row is in the slow set (`.config/nextest.toml`, inside `default-filter`'s `n
 ## Closed (2026-10-29): duplicate
 
 The owners each filed this per file the same day, and those rows carry the fix:
-- `work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md` (`crates/mesh/src/trimmed.rs`);
+- `work/tesslane/main-red-trimmed-rs-folds-the-face-sense-by-hand.md` (`crates/mesh/src/trimmed.rs`);
 - `work/clear/main-red-injective-rs-folds-the-face-sense-by-hand.md` (`crates/topo/src/injective.rs`).
 
 This row is closed so main's red has one owner per file. (SPLITDOOR orchestrator)

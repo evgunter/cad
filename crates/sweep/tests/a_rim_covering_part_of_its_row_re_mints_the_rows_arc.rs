@@ -228,7 +228,7 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     }
     // The mesher's chord schedule lands on the sub-arc joints only for
     // a rim whose arc is its edge's interval, and refuses the children
-    // (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
+    // (`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
     match mesh::tessellate(&body, 5e-2, tol()) {
         Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => assert!(
             note.starts_with("an arc-rim pcurve whose turn is not its edge's parameter interval"),

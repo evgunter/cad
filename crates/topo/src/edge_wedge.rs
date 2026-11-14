@@ -92,9 +92,10 @@ fn verdict_of<T: Decide>(
     read: &EdgeRead<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
+    names: geom_brep::FoldNames,
 ) -> geom_brep::WedgeVerdict {
     one_surface_seam(body, read.sides)
-        .unwrap_or_else(|| geom_brep::edge_wedge_over(&read.walk, reach, band))
+        .unwrap_or_else(|| geom_brep::edge_wedge_over_as(&read.walk, reach, band, names))
 }
 
 /// **An edge's wedge** (module docs), levered at its faces' extent
@@ -106,7 +107,23 @@ pub fn edge_wedge<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
-    edge_wedge_at(body, edge, crate::edge_wedge_reach(body, edge)?, band)
+    edge_wedge_as(body, edge, band, geom_brep::FoldNames::SHAPE)
+}
+
+/// [`edge_wedge`], each corner's sign and each tangency's end decided
+/// under `names`: the door for a reader whose side decides which body it
+/// builds, which records those decisions under names of its own
+/// (`geom_brep::DIHEDRAL_SIGN`'s docs).
+#[must_use]
+pub fn edge_wedge_as<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    band: Band,
+    names: geom_brep::FoldNames,
+) -> Option<geom_brep::WedgeVerdict> {
+    let read = walk_of(body, edge)?;
+    let reach = crate::edge_wedge_reach(body, edge)?;
+    Some(verdict_of(body, &read, reach, band, names))
 }
 
 /// [`edge_wedge`] levered at a `reach` the caller has read for the edge
@@ -118,7 +135,13 @@ pub(crate) fn edge_wedge_at<T: Decide>(
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
     let read = walk_of(body, edge)?;
-    Some(verdict_of(body, &read, reach, band))
+    Some(verdict_of(
+        body,
+        &read,
+        reach,
+        band,
+        geom_brep::FoldNames::SHAPE,
+    ))
 }
 
 /// **What an edge's wedge demands it store**
@@ -146,7 +169,13 @@ pub(crate) fn edge_wedge_read<T: Decide>(
     Result<geom_brep::MustCarryDescription<T>, geom_brep::WedgeRefusal>,
 )> {
     let read = walk_of(body, edge)?;
-    let verdict = verdict_of(body, &read, crate::edge_wedge_reach(body, edge)?, band);
+    let verdict = verdict_of(
+        body,
+        &read,
+        crate::edge_wedge_reach(body, edge)?,
+        band,
+        geom_brep::FoldNames::SHAPE,
+    );
     let pair = geom_brep::SurfacePair::new(read.sides.plus.surface, read.sides.minus.surface);
     Some((verdict, read.walk.description(verdict, pair)))
 }

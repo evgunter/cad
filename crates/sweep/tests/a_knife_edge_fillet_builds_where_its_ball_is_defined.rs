@@ -310,6 +310,55 @@ fn a_lune_cusp_loses_its_horn_and_a_lune_slit_gains_it() {
     }
 }
 
+/// **A knife's end is the blend's own building decision**: the end the
+/// fold reads picks the side the ball rests on (a cusp's in the material,
+/// as a convex link's; a slit's in the void, as a concave link's), so the
+/// fold records it under the blend's `fillet3_knife_end`, which the flip
+/// lane reads, and not under tier 3's shared `material_cusp_side`. The
+/// link carries that reading as its convexity margin.
+#[test]
+fn a_knifes_end_is_recorded_under_the_blends_own_name() {
+    use sweep::blend::Convexity;
+    use sweep::blend::battery::{BlendRequest, run_battery};
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    for ((what, body, sign), want) in lune_rows()
+        .into_iter()
+        .zip([Convexity::Convex, Convexity::Concave])
+    {
+        let edge = knife_at(what, &body, on_the_z_axis);
+        let req = BlendRequest {
+            body: &body,
+            edges: vec![edge],
+            size: 0.3,
+        };
+        let bracket = geom_core::k_stats::Bracket::open();
+        let verdict = run_battery(&req, band).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let recorded = bracket.finish();
+        let link = verdict.chains[0].first();
+        assert_eq!(link.convexity, want, "{what} (horn sign {sign})");
+        assert_eq!(
+            link.convexity_margin.predicate, "fillet3_knife_end",
+            "{what}"
+        );
+        let named = |name| {
+            recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == name)
+                .count()
+        };
+        assert!(
+            named("fillet3_knife_end") > 0,
+            "{what}: the end is on the log"
+        );
+        assert_eq!(
+            named(geom_brep::MATERIAL_CUSP_SIDE),
+            0,
+            "{what}: and not as a shape reading"
+        );
+    }
+}
+
 /// **Membership, not only volume**: the cusp at `0.3` is the lune less
 /// its horn, the slit the plate less the lune, with the horn filled.
 #[test]

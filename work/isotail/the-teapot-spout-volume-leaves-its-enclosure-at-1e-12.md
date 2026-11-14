@@ -25,7 +25,7 @@ OUTSIDE the certified enclosure's own half-width 8.094490616656182e-12".
 The branch reads the same numbers bit for bit, and touches nothing the
 spout's mass properties read.
 
-`work/tess/demo-tour-wall-8-no-longer-refuses-at-1e-12.md` is the
+`work/tesslane/demo-tour-wall-8-no-longer-refuses-at-1e-12.md` is the
 same test red on main for another cause (wall 8); on this main the walk
 reaches the teapot. Main's push CI does not run the demos, so nothing
 caught it.
