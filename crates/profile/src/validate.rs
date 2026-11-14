@@ -2504,7 +2504,7 @@ fn canonicalize_loop<T: Decide>(
             start: s.a,
             end: s.b,
             kind,
-            directions: seg::validated_directions(&s, made[k]),
+            directions: seg::validated_directions(&s, made.get(k).copied().flatten()),
         });
     }
     if let Some(rec) = recorded

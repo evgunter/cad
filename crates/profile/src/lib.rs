@@ -260,6 +260,10 @@ pub enum SegmentDirections<T: Real> {
     },
 }
 
+/// One link of a stored chain: a vertex, the segment leaving it and the
+/// directions that segment's construction made.
+pub(crate) type DirectedLink<T> = (Point2<T>, Segment<T>, Option<SegmentDirections<T>>);
+
 impl<T: Real> SegmentDirections<T> {
     /// The same directions read at another scalar: `f` on every
     /// component, nothing derived.
@@ -770,9 +774,7 @@ impl<T: Real> ProfileLoop<T> {
 
     /// [`Self::from_chain`] with the directions each segment's
     /// construction made, where it made them.
-    pub(crate) fn from_directed_chain(
-        chain: impl IntoIterator<Item = (Point2<T>, Segment<T>, Option<SegmentDirections<T>>)>,
-    ) -> Self {
+    pub(crate) fn from_directed_chain(chain: impl IntoIterator<Item = DirectedLink<T>>) -> Self {
         let (mut vertices, mut segments, mut directions) = (Vec::new(), Vec::new(), Vec::new());
         for (p, s, d) in chain {
             vertices.push(p);

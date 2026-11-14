@@ -3686,21 +3686,14 @@ impl<T: Real> Core<T> {
     /// The chain as (vertex, stored segment, recorded directions)
     /// triples, each arc's proved endpoint facts registered at `tol`
     /// when there is one.
-    fn stored_chain(
-        &self,
-        tol: Option<Tol>,
-    ) -> Vec<(Point2<T>, Segment<T>, Option<crate::SegmentDirections<T>>)> {
+    fn stored_chain(&self, tol: Option<Tol>) -> Vec<crate::DirectedLink<T>> {
         let n = self.verts.len();
         (0..n).map(|k| self.stored_segment(k, tol)).collect()
     }
 
     /// Vertex `k`, the segment leaving it and the directions its verb
     /// made, as stored.
-    fn stored_segment(
-        &self,
-        k: usize,
-        tol: Option<Tol>,
-    ) -> (Point2<T>, Segment<T>, Option<crate::SegmentDirections<T>>) {
+    fn stored_segment(&self, k: usize, tol: Option<Tol>) -> crate::DirectedLink<T> {
         let n = self.verts.len();
         let (start, leaving) = self.verts[k];
         match leaving {
@@ -5309,9 +5302,13 @@ fn circle_kernel<T: Decide>(
         Point2::new(center.x + radius, center.y),
         Point2::new(center.x - radius, center.y),
     ];
+    let on_carrier: Vec<_> = vertices
+        .iter()
+        .copied()
+        .zip(radials.iter().copied())
+        .collect();
     circle_loop(
-        &vertices,
-        &radials,
+        &on_carrier,
         center,
         radius,
         half,
@@ -5353,9 +5350,13 @@ fn circle_split_kernel<T: Decide>(
         .iter()
         .map(|&Vec2 { x: c, y: s }| Point2::new(center.x + radius * c, center.y + radius * s))
         .collect();
+    let on_carrier: Vec<_> = vertices
+        .iter()
+        .copied()
+        .zip(radials.iter().copied())
+        .collect();
     circle_loop(
-        &vertices,
-        &radials,
+        &on_carrier,
         center,
         radius,
         sweep,
@@ -5421,13 +5422,13 @@ fn rectangle_kernel<T: Decide>(
 /// `circle`; 2π/n, spelled 4·atan(tan(π/2n)), for `circle_split`), over
 /// the reals at every value of the centre, radius and phase; each is
 /// read back before the loop is stored ([`arc_reads_back`]), as piece
-/// `k` of the one step the `verb` row records. That unit direction is
-/// `radials[k]`, which each arc records at its two ends; the centre
+/// `k` of the one step the `verb` row records. `on_carrier` holds each
+/// vertex with that unit direction, which each arc records at its two
+/// ends; the centre
 /// plus the stored radius `|r|` along it is the vertex wherever the door
 /// decided `r` positive, and that is registered with the rest.
 fn circle_loop<T: Decide>(
-    vertices: &[Point2<T>],
-    radials: &[Vec2<T>],
+    on_carrier: &[(Point2<T>, Vec2<T>)],
     centre: Point2<T>,
     radius: T,
     sweep: T,
@@ -5435,7 +5436,8 @@ fn circle_loop<T: Decide>(
     band: Band,
     verb: program::Verb,
 ) -> Result<ProfileLoop<T>, PathError<T>> {
-    let n = vertices.len();
+    let n = on_carrier.len();
+    let (vertices, radials): (Vec<_>, Vec<_>) = on_carrier.iter().copied().unzip();
     let arc = BuiltArc::new(
         Arc2 {
             centre,
