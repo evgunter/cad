@@ -355,9 +355,17 @@ pub(crate) fn tessellate_trimmed(
     // from the same `Surface::spline_chart()` this lane reads: the memo
     // holds it, and the row borrows it.
     let row = ChartRow::of(body, fk, surface, bounds)?;
-    let creases = match (&row, surface.spline_chart()) {
-        (ChartRow::Spline { grid }, Some(chart)) => Creases::of(grid, chart, fk)?,
-        _ => None,
+    // A spline chart's C⁰ creases; an analytic chart has none.
+    let creases = match row {
+        ChartRow::Spline { grid } => match surface.spline_chart() {
+            Some(chart) => Creases::of(grid, chart, fk)?,
+            None => None,
+        },
+        ChartRow::Cylinder { .. }
+        | ChartRow::Cone { .. }
+        | ChartRow::Sphere { .. }
+        | ChartRow::Torus { .. }
+        | ChartRow::Spindle { .. } => None,
     };
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its

@@ -336,6 +336,118 @@ mod tests {
     use geom::Surface;
     use geom_core::{Point3, Vec3};
 
+    /// **The row's singular rows are the chart's singular points.** For
+    /// each analytic kind, the `v` of every singular row is one of the
+    /// singular points `topo::chart::Chart::poles` reads off
+    /// `geom_brep::chart_singularity` for the same surface, and every one
+    /// of those is a row: a sphere's two poles, a cone's apex, a spindle
+    /// sheet's two apexes, a horn's one cusp (listed once, at `π`, by the
+    /// chart, and as both ends `±π` by the row), none on a cylinder or a
+    /// ring torus. The trimmed lane asserts the empty half of this per
+    /// face; this row holds both halves on every kind.
+    #[test]
+    fn the_rows_singular_rows_are_the_charts_poles() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let spindle = |major: f64, minor: f64| Surface::Spindle {
+            center: o,
+            axis: z,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: x,
+        };
+        let surfaces = [
+            Surface::Cylinder {
+                origin: o,
+                axis: z,
+                radius: 1.0,
+                u_ref: x,
+            },
+            Surface::Cone {
+                apex: o,
+                axis: z,
+                half_angle: 0.5,
+                u_ref: x,
+            },
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: z,
+                u_ref: x,
+            },
+            Surface::Torus {
+                center: o,
+                axis: z,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: x,
+            },
+            spindle(-0.5, 1.0),
+            spindle(0.4, 1.0),
+            spindle(1.0, 1.0),
+        ];
+        for surface in &surfaces {
+            let row = match *surface {
+                Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    ..
+                } => ChartRow::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                },
+                Surface::Cone { half_angle, .. } => ChartRow::Cone {
+                    half_angle,
+                    rho_max: 1.0,
+                },
+                Surface::Sphere { center, radius, .. } => ChartRow::Sphere {
+                    center,
+                    radius,
+                    widest: 1.0,
+                },
+                Surface::Torus {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => ChartRow::Torus {
+                    major: major_radius,
+                    minor: minor_radius,
+                },
+                Surface::Spindle {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => ChartRow::Spindle {
+                    major: major_radius,
+                    minor: minor_radius,
+                    apex: geom::sheet_apex(major_radius, minor_radius).v,
+                },
+                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                    unreachable!("the rows above are analytic surfaces")
+                }
+            };
+            let rows: Vec<f64> = row.singular_rows().iter().map(|r| r.v).collect();
+            let poles: Vec<f64> = topo::chart::Chart::of(surface)
+                .expect("an analytic chart")
+                .poles()
+                .iter()
+                .map(|&(_, v)| v)
+                .collect();
+            #[allow(clippy::float_cmp)]
+            let holds = |of: &[f64], v: f64| {
+                of.iter()
+                    .any(|&w| w == v || w == -v && w.abs() == core::f64::consts::PI)
+            };
+            assert!(
+                rows.iter().all(|&v| holds(&poles, v)) && poles.iter().all(|&v| holds(&rows, v)),
+                "{:?}: the row's singular rows {rows:?} against the chart's poles {poles:?}",
+                surface.kind()
+            );
+        }
+    }
+
     /// **The fold check reads the face's side through the bit.** On each
     /// analytic row, at a point off the carrier on either side of it,
     /// `outward` points away from the point it is measured from exactly when
