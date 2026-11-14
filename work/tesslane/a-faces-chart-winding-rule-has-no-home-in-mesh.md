@@ -2,10 +2,11 @@
 id: a-faces-chart-winding-rule-has-no-home-in-mesh
 kind: issue
 title: The rule 'a face's loop winds counter-clockwise in its chart exactly when sense is set' has five spellings in crates/mesh and no home
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M
+branch: tesslane/winding-rule
 ---
 
 
@@ -50,3 +51,15 @@ through it, and strike the census's `walk.rs` `area` and `TAU` entries and
 `trimmed.rs` `area` as they leave. Item 5 is a vector: if the home answers
 an `OutwardNormal`-shaped reading for it, that is the door. If no single
 home fits all five, say which spelling stays and why.
+
+## Unit (2026-11-14, TESSLANE)
+
+**Letter M. Tier: single review, FULL.** Five sites that each decide a sign; a home that gets one of them backwards ships a mirrored or inside-out patch that `check_mesh` may pass, so the review carries claims to falsify.
+
+Branch `tesslane/winding-rule`.
+
+- **Say what the rule is before giving it a home.** It is stated above for an analytic chart, whose `∂u × ∂v` is the outward normal. The trimmed lane's spline arm does not check it ("a spline chart's winding is not checked"), and site 2 reads the polygon instead of the bit. The unit says whether the rule holds on a spline chart and what the spline arm relies on instead; if it holds there too, the home serves all arms.
+- **Where the home lives is part of the unit.** A loop's place in its face's chart is stored once, as its lift (`topo::pcurves`); whether "which way a face's loop winds in its chart" is a fact about the face that `topo` should answer, or a mesh-local reading, is decided with a reason. A home in `topo` is a seam with that file's owner, announced in the PR.
+- Site 5 is a vector's fold. It leaves the census's `sanctioned` list by going through a door, not by being renamed.
+- The census entries that the unit empties are struck; none is added.
+- **Shared ground, live now:** unit 1 of the chart lane (`tesslane/chord-rule`) is in `chords.rs` and `sizing.rs`, and `tesslane/turned-ball` is in `curved.rs`'s CDT entries. Neither reads these five sites; merge main as they land.
