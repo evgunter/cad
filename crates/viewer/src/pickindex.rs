@@ -2241,30 +2241,6 @@ impl PickIndex {
             .map_err(PickError::HitTest)
     }
 
-    /// Reviewer probe only: the front set's size, and the profile the
-    /// cursor walk answers with, if any.
-    #[cfg(test)]
-    pub(crate) fn front_at_for_review(
-        &self,
-        eval: &Evaluation<f64>,
-        camera: &Camera,
-        viewport: ViewportSize,
-        cursor: [f64; 2],
-        display: &DisplayView,
-    ) -> Result<(usize, Option<RecipeNodeId>), PickError> {
-        let front = self.seed(eval, camera, viewport, cursor, display)?;
-        let lines = Lines {
-            front: &front,
-            edges: true,
-            outlines: true,
-        };
-        let profile = match self.near(eval, camera, viewport, cursor, display, lines)? {
-            Some(Near::Profile(node)) => Some(node),
-            Some(Near::Edge(_)) | None => None,
-        };
-        Ok((front.len(), profile))
-    }
-
     /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
     ///
     /// # Errors
