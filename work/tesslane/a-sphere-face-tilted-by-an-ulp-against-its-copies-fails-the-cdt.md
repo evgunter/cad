@@ -2,11 +2,13 @@
 id: a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt
 kind: issue
 title: a ball turned a quarter turn refuses the curved lanes CDT insert at its pole - the chart frame an ulp off its axis (first met as a PlacedUnion master against exact copy frames)
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P0
 cost: M
 branch: tesslane/turned-ball
+closed: 2026-11-14
+pr: 6940
 ---
 
 Found by INTENT stage 3 D's exact-turn lane (`work/intent/transform-retires-into-a-placement.md`), which measured it and then moved its own corpus off it; nothing in the suite reaches it now.
@@ -43,3 +45,11 @@ Branch `tesslane/turned-ball`, cut from `tesslane/measure-reach` so the probe `r
 - **Fix it where it starts.** A chart coordinate at a pole is not a number the chart defines; whatever reads one as if it were is the cause. A threshold typed in to absorb the dust is not a fix: a comparison that decides anything goes through the kernel's own band, and a new constant owes its derivation.
 - **Done when** the probe is re-pinned to `Ok` with `check_mesh` at both δ and at radius √2, 1 and 0.3; the tube ∪ ball op of `reach_probes::a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard` is re-pinned to what it then answers; and the ulp-tilted witness either meshes or the PR says, measured, what it still needs.
 - A mesh byte that moves (D9 digests, the budget baseline, tour pins) is re-baselined with its cause named.
+
+## Closed (2026-11-14, PR 6940)
+
+The refusal was spade's own: a nonzero coordinate below its 2⁻¹⁴² floor, here the seam meridian's column, an exact zero that comes out as −4.8e−49 in a frame an ulp off its axis. The unit's premise, that something reads a chart coordinate at a pole, was wrong, and the implementer measured that before building. Every CDT feed in `mesh` now meets spade's floor through one home, `mesh::cdt` (`spade_point`, `ids_at_two_uvs`); the trimmed lane floors before it scales, and scales the axis that grows. A turned ball meshes at every radius tried, with its volume checked against the closed form.
+
+Not reproduced: the `die_tool` body this row was first filed on, which no longer composes. The ulp-tilted slab cut built in its place meshed before the change too, so it is pinned as the row asked but is no evidence about the original.
+
+Left for others, each in its own row: the seam column is read from a carrier point where the stored image has it exactly (`rectangle-faces-move-to-the-chart-lane`, which records the measurement); `TessellateError::Triangulation` names nine raising sites with one sentence (`work/tessword/triangulation-names-nine-raising-sites-with-one-sentence`).
