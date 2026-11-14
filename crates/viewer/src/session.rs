@@ -4044,14 +4044,22 @@ impl DocSession {
                 }
             }
         };
-        let opts = self.eval_options();
-        let ev: Evaluation<f64> = pncad::document::evaluate(
-            doc,
-            None,
-            &pncad::document::CancelToken::new(),
-            &opts,
-            self.tol,
-        );
+        // The landed evaluation reads the pick where it answers the
+        // committed document; only where it does not is one run here.
+        let evaluated;
+        let ev: &Evaluation<f64> = match self.landed_pair() {
+            Some((landed, ev)) if landed == doc => ev,
+            _ => {
+                evaluated = pncad::document::evaluate(
+                    doc,
+                    None,
+                    &pncad::document::CancelToken::new(),
+                    &self.eval_options(),
+                    self.tol,
+                );
+                &evaluated
+            }
+        };
         // The placement the candidates are written on, once: its source is
         // the door's to mint or share for `input` (VARIABLES VR4), and a
         // refusal here is no candidate's, so it fails loud.
@@ -4089,7 +4097,7 @@ impl DocSession {
                 .iter()
                 .find_map(|c| Some((c.id, c.value()?.coord)).filter(|(_, c)| c.read().is_some()))?;
             let at = *coord.read()?;
-            match editor_core::eval::bound_pose(scratch, &ev, coord.seat(id), at, self.tol).ok()? {
+            match editor_core::eval::bound_pose(scratch, ev, coord.seat(id), at, self.tol).ok()? {
                 PoseValue::Axis(line) => Some(line.dir().get()),
                 PoseValue::Direction { dir } if !axis => Some(dir.get()),
                 _ => None,
