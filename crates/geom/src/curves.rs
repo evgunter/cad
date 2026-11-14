@@ -885,19 +885,27 @@ impl<T: Real> Line<T> {
     }
 }
 
-/// **A half-line**: [`Ray::line`] read forward from its origin, the point
-/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
-/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
-/// a length only where the caller's `dir` is unit, which nothing here
-/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// **A half-line**: [`Ray::line`] read forward from its start, the point
+/// `origin + dir·t` ahead at an advance `t` past the start's and behind
+/// before it. The start is the line's origin (advance `0`) unless the
+/// ray is built [starting](Ray::starting) elsewhere on its line: a ray
+/// built through a point it is aimed at keeps that point as its origin,
+/// so every reading on its line is taken from there and not from a
+/// start derived from it. An advance is in units of `|dir|`, as
+/// [`Line::param`]'s parameter is: a length only where the caller's
+/// `dir` is unit, which nothing here makes it
+/// (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
 /// A root's forward reading is [`Ray::ahead`], decided under the
 /// reader's own row. The touch analysis decides its own ahead readings
 /// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
 /// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
-    /// The line the ray runs along, from its origin.
+    /// The line the ray runs along.
     pub line: Line<T>,
+    /// The advance the ray starts at on its line; `None` at the line's
+    /// origin.
+    start: Option<T>,
 }
 
 impl<T: Real> Ray<T> {
@@ -907,18 +915,37 @@ impl<T: Real> Ray<T> {
     pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
         Self {
             line: Line { origin, dir },
+            start: None,
         }
+    }
+
+    /// The ray along `dir` on the line through `origin` that starts at
+    /// advance `start`, the point `origin + dir·start`: `origin` is a
+    /// point of its line, ahead of the start where `start` is negative.
+    #[must_use]
+    pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
+        Self {
+            line: Line { origin, dir },
+            start: Some(start),
+        }
+    }
+
+    /// The advance the ray starts at: `0` at its line's origin.
+    #[must_use]
+    pub fn start(&self) -> T {
+        self.start.unwrap_or(T::zero())
     }
 }
 
 impl<T: Decide> Ray<T> {
-    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// **Whether advance `at` lies ahead of the ray's start**, decided
     /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
-    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// `Zero` at the start. Each reader keeps its own policy for `Zero`
     /// and for an undecided reading.
     ///
     /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
-    /// the margin decided is `at` itself, in units of `|dir|` (the type's
+    /// the margin decided is `at` less the start's advance (`at` itself
+    /// for a ray from its line's origin), in units of `|dir|` (the type's
     /// doc). The method takes the parameter, not a point, because every
     /// reader holds only a parameter computed on [`Ray::line`]: a root
     /// against a carrier (`line_*_roots`), or the closest-approach span of
@@ -932,9 +959,10 @@ impl<T: Decide> Ray<T> {
     ///
     /// # Errors
     ///
-    /// [`Indeterminate`] where `at` is in band.
+    /// [`Indeterminate`] where the margin is in band.
     pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
-        geom_core::k_stats::decide(site, Margin::of(at), band)
+        let past = self.start.map_or(at, |start| at - start);
+        geom_core::k_stats::decide(site, Margin::of(past), band)
     }
 }
 

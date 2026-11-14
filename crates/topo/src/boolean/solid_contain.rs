@@ -3347,15 +3347,7 @@ fn edge_meets<T: Decide>(
     };
     for pass in &passes {
         for v in pass.ends {
-            meets.vertex(
-                body,
-                v,
-                [pass.faces.0, pass.faces.1],
-                (q, top),
-                d,
-                band,
-                rows,
-            )?;
+            meets.vertex(body, v, [pass.faces.0, pass.faces.1], (ray, top), band, rows)?;
         }
     }
     for pass in passes {
@@ -3411,20 +3403,18 @@ fn edge_meets<T: Decide>(
 }
 
 impl<T: Decide> EdgeMeets<T> {
-    /// **Reads vertex `v`** of an edge between `faces` against the ray
-    /// segment `ray` along `d`, once per vertex: within the band of the
+    /// **Reads vertex `v`** of an edge between `faces` against `ray` from
+    /// its start to advance `top`, once per vertex: within the band of the
     /// ray it is a corner, on it a graze, marked where the ray comes
     /// closest to it. Its distance from the ray, a short chain on in-box
     /// coordinates, is decided as read: its rounding is the run's
     /// (`geom_core::tolerance::admissible`), not charged here.
-    #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
     fn vertex(
         &mut self,
         body: &Body<T>,
         v: crate::entity::VertexKey,
         faces: [FaceKey; 2],
-        (q, top): (Point3<T>, T),
-        d: Vec3<T>,
+        (ray, top): (&geom::Ray<T>, T),
         band: Band,
         rows: RayRows,
     ) -> Result<(), RayFault<PointInSolidError>> {
@@ -3439,9 +3429,8 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let ray = geom::Line { origin: q, dir: d };
-        let along = ray.param(at);
-        let distance = ray.distance_within(at, (T::zero(), top));
+        let along = ray.line.param(at);
+        let distance = ray.line.distance_within(at, (ray.start(), top));
         match geom_core::k_stats::decide_magnitude(
             rows.vertex(),
             Margin::of(distance.max(T::zero())),

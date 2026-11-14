@@ -388,7 +388,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 /// bounded carrier, which can bulge past its loops' hull, the farthest
 /// its carrier's whole cover reaches from `aim` ([`geom::Surface::cover`]:
 /// a sphere's ball, a torus's tube, a spline's net). An aimed ray starts
-/// twice this far from its aim, so its start lies beyond every face of
+/// twice this far before its aim, so its start lies beyond every face of
 /// the selection, whatever it is aimed at.
 ///
 /// # Errors
@@ -680,9 +680,19 @@ enum Aimed {
     SetAside(SetAsideWhy),
 }
 
-/// **One aimed ray**: from twice the selection's reach off `aim` on
-/// `face`, at [`AIM_INCIDENCE`] to `normal`, turned off the coordinate
-/// planes ([`aim_turn`]), read off the sign of its count.
+/// **One aimed ray**: the line through `aim` on `face` at
+/// [`AIM_INCIDENCE`] to `normal`, turned off the coordinate planes
+/// ([`aim_turn`]), read from twice the selection's reach before `aim`
+/// off the sign of its count.
+///
+/// The ray is its line through `aim` along `−out` and the advance it
+/// starts at, never a start point and a direction read back off it: the
+/// crossing walk reads every crossing from `aim`
+/// ([`geom::Ray::starting`]), so a crossing is as wide as `aim`, `out`
+/// and the face crossed make it, and the start's width, which is the
+/// reach's, reaches only the forward tests, each of a crossing at least
+/// the reach past the start. `out` is unit as `normal` is, so an advance
+/// along it is a length.
 #[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
@@ -705,14 +715,12 @@ fn aimed_ray<T: Decide>(
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
-    let d = (aim - from).normalize();
-    let reach = selection_reach(body, faces, from)?;
+    let start = beyond(body, faces, aim)? * T::from_f64(-2.0);
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::new(from, d),
-        reach,
+        &geom::Ray::starting(aim, -out, start),
+        selection_reach(body, faces, aim)?,
         band,
         AIMED_ROWS,
     ) {

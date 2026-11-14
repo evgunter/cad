@@ -150,7 +150,7 @@ pub(super) fn read<T: Decide>(
             let faces = [face, other];
             for v in fe.ends {
                 if !crate::boolean::is_conventional_vertex(body, v) {
-                    meets.vertex(body, v, faces, (q, top), d, band, rows)?;
+                    meets.vertex(body, v, faces, (ray, top), band, rows)?;
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
