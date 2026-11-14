@@ -3192,6 +3192,34 @@ pub enum SiteReading<T: Real> {
     OnArc(SiteFoot<T>),
 }
 
+/// **Which loop, component or line of a face pair's section a site
+/// rides.** On a pair whose section is carried, it is a component of the
+/// [`CarriedSection`], by its index: the component the site has its foot
+/// on ([`CarriedSection::site`]). On a pair read by a frame, a section
+/// of two loops — a plane cutting a torus in two circles or two ovals —
+/// tells its loops apart by a margin at a point of the section; a
+/// section of two lines through a point — a plane through a cone's apex
+/// — tells its lines apart by the line the site lies on, or at the point
+/// the line it runs along. It is decided once, at the site, and every
+/// reader of that site takes its loop from the value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SectionBranch {
+    /// The section is one loop, loops sharing one frame, or one line;
+    /// or the site runs along an edge, whose own curve it rides.
+    Only,
+    /// The loop on the split's positive side (a plane×torus section).
+    Positive,
+    /// The loop on its negative side.
+    Negative,
+    /// The component of the pair's carried section with this index: at
+    /// a node, the arc whose end the site was read from.
+    Component(usize),
+    /// The line with this index of a straight section of two lines
+    /// through one point: a plane through a cone's apex, in the order
+    /// the pair's one reading returns them.
+    Line(usize),
+}
+
 /// **One end of a component's span**: its first parameter or its last
 /// ([`NodeEnds`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

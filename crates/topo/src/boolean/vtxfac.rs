@@ -1273,7 +1273,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // site reads on are one ellipse's: the datum is that plane's
         // normal, the arc's carrier lies in it.
         #[cfg(debug_assertions)]
-        if let (Some(datum), super::Branch::Component(k)) = (on_wall[t], branch) {
+        if let (Some(datum), geom_brep::SectionBranch::Component(k)) = (on_wall[t], branch) {
             let (body_a, body_b) = match piercing {
                 Operand::A => (orbit_body, pierced_body),
                 Operand::B => (pierced_body, orbit_body),
@@ -1941,7 +1941,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         (
             cells,
             Leaned::upright(rays[i]),
-            super::Branch::Component(arcs[i]),
+            geom_brep::SectionBranch::Component(arcs[i]),
         )
     };
     let run_germs = node_runs(node, a_along, b_along).map(|(s, e)| (germ(s), germ(e)));
@@ -2216,7 +2216,7 @@ struct HeldRead<T: geom_core::Real> {
         (crate::entity::FaceKey, crate::entity::FaceKey),
         (super::Locus, super::Locus),
     ),
-    branch: super::Branch,
+    branch: geom_brep::SectionBranch,
     on: geom_core::MarginDiag,
 }
 
@@ -2967,10 +2967,10 @@ fn pierce_apex_germ<T: Decide>(
 /// the edge's curve, and names no line.
 pub(super) fn apex_germ_on_a_line(
     loci: (super::Locus, super::Locus),
-    branch: super::Branch,
+    branch: geom_brep::SectionBranch,
 ) -> Result<(), BooleanError> {
     match (loci, branch) {
-        ((super::Locus::InFace(_), super::Locus::InFace(_)), super::Branch::Only) => {
+        ((super::Locus::InFace(_), super::Locus::InFace(_)), geom_brep::SectionBranch::Only) => {
             Err(BooleanError::JoinDesync {
                 what: "a pierce germ at a cone's apex runs along a section ruling where its \
                        pair's one reading reads no line pair",
@@ -2988,7 +2988,7 @@ type Germ<T> = (
         (super::Locus, super::Locus),
     ),
     super::sectors::Leaned<T>,
-    super::Branch,
+    geom_brep::SectionBranch,
 );
 
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
@@ -3004,7 +3004,7 @@ fn germ_branch<T: Decide>(
     ),
     (p, dir): (geom_core::Point3<T>, Vec3<T>),
     band: Band,
-) -> Result<super::Branch, BooleanError> {
+) -> Result<geom_brep::SectionBranch, BooleanError> {
     let (a, b) = match piercing {
         Operand::A => (piercing_body, pierced_body),
         Operand::B => (pierced_body, piercing_body),

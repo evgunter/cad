@@ -3,17 +3,18 @@
 //! germ frame along an edge of either solid, and the ring run.
 //!
 //! The rows drive each site directly on the sweep rows' sheets
-//! (`reduce::planar_lane_carrier_rows`): a planar sheet in `z = 0`
+//! (`test_support_fixtures`): a planar sheet in `z = 0`
 //! bounded by a quadratic Bézier arc and its chord, and one in `x = ½`
 //! bounded by a spiric arc and its chord.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::super::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap};
-use super::super::{BooleanError, Branch, EdgeCarrierSite, HalfGerm, Locus, Operand};
+use super::super::{BooleanError, EdgeCarrierSite, HalfGerm, Locus, Operand};
 use super::{IslandClosing, germ_section_loops, ring_run_ccw};
 use crate::chord_join::SegmentCurve;
+use crate::test_support_fixtures::{arc_sheet, spiric_cap};
 use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey};
+use geom_brep::SectionBranch;
 use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
 
 fn band() -> Band {
@@ -57,8 +58,11 @@ fn assert_site(
 /// its partner.
 #[test]
 fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
-    for (name, (body, edge)) in [("spline", arc_sheet(1.0, 1.0)), ("spiric", spiric_cap())] {
-        let (other, _) = arc_sheet(1.0, 0.5);
+    for (name, (body, edge)) in [
+        ("spline", arc_sheet(1.0, 1.0, Tol::witness())),
+        ("spiric", spiric_cap(Tol::witness())),
+    ] {
+        let (other, _) = arc_sheet(1.0, 0.5, Tol::witness());
         let (face, _) = plus_side(&body, edge);
         let germ = |on: Operand| HalfGerm {
             he: HalfEdgeKey::default(),
@@ -83,7 +87,7 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
                 Locus::InFace(FaceKey::default())
             },
             dir: Vec3::new(1.0, 0.0, 0.0),
-            branch: Branch::Only,
+            branch: SectionBranch::Only,
         };
         assert_site(
             germ_section_loops(
@@ -127,7 +131,7 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
 /// `ring_path::spline_fuzz` searches its readings.
 #[test]
 fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
-    let (body, edge) = arc_sheet(1.0, 1.0);
+    let (body, edge) = arc_sheet(1.0, 1.0, Tol::witness());
     let (face, he) = plus_side(&body, edge);
     let chord = SegmentCurve::of((he, he), None);
     let closings = [

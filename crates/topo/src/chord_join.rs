@@ -1338,7 +1338,7 @@ pub(crate) struct SectionCtx<T: Real> {
     /// The loop of a two-loop section the chord rides, where the caller
     /// decided it: a boolean germ's branch. `None` in the split lane,
     /// whose chord reads it at its sites ([`section_loop`]).
-    pub(crate) branch: Option<crate::boolean::Branch>,
+    pub(crate) branch: Option<geom_brep::SectionBranch>,
 }
 
 /// Which curved-section lane a [`ChordJoiner::join`] call runs
@@ -1373,7 +1373,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
         partner_key: &'a mut Option<SurfaceKey>,
         /// The germ's branch: the loop of a two-loop section the chord
         /// rides.
-        branch: crate::boolean::Branch,
+        branch: geom_brep::SectionBranch,
     },
     /// The boolean's chord on a germ pair whose section the operation's
     /// section table carries (`boolean::section_table`): an arc of the
@@ -1597,7 +1597,7 @@ pub(crate) enum SectionCase<T: Real> {
 fn section_loop<T: Decide>(
     face: FaceKey,
     [positive, negative]: [SectionCurve<T>; 2],
-    (split, branch): (LoopSplit<T>, Option<crate::boolean::Branch>),
+    (split, branch): (LoopSplit<T>, Option<geom_brep::SectionBranch>),
     sites: [Point3<T>; 2],
     band: Band,
 ) -> Result<SectionCurve<T>, JoinError> {
@@ -1605,10 +1605,10 @@ fn section_loop<T: Decide>(
     // carries no branch of the face pair's section: its chord reads the
     // loop at its sites, as the split lane's does.
     match branch {
-        Some(crate::boolean::Branch::Positive) => return Ok(positive),
-        Some(crate::boolean::Branch::Negative) => return Ok(negative),
-        Some(crate::boolean::Branch::Only) | None => {}
-        Some(crate::boolean::Branch::Component(_) | crate::boolean::Branch::Line(_)) => {
+        Some(geom_brep::SectionBranch::Positive) => return Ok(positive),
+        Some(geom_brep::SectionBranch::Negative) => return Ok(negative),
+        Some(geom_brep::SectionBranch::Only) | None => {}
+        Some(geom_brep::SectionBranch::Component(_) | geom_brep::SectionBranch::Line(_)) => {
             return Err(JoinError::SectionInvariant {
                 face,
                 what: "a germ riding a carried section's component or a straight section's line \
@@ -2999,7 +2999,7 @@ fn bool_planar_chord_spec<T: Decide>(
     face: FaceKey,
     plane_key: SurfaceKey,
     (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
-    (partner_key, branch): (&mut Option<SurfaceKey>, crate::boolean::Branch),
+    (partner_key, branch): (&mut Option<SurfaceKey>, geom_brep::SectionBranch),
     u1: VertexKey,
     u2: VertexKey,
     leave: Departure<T>,
@@ -8007,22 +8007,30 @@ mod segment_curve_tests {
 /// **A run edge between two chords that is a spiric or a spline
 /// refuses typed, naming the edge and its face**: its midpoint's side
 /// of the cut's plane says nothing of the rest of it. The sweep rows'
-/// sheets (`boolean::reduce::planar_lane_carrier_rows`), each cut by a
+/// sheets (`test_support_fixtures`), each cut by a
 /// plane through the arc's ends, which a midpoint reading would call
 /// off the plane.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod run_edge_carrier_rows {
     use super::{JoinError, SectionCtx, between_edge_is_section};
-    use crate::boolean::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap};
+    use crate::test_support_fixtures::{arc_sheet, spiric_cap};
     use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
 
     #[test]
     fn a_curved_run_edge_refuses_naming_itself() {
         let band = Band::linear(Tol::witness()).unwrap();
         let cuts = [
-            ("spline", arc_sheet(1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
-            ("spiric", spiric_cap(), Vec3::new(0.0, 1.0, 0.0)),
+            (
+                "spline",
+                arc_sheet(1.0, 1.0, Tol::witness()),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            (
+                "spiric",
+                spiric_cap(Tol::witness()),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         ];
         for (name, (body, edge), normal) in cuts {
             let he = body.get_edge(edge).unwrap().he_plus;

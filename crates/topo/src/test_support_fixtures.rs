@@ -2207,6 +2207,175 @@ pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) 
     (body, top, strut.vertex)
 }
 
+/// The quadratic Bézier arc (a NURBS carrier) in `z = 0` from
+/// `(0, 0, 0)` through the control point `(mx, 2h, 0)` to `(2, 0, 0)`.
+fn bezier_arc(mx: f64, h: f64) -> Curve3<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(mx, 2.0 * h, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ))
+}
+
+/// The arc's image in the plane chart (origin `0`, `u_ref = x̂`): the
+/// same net, read in `(x, y)`.
+fn bezier_arc_image(mx: f64, h: f64) -> geom_brep::Pcurve<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    geom_brep::Pcurve::Fitted(std::sync::Arc::new(
+        geom::NurbsCurve2::new(
+            kv,
+            vec![
+                geom_core::Point2::new(0.0, 0.0),
+                geom_core::Point2::new(mx, 2.0 * h),
+                geom_core::Point2::new(2.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ))
+}
+
+/// A planar sheet in `z = 0` bounded by [`bezier_arc`] and the chord
+/// back, built fresh-keyed: the sheet, and its arc edge.
+pub fn arc_sheet(mx: f64, h: f64, tol: Tol) -> (Body<f64>, EdgeKey) {
+    let mut body = fresh_keyed_body::<f64>();
+    let (p0, p1) = (Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 0.0, 0.0));
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: p0,
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Chart {
+                    surface: plane,
+                    image: Some(bezier_arc_image(mx, h)),
+                    wrap: false,
+                    declared: None,
+                },
+                carrier: bezier_arc(mx, h),
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(plane),
+            carrier: Curve3::line(p1, Vec3::new(-1.0, 0.0, 0.0)),
+            param_start: 0.0,
+            param_end: 2.0,
+        },
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, e.edge)
+}
+
+/// The spiric cap in `x = ½`: the arc of the torus `R = 2`, `r = 1`
+/// about `ẑ` over `v ∈ [−π/2, π/2]`, described as the torus's
+/// intersection with the cap's plane, and the chord back, built
+/// fresh-keyed. The sheet, and its arc edge.
+pub fn spiric_cap(tol: Tol) -> (Body<f64>, EdgeKey) {
+    use core::f64::consts::FRAC_PI_2;
+    let spiric = Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        major_radius: 2.0,
+        minor_radius: 1.0,
+        offset: 0.5,
+    };
+    let (p0, p1) = (spiric.eval(-FRAC_PI_2), spiric.eval(FRAC_PI_2));
+    let mut body = fresh_keyed_body::<f64>();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.5, 0.0, 0.0),
+                    normal: Vec3::new(1.0, 0.0, 0.0),
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let torus = body.add_surface(Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: 2.0,
+        minor_radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    });
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(torus, plane),
+                    selector: geom_brep::CurveSelector::Witness(spiric.eval(0.0)),
+                },
+                carrier: spiric,
+                param_start: -FRAC_PI_2,
+                param_end: FRAC_PI_2,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec::line_between(p1, p0),
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, e.edge)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

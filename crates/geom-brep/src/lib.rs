@@ -228,12 +228,13 @@ pub use pair_section::{
     Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
     CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
     NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
-    Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionNode,
-    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
-    SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
-    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
-    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
-    axis_pose, line_tilt, pair_section, spline_pair_section, square_part, tori_coincide,
+    Reached, RegionPlacement, Ring, Seated, SectionBranch, SectionComponent, SectionDecision,
+    SectionNode, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
+    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
+    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.

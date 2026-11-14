@@ -31,11 +31,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::section_table::SectionTable;
-use super::super::{BooleanError, Branch, HalfGerm, Locus};
+use super::super::{BooleanError, HalfGerm, Locus};
 use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, nearest_of};
 use crate::HalfEdgeKey;
 use crate::chord_join::JoinError;
 use geom::{Curve3, Surface};
+use geom_brep::SectionBranch;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -268,7 +269,7 @@ fn feet(
         a_locus: Locus::InFace(pillow.face_a),
         b_locus: Locus::InFace(pillow.face_b),
         dir,
-        branch: Branch::Component(component),
+        branch: SectionBranch::Component(component),
     };
     let from = germ(dir);
     partners

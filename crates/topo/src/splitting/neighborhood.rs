@@ -425,12 +425,12 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_departure_rows {
-    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use crate::test_support_fixtures::arc_sheet;
     use geom_core::Vec3;
 
     #[test]
     fn the_split_walk_reads_a_splines_tangent() {
-        let (body, edge) = arc_sheet(1.0, 1.0);
+        let (body, edge) = arc_sheet(1.0, 1.0, geom_core::Tol::witness());
         let he = body.get_edge(edge).unwrap().he_plus;
         let vertex = body.get_half_edge(he).unwrap().start;
         let (dir, reach) = crate::star::departure(&body, vertex, he).unwrap();

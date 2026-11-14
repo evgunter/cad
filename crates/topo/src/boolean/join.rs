@@ -20,7 +20,7 @@
 //! components, the parallel pose's rulings and the bisector pose's arcs
 //! between its nodes among them.
 //! A straight section of two lines through a point — a plane through a
-//! cone's apex — names its lines the same way ([`super::Branch::Line`]):
+//! cone's apex — names its lines the same way ([`geom_brep::SectionBranch::Line`]):
 //! two germs face only where their branches agree, on a loop or a line
 //! alike ([`facing`]).
 //!
@@ -394,11 +394,11 @@ impl<T: Decide> SegmentPair<T> {
 /// The index of the component of `section` a germ's `branch` names: its
 /// site's foot's, read where the germ was minted ([`germ_branch`]).
 fn branch_component<T: Decide>(
-    branch: super::Branch,
+    branch: geom_brep::SectionBranch,
     section: &geom_brep::CarriedSection<T>,
 ) -> Result<usize, BooleanError> {
     match branch {
-        super::Branch::Component(k) if k < section.components().len() => Ok(k),
+        geom_brep::SectionBranch::Component(k) if k < section.components().len() => Ok(k),
         _ => Err(BooleanError::JoinDesync {
             what: "a germ's branch does not name a component of its section",
         }),
@@ -555,7 +555,7 @@ impl SolidJoin {
         plan: &JoinPlan,
         (origin, normal): (Point3<T>, UnitVec3<T>),
         datum: AuxDatum,
-        branch: super::Branch,
+        branch: geom_brep::SectionBranch,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
@@ -582,7 +582,7 @@ impl SolidJoin {
         plan: &JoinPlan,
         (wall, window): (geom::Surface<T>, Option<(T, T)>),
         partner_face: FaceKey,
-        branch: super::Branch,
+        branch: geom_brep::SectionBranch,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let datum = AuxDatum::Partner(partner_face);
@@ -3277,7 +3277,7 @@ impl<T: Decide> SectionLoops<T> {
         Self::One(SectionLoop { axis, ball: None })
     }
 
-    /// **The branch the site `p` lies on** ([`super::Branch`]), the
+    /// **The branch the site `p` lies on** ([`geom_brep::SectionBranch`]), the
     /// one reading of the split, taken where a germ is minted
     /// ([`germ_branch`]). The split's margin is definite at every point
     /// of a served section, the plane×torus pair's loops
@@ -3287,14 +3287,14 @@ impl<T: Decide> SectionLoops<T> {
         &self,
         p: geom_core::Point3<T>,
         band: Band,
-    ) -> Result<super::Branch, BooleanError> {
+    ) -> Result<geom_brep::SectionBranch, BooleanError> {
         let split = match self {
-            Self::One(_) => return Ok(super::Branch::Only),
+            Self::One(_) => return Ok(geom_brep::SectionBranch::Only),
             Self::Two { split, .. } => split,
         };
         match decide("bool_join_section_loop", Margin::of(split.margin(p)), band) {
-            Ok(Sign::Positive) => Ok(super::Branch::Positive),
-            Ok(Sign::Negative) => Ok(super::Branch::Negative),
+            Ok(Sign::Positive) => Ok(geom_brep::SectionBranch::Positive),
+            Ok(Sign::Negative) => Ok(geom_brep::SectionBranch::Negative),
             Ok(Sign::Zero) => Err(BooleanError::JoinDesync {
                 what: "a germ site lies on neither loop of its section (its loop margin is in the \
                        band)",
@@ -3307,12 +3307,15 @@ impl<T: Decide> SectionLoops<T> {
     /// section, the split's positive or negative loop of a two-loop
     /// one. A branch of the other shape is a desync: the germ was
     /// minted against this face pair's section.
-    pub(super) fn pick(&self, branch: super::Branch) -> Result<SectionLoop<T>, BooleanError> {
+    pub(super) fn pick(
+        &self,
+        branch: geom_brep::SectionBranch,
+    ) -> Result<SectionLoop<T>, BooleanError> {
         match (self, branch) {
-            (Self::One(lp), super::Branch::Only) => Ok(*lp),
-            (Self::Two { loops, .. }, super::Branch::Positive) => Ok(loops[0]),
-            (Self::Two { loops, .. }, super::Branch::Negative) => Ok(loops[1]),
-            (_, super::Branch::Component(_) | super::Branch::Line(_)) => {
+            (Self::One(lp), geom_brep::SectionBranch::Only) => Ok(*lp),
+            (Self::Two { loops, .. }, geom_brep::SectionBranch::Positive) => Ok(loops[0]),
+            (Self::Two { loops, .. }, geom_brep::SectionBranch::Negative) => Ok(loops[1]),
+            (_, geom_brep::SectionBranch::Component(_) | geom_brep::SectionBranch::Line(_)) => {
                 Err(BooleanError::JoinDesync {
                     what: "a germ riding a carried section's component or a straight section's \
                            line was read against a frame's loops",
@@ -3325,13 +3328,13 @@ impl<T: Decide> SectionLoops<T> {
     }
 }
 
-/// **The loop a germ rides** ([`super::Branch`]), decided where the germ
+/// **The loop a germ rides** ([`geom_brep::SectionBranch`]), decided where the germ
 /// is minted, at its site `site` (the A copy's point) with its face pair
 /// `(face_a, face_b)` and its loci: a germ along an edge rides that
 /// edge's own curve ([`germ_section_loops`]). A germ inside a face of
 /// each operand on a pair the operation's section table holds rides the
 /// component of the pair's carried section its site has its foot on
-/// ([`geom_brep::CarriedSection::site`], [`super::Branch::Component`]),
+/// ([`geom_brep::CarriedSection::site`], [`geom_brep::SectionBranch::Component`]),
 /// the pair carried here if no germ carried it before. A germ of a
 /// plane×cone pair whose section is the two lines through the apex
 /// rides one of them ([`apex_line`], `site` and the germ's direction
@@ -3356,10 +3359,10 @@ pub(super) fn germ_branch<T: Decide>(
     (locus_a, locus_b): (super::Locus, super::Locus),
     (site, dir): (Point3<T>, Vec3<T>),
     band: Band,
-) -> Result<super::Branch, BooleanError> {
+) -> Result<geom_brep::SectionBranch, BooleanError> {
     use geom::SurfaceKind::{Cone, Plane, Torus};
     match (locus_a.edge(), locus_b.edge()) {
-        (Some(_), Some(_)) => return Ok(super::Branch::Only),
+        (Some(_), Some(_)) => return Ok(geom_brep::SectionBranch::Only),
         // A germ along an edge of one solid inside the other's face lies
         // on both faces' surfaces, so on their section. A conic edge
         // rides its own plane (the edge-plane lane); a straight one has
@@ -3384,7 +3387,7 @@ pub(super) fn germ_branch<T: Decide>(
                 .as_line()
                 .is_some();
             if !straight || !rides_carried(sections, (body_a, face_a), (body_b, face_b))? {
-                return Ok(super::Branch::Only);
+                return Ok(geom_brep::SectionBranch::Only);
             }
         }
         (None, None) => {}
@@ -3393,7 +3396,9 @@ pub(super) fn germ_branch<T: Decide>(
         let section = carried
             .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?;
         return match section.site(site, band).map_err(site_refusal)? {
-            geom_brep::SiteReading::OnArc(foot) => Ok(super::Branch::Component(foot.component)),
+            geom_brep::SiteReading::OnArc(foot) => {
+                Ok(geom_brep::SectionBranch::Component(foot.component))
+            }
             // A germ the sweep mints at a node (an operand's edge through
             // it) names no arc there; the node pass mints the node's own.
             geom_brep::SiteReading::AtNode(_) => Err(BooleanError::NodeUnbuilt {
@@ -3415,19 +3420,19 @@ pub(super) fn germ_branch<T: Decide>(
                 band,
             );
         }
-        _ => return Ok(super::Branch::Only),
+        _ => return Ok(geom_brep::SectionBranch::Only),
     }
     let Some(loops) = face_pair_section_loops(sections, (body_a, face_a), (body_b, face_b), band)?
     else {
-        return Ok(super::Branch::Only);
+        return Ok(geom_brep::SectionBranch::Only);
     };
     loops.branch_at(site, band)
 }
 
 /// **The line of a plane×cone pair's apex line pair a germ rides**
-/// ([`super::Branch::Line`]), its site `site` and direction `dir`; a
+/// ([`geom_brep::SectionBranch::Line`]), its site `site` and direction `dir`; a
 /// pair whose section is not the line pair rides
-/// [`super::Branch::Only`].
+/// [`geom_brep::SectionBranch::Only`].
 ///
 /// The section is the pair's one reading for the operation
 /// ([`pair_reading`]), which the join's frame read takes too
@@ -3457,10 +3462,10 @@ fn apex_line<T: Decide>(
     b: (&Body<T>, FaceKey),
     (site, dir): (Point3<T>, Vec3<T>),
     band: Band,
-) -> Result<super::Branch, BooleanError> {
+) -> Result<geom_brep::SectionBranch, BooleanError> {
     match pair_reading(sections, a, b, band)? {
         PkSection::Lines(lines) => line_of(&lines, (site, dir), band),
-        PkSection::Loop(..) | PkSection::Unframed(_) => Ok(super::Branch::Only),
+        PkSection::Loop(..) | PkSection::Unframed(_) => Ok(geom_brep::SectionBranch::Only),
     }
 }
 
@@ -3526,7 +3531,7 @@ pub(super) fn line_of<T: Decide>(
     lines: &super::section_table::ApexLines<T>,
     (site, dir): (Point3<T>, Vec3<T>),
     band: Band,
-) -> Result<super::Branch, BooleanError> {
+) -> Result<geom_brep::SectionBranch, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let on_as = |name: &'static str, margin: Margin<T>| {
         decide(name, margin, band)
@@ -3545,8 +3550,8 @@ pub(super) fn line_of<T: Decide>(
         at_site[k] = on_as("bool_germ_apex_line", Margin::of(off))?;
     }
     let along = match at_site {
-        [true, false] => return Ok(super::Branch::Line(0)),
-        [false, true] => return Ok(super::Branch::Line(1)),
+        [true, false] => return Ok(geom_brep::SectionBranch::Line(0)),
+        [false, true] => return Ok(geom_brep::SectionBranch::Line(1)),
         [false, false] => {
             return Err(desync(
                 "a plane×cone germ's site lies on neither line of its apex line pair",
@@ -3562,8 +3567,8 @@ pub(super) fn line_of<T: Decide>(
         }
     };
     match along {
-        [true, false] => Ok(super::Branch::Line(0)),
-        [false, true] => Ok(super::Branch::Line(1)),
+        [true, false] => Ok(geom_brep::SectionBranch::Line(0)),
+        [false, true] => Ok(geom_brep::SectionBranch::Line(1)),
         _ => Err(desync(
             "a germ at a cone's apex runs along both lines of its apex line pair, or neither",
         )),
@@ -3818,7 +3823,10 @@ fn germ_rides_carried<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match (germ.a_locus.edge(), germ.b_locus.edge()) {
         (None, None) => rides_carried(sections, a, b),
-        (Some(_), None) | (None, Some(_)) => Ok(matches!(germ.branch, super::Branch::Component(_))),
+        (Some(_), None) | (None, Some(_)) => Ok(matches!(
+            germ.branch,
+            geom_brep::SectionBranch::Component(_)
+        )),
         (Some(_), Some(_)) => Ok(false),
     }
 }
@@ -4437,7 +4445,7 @@ fn along_facing<T: Decide>(
             // A germ at a node was minted from its arc's end there, which
             // fixes its foot and the way it leaves.
             geom_brep::SiteReading::AtNode(n) => {
-                let super::Branch::Component(k) = germ.branch else {
+                let geom_brep::SectionBranch::Component(k) = germ.branch else {
                     return Err(FootRefusal::Desync(
                         "a germ at a node names no arc of its section",
                     ));
@@ -4460,7 +4468,7 @@ fn along_facing<T: Decide>(
                 };
             }
         };
-        if germ.branch != super::Branch::Component(foot.component) {
+        if germ.branch != geom_brep::SectionBranch::Component(foot.component) {
             return Err(FootRefusal::Desync(
                 "a germ's site has its foot on another component than its branch names",
             ));
@@ -4517,7 +4525,7 @@ fn along_facing<T: Decide>(
 /// the chord test: both dirs definitely point at each other along the
 /// chord (Zero = definite non-facing; in-band escalates in `decide`),
 /// on one line of the section: two germs whose branches name different
-/// lines of a section of several ([`super::Branch::Line`], decided where
+/// lines of a section of several ([`geom_brep::SectionBranch::Line`], decided where
 /// each germ was minted, [`germ_branch`]) never face, though a site on
 /// the other line ahead of the germ, across the point the lines cross
 /// at, passes the chord test.
@@ -6404,7 +6412,7 @@ mod self_check_rows {
             a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
             b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
             dir,
-            branch: super::super::Branch::Only,
+            branch: geom_brep::SectionBranch::Only,
         };
         let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let err = super::germs_face_each_other(
@@ -7681,12 +7689,12 @@ mod tests {
     /// a partner on its own line**: two germs on one line pointing at each
     /// other's sites face; a site on the other line, its chord ahead of
     /// both germs across the crossing, passes the chord test, and the
-    /// branches (`Branch::Line`) part them. The rule reads the germs'
+    /// branches (`SectionBranch::Line`) part them. The rule reads the germs'
     /// branches alone, never the face kinds.
     #[test]
     #[allow(clippy::expect_used)]
     fn facing_on_crossing_lines_pairs_only_along_the_germs_own_line() {
-        use super::super::Branch;
+        use geom_brep::SectionBranch;
         use geom_core::{Point3, Tol, Vec3};
         let band = Band::linear(Tol::witness()).expect("a linear band");
         let germ = |dir: Vec3<f64>, branch| HalfGerm {
@@ -7702,10 +7710,13 @@ mod tests {
         // Line 0 along `(1, 1, 0)`, line 1 along `(1, −1, 0)`. The germ
         // at `(−1, −1, 0)` runs up line 0 toward the crossing.
         let p1 = crossing + Vec3::new(-1.0, -1.0, 0.0);
-        let g1 = germ(Vec3::new(1.0, 1.0, 0.0).normalize(), Branch::Line(0));
+        let g1 = germ(Vec3::new(1.0, 1.0, 0.0).normalize(), SectionBranch::Line(0));
         // On line 0, beyond the crossing, facing back down it.
         let along = crossing + Vec3::new(1.0, 1.0, 0.0);
-        let g_along = germ(Vec3::new(-1.0, -1.0, 0.0).normalize(), Branch::Line(0));
+        let g_along = germ(
+            Vec3::new(-1.0, -1.0, 0.0).normalize(),
+            SectionBranch::Line(0),
+        );
         // On line 1, beyond the crossing, running up it: the chord
         // `(2, 0, 0)` is ahead of both germs.
         let across = crossing + Vec3::new(1.0, -1.0, 0.0);
@@ -7722,7 +7733,7 @@ mod tests {
                 facing(
                     None,
                     &g1,
-                    &germ(dir_across, Branch::Line(1)),
+                    &germ(dir_across, SectionBranch::Line(1)),
                     p1,
                     across,
                     band
@@ -7736,7 +7747,7 @@ mod tests {
                 facing(
                     None,
                     &g1,
-                    &germ(dir_across, Branch::Line(0)),
+                    &germ(dir_across, SectionBranch::Line(0)),
                     p1,
                     across,
                     band
