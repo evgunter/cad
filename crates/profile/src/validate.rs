@@ -116,6 +116,7 @@
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
 //! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
+//! | `segment_direction_length` | a table's recorded direction's length less one, \|d\| − 1, at a rounding band (8–16 ulps), not the run's | dimensionless |
 //! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex) | direct |
 //! | `segment_direction_resolution` | K·ε/(8·2⁻⁵²) less the reading's magnitude | direct |
 //! | `chord_side` | ⟂ distance to chord line | direct |
@@ -966,7 +967,12 @@ pub struct ValidatedSegment<T: Real> {
     /// construction made, carried verbatim, or for a segment that
     /// recorded none (or an arc read as a line) decided once, here, from
     /// its vertices ([`SegmentDirections`]). A consumer that needs a
-    /// direction reads it here.
+    /// direction reads it here. A table's is checked as two readings:
+    /// `|d| = 1` to rounding, and `‖o + ℓ·d − p‖` within the band (`o`
+    /// the start or centre, `p` the vertex, `ℓ` the chord or radius), so
+    /// its length is a unit's while its angle keeps the band's slack, up
+    /// to `ε/ℓ` off; an accepted one is stored as written, never
+    /// normalised or re-minted.
     pub directions: SegmentDirections<T>,
 }
 

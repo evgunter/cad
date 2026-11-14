@@ -1288,6 +1288,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::InconsistentArc { .. } => "inconsistent_arc",
         ProfileError::ArcBelowSceneResolution { .. } => "arc_below_scene_resolution",
         ProfileError::InconsistentDirection { .. } => "inconsistent_direction",
+        ProfileError::DirectionNotUnit { .. } => "direction_not_unit",
         ProfileError::DirectionBelowSceneResolution { .. } => "direction_below_scene_resolution",
         ProfileError::NonSimple { .. } => "non_simple",
         ProfileError::TangentialContact { .. } => "tangential_contact",

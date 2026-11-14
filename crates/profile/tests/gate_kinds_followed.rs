@@ -481,6 +481,7 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::RayAdvance, NO_FIXTURE),
     (Gate::RaySide, NO_FIXTURE),
     (Gate::SegmentDirection, NO_FIXTURE),
+    (Gate::SegmentDirectionLength, NO_FIXTURE),
     (
         Gate::SegmentDirectionAxis,
         "read outside the log at the least band, a choice between two sound spellings: \

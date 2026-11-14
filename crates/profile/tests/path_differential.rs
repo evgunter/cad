@@ -402,32 +402,24 @@ fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f6
         .validate(Tol::witness())
         .expect("hand-built loop validates");
     // The algebra's segments record the directions their verbs drew
-    // them along and the hand table's are decided at validate from its
-    // points, so the two agree to rounding there and bit for bit in
-    // everything else.
-    let without_directions = |vp: &profile::ValidatedProfile<f64>| {
-        vp.loops()
+    // them along, and the hand table's are decided at validate from its
+    // points, so the two agree to rounding there. Everything else is
+    // compared bit for bit by construction: the hand table re-validated
+    // with the algebra's recorded directions, one canonical direction on
+    // both sides, must give the algebra's validated form whole.
+    let directed: ProfileLoop<f64> = RawLoop::new_directed(
+        hand.vertices()
             .iter()
-            .map(|lp| {
-                let segs: Vec<_> = lp
-                    .segments()
-                    .iter()
-                    .map(|s| (s.start, s.end, s.kind))
-                    .collect();
-                format!(
-                    "{:?} {:?} {:?} {:?} {:?}",
-                    lp.role(),
-                    lp.vertices(),
-                    segs,
-                    lp.tangent_joints(),
-                    lp.cusp_joints()
-                )
-            })
-            .collect::<Vec<_>>()
-    };
+            .zip(hand.segments())
+            .zip(algebra.directions())
+            .map(|((&v, &s), &d)| (v, s, d)),
+    );
+    let vd = Profile::new(SketchPlane::xy(), vec![directed])
+        .validate(Tol::witness())
+        .expect("the hand table with the algebra's directions validates");
     assert_eq!(
-        without_directions(&va),
-        without_directions(&vh),
+        format!("{va:?}"),
+        format!("{vd:?}"),
         "canonical validated forms"
     );
     let units = |d: profile::SegmentDirections<f64>| match d {

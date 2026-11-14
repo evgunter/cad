@@ -5521,6 +5521,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_segment",
             "direction_below_scene_resolution",
+            "direction_not_unit",
             "empty_loop",
             "escalated",
             "inconsistent_arc",

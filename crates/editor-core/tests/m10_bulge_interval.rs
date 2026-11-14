@@ -307,9 +307,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
-    // Validation's mint reads each component of its two straight sides'
-    // chords exactly (audit row F43): of the six, three are the zero
-    // a theorem proves, and the bulge's sign signs its radials.
+    // Validation's mint reads each component of its three straight
+    // sides' chords exactly (audit row F43): of the six, three are the
+    // zero a theorem proves, and the bulge's sign signs its radials.
     ("segment_direction_axis", [3, 3]),
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),

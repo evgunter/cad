@@ -206,8 +206,11 @@ fn a_rectangles_directors_are_the_axes_over_a_box() {
 /// **A leg drawn along a director records that director with no
 /// width**, though its start carries a box; a leg between two authored
 /// points has its director decided at validate, and where the two
-/// points share a variable it is stored with its TRUE width, never
-/// narrower: its enclosure holds the direction at both ends of the box.
+/// points share a variable it is stored with the width of the quotient
+/// that mints it: never narrower than the direction over the box (its
+/// enclosure holds the direction at both ends), and wider than that
+/// hull by the quotient's dependency on `t` (measured: about three
+/// times in `x`), which the row bounds at four.
 #[test]
 fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
     in_session(|| {
@@ -231,17 +234,30 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
             [(1.0, 1.0), (0.0, 0.0)],
             "the directed leg's director"
         );
-        // The hop from (t + 1, 0) to (2t, t + 1): direction (t − 1, t + 1)/|·|.
-        let d1 = director(segs[1].directions);
-        for tv in [1.0f64 - small(), 1.0 + small()] {
+        // The hop from (t + 1, 0) to (2t, t + 1): direction (t − 1, t + 1)/|·|,
+        // whose x runs from negative to positive across the box.
+        let d1 = bounds(director(segs[1].directions));
+        let truth = |tv: f64| {
             let (dx, dy) = (tv - 1.0, tv + 1.0);
             let n = dx.hypot(dy);
-            let (wx, wy) = (dx / n, dy / n);
-            assert!(
-                d1.x.lo() <= wx && wx <= d1.x.hi() && d1.y.lo() <= wy && wy <= d1.y.hi(),
-                "the hop's director {d1:?} holds its direction at t = {tv}: ({wx}, {wy})"
-            );
+            (dx / n, dy / n)
+        };
+        let ends = [truth(1.0 - small()), truth(1.0 + small())];
+        let encloses = |e: [(f64, f64); 2], (wx, wy): (f64, f64)| {
+            e[0].0 <= wx && wx <= e[0].1 && e[1].0 <= wy && wy <= e[1].1
+        };
+        for w in ends {
+            assert!(encloses(d1, w), "the hop's director {d1:?} holds {w:?}");
         }
+        // The check can fail: a direction without the width, the hop's
+        // own at the box's centre, holds neither end.
+        let centre = [(0.0, 0.0), (1.0, 1.0)];
+        assert!(ends.iter().all(|&w| !encloses(centre, w)));
+        let hull = ends[1].0 - ends[0].0;
+        assert!(
+            d1[0].1 - d1[0].0 <= 4.0 * hull,
+            "the hop's director {d1:?} against its hull {hull:e}"
+        );
     });
 }
 
@@ -336,7 +352,7 @@ fn a_tables_recorded_direction_is_checked_and_refused_typed() {
     assert!(
         matches!(
             refuse(square_with_directors(1.5)),
-            ProfileError::InconsistentDirection {
+            ProfileError::DirectionNotUnit {
                 which: RecordedDirection::Director,
                 ..
             }
@@ -436,13 +452,66 @@ fn a_tables_recorded_direction_is_checked_and_refused_typed() {
     assert!(matches!(refuse(flat), ProfileError::DegenerateSegment(_)));
 }
 
+/// A square of side `l` whose first director is `d`, the others the axes.
+fn square_of_side(l: f64, d: Vec2<f64>) -> ProfileLoop<f64> {
+    let line = |x: f64, y: f64| Some(SegmentDirections::Line(Vec2::new(x, y)));
+    RawLoop::new_directed([
+        (
+            Point2::new(0.0, 0.0),
+            Segment::Line,
+            Some(SegmentDirections::Line(d)),
+        ),
+        (Point2::new(l, 0.0), Segment::Line, line(0.0, 1.0)),
+        (Point2::new(l, l), Segment::Line, line(-1.0, 0.0)),
+        (Point2::new(0.0, l), Segment::Line, line(0.0, -1.0)),
+    ])
+}
+
+/// **A recorded direction is a unit to rounding; its angle keeps the
+/// band's slack.** The miss `‖o + ℓ·d − p‖` is read against the band, so
+/// on a side of length ℓ a director may sit `ε/ℓ` off its chord in
+/// angle and is stored as written; a director stretched by as much is
+/// refused `DirectionNotUnit`, read on its own before the miss, which
+/// would have held it to the same `ε/ℓ`. Each side length is one the
+/// miss alone would have let the stretch through.
+#[test]
+fn a_recorded_direction_is_a_unit_to_rounding_and_its_angle_keeps_the_bands_slack() {
+    let eps = tol().eps();
+    for l in [(100.0 * eps).sqrt(), 1.0] {
+        let off = 0.5 * eps / l;
+        let (s, c) = Real::sin_cos(off);
+        let turned = Vec2::new(c, s);
+        let ok = table(square_of_side(l, turned))
+            .unwrap_or_else(|e| panic!("side {l:e}: a director {off:e} off in angle validates: {e:?}"));
+        assert_eq!(
+            bits(director(ok.loops()[0].segments()[0].directions)),
+            bits(turned),
+            "side {l:e}: stored as written"
+        );
+        for stretch in [1.0 + off, 1.0 - off] {
+            let err = table(square_of_side(l, Vec2::new(stretch, 0.0)))
+                .expect_err("a stretched director refuses");
+            assert!(
+                matches!(
+                    err,
+                    ProfileError::DirectionNotUnit {
+                        which: RecordedDirection::Director,
+                        ..
+                    }
+                ),
+                "side {l:e}, length {stretch}: {err:?}"
+            );
+        }
+    }
+}
+
 /// **The lift carries a recorded direction verbatim.** A table director
-/// that agrees with its chord within ε but not bit for bit survives the
-/// lift to `Interval` as the point it was; a lift that re-derived it from
-/// the chord would read `(0.6, 0.8)`.
+/// that agrees with its chord within ε but not bit for bit (the chord's
+/// unit turned by 1e-13) survives the lift to `Interval` as the point it
+/// was; a lift that re-derived it from the chord would read `(0.6, 0.8)`.
 #[test]
 fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
-    let d = Vec2::new(0.6, 0.8 + 1e-13);
+    let d = Vec2::new(0.6 - 0.8e-13, 0.8 + 0.6e-13);
     let lp = RawLoop::new_directed([
         (
             Point2::new(0.0, 0.0),
@@ -500,4 +569,257 @@ fn a_hop_along_an_axis_mints_its_director_with_no_width() {
             assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
         }
     });
+}
+
+/// One recorded direction's bits, for an exact comparison.
+fn recorded_bits(d: Option<SegmentDirections<f64>>) -> Option<Vec<u64>> {
+    d.map(|d| match d {
+        SegmentDirections::Line(v) => bits(v).to_vec(),
+        SegmentDirections::Arc { start, end } => [bits(start), bits(end)].concat(),
+    })
+}
+
+fn arc_rec(start: Vec2<f64>, end: Vec2<f64>) -> Option<SegmentDirections<f64>> {
+    Some(SegmentDirections::Arc { start, end })
+}
+
+fn line_rec(x: f64, y: f64) -> Option<SegmentDirections<f64>> {
+    Some(SegmentDirections::Line(Vec2::new(x, y)))
+}
+
+/// `lp`'s recorded directions are `want`, bit for bit, `None` included.
+fn records(lp: &ProfileLoop<f64>, want: &[Option<SegmentDirections<f64>>], what: &str) {
+    let got: Vec<_> = lp.directions().iter().map(|&d| recorded_bits(d)).collect();
+    let want: Vec<_> = want.iter().map(|&d| recorded_bits(d)).collect();
+    assert_eq!(got, want, "{what}: {:?}", lp.directions());
+}
+
+/// **What each verb records on its loop**, before validation reads it:
+/// the exact direction where the verb holds one, and `None` where it
+/// holds only points (validation then mints it). A verb that stopped
+/// recording, or one that recorded where it holds no direction, goes
+/// red here; the validated rows above cannot see either, since
+/// validation mints a missing direction to the same value.
+#[test]
+fn each_verb_records_what_it_holds_on_the_loop() {
+    let x = |x: f64, y: f64| Vec2::new(x, y);
+    let circle = profile::circle(Point2::new(0.3, 0.2), 0.05, tol()).unwrap();
+    records(
+        &circle.loop_.into_loop(),
+        &[
+            arc_rec(x(1.0, 0.0), x(-1.0, 0.0)),
+            arc_rec(x(-1.0, 0.0), x(1.0, 0.0)),
+        ],
+        "circle",
+    );
+    let split = profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, tol()).unwrap();
+    let unit = |k: usize| {
+        let theta = 0.25 + 2.0 * core::f64::consts::PI * (k as f64) / 3.0;
+        let (s, c) = Real::sin_cos(theta);
+        x(c, s)
+    };
+    records(
+        &split.loop_.into_loop(),
+        &[
+            arc_rec(unit(0), unit(1)),
+            arc_rec(unit(1), unit(2)),
+            arc_rec(unit(2), unit(0)),
+        ],
+        "split circle",
+    );
+    let rect = profile::rectangle(Point2::new(1.0, 0.0), 2.0, 1.0, tol()).unwrap();
+    records(
+        &rect.loop_.into_loop(),
+        &[
+            line_rec(1.0, 0.0),
+            line_rec(0.0, 1.0),
+            line_rec(-1.0, 0.0),
+            line_rec(0.0, -1.0),
+        ],
+        "rectangle",
+    );
+    // A leg along a director records it; a leg to a point target
+    // continuing that director, and hops, record nothing.
+    let legs = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .continue_to(Point2::new(3.0, 0.0), tol())
+        .unwrap()
+        .line_to(Point2::new(3.0, 1.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(
+        &legs.loop_.into_loop(),
+        &[line_rec(1.0, 0.0), None, None, None],
+        "directed leg, point target, hops",
+    );
+    // Bulge and via: the lowering's own radials at the literal sign.
+    let (a, b) = (Point2::new(4.0, 0.0), Point2::new(4.0, 4.0));
+    let lowered = |bulge: f64| {
+        let [s, e] = Arc2::from_chord_radials(a, b, bulge, bulge.signum()).1;
+        arc_rec(s, e)
+    };
+    for bulge in [0.4, -0.3] {
+        let lp = Open
+            .at(Point2::new(0.0, 0.0))
+            .line_to(a, tol())
+            .unwrap()
+            .arc_to(profile::Bulge { p: b, b: bulge }, tol())
+            .unwrap()
+            .line_to(Point2::new(0.0, 4.0), tol())
+            .unwrap()
+            .line_to(Start, tol())
+            .unwrap();
+        records(
+            &lp.loop_.into_loop(),
+            &[None, lowered(bulge), None, None],
+            &format!("bulge {bulge}"),
+        );
+    }
+    let q = Point2::new(5.0, 2.0);
+    let via = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(a, tol())
+        .unwrap()
+        .arc_to(profile::Via { q, p: b }, tol())
+        .unwrap()
+        .line_to(Point2::new(0.0, 4.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(
+        &via.loop_.into_loop(),
+        &[None, lowered(profile::bulge_from_via(a, q, b)), None, None],
+        "via",
+    );
+    // A centred arc holds its points and its centre, not its radials.
+    let center = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(a, tol())
+        .unwrap()
+        .arc_to(
+            profile::Center {
+                c: Point2::new(5.0, 2.0),
+                winding: ArcSweep::Ccw,
+                p: b,
+            },
+            tol(),
+        )
+        .unwrap()
+        .line_to(Point2::new(0.0, 4.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(&center.loop_.into_loop(), &[None; 4], "centred arc");
+    // Tangent arcs: σ·(t.y, −t.x) at each end, the tangent turned away
+    // from the turn's centre; left from east, the end tangent north.
+    let tangent = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(2.0, 0.0), tol())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Point2::new(3.0, 1.0), tol())
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(
+        &tangent.loop_.into_loop(),
+        &[None, arc_rec(x(0.0, -1.0), x(1.0, -0.0)), None, None],
+        "tangent arc",
+    );
+    // The B: a tangent arc then `arc_onto(Start)`, each recording its
+    // radials (the onto arc's are the tangent construction's swapped);
+    // checked against the vertices, not bitwise.
+    let b_loop = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(0.0, 1.0, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .toward(1.0, 0.0, tol())
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.25, 1.0), tol())
+        .unwrap()
+        .arc_onto(Start, tol())
+        .unwrap()
+        .toward(-1.0, 0.0, tol())
+        .unwrap()
+        .loop_
+        .into_loop();
+    assert_eq!(
+        recorded_bits(b_loop.directions()[0]),
+        recorded_bits(line_rec(0.0, 1.0))
+    );
+    let n = b_loop.vertices().len();
+    for k in 1..n {
+        let Segment::Arc(arc) = b_loop.segments()[k] else {
+            panic!("the B's segment {k} is an arc");
+        };
+        let (rs, re) = radials(b_loop.directions()[k].expect("an onto/tangent arc records"));
+        let ends = [b_loop.vertices()[k], b_loop.vertices()[(k + 1) % n]];
+        for (v, r) in ends.into_iter().zip([rs, re]) {
+            let want = (v - arc.centre) / arc.radius;
+            assert!((r - want).norm() < 1e-15, "the B's segment {k}: {r:?} vs {want:?}");
+        }
+    }
+    // Fillets and the arc_fillet's side arc hold their tangency points,
+    // not a direction: nothing recorded.
+    let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
+    let (west, south) = (core::f64::consts::PI, -north);
+    let t = tol();
+    let rounded = Open
+        .at(Point2::new(0.0, -1.0))
+        .angle(east, t)
+        .unwrap()
+        .fillet(0.25, t)
+        .unwrap()
+        .at(Point2::new(1.0, 0.0), t)
+        .unwrap()
+        .angle(north, t)
+        .unwrap()
+        .fillet(0.25, t)
+        .unwrap()
+        .at(Point2::new(0.0, 1.0), t)
+        .unwrap()
+        .angle(west, t)
+        .unwrap()
+        .fillet(0.25, t)
+        .unwrap()
+        .at(Point2::new(-1.0, 0.0), t)
+        .unwrap()
+        .angle(south, t)
+        .unwrap()
+        .fillet(0.25, t)
+        .unwrap()
+        .to(Start, t)
+        .unwrap();
+    records(&rounded.loop_.into_loop(), &[None; 8], "the rounded square");
+    let side = Open
+        .arc_fillet(
+            profile::Center {
+                c: Point2::new(0.0, 0.0),
+                winding: ArcSweep::Cw,
+                p: Point2::new(0.0, 2.0),
+            },
+            0.5,
+            t,
+        )
+        .unwrap()
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .to(Point2::new(4.0, 0.0), t)
+        .unwrap()
+        .line_to(Point2::new(4.0, 3.0), t)
+        .unwrap()
+        .line_to(Point2::new(-1.0, 3.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    records(&side.loop_.into_loop(), &[None; 6], "arc_fillet");
 }

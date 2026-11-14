@@ -1883,20 +1883,28 @@ Flagged, NOT fixed here (dispositions):
   `f64`) with the other definite mints the axis, signed by the other as
   a literal ±1; anything else, an escalation included, mints the
   quotient by its length. The second: a bulge's sign, read once per
-  bulge leg into the literal ±1 that signs its lowering's radials; an
-  indefinite sign leaves them to validation's mint. **Both outcomes of
-  each are the direction**, so no reader rests on the pick and neither
-  is ever a refusal: the axis only drops the width a quotient of two
-  values that share a parameter carries, and the literal keeps an
-  opaque `copysign` atom out of the symbolic tier. A mint's readings
-  do not depend on their answers, so a lane that answers differently
-  reads the same population. The first is the compound form: a reader
-  deciding both components against the band it is passed
-  (`component_signs`), run inside `k_stats::unlogged("F43", ..)` at
-  `Band::least()`; the second is `k_stats::choose(.., "F43")`, its tie
-  the other spelling. The K samples reach the sink under the two
-  names. Not `decide_flagged` sites;
-  `LEDGER_FLAGGED_SITES` does not move.
+  bulge leg into the literal ±1 that signs its lowering's radials; a
+  tie leaves them to validation's mint. **Both outcomes of each are the
+  direction**, and neither is ever a refusal: the axis only drops the
+  width a quotient of two values that share a parameter carries, and
+  the literal keeps an opaque `copysign` atom out of the symbolic tier.
+  **What rests on the second pick:** the radial identities the bulge's
+  construction registers (`Arc2::register_radials`) are stated with
+  that literal sign, so the symbolic tier believes them; that is sound
+  because `choose` reads at the least band over the whole box, so a
+  Positive or Negative there is the sign of every value the box holds.
+  **What the readings' population depends on:** the axis readings are
+  two per minted direction whatever they answer; the sign reading is
+  one per bulge leg, and where it ties the arc records nothing, so
+  validation then mints its two radials and reads four axis readings
+  more. A lane whose bulge ties where another's reads a sign reads
+  those four more; in practice a bulge whose sign straddles escalates
+  `segment_straightness` before the mint is reached. The first is the
+  compound form: a reader deciding both components against the band it
+  is passed (`component_signs`), run inside `k_stats::unlogged("F43",
+  ..)` at `Band::least()`; the second is `k_stats::choose(.., "F43")`.
+  The K samples reach the sink under the two names. Not
+  `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
