@@ -10784,6 +10784,23 @@ impl<T: geom_core::Decide> AtRestBody<T> {
                 }
             );
         }
+        // PROBE (M3): the stored data check 1 reads, as stored. Level 2
+        // prints every finish's; level 1 a refusing finish's.
+        if probe
+            && (certificate.is_err()
+                || std::env::var("BOXFINISH_TRACE").is_ok_and(|v| v == "2"))
+        {
+            for (f, _) in body.faces() {
+                if let Some(s) = body.face_surface(f) {
+                    eprintln!("[bf-datum] face {f:?} {s:?}");
+                }
+            }
+            for (e, edge) in body.edges.iter() {
+                if let Some(c) = body.curves.get(edge.curve).and_then(CurveGeom::certified) {
+                    eprintln!("[bf-datum] edge {e:?} {:?}", c.carrier());
+                }
+            }
+        }
         let sign = std::sync::Arc::new(certificate?.into_parts());
         Ok(Self {
             body,
