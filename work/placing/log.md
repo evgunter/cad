@@ -269,3 +269,5 @@ Newest entries at the bottom; the tail is the program's live status.
   - `a-copy-placed-from-a-previewed-copy-is-not-carried` (P3);
   - `reviewer-probes-sit-in-the-shipped-properties-pane-tests` (P4);
   - CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature` (P4).
+
+- 2026-11-14 — **PR 6919 merged** (three P3 rows closed). Fix pass 1, which answered the full review, was accepted on the orchestrator's read. The hosted change filter ran only `test (app)`, so the changed `node_labels` and `placement_target` rows passed locally only (the lane's run). I withdrew my "open on the loaded bundle" ruling on `a-pick-opening-the-edit-door-starts-a-mate-row`, because the trial broke 51 rows and left the loaded-mate case open. That row is a design fork again. `a-refusal-naming-a-value-slot-drops-its-axis` is re-costed to M.

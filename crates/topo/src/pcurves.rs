@@ -3045,7 +3045,7 @@ pub(crate) enum SplitRefusal {
 /// - **The mesher's chord schedule.** It lands chord points on an arc
 ///   rim's sub-arc joints only where the row's arc is the edge's
 ///   interval, so it refuses a split rim's child typed
-///   (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
+///   (`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
 /// - **The trimmed quadrature lane.** It subdivides a `General` image
 ///   over its whole knot domain, so it refuses a carried child's
 ///   sub-range typed rather than integrate chart the face does not
