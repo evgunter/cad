@@ -259,10 +259,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
 /// triangle, and one built in the chart reads about `1e-17` (rounding).
 /// It is not a bound on thin triangles: nothing bounds those. Beside a
 /// ruling a triangle's ratio goes as `(h/L)²`, and valid accepted meshes
-/// read `8·10⁻⁷` (a funnel cut `10⁻⁶` above its apex), `3·10⁻⁸` to
-/// `8·10⁻⁷` (a frustum whose small rim has radius `2·10⁻⁷`…`5·10⁻⁷`,
-/// whole or split, δ `5·10⁻³`) and `1.6·10⁻⁸` (a needle funnel of radius
-/// `0.002` at δ `10⁻⁶`)
+/// read `3·10⁻⁸` (a whole frustum whose small rim has radius `2·10⁻⁷`,
+/// δ `5·10⁻³`) and `2.5·10⁻¹⁰` (a needle funnel of radius `0.002`
+/// through its apex at δ `10⁻⁶`)
 /// (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
 const MIN_SHAPE: f64 = 1e-12;
 

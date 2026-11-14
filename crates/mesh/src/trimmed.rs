@@ -130,12 +130,20 @@
 //! lie on a ruling (a line meets the quadric in two points or lies in
 //! it), so no other triangle of zero area exists to make. A THIN triangle
 //! is another matter, and nothing bounds it: beside a ruling a triangle's
-//! `2·area/L²` goes as `(h/L)²`, and a needle cone or a face ending near
-//! its apex meshes certified triangles near `1e-8`
+//! `2·area/L²` goes as `(h/L)²`, and a needle cone's face through its
+//! apex meshes certified triangles near `1e-10`
 //! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
-//! A face ending close to its apex can also refuse at fine δ, because
-//! the chart's certificate reads the span the development makes short
-//! (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
+//!
+//! Near a small end the development puts points far apart in azimuth
+//! close together, and its Delaunay triangulation joins them. Two things
+//! answer that. The certificate is the flat triangle's own deviation
+//! ([`cert::cert_cone`]): each chord at its own two radii and its own
+//! azimuth difference, no chart box, so such a triangle is charged what it
+//! sags, which goes as its smaller radius. And the rows are graded to
+//! their own radius ([`AnalyticRow::lattice_rows`]), so the row next to a
+//! small end stands a chord of the lattice's target from it rather than
+//! many: under rows uniform in `v` a face ending near its apex holds
+//! triangles truly past δ.
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
 //!   origin. The development rounds, so it is not injective: a face
@@ -154,11 +162,17 @@
 //!   a face through the apex meets it at the sector's corner; a loop
 //!   meeting the apex twice is two wedges touching at the origin, which
 //!   the even-odd classification reads as such.
-//! - **What it moves.** The triangulation alone: the lattice, the
-//!   creases, the polygon's orientation, the fold census, the ear test
-//!   and every certificate read UV, and each kept triangle is still
-//!   certified, so a different triangulation changes the triangles'
-//!   shape, not what is guaranteed of them. A point the ear cure inserts
+//! - **What it moves.** The triangulation alone, and each kept triangle
+//!   is still certified, so a different triangulation changes the
+//!   triangles' shape, not what is guaranteed of them. Every other
+//!   decision reads what it is about. The lattice's columns are the
+//!   chart's, uniform in `u`, where the cell bound's azimuth step lives,
+//!   and its rows stand a 3-D chord apart at their own radius. The
+//!   certificate reads the flat triangle in space through its chart
+//!   corners, which is neither the chart's box nor the development. The
+//!   fold census reads the triangle's 3-D normal against the surface's.
+//!   The ear test reads the polygon's order, and the polygon's
+//!   orientation and the creases the chart. A point the ear cure inserts
 //!   is the developed centroid read back to the chart
 //!   ([`TrimmedFace::inside_point`]), strictly inside its triangle where
 //!   the CDT runs.
