@@ -2,9 +2,11 @@
 id: the-least-turn-misses-its-target-by-u-over-delta-near-opposed
 kind: issue
 title: the least turn carries a onto b only to about u/δ near opposed, so a mate admitted close to its pole lands off its target by that much
-status: open
+status: closed
 opened: 2026-11-10
 priority: P1
+closed: 2026-11-14
+pr: 6962
 ---
 
 
@@ -30,3 +32,9 @@ The pin asserts `2u/δ + 4u`.
 What is owed (the mate lane):
 - Bound the carry where the chart admits a pair: refuse at the pole verdict a pair whose carry at the bundle's arm would exceed ε. Or take the near-opposed turn in a form whose axis does not come from a short `k`: a half turn about an axis across `a`, then the small least turn.
 - Then tighten the pin.
+
+## Closed
+
+Closed by PR 6962 (`onehome/least-turn-axis`). The least turn's arithmetic has one home, `geom_core::LeastTurn` (`crates/geom-core/src/linalg/rigid_motion.rs`), which `RigidMotion::least_turn`, the mate chart's pole verdict and `turn_onto` all read. Where `c` reads negative its axis is `a × (a + b)`, `a × b` over the reals, whose rounding is relative to its own length, so `|S·a − b|` is at most 2.7 u at every δ from 1e-1 to 1e-9, where `a × b` gave `0.6·u/δ` (`5.4e8 u` at 1e-9). The pin above is replaced by `the_least_turn_carries_from_onto_to_within_a_few_ulps_near_opposed` (≤ 6 u, and the direct spelling shown to miss) and `the_least_turn_in_the_near_hemisphere_keeps_the_direct_bits`. No ratified text changes: D10 `[placement.values]`'s "least turn" is the same turn, computed to its rounding (geom-core W1).
+
+What the fix does not reach, the least turn's own conditioning near its pole (a mate's carried axes, its spin and its slides along them moving by about `u/δ` with its directions' rounding, inside the ε band the chart admits), is `work/onehome/a-mates-carried-axes-near-the-least-turns-pole-are-conditioned-u-over-delta.md`, a design fork.
