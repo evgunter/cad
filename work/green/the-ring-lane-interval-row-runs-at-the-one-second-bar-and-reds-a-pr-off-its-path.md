@@ -4,6 +4,8 @@ kind: issue
 title: sweep's verbs_germarms_interval ring-lane row runs at the 1 s fast-set bar and reds a PR that does not reach it
 status: open
 opened: 2026-11-14
+priority: P4
+cost: E
 ---
 
 

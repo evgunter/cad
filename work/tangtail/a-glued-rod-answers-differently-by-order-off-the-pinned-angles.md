@@ -40,3 +40,15 @@ certificate of the long bisector ellipse in both orders, in the join
 (`Pcurves`) in one and in the merge (`Merge`) in the other. The row
 admits that pair for this pose; the cause is filed as
 `a-sliver-crossings-long-bisector-ellipse-is-served-past-representability`.
+
+
+**At ε 1e-12 on main (GREEN `green/eps-1e-12`, 2026-11-14).** Since PR
+6466 (`sectarms/cylinder-node-listing`, merge `c053873aa`), no pose of
+`bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order`
+refuses at a pcurve certificate at 1e-12. Every pose but the rod along
+`y` at `1e-9°` escalates `Coincidence(Section, Moot)` on
+`curve_carrier_straddle` on an enclosure, both operations and both
+orders. That is filed as
+`work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing.md`,
+and the row is pinned there. The 1e-12 findings above describe main
+before that merge.

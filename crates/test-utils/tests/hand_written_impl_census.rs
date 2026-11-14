@@ -253,12 +253,26 @@ struct Site {
 /// [`every_known_hand_listed_impl_is_still_found`] reds until it is
 /// re-typed. That is the loud direction and it is the price of the
 /// key. Not keyed by LINE, which rots on every edit above it.
-const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
-    "crates/editor-core/src/clearance.rs",
-    "PartialEq",
-    "GeometryWitness",
-    "work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md",
-)];
+const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 3] = [
+    (
+        "crates/editor-core/src/clearance.rs",
+        "PartialEq",
+        "GeometryWitness",
+        "work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md",
+    ),
+    (
+        "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
+        "PartialEq",
+        "NodeFrame",
+        "work/sectarms/nodeframe-eq-reads-its-fields-by-name.md",
+    ),
+    (
+        "crates/viewer/src/session.rs",
+        "PartialEq",
+        "Stood",
+        "work/doors/stood-eq-reads-its-fields-by-name.md",
+    ),
+];
 
 /// **Every file holding a hand-written `Debug` or `PartialEq`** —
 /// sorted, hand-synced, and **it is not the guard**.
@@ -286,9 +300,10 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// **It no longer catches it at all.** Measured, on this tree and on
 /// the tree before the four CENSUS rows landed: a classifier that
 /// stops after the first Debug-or-PartialEq impl of each file red that
-/// row before and is entirely green now, because the single remaining
-/// entry names its file's ONLY such impl and so survives the
-/// blindness. The anchor was never per-impl sight; it was the accident
+/// row before and is entirely green now, because each remaining
+/// entry names its file's FIRST such impl and so survives the
+/// blindness (two are their file's only one; `Stood` comes first of
+/// `viewer/src/session.rs`'s four). The anchor was never per-impl sight; it was the accident
 /// that ONE of five entries — `mate/coset.rs`, which holds
 /// `PartialEq for Subgroup` above `PartialEq for Coset` — had a
 /// compliant sibling above it, and that entry is one of the four this
@@ -311,7 +326,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are
 /// honest.
-const IMPL_FILES_TODAY: [&str; 39] = [
+const IMPL_FILES_TODAY: [&str; 40] = [
     "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/checks/at_rest/carried.rs",
     "crates/editor-core/src/clearance.rs",
@@ -332,6 +347,7 @@ const IMPL_FILES_TODAY: [&str; 39] = [
     "crates/editor-core/src/report.rs",
     "crates/editor-core/src/resolve/pick.rs",
     "crates/geom-brep/src/keys.rs",
+    "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
     "crates/geom-brep/src/pcurve_cache/spline_incidence.rs",
     "crates/geom-brep/src/ssi/implicit_chart.rs",
     "crates/geom-brep/src/ssi/pair.rs",

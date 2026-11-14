@@ -80,3 +80,33 @@ Two more slow rows show the same blind spot, from both sides.
   So neither fix ran hosted at any ε. The PR's evidence for both is a
   local run.
 
+- **PR 6934** (`green/eps-1e-6`, 2026-11-14): two of its thirteen slow rows were edited without their names on an added line (`a_vertex_piercing_a_lens_wall::a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`, a re-pinned stop inside the body; `m5_s11_concave_sense::loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`, a constant it reads). Each now has a doc line naming the test, which is what selects it. Even selected, a slow row runs on the PR at the default ε only, so an ε 1e-6 pin on one is checked by no PR step.
+
+
+## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
+
+PR 6931 (`green/default-eps`) pins or re-blesses six slow-set tests by editing their bodies and helpers. Its first gate run (head `447474cb7`) was green with the slow-set step lasting one second: the diff's added lines spelled none of the six names. The lane made each pin's comment name its test, and the second run (43555174396) is the one that ran them. Every lane that greens a nightly red is in this position, since greening a slow test is an edit inside it. On GREEN this turns "the gate is green" into no evidence at all for a pin PR, so the lanes now read the step log for which tests ran.
+
+**Comments written for the selector (PR 6931's fix pass).** The lane's
+answer was to make a comment beside each pin name the test that reads
+it. Those mentions exist so that an added line spells the name and the
+slow-set step selects the test; they are to go when the selector reads
+edits inside a test. They are:
+
+- `crates/sweep/tests/a_plane_near_a_needle_cones_apex.rs`, the module
+  header's last sentence;
+- `crates/sweep/tests/an_aimed_ray_from_far_reads_a_split_side_right.rs`,
+  `Read`'s doc (two test names);
+- `crates/topo/tests/shell_role_reader.rs`, `MOVED_THIN_READS`' doc;
+- `crates/topo/src/boolean/offer_rows.rs`, `QUOTED_AS_A_LENGTH`'s doc;
+- `crates/viewer/tests/door_at_rest.rs`, `DIE_UNPROVEN`'s doc.
+
+The review of that PR also read which rows the second run reached: each
+of the six once, at the default ε, in the slow-set step, and nowhere
+else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).
+
+## The workaround in the tree, and when it goes (GREEN `green/goldens`, PR 6956, 2026-11-14)
+
+PR 6956 re-cut tables and golden files read by ten slow-set rows; its diff spelled none of their names, and `slow_set.py --new-expr` selected `none()`. To be gated at all it added, beside each re-cut table, a doc line naming the test that reads it (`[`the_blend_documents_evaluate_to_their_committed_digests`]` and the like, in `lib_g16_corpus_name_digests.rs`, `perf2_name_keying_differential.rs`, `seat4_verb_lowering.rs`, `seat7_sweep_lowering.rs`, `sym11_exact_channel_rows.rs`, `perf12_census_goldens.rs`, `m10_5_clearance_interval.rs`, `step-export/tests/export.rs` and `sweep/tests/mass_props_are_thread_count_invariant.rs`).
+
+Those lines exist only for the selector. They fail open: a later re-cut that edits a constant and leaves the doc line alone adds no line spelling the name, so it is selected by nothing again, and nothing says so. A golden FILE re-cut (`.txt`, `.step`) never adds a Rust line at all. When the selector is fixed to see a slow test whose body, table or `include_str!` target the diff touches, the lines can go.

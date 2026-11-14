@@ -87,6 +87,11 @@ pub fn prism() -> Body<f64> {
         .into_body()
 }
 
+/// What the offset fit of a [`twisted_loft`]`(0.3)` saddle wall reaches
+/// at `|d| = 0.05` on its last grid within the sample cap,
+/// `(62, 35)`, in metres. The bound is linear in `|d|`.
+pub const SADDLE_WALL_CAP_REACH: f64 = 1.39345e-10;
+
 /// A loft between a square and the SAME square rotated `theta` about
 /// its own centre — four congruent bilinear SADDLE walls (nonplanar).
 ///
