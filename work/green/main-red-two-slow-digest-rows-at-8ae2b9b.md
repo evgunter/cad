@@ -23,3 +23,7 @@ Moved from `work/issues/` to `work/green/` on 2026-11-03, when the `work/issues/
 
 - seat7 `corner_table`: two moves, PR 5848 (`9fc2720b5e`, undisclosed) and PR 6328 (`0da3e56b97`, the disclosed digest spelling). Recorded on `work/green/seat7-sweep-digest-drifted-on-main.md`, the older row for the same reading.
 - the plate: its movers are bisected and filed by PR 6663, which re-pins it.
+
+## Closed (GREEN, `green/goldens`, 2026-11-14)
+
+Both halves are covered elsewhere. The plate was re-pinned by PR 6663. seat7's `corner_table` is pinned at main's reading, and the judgment of PR 5848's move is owed on `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`.

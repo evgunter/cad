@@ -40,3 +40,13 @@ surface, face, edge and point key masked, its document dump is main's
 line for line. The first move above (PR 5848) is still unjudged; when
 it is, the value to compare is the one PR 6505's dump gives with keys
 masked, not the pin.
+
+## Greened, and what is left here (GREEN, `green/goldens`, 2026-11-14)
+
+`the_sweep_documents_evaluate_to_their_committed_digests` is green: every row is re-blessed or pinned at main's reading (nightly 43371638371, then PR 6856's id move).
+
+- `corner_table` has left this row: its unjudged move (PR 5848) is on `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`.
+- `kitchen_sink` was PR 6820's disclosed move (`work/green/main-red-seat7-corner-table-moved-at-6832-and-kitchen-sink-after-it.md`, closed).
+- **`boss_union` is what this row still holds.** It read `0x74fcab092e34e83b` against `0x65453fae8b1d55d3` and is pinned at `0x5be66936f8d10205` (that reading under PR 6856's id move). It is **not bisected**: the pin `0x6545…` was cut by PR 6463 (`5714d610e`, 2026-11-03), the row was first seen red on `boss_union` at `151631cc` (2026-11-10), and it reads `0x74fc…` at every commit from `9a256348` to `d8e1c86d6`. `m10_p_fence`'s ids-masked row holds on main, so no vertex point moved since PR 6795.
+
+Owed: bisect first-parent `5714d610e..151631cc` on `boss_union`, move the finding to the program whose merge it is, and judge the move. The in-file PINNED paragraph names this row until then.
