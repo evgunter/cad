@@ -2,8 +2,10 @@
 id: split-section-corrupt-is-payload-free
 kind: issue
 title: SectionError::Corrupt is payload-free, and one of its sites is not a dangling key
-status: open
+status: dispatched
 opened: 2026-11-12
+priority: P3
+cost: E
 ---
 
 
@@ -39,3 +41,7 @@ what it found.
 
 `plane_section`'s error was outside that unit's list, and the second
 state needs a new public arm.
+
+## Triage (ONEDOOR, 2026-11-14)
+
+`work/topo/torn-body-refusal-families-beyond-the-six-doors` lists `SectionError::Corrupt` with the fix "panic", per DESIGN D2 ("a torn body is a kernel bug"). D2 governs, so this row is run as that table's `SectionError` line: the eight constructions in `splitting/section.rs` panic with the fault named, rather than gaining an `Unresolved` payload. The topo row's table marks its line done when this lands.

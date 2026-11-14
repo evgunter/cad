@@ -501,3 +501,13 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - Filed: `select-gs-q2-ground-no-longer-holds` (P3, design, Ev's).
   - Model-compare row `docs/model-compare-log/rows/PR-6913.md`.
   - (ONEDOOR orchestrator)
+- 2026-11-14 — **#6913 merged** (`58b0f3d880`). Its CI was red only on main's three kernel rows, identical in failure text to the earlier heads. The wedge row is closed.
+- 2026-11-14 — **Banded the 13 unbanded rows and dispatched four lanes in parallel:**
+  - the section-branch move: PR 6929;
+  - the `pcurves.rs` split;
+  - `SectionError::Corrupt` panics per D2: PR 6927;
+  - the revert door: PR 6935, from two converged designers.
+
+  Every lane stopped on the weekly usage limit at about 04:50 and resumed after the reset.
+  - Filed: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4), `a-branch-picks-its-loop-in-two-matches` (P2).
+  - (ONEDOOR orchestrator)
