@@ -2,11 +2,11 @@
 id: a-notched-or-ringed-cylinder-wall-does-not-tessellate
 kind: issue
 title: A cylinder wall notched by rulings and an arc, or carrying a hole, builds and measures but does not tessellate
-status: open
+status: parked
 opened: 2026-10-02
 priority: P0
 cost: H
-design: true
+blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
 ---
 
 
