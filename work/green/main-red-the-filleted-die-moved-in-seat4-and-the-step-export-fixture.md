@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-09
 priority: P1
 cost: E
+parent: nightly-reds-editor-core-digests-and-goldens
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), both slow-set rows:

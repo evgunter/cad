@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-28
 priority: P3
 cost: E
+parent: nightly-jobs-that-do-not-finish-or-read-nothing
 ---
 
 

@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-09
 priority: P1
 cost: E
+parent: nightly-reds-the-1e-6-rows
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), job `full suite (eps 1E-06, slow set)`: `crates/sweep/tests/a_curved_keel_in_the_plane.rs` `a_round_keel_in_the_plane_reads_two_annuli_today` reads `the V's tip 0.6 ε off the plane, the plane's normal -1 y: the section's regions hold [11.780973958926847, 15.707964775914], not the annuli [11.780972450961723, 15.707963267948966]`. The regions are about 1.5e-6 off the annuli.

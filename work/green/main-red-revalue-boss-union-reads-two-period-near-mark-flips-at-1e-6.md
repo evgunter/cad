@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-11
 priority: P1
 cost: M
+parent: nightly-reds-the-1e-6-rows
 ---
 
 Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), triaging nightly 42965378060 (main `b2916558d9`). Filed on tcost, which owns `crates/editor-core/tests/revalue_corpus.rs` (`work.py territory`). No open row names this failure.

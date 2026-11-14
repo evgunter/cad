@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-09
 priority: P1
 cost: M
+parent: nightly-reds-the-1e-12-rows
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), both slow-set rows: `crates/editor-core/tests/union_fold_face_face_touch.rs` `a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` panics in `test_support.rs` with `the body has a value: Unevaluated { node: … ordinal: 47 … }`.
