@@ -703,7 +703,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads and `speeds`' jet bound also read an enclosure \
          computed from them that may clamp, which is \
-         `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+         `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
     ),
     (
         "crates/topo/src/props.rs",
