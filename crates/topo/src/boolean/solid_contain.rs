@@ -219,8 +219,7 @@ use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
-    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from,
-    point_in_loop_projected,
+    Escalation, LoopContainment, PointInLoopError, SCHEDULE, point_in_loop_projected,
 };
 use crate::validate::decide;
 use geom_brep::PlaneDesc;
@@ -925,6 +924,7 @@ pub(crate) fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
+    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
@@ -933,7 +933,7 @@ pub(crate) fn face_geo<T: Decide>(
     if let Some(e) = uncrossable(body, face) {
         return Err(e);
     }
-    face_geo_arms(body, face, charts)
+    face_geo_arms(body, face, charts, band)
 }
 
 /// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
@@ -943,6 +943,7 @@ fn face_geo_arms<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
+    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
@@ -967,7 +968,7 @@ fn face_geo_arms<T: Decide>(
                     axis: geom::Line { origin, dir: axis },
                     radius,
                     anchor,
-                    reach: partial_reach(body, face, anchor)?.length(),
+                    reach: partial_reach(body, face, anchor, band)?.length(),
                 })
             }
         },
@@ -992,7 +993,7 @@ fn face_geo_arms<T: Decide>(
                     dir: axis,
                 },
                 half_angle,
-                reach: partial_reach(body, face, apex)?,
+                reach: partial_reach(body, face, apex, band)?,
             }),
         },
         &Surface::Sphere { center, radius, .. } => match closed_sphere_group(body, face, charts) {
@@ -1134,18 +1135,12 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 /// **A radius about `anchor` that a cylinder or cone face lies within**
 /// — the reach [`FaceGeo::PartialWall`] and [`FaceGeo::PartialCone`]
 /// refuse inside, about a point of the wall face's boundary or the
-/// cone's apex.
-///
-/// Every point of a wall face lies on a ruling segment whose two ends
-/// are points of its boundary, and every point of a cone face on a
-/// generator segment from a point of its boundary toward the apex, so a
-/// ball about such an anchor holding the boundary holds the face; each
-/// loop's ball is the containment walk's own ([`loop_extent_from`]:
-/// vertices, and each curved edge's carrier ball).
+/// cone's apex: the face's cover's far distance from it
+/// ([`crate::cover::face_reach_from`]).
 ///
 /// # Errors
 ///
-/// [`loop_extent_from`]'s refusal of a loop that does not walk.
+/// [`PointInSolidError::CorruptFace`] for a face with no cover.
 ///
 /// # Panics
 ///
@@ -1154,13 +1149,10 @@ fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
+    band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = body.proven_face(face);
-    let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for (lk, _, _) in f.loops() {
-        reach = reach.max(loop_extent_from(body, lk, anchor)?);
-    }
-    Ok(reach)
+    crate::cover::face_reach_from(body, face, anchor, band)
+        .map_err(|_| PointInSolidError::CorruptFace { face })
 }
 
 /// The point of `face`'s outer loop's first vertex.
@@ -1353,6 +1345,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
+    let surf = f.surface().clone();
     let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
@@ -1419,7 +1412,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             "bool_sphere_iso_meridian",
             Margin::levered(
                 n_c.dot(axis),
-                geom_brep::ExtentBall::of_circle(c_c, r_c).lever(),
+                geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever(),
             ),
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
@@ -1452,7 +1445,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_sphere(center, radius).lever(),
+                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )
@@ -2051,7 +2044,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     let climbed = climb(Answering::Any, faces, |&face| {
-        let geo = match face_geo(body, face, &sel.charts) {
+        let geo = match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
             // where the ray test cannot cross a face of it: definitely
@@ -2091,7 +2084,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
-    let reach = selection_reach(body, faces, q)?;
+    let reach = selection_reach(body, faces, q, band)?;
     // A ray that crosses nothing reads the at-infinity side
     // (`missed_side`), which says how the ray's reading ranks.
     let read = MissedRead::new();
@@ -2379,35 +2372,35 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
     }
 }
 
-/// **How far from `q` any loop of the selection reaches**: the radius of
-/// a ball about `q` holding every boundary loop of every face in
-/// `faces` ([`loop_extent_from`]). It asks no decision. It is the lever
-/// the ray's two skip questions are metered over (the plane arm's
+/// **How far from `q` any face of the selection reaches**: the radius of
+/// a ball about `q` holding every face in `faces`, each face's cover's
+/// far distance from `q` ([`crate::cover::face_reach_from`]). It is the
+/// lever the ray's two skip questions are metered over (the plane arm's
 /// `d·n̂`, the wall arm's axis-parallel rung): a ray that drifts off a
 /// face's plane, or off a wall's axis, by no more than the band's zero
 /// over this whole length meets no point of the face when `q` starts
 /// definitely further off the carrier than that ([`clear_of_carrier`]),
-/// so skipping it there is sound. A planar face lies in its outer loop's hull, and a wall face
-/// in the hull of its loops (each of its points is on a ruling segment
-/// between two boundary points), so each lies in this ball. A sphere or
-/// a torus face bulges past its loops' hull, by up to its radius (the
-/// tube's, for a torus), so this ball need not hold it: its arms meter
-/// their own crossings over their own extents, and the side-at-infinity
-/// reader, which needs a start beyond every face, widens this reach by
-/// each such face's whole ball (`side_reader`'s `beyond`).
+/// so skipping it there is sound. The side-at-infinity reader starts an
+/// aimed ray twice this far from its aim, beyond every face.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a face with no cover (a
+/// poisoned net, data that is not a finite number), which no reach
+/// bounds.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
+    band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let mut reach = geom_brep::ExtentBall::point(q).lever();
-    for &face in faces {
-        let f = body.proven_face(face);
-        for (l, _, _) in f.loops() {
-            reach = reach.max(loop_extent_from(body, l, q)?);
-        }
-    }
-    Ok(reach)
+    faces
+        .iter()
+        .try_fold(geom_brep::ExtentBall::point(q).lever(), |reach, &face| {
+            crate::cover::face_reach_from(body, face, q, band)
+                .map(|far| reach.max(far))
+                .map_err(|_| PointInSolidError::CorruptFace { face })
+        })
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
@@ -5489,11 +5482,11 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
-            let reach = selection_reach(&body, sel.faces(), q).unwrap();
+            let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
             let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
             assert!(
                 !matches!(
@@ -5538,11 +5531,11 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
-                let reach = selection_reach(&body, sel.faces(), q).unwrap();
+                let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
                 let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
                 let pair = matches!(
                     &got,
@@ -5566,10 +5559,10 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
-            let reach = selection_reach(&body, sel.faces(), q).unwrap();
+            let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
             cast_ray(&body, &geos, &geom::Ray::new(q, d.normalize()), reach, band)
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
@@ -6275,7 +6268,7 @@ mod kind_arm_tests {
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = surface;
             let sel = SolidFaces::select(&body, faces).unwrap();
-            let read = face_geo_arms(&body, face, &sel.charts);
+            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
             assert_eq!(
                 refused,

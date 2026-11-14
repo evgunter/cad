@@ -9028,7 +9028,7 @@ impl<T: Decide> FaceSector<T> {
             .ok_or(TouchUnread::Corrupt)?
             .vec();
         if !fg.polygon {
-            return Self::cleared(body, f, outward, p, holds);
+            return Self::cleared(body, f, outward, p, holds, band);
         }
         let rings = fg
             .loops
@@ -9381,7 +9381,7 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::face_reach::face_reach_from(body, f, p)
+        crate::cover::face_reach_from(body, f, p, band)
             .map(geom_core::Lever::length)
             .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))
     };

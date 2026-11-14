@@ -1246,8 +1246,8 @@ fn conic_conic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
-    let ball = |c: &Curve3<T>| crate::ExtentBall::of_conic(c).ok_or(MeetFault::Desync);
-    let arm = ball(a.carrier())?.lever().max(ball(b.carrier())?.lever());
+    let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
+    let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
     let ha = height(&ka, kb.frame().origin, kb.frame().axis);
     let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
