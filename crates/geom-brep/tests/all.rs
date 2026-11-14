@@ -262,6 +262,8 @@ mod review_6092_probes;
 mod review_6092_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
+#[path = "review_chart_ends_delta_probes.rs"]
+mod review_chart_ends_delta_probes;
 #[path = "review_chart_ends_probes.rs"]
 mod review_chart_ends_probes;
 #[path = "review_flux_probes_r1.rs"]
