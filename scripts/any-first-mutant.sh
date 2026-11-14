@@ -56,44 +56,44 @@ args=()
 for p in $packages; do args+=(-p "$p"); done
 filter=$(tr ' ' '|' <<<"$pins")
 
-control=$(mktemp)
-mutant=$(mktemp)
-trap 'rm -f "$control" "$mutant"' EXIT
-run() { # run LOG [RUSTFLAGS…]: every pin, its outcomes to LOG
-  local log=$1
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+run() { # run NAME [RUSTFLAGS…]: every pin; its log and junit report to $work/NAME.*
+  local name=$1 target=${CARGO_TARGET_DIR:-target}
   shift
+  rm -f "$target/nextest/ci/junit.xml"
   set +e
-  RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --no-fail-fast \
-    --color never --run-ignored all --ignore-default-filter \
+  RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --profile ci --no-fail-fast \
+    --run-ignored all --ignore-default-filter \
     --success-output never --failure-output never \
-    -E "test(/::($filter)\$/)" >"$log" 2>&1
+    -E "test(/::($filter)\$/)" >"$work/$name.log" 2>&1
   set -e
+  cp "$target/nextest/ci/junit.xml" "$work/$name.xml" 2>/dev/null || true
 }
 # The control: every pin, plain. A pin red without the mutant is red for
 # some other reason (a main red), so its red under the mutant says
 # nothing about the mutant; it fails here instead.
-run "$control"
+run control
 # The mutant, in its own target dir so it does not rebuild the plain one.
-CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run "$mutant" --cfg any_first_mutant
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run mutant --cfg any_first_mutant
 
-python3 - "$control" "$mutant" $pins <<'PY'
-import re, sys
-pins = sys.argv[3:]
-# Status lines are read as plain text: colour escapes (a runner exports
-# CARGO_TERM_COLOR=always) would hide every status word from the pattern.
-ANSI = re.compile(r"\x1b\[[0-9;]*m")
-def outcomes(path, what):
-    log = ANSI.sub("", open(path, errors="replace").read())
-    ran = {}
-    for m in re.finditer(r"^\s*(PASS|FAIL|SIGABRT|SIGSEGV|TIMEOUT)\b.*?::([A-Za-z_0-9]+)\s*$", log, re.M):
-        ran.setdefault(m.group(2), set()).add(m.group(1))
-    if not ran:
-        print(log[-4000:])
-        print(f"any-first-mutant: the {what} run read no test (the build failed?)", file=sys.stderr)
+python3 - "$work" $pins <<'PY'
+import os, sys, xml.etree.ElementTree as ET
+work, pins = sys.argv[1], sys.argv[2:]
+def outcomes(what):
+    """{test leaf: {"PASS" | "FAIL"}} from the run's junit report."""
+    report = os.path.join(work, f"{what}.xml")
+    if not os.path.exists(report):
+        print(open(os.path.join(work, f"{what}.log"), errors="replace").read()[-4000:])
+        print(f"any-first-mutant: the {what} run wrote no junit report (the build failed?)", file=sys.stderr)
         sys.exit(1)
+    ran = {}
+    for case in ET.parse(report).getroot().iter("testcase"):
+        red = case.find("failure") is not None or case.find("error") is not None
+        ran.setdefault(case.get("name").rsplit("::", 1)[-1], set()).add("FAIL" if red else "PASS")
     return ran
-control = outcomes(sys.argv[1], "control")
-mutant = outcomes(sys.argv[2], "mutant")
+control = outcomes("control")
+mutant = outcomes("mutant")
 bad = []
 for pin in pins:
     plain, mutated = control.get(pin), mutant.get(pin)

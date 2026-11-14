@@ -42,13 +42,20 @@ bad=0
 case_() {
   local name=$1 want_rc=$2 want_csvs=$3 want_text=$4 rc=0 csvs
   shift 4
-  rm -rf "$tree/out" "$tree/seen.tsv" "$tree/log"
-  (cd "$tree" && env PATH="$tree/bin:$PATH" CENSUS_SEEN="$tree/seen.tsv" "$@" \
+  rm -rf "$tree/out" "$tree/seen.tsv" "$tree/log" "$tree/dumped"
+  (cd "$tree" && env PATH="$tree/bin:$PATH" CENSUS_SEEN="$tree/seen.tsv" K_SWEEP_DUMPED="$tree/dumped" "$@" \
     bash scripts/k_probe_sweep.sh "$tree/out" >"$tree/log" 2>&1) || rc=$?
   csvs=$(find "$tree/out" -maxdepth 1 -name 'k-eps-*.csv' 2>/dev/null | wc -l)
   if [ "$rc" != "$want_rc" ] || [ "$csvs" != "$want_csvs" ] || ! grep -qF -- "$want_text" "$tree/log"; then
     echo "FAIL $name: exit $rc (want $want_rc), $csvs merged CSVs (want $want_csvs), log lacks '$want_text'" >&2
     sed 's/^/    /' "$tree/log" >&2
+    bad=1
+  fi
+  # The dumps-complete marker exists exactly when every dump was written.
+  local dumped=no
+  [ -e "$tree/dumped" ] && dumped=yes
+  if { [ "$want_csvs" = 3 ] && [ "$dumped" = no ]; } || { [ "$want_csvs" = 0 ] && [ "$dumped" = yes ]; }; then
+    echo "FAIL $name: the dumps-complete marker disagrees with the $csvs CSVs written" >&2
     bad=1
   fi
   # A red plain suite still counts its executed tests (1 passed + 1 failed).

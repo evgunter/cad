@@ -436,6 +436,8 @@ jobs:
           done
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         if: '!cancelled() && matrix.row == ''dev-probe'''
+        env:
+          K_SWEEP_DUMPED: target/k-fresh-dumped
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
         if: '!cancelled() && matrix.row == ''dev-probe'''
@@ -451,9 +453,7 @@ jobs:
           # +e: the runner's `bash -e` would exit on the pinned exit 2
           # before the case below reads it.
           set +e -uo pipefail
-          for f in target/k-fresh/k-eps-1e-6.csv target/k-fresh/k-eps-1e-9.csv target/k-fresh/k-eps-1e-12.csv; do
-            [ -s "$f" ] || { echo "::error title=large-K lint not run::the probe sweep wrote no $f"; exit 1; }
-          done
+          [ -e target/k-fresh-dumped ] || { echo "::error title=large-K lint not run::the probe sweep did not finish its dumps"; exit 1; }
           cd tools/k-lint
           cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
@@ -480,9 +480,7 @@ jobs:
         if: '!cancelled() && matrix.row == ''dev-probe'''
         run: |
           set +e -uo pipefail
-          for f in target/k-fresh/driver/k-eps-1e-6.csv target/k-fresh/driver/k-eps-1e-9.csv target/k-fresh/driver/k-eps-1e-12.csv; do
-            [ -s "$f" ] || { echo "::error title=driver K-telemetry lint not run::the probe sweep wrote no $f"; exit 1; }
-          done
+          [ -e target/k-fresh-dumped ] || { echo "::error title=driver K-telemetry lint not run::the probe sweep did not finish its dumps"; exit 1; }
           cd tools/k-lint
           status=0
           cargo run -- --gate-rule-1-only \
@@ -561,12 +559,23 @@ jobs:
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc --workspace --no-fail-fast
+      # The listing is also what full-suite-coverage expects every eps row to
+      # report: it comes from this build, not from the legs it audits.
       - name: the slow set names only tests that exist (the whole workspace)
         if: '!cancelled() && steps.build.outcome == ''success'''
         run: |
           set -o pipefail
           cargo nextest list --workspace --ignore-default-filter --message-format json \
+            | tee "$RUNNER_TEMP/test-list.json" \
             | python3 scripts/check-slow-set-names.py --complete
+      - name: upload the test listing for full-suite-coverage
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-test-list
+          path: ${{ runner.temp }}/test-list.json
+          if-no-files-found: error
+          retention-days: 1
       - name: the per-op postcondition scalpel (topo)
         if: '!cancelled()'
         run: |
@@ -616,20 +625,22 @@ jobs:
         with:
           name: full-suite-archive
           path: ${{ runner.temp }}/archive
-      # BUDGET_MIN sits below the job's limit, so a leg that runs long is
-      # interrupted by nextest itself: it records the tests it was running as
-      # failed and writes its junit report for the steps below. A leg the job
-      # limit kills reports nothing.
+      # nextest is interrupted at BUDGET_MIN, so it records the tests it was
+      # running as failed and writes its junit report for the steps below;
+      # one that ignores the interrupt is killed GRACE_MIN later. Their sum
+      # stays under this step's timeout-minutes, which kills with no report.
       - name: the whole suite at this eps (the ci profile with its slow-set filter ignored)
+        timeout-minutes: 115
         env:
           EPS: ${{ matrix.eps }}
           PARTITION: ${{ matrix.partition }}
           LABEL: eps ${{ matrix.eps }}${{ matrix.part && format(' {0}', matrix.part) || '' }}
           BUDGET_MIN: 105
+          GRACE_MIN: 5
         run: |
           [ "$EPS" = default ] || export CAD_TOLERANCE_EPS="$EPS"
           rc=0
-          timeout --signal=INT "${BUDGET_MIN}m" \
+          timeout --signal=INT --kill-after="${GRACE_MIN}m" "${BUDGET_MIN}m" \
             cargo nextest run --archive-file "$RUNNER_TEMP/archive/full-suite.tar.zst" \
             --workspace-remap "$GITHUB_WORKSPACE" \
             --profile ci --ignore-default-filter --no-fail-fast \
@@ -637,8 +648,12 @@ jobs:
           # Before nextest-failures.py, which deletes the junit report.
           cp target/nextest/ci/junit.xml "$RUNNER_TEMP/junit.xml" 2>/dev/null || true
           scripts/nextest-failures.py "$LABEL" "$rc"
-          if [ "$rc" -eq 124 ]; then
-            msg="$LABEL stopped at its ${BUDGET_MIN}-minute budget: the tests it was running are reported failed, and those it had not started are in no report (full suite coverage names them)"
+          case "$rc" in
+            124) msg="$LABEL stopped at its ${BUDGET_MIN}-minute budget: the tests it was running are reported failed, and those it had not started are in no report (full suite coverage names them)" ;;
+            137) msg="$LABEL did not stop at its ${BUDGET_MIN}-minute budget and was killed ${GRACE_MIN} minutes later, so it wrote no report (full suite coverage names every test)" ;;
+            *) msg= ;;
+          esac
+          if [ -n "$msg" ]; then
             echo "::error title=$LABEL ran out of time::$msg"
             echo "FAIL [$LABEL] $msg" >> "$RUNNER_TEMP/nextest-failures.txt"
           fi
@@ -655,10 +670,10 @@ jobs:
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
   full-suite-coverage:
-    # Every leg runs the same archive under the same filter, so each eps row
-    # must report the same tests: this names what a leg that ran out of time
-    # or died never reported, and checks that the shards add up.
-    name: full suite coverage (every row reported every test)
+    # Each eps row must report every test the build's listing holds: this
+    # names what a leg that ran out of time or died never reported, and
+    # checks that the shards add up.
+    name: full suite coverage (every row reported every listed test)
     runs-on: ubuntu-latest
     needs: [full-suite-build, full-suite]
     if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'''
@@ -669,11 +684,15 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
       - uses: actions/download-artifact@v4
         with:
+          name: full-suite-test-list
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@v4
+        with:
           pattern: full-suite-junit-*
           path: ${{ runner.temp }}/junit
-      - name: every eps row reported every test
+      - name: every eps row reported every listed test
         run: |
-          scripts/full-suite-coverage.py "$RUNNER_TEMP/junit" \
+          scripts/full-suite-coverage.py "$RUNNER_TEMP/test-list.json" "$RUNNER_TEMP/junit" \
             default 1E-06 1E-12-1of3 1E-12-2of3 1E-12-3of3
   all-features:
     # The suite with every workspace feature on at once: the probe-gated
@@ -762,21 +781,38 @@ jobs:
         run: |
           cargo test --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" \
             --no-run --message-format json-render-diagnostics > "$RUNNER_TEMP/build.json"
-      - name: list every test binary (a listing that blocks is named here)
+      # nextest's own listing, bounded: a listing that blocks or fails is red
+      # here rather than inside the build or the suite, and the per-binary
+      # pass names the binary where it can.
+      - name: nextest lists every test binary
         timeout-minutes: 15
-        run: scripts/list-test-binaries.py "$RUNNER_TEMP/build.json"
-      # The budget sits below the step's limit so that a long run is
-      # interrupted by nextest and still writes the report read below.
+        env:
+          FEATURES: ${{ steps.features.outputs.list }}
+        run: |
+          rc=0
+          timeout --kill-after=1m 10m cargo nextest list --profile ci --workspace --exclude viewer \
+            --features "$FEATURES" --message-format json > /dev/null || rc=$?
+          [ "$rc" -eq 0 ] && exit 0
+          echo "::error title=nextest's listing failed::cargo nextest list exited $rc (124 or 137: it did not finish in 10 minutes)"
+          scripts/list-test-binaries.py "$RUNNER_TEMP/build.json"
+      # nextest is interrupted at BUDGET_MIN and killed GRACE_MIN later if it
+      # ignores that; their sum stays under this step's timeout-minutes.
       - name: the suite, every feature on
         timeout-minutes: 30
+        env:
+          FEATURES: ${{ steps.features.outputs.list }}
+          BUDGET_MIN: 25
+          GRACE_MIN: 2
         run: |
           r=0
-          timeout --signal=INT 25m \
+          timeout --signal=INT --kill-after="${GRACE_MIN}m" "${BUDGET_MIN}m" \
             cargo nextest run --profile ci --workspace --exclude viewer \
-            --features "${{ steps.features.outputs.list }}" \
-            --no-fail-fast || r=$?
+            --features "$FEATURES" --no-fail-fast || r=$?
           scripts/nextest-failures.py "all-features" "$r"
-          [ "$r" -ne 124 ] || echo "::error title=all-features ran out of time::the suite stopped at its 25-minute budget; the tests it was running are reported failed, and those it had not started ran nowhere"
+          case "$r" in
+            124) echo "::error title=all-features ran out of time::the suite stopped at its ${BUDGET_MIN}-minute budget: any test it was running is reported failed above, and the tests it had not started ran nowhere; with none reported, it stopped while listing" ;;
+            137) echo "::error title=all-features ran out of time::the suite ignored its ${BUDGET_MIN}-minute budget and was killed ${GRACE_MIN} minutes later, so it wrote no report" ;;
+          esac
           exit "$r"
       - name: failing tests (name, panic, seed)
         if: failure()
