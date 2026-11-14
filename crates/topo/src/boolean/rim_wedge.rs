@@ -1142,9 +1142,9 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     );
     use geom_brep::WedgeVerdict as V;
     match geom_brep::edge_wedge_over(&walk, reach, band) {
-        V::Crease(_) => Ok(RimRouting::Transverse),
+        V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
-        V::End(end) => Ok(RimRouting::Cusp(end)),
+        V::End { end, .. } => Ok(RimRouting::Cusp(end)),
         V::Lamina => Ok(RimRouting::Lamina),
         V::Mixed(stations) => Ok(RimRouting::Mixed(stations)),
         V::InBand(escalation) => Err(escalation.diag()),

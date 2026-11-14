@@ -1396,7 +1396,7 @@ pub mod transform;
 mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
-pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
+pub use edge_wedge::{edge_wedge, edge_wedge_as, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;

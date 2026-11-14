@@ -33,10 +33,10 @@
 use crate::common::approx::band;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Tol, Vec3};
-use sweep::blend::Convexity;
 use sweep::blend::arms::plane_sphere_blend;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
+use sweep::blend::{Convexity, blend_sense};
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
 use sweep::test_support::{domed_cavity, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, validate_geometric};
@@ -190,7 +190,7 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
         (true, Convexity::Concave),
         (false, Convexity::Concave),
     ] {
-        let convex = convexity.blend_sense();
+        let convex = blend_sense(convexity);
         let blend = plane_sphere_blend(origin, n, u, sphere_c, big_r, r, sphere_convex, convexity);
         let Surface::Torus {
             center,

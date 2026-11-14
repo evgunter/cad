@@ -7188,12 +7188,12 @@ pub(crate) fn wedge_reading(
     let mark = match verdict {
         V::InBand(_) | V::Mixed(_) => ContactMark::Unmarked,
         _ if wrap => ContactMark::Seam,
-        V::Crease(_) => ContactMark::Transverse,
+        V::Crease { .. } => ContactMark::Transverse,
         V::Seam {
             bend: Bend::Determinate,
             ..
         }
-        | V::End(_) => ContactMark::Tangent,
+        | V::End { .. } => ContactMark::Tangent,
         V::Seam {
             bend: Bend::UnderDetermined,
             ..
@@ -7203,11 +7203,11 @@ pub(crate) fn wedge_reading(
     let finding = match verdict {
         V::InBand(escalation) => Some(dihedral_finding(edge, escalation)),
         V::Mixed(stations) => Some(ValidationError::MixedDihedral { edge, stations }),
-        V::Crease(_) if conventional => Some(ValidationError::TransverseNotIntrinsic { edge }),
+        V::Crease { .. } if conventional => Some(ValidationError::TransverseNotIntrinsic { edge }),
         // Conformal contact: refused, and no declaration is consulted
         // because none would cure it.
         V::Lamina => Some(ValidationError::LaminaWedge { edge }),
-        V::Crease(_) | V::Seam { .. } | V::End(_) => None,
+        V::Crease { .. } | V::Seam { .. } | V::End { .. } => None,
     };
     (mark, finding)
 }

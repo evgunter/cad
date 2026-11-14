@@ -58,6 +58,8 @@ mod seam_region_common;
 
 #[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
 mod a_blend_leaves_a_smooth_edge_as_it_is;
+#[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
+mod a_blend_reads_the_wedge_through_the_one_fold;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
