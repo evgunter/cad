@@ -3441,7 +3441,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 20] = [
+const READ_DOORS: [&str; 21] = [
     "face_carrier_desc",
     "carrier_pair_relation",
     "carrier_pair_decided",
@@ -3457,6 +3457,7 @@ const READ_DOORS: [&str; 20] = [
     "vertex_points",
     "rim_of",
     "planar_loop_winding",
+    "section_walk",
     "contfp",
     "curved_face_containment",
     "classify_neighborhood",
@@ -3468,11 +3469,12 @@ const READ_DOORS: [&str; 20] = [
 /// reads every face, edge and vertex before it builds, the containment
 /// and neighborhood doors and the azimuth window walk, whose walks a
 /// torn loop or orbit reaches, the carrier doors, which a dropped
-/// surface reaches, and `revert`, which follows every `next` and every
-/// mate.
+/// surface reaches, `revert`, which follows every `next` and every
+/// mate, and the section walk, which reads a loop's every member.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 8] = [
+const PREMISE_DOORS: [&str; 9] = [
     "split_reduce",
+    "section_walk",
     "contfp",
     "classify_neighborhood",
     "face_carrier_desc",
@@ -3708,6 +3710,10 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     for (l, _) in body.loops() {
         judge_read(capture, &mut census, "planar_loop_winding", || {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
+        });
+        // A lone-vertex loop is the walk's one typed refusal.
+        judge_read(capture, &mut census, "section_walk", || {
+            Ok(crate::splitting::section::section_walk(body, l).is_ok())
         });
     }
     let q = Point3::new(0.5, 0.5, 0.0);

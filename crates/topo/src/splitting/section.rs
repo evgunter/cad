@@ -26,7 +26,8 @@ use super::join::SectionKind;
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::entity::{EntityId, HalfEdgeKey, LoopKey};
+use crate::live::BoundaryMember;
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -194,9 +195,6 @@ pub enum SectionError<T: Real> {
         /// A corner of the hole.
         corner: Point3<T>,
     },
-    /// A traversal of the scratch body met a dangling key (a kernel
-    /// bug).
-    Corrupt,
 }
 
 impl<T: Real> From<SplitError> for SectionError<T> {
@@ -249,11 +247,6 @@ impl<T: Real> SectionError<T> {
             Self::NestingContradiction { .. } => write!(
                 f,
                 "two outlines of the section each read as enclosing the other around a hole. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::Corrupt => write!(
-                f,
-                "the section traversal failed (corrupt body). {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
@@ -376,7 +369,12 @@ where
     }
     let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
         |fault| match fault {
-            NestFault::Torn(_) => SectionError::Corrupt,
+            // `section_walk` resolved, on this body, every record the
+            // nesting reads of these loops.
+            NestFault::Torn(unresolved) => unreachable!(
+                "the section nesting read a torn scratch body ({unresolved}), over loops whose \
+                 every record the section walk resolved on the same body"
+            ),
             NestFault::Contradiction(hole) => SectionError::NestingContradiction {
                 corner: hole.points()[0],
             },
@@ -432,7 +430,7 @@ fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Ha
 
 /// One traversed half of a section loop: the corner it starts at, and
 /// what it runs along to the next.
-struct Half<T: Real> {
+pub(crate) struct Half<T: Real> {
     he: HalfEdgeKey,
     corner: Point3<T>,
     carrier: HalfCarrier<T>,
@@ -454,41 +452,46 @@ enum HalfCarrier<T: Real> {
     Unread,
 }
 
-/// The halves of cycle loop `l` in `loop_cycle` order — the corners and
+/// The halves of cycle loop `l` in cycle order — the corners and
 /// the edges between them from one walk, so each edge runs from its
 /// own corner to the next.
 ///
 /// # Errors
 ///
-/// [`SectionError::Corrupt`] on a dangling key or an unclaimed half;
-/// a lone-vertex loop is a broken section invariant
+/// A lone-vertex loop is a broken section invariant
 /// ([`crate::chord_join::JoinError::SectionInvariant`]).
-fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
-    let loop_data = body.get_loop(l).ok_or(SectionError::Corrupt)?;
-    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(
-            SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
-                face: loop_data.face,
-                what: "a completed section polygon's below loop holds a lone vertex instead of a \
-                   cycle",
-            })
-            .into(),
-        );
+///
+/// # Panics
+///
+/// On a torn scratch body, a kernel bug: `l` is a loop the join
+/// completed on `body`, and every hop past it is a link.
+pub(crate) fn section_walk<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+) -> Result<Vec<Half<T>>, SectionError<T>> {
+    let Some(loop_data) = body.get_loop(l) else {
+        unreachable!(
+            "the join's completed section names below loop {l:?}, which does not resolve: the \
+             join walks a section's below loop and files it in its null face's pair as it \
+             completes the polygon, and {}",
+            crate::live::OPERATORS_KEEP_LINKS
+        )
     };
     let mut halves = Vec::new();
-    for he in body.loop_cycle(first).ok_or(SectionError::Corrupt)? {
-        let h = body.get_half_edge(he).ok_or(SectionError::Corrupt)?;
-        let corner = body
-            .get_vertex(h.start)
-            .and_then(|vx| body.get_point(vx.point))
-            .copied()
-            .ok_or(SectionError::Corrupt)?;
-        let edge = body.get_edge(h.edge).ok_or(SectionError::Corrupt)?;
-        let forward = edge.claim(he).ok_or(SectionError::Corrupt)?.plus;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(SectionError::Corrupt)?
-            .certified();
+    for member in body.loop_members_linked(l, loop_data) {
+        let BoundaryMember::Edge { he, half, ek, edge } = member else {
+            return Err(
+                SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
+                    face: loop_data.face,
+                    what: "a completed section polygon's below loop holds a lone vertex instead of \
+                         a cycle",
+                })
+                .into(),
+            );
+        };
+        let corner = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+        let forward = crate::live::claimed(he, ek, edge).plus;
+        let curve = body.edge_curve_linked(ek, edge).certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
             Some(curve) => match curve.carrier() {
@@ -554,5 +557,20 @@ mod winding_ending {
             text.contains(". Recourse: move the section plane; "),
             "the lever and the note, got {text}"
         );
+    }
+}
+
+#[cfg(test)]
+mod torn_walk {
+    use super::section_walk;
+    use crate::body::Body;
+    use crate::entity::LoopKey;
+
+    /// The join's own loop is a record of the scratch body, so a miss is
+    /// a torn body and panics naming the loop (D2 row 4).
+    #[test]
+    #[should_panic(expected = "the join's completed section names below loop")]
+    fn a_completed_sections_loop_that_does_not_resolve_panics() {
+        let _ = section_walk(&Body::<f64>::new(), LoopKey::default());
     }
 }

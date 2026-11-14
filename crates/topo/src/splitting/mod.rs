@@ -73,7 +73,7 @@ pub(crate) mod pieced_arc;
 #[cfg(test)]
 pub(crate) mod reassembly;
 pub mod rules;
-mod section;
+pub(crate) mod section;
 mod section_cones;
 mod section_loops;
 pub(crate) mod spiric_arc;

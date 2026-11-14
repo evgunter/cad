@@ -39,3 +39,27 @@ what it found.
 
 `plane_section`'s error was outside that unit's list, and the second
 state needs a new public arm.
+
+## 2026-11-14: the arm panics and is retired (D2 row 4)
+
+Closed the other way round from "What closing it takes": every one of
+the eight raises is a record miss on the join's scratch body, so by D2
+(*A torn body is a kernel bug*) none of them is a refusal. This is
+`torn-body-refusal-families-beyond-the-six-doors`' `SectionError` line.
+
+- `section_walk` reads its loop's members through
+  `Body::loop_members_linked`, the start point through
+  `linked_vertex_point`, the claim through `live::claimed` and the
+  curve through `edge_curve_linked`. Each panic names the holding
+  record and the key it read; the unclaimed half has its own message
+  ("does not claim it in either slot"), so the two states this row
+  found under one arm are told apart.
+- The loop itself is the join's `CompletedSection::below_loop`; a miss
+  panics naming the loop.
+- `plane_section`'s nesting arm panics on `NestFault::Torn`, printing
+  the `Unresolved` it used to drop.
+- `SectionError::Corrupt` and its `Display` arm are gone. The
+  lone-vertex below loop stays the typed `SectionInvariant`.
+- `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`
+  walks every loop of its torn bodies through `section_walk`, floored
+  on a premise panic.
