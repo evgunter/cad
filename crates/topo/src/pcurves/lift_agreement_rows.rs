@@ -213,7 +213,8 @@ fn a_split_at_the_pole_decides_its_childrens_turn() {
 /// in its face's chart is its lift, and the one decision of a joint's
 /// branch is `decide_joint` (DESIGN `[one-way.places]`). A second pin is
 /// spelled with the movers and readers the decision is built from, so
-/// every use of one outside `pcurves.rs` is listed here with what it is,
+/// every use of one outside `pcurves.rs` and `pcurves/` is listed here
+/// with what it is,
 /// and a new one fails until it is read and listed, or goes through
 /// `Lift`.
 ///
@@ -222,10 +223,13 @@ fn a_split_at_the_pole_decides_its_childrens_turn() {
 /// (`work/tesswalk/mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers.md`).
 ///
 /// **No function but the decision makes an element.** A `JointElement`
-/// is constructed from a deck in one place in `pcurves.rs`'s shipped
-/// code, `decide_joint`; every other element there is one a decision
-/// returned, the identity, or a sum of stored ones (`joint.rs`'s own
-/// algebra). Outside it the constructions are listed as the movers are.
+/// is constructed from a deck in one file of the mint's shipped code,
+/// `pcurves/decision.rs`, and there in `decide_joint`; every other
+/// element the mint holds is one a decision returned, the identity, or a
+/// sum of stored ones (`joint.rs`'s own algebra). Outside it the
+/// constructions are listed as the movers are. The mint's rows, the
+/// modules `pcurves.rs` declares under `#[cfg(test)]`, state elements to
+/// compare against and are not counted.
 ///
 /// **What this guard cannot see**: a walk that places a loop's edges on
 /// a branch with arithmetic of its own, spelling none of the movers and
@@ -283,7 +287,11 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
             5,
             "the type, and its own algebra's rows",
         ),
-        ("topo/src/pcurves.rs", 1, "decide_joint, the one decision"),
+        (
+            "topo/src/pcurves/decision.rs",
+            1,
+            "decide_joint, the one decision",
+        ),
         (
             "topo/src/test_support_fixtures.rs",
             1,
@@ -291,6 +299,7 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         ),
     ];
     const MAKER: &str = "JointElement(";
+    const OWN: &str = "topo/src/pcurves/lift_agreement_rows.rs";
     fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -305,6 +314,28 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         .parent()
         .unwrap()
         .to_path_buf();
+    // The mint's rows: the modules `pcurves.rs` declares under
+    // `#[cfg(test)]`, the declarations that go when its gated items do.
+    let root = test_utils::source::code_only(
+        &std::fs::read_to_string(crates.join("topo/src/pcurves.rs")).unwrap(),
+    );
+    let mut shipped = root.clone();
+    for (at, _) in root.match_indices("#[cfg(test)]") {
+        if let Some(extent) = test_utils::source::attributed_extent(&root, at) {
+            let blank = " ".repeat(extent.len());
+            shipped.replace_range(extent, &blank);
+        }
+    }
+    let kept = test_utils::source::file_module_decls(&shipped);
+    let rows: Vec<String> = test_utils::source::file_module_decls(&root)
+        .into_iter()
+        .filter(|module| !kept.contains(module))
+        .map(|module| format!("topo/src/pcurves/{module}.rs"))
+        .collect();
+    assert!(
+        rows.iter().any(|row| row == OWN),
+        "the rows `pcurves.rs` declares are read without this file among them"
+    );
     let mut found: Vec<(String, usize)> = Vec::new();
     let mut makers: Vec<(String, usize)> = Vec::new();
     for member in std::fs::read_dir(&crates).unwrap() {
@@ -320,7 +351,7 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
                 .unwrap()
                 .to_string_lossy()
                 .replace('\\', "/");
-            if name == "topo/src/pcurves_lift_rows.rs" {
+            if rows.contains(&name) {
                 continue;
             }
             let text = std::fs::read_to_string(&file).unwrap();
@@ -328,38 +359,28 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
                 text.lines()
                     .filter(|line| !line.trim_start().starts_with("//"))
             };
-            if name == "topo/src/pcurves.rs" {
-                // The shipped code: what precedes the first test module.
-                let shipped: Vec<&str> = code()
-                    .take_while(|line| !line.starts_with("pub(crate) mod staleness_posture"))
-                    .collect();
-                assert!(shipped.len() < code().count(), "the test modules' marker");
-                let made: Vec<usize> = shipped
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, line)| line.contains(MAKER))
-                    .map(|(at, _)| at)
-                    .collect();
-                makers.push((name, made.len()));
-                for at in made {
-                    let within = shipped[..at]
-                        .iter()
-                        .rev()
-                        .find(|line| line.starts_with("fn ") || line.starts_with("pub"))
-                        .copied()
-                        .unwrap_or_default();
-                    assert!(
-                        within.starts_with("fn decide_joint<"),
-                        "an element is made from a deck in `{within}`, not in `decide_joint`"
-                    );
-                }
-                continue;
-            }
             let made = code()
                 .map(|line| line.matches(MAKER).count())
                 .sum::<usize>();
             if made > 0 {
                 makers.push((name.clone(), made));
+            }
+            if name == "topo/src/pcurves/decision.rs" {
+                let blanked = test_utils::source::code_only(&text);
+                let items = test_utils::source::fn_items(&blanked).unwrap();
+                for (at, _) in blanked.match_indices(MAKER) {
+                    let within = items
+                        .iter()
+                        .find(|(_, body)| body.contains(&at))
+                        .map_or("no function", |(name, _)| name.as_str());
+                    assert_eq!(
+                        within, "decide_joint",
+                        "an element is made from a deck in `{within}`, not in `decide_joint`"
+                    );
+                }
+            }
+            if name == "topo/src/pcurves.rs" || name.starts_with("topo/src/pcurves/") {
+                continue;
             }
             let uses: usize = code()
                 .map(|line| {
@@ -381,8 +402,8 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         .collect();
     assert_eq!(
         found, listed,
-        "the uses of a chart-branch mover or reader outside `pcurves.rs` are not the listed \
-         ones. A new one is a second pin of a joint's branch: read the loop's `Lift` instead, \
+        "the uses of a chart-branch mover or reader outside `pcurves.rs` and `pcurves/` are not \
+         the listed ones. A new one is a second pin of a joint's branch: read the loop's `Lift` instead, \
          or list the use with what it is. A listed one gone: strike its row."
     );
     makers.sort();
