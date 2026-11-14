@@ -226,9 +226,9 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     );
     assert_eq!(
         viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness())
-            .map(|offer| offer.body),
-        doc.output(a, 0),
-        "and offers to re-point a's placements onto it"
+            .map(|offer| offer.rows.iter().map(|row| row.body).collect::<Vec<_>>()),
+        Some([a, b].map(|n| doc.output(n, 0).expect("a body")).to_vec()),
+        "and offers to re-point a's and b's placements onto it"
     );
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
@@ -345,7 +345,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
 }
 
 /// **A combine of bodies picked as themselves places nothing, and
-/// offers the re-point of the first operand the world places**: `a`
+/// offers the re-point of the operand the world places**: `a`
 /// unplaced and `b` placed, their union writes no placement, and offers
 /// to re-point `b`'s placement onto it (Ev, PR 6353); accepted, the
 /// world shows the union where `b`'s copy stood.
@@ -371,7 +371,15 @@ fn a_combine_offers_the_re_point_of_the_operand_the_world_places() {
     assert_eq!(common::world(doc), [b], "the union writes no placement");
     let offer = viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness())
         .expect("the union offers the re-point");
-    assert_eq!(Some(offer.body), doc.output(b, 0), "of b's placement");
+    assert_eq!(
+        offer
+            .rows
+            .iter()
+            .map(|row| Some(row.body))
+            .collect::<Vec<_>>(),
+        [doc.output(b, 0)],
+        "of b's placement"
+    );
     let out = session.perform(SessionOp::RepointPlacements {
         source: offer.rows[0].source,
         onto: union.into(),
