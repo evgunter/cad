@@ -2,10 +2,12 @@
 id: the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree
 kind: issue
 title: boolean/insert.rs nests one shared vertex's struts across pairs by holds_whole, a second nesting reading beside star::ring_tree
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onehome/star-cut
+closed: 2026-11-12
 ---
 
 Found by `run-loops-of-split-and-pierce-are-twins` stage 1 (`onehome/star-sites`), which tested whether the vertex–vertex planner's own chord nesting is `star::ring_tree` in substance.
@@ -34,3 +36,9 @@ A third nesting reading outside `topo::star`'s scope: `boolean/zip.rs` `peel` ne
 
 Every plan at a shared vertex now reads one walk, the vertex's star (`Star::walk`). Each pair refines that star against its own partner's faces (`boolean::sectors::pair_sectors`). The star orders the vertex's **bounds**; refinement only adds bounds inside sectors. `holds_whole`, `nests`, `segment` and `strut_anchor` stay, and `holds_whole` says why at the code. The struts they nest are different pairs', and their germs lie strictly inside one sector, between two bounds. There `walks_before` places them by their germs' directions, and no bound order reaches them. One parent relation over all the vertex's chords needs one order of every pair's germs, which is stage 3's germ order (`germ-orders-about-a-normal-have-two-homes`). The code tie, where the Out strut holds, then becomes that order's tie reading. So the fold rides stage 3.
 - 2026-11-10: stage 2 (PR 6725) kept `holds_whole`/`nests`/`segment`/`strut_anchor`, since they need stage 3's germ order across pairs. The row is open until stage 3. (ONEHOME orchestrator)
+
+## Closed (PR 6871, `topo::star` stage 3, 2026-11-12)
+
+Tested first, as owed: at every `holds_whole` call over the topo suite and the sweep families, `star::ring_tree`'s parent relation over the two struts' four ends, in the vertex's one cut order (`cut_order`), was compared with `holds_whole`'s verdict. Every call whose ends the order reads strictly agreed; the calls with a tie were counted apart (the PR has the counts). So it holds in substance, and `holds_whole` now reads `strut_tree`, `ring_tree` over a sector's struts' ends, with the order's ties read so the chords nest (`end_before`): a tie at one end counts the shorter strut inside, and tied at both, the Out one holds. The shared-vertex mint's innermost-holder search is that tree's parent; `arc_holds` goes. `nests` and `segment` read it unchanged. `strut_anchor` stays: it places a strut among its siblings at the holder's tip by the cut order, which is sibling order in the tree, not nesting.
+
+`boolean/zip.rs` `peel` stays outside `topo::star`'s scope, as noted above.

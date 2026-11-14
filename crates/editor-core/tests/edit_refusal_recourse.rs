@@ -314,7 +314,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_chord_side",
             "bool_contact_edge",
             "bool_contact_edge_length",
-            "bool_germ_line",
+            "germ_line",
             "bool_join_chord",
             "bool_join_facing",
             "bool_join_nearest",

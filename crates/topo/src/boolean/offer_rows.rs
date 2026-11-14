@@ -1094,7 +1094,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
     super::super::vtxfac::pierce_germ_dir(
         &s,
         Vec3::new(D.sin(), 0.0, D.cos()),
-        super::super::vtxfac::OutBound::Start,
+        crate::star::CutEnd::Start,
         band(),
     )
     .map(|_| ())
@@ -2565,7 +2565,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
-    ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
@@ -2899,6 +2898,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
+    (
+        "sectors.rs",
+        "order_fault",
+        "BooleanDecision::DirectionSense",
+        1,
+    ),
+    ("sectors.rs", "order_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
