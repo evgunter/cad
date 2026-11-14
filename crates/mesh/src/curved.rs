@@ -150,8 +150,8 @@
 //! face's widest latitude; torus —
 //! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
 //! direction from the doubly-curved chord bound that function derives.
-//! The boundary chord tightening in [`crate::chords`] puts the sphere's,
-//! cone's and torus's rims on the same steps.
+//! The chord pass's one rule ([`crate::chords`]) puts every rim and
+//! meridian on the same steps.
 
 use std::collections::HashMap;
 
@@ -912,7 +912,7 @@ fn require_swept_rectangle(
 /// the paragraph rests on and the one that makes this arm different
 /// from the cone's rather than a restatement of it. Dirty needs
 /// `nv >= 3`, and the meridian is chorded at the grid's own step
-/// (`chords`' adjacent-grid tightening), so `nv >= 3` FORCES at least
+/// (`chords`' one rule), so `nv >= 3` FORCES at least
 /// two of those points. The arm is kept (Ev, 2026-08-19) so the rule reads as one
 /// sentence rather than one chart but not the other, and the mechanism
 /// it rests on — the occluding points EXIST — is asserted in
@@ -1096,7 +1096,7 @@ fn grid_counts(
                 // `(nu, 1)`, the cylinder's shape and for its reason: no
                 // rows. `cert::cert_cone` never reads v beyond the
                 // triangle's largest radius, and with both rims chorded
-                // on this step (`chords`' adjacent-grid tightening) and
+                // on this step (`chords`' one rule) and
                 // nothing on the sides between them, the strip argument
                 // at `sizing::sagitta_step` holds every triangle to one
                 // column, so the worst one is a rim-chord triangle on the

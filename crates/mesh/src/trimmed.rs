@@ -38,14 +38,14 @@
 //! interior-column `Intersection` image, and nothing else on this
 //! head). The first three are closed forms of the image; `General` is
 //! a spline, sized from its own differenced control net
-//! (`crate::chords::general_uv_speeds`) rather than a formula.
+//! (`geom_brep::Pcurve::speed_bound`) rather than a formula.
 //!
 //! The sphere arm's faces are bounded by circles: parallels and
 //! meridians carry their `Harmonic` image, and a tilted circle its
 //! `Projected` one, the chart's inverse of the carrier, which the walk
 //! reads exactly. The chord pass bounds each image's UV step by the
 //! arm's lattice steps from a closed form for the circle's
-//! `(u′(t), v′(t))` (`crate::chords::sphere_uv_speeds`), and its
+//! `(u′(t), v′(t))` (`geom_brep::Pcurve::speed_bound`), and its
 //! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
 //! A pole the loop passes is a side of the trim polygon
 //! ([`sphere_polygon_shape`]): the loop's lift (`topo::Body::loop_lift`)
@@ -54,7 +54,7 @@
 //! is. A face holding a pole inside it and a tilted circle
 //! passing so near a pole that its chord schedule asks one edge for more
 //! than the arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
-//! `chords::sphere_arm_tighten`), refuse typed
+//! `chords::tighten`), refuse typed
 //! ([`TessellateError::SphereTrimShape`]). On both analytic arms a trim
 //! polygon wound against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
@@ -201,7 +201,8 @@ fn last_attempt() -> usize {
 
 /// **The trimmed cylinder's unproved headroom**: the lane sizes its
 /// lattice, and the chord pass chords this face's edges
-/// (`chords::edge_target`), at this share of δ rather than at δ.
+/// (`chords::edge_target`), at this share of δ rather than at δ
+/// ([`face_target`]).
 ///
 /// The lane has no worst-triangle theorem (`crates/mesh/README.md`
 /// `[mesh.sizing]`). Its lattice cell-halves would certify at the
@@ -225,7 +226,7 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// bounds what one face's CDT is asked to hold, as `sizing::MAX_COUNT`
 /// bounds an allocation. A tilted circle passing a chart pole at polar
 /// distance `d` asks about `ρ_c·Δt/(r·d·h_u)` chords of its edge
-/// (`chords::sphere_arm_tighten`), and every one enters the face's CDT.
+/// (`chords::tighten`), and every one enters the face's CDT.
 /// Measured in release on the tilted pair of unit balls (PR 5920's
 /// second fix pass): 3.7·10⁴ boundary points mesh in 0.2–0.3 s, and
 /// 5.7·10⁵ take 18–62 s per attempt, ending folded either way. The
@@ -236,18 +237,28 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// circle far from the poles reaches it only at a δ about `10⁻⁹·r`.
 pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 
-/// Whether face `fk` is meshed by one of this lane's two analytic arms,
-/// the trimmed cylinder or the trimmed sphere: the faces whose lattice
-/// and boundary chords size at [`UNPROVED_HEADROOM`]
-/// (`chords::edge_target`).
-pub(crate) fn sizes_at_headroom(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
+/// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face one
+/// of this lane's two analytic arms meshes (the trimmed cylinder, the
+/// trimmed sphere), δ for every other face. The one statement both those
+/// arms size their lattices at and the chord pass chords the face's
+/// boundary at (`chords::edge_target`).
+pub(crate) fn face_target(
+    body: &Body<f64>,
+    fk: FaceKey,
+    delta: f64,
+) -> Result<f64, TessellateError> {
     let surface = crate::tessellate::face_surface(body, fk)?;
-    Ok(match surface {
+    let headroom = match surface {
         Surface::Cylinder { .. } => {
             crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed
         }
         Surface::Sphere { .. } => takes_sphere_arm(body, fk, surface)?,
         _ => false,
+    };
+    Ok(if headroom {
+        delta * UNPROVED_HEADROOM
+    } else {
+        delta
     })
 }
 
@@ -284,12 +295,12 @@ pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, T
 
 /// **The trimmed sphere's lattice steps** `(h_u, h_v)`, in radians of
 /// azimuth and latitude: the curved lane's sphere steps
-/// ([`crate::sizing::sphere_grid_steps`]) at [`UNPROVED_HEADROOM`]·δ,
-/// over the face's own latitude window
+/// ([`crate::sizing::sphere_grid_steps`]) at the face's target
+/// ([`face_target`]), over the face's own latitude window
 /// ([`crate::sizing::sphere_face_widest_cos`]). The
 /// chord pass reads the same steps to bound each boundary chord's UV
-/// step (`chords::sphere_arm_tighten`), so the lattice and the trim
-/// polygon are sized from one value.
+/// step (`chords::tighten`), so the lattice and the trim polygon are
+/// sized from one value.
 pub(crate) fn sphere_lattice_steps(
     body: &Body<f64>,
     fk: FaceKey,
@@ -306,26 +317,8 @@ pub(crate) fn sphere_lattice_steps(
     let scale = tests::SPHERE_STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) = crate::sizing::sphere_grid_steps(delta * UNPROVED_HEADROOM, radius, widest);
+    let (hu, hv) = crate::sizing::sphere_grid_steps(face_target(body, fk, delta)?, radius, widest);
     Ok((hu * scale, hv * scale))
-}
-
-/// The range of `c + a·cos t + b·sin t` over `[t0, t1]`: the ends, and
-/// `c ± √(a² + b²)` where the interval may hold the phase of either
-/// extremum ([`geom::periodic_window_may_hold`]).
-pub(crate) fn harmonic_range(c: f64, a: f64, b: f64, (t0, t1): (f64, f64)) -> (f64, f64) {
-    use core::f64::consts::{PI, TAU};
-    let at = |t: f64| c + a * t.cos() + b * t.sin();
-    let (e0, e1) = (at(t0), at(t1));
-    let (mut lo, mut hi) = (e0.min(e1), e0.max(e1));
-    let (m, tau) = (a.hypot(b), b.atan2(a));
-    if geom::periodic_window_may_hold((tau, tau), (t0, t1), TAU) {
-        hi = c + m;
-    }
-    if geom::periodic_window_may_hold((tau + PI, tau + PI), (t0, t1), TAU) {
-        lo = c - m;
-    }
-    (lo, hi)
 }
 
 /// The per-chart data of the constructing arms (module docs):
@@ -421,7 +414,7 @@ pub(crate) fn tessellate_trimmed(
         // ONE spline arm past that screen, for the described NURBS face
         // and for the approximating surface meshed on its fit: the lane
         // reads the cell table under this FACE's key, not off the
-        // surface, and `chords::nurbs_tighten` assembled it from the
+        // surface, and `chords::tighten` assembled it from the
         // same `Surface::spline_chart()` this dispatch is testing.
         //
         // Both readings off ONE assembly: the memo holds the cell table
@@ -502,8 +495,8 @@ pub(crate) fn tessellate_trimmed(
         );
     }
 
-    // Grid sizing: cylinder — sagitta-tight in u at
-    // `UNPROVED_HEADROOM`·δ, rows every r·hu metres in v, a uniform
+    // Grid sizing: cylinder — sagitta-tight in u at the face's target
+    // (`face_target`), rows every r·hu metres in v, a uniform
     // grid over the trim box; NURBS — the Hessian-budget steps
     // (`nurbs_cert`) at the lane's lattice budget
     // (`nurbs_cert::lattice_budget`), applied PER KNOT-SPAN CELL from
@@ -520,7 +513,7 @@ pub(crate) fn tessellate_trimmed(
     }
     let (mut candidates, nurbs_stats, metric) = match lane {
         Lane::Cylinder { radius, .. } => {
-            let hu = sagitta_step(tol.delta * UNPROVED_HEADROOM, radius);
+            let hu = sagitta_step(face_target(body, fk, tol.delta)?, radius);
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
             // The other half of #678's shape, checked where the count
@@ -1544,7 +1537,7 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 /// The constants are argued where they stand: `4ε` relative past `π/2`
 /// is the rounding of an `atan2` at a pole (a few ulps), so a meridian's
 /// endpoint does not read as past it; `3π/2` is past any side a chord
-/// pass can make between two lattice columns (`sphere_arm_tighten`
+/// pass can make between two lattice columns (`chords::tighten`
 /// holds every chord to one `h_u ≤ π/4`), and short of the `2π` a
 /// winding side spans, so it separates the two with room either way.
 fn sphere_polygon_shape(
@@ -1932,7 +1925,7 @@ fn trim_polygon(
             // parameters, which `Pcurve::eval` answers for this
             // variant, and the chord pass sizes those parameters from
             // the image's own certified UV speed
-            // (`crate::chords::general_uv_speeds`).
+            // (`geom_brep::Pcurve::speed_bound`).
             //
             // **Watertightness does not move.** The 3-D positions are
             // the carrier's chord points, minted once per edge and
@@ -2726,8 +2719,8 @@ mod tests {
 
     /// **The sphere arm's chord-step bound, pinned.** On every boundary
     /// chord of every face the arm meshes, the image's UV step is within
-    /// the arm's lattice steps `(h_u, h_v)` (`chords::sphere_arm_tighten`
-    /// on `chords::sphere_uv_speeds`), and on the worst chord it is more
+    /// the arm's lattice steps `(h_u, h_v)` (`chords::tighten` on
+    /// `geom_brep::Pcurve::speed_bound`), and on the worst chord it is more
     /// than half of them: the radical circle of this pair turns in
     /// latitude at `cos v = 0.7`, where its azimuth speed attains the
     /// bound `ρ_c/(r·cos v)`, so the bound is what sets the schedule
@@ -2821,47 +2814,6 @@ mod tests {
         crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
     }
 
-    /// **`harmonic_range` reads an extremum inside the interval.** A
-    /// tilted circle's height turns inside its edge's interval, so the
-    /// ends alone under-read its range. Each case's range must hold a
-    /// dense sampling of the function and reach the extremum the
-    /// interval holds: `cos t` over `[−1, 1]` peaks at 1 with both ends at
-    /// `cos 1`, and the shifted forms put the turn off zero.
-    #[test]
-    fn harmonic_range_holds_a_turn_inside_the_interval() {
-        let (lo, hi) = super::harmonic_range(0.0, 1.0, 0.0, (-1.0, 1.0));
-        assert!((hi - 1.0).abs() < 1e-15, "the peak at t = 0: {hi}");
-        assert!((lo - 1f64.cos()).abs() < 1e-15, "the ends: {lo}");
-        for (c, a, b, t) in [
-            (0.3, 0.4, -0.7, (0.5, 3.0)),
-            (-0.2, -0.6, 0.1, (2.0, 4.5)),
-            (0.0, 0.5, 0.5, (-2.5, 2.5)),
-            (1.0, -0.3, -0.9, (4.0, 7.5)),
-        ] {
-            let (lo, hi) = super::harmonic_range(c, a, b, t);
-            let f = |x: f64| c + a * x.cos() + b * x.sin();
-            let (mut smin, mut smax) = (f64::INFINITY, f64::NEG_INFINITY);
-            for i in 0..=4096 {
-                let x = t.0 + (t.1 - t.0) * f64::from(i) / 4096.0;
-                smin = smin.min(f(x));
-                smax = smax.max(f(x));
-            }
-            assert!(
-                lo <= smin + 1e-12 && hi >= smax - 1e-12,
-                "{c} {a} {b} {t:?}"
-            );
-            assert!(
-                smin - lo < 1e-6 && hi - smax < 1e-6,
-                "{c} {a} {b} {t:?}: the range is the function's, not wider: \
-                 [{lo}, {hi}] against [{smin}, {smax}]"
-            );
-            let ends = (f(t.0).min(f(t.1)), f(t.0).max(f(t.1)));
-            assert!(
-                lo < ends.0 - 1e-3 || hi > ends.1 + 1e-3,
-                "{c} {a} {b} {t:?}: the case turns inside its interval"
-            );
-        }
-    }
 
     /// **`pole_side_columns` takes the lattice off #678's shape.** A
     /// pole side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly
@@ -3090,27 +3042,4 @@ mod tests {
         assert_eq!(cause(&seam), Some((e(0), SphereTrimCause::SeamTwice)));
     }
 
-    /// **A projected circle through the chart's pole has no azimuth
-    /// bound** (`chords::projected_circle_speeds` answers `None`, which
-    /// `sphere_uv_speeds` refuses as `SphereTrimShape { ThroughPole }`):
-    /// the unit great circle in the `xz` plane passes `z = ±1`, where
-    /// `ρ = 0`. Tilted off the pole it answers finite bounds.
-    #[test]
-    fn a_circle_through_the_pole_has_no_azimuth_bound() {
-        use geom_core::Vec3;
-        let (o, x, z) = (
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        );
-        assert_eq!(
-            crate::chords::projected_circle_speeds((o, x, z), (0.0, core::f64::consts::TAU)),
-            None
-        );
-        let tilted = Vec3::new(0.0, 0.6, 0.8);
-        let (su, sv) =
-            crate::chords::projected_circle_speeds((o, x, tilted), (0.0, core::f64::consts::TAU))
-                .expect("a circle clear of the pole is bounded");
-        assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
-    }
 }
