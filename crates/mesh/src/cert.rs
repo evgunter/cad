@@ -235,7 +235,7 @@ pub(crate) fn cone_chord_sag(k: f64, va: f64, vb: f64, du: f64) -> f64 {
     let (sin, cos) = (0.5 * du).sin_cos();
     let span = va + vb + 2.0 * (va * vb).sqrt() * cos.abs();
     if span > 0.0 {
-        k * 2.0 * va * vb * sin * sin / span
+        k * 2.0 * va * vb * sin.powi(2) / span
     } else {
         0.0
     }
@@ -1047,7 +1047,9 @@ mod tests {
     fn a_cone_chord_sags_within_its_larger_radius_sagitta() {
         let k = 0.3;
         for du in [1e-4, 0.05, 0.7, 2.0, PI] {
-            let sagitta = |v: f64| k * v * (1.0 - (0.5 * du).cos());
+            // The sagitta `k·v·(1 − cos(du/2))` in the form that does not
+            // cancel, `2·sin²(du/4)`.
+            let sagitta = |v: f64| k * v * 2.0 * (0.25 * du).sin().powi(2);
             for (va, vb) in [
                 (1.0, 1.0),
                 (0.999, 1.0),
@@ -1056,10 +1058,8 @@ mod tests {
                 (0.0, 1.0),
             ] {
                 let sag = cone_chord_sag(k, va, vb, du);
-                // `1 − cos` cancels at 1: the reference is exact to an ulp
-                // of `k·v`.
                 assert!(
-                    sag <= sagitta(vb) + 2.0 * f64::EPSILON * k * vb,
+                    sag <= sagitta(vb) * (1.0 + 1e-12),
                     "slants {va}, {vb} across {du}: {sag:e} past {:e}",
                     sagitta(vb)
                 );
@@ -1067,7 +1067,7 @@ mod tests {
             }
             let (one, same) = (cone_chord_sag(k, 2.0, 2.0, du), sagitta(2.0));
             assert!(
-                (one - same).abs() <= 2.0 * f64::EPSILON * k * 2.0,
+                (one - same).abs() <= 1e-12 * same,
                 "one radius across {du}: {one:e} against its sagitta {same:e}"
             );
         }
