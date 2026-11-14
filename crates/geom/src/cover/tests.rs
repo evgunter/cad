@@ -1414,6 +1414,44 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     }
 }
 
+/// **An ellipse's nearest distance reads its annulus**: the whole
+/// ellipse of semi-axes `2` and `1` lies between radii `1` and `2` in its
+/// plane, so from a point `1` above its centre, and from one `1` above
+/// the plane and `1` past its major vertex, both scalars read the true
+/// nearest distance `√2`, the nearer semi-axis's end or the vertex. The
+/// circle of the mean radius `1.5` less the semi-axes' departure `0.5`
+/// reads `√3.25 − 0.5 ≈ 1.30` at both: red where the annulus is dropped.
+#[test]
+fn an_ellipses_nearest_distance_reads_its_annulus() {
+    let frame = Frame::new(Point3::new(1.0, -2.0, 0.5), Vec3::unit_z(), Vec3::unit_x());
+    let ellipse = Curve3::Ellipse(crate::Ellipse::new(frame, 2.0, 1.0));
+    let whole = ParamWindow::new(0.0, TAU);
+    let f = ellipse.cover_over(whole).unwrap();
+    let i = ellipse
+        .map_scalar(iv)
+        .cover_over(ParamWindow::new(iv(0.0), iv(TAU)))
+        .unwrap();
+    for (what, q) in [
+        ("above the centre", frame.origin + Vec3::unit_z()),
+        (
+            "above and past the vertex",
+            frame.origin + Vec3::new(3.0, 0.0, 1.0),
+        ),
+    ] {
+        let (nf, _) = f.distance_range(&Site::Point(q));
+        let (ni, _) = i.distance_range(&Site::Point(ipt(q)));
+        let exact = 2.0f64.sqrt();
+        assert!(
+            (nf - exact).abs() <= 1e-12,
+            "{what}: the f64 nearest {nf} against the true {exact}"
+        );
+        assert!(
+            ni.lo() <= exact && ni.lo() >= exact - 1e-12,
+            "{what}: the interval nearest {ni:?} against the true {exact}"
+        );
+    }
+}
+
 /// **The nearest distance from a line is posed as a distance**: a line
 /// tangent to a circle arc or to a thin torus's outer equator, `δ` out
 /// along the radial in the circle's plane, stands `δ` from it, and both
