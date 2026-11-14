@@ -58,3 +58,18 @@ What moved:
 Positions moved and did not all meet, so a third round follows. Still apart: point 1 (kept: A, B; refused: C) and point 2 (ε: A, B; rounding: C).
 
 Harness figures for the round: A 235,918 tokens as reported, 48 s; B 257,592 tokens, 146 s; C: see below.
+C's round 2: 402,509 tokens as reported for the resumed run, 875 s.
+
+## Round 3, 2026-11-14
+
+Dispatched: all three, resumed. Shown: each the other two round-2 replies, whole. Asked: whether the round-2 census settles point 2's scale; for point 1, which body states make a triangle on three boundary points with an unresolved winding, whether validation admits them at rest, to build one if possible, and what a caller holds under each answer. Replies are beside this file (`-round3-A.md`, `-round3-B.md`, `-round3-C.md`).
+
+What moved:
+
+- **A** moved on both points, to C's round-2 side: the rounding allowance (the same bytes would keep an ε promise at one ε and break it at another, and the mesher cannot meet it without reading ε), and refuse typed (it quotes Ev's text in `1240686` on not weakening a promise for a state that arises only from value coincidence).
+- **B** moved on point 1 to refuse typed (it reasons that no body valid at rest makes such a triangle, so refusing costs nothing). It holds ε on point 2, and refuted the inference C drew from its census by running the suite at each ε CI sweeps: at ε = 1e-6 the suite emits no triangle under 1e-6 m (the 972 exist only where ε is far below them), so on everything the suite makes the two scales agree.
+- **C** withdrew that inference itself after the same rerun, and built two bodies valid at rest instead. (i) A frustum with a small rim of 20ε, cut by a tilted plane, under the agreed clearance: 226 certified triangles with a lattice corner have least height at or under ε, at every ε, because a triangle's least height is at most its shortest side and the chord pass chords the small rim at the cone's angular step; so "least height exceeds ε" is false of a valid body. (ii) The same frustum whole at δ 1e-8: main meshes it with 6,610 triangles on three boundary points whose winding is inside the positions' rounding, in the small planar cap, whose corners are the mesher's own chord points. C holds the rounding allowance (`sure` that ε is the wrong scale) and refuse typed, and notes that refusing needs the verdict where faces join the mesh, on every lane, and would refuse that body at that δ where main meshes it.
+
+After round 3: point 1, all three say refuse, but A and B have not seen C's instance, which changes what refusing costs and where it must be decided. Point 2: rounding (A, C), ε (B), and B has not seen C's body (i). Positions moved, so a fourth round follows.
+
+Harness figures for the round: A 253,371 tokens as reported, 85 s; B 273,975 tokens, 326 s; C: see below.
