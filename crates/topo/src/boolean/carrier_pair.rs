@@ -2,7 +2,7 @@
 //! verdict, on every kind the `Rest` table names ([`carrier_pair_relation`],
 //! [`carrier_pair_decided`]), its planar restriction
 //! ([`flush_pair_relation`]), the oriented descriptions they compare
-//! ([`face_carrier`]) and the extent a verdict is consumed over
+//! ([`face_carrier_desc`]) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
 
 use geom_brep::carrier_eq::PairDoorReading;
@@ -13,7 +13,7 @@ use geom_core::{Band, Decide, Point3};
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
-use crate::face_normal::{face_plane, plane_outward_normal};
+use crate::face_normal::{face_carrier_desc, face_plane};
 use crate::live::BoundaryMember;
 
 /// **The one flush-pair door**: the carrier ladder for a single
@@ -157,83 +157,10 @@ pub(crate) fn pair_extent<T: Decide>(
     Ok(PairExtent { reach })
 }
 
-/// The face's **oriented carrier description** — the curved
-/// generalization of [`face_plane`], folding the face's sense into
-/// the material side exactly as that door does (S10).
-///
-/// `None` for a surface kind outside the `Rest` ladder's
-/// [`geom_brep::carrier_eq::INVENTORY`]: the C4 table names the kinds
-/// [`mod@geom_brep::carrier_eq`] carries a rung for, and a kind it cannot
-/// compare refuses typed at the caller rather than being approximated
-/// by one it can. `None` too where `face`, the caller's key, does not
-/// resolve.
-///
-/// # Panics
-///
-/// Where the face's surface does not resolve: a link, which every
-/// public door keeps live, and which the reduction's operators keep
-/// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
-pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.face(face)?;
-    // `sense` is the material-side bit: true means the face's outward
-    // normal IS the chart normal, which for a sphere/cylinder chart
-    // points away from the centre/axis. Read as a BIT, never as a
-    // comparison on `T` — the scalar backends order intervals, not
-    // signs (S10's exact-bit discipline).
-    let outward = f.sense();
-    match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
-            origin: *origin,
-            normal: plane_outward_normal(f.record(), *normal).vec(),
-        }),
-        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
-            center: *center,
-            radius: *radius,
-            outward,
-        }),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(CarrierDesc::Cylinder {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            outward,
-        }),
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(CarrierDesc::Torus {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            outward,
-        }),
-        geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some(CarrierDesc::Cone {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-            outward,
-        }),
-        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
-    }
-}
-
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Descriptions through [`face_carrier`] and the pair's consumed
+/// Descriptions through [`face_carrier_desc`] and the pair's consumed
 /// extent through [`pair_extent`]: a coincidence is one whose
 /// displacement's bound decides Zero at every point of both faces
 /// ([`geom_brep::carrier_eq::pair_door_reading`]). The operation's glue
@@ -248,7 +175,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// # Panics
 ///
 /// Where a link of either face does not resolve: its surface
-/// ([`face_carrier`]), its loops, their walks, or a boundary vertex's
+/// ([`face_carrier_desc`]), its loops, their walks, or a boundary vertex's
 /// point.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
@@ -342,7 +269,7 @@ pub(super) fn glue_extent<T: Decide>(
     Ok(PairExtent { reach })
 }
 
-/// The two faces' carrier descriptions ([`face_carrier`]), read before
+/// The two faces' carrier descriptions ([`face_carrier_desc`]), read before
 /// their extent: a kind outside the inventory has no extent to read.
 fn carriers_of<T: Decide>(
     a: &Body<T>,
@@ -351,8 +278,8 @@ fn carriers_of<T: Decide>(
     fb: FaceKey,
 ) -> Result<(CarrierDesc<T>, CarrierDesc<T>), PairUnread> {
     Ok((
-        face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?,
-        face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?,
+        face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?,
+        face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?,
     ))
 }
 
@@ -390,8 +317,8 @@ pub fn carrier_pair_arm<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<geom_core::Lever<T>, PairUnread> {
-    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
-    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let ca = face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     Ok(geom_brep::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
 }
@@ -493,7 +420,7 @@ mod tests {
     /// **The carrier reads answer a caller's stale face `None` and panic
     /// on a torn link past it.** A face the body once held, freed so the
     /// body around it is sound, reads no carrier, ball or witnesses; a
-    /// live face whose surface was dropped panics in `face_carrier` and
+    /// live face whose surface was dropped panics in `face_carrier_desc` and
     /// `face_ball` naming the surface, and one whose boundary vertex lost
     /// its point panics in `face_witnesses` naming the point. A read that
     /// took either tear for an absent record would answer instead.
@@ -507,12 +434,15 @@ mod tests {
         let stale = body.faces.insert(data.clone());
         body.faces.remove(stale);
         assert!(
-            face_carrier(&body, face).is_some()
+            face_carrier_desc(&body, face).is_some()
                 && face_ball(&body, face, band).is_some()
                 && face_witnesses(&body, face).is_some(),
             "the live face reads"
         );
-        assert!(face_carrier(&body, stale).is_none(), "face_carrier, stale");
+        assert!(
+            face_carrier_desc(&body, stale).is_none(),
+            "face_carrier_desc, stale"
+        );
         assert!(face_ball(&body, stale, band).is_none(), "face_ball, stale");
         assert!(
             face_witnesses(&body, stale).is_none(),
@@ -521,8 +451,8 @@ mod tests {
 
         body.surfaces.remove(data.surface);
         let surface = format!("{}'s surface names", EntityId::Face(face));
-        assert_torn_op_panics("face_carrier", &mut body, &[&surface, ROW_FOUR], |b| {
-            face_carrier(b, face)
+        assert_torn_op_panics("face_carrier_desc", &mut body, &[&surface, ROW_FOUR], |b| {
+            face_carrier_desc(b, face)
         });
         assert_torn_op_panics("face_ball", &mut body, &[&surface, ROW_FOUR], |b| {
             face_ball(b, face, band)
@@ -681,7 +611,7 @@ mod lever_rows {
         let (
             Some(CarrierDesc::Cylinder { axis: a1, .. }),
             Some(CarrierDesc::Cylinder { axis: a2, .. }),
-        ) = (face_carrier(&a, fa), face_carrier(&b, fb))
+        ) = (face_carrier_desc(&a, fa), face_carrier_desc(&b, fb))
         else {
             panic!("two cylinder walls read as cylinders")
         };

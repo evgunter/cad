@@ -1,7 +1,7 @@
 //! M3 PR 5.5 adversarial review suite (seam discipline). Falsification
 //! targets: the sense theorem under non-axis-aligned operands (exact
 //! dyadic linear maps: scaled rotations, shears, reflections), the
-//! `bool_strut_order` angular rule (derivation says it is forced only
+//! `germ_order` angular rule (derivation says it is forced only
 //! on half-plane sectors — reflex-corner attack), R1 closure depth
 //! (pocket/boss matrices, six-face chains, near-edge and face-spanning
 //! pockets), R2 generalization (6/8 collinear sites, mixed lanes, the
@@ -330,7 +330,7 @@ fn b_sense_theorem_census() {
 }
 
 // =====================================================================
-// A. bool_strut_order: the flagged weak spot. Derivation (review
+// A. germ_order: the flagged weak spot. Derivation (review
 // scratch): the convex-sector dot comparison orders germ angles
 // correctly iff both angles from the anchor are <= pi. Crossing-minted
 // vv sites have half-plane (width exactly pi) sectors, so the
@@ -428,7 +428,7 @@ fn a_multi_spike_shared_corner_vertex() {
 /// wedge between +x and (1,1)); B is a z-sheared brick whose TILTED
 /// bottom cap passes through A's reflex top-cap corner vertex (0,0,1)
 /// in the cap's interior. That is a vertex-on-face site, so
-/// `bool_strut_order` (the vertex–vertex lane) is not consulted: the
+/// `germ_order` (the vertex–vertex lane) is not consulted: the
 /// corner's three edges read Out and its reflex bisector In, a pierce
 /// run holding the whole orbit. Two tilts. Oracle:
 /// vol(A meet B) = 13/24 (rational, non-dyadic — asserted to 1e-12;

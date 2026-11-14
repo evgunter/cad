@@ -257,6 +257,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "placement_values_direction.rs"]
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
@@ -912,6 +914,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "source_readers.rs"]
+mod source_readers;
 #[path = "split_joined_keys_tie.rs"]
 mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]

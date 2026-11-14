@@ -165,6 +165,12 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("cover_sphere_seam", &BOOLEAN),
     ("cover_face_nearest_foot", &BOOLEAN),
     ("curve_carrier_clear", &BOOLEAN),
+    // The star's cuts and their order (`topo::star`), which both verbs
+    // read; the Boolean's is the first door to raise them.
+    ("germ_line", &BOOLEAN),
+    ("germ_order", &BOOLEAN),
+    ("germ_sense", &BOOLEAN),
+    ("germ_side", &BOOLEAN),
     ("join_regular_point", &BOOLEAN),
     ("sector_apex_tilt", &BOOLEAN),
     ("sector_apex_window", &BOOLEAN),
@@ -223,6 +229,7 @@ const CARRIERS: &[NameCarrier] = &[
     // A unit test's slot names, handed to `slots_as`.
     NameCarrier::Const("NAMES"),
     NameCarrier::Call("gate_as"),
+    NameCarrier::Call("side_as"),
     NameCarrier::Call("left_as"),
     NameCarrier::Call("slots_as"),
     NameCarrier::Const("VERTEX_SECTION_RESOLUTION"),
@@ -370,6 +377,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("CELL_REGION_VERTEX"),
     NameCarrier::Const("VERTEX_SECTION_CLEAR"),
     NameCarrier::Const("VERTEX_SECTION_SIDE"),
+    // The star's germ line and order (`star/cut.rs`, `star/order.rs`).
+    NameCarrier::Const("GERM_LINE"),
+    NameCarrier::Const("GERM_ORDER"),
+    NameCarrier::Const("GERM_SENSE"),
+    NameCarrier::Const("GERM_SIDE"),
     NameCarrier::Const("WINDING_PREDICATE"),
     NameCarrier::Const("TANGENT_SECTOR_WITNESS"),
     // The row structs whose fields are names, read at each literal.
@@ -918,6 +930,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("validate.rs: wedge_holds_named: names.turn()", CARRIER_CALL),
     ("vertex_section.rs: decide_vertex_on_plane: name", FORWARDS),
+    ("vertex_section.rs: side_as: name", FORWARDS),
 ];
 
 fn src() -> std::path::PathBuf {

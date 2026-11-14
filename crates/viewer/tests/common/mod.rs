@@ -999,6 +999,25 @@ pub fn world_copy(
     }
 }
 
+/// **The viewer's Place of `body` where it stands, named `name` where it
+/// asks for one** ([`viewer::world::place_asks`], the placement editor's
+/// rule): where `body`'s one source is anonymous and already read, this
+/// placement makes it shared, and the person types `name` (VR2).
+pub fn place_named(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+    name: &'static str,
+) -> SessionOp {
+    let body = body.into();
+    let mut op = SessionOp::place_where_it_stands(doc, body.clone()).expect("a body in a space");
+    if let (SessionOp::Place { name: asked, .. }, viewer::world::PlaceAsks::Name(_)) =
+        (&mut op, viewer::world::place_asks(doc, &body))
+    {
+        *asked = Some(pncad::document::VarName::from_static(name));
+    }
+    op
+}
+
 /// **A `Place` of `read` into the world by the identity bundle** — the
 /// placement a person writes by hand, which no gesture writes for them.
 pub fn world_place(read: pncad::document::Operand) -> pncad::document::AuthoredNode {
@@ -1249,7 +1268,7 @@ fn transform(
     let (doc, _) = session.landed_pair().expect("landed");
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
-    if let Some(place) = tool.take_place() {
+    if let Some(place) = tool.take_place(doc) {
         let placement = placed_by(session, place);
         tool.placed(session.committed_doc(), placement);
     }

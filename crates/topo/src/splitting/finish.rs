@@ -2271,11 +2271,7 @@ fn shell_side<T: Decide>(
                     "split_edge_side",
                     geom_core::Margin::of(offset),
                     band,
-                    |d| match d.sign {
-                        geom_core::Sign::Positive => Some(PlaneSide::Above),
-                        geom_core::Sign::Negative => Some(PlaneSide::Below),
-                        geom_core::Sign::Zero => None,
-                    },
+                    |d| (d.sign != geom_core::Sign::Zero).then(|| PlaneSide::of_sign(d.sign)),
                 )
                 .map_kept(|diag| (edge, diag))
             }
