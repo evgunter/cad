@@ -48,3 +48,11 @@ seating the opening pick. It was tried on PR 6919's branch.
 Cost M. It needs that case settled, then the helpers and the README
 placement-editor paragraph moved together.
 
+
+## The orchestrator's ruling withdrawn (2026-11-14)
+
+The orchestrator ruled "open on the loaded bundle alone" (`placing/log.md`, 2026-11-14) as design light. The trial above shows it is not light:
+- it changes the two-pick flow the prompt and 51 rows are built on;
+- it leaves the loaded-mate case undecided.
+
+So the ruling is withdrawn, and the row is a design fork again. A designer pair weighs it when the row is taken up. The pair has to answer one question: whether a value edit should commit while the fresh row's seat is empty, which would remove the cost without changing the flow.
