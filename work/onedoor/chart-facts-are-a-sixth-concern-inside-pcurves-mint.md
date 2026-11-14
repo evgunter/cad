@@ -4,6 +4,8 @@ kind: issue
 title: The chart's description and periods are a sixth concern inside pcurves/mint.rs, and decision.rs and mint.rs import each other
 status: open
 opened: 2026-11-14
+priority: P4
+cost: M
 ---
 
 
