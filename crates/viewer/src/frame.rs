@@ -2629,27 +2629,14 @@ pub fn placement_offers(
         .rows
         .into_iter()
         .map(|row| {
-            let (who, what) = match doc.var_name(row.source) {
-                Some(name) => {
-                    let count = row.placements.len();
-                    let plural = if count == 1 { "y" } else { "ies" };
-                    (format!("{name} ({count} cop{plural})"), name.to_string())
-                }
-                None => {
-                    let copy = row
-                        .placements
-                        .first()
-                        .map_or_else(|| by.read(row.source), |&copy| by.node(copy).to_string());
-                    let who = format!("the copy {copy}");
-                    (who.clone(), who)
-                }
-            };
+            let said = repointed(by, doc, row.source, &row.placements);
             PlacementOffer {
                 said: format!(
-                    "{who} copies {}, which this body is built on",
+                    "{} copies {}, which this body is built on",
+                    said.counted,
                     by.read(row.body)
                 ),
-                label: format!("Re-point {what} onto {}", by.node(node)),
+                label: repoint_label(&said.named, &by.node(node).to_string()),
                 op: SessionOp::RepointPlacements {
                     source: row.source,
                     onto: node.into(),
@@ -2657,6 +2644,99 @@ pub fn placement_offers(
             }
         })
         .collect()
+}
+
+/// **The source a re-point redefines, as the offer's sentence and a
+/// re-point button say it** ([`repointed`]).
+struct Repointed {
+    /// In the sentence: `bracket (2 copies)`, or `the copy C1` for an
+    /// anonymous source.
+    counted: String,
+    /// On the button: `bracket`, or `the copy C1`.
+    named: String,
+}
+
+/// [`Repointed`] of `source`, which `placements` read.
+fn repointed(
+    by: Speaker<'_>,
+    doc: &Doc<ProfileProgram>,
+    source: pncad::document::VarId,
+    placements: &[RecipeNodeId],
+) -> Repointed {
+    match doc.var_name(source) {
+        Some(name) => {
+            let count = placements.len();
+            let plural = if count == 1 { "y" } else { "ies" };
+            Repointed {
+                counted: format!("{name} ({count} cop{plural})"),
+                named: name.to_string(),
+            }
+        }
+        None => {
+            let copy = placements
+                .first()
+                .map_or_else(|| by.read(source), |&copy| by.node(copy).to_string());
+            let named = format!("the copy {copy}");
+            Repointed {
+                counted: named.clone(),
+                named,
+            }
+        }
+    }
+}
+
+/// **The one verb of a re-point button**: "Re-point bracket onto G".
+fn repoint_label(what: &str, onto: &str) -> String {
+    format!("Re-point {what} onto {onto}")
+}
+
+/// What a re-point button with no body selected says it waits for.
+pub const SELECT_A_BODY_TO_RE_POINT_ONTO: &str = "select the body to re-point onto";
+
+/// **A re-point button of a named source's row or a placement's "copy
+/// of" row** ([`repoint_button`]): its label, and what it does or why it
+/// is disabled.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepointButton {
+    /// "Re-point bracket onto G", in the offer's verb.
+    pub label: String,
+    /// The re-point, or why it is disabled: the refusal's own words, or
+    /// [`SELECT_A_BODY_TO_RE_POINT_ONTO`] with no body selected.
+    pub op: Result<SessionOp, String>,
+}
+
+/// **The button that re-points `source` onto the selected body `onto`**
+/// ([`SessionOp::RepointPlacements`]), asking the check the offer's rows
+/// ask ([`crate::world::repoint_check`]), so a re-point the offer withholds
+/// is a disabled button here, saying why.
+pub fn repoint_button(
+    doc: &Doc<ProfileProgram>,
+    source: pncad::document::VarId,
+    onto: Option<RecipeNodeId>,
+    tol: pncad::geom_core::Tol,
+) -> RepointButton {
+    let by = Speaker::of(doc);
+    let said = repointed(
+        by,
+        doc,
+        source,
+        &crate::world::placements_of_var(doc, source),
+    );
+    let Some(node) = onto else {
+        return RepointButton {
+            label: repoint_label(&said.named, "the selected body"),
+            op: Err(SELECT_A_BODY_TO_RE_POINT_ONTO.to_owned()),
+        };
+    };
+    RepointButton {
+        label: repoint_label(&said.named, &by.node(node).to_string()),
+        op: crate::world::repoint_check(doc, source, node, tol)
+            .map(|()| SessionOp::RepointPlacements {
+                source,
+                onto: node.into(),
+            })
+            .map_err(|refusal| crate::shown(&refusal)),
+    }
 }
 
 /// **What the chrome badges about the δ the display budget chose**,

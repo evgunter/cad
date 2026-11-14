@@ -249,13 +249,8 @@ pub(crate) fn refusable_button(
     label: impl Into<egui::WidgetText>,
     blocked: Option<&Refusal>,
 ) -> bool {
-    let button = ui.add_enabled(blocked.is_none(), egui::Button::new(label));
-    match blocked {
-        Some(refusal) => button
-            .on_disabled_hover_text(crate::shown(refusal))
-            .clicked(),
-        None => button.clicked(),
-    }
+    let blocked = blocked.map(crate::shown);
+    crate::widgets::gated_button(ui, egui::Button::new(label), blocked.as_deref(), None)
 }
 
 /// **Draw one standing-fact badge**, and hand the response back.

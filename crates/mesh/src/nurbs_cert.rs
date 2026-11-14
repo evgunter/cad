@@ -112,8 +112,8 @@
 //! out ([`NurbsCellGrid::band_schedule`]).
 //!
 //! The whole-patch steps still bound the BOUNDARY chord schedule of
-//! every adjacent edge (`chords`: the adjacent-torus tightening
-//! pattern) — the reported TESS-SPAN D-2 choice: an edge's chords are
+//! every adjacent edge (`chords`' one rule) — the reported TESS-SPAN
+//! D-2 choice: an edge's chords are
 //! shared with the neighbouring face, so they keep the conservative
 //! whole-patch schedule and forfeit the span gain along boundaries
 //! (quantified by `crate::budget`'s meter), rather than teaching the
@@ -532,7 +532,7 @@ pub(crate) fn nurbs_cell_bounds(
 ///
 /// * the CHORD PASS walks the edge arena and fills the entry of every
 ///   described NURBS face adjacent to an edge ([`face_bound`], through
-///   `chords::nurbs_tighten`). It is a per-edge walk writing per-FACE
+///   `chords::tighten`). It is a per-edge walk writing per-FACE
 ///   entries, and it is serial and complete before any face's lane
 ///   runs;
 /// * a FACE's LANE then reads its OWN face's entry, once, through
@@ -549,7 +549,7 @@ pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 ///
 /// **Why the lanes get a different door from the chord pass, and why
 /// this one does not assemble.** [`face_bound`] takes `&mut` and is the
-/// FILL door: `chords::nurbs_tighten` calls it for every described
+/// FILL door: `chords::tighten` calls it for every described
 /// NURBS face adjacent to an edge, which in a body
 /// whose faces have boundaries is every described NURBS face there is.
 /// That pass runs to completion before the per-face parallel map, so by

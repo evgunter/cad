@@ -896,10 +896,17 @@ fn with(session: &DocSession, node: AuthoredNode, tol: Tol) -> (DocSession, Reci
 /// gesture with `C1` slid aside. The offer leaves `C1`'s source out,
 /// since `U` reads it; the button redefines `C2`'s alone, and lands.
 /// Shared by one named source, the two copies offer nothing: redefining
-/// it onto `U` would close a cycle through `C1`.
+/// it onto `U` would close a cycle through `C1`. The value the source
+/// row and the "copy of" rows draw (`DocSession::repoint_button`) asks
+/// the same check: with U selected, the one for `C1`'s source and the
+/// one for `bracket` hold the op's refusal, as does `C1`'s onto `C1`
+/// itself, and `C2`'s is the offer's button.
 ///
 /// *Breaks if* the action re-derives a source list other than the
-/// offer's (the button is refused `WouldCycle` on `C1`'s source).
+/// offer's (the button is refused `WouldCycle` on `C1`'s source), or
+/// `DocSession::repoint_button` stops asking the offer's check. That
+/// the panes draw the value disabled where it refuses is
+/// `widgets::repoint_button_tests`'.
 #[test]
 fn the_offer_and_its_button_re_point_the_same_placements() {
     let tol = Tol::witness();
@@ -969,6 +976,63 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
             "{}",
             offer.said
         );
+        // C1's "copy of" row is the offer's withheld row: with U
+        // selected it is disabled, in the op's refusal's words. C2's is
+        // the offer's button.
+        let c1_source = doc.copied_read(c1).expect("C1's source");
+        let withheld = session.repoint_button(c1_source, Some(u));
+        assert!(
+            withheld.label.starts_with("Re-point the copy "),
+            "gesture={gesture}: {}",
+            withheld.label
+        );
+        let why = withheld
+            .op
+            .expect_err("C1's copy-of row is disabled where the offer withholds it");
+        let refused = session
+            .perform(SessionOp::RepointPlacements {
+                source: c1_source,
+                onto: u.into(),
+            })
+            .refusal
+            .expect("the op refuses");
+        assert_eq!(
+            why,
+            viewer::shown(&refused),
+            "gesture={gesture}: its own words"
+        );
+        // With C1 itself selected, C1's own row asks the check of C1 and
+        // says the op's refusal (the cycle), not that nothing is
+        // selected.
+        let onto_itself = session
+            .repoint_button(c1_source, Some(c1))
+            .op
+            .expect_err("C1's copy-of row is disabled with C1 selected");
+        let refused = session
+            .perform(SessionOp::RepointPlacements {
+                source: c1_source,
+                onto: c1.into(),
+            })
+            .refusal
+            .expect("the op refuses");
+        assert_eq!(
+            onto_itself,
+            viewer::shown(&refused),
+            "gesture={gesture}: C1 onto itself says the op's refusal"
+        );
+        let copy_of = session.repoint_button(doc.copied_read(c2).expect("C2's source"), Some(u));
+        assert_eq!(
+            (copy_of.label.as_str(), copy_of.op.as_ref()),
+            (offer.label.as_str(), Ok(&offer.op)),
+            "gesture={gesture}: C2's copy-of row is the offer's button"
+        );
+        assert_eq!(
+            session
+                .repoint_button(doc.copied_read(c2).expect("C2's source"), None)
+                .op,
+            Err(viewer::frame::SELECT_A_BODY_TO_RE_POINT_ONTO.to_owned()),
+            "gesture={gesture}: with nothing selected the button waits for a body"
+        );
         let out = session.perform(offer.op);
         assert!(
             out.refusal.is_none(),
@@ -999,6 +1063,37 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
         None,
         "redefining the shared source onto U would read U's own copy"
     );
+    // The source row of `bracket`, which each copy's "copy of" row
+    // reads too, is disabled with U selected, in the op's refusal's
+    // words.
+    let bracket = viewer::props::source_rows(session.committed_doc())
+        .into_iter()
+        .find(|row| row.label.to_string() == "bracket")
+        .expect("bracket's source row")
+        .var;
+    assert_eq!(
+        session.committed_doc().copied_read(c1),
+        Some(bracket),
+        "C1's copy-of row reads bracket"
+    );
+    let button = session.repoint_button(bracket, Some(u));
+    assert!(
+        button.label.starts_with("Re-point bracket onto "),
+        "{}",
+        button.label
+    );
+    let why = button
+        .op
+        .expect_err("the source row is disabled where the offer withholds it");
+    let mut session = session;
+    let refused = session
+        .perform(SessionOp::RepointPlacements {
+            source: bracket,
+            onto: u.into(),
+        })
+        .refusal
+        .expect("the op refuses");
+    assert_eq!(why, viewer::shown(&refused), "its own words");
 }
 
 /// **Delete is the inverse two features deep** (PR 6581's review, R2
