@@ -486,6 +486,14 @@ fn the_walk_matches_the_serial_golden_at_four_threads() {
     check_against_golden(4);
 }
 
+/// The golden is the SERIAL walk's reading, so the serial walk must
+/// read it too: a golden re-cut from the four-thread row alone would
+/// otherwise record a width-dependent move as the baseline.
+#[test]
+fn the_walk_matches_the_serial_golden_at_one_thread() {
+    check_against_golden(1);
+}
+
 /// Non-vacuity, and it is about the GOLDEN as much as about the code:
 /// a table of empty channels would compare equal to a re-cut table of
 /// empty channels forever. Two reads, one cheap body each way — the
