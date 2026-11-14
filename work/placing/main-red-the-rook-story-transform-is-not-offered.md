@@ -2,10 +2,11 @@
 id: main-red-the-rook-story-transform-is-not-offered
 kind: issue
 title: Main red: the chess-rook story's Transform into the cut's space is not offered (offer answers None, no refusal)
-status: review
+status: closed
 pr: 6947
 branch: placing/rook-story-red
 opened: 2026-11-14
+closed: 2026-11-14
 priority: P1
 cost: E
 ---
@@ -51,12 +52,23 @@ Place, so the tool held no draft. `set_target` and `type_value` then
 did nothing, and `offer_proposed` answered `None` at its `unsettled()`
 guard. The story went stale; the editor is right.
 
-The same merge left five editor-core slow-set id pins red. Each
+The same merge left six editor-core slow-set id pins red. Each
 placement now mints a source, so node ids moved:
 - `edit_placement_corpus_bits`;
 - `m10_p_fence` at f64 and at Interval, plus the `probe`-gated row;
 - `m4_pr3_names_ci::die_name_tables_are_golden`;
-- `name_words_corpus`.
+- `name_words_corpus`;
+- `seat8_split_lowering::the_split_documents_evaluate_to_their_committed_digests`.
 
 The id-masked fence holds. With ids masked, the die tables and the
 said words are line for line the same.
+
+## Closed
+
+PR 6947. `common::transform` answers the Place's name ask with the name
+its caller gives, and panics on an ask it cannot answer. The story
+names the cutter's shared source and counts that naming edit. The six
+id pins are re-pinned. The rook row passes. Every red left in the
+viewer and editor-core slow sets was already red in the 2026-11-13
+nightly, before 6856, and GREEN's rows hold it (`work/green/`).
+
