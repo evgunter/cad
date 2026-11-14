@@ -5,7 +5,7 @@ title: a refusal naming a placement's value slot says slide/spin value without t
 status: open
 opened: 2026-11-02
 priority: P3
-cost: E
+cost: M
 ---
 
 
@@ -31,3 +31,21 @@ door's slot refusals (`crates/editor-core/src/edit.rs`, the `EditError`
 (`slide along z value`), either by carrying the label from where the
 node is read or by speaking through a reader that holds the node, and a
 row reads it on a placement's slide.
+
+## Sized (2026-11-14, `placing/p3-editor-batch`)
+
+Stopped on cost, not built. A grep for the shape (`{slot}`,
+`{slot:…}` and `slot.label()` outside doc comments) finds about 60
+render sites in 16 files across `editor-core` and `viewer`: `edit.rs`
+21, `eval/mod.rs` 7, `persist/check.rs` 4, `viewer/src/pane/profile.rs`
+4, `range.rs` 3, `node.rs` 3, `props.rs` 3, and one or two each in
+`eval/wire.rs`, `program.rs`, `pose.rs`, `refactor.rs`, `app.rs`,
+`drafts.rs`, `session.rs`, `session/refuse.rs` and `sketch.rs`. About
+80 error fields hold a bare `SlotId` (`slot: SlotId,`), 31 of them
+in `edit.rs` alone. Most of those sentences are composed with no node
+at hand, so either route the row names means changing those
+vocabularies: carry a spoken slot, the way `SpokenNode` carries a
+node's label, or respeak through a reader that holds the document.
+That is cost M at least, not E. The choice between the two routes is
+a vocabulary choice for the errors of both crates, so it wants a
+ruling before it is built.

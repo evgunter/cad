@@ -81,7 +81,7 @@ lofts above now build and are at rest. The row is re-pinned as
 `degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts`.
 Its first case meshes to its integrated volume. The third meets a mesher
 gap on a line rim, filed as
-`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`.
+`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`.
 
 The first shape is unchanged. At v-degree 2 with bulges `tan(π/8)`,
 `tan 50°`, `tan 30°` at z = `[0, 1, 2]`, it still refuses, now as

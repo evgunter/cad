@@ -1527,7 +1527,7 @@ mod tests {
         // Pinned red, NOT sanctioned: hand folds main carries while the
         // row that owns their repair is open, so the repair landing reds
         // here too and strikes them
-        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
+        // (`work/tesslane/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
         let pinned = [
             ("crates/mesh/src/trimmed.rs", "area"),
             ("crates/mesh/src/trimmed.rs", "radial"),

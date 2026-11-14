@@ -131,7 +131,7 @@ re-derives a split bulged prism (both halves, an off-centre split, a
 double split, a rim against the chart's `u`), and tier 3 passes:
 `sweep`'s `a_rim_covering_part_of_its_row_re_mints_the_rows_arc`. The
 mesher's chord schedule still refuses such a child, filed as
-`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`.
+`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`.
 
 ## Closed (2026-10-23, PR 5630)
 
@@ -140,5 +140,5 @@ Both halves of the premise are gone.
 - **One judge for every iso arm:** each arm, line and arc, now judges its candidates by `geom_brep::probe_pick` at both ends of the span and a quarter in. A closed-form image whose ends sit on the domain's ends therefore cannot win on an edge covering part of it by passing through the carrier at one point.
 
 Pinned by `sweep`'s `a_rim_covering_part_of_its_row_re_mints_the_rows_arc` suite, including the quarter-point families for both arms. Residues filed:
-- `work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`;
+- `work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`;
 - `work/topo/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`.

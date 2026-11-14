@@ -1,6 +1,6 @@
 # BOXFINISH — the plan
 
-No orchestrator holds the track. Live state is `work/boxfinish/log.md`'s tail and the item files beside this plan.
+An orchestrator holds the track. Live state is `work/boxfinish/log.md`'s tail and the item files beside this plan.
 
 Branch prefix **`boxfinish/`**; away-channel tag `(BOXFINISH orchestrator)`.
 
