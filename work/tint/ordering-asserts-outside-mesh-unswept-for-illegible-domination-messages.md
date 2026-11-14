@@ -13,7 +13,7 @@ whose condition is an ordering comparison between a bound/ceiling and a
 truth, decidable by the last bits, whose message (a) prints two groups of
 numbers without saying which is which, (b) prints an `f64` at fewer than 17
 significant digits, or (c) does not exist. That shape cost
-`work/tess/nurbs-face-bound-unsound-on-a-random-rational.md` two weeks of
+`work/tesslane/nurbs-face-bound-unsound-on-a-random-rational.md` two weeks of
 misdiagnosis (its "CORRECTION" section).
 
 **The sweep was complete only inside `crates/mesh`.** There all 200
