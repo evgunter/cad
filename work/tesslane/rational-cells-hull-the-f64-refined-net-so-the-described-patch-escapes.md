@@ -72,7 +72,7 @@ amplification should grow.
 ## Blast radius
 
 `mesh`'s `NurbsFaceBound` (`muu`/`muv`/`mvv` → the Q/4 per-triangle
-certificate, `split_steps`, `band_schedule`, `chords::nurbs_tighten`)
+certificate, `split_steps`, `band_schedule`, `chords::tighten`)
 and `offset_meters` (`cell_normal`, `patch_regularity`,
 `cell_curvature`, `patch_collapse`). The shortfall is ~1e-15 relative,
 far under δ and the documented ε slack, so no mesh is wrong by it —

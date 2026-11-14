@@ -95,7 +95,7 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
 /// along `+x`) and the dome's tangent (running toward the pole) is
 /// material exactly when the pole lies on the flat top's MATERIAL
 /// side (`−n`), i.e. the rim is convex iff `sign(pole.y − 1)·n.y < 0`.
-/// The carved band's own sense bit (`Convexity::blend_sense`, true on
+/// The carved band's own sense bit (`battery::blend_sense`, true on
 /// a convex chain) and the sign of the volume delta must agree with
 /// that reading.
 #[test]

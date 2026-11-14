@@ -21,7 +21,7 @@ sphere arm at `trimmed::sphere_lattice_steps`
 (`sizing::sphere_grid_steps(δ·UNPROVED_HEADROOM, r, widest)` over the
 face's latitude window) and by `mesh::chords::edge_target`, which
 chords every edge of a trimmed sphere face at the same share of δ.
-`chords::sphere_arm_tighten` then bounds each boundary chord's UV step
+`chords::tighten` then bounds each boundary chord's UV step
 by those same lattice steps.
 
 **What is known.** The lattice's cells are the curved lane's sphere

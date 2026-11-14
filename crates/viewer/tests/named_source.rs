@@ -168,9 +168,8 @@ fn accepting_the_offer_redefines_the_source_once() {
         },
     );
     let before = session.committed_doc().clone();
-    let (_, offers) =
-        viewer::frame::placement_offers(&before, fillet, pncad::geom_core::Tol::witness());
-    let [(label, op)] = &offers[..] else {
+    let offers = viewer::frame::placement_offers(&before, fillet, pncad::geom_core::Tol::witness());
+    let [viewer::frame::PlacementOffer { said, label, op }] = &offers[..] else {
         panic!("one offer: {offers:?}")
     };
     assert_eq!(
@@ -182,9 +181,11 @@ fn accepting_the_offer_redefines_the_source_once() {
         "the offer redefines the named source"
     );
     assert!(
-        label.starts_with("Re-point bracket (2 copies) onto "),
-        "{label}"
+        said.starts_with("bracket (2 copies) copies ")
+            && said.ends_with(", which this body is built on"),
+        "the row states the fact: {said}"
     );
+    assert!(label.starts_with("Re-point bracket onto "), "{label}");
 
     let steps = session.history().len();
     let out = session.perform(op.clone());
@@ -624,5 +625,637 @@ fn a_place_naming_a_named_source_refuses() {
             if source.name().map(VarName::as_str) == Some("bracket")),
         "{:?}",
         out.refusal
+    );
+}
+
+/// The lateral edges of `node`'s body, as the landed evaluation names
+/// them.
+fn lateral_edges(session: &DocSession, node: RecipeNodeId) -> Vec<pncad::prelude::StableName> {
+    pncad::select::all_edges(session.evaluation().expect("landed"), node)
+        .into_iter()
+        .filter(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .collect()
+}
+
+/// **The offer reaches through a chain of features** (Ev, PR 6915: it
+/// stands on every drawn body that reads, at any depth, as a body, one
+/// a source places): `F = fillet(B)` offers `bracket`; left unpressed, `G =
+/// chamfer(F)` makes `F` an intermediate body the picture no longer
+/// draws, so `F` offers nothing and `G` offers `bracket`, saying what it
+/// re-points. Pressed, `bracket` reads `G`.
+///
+/// *Breaks if* the offer looks only at the bodies the node reads
+/// directly (`G` reads `F`, which no source reads), or an undrawn `F`
+/// keeps offering.
+#[test]
+fn a_feature_on_an_unpressed_fillet_offers_bracket() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edges = lateral_edges(&session, body);
+    let f = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    let sources = |doc: &Doc<ProfileProgram>, node| {
+        viewer::world::repoint_offer(doc, node, tol)
+            .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>())
+    };
+    assert_eq!(
+        sources(session.committed_doc(), f),
+        Some(vec![bracket]),
+        "F, drawn, offers bracket"
+    );
+
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), f)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { of, .. }] if *of.name() == edges[1])
+        })
+        .expect("F carries a second lateral edge of B");
+    let g = landed(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: f,
+            distance: common::len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    let doc = session.committed_doc().clone();
+    let picture = viewer::world::Picture::of(&doc);
+    let drawn = |node| picture.drawn.iter().any(|d| d.of_node(node));
+    assert_eq!([drawn(f), drawn(g)], [false, true], "G is drawn, F is not");
+    assert_eq!(sources(&doc, f), None, "F, no longer drawn, offers nothing");
+    assert_eq!(
+        sources(&doc, g),
+        Some(vec![bracket]),
+        "G, built on B through F, offers bracket"
+    );
+    let by = pncad::document::Speaker::of(&doc);
+    let b = doc.output(body, 0).expect("B's body");
+    let offers = viewer::frame::placement_offers(&doc, g, tol);
+    assert_eq!(
+        offers,
+        [viewer::frame::PlacementOffer {
+            said: format!(
+                "bracket (2 copies) copies {}, which this body is built on",
+                by.read(b)
+            ),
+            label: format!("Re-point bracket onto {}", by.node(g)),
+            op: SessionOp::RepointPlacements {
+                source: bracket,
+                onto: g.into(),
+            },
+        }],
+        "the row states the fact beside its button"
+    );
+
+    let out = session.perform(offers[0].op.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.source(bracket).map(|read| read.read),
+        doc.output(g, 0),
+        "bracket reads G"
+    );
+}
+
+/// **A cut offers the source of its tool too** (Ev, PR 6915: a node that
+/// reaches several placed bodies offers a row for each source): with
+/// `bracket = B` placed twice and a tool `T` (the Transform's copy of a
+/// post, in B's space) placed in the world through an anonymous source,
+/// `D = B − T` offers both, in id order, each row saying which body its
+/// source copies; the tool's row lands.
+///
+/// *Breaks if* the offer stops at the first body with a placed source,
+/// or leaves out a copy the node reads as a body (the walk stops at `T`,
+/// whose own placement is still a row).
+#[test]
+fn a_cut_offers_the_source_of_its_tool_as_well() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    // A post through B's edge, moved into B's space (a combine moves no
+    // copy), and that copy placed in the world by hand.
+    let raw = common::xy_box_in(&mut session, [0.008, 0.008, 0.02]);
+    let tool = common::moved_to(&mut session, raw, [0.01, 0.0, -0.005]);
+    let home = session
+        .committed_doc()
+        .node_space(body)
+        .expect("B is in a space");
+    common::into_space(&mut session, tool, home);
+    let (mut session, tool_copy) = common::world_copy_by_hand_in(&session, tool, tol);
+    let tool_source = session
+        .committed_doc()
+        .copied_read(tool_copy)
+        .expect("T's source");
+    let cut = landed(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Subtract {
+                from: body.into(),
+                tool: tool.into(),
+            },
+        },
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    let doc = session.committed_doc().clone();
+    let b = doc.output(body, 0).expect("B's body");
+    let t = doc.output(tool, 0).expect("T's body");
+    let offer = viewer::world::repoint_offer(&doc, cut, tol).expect("the cut offers");
+    let mut want = vec![(bracket, b), (tool_source, t)];
+    want.sort();
+    assert_eq!(
+        offer
+            .rows
+            .iter()
+            .map(|row| (row.source, row.body))
+            .collect::<Vec<_>>(),
+        want,
+        "a row for bracket and one for T's source, in id order"
+    );
+    let offers = viewer::frame::placement_offers(&doc, cut, tol);
+    let by = pncad::document::Speaker::of(&doc);
+    let tool_row = offers
+        .iter()
+        .find(|offer| {
+            offer.op
+                == SessionOp::RepointPlacements {
+                    source: tool_source,
+                    onto: cut.into(),
+                }
+        })
+        .unwrap_or_else(|| panic!("T's row: {offers:?}"));
+    assert_eq!(
+        tool_row.said,
+        format!(
+            "the copy {} copies {}, which this body is built on",
+            by.node(tool_copy),
+            by.read(t)
+        ),
+        "the tool's row names its copy and the body it copies"
+    );
+
+    let out = session.perform(tool_row.op.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.source(tool_source).map(|read| read.read),
+        doc.output(cut, 0),
+        "T's copy reads the cut"
+    );
+    assert_eq!(
+        doc.source(bracket).map(|read| read.read),
+        Some(b),
+        "bracket left on B"
+    );
+}
+
+/// B's top cap, picked on B itself.
+fn top_of(body: RecipeNodeId) -> viewer::session::FaceSelection {
+    viewer::session::FaceSelection {
+        name: pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: body,
+            path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+        },
+        node: body,
+        body: 0,
+    }
+}
+
+/// **A body that reads a placed body only through a plane offers
+/// nothing for it** (orchestrator, within Ev's PR 6915 rule: built on a
+/// body means reads it as a body): `bracket = B` placed twice, a mirror
+/// of a post `X` in B's space whose plane is B's top cap, picked on B,
+/// offers nothing (nor does `X ∪ mirror(X)`, the body the gesture
+/// draws) — it reads B as a plane, not as a body. The post is itself a
+/// placed copy (`moved_to` places it), which the union reads as a body,
+/// so the pane says the union is on the post's copy, not on B (Ev, PR
+/// 6917: "built on a copy" reads bodies as bodies too).
+///
+/// *Breaks if* the offer's walk follows a mirror's plane seat, or "built
+/// on a copy" does (it would reach B, built from nothing, and say
+/// nothing).
+#[test]
+fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let raw = common::xy_box_in(&mut session, [0.008, 0.008, 0.004]);
+    let post = common::moved_to(&mut session, raw, [0.05, 0.0, 0.0]);
+    let home = session
+        .committed_doc()
+        .node_space(body)
+        .expect("B is in a space");
+    common::into_space(&mut session, post, home);
+    session.pump();
+    let out = session.perform(SessionOp::AddMirror {
+        body: post.into(),
+        plane: top_of(body),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    // The gesture writes `X ∪ mirror(X)`; the union is what is drawn.
+    let mirror = minted_union(doc, &out.minted);
+    assert_eq!(
+        viewer::world::repoint_offer(doc, mirror, tol),
+        None,
+        "a mirror reading B only as its plane offers nothing for bracket"
+    );
+    let original = viewer::world::original_of(doc, post);
+    assert_ne!(original, body, "the post's original is not B");
+    assert_eq!(
+        viewer::world::built_on_copy(doc, mirror),
+        Some((post, original)),
+        "the union is on the post's copy"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, mirror, tol)
+            .into_iter()
+            .map(|offer| offer.op)
+            .collect::<Vec<_>>(),
+        [SessionOp::Select(viewer::session::Selection::Node(
+            original
+        ))],
+        "one row: on the post's copy, its button the post's original"
+    );
+}
+
+/// **A separate part sketched on B's face offers nothing for B's
+/// placements** (orchestrator, within Ev's PR 6915 rule): `bracket = B`
+/// (a cylinder, whose wall a drawn frame traces) placed twice, a
+/// profile drawn on B's top cap and extruded on its own
+/// (no union with B) is another part: the extrude reads its profile,
+/// which reads B's face as a frame, not B as a body.
+///
+/// *Breaks if* the offer's walk follows an extrude's profile seat or a
+/// profile's frame.
+#[test]
+fn a_standalone_extrude_sketched_on_bs_face_offers_nothing_for_bracket() {
+    let tol = Tol::witness();
+    // B a disc's extrude (a frame traces a wall with an axis), placed
+    // twice through `bracket`.
+    let (mut session, body) = disc_extrude("sketched-part", tol);
+    for name in [None, Some("bracket")] {
+        let op = place_op(session.committed_doc(), body.into(), name);
+        landed(&mut session, op);
+    }
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let profile = square_drawn_on(&mut session, body, body);
+    let extrude = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.003),
+        },
+    );
+    let doc = session.committed_doc();
+    assert!(
+        matches!(doc.node(profile), Some(pncad::document::Node::Profile(p)) if p.on.is_some()),
+        "the profile is drawn on B's face"
+    );
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(extrude)),
+        "the extrude is drawn"
+    );
+    let sources = viewer::world::repoint_offer(doc, extrude, tol)
+        .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>());
+    assert!(
+        !sources.iter().flatten().any(|&source| source == bracket),
+        "{sources:?}"
+    );
+    assert_eq!(
+        sources, None,
+        "an extrude reading B only through its profile's frame offers nothing"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, extrude, tol),
+        [],
+        "and says nothing"
+    );
+}
+
+/// A disc's extrude in a session of its own, landed: a body with a
+/// planar cap and a wall with an axis, which a drawn frame traces.
+fn disc_extrude(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = common::inline_without_door(Doc::empty_derived(name, tol), tol);
+    let disc = landed(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.01)],
+        },
+    );
+    let body = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: disc,
+            distance: common::len(0.01),
+        },
+    );
+    (session, body)
+}
+
+/// A small square drawn on `body`'s top cap as seen on `on` (`body`
+/// itself, or a copy of it), its frame tracing the wall: the profile.
+fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeId) -> RecipeNodeId {
+    let wall = {
+        let ev = session.evaluation().expect("landed");
+        pncad::select::all_faces(ev, body)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(ev, body, name)
+                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
+            })
+            .expect("a wall")
+    };
+    let point =
+        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
+    landed(
+        session,
+        SessionOp::AddDrawnProfile {
+            plane: viewer::session::FaceSelection {
+                node: on,
+                ..top_of(body)
+            },
+            traced: vec![viewer::session::FaceSelection {
+                name: wall,
+                node: on,
+                body: 0,
+            }],
+            chains: vec![
+                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
+                    .line_to(point(0.002, -0.002))
+                    .line_to(point(0.002, 0.002))
+                    .line_to(point(-0.002, 0.002))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+    )
+}
+
+/// The one union among `minted`, drawn: the body a mirror gesture
+/// (`X ∪ mirror(X)`) or a combine makes.
+fn minted_union(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> RecipeNodeId {
+    let unions: Vec<RecipeNodeId> = minted
+        .iter()
+        .copied()
+        .filter(|&n| matches!(doc.node(n), Some(pncad::document::Node::Union { .. })))
+        .collect();
+    let [union] = unions[..] else {
+        panic!("one union minted: {unions:?}");
+    };
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(union)),
+        "the union is drawn"
+    );
+    union
+}
+
+/// **A body read both as a plane and as a body still offers**: `X =
+/// fillet(B)`, `A = chamfer(X)`, and a mirror of `A` whose plane is
+/// picked on `X`. `A ∪ mirror(A)` reads `X` as the mirror's plane and,
+/// through `A`, as the body `A` chamfers; through the second it reads
+/// `B` as a body, so the union offers `bracket`.
+///
+/// *Breaks if* a node met through a plane is marked seen and never
+/// walked as a body (the walk follows body seats alone).
+#[test]
+fn a_body_reached_first_as_a_plane_then_as_a_body_offers() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edges = lateral_edges(&session, body);
+    let x = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), x)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { of, .. }] if *of.name() == edges[1])
+        })
+        .expect("X carries a second lateral edge of B");
+    let a = landed(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: x,
+            distance: common::len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    let out = session.perform(SessionOp::AddMirror {
+        body: a.into(),
+        plane: viewer::session::FaceSelection {
+            node: x,
+            ..top_of(body)
+        },
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let union = minted_union(doc, &out.minted);
+    assert_eq!(
+        viewer::world::repoint_offer(doc, union, tol).map(|offer| offer
+            .rows
+            .iter()
+            .map(|row| row.source)
+            .collect::<Vec<_>>()),
+        Some(vec![bracket]),
+        "A ∪ mirror(A) reads B as a body, through A and X"
+    );
+}
+
+/// **A split half does not offer its sibling's placements**: `B` split,
+/// its body 1 placed alone, then each half fused with another body. The
+/// union of body 0 reads no placed body as a body and offers nothing;
+/// the union of body 1 offers body 1's source.
+///
+/// *Breaks if* the walk takes every output of a node it reads rather
+/// than the output read (a split's two halves are one node's two).
+#[test]
+fn a_split_half_does_not_offer_its_siblings_placements() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("split-halves", tol);
+    let raw = common::xy_box_in(&mut session, [0.004, 0.004, 0.004]);
+    let other = common::moved_to(&mut session, raw, [0.0, 0.0, 0.0]);
+    let plane = common::cut_across(&session, body, SIZE[2] / 2.0);
+    let out = session.perform(SessionOp::AddSplit {
+        target: body.into(),
+        plane,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let split = *out
+        .minted
+        .iter()
+        .find(|&&n| {
+            matches!(
+                session.committed_doc().node(n),
+                Some(pncad::document::Node::Split { .. })
+            )
+        })
+        .expect("the split");
+    let half = |port| Operand::output(split, port);
+    let placed = {
+        let op = place_op(session.committed_doc(), half(1), None);
+        landed(&mut session, op)
+    };
+    let source = session
+        .committed_doc()
+        .copied_read(placed)
+        .expect("body 1's source");
+    let home = session
+        .committed_doc()
+        .node_space(split)
+        .expect("the split's space");
+    common::into_space(&mut session, other, home);
+    session.pump();
+    let fused = |session: &mut DocSession, port| {
+        let doc = session.committed_doc();
+        let spec = viewer::session::BooleanSpec::Union(vec![
+            pncad::document::BodyRead::plain(half(port)),
+            pncad::document::BodyRead::plain(Operand::from(doc.output(other, 0).expect("other"))),
+        ]);
+        landed(session, SessionOp::AddBoolean { spec })
+    };
+    let zero = fused(&mut session, 0);
+    let one = fused(&mut session, 1);
+    let doc = session.committed_doc();
+    let sources = |node| {
+        viewer::world::repoint_offer(doc, node, tol)
+            .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>())
+    };
+    assert_eq!(sources(zero), None, "body 0's union offers nothing");
+    assert_eq!(
+        sources(one),
+        Some(vec![source]),
+        "body 1's union offers body 1's source"
+    );
+}
+
+/// **A body that reaches a copy only through its frame is not on that
+/// copy** (Ev, PR 6917: "built on a copy" reads bodies as bodies, as the
+/// offer does): a cylinder's world copy `C`, a profile drawn on `C`'s
+/// top cap and extruded on its own — another part. The extrude reads
+/// `C` only through its profile's frame: it is on no placed copy, offers
+/// nothing for `C`'s source, and the pane says nothing.
+///
+/// *Breaks if* "built on a copy" follows every seat.
+#[test]
+fn a_body_reaching_a_copy_only_through_its_frame_is_not_on_that_copy() {
+    let tol = Tol::witness();
+    let (session, body) = disc_extrude("framed-on-a-copy", tol);
+    let (mut session, copy) = common::world_copy_by_hand_in(&session, body, tol);
+    let source = session
+        .committed_doc()
+        .copied_read(copy)
+        .expect("C's source");
+    let profile = square_drawn_on(&mut session, body, copy);
+    let extrude = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.003),
+        },
+    );
+    let doc = session.committed_doc();
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(extrude)),
+        "the extrude is drawn"
+    );
+    assert_eq!(
+        viewer::world::built_on_copy(doc, extrude),
+        None,
+        "the extrude is on no placed copy"
+    );
+    let sources = viewer::world::repoint_offer(doc, extrude, tol)
+        .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>());
+    assert!(
+        !sources.iter().flatten().any(|&s| s == source),
+        "nothing for C's source: {sources:?}"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, extrude, tol),
+        [],
+        "and the pane says nothing"
+    );
+}
+
+/// **A mirror whose plane is picked on a copy is not on that copy**
+/// (Ev, PR 6917): world copies `C` of B and then `D` of X, and a mirror
+/// of `D` whose plane is `C`'s top cap. `D ∪ mirror(D)` reads `D` as a
+/// body and `C` only as its plane, so it is on `D`, not on `C` — though
+/// `C` is minted first, which a walk over every seat would answer.
+///
+/// *Breaks if* "built on a copy" follows a mirror's plane seat.
+#[test]
+fn a_mirror_whose_plane_is_on_a_copy_is_not_on_that_copy() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("mirror-on-a-copy", tol);
+    let other = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let (session, c) = common::world_copy_by_hand_in(&session, body, tol);
+    let (mut session, d) = common::world_copy_by_hand_in(&session, other, tol);
+    assert!(c < d, "C is minted first");
+    let out = session.perform(SessionOp::AddMirror {
+        body: d.into(),
+        plane: viewer::session::FaceSelection {
+            node: c,
+            ..top_of(body)
+        },
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let union = minted_union(doc, &out.minted);
+    assert_eq!(
+        viewer::world::built_on_copy(doc, union),
+        Some((d, other)),
+        "on D, the copy it reads as a body, not on C"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, union, tol)
+            .into_iter()
+            .map(|offer| offer.op)
+            .collect::<Vec<_>>(),
+        [SessionOp::Select(viewer::session::Selection::Node(other))],
+        "one row, its button X"
     );
 }

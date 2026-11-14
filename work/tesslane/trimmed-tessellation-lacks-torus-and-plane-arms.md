@@ -2,12 +2,13 @@
 id: trimmed-tessellation-lacks-torus-and-plane-arms
 kind: issue
 title: the trimmed lane has no torus or cone arm - a torus wall bounded by a spiric and a cone face cut by an ellipse refuse at the chart roster
-status: parked
+status: closed
 opened: 2026-09-13
 refs: [1858]
 priority: P0
 cost: H
-blocked_on: [one-chart-table-and-the-lane-takes-every-analytic-chart]
+closed: 2026-11-14
+pr: 6950
 ---
 
 
@@ -70,3 +71,7 @@ Run at `d6e1eb1f`, through the public doors, at three δ each; every result was 
 | torus × spiric | the image (`Pcurve::Spiric`); a 3-D chord bound (`sizing::spiric_step`); certificates (`cert::cert_torus`, `cert_spindle`); the curved lane's steps (`sizing::torus_grid_steps`) | a UV speed bound for the image; a torus arm and its lattice steps; a seam rule for a polygon crossing either period |
 
 **This row is one cell of a larger gap**, with `valid-ringed-torus-faces-build-but-cannot-be-meshed`, `a-notched-or-ringed-cylinder-wall-does-not-tessellate` and the sphere-pole rows: `lane_of` routes on the kinds of the OUTER loop's carriers, the trimmed lane constructs three arms (cylinder, sphere, NURBS), and both curved lanes return at a ring before reading any loop. What a non-rectangular curved face is meshed from is with designers before a unit is cut (`design: true`).
+
+## Closed (2026-11-14, PR 6950)
+
+The trimmed lane has a torus arm and a cone arm, each read from the chart's row. The sectioned vessel quarter and the klein elbow (torus walls bounded by a spiric) and the four frustum halves cut through `(0, 0.5, 0)` (cone faces bounded by a section ellipse) mesh at every δ the probes use and pass `reach_probes::geometry`; sweep's `spiric_rim` census row and the tour's sectioned vessel are re-pinned from a refusal to a mesh. The plane arm was never owed (measured above). What the cone arm does not reach is filed on its own row: `a-cone-face-ending-near-its-apex-refuses-at-fine-delta`.
