@@ -205,8 +205,9 @@ fn trimmed_lane_is_bit_deterministic() {
 }
 
 /// The honest door: a trimmed face whose stored pcurve caches are
-/// missing refuses TYPED, naming where caches mint — never a silently
-/// re-derived branch guess.
+/// missing refuses TYPED — its loops have no lift, so the door that reads
+/// the face's domain answers a gap, and the lane carries it — never a
+/// silently re-derived branch guess.
 #[test]
 fn missing_pcurve_caches_refuse_typed() {
     let (above, _) = halves();
@@ -216,9 +217,10 @@ fn missing_pcurve_caches_refuse_typed() {
         stripped.detach_pcurve(he);
     }
     match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
-        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
-            assert!(note.contains("pcurve cache"), "{note}");
-        }
+        Err(mesh::TessellateError::DomainUnread {
+            cause: topo::pcurves::RingPlacementError::Gap(_),
+            ..
+        }) => {}
         other => panic!("expected the typed missing-cache refusal, got {other:?}"),
     }
 }

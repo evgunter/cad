@@ -126,10 +126,8 @@ fn census<T: Real>(body: &Body<T>) -> [usize; 5] {
 }
 
 /// One run's verdict: `SOUND` at its closed form, or an empty result
-/// where the closed form is empty; a body is meshed, unless it holds a
-/// window in a curved face, which the mesher refuses typed
-/// (`TessellateError::RingOnCurvedFace`). The body's [`census`], if
-/// there is one.
+/// where the closed form is empty; a body is meshed, a window in a
+/// curved face included. The body's [`census`], if there is one.
 ///
 /// `pad` is the widest volume enclosure accepted
 /// (`differential::judged_within`).
@@ -141,13 +139,9 @@ fn holds(
 ) -> Option<[usize; 5]> {
     let counted = match &r {
         Ok(BooleanResult::Body(b)) => {
-            match mesh::tessellate(&b.body, 5e-3, tol()) {
-                Ok(m) => {
-                    mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"))
-                }
-                Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
-                Err(e) => panic!("{row}: {e:?}"),
-            }
+            let m =
+                mesh::tessellate(&b.body, 5e-3, tol()).unwrap_or_else(|e| panic!("{row}: {e:?}"));
+            mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"));
             Some(census(&b.body))
         }
         _ => None,

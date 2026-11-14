@@ -167,6 +167,23 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The door's cause, as a sortable word; the face and the ring
+        // it may name are keys.
+        T::DomainUnread { cause, .. } => {
+            use pncad::topo::pcurves::RingPlacementError as R;
+            let word = match cause {
+                R::Gap(_) => "gap",
+                R::OuterOpen { .. } => "outer_open",
+                R::RingOpen { .. } => "ring_open",
+                R::NoShift { .. } => "no_shift",
+                R::Shifts { .. } => "shifts",
+                R::Copies { .. } => "copies",
+                R::Undecided { .. } => "undecided",
+                R::SplineChart => "spline_chart",
+            };
+            fields[4] = ("note", PyString::new(py, word).unbind().into_any());
+            Ok(())
+        }
         // The cause is the sortable word; face and edge are keys.
         T::SphereTrimShape { cause, .. } => {
             fields[4] = ("note", PyString::new(py, cause.name()).unbind().into_any());
@@ -176,7 +193,6 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }
         | T::NullScaffoldEdge { .. }
-        | T::RingOnCurvedFace { .. }
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }

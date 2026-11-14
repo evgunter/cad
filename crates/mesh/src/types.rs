@@ -148,14 +148,19 @@ pub enum TessellateError {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// A curved face carries interior rings, which the curved and
-    /// trimmed lanes do not mesh; refused rather than guessed at. A
-    /// boolean that pierces a torus wall with a plane leaves one, a
-    /// spiric ring, on a valid body
-    /// (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
-    RingOnCurvedFace {
+    /// A curved face's loops have no reading in one sheet of its chart
+    /// (`topo::Body::face_lift`), so the trimmed lane has no domain to
+    /// triangulate: the outer loop or a ring does not close in the chart
+    /// (a seamless band, a loop about a pole or apex inside the face), a
+    /// ring has no one decided place against the outer loop, a loop
+    /// stores no lift, or the face is a spline face with a ring, whose
+    /// rings the door does not place yet. This is the lane's one refusal
+    /// of a loop that does not close: the door's cause, carried whole.
+    DomainUnread {
         /// The offending face.
         face: FaceKey,
+        /// Why the door placed no domain.
+        cause: topo::pcurves::RingPlacementError,
     },
     /// A face has an empty loop (a tier-1 scaffolding state; closed
     /// tier-2 bodies never carry one at rest).
@@ -602,7 +607,7 @@ pub enum TessellateError {
 ///
 /// **The falsifier is a caller that acts on the cause by itself**: a
 /// driver that turns the sphere's chart when it reads `ThroughPole` but
-/// splits the face when it reads `PoleInside`. Then carry it and delete
+/// splits the face when it reads `SeamTwice`. Then carry it and delete
 /// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SphereTrimCause {
@@ -610,10 +615,6 @@ pub enum SphereTrimCause {
     /// domain (a sphere's `|v| > π/2`) mid-edge: the lane meets a row's
     /// point only at a loop vertex.
     PastPole,
-    /// The loop winds about a row's point inside the face: a side off the
-    /// row turns more than 3π/2 in azimuth, so the image does not close
-    /// in the chart.
-    PoleInside,
     /// The loop visits one mesh vertex at two chart locations off a
     /// singular row (a seam traversed twice).
     SeamTwice,
@@ -637,7 +638,6 @@ impl SphereTrimCause {
     pub const fn name(self) -> &'static str {
         match self {
             Self::PastPole => "past_pole",
-            Self::PoleInside => "pole_inside",
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
@@ -688,11 +688,41 @@ impl TessellateError {
                  carrier by type — the body is mid-surgery; tessellation is \
                  defined on at-rest bodies, so finish the surgery first",
             ),
-            Self::RingOnCurvedFace { .. } => f.write_str(
-                "tessellate: a curved face carries an interior ring — curved \
-                 patches are swept UV rectangles and no construction produces \
-                 one, so this is a kernel bug rather than a mesh to guess at",
-            ),
+            Self::DomainUnread { cause, .. } => {
+                use topo::pcurves::RingPlacementError as R;
+                let why = match cause {
+                    R::Gap(_) => {
+                        "a loop of it stores no chart image or joint for one of its \
+                         edges, so it has no lift to read — a finished body stores \
+                         every one, so this is a kernel defect"
+                    }
+                    R::OuterOpen { .. } | R::RingOpen { .. } => {
+                        "a loop of it does not close in the face's chart: it winds the \
+                         chart's period, as a seamless band's rims do and as a loop \
+                         round a pole or apex inside the face does, and the trimmed \
+                         lane meshes a region the chart holds whole; seam the face so \
+                         each loop closes"
+                    }
+                    R::NoShift { .. } | R::Shifts { .. } | R::Copies { .. } => {
+                        "a ring of it has no one place inside its outer loop in the \
+                         face's chart"
+                    }
+                    R::Undecided { .. } => {
+                        "a ring of it lies within the tolerance band of its outer loop \
+                         along the chart, or past what the placement reads, so its \
+                         side is undecided"
+                    }
+                    R::SplineChart => {
+                        "it is a spline face with a ring, and the rings of a spline \
+                         face are not read in its chart outside the boolean engine yet"
+                    }
+                };
+                write!(
+                    f,
+                    "tessellate: a curved face's loops have no reading in one sheet of \
+                     its chart, so the trimmed lane has no domain to mesh — {why}",
+                )
+            }
             Self::EmptyLoop { .. } => f.write_str(
                 "tessellate: a face has an empty loop — that is a tier-1 \
                  scaffolding state; tessellation is defined on at-rest bodies, \
@@ -866,10 +896,6 @@ impl TessellateError {
                     SphereTrimCause::PastPole => {
                         "an edge's image runs past a chart pole or apex mid-edge, and \
                          the trimmed lane meets one only at a loop vertex"
-                    }
-                    SphereTrimCause::PoleInside => {
-                        "its loop winds about a chart pole or apex inside the face, and \
-                         the trimmed lane meshes a face that holds none inside it"
                     }
                     SphereTrimCause::SeamTwice => {
                         "its loop visits one vertex at two chart locations off a pole or \

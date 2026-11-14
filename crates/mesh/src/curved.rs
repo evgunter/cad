@@ -186,9 +186,6 @@ pub(crate) fn tessellate_curved(
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    if !face.rings.is_empty() {
-        return Err(TessellateError::RingOnCurvedFace { face: fk });
-    }
     // THE SHAPE DOOR AND THE BRANCH DOOR, before the walk (module
     // docs, questions 1 and 2). Props' rim-structure predicate decides
     // whether this face's domain is an iso-rectangle at all, and
@@ -759,9 +756,9 @@ fn entries_off_bbox(
 /// reach the caller unannounced. D9's *"silent discard is never an
 /// answer"* makes it a refusal; `trimmed` refuses the same hazard
 /// typed ([`TessellateError::SelfTouchingTrimLoop`]), and the
-/// structural twin of this arm is
-/// [`TessellateError::RingOnCurvedFace`], whose stated reason is this
-/// very contract.
+/// structural twin of this arm is the dispatch's: a face holding a ring
+/// is no rectangle, so `tessellate::lane_of` sends it to the trimmed
+/// lane and it never reaches this one.
 ///
 /// **What can still trip it, with the shape door in front.** A walk
 /// that failed to straighten a side — sub-ε is absorbed by the band,

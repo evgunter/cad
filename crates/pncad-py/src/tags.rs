@@ -2475,7 +2475,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::UnsupportedNurbsFace { .. } => "unsupported_nurbs_face",
         TessellateError::UnsupportedCurve { .. } => "unsupported_curve",
         TessellateError::NullScaffoldEdge { .. } => "null_scaffold_edge",
-        TessellateError::RingOnCurvedFace { .. } => "ring_on_curved_face",
+        TessellateError::DomainUnread { .. } => "domain_unread",
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",

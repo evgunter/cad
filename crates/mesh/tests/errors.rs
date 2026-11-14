@@ -99,7 +99,7 @@ test_utils::f6_variants! {
         UnsupportedNurbsFace,
         UnsupportedCurve,
         NullScaffoldEdge,
-        RingOnCurvedFace,
+        DomainUnread,
         EmptyLoop,
         MissingEntity,
         ResolutionOverflow,
@@ -193,8 +193,22 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["scaffolding", "at-rest"],
         ),
         (
-            TessellateError::RingOnCurvedFace { face },
-            vec!["interior ring", "kernel bug"],
+            TessellateError::DomainUnread {
+                face,
+                cause: topo::pcurves::RingPlacementError::OuterOpen {
+                    winding: topo::joint::Winding {
+                        deck: topo::Deck {
+                            u: 1,
+                            v: 0,
+                            twin: false,
+                        },
+                    },
+                },
+            },
+            vec![
+                "one sheet of its chart",
+                "does not close in the face's chart",
+            ],
         ),
         (
             TessellateError::EmptyLoop { face },
@@ -309,9 +323,9 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             TessellateError::SphereTrimShape {
                 face,
                 edge,
-                cause: mesh::types::SphereTrimCause::PoleInside,
+                cause: mesh::types::SphereTrimCause::PastPole,
             },
-            vec!["trimmed lane", "pole or apex inside"],
+            vec!["trimmed lane", "past a chart pole or apex mid-edge"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
@@ -398,9 +412,9 @@ fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist
 /// checked.
 ///
 /// The body is the washer with TWO faces poisoned into refusing —
-/// differently, so the two refusals are distinguishable — one at the
-/// head of the face arena and one at its tail. The answer must be the
-/// head's, at every thread count.
+/// differently, so the two refusals are distinguishable — the first and
+/// the last of its ringless faces in arena order. The answer must be the
+/// first's, at every thread count.
 #[test]
 fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     use geom::Surface;
@@ -419,7 +433,10 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     // Two surfaces a washer's face cannot be. Both refuse INSIDE a
     // lane, which is the point: a poison the chord pass refuses (a
     // placeholder NURBS, say) never reaches the map and would test the
-    // order of a pass that is still serial.
+    // order of a pass that is still serial. So both poisoned faces are
+    // ringless: a curved face with a ring is the trimmed lane's, whose
+    // lattice the chord pass reads, and a plane's half-edges store no
+    // chart image for it to read.
     let sphere = || Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -434,16 +451,22 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     };
 
     let clean = washer();
-    let n = clean.faces().count();
-    assert!(n >= 2, "the row needs a head and a tail face");
+    let ringless: Vec<usize> = clean
+        .faces()
+        .enumerate()
+        .filter(|(_, (_, face))| face.rings.is_empty())
+        .map(|(i, _)| i)
+        .collect();
+    assert!(ringless.len() >= 2, "the row needs a head and a tail face");
+    let (first, last) = (ringless[0], ringless[ringless.len() - 1]);
 
     let mut head_only = clean.clone();
-    poison(&mut head_only, 0, sphere());
+    poison(&mut head_only, first, sphere());
     let head =
         tessellate(&head_only, 0.05, Tol::witness()).expect_err("the poisoned head face refuses");
 
     let mut tail_only = clean.clone();
-    poison(&mut tail_only, n - 1, cone());
+    poison(&mut tail_only, last, cone());
     let tail =
         tessellate(&tail_only, 0.05, Tol::witness()).expect_err("the poisoned tail face refuses");
     assert_ne!(
@@ -453,8 +476,8 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     );
 
     let mut both = clean;
-    poison(&mut both, 0, sphere());
-    poison(&mut both, n - 1, cone());
+    poison(&mut both, first, sphere());
+    poison(&mut both, last, cone());
     for threads in [1usize, 4] {
         let got = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)

@@ -1458,8 +1458,10 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
         .into_iter()
         .map(|delta| match mesh::tessellate(body, delta, tol()) {
             Ok(_) => "meshed".to_owned(),
-            Err(mesh::TessellateError::RingOnCurvedFace { face }) => {
-                format!("RingOnCurvedFace on a {:?}", kind_of(body, face))
+            Err(mesh::TessellateError::DomainUnread { face, cause }) => {
+                let text = format!("{cause:?}");
+                let name = text.split([' ', '{', '(']).next().unwrap_or("");
+                format!("DomainUnread {name} on a {:?}", kind_of(body, face))
             }
             Err(e) => format!("{e:?}"),
         })
@@ -1483,9 +1485,11 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
 /// and the face has no seam. The pipe and the frustum finish
 /// (`topo::finish`); the torus band mints, and `validate_geometric`
 /// refuses its volume. `mesh::tessellate` refuses all three
-/// `RingOnCurvedFace`: the outer loop is a circle, so
-/// `tessellate::lane_of` sends the face to the curved lane, whose ring
-/// guard is ahead of the walk.
+/// `DomainUnread` with the door's `OuterOpen`: the face holds a ring, so
+/// `tessellate::lane_of` sends it to the trimmed lane, which reads the
+/// face's domain through `Body::face_lift`, and the outer loop does not
+/// close. The frustum's ring holds the cone's apex in its hole: a face
+/// that holds a singular point inside it is this one refusal.
 #[test]
 fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
     let cut = one_circle_cuts();
@@ -1570,7 +1574,7 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
         .iter()
         .map(|(name, body)| (name.as_str(), verdict(body)))
         .collect();
-    let ring = |chart: &str| vec![format!("RingOnCurvedFace on a {chart}"); 2];
+    let ring = |chart: &str| vec![format!("DomainUnread OuterOpen on a {chart}"); 2];
     let want = vec![
         (
             "the seamless pipe",
@@ -1883,8 +1887,8 @@ fn ringed_curved_faces_measured() {
             .into_iter()
             .map(|delta| match mesh::tessellate(body, delta, tol()) {
                 Ok(_) => "meshed".to_owned(),
-                Err(mesh::TessellateError::RingOnCurvedFace { face }) => {
-                    format!("RingOnCurvedFace on {face:?}")
+                Err(mesh::TessellateError::DomainUnread { face, cause }) => {
+                    format!("DomainUnread on {face:?}: {cause:?}")
                 }
                 Err(e) => format!("{e:?}"),
             })

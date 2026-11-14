@@ -6038,6 +6038,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "boundary_ear",
             "certificate_exceeded",
+            "domain_unread",
             "empty_loop",
             "folded_triangle",
             "invalid_chordal_tolerance",
@@ -6046,7 +6047,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "null_scaffold_edge",
             "pinch_wedge",
             "resolution_overflow",
-            "ring_on_curved_face",
             "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
@@ -6500,7 +6500,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // loft's kept section ids.
     ("repeated", 3),
     ("revolve", 2),
-    ("ring_on_curved_face", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),

@@ -150,8 +150,9 @@ impl Patch {
 /// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
 /// placeholder, described NURBS faces outside the trimmed-NURBS
 /// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
-/// carriers, rings on curved faces, a curved face whose iso domain is
-/// not its own UV rectangle, empty loops, dangling keys, resolution
+/// carriers, a curved face whose loops have no reading in one sheet of
+/// its chart, a curved face whose iso domain is not its own UV
+/// rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
@@ -234,9 +235,10 @@ pub(crate) enum Lane {
 /// certifies against the DESCRIPTION is a separate statement, and this
 /// pass makes the plain one.
 ///
-/// Structural routing (M5 PR 11): a conic/B-spline trim carrier means
-/// the face is not an iso-rectangle — the pcurve-driven trimmed lane
-/// takes it. The converse does NOT follow: this is a test on carrier
+/// Structural routing: a curved face with a ring is no iso-rectangle,
+/// and the trimmed lane, which reads every loop of a face's domain, takes
+/// it. So does a face whose outer loop has a conic/B-spline trim carrier
+/// (M5 PR 11). The converse does NOT follow: this is a test on carrier
 /// KINDS, and iso carriers (`Line`, `Circle`) can bound a
 /// NON-rectangular domain — a keyway or milled flat on a cylinder is
 /// exactly that shape, and nothing on this path screens loop SHAPE. So
@@ -256,10 +258,20 @@ pub(crate) fn lane_of(
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
         Surface::Plane { .. } => Lane::Planar,
+        _ if has_ring(body, fk)? => Lane::Trimmed,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         Surface::Sphere { .. } if crate::trimmed::has_tilted_circle(body, fk)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
+}
+
+/// Whether face `fk` holds a ring. A curved face with one is no swept
+/// rectangle, whatever its carriers, so the dispatch sends it to the
+/// trimmed lane, which reads its every loop.
+fn has_ring(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
+    body.get_face(fk)
+        .map(|face| !face.rings.is_empty())
+        .ok_or(TessellateError::MissingEntity { what: "face" })
 }
 
 /// A face's surface ([`Body::face_surface`]), a stale face key named as

@@ -49,7 +49,9 @@
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
 //! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
-//! schedule) and each half-edge's stored pcurve.
+//! schedule) and each half-edge's image where the face's domain places it
+//! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
+//! outer loop's sheet).
 //!
 //! # The entry identity a consumer can cache against
 //!
@@ -749,19 +751,29 @@ impl FaceInputs {
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
-        for (lk, _, _) in face.loops() {
-            let walk = loop_half_edges(body, lk, fk)?;
-            // Each half-edge's image as the loop's lift places it — what
-            // the trimmed lane walks (`topo::Body::loop_lift`); none for
-            // a loop with no lift.
-            let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
-                .loop_lift(lk)
-                .map(|rows| {
-                    rows.into_iter()
-                        .map(|row| (row.half_edge, row.pcurve))
+        // Each half-edge's image where the trimmed lane reads it: the
+        // face's domain as the door places it (`topo::Body::face_lift`),
+        // every loop. A moved ring's image is read afresh from its stored
+        // row in the new gauge, so it is not a function of the ring's own
+        // lift bit for bit, and the key folds the image the lane reads.
+        // None where the door places nothing, which the lane refuses, and
+        // on the other lanes, which read no image.
+        let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = match lane {
+            Lane::Trimmed => geom_core::Band::linear(tol)
+                .ok()
+                .and_then(|band| body.face_lift(fk, band).ok())
+                .map(|lift| {
+                    crate::trimmed::domain_loops(&lift)
+                        .into_iter()
+                        .flat_map(|l| l.rows().iter())
+                        .map(|row| (row.half_edge, row.pcurve.clone()))
                         .collect()
                 })
-                .unwrap_or_default();
+                .unwrap_or_default(),
+            Lane::Planar | Lane::Curved => HashMap::new(),
+        };
+        for (lk, _, _) in face.loops() {
+            let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
                 let edge = body
