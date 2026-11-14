@@ -9,13 +9,13 @@
 //! ([`place_ring`]). One point decides the whole ring: a ring meets no
 //! edge of its face, so its lift crosses no row of the outer loop's.
 //!
-//! The rule is one; the reading of a point against the outer loop is
-//! one per chart family. A spline chart's is its trim's
-//! ([`crate::spline_trim`], `Trim::place_in_cover`): the ray parity over
-//! the rows' Bézier pieces, metered by the chart's cells, which the
-//! spline trim places its own rings by too. An analytic chart's is
-//! [`Outer::side`]: the same ray parity, clearance rule and window over
-//! the lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
+//! The rule is one, and so is the ray parity that reads a point against
+//! the outer loop ([`ray_parity_as`]); each chart family supplies its
+//! pieces' boxes and the window's arms. A spline chart's are its trim's
+//! ([`crate::spline_trim`], `Trim::place_in_cover`): the rows' Bézier
+//! pieces, metered by the chart's cells, which the spline trim places
+//! its own rings by too. An analytic chart's are [`Outer::side`]'s: the
+//! lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
 //! decided in metres through the chart's inf-side arms, so a point
 //! within the band of the outer loop, along the chart, is undecided
 //! rather than read on a side.
@@ -212,7 +212,8 @@ impl RingMiss {
     }
 }
 
-/// Where a point lies against the outer loop, in the cover.
+/// Where a query lies against a closed chain in the chart's cover: an
+/// outer loop the ring rule reads, or a spline face's trim.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Side {
     /// Inside, decided.
@@ -298,6 +299,121 @@ fn whole(m: f64) -> Option<i32> {
     // `i32::MIN` and `i32::MAX + 1` are exact in `f64`.
     #[allow(clippy::cast_possible_truncation)] // in range, and whole
     (m >= f64::from(i32::MIN) && m < -f64::from(i32::MIN)).then_some(m as i32)
+}
+
+/// The query a closed chain is read against ([`ray_parity_as`]), on the
+/// value channel: the point its ray leaves from, and the rectangle it
+/// stands for (a point, or a cell's parameter box).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RayQuery {
+    /// The point the ray along `+u` leaves from, `[u, v]`.
+    pub(crate) centre: [f64; 2],
+    /// The query's rectangle, `[u, v]`.
+    pub(crate) rect: [(f64, f64); 2],
+}
+
+/// A piece's box against a query ([`ChainPiece::boxed`]).
+pub(crate) struct PieceBox<T> {
+    /// The way from the query to the box in each channel, `[u, v]`, in
+    /// chart units: zero where they meet.
+    pub(crate) gap: [T; 2],
+    /// The box on the value channel, `[u, v]`.
+    pub(crate) extent: [(f64, f64); 2],
+}
+
+/// **One piece of a closed chain, as [`ray_parity_as`] reads it.** Each
+/// chart family supplies its own: a lifted row's span or a joint's
+/// segment boxed by [`Pcurve::chart_box`] on an analytic chart, a
+/// rational Bézier piece boxed by its control points and their rounding
+/// on a spline chart ([`crate::spline_trim`]).
+pub(crate) trait ChainPiece<T: Real>: Clone {
+    /// What a piece's box is measured from.
+    type Query: Copy;
+    /// A box holding every point of the piece, against `q`; `None` where
+    /// the piece has none.
+    fn boxed(&self, q: Self::Query) -> Option<PieceBox<T>>;
+    /// Its two ends on the value channel, in the order its span runs:
+    /// bit-identical wherever two pieces of the chain share one.
+    fn ends(&self) -> ([f64; 2], [f64; 2]);
+    /// The two halves of its span.
+    fn halves(&self) -> (Self, Self);
+}
+
+/// The gap between two closed intervals, zero where they meet.
+pub(crate) fn gap((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> f64 {
+    (b0 - a1).max(a0 - b1).max(0.0)
+}
+
+/// **The ray parity of `at` along `+u` over the closed chain `pieces`**,
+/// every piece decided clear of the query first: clear where either
+/// channel's gap alone is decided past the band under `name`, metered by
+/// that channel's arm (the caller has decided every way out of the
+/// window the arms hold over past the band, so each gap lower-bounds the
+/// way along the chart to the piece). A clear piece wholly past the
+/// centre in `u` crosses the ray as often, mod 2, as its ends lie either
+/// side of `v = v_c` under the half-open rule `v ≥ v_c`; any other clear
+/// piece misses it. A piece not clear is halved, down to
+/// [`PIECE_DEPTH`] halvings, or until it meets a query of some size
+/// within the query's own size, where the query is undecided; `visits`
+/// bounds the pieces read.
+///
+/// `ray_walk`, the chart region's parity, reads a polygon's straight
+/// segments vertex by vertex and sets a grazing ray aside; these pieces
+/// are curved and read off their boxes, so the crossing count is read
+/// off each clear piece's two ends, whose shared ends are bit-identical
+/// across the chain.
+pub(crate) fn ray_parity_as<T: Decide, P: ChainPiece<T>>(
+    name: &'static str,
+    pieces: &[P],
+    q: P::Query,
+    at: RayQuery,
+    (au, av): (InfSpeed<T>, InfSpeed<T>),
+    visits: usize,
+    band: Band,
+) -> Side {
+    let [cu, cv] = at.centre;
+    let [su, sv] = at.rect.map(|(lo, hi)| hi - lo);
+    let mut stack: Vec<(P, usize)> = pieces.iter().rev().map(|p| (p.clone(), 0)).collect();
+    let (mut parity, mut visited) = (false, 0usize);
+    while let Some((piece, depth)) = stack.pop() {
+        visited += 1;
+        if visited > visits {
+            return Side::Near(None);
+        }
+        let Some(b) = piece.boxed(q) else {
+            return Side::Near(None);
+        };
+        let mut diag = None;
+        let mut clear = false;
+        for (g, arm) in [(b.gap[0], au), (b.gap[1], av)] {
+            match decide(name, Margin::metered(g, arm), band) {
+                Ok(Sign::Positive) => clear = true,
+                Ok(_) => {}
+                Err(d) => diag = diag.or(Some(d)),
+            }
+        }
+        let [(u0, u1), (v0, v1)] = b.extent;
+        if clear {
+            if v0 > cv || v1 < cv || u1 < cu {
+                continue;
+            }
+            if u0 > cu {
+                let (s, e) = piece.ends();
+                parity ^= (s[1] >= cv) != (e[1] >= cv);
+                continue;
+            }
+        }
+        let meets = gap(at.rect[0], b.extent[0]) == 0.0 && gap(at.rect[1], b.extent[1]) == 0.0;
+        if depth == PIECE_DEPTH
+            || (meets && (su > 0.0 || sv > 0.0) && u1 - u0 <= su && v1 - v0 <= sv)
+        {
+            return Side::Near(diag);
+        }
+        let (l, r) = piece.halves();
+        stack.push((r, depth + 1));
+        stack.push((l, depth + 1));
+    }
+    if parity { Side::In } else { Side::Out }
 }
 
 /// **The door** ([`crate::Body::face_lift`]).
@@ -408,16 +524,6 @@ enum Piece<'a, T: Real> {
 }
 
 impl<T: Decide> Piece<'_, T> {
-    /// Its two ends, in the order its span runs. Bit-identical wherever
-    /// two pieces share one: each is read off the same parameter of the
-    /// same image, or copied.
-    fn ends(&self) -> (Point2<T>, Point2<T>) {
-        match self {
-            Piece::Image { pcurve, span } => (pcurve.eval(span.0), pcurve.eval(span.1)),
-            Piece::Segment(a, b) => (*a, *b),
-        }
-    }
-
     /// A box holding every point of the piece.
     fn bbox(&self) -> ChartWindow<T> {
         match self {
@@ -429,6 +535,37 @@ impl<T: Decide> Piece<'_, T> {
                 v_max: a.y.max(b.y),
             },
         }
+    }
+}
+
+impl<T: Decide> ChainPiece<T> for Piece<'_, T> {
+    type Query = Point2<T>;
+
+    fn boxed(&self, q: Point2<T>) -> Option<PieceBox<T>> {
+        let b = self.bbox();
+        Some(PieceBox {
+            gap: [
+                (b.u_min - q.x).max(q.x - b.u_max).max(T::zero()),
+                (b.v_min - q.y).max(q.y - b.v_max).max(T::zero()),
+            ],
+            extent: [
+                (b.u_min.value_channel(), b.u_max.value_channel()),
+                (b.v_min.value_channel(), b.v_max.value_channel()),
+            ],
+        })
+    }
+
+    /// Each end is read off the same parameter of the same image, or
+    /// copied.
+    fn ends(&self) -> ([f64; 2], [f64; 2]) {
+        let (s, e) = match self {
+            Piece::Image { pcurve, span } => (pcurve.eval(span.0), pcurve.eval(span.1)),
+            Piece::Segment(a, b) => (*a, *b),
+        };
+        (
+            [s.x.value_channel(), s.y.value_channel()],
+            [e.x.value_channel(), e.y.value_channel()],
+        )
     }
 
     fn halves(&self) -> (Self, Self) {
@@ -559,7 +696,18 @@ impl<'a, T: Decide> Outer<'a, T> {
                     Err(diag) => return Side::Near(Some(diag)),
                 }
             }
-            return self.parity(q, arms, band);
+            return ray_parity_as(
+                RING_PLACE_CLEAR,
+                &self.pieces,
+                q,
+                RayQuery {
+                    centre: [q.x.value_channel(), q.y.value_channel()],
+                    rect: [q.x, q.y].map(|c| (c.value_channel(), c.value_channel())),
+                },
+                arms,
+                PIECE_VISITS,
+                band,
+            );
         }
         Side::Near(pending)
     }
@@ -595,56 +743,6 @@ impl<'a, T: Decide> Outer<'a, T> {
             )
         };
         Ok((InfSpeed::new(gate(u)?), InfSpeed::new(gate(v)?)))
-    }
-
-    /// The ray parity of `q` along `+u`, every piece decided clear of it
-    /// first: a clear piece wholly past `q` in `u` crosses the ray as
-    /// often, mod 2, as its ends lie either side of `v = q_v` under the
-    /// half-open rule `v ≥ q_v`; any other clear piece misses it. A piece
-    /// not clear is halved.
-    fn parity(&self, q: Point2<T>, (au, av): (InfSpeed<T>, InfSpeed<T>), band: Band) -> Side {
-        let (cu, cv) = (q.x.value_channel(), q.y.value_channel());
-        let mut stack: Vec<(Piece<'_, T>, usize)> =
-            self.pieces.iter().rev().map(|p| (p.clone(), 0)).collect();
-        let (mut parity, mut visits) = (false, 0usize);
-        while let Some((piece, depth)) = stack.pop() {
-            visits += 1;
-            if visits > PIECE_VISITS {
-                return Side::Near(None);
-            }
-            let b = piece.bbox();
-            let gu = (b.u_min - q.x).max(q.x - b.u_max).max(T::zero());
-            let gv = (b.v_min - q.y).max(q.y - b.v_max).max(T::zero());
-            let mut diag = None;
-            let mut clear = false;
-            for (g, arm) in [(gu, au), (gv, av)] {
-                match decide(RING_PLACE_CLEAR, Margin::metered(g, arm), band) {
-                    Ok(Sign::Positive) => clear = true,
-                    Ok(_) => {}
-                    Err(d) => diag = diag.or(Some(d)),
-                }
-            }
-            if clear {
-                if b.v_min.value_channel() > cv
-                    || b.v_max.value_channel() < cv
-                    || b.u_max.value_channel() < cu
-                {
-                    continue;
-                }
-                if b.u_min.value_channel() > cu {
-                    let (s, e) = piece.ends();
-                    parity ^= (s.y.value_channel() >= cv) != (e.y.value_channel() >= cv);
-                    continue;
-                }
-            }
-            if depth == PIECE_DEPTH {
-                return Side::Near(diag);
-            }
-            let (l, r) = piece.halves();
-            stack.push((r, depth + 1));
-            stack.push((l, depth + 1));
-        }
-        if parity { Side::In } else { Side::Out }
     }
 }
 

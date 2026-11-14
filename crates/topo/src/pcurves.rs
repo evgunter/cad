@@ -2460,11 +2460,11 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
 
 #[path = "pcurves_rings.rs"]
 mod rings;
-pub use rings::{FaceLift, PlacedRing, RingPlacementError};
 pub(crate) use rings::{
-    HALVINGS, PIECE_DEPTH, PIECE_VISITS, RingMiss, SHIFTS, Shift, Side, WINDOW_SHARE, face_lift,
-    place_ring,
+    ChainPiece, HALVINGS, PIECE_VISITS, PieceBox, RayQuery, RingMiss, SHIFTS, Shift, Side,
+    WINDOW_SHARE, face_lift, gap, place_ring, ray_parity_as,
 };
+pub use rings::{FaceLift, PlacedRing, RingPlacementError};
 
 /// One half-edge of a [`Lift`].
 #[derive(Clone, Debug)]

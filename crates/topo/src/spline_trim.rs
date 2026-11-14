@@ -70,7 +70,10 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::Deck;
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::pcurves::{Lift, RingMiss, RingPlacementError, Shift, Side};
+use crate::pcurves::{
+    ChainPiece, Lift, PieceBox, RayQuery, RingMiss, RingPlacementError, Shift, Side, gap,
+    ray_parity_as,
+};
 use crate::validate::decide;
 
 /// A chart window's inf-side lever arm, gated as a length.
@@ -83,7 +86,7 @@ const CELL_VISITS: usize = 1 << 13;
 // The trim's work bounds are the ring rule's, at the crate root
 // (`crate::pcurves`): one home for both readers of a point against a
 // loop, and the one count for a ring's shifts and a query's copies.
-use crate::pcurves::{HALVINGS, PIECE_DEPTH, PIECE_VISITS, SHIFTS as COPIES, WINDOW_SHARE};
+use crate::pcurves::{HALVINGS, PIECE_VISITS, SHIFTS as COPIES, WINDOW_SHARE};
 
 /// The work one reading may do before it stands unsettled: bounds on
 /// the work, not on the geometry.
@@ -139,11 +142,6 @@ impl Rect {
             v: (self.v.0 + dv, self.v.1 + dv),
         }
     }
-}
-
-/// The gap between two closed intervals, zero where they meet.
-fn gap((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> f64 {
-    (b0 - a1).max(a0 - b1).max(0.0)
 }
 
 /// **One Bézier cell of a chart**: its parameter rectangle and its
@@ -744,15 +742,6 @@ impl Piece {
     }
 }
 
-/// Where [`Trim::place`] put a query.
-#[derive(Clone, Debug)]
-pub(crate) enum Place {
-    In,
-    Out,
-    /// Not clear of the trim, with the in-band decision that kept it so.
-    Near(Option<Indeterminate>),
-}
-
 /// **A face's trim in its spline chart** (module docs): every loop's
 /// chain, each ring lifted into the outer loop's cover.
 pub(crate) struct Trim {
@@ -1007,11 +996,7 @@ impl Trim {
             [u, v],
             |shift| {
                 let [du, dv] = shift.offset;
-                match self.place_in_cover(cells, Rect::point(u + du, v + dv), band) {
-                    Place::In => Side::In,
-                    Place::Out => Side::Out,
-                    Place::Near(diag) => Side::Near(diag),
-                }
+                self.place_in_cover(cells, Rect::point(u + du, v + dv), band)
             },
         )
     }
@@ -1021,12 +1006,12 @@ impl Trim {
     /// chart, past the band, in every copy of `q` a period apart on each
     /// closed channel. `cells` is the chart's Bézier decomposition, which
     /// the window's arms are read off.
-    pub(crate) fn place<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Place {
+    pub(crate) fn place<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Side {
         self.read_window(cells, q, band, true)
     }
 
     /// [`Self::place`] of `q` alone, in the cover, with no copy.
-    fn place_in_cover<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Place {
+    fn place_in_cover<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Side {
         self.read_window(cells, q, band, false)
     }
 
@@ -1038,7 +1023,7 @@ impl Trim {
         at: Rect,
         band: Band,
         copies: bool,
-    ) -> Place {
+    ) -> Side {
         // The window is the chart's, read at the query's copy in the
         // domain; the parity is the cover's, read at the query itself.
         let q = self.principal(at);
@@ -1057,7 +1042,7 @@ impl Trim {
                 v: (q.v.0 - rv, q.v.1 + rv),
             };
             let Some(window) = window.overlap(self.domain) else {
-                return Place::Near(None);
+                return Side::Near(None);
             };
             let arms = match window_arms(cells, window, band) {
                 Ok(arms) => arms,
@@ -1072,7 +1057,7 @@ impl Trim {
             // only shortens it, so past here a halving is for an arm
             // alone.
             if let Err(diag) = self.exits_clear(q, window, arms, band) {
-                return Place::Near(diag.or(pending));
+                return Side::Near(diag.or(pending));
             }
             return if copies {
                 self.copies(at, arms, band)
@@ -1080,7 +1065,7 @@ impl Trim {
                 self.copy(at, arms, band)
             };
         }
-        Place::Near(pending)
+        Side::Near(pending)
     }
 
     /// `q`'s copy whose centre lies in the domain, a whole number of
@@ -1133,7 +1118,7 @@ impl Trim {
 
     /// [`Self::place`] over the query's copies a period apart on each
     /// closed channel: in where one is in, out where every one is out.
-    fn copies<T: Decide>(&self, q: Rect, arms: (InfSpeed<T>, InfSpeed<T>), band: Band) -> Place {
+    fn copies<T: Decide>(&self, q: Rect, arms: (InfSpeed<T>, InfSpeed<T>), band: Band) -> Side {
         let shifts = |channel: usize, (q0, q1): (f64, f64), (r0, r1): (f64, f64)| -> Vec<f64> {
             let Some(p) = self.periods[channel].filter(|p| *p > 0.0) else {
                 return vec![0.0];
@@ -1150,86 +1135,65 @@ impl Trim {
         };
         let (us, vs) = (shifts(0, q.u, self.reach.u), shifts(1, q.v, self.reach.v));
         if us.len() * vs.len() > COPIES {
-            return Place::Near(None);
+            return Side::Near(None);
         }
         let mut out = true;
         let mut near = None;
         for &du in &us {
             for &dv in &vs {
                 match self.copy(q.shifted(du, dv), arms, band) {
-                    Place::In => return Place::In,
-                    Place::Out => {}
-                    Place::Near(diag) => {
+                    Side::In => return Side::In,
+                    Side::Out => {}
+                    Side::Near(diag) => {
                         out = false;
                         near = near.or(diag);
                     }
                 }
             }
         }
-        if out { Place::Out } else { Place::Near(near) }
+        if out { Side::Out } else { Side::Near(near) }
     }
 
     /// One copy of the query in the cover: the ray parity of its centre
-    /// along `+u`, every piece decided clear of it first.
-    ///
-    /// `ray_walk`, the chart region's parity, reads a polygon's straight
-    /// segments vertex by vertex and sets a grazing ray aside; these
-    /// pieces are curved arcs read off their control boxes, so the
-    /// crossing count is read off each clear piece's two ends under the
-    /// one half-open rule `v ≥ v_c`, whose shared ends are bit-identical
-    /// across the chain.
-    fn copy<T: Decide>(&self, q: Rect, (au, av): (InfSpeed<T>, InfSpeed<T>), band: Band) -> Place {
+    /// along `+u` ([`ray_parity_as`]), every piece decided clear of it
+    /// first.
+    fn copy<T: Decide>(&self, q: Rect, arms: (InfSpeed<T>, InfSpeed<T>), band: Band) -> Side {
         let (cu, cv) = q.centre();
-        let (su, sv) = q.size();
-        let mut stack: Vec<(Piece, usize)> =
-            self.pieces.iter().rev().map(|p| (p.clone(), 0)).collect();
-        let (mut parity, mut visits) = (false, 0usize);
-        while let Some((piece, depth)) = stack.pop() {
-            visits += 1;
-            let Some(b) = piece.bbox() else {
-                return Place::Near(None);
-            };
-            if visits > self.piece_visits {
-                return Place::Near(None);
-            }
-            let (gu, gv) = (gap(q.u, b.u), gap(q.v, b.v));
-            // Clear where either channel's gap alone is decided past the
-            // band: each lower-bounds the way along the chart to the
-            // piece inside the window, and the way out of it was decided
-            // past the band already.
-            let mut diag = None;
-            let mut clear = false;
-            for (g, arm) in [(gu, au), (gv, av)] {
-                match decide(
-                    SPLINE_TRIM_CLEAR,
-                    Margin::metered(T::from_computed(g), arm),
-                    band,
-                ) {
-                    Ok(Sign::Positive) => clear = true,
-                    Ok(_) => {}
-                    Err(d) => diag = diag.or(Some(d)),
-                }
-            }
-            if clear {
-                if b.v.0 > cv || b.v.1 < cv || b.u.1 < cu {
-                    continue;
-                }
-                if b.u.0 > cu {
-                    let (s, e) = piece.ends();
-                    parity ^= (s[1] >= cv) != (e[1] >= cv);
-                    continue;
-                }
-            }
-            let (bu, bv) = b.size();
-            let meets = gu == 0.0 && gv == 0.0;
-            if depth == PIECE_DEPTH || (meets && (su > 0.0 || sv > 0.0) && bu <= su && bv <= sv) {
-                return Place::Near(diag);
-            }
-            let (l, r) = piece.halves();
-            stack.push((r, depth + 1));
-            stack.push((l, depth + 1));
-        }
-        if parity { Place::In } else { Place::Out }
+        ray_parity_as(
+            SPLINE_TRIM_CLEAR,
+            &self.pieces,
+            q,
+            RayQuery {
+                centre: [cu, cv],
+                rect: [q.u, q.v],
+            },
+            arms,
+            self.piece_visits,
+            band,
+        )
+    }
+}
+
+impl<T: Decide> ChainPiece<T> for Piece {
+    type Query = Rect;
+
+    fn boxed(&self, q: Rect) -> Option<PieceBox<T>> {
+        let b = self.bbox()?;
+        Some(PieceBox {
+            gap: [
+                T::from_computed(gap(q.u, b.u)),
+                T::from_computed(gap(q.v, b.v)),
+            ],
+            extent: [b.u, b.v],
+        })
+    }
+
+    fn ends(&self) -> ([f64; 2], [f64; 2]) {
+        Piece::ends(self)
+    }
+
+    fn halves(&self) -> (Self, Self) {
+        Piece::halves(self)
     }
 }
 

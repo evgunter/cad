@@ -428,6 +428,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("magnitude_door"),
     NameCarrier::Call("norm_gate"),
     NameCarrier::Call("on_as"),
+    NameCarrier::Call("ray_parity_as"),
     NameCarrier::Call("read_as"),
     NameCarrier::Call("relation_step"),
     NameCarrier::Call("settle_as"),
@@ -791,6 +792,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("pcurves.rs: net_closes_as: name", FORWARDS),
+    ("pcurves_rings.rs: ray_parity_as: name", FORWARDS),
     (
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,

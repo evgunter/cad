@@ -3,7 +3,7 @@
 //! along every iso line (degree 1 both ways), so a face's sides are
 //! straight edges whose images are iso lines.
 
-use super::{Caps, Place, Reading, Trim, bezier_cells, read, read_capped};
+use super::{Caps, Reading, Side, Trim, bezier_cells, read, read_capped};
 use crate::body::Body;
 use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
 use crate::entity::FaceKey;
@@ -285,17 +285,14 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
+            matches!(near, Side::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
     let deep = trim.place(&cells, super::Rect::point(0.75 - 1e-3, 0.5), b);
-    assert!(matches!(deep, Place::In), "past the band inside: {deep:?}");
+    assert!(matches!(deep, Side::In), "past the band inside: {deep:?}");
     let past = trim.place(&cells, super::Rect::point(0.75 + 1e-3, 0.5), b);
-    assert!(
-        matches!(past, Place::Out),
-        "past the band outside: {past:?}"
-    );
+    assert!(matches!(past, Side::Out), "past the band outside: {past:?}");
 }
 
 /// **Across a crease**: a roof chart, its two planar halves meeting at a
@@ -369,7 +366,7 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
     let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     let placed = trim.place(&cells, super::Rect::point(foot.u, foot.v), b);
     assert!(
-        matches!(placed, Place::Out),
+        matches!(placed, Side::Out),
         "the upper-half foot: {placed:?}"
     );
     // Over the face's interior: `y = 0.6` is `v = 0.2` below, `v = 0.8`
@@ -444,7 +441,7 @@ fn r1_a_ray_through_a_trim_vertex_counts_once() {
     let cells = bezier_cells(&chart).unwrap();
     let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     let at = trim.place(&cells, super::Rect::point(0.5, 0.5), b);
-    assert!(matches!(at, Place::In), "{at:?}");
+    assert!(matches!(at, Side::In), "{at:?}");
 }
 
 /// On a chart closed in `u` (period 1), an outer loop lifted from a
@@ -486,9 +483,9 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
         .expect("the hole's place in the outer loop's cover is decided");
     // Sanity: in the face but not in the hole.
     let face_point = trim.place(&cells, super::Rect::point(0.9, 0.5), b);
-    assert!(matches!(face_point, Place::In), "{face_point:?}");
+    assert!(matches!(face_point, Side::In), "{face_point:?}");
     let hole = trim.place(&cells, super::Rect::point(0.2, 0.5), b);
-    assert!(matches!(hole, Place::Out), "a point of the hole: {hole:?}");
+    assert!(matches!(hole, Side::Out), "a point of the hole: {hole:?}");
 }
 
 /// **Review r2: a chart point of the carrier within the band of the trim
@@ -534,9 +531,9 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
             if want_in {
-                matches!(p, Place::In)
+                matches!(p, Side::In)
             } else {
-                matches!(p, Place::Out)
+                matches!(p, Side::Out)
             },
             "through vertices at u = {u}: {p:?}"
         );
@@ -558,9 +555,9 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
             if want_in {
-                matches!(p, Place::In)
+                matches!(p, Side::In)
             } else {
-                matches!(p, Place::Out)
+                matches!(p, Side::Out)
             },
             "along a side at u = {u}: {p:?}"
         );
@@ -746,14 +743,14 @@ fn a_reading_past_its_work_caps_stands_unsettled() {
     let cells = bezier_cells(&chart).unwrap();
     let at = super::Rect::point(0.9, 0.4);
     let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
-    assert!(matches!(trim.place(&cells, at, b), Place::Out));
+    assert!(matches!(trim.place(&cells, at, b), Side::Out));
     let one_piece = Caps {
         pieces: 1,
         ..Caps::READ
     };
     let trim = Trim::of(&body, face, &chart, &cells, one_piece, b).unwrap();
     let capped = trim.place(&cells, at, b);
-    assert!(matches!(capped, Place::Near(None)), "one piece: {capped:?}");
+    assert!(matches!(capped, Side::Near(None)), "one piece: {capped:?}");
 }
 
 /// **A way out of the window within the band keeps a query near.** On a
@@ -786,7 +783,7 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
+        matches!(near, Side::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
         "the way out of the window is in the band: {near:?}"
     );
 }
@@ -1129,7 +1126,7 @@ fn a_point_on_a_far_rational_sheet_is_not_read_off_its_carrier() {
     .unwrap();
     let q = Point3::new(o[0] + 0.59375 * s, o[1], o[2]);
     let cells = bezier_cells(&chart).unwrap();
-    let reading = super::carrier_walk(&chart, &cells, q, tight_band(), Caps::READ, |_| Place::In);
+    let reading = super::carrier_walk(&chart, &cells, q, tight_band(), Caps::READ, |_| Side::In);
     assert!(
         !matches!(reading, Reading::OffCarrier),
         "a point on the sheet reads off its carrier: {reading:?}"
@@ -1388,13 +1385,13 @@ fn a_query_on_a_far_trim_curve_is_given_no_side() {
         q,
         tight_band(),
     );
-    assert!(matches!(at, Place::Near(_)), "f64: {at:?}");
+    assert!(matches!(at, Side::Near(_)), "f64: {at:?}");
     let at = trim(bezier_pieces(&image.map_scalar(lift), 0.0, 1.0).unwrap()).place(
         &bezier_cells(&chart.map_scalar(lift)).unwrap(),
         q,
         tight_band(),
     );
-    assert!(matches!(at, Place::Near(_)), "Interval: {at:?}");
+    assert!(matches!(at, Side::Near(_)), "Interval: {at:?}");
 }
 
 /// Knotted cuts against a double-double Boehm reference: the cells'
@@ -1728,7 +1725,7 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
     for k in 0..64 {
         let u = 0.25 + 0.5 * (k as f64 + 0.5) / 64.0;
         let q = super::Rect::point(u, c + 3e-11);
-        if !matches!(trim.place(&cells, q, tight_band()), Place::Near(_)) {
+        if !matches!(trim.place(&cells, q, tight_band()), Side::Near(_)) {
             sided += 1;
         }
     }
@@ -1869,7 +1866,7 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
     let sided = (0..64)
         .filter(|k| {
             let q = super::Rect::point(c, 0.25 + 0.5 * (f64::from(*k) + 0.5) / 64.0);
-            !matches!(trim.place(&cells, q, tight_band()), Place::Near(_))
+            !matches!(trim.place(&cells, q, tight_band()), Side::Near(_))
         })
         .count();
     assert_eq!(sided, 0, "{sided} of 64 queries on the trim got a side");

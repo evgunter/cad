@@ -47,7 +47,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
 use crate::entity::FaceKey;
-use crate::spline_trim::{Caps, Patch, Place, Rect, Trim, bezier_cells};
+use crate::pcurves::Side;
+use crate::spline_trim::{Caps, Patch, Rect, Trim, bezier_cells};
 use crate::splitting::Escalation;
 use crate::validate::decide;
 // What this arm's rows read of the trim beside what the arm itself does.
@@ -138,10 +139,10 @@ pub(super) fn spline_chart_placement<T: Decide>(
         return Ok(None);
     };
     match trim.place(&cells, Rect::point(u, v), band) {
-        Place::In => Ok(Some(FaceContainment::In)),
-        Place::Out => Ok(Some(FaceContainment::Out)),
-        Place::Near(None) => Ok(None),
-        Place::Near(Some(diag)) => Err(ContainError::Escalated {
+        Side::In => Ok(Some(FaceContainment::In)),
+        Side::Out => Ok(Some(FaceContainment::Out)),
+        Side::Near(None) => Ok(None),
+        Side::Near(Some(diag)) => Err(ContainError::Escalated {
             decision: None,
             escalation: Escalation::Margin,
             diag,
@@ -216,7 +217,7 @@ fn carrier_walk<T: Decide>(
     q: Point3<T>,
     band: Band,
     caps: Caps,
-    place: impl Fn(Rect) -> Place,
+    place: impl Fn(Rect) -> Side,
 ) -> Reading {
     // Breadth first, so the shallowest foot is found before any cell
     // beside it is walked to the floor.
@@ -245,9 +246,9 @@ fn carrier_walk<T: Decide>(
                 return None;
             }
             match place(cell.rect) {
-                Place::In => Some(true),
-                Place::Out => Some(false),
-                Place::Near(diag) => {
+                Side::In => Some(true),
+                Side::Out => Some(false),
+                Side::Near(diag) => {
                     keep(&mut pending, diag);
                     None
                 }
@@ -263,9 +264,9 @@ fn carrier_walk<T: Decide>(
             Ok(Sign::Zero) => {
                 foot = true;
                 let placed = inside.or_else(|| match place(Rect::point(cu, cv)) {
-                    Place::In => Some(true),
-                    Place::Out => None,
-                    Place::Near(diag) => {
+                    Side::In => Some(true),
+                    Side::Out => None,
+                    Side::Near(diag) => {
                         keep(&mut pending, diag);
                         None
                     }
