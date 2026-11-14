@@ -61,6 +61,10 @@ mod tests {
     }
 
     /// The digest at the hand-written ring, which both reviews of PR 6394
-    /// measured bit-identical to this one.
-    const WANT: (u64, u64, usize) = (4_614_309_978_810_060_332, 2_236_884_451_822_836_043, 108);
+    /// measured bit-identical to this one. Re-cut when the extrude's
+    /// walls began carrying the sketch frame's turned direction instead
+    /// of their placed ends' difference: the volume's bits held, and
+    /// eight of the 108 points — the blade walls' crossings with the
+    /// hub, at both heights — moved one ulp each.
+    const WANT: (u64, u64, usize) = (4_614_309_978_810_060_332, 839_075_554_817_046_539, 108);
 }

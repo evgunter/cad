@@ -1748,17 +1748,16 @@ mod verbs_gate_r1_probes {
         // 0.052, concentric and coplanar on the weld plane, so the two
         // stand `0.060 − 0.052 = 0.008 m` apart.
         //
-        // The arch's cap planes, named by position: the weld disc is
-        // the one within 2 m of the world origin (where the stem
-        // starts).
-        let weld = arch
-            .faces()
-            .filter_map(|(fk, _)| match arch.face_surface(fk) {
-                Some(&Surface::Plane { origin, .. }) => Some(origin),
-                _ => None,
-            })
-            .find(|&o| (o - pncad::geom_core::Point3::origin()).norm() <= 2.0)
-            .expect("the arch carries a weld cap");
+        // The weld disc's centre, ASKED of the revolve that made the
+        // arch: its start joint frame is the stem end, and the frame's
+        // origin is the arch section's centre carried there.
+        let weld = pieces
+            .iter()
+            .find(|p| p.name == "lily_arch")
+            .and_then(|p| p.caps.as_ref())
+            .expect("the arch is a partial revolve, so it has joint frames")
+            .start
+            .origin;
         let ring_c = pncad::geom_core::Point3::new(-5.0, 0.0, 0.0);
         let to_stem_wall = |p: pncad::geom_core::Point3<f64>| {
             let rel = p - ring_c;
