@@ -2984,9 +2984,9 @@ mod tests {
         // lone vertex, have no cover, so no consumed extent: the glue door
         // reads no carrier verdict over them, glues nothing, and leaves
         // the pair to the stage that meets it.
-        let glued =
-            crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
-                .expect("an uncovered pair is left unread, not refused");
+        let none = crate::boolean::Glue::none();
+        let glued = crate::boolean::glue::decided_glue(&ca, &cb, &none, band)
+            .expect("an uncovered pair is left unread, not refused");
         assert!(
             glued.pairs.is_empty(),
             "no pair is glued over faces with no cover: {glued:?}"
