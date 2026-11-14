@@ -5700,6 +5700,25 @@ mod tests {
 
     #[test]
     fn a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it() {
+        // Pinned red: the pcurve pass reports the split circle's in-band
+        // `General` image ahead of the pillow's unminted face
+        // (`work/pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12`).
+        test_utils::pinned_red::row(
+            Tol::witness().eps(),
+            &[1e-12],
+            "the fan mev split",
+            &[
+                "Escalated { check: GeneralLane",
+                "ssi_hull_value_chart",
+                "Pcurve { finding: Unminted",
+            ],
+            a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it_row,
+        );
+    }
+
+    /// The row [`a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it`] runs, under its pin.
+    fn a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it_row()
+     {
         // The re-basing gate re-derives the M7-8 edge through the lane
         // `f64`'s policy holds: a fan `mev` at the old vertex's own point
         // (the closed spec) carries the edge onto the new vertex, bit for

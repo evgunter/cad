@@ -55,3 +55,32 @@ too thin nor an area: it is the whole-turn residual of the bore's loop
 A local mirror of the cone's constructors (rulings exact, rims carried),
 unreviewed and not pushed, made this row pass at 1e-12 with Σ.hi
 3.6e-13 m. That sizes the fix; it is not the fix.
+
+## The merge, and three more rows (GREEN, 2026-11-14)
+
+A first-parent bisect of main at 1e-12 names PR 6505
+(`onedoor/one-surface-record`, the face-anchored measure, merge
+`9e1484043`); its first parent `e996c0049` passes the bead. Three more
+rows of nightly 43371638371 refuse with the same signature
+(`VolumeUncomputable`, `props_chart_loop_whole`, check `Inventory`,
+margin `[0, H]`), each on a cylinder wall by its fixture's construction:
+
+- `sweep` `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds`
+  (H 3.65e-12) and
+  `near_circular_sections::a_turned_near_square_split_of_a_rod_validates_its_halves`
+  (H 3.35e-12). Both refuse in the rows' `moved_body`, the f64 lane, on
+  a plain rod turned rigidly, before any boolean. Both pass at
+  `e996c0049` and fail at `9e1484043`.
+- `sweep` `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`
+  (operand B, H 1.11e-12). This one was already red at `e996c0049` on
+  GERM's later stop
+  (`work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12.md`);
+  PR 6505 moved its first stop earlier, to operand B's volume. Fixing
+  this row exposes GERM's stop, so its pin cites both rows.
+
+**A plain turned rod is among this row's instances**: a rigidly turned
+cylinder rod does not finish at ε 1e-12 in the `f64` lane. Its band
+depends on whether ε 1e-12 counts as a normal setting; that is the
+owner's call.
+
+The pins that cite this row: the bead (`full_turn_wall::both_doors_answer_the_bead_by_its_height_window`), the two near-square rows, and the meeting-axes pose. Each pin goes red the day its stop moves. For the first three, that is this row's done-when. For the meeting-axes pose it is the move to GERM's stop.
