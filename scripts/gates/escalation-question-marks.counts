@@ -40,8 +40,6 @@ crates/topo/src/boolean/edge_join.rs 1
 crates/topo/src/replace_face.rs 2
 # ray_walk: ray_crossings, a crossing count over every vertex and edge.
 crates/topo/src/ray_walk.rs 2
-# insert: section_chords's germ order, a sort over every group.
-crates/topo/src/splitting/insert.rs 1
 # blend battery: consumption_sweep strips every face.
 crates/sweep/src/blend/battery.rs 1
 # ssi section: roots decides every cluster's crossing.

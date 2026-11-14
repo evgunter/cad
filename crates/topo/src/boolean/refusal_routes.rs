@@ -216,7 +216,7 @@ pub enum BooleanDecision {
     /// bound, so its margin never passes.
     ConicBend,
     /// Whether two directions at a corner, read parallel, point the same
-    /// way or opposite ways (`bool_dir_same`): the cosine levered at the
+    /// way or opposite ways (`germ_sense`, the star's one sense reading): the cosine levered at the
     /// corner's arm, `|cos| ≈ 1` once parallelism read zero, so what it
     /// measures is the arm, and either definite sign passes. A decided
     /// zero refuses with its decided margin, as the in-band arm does.
@@ -1012,7 +1012,7 @@ pub(crate) const EXTENT_LEVER: &str =
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum SelfCheck {
     /// Whether a crossing record's two faces cross along a line
-    /// (`bool_germ_line` at `insert::germ_dir`): the pair was sent down
+    /// (`germ_line` at `insert::germ_dir`): the pair was sent down
     /// the crossing path because this same margin read definitely
     /// positive upstream (`sectors::pair_search`'s
     /// `bool_faces_parallel`), and a zero one is a
