@@ -72,8 +72,8 @@ pub enum WedgeVerdict {
     Crease {
         /// The sign every station decided.
         convexity: Convexity,
-        /// The margin the first station's sign was decided on
-        /// ([`crate::DIHEDRAL_SIGN`]).
+        /// The margin the first station's sign was decided on, under
+        /// the reader's [`FoldNames::sign`].
         margin: geom_core::MarginDiag,
     },
     /// Tangent at every station with the outward normals aligned: the
@@ -96,8 +96,8 @@ pub enum WedgeVerdict {
     End {
         /// Which end every station decided.
         end: WedgeEnd,
-        /// The margin the first station's end was decided on
-        /// (`"material_cusp_side"`).
+        /// The margin the first station's end was decided on, under the
+        /// reader's [`FoldNames::end`].
         margin: geom_core::MarginDiag,
     },
     /// Tangent with the outward normals opposed and the jets osculating
@@ -257,19 +257,40 @@ pub fn edge_wedge_over<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> WedgeVerdict {
-    edge_wedge_over_as(walk, reach, band, crate::DIHEDRAL_SIGN)
+    edge_wedge_over_as(walk, reach, band, FoldNames::SHAPE)
 }
 
-/// [`edge_wedge_over`], each corner's sign decided as `sign`: a reader
-/// whose sign decides which body it builds records the decision under a
-/// name of its own ([`crate::DIHEDRAL_SIGN`]'s docs), the geometry read
-/// the same.
+/// **The names the fold decides a side under**: a corner's sign and a
+/// tangency's end, the two reads that tell a reader which side of the
+/// edge its material lies on. A reading of the body's shape takes
+/// [`FoldNames::SHAPE`]; a reader whose side decides which body it builds
+/// records those decisions under names of its own
+/// ([`crate::DIHEDRAL_SIGN`]'s docs), the geometry read the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FoldNames {
+    /// The name each corner's sign is decided under.
+    pub sign: &'static str,
+    /// The name each tangency's end is decided under.
+    pub end: &'static str,
+}
+
+impl FoldNames {
+    /// A reading of the body's shape: [`crate::DIHEDRAL_SIGN`] and
+    /// [`crate::MATERIAL_CUSP_SIDE`].
+    pub const SHAPE: Self = Self {
+        sign: crate::DIHEDRAL_SIGN,
+        end: crate::MATERIAL_CUSP_SIDE,
+    };
+}
+
+/// [`edge_wedge_over`], each corner's sign and each tangency's end
+/// decided under `names`.
 #[must_use]
 pub fn edge_wedge_over_as<T: Decide>(
     walk: &WedgeWalk<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
-    sign: &'static str,
+    names: FoldNames,
 ) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
@@ -284,7 +305,7 @@ pub fn edge_wedge_over_as<T: Decide>(
         .into_iter()
         .map(|read| match read.dihedral {
             Dihedral::Corner(c) => c
-                .convexity(sign, &read.station, senses, band)
+                .convexity(names.sign, &read.station, senses, band)
                 .map(|(sign, margin)| (read.sample, Read::Corner(sign, margin)))
                 .map_err(|e| e.at_station(read.sample)),
             Dihedral::Tangent(t) => Ok((read.sample, Read::Tangent(read.station, t))),
@@ -322,7 +343,7 @@ pub fn edge_wedge_over_as<T: Decide>(
             Read::Corner(..) => None,
         })
         .collect();
-    let mut reads = MaterialReads::new(plus.sense, senses, band);
+    let mut reads = MaterialReads::new(plus.sense, senses, band, names.end);
     let bend = match second_order_walk(
         plus.surface,
         minus.surface,
@@ -389,17 +410,20 @@ struct MaterialReads {
     sense_plus: bool,
     senses: [bool; 2],
     band: Band,
+    /// The name each end is decided under ([`FoldNames::end`]).
+    end: &'static str,
     pairings: Vec<(u32, MaterialPairing)>,
     ends: Vec<(u32, WedgeEnd, geom_core::MarginDiag)>,
 }
 
 impl MaterialReads {
     /// No station read yet.
-    const fn new(sense_plus: bool, senses: [bool; 2], band: Band) -> Self {
+    const fn new(sense_plus: bool, senses: [bool; 2], band: Band, end: &'static str) -> Self {
         Self {
             sense_plus,
             senses,
             band,
+            end,
             pairings: Vec::new(),
             ends: Vec::new(),
         }
@@ -434,7 +458,7 @@ impl<T: Decide> StationHook<T> for MaterialReads {
     ) -> ControlFlow<WedgeEscalation> {
         let signed = material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let (end, margin) = match decide_nonzero_reported(
-            crate::MATERIAL_CUSP_SIDE,
+            self.end,
             Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
@@ -514,7 +538,9 @@ pub fn zero_end_stop(band: Band) -> WedgeEscalation {
         },
         arm,
     };
-    match MaterialReads::new(true, [true, true], band).after_positive(&station, &(1, tangency)) {
+    match MaterialReads::new(true, [true, true], band, crate::MATERIAL_CUSP_SIDE)
+        .after_positive(&station, &(1, tangency))
+    {
         ControlFlow::Break(stop) => stop,
         ControlFlow::Continue(()) => panic!("a zero end stops the walk"),
     }

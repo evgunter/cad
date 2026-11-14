@@ -92,10 +92,10 @@ fn verdict_of<T: Decide>(
     read: &EdgeRead<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
-    sign: &'static str,
+    names: geom_brep::FoldNames,
 ) -> geom_brep::WedgeVerdict {
     one_surface_seam(body, read.sides)
-        .unwrap_or_else(|| geom_brep::edge_wedge_over_as(&read.walk, reach, band, sign))
+        .unwrap_or_else(|| geom_brep::edge_wedge_over_as(&read.walk, reach, band, names))
 }
 
 /// **An edge's wedge** (module docs), levered at its faces' extent
@@ -107,22 +107,23 @@ pub fn edge_wedge<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
-    edge_wedge_as(body, edge, band, geom_brep::DIHEDRAL_SIGN)
+    edge_wedge_as(body, edge, band, geom_brep::FoldNames::SHAPE)
 }
 
-/// [`edge_wedge`], each corner's sign decided as `sign`: the door for a
-/// reader whose sign decides which body it builds, which records that
-/// decision under its own name (`geom_brep::DIHEDRAL_SIGN`'s docs).
+/// [`edge_wedge`], each corner's sign and each tangency's end decided
+/// under `names`: the door for a reader whose side decides which body it
+/// builds, which records those decisions under names of its own
+/// (`geom_brep::DIHEDRAL_SIGN`'s docs).
 #[must_use]
 pub fn edge_wedge_as<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     band: Band,
-    sign: &'static str,
+    names: geom_brep::FoldNames,
 ) -> Option<geom_brep::WedgeVerdict> {
     let read = walk_of(body, edge)?;
     let reach = crate::edge_wedge_reach(body, edge)?;
-    Some(verdict_of(body, &read, reach, band, sign))
+    Some(verdict_of(body, &read, reach, band, names))
 }
 
 /// [`edge_wedge`] levered at a `reach` the caller has read for the edge
@@ -139,7 +140,7 @@ pub(crate) fn edge_wedge_at<T: Decide>(
         &read,
         reach,
         band,
-        geom_brep::DIHEDRAL_SIGN,
+        geom_brep::FoldNames::SHAPE,
     ))
 }
 
@@ -173,7 +174,7 @@ pub(crate) fn edge_wedge_read<T: Decide>(
         &read,
         crate::edge_wedge_reach(body, edge)?,
         band,
-        geom_brep::DIHEDRAL_SIGN,
+        geom_brep::FoldNames::SHAPE,
     );
     let pair = geom_brep::SurfacePair::new(read.sides.plus.surface, read.sides.minus.surface);
     Some((verdict, read.walk.description(verdict, pair)))

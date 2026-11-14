@@ -40,9 +40,10 @@
 //!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
-//! 5. the edge's wedge read whole (`topo::edge_wedge`) — at every
-//!    station `dihedral_wedge` and on a corner `dihedral_sign`, on a
-//!    tangency `material_wedge_side` and the end `material_cusp_side`
+//! 5. the edge's wedge read whole (`topo::edge_wedge_as`) — at every
+//!    station `dihedral_wedge` and on a corner the blend's own
+//!    `fillet3_convexity_sign`, on a tangency `material_wedge_side` and
+//!    the end the blend's own `fillet3_knife_end`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
@@ -284,9 +285,12 @@ pub enum BlendDecision {
     /// meet smoothly along it curve apart there or share their
     /// curvature — the fold's bend rung ([`Self::of_wedge`]).
     LinkBend,
-    /// `material_cusp_side`: a cusp's or slit's end, which side of the
-    /// edge its material lies on. Passes on either definite sign: a
-    /// cusp's ball rests in the material, a slit's in the void.
+    /// `fillet3_knife_end`: a cusp's or slit's end, which side of the
+    /// edge its material lies on. The edge's wedge fold decides each
+    /// station's end under this name for the blend (`topo::edge_wedge_as`),
+    /// since the end picks which side the ball rests on. Passes on either
+    /// definite sign: a cusp's ball rests in the material, a slit's in
+    /// the void.
     KnifeEnd,
     /// `fillet3_knife_room`: a cusp's or slit's supports open wide
     /// enough for the ball, whose centre lies where their offsets
@@ -416,7 +420,7 @@ impl BlendDecision {
             Self::ConvexitySign => "fillet3_convexity_sign",
             Self::MaterialSide => "material_wedge_side",
             Self::LinkBend => geom_brep::TANGENT_SECOND_ORDER,
-            Self::KnifeEnd => geom_brep::MATERIAL_CUSP_SIDE,
+            Self::KnifeEnd => "fillet3_knife_end",
             Self::KnifeRoom => "fillet3_knife_room",
             Self::BallRoom => "fillet3_ball_room",
             Self::RingClearance => "fillet3_ring_clearance",
@@ -525,7 +529,7 @@ impl BlendDecision {
             // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
             // the arm gate's own lever.
             Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
-            Self::LinkBend => FILLET3_WEDGE_RECOURSE,
+            Self::LinkBend => FILLET3_LINK_BEND_RECOURSE,
             Self::KnifeEnd => FILLET3_KNIFE_END_RECOURSE,
             Self::KnifeRoom => FILLET3_KNIFE_RECOURSE,
             Self::BallRoom => FILLET3_BALL_ROOM_RECOURSE,
@@ -1190,12 +1194,17 @@ pub const FILLET3_LAMINA_RECOURSE: &str = "leave that edge out of the request: i
 /// through the turn, and the request names the edge whole.
 pub const FILLET3_WEDGE_TURN_RECOURSE: &str = "leave that edge out of the request: its faces turn from a convex corner to \
      a concave one along it, and no ball of one radius rolls through the turn";
+/// The recourse for a requested edge whose faces meet smoothly along it
+/// and whose second-order separation is in band
+/// ([`BlendDecision::LinkBend`]): whether the faces curve apart there is
+/// what is undecided, so the followable lever is the request itself.
+pub const FILLET3_LINK_BEND_RECOURSE: &str = "leave that edge out of the request: its faces meet smoothly along it, and \
+     whether they curve apart there is too near to read";
 /// The recourse for a cusp or slit whose faces do not open measurably
 /// apart ([`BlendDecision::KnifeEnd`]): no radius has room between
-/// them, so it does not offer a smaller one. A definite reading here is
-/// a lamina, which no valid body carries (`battery::knife_end`); the
-/// sentence serves the in-band reading, where the edge's side is not
-/// decided.
+/// them, so it does not offer a smaller one. The fold refuses a definite
+/// zero end as in band, so the sentence serves the reading where the
+/// edge's side is not decided.
 pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the request: its faces do not open measurably \
      apart, so no ball has room between them";
 /// The recourse for a spine the rolling ball's own envelope folds on.
@@ -1758,9 +1767,9 @@ pub enum BlendError {
         /// Meters; positive = convex. This is the link's OWN
         /// classified margin, the one its convexity was decided from
         /// when the link resolved (`battery::Link::convexity_margin`):
-        /// `((n₊ × n₋)·τ̂)·arm` under `dihedral_sign` at the fold's first
-        /// station on a crease, and on a knife link the end's levered
-        /// sagitta under `material_cusp_side` (a cusp convex, a slit
+        /// `((n₊ × n₋)·τ̂)·arm` under `fillet3_convexity_sign` at the
+        /// fold's first station on a crease, and on a knife link the end's
+        /// levered sagitta under `fillet3_knife_end` (a cusp convex, a slit
         /// concave) — the reading whose sign is the disagreement,
         /// carried from the decision rather than re-derived at the
         /// refusal.
@@ -2489,7 +2498,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 27] = [
+pub const ALL_RECOURSES: [(&str, &str); 28] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2502,6 +2511,7 @@ pub const ALL_RECOURSES: [(&str, &str); 27] = [
     ("knife-end", FILLET3_KNIFE_END_RECOURSE),
     ("lamina", FILLET3_LAMINA_RECOURSE),
     ("wedge-turn", FILLET3_WEDGE_TURN_RECOURSE),
+    ("link-bend", FILLET3_LINK_BEND_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
     ("convexity", FILLET3_CONVEXITY_RECOURSE),

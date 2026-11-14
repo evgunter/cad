@@ -517,12 +517,13 @@ fn signed_wedge<T: Real>(
 /// `editor_core::resolve`'s flip lane passes over it, as it does over the
 /// side reader's family.
 ///
-/// **A reader whose sign builds records it under its own name.** The
-/// blend reads the same fold through [`crate::edge_wedge_over_as`] under
-/// `fillet3_convexity_sign`, since its convexity decides which side the
-/// ball rolls on and so which body it builds; the split rule's sign
-/// stays on its own reading for the same reason. Neither is in this
-/// population, so the flip lane sees their flips.
+/// **A reader whose side builds records it under its own name.** The
+/// blend reads the same fold through [`crate::edge_wedge_over_as`] with
+/// its own [`crate::FoldNames`], `fillet3_convexity_sign` for a corner's
+/// sign and `fillet3_knife_end` for a tangency's end, since either picks
+/// the side its ball rolls on and so which body it builds; the split
+/// rule's sign stays on its own reading for the same reason. Neither is
+/// in this population, so the flip lane sees their flips.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 /// The name a dihedral's class is decided under ([`classify_dihedral`]):

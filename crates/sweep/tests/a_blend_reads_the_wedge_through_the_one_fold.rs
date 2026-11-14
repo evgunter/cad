@@ -7,7 +7,8 @@
 //! (`Corner::convexity`, `Tangency::pairing`) and `normals_alignment`
 //! are crate-private to `geom_brep`, so the compiler keeps those out;
 //! this row pins the rest. The blend's production code calls the door
-//! once, spells no other wedge read (a class, a gradient or normal
+//! once, under its own names (`topo::edge_wedge_as`, never the shape
+//! reading's `topo::edge_wedge`), spells no other wedge read (a class, a gradient or normal
 //! alignment, a jet, a material curvature, a walk or a station minted by
 //! hand), and reads its faces' outward normals at exactly the three
 //! sites that read the ARM's geometry (`battery::outward` and the
@@ -17,8 +18,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-/// The code-and-literals view with every `#[cfg(test)] mod … { … }`
-/// blanked.
+/// The code-and-literals view with every inline `#[cfg(test)] mod x
+/// { … }` blanked. A `mod x;` declaration is not blanked, and neither is
+/// the item after it.
 fn production(text: &str) -> String {
     use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
     let code = code_only(text);
@@ -35,7 +37,15 @@ fn production(text: &str) -> String {
         if !word_at(&code, item, "mod") {
             continue;
         }
-        let open = item + code[item..].find('{').expect("a test module has a body");
+        let name = skip_ws(&code, item + "mod".len());
+        let name_end = name
+            + code[name..]
+                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .expect("a module's name ends");
+        let open = skip_ws(&code, name_end);
+        if !code[open..].starts_with('{') {
+            continue;
+        }
         let close = balanced_end(&code, open).expect("a test module closes");
         kept[at..=close].fill(b' ');
         from = close;
@@ -58,10 +68,19 @@ fn the_blend_composes_no_wedge_of_its_own() {
         "implicit_gradient(",
         "folded_lever_arm(",
         "edge_wedge_over",
+        "edge_wedge_description",
+        "dihedral_across",
+        "enters_material",
         "WedgeWalk::",
         "Station::on(",
         "DIHEDRAL_SIGN",
         "\"dihedral_sign\"",
+        "MATERIAL_CUSP_SIDE",
+        "\"material_cusp_side\"",
+        "FoldNames::SHAPE",
+        // The door under the shape reading's names: the blend's sign
+        // and end would be recorded as a shape reading's.
+        "edge_wedge(",
     ];
     let mut door = 0;
     let mut normals = 0;
@@ -77,11 +96,13 @@ fn the_blend_composes_no_wedge_of_its_own() {
                 file.display()
             );
         }
-        door += source.matches("topo::edge_wedge_as(").count();
-        door += source.matches("topo::edge_wedge(").count();
+        door += source.matches("edge_wedge_as(").count();
         normals += source.matches("implicit_outward_normal(").count();
     }
-    assert_eq!(door, 1, "the blend asks the edge's wedge door once");
+    assert_eq!(
+        door, 1,
+        "the blend asks the edge's wedge door once, under its own names"
+    );
     assert_eq!(
         normals, 3,
         "the blend reads outward normals only at its arm's three sites"

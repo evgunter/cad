@@ -278,9 +278,9 @@ pub struct Link<T: Real> {
     pub convexity: Convexity,
     /// The margin that verdict was decided from, kept whole: the sign
     /// the edge's wedge fold decided at its first station
-    /// (`dihedral_sign`) on a crease, and on a knife link, whose faces
-    /// meet smoothly, the end its convexity came from
-    /// (`material_cusp_side`).
+    /// (`fillet3_convexity_sign`) on a crease, and on a knife link, whose
+    /// faces meet smoothly, the end its convexity came from
+    /// (`fillet3_knife_end`).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -1145,11 +1145,14 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // the convexity, so the sign is established before any geometry.
     // It is the edge's wedge read whole, as tier 3 reads it: every
     // station's class, every corner's sign, and on a tangency its
-    // pairing and end, levered at the faces' extent. The sign decides
-    // which body the blend builds, so it is recorded under the blend's
-    // own name (`geom_brep::DIHEDRAL_SIGN`'s docs).
-    let sign = BlendDecision::ConvexitySign.predicate();
-    let wedge = topo::edge_wedge_as(body, edge, band, sign).ok_or_else(broken)?;
+    // pairing and end, levered at the faces' extent. The sign and the
+    // end pick the side the ball rests on, so they are recorded under
+    // the blend's own names (`geom_brep::DIHEDRAL_SIGN`'s docs).
+    let names = geom_brep::FoldNames {
+        sign: BlendDecision::ConvexitySign.predicate(),
+        end: BlendDecision::KnifeEnd.predicate(),
+    };
+    let wedge = topo::edge_wedge_as(body, edge, band, names).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
@@ -1163,7 +1166,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (convexity, convexity_margin, branch) = match wedge {
         geom_brep::WedgeVerdict::Crease { convexity, margin } => (
             convexity,
-            decided_as(sign, convexity, margin, band),
+            decided_as(names.sign, convexity, margin, band),
             Branch::Rim,
         ),
         geom_brep::WedgeVerdict::Seam { margin, .. } => {
@@ -1201,7 +1204,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             let toward = inward_unit(n_a, tau.normalize());
             (
                 convexity,
-                decided_as(BlendDecision::KnifeEnd.predicate(), convexity, margin, band),
+                decided_as(names.end, convexity, margin, band),
                 Branch::Knife(toward),
             )
         }
@@ -1522,7 +1525,8 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// that side exactly when the chain is CONVEX — on a concave chain it
 /// rolls in the void, the far side of every support — so the side
 /// handed to the trace is [`ball_side`] of that bit, the
-/// identity on a convex chain. ONE fold with ONE home, `Convexity`:
+/// identity on a convex chain. ONE fold with ONE home, the chain's
+/// convexity verdict read by the functions beside it in this module:
 /// `signed` for the arms that displace by `±r` ([`plane_plane_blend`],
 /// [`super::arms::plane_sphere_blend`], `open::planar::corner_plan`),
 /// `ball_side` for the ones that pick a side, and

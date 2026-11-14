@@ -188,7 +188,7 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     ),
     (
         BlendDecision::LinkBend,
-        sweep::blend::FILLET3_WEDGE_RECOURSE,
+        sweep::blend::FILLET3_LINK_BEND_RECOURSE,
     ),
     (
         BlendDecision::KnifeEnd,

@@ -296,7 +296,7 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
 /// **Whether a blend read a requested edge as tangent**: the edge's
 /// wedge fold read some requested edge's faces meeting smoothly — a
 /// smooth seam the verbs leave silently, a knife (a cusp or slit) whose
-/// link's convexity is the end the fold read (`material_cusp_side`)
+/// link's convexity is the end the fold read (`fillet3_knife_end`)
 /// rather than a corner's sign, or a lamina the blend refuses — or the
 /// request (`outcome`) refused at a knife's room or at a lamina. A row
 /// that guards a transverse corner against a false tangency asks this
