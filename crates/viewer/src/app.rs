@@ -47,7 +47,7 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::appearance::Rgba8;
@@ -1250,8 +1250,8 @@ impl ViewerApp {
     ///   landed ([`DocSession::bundle_landing`]), the committed
     ///   document's pose, with or without an editor open.
     ///
-    /// Each copy the source stands elsewhere than the landed evaluation
-    /// does is carried there ([`crate::session::Stood::moved_from`]);
+    /// Each single-body copy the source stands elsewhere than the picture
+    /// draws it is carried there ([`crate::pickindex::preview_copies`]);
     /// `None` draws every copy where it is.
     fn placement_preview(&self) -> Option<crate::display::PreviewedPlacement> {
         let session = &self.session;
@@ -1266,20 +1266,8 @@ impl ViewerApp {
             Some(crate::matetool::HeldDraft::Waits(stood)) => stood,
             _ => session.bundle_landing()?,
         };
-        let (landed, ev) = session.landed_pair()?;
-        let copies: BTreeMap<_, _> = stood
-            .moved_from(&crate::session::Stood::of(landed, ev))
-            .map(|(copy, space, drawn, stands)| {
-                (
-                    copy,
-                    crate::display::PreviewedCopy {
-                        space,
-                        drawn,
-                        stands,
-                    },
-                )
-            })
-            .collect();
+        let (landed, _) = session.landed_pair()?;
+        let copies = crate::pickindex::preview_copies(&stood, self.picks.index()?, landed);
         (!copies.is_empty()).then_some(crate::display::PreviewedPlacement { copies })
     }
 

@@ -493,13 +493,13 @@ pub struct DocSession {
         crate::matetool::Proposed,
     >,
     /// **The last `SetBundle` committed**, with where the door's scratch
-    /// solve of it stands every copy ([`DocSession::bundle_landing`]).
+    /// solve of it stands each copy ([`DocSession::bundle_landing`]).
     landing: Option<BundleLanding>,
 }
 
 /// **A committed `SetBundle` whose run may not have landed**: the
 /// generation it made, the placement and the bundle it wrote, and where
-/// its scratch solve stands every copy.
+/// its scratch solve stands each copy.
 #[derive(Debug, Clone)]
 struct BundleLanding {
     made: Generation,
@@ -509,54 +509,25 @@ struct BundleLanding {
 }
 
 /// **The door's judgement of a `SetBundle`**: where its scratch solve
-/// stands every copy, `None` for an op that writes what the placement
+/// stands each copy, `None` for an op that writes what the placement
 /// holds, or the refusal it would land with.
 pub type BundleJudgement = Result<Option<Arc<Stood>>, BundleRefusal>;
 
-/// **Where an evaluation draws every copy**: each placement that
-/// evaluated to a body, the space it stands in and its body's frame
-/// composed into it ([`crate::pickindex::drawn_frame`]) — its pose over
-/// its source's frame, so a copy placed from a copy stands where its
-/// source does.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// **Where a scratch solve stands each copy**: each placement that
+/// evaluated, the space it stands in and its pose there, beside the
+/// evaluation the solve read them off, which the picture composes each
+/// copy's frame from (`crate::pickindex::preview_copies`).
+#[derive(Debug, Clone)]
 pub struct Stood {
-    /// Placement → its space and its body's frame in it.
+    /// Placement → its space and its pose in it.
     pub copies: std::collections::BTreeMap<RecipeNodeId, (VarId, Frame)>,
+    /// The scratch evaluation the poses were read off.
+    pub evaluation: Arc<Evaluation<f64>>,
 }
 
-impl Stood {
-    /// **Where `evaluation`, an evaluation of `doc`, draws every copy.**
-    pub fn of(doc: &Doc<ProfileProgram>, evaluation: &Evaluation<f64>) -> Self {
-        Self {
-            copies: doc
-                .placements()
-                .into_iter()
-                .filter_map(|copy| {
-                    Some((
-                        copy,
-                        (
-                            doc.node_space(copy)?,
-                            crate::pickindex::drawn_frame(evaluation, copy)?,
-                        ),
-                    ))
-                })
-                .collect(),
-        }
-    }
-
-    /// **Every copy this stands elsewhere than `drawn` does** — in
-    /// another space, or at another frame (bit for bit) — with its
-    /// space here, its frame in `drawn` and its frame here. A copy
-    /// `drawn` does not stand is left out: nothing of it is drawn to
-    /// carry.
-    pub fn moved_from<'a>(
-        &'a self,
-        drawn: &'a Stood,
-    ) -> impl Iterator<Item = (RecipeNodeId, VarId, Frame, Frame)> + 'a {
-        self.copies.iter().filter_map(|(&copy, &(space, stands))| {
-            let &(was_in, was) = drawn.copies.get(&copy)?;
-            (was_in != space || !was.bit_eq(&stands)).then_some((copy, space, was, stands))
-        })
+impl PartialEq for Stood {
+    fn eq(&self, other: &Self) -> bool {
+        self.copies == other.copies && Arc::ptr_eq(&self.evaluation, &other.evaluation)
     }
 }
 
@@ -4045,16 +4016,21 @@ impl DocSession {
             }
         };
         // The landed evaluation reads the pick where it answers the
-        // committed document; only where it does not is one run here.
+        // committed document under the resolver a run here would take;
+        // only where it does not is one run here.
+        let resolver = self.run_resolver();
         let evaluated;
-        let ev: &Evaluation<f64> = match self.landed_pair() {
-            Some((landed, ev)) if landed == doc => ev,
-            _ => {
+        let ev: &Evaluation<f64> = match self.derived.landed.as_ref().filter(|run| {
+            (core::ptr::eq(run.doc.as_ref(), doc) || *run.doc == *doc)
+                && crate::evalseam::same_resolver(&run.resolver, &resolver)
+        }) {
+            Some(run) => &run.evaluation,
+            None => {
                 evaluated = pncad::document::evaluate(
                     doc,
                     None,
                     &pncad::document::CancelToken::new(),
-                    &self.eval_options(),
+                    &crate::evalseam::options(&resolver),
                     self.tol,
                 );
                 &evaluated
@@ -5080,7 +5056,15 @@ impl DocSession {
             (Some(fault), _) => Err(BundleRefusal::Fails {
                 fault: Some(Box::new(fault.clone())),
             }),
-            (None, Some(_)) => Ok(Some(Stood::of(run.doc(), &evaluation))),
+            (None, Some(_)) => Ok(Some(Stood {
+                copies: run
+                    .doc()
+                    .placements()
+                    .into_iter()
+                    .filter_map(|copy| Some((copy, (solved.space(copy)?, solved.relative(copy)?))))
+                    .collect(),
+                evaluation: Arc::new(evaluation),
+            })),
             (None, None) => Err(BundleRefusal::Fails { fault: None }),
         }
     }

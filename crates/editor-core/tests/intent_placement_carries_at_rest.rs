@@ -309,7 +309,7 @@ fn a_parts_finding_crosses_a_pattern_of_its_instance_once() {
 }
 
 /// **A pick of a further copy stands where that copy stands.** A
-/// further copy of `a ⊔ c` is placed into its own space 7 along y; a
+/// further copy of `a ⊔ c` is placed into `a ⊔ c`'s space 7 along y; a
 /// pick of that copy's `a` piece, assembled beside a fresh block at
 /// the origin, is clear of it, so the at-rest check reports nothing.
 ///

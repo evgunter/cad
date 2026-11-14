@@ -893,7 +893,8 @@ pub struct DisplayView {
 /// **The copies drawn where the placement editor's draft stands them**,
 /// in place of where the drawn evaluation stands them: every copy the
 /// draft's scratch solve stands elsewhere, the one it edits, every
-/// copy mated to it and every copy placed from one of those.
+/// copy mated to it and every copy placed from one of those, each a
+/// copy of one body ([`crate::pickindex::preview_copies`]).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PreviewedPlacement {
     /// Placement → where its copy is drawn and where the draft stands it.
@@ -903,7 +904,7 @@ pub struct PreviewedPlacement {
 /// **One copy as the placement editor previews it**: the space the
 /// draft stands it in and its body's frame there, beside its frame in
 /// the space the drawn evaluation stands it in
-/// ([`crate::session::Stood`]).
+/// ([`crate::pickindex::preview_copies`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PreviewedCopy {
     /// The space the draft stands the copy in, whose display frame it

@@ -1981,7 +1981,7 @@ class Frame:
     """An ABSOLUTE placement: a linear part and a translation.
 
     What a placement's pose reads back as (`SolvedPoses.pose`,
-    `SolvedPoses.placement`). No edit door takes one: a placement is
+    `SolvedPoses.placement`, `PlacedInstance.placement`). No edit door takes one: a placement is
     written as its bundle of mates and values (`Placed`). The
     constructors build a frame from its meaning rather than field by
     field — a linear part is a MATRIX, and that is how a mirror or a

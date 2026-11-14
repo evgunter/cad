@@ -2421,7 +2421,8 @@ that waits for the picture, not yet offered, is judged by the door
 and drawn as the judgement stands it: every copy the scratch solve
 stands elsewhere — the edited one, every copy mated to it, and every
 copy placed from one of those, each read by its body's frame in its
-space (`session::Stood`) — is drawn there, under the display frame of the space it stands in
+space (`pickindex::preview_copies`) — is drawn there if it is a copy
+of one body, under the display frame of the space it stands in
 (`display::PreviewedPlacement`), as the profile editor draws its draft
 in place of the committed loops; the line says it waits and is drawn.
 A waiting draft the door would refuse says the refusal; one that
