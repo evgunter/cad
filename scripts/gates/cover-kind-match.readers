@@ -1,0 +1,73 @@
+# The readers of topo's cover doors (scripts/gates/cover-kind-match.sh): one
+# line per file and enclosing fn, tab-separated: FILE, FN, the count of
+# references, the DIRECTION it reads looseness in (prunes: a looser cover
+# costs work, never an answer; refuses: looser refuses more, never grants
+# wrongly; examines: looser sends more to an exact reading; two-sided: the
+# bound must be the entity's own, either way is a wrong answer; namesake:
+# the token names another item), and the argument for it. A new reader lands
+# by adding its line; a reader that goes drops its line.
+crates/editor-core/src/eval/measure.rs	reach_of	1	refuses	a face's farthest distance from the part origin sizes the mate lever: a bigger cover lengthens it, so a tilt is decided less readily, never a wrong side
+crates/editor-core/src/eval/wire/trace.rs	drawn	1	refuses	a traced face carries its cover for the plane-miss read: a bigger cover is shown to miss less often and hands off to the exact crossing, never a wrong miss
+crates/editor-core/src/names/emit_union.rs	of	1	namesake	the token is a flush record's own edge_cover method, not topo's door: no region is read here
+crates/sweep/src/blend/reach.rs	sheet_clip	2	refuses	a revolve face's cover and nearest distance in the sheet frame bound where the blend band can reach: a bigger cover meters more cells and refuses as uncertified sooner, never prunes a reachable face
+crates/topo/src/boolean/arcs.rs	arcs_along	1	two-sided	the arc's farthest reach from the vertex levers its tangent's tilt: longer rules out an arc the band holds along the tangent, tighter than the arc reads a departing arc as along it
+crates/topo/src/boolean/carrier_pair.rs	face_ball	1	refuses	the face's cover ball sizes the consumed extent the carrier doors lever their tilts over: a bigger ball refuses more, and no cover refuses the pair
+crates/topo/src/boolean/carrier_touch.rs	edge_clear_of_ball	2	prunes	an edge box clear of the touch ball's box is clear at once, any other is decided on its floor: a bigger box costs that floor, and refuses only where the edge has none
+crates/topo/src/boolean/fate.rs	leaving	1	refuses	the edge's reach bounds from its base lever the departure read: a bigger cover lengthens the lever and decides the departure less readily, never a wrong side
+crates/topo/src/boolean/glue.rs	overlapping_pairs	1	prunes	both operands' face boxes feed the glue sweep: a loose box only adds pairs the carrier ladder reads and leaves apart
+crates/topo/src/boolean/glue.rs	section_door	4	refuses	every face's cover is boxed and the two operands' hulls meet within the band as the section's region, a lever: wider lengthens it and decides a tilt less readily
+crates/topo/src/boolean/join.rs	cone_reach	1	refuses	a cone face's reach from the germ levers its plane-cone section reading: a bigger cover lengthens it and refuses more
+crates/topo/src/boolean/join.rs	cone_window	1	refuses	a cone face's cover met with the azimuth window bounds the section's window: a bigger cover widens it, which can only refuse more
+crates/topo/src/boolean/join.rs	face_reach	1	refuses	a face's reach from the germ levers the join's frame decisions: a bigger cover lengthens the lever and refuses more
+crates/topo/src/boolean/join.rs	frame_extent	2	refuses	the plane-torus frame's axial range and reach from the germ size its lever: a bigger cover lengthens it and refuses more
+crates/topo/src/boolean/mod.rs	boolean_reduce_declared_strategy	1	prunes	the held-pierce read's curved face boxes: a face whose box clears the pierce point is not asked, any other is decided on its residual and trim
+crates/topo/src/boolean/mod.rs	witness_span	1	examines	each face's cover's range along the tangent line bounds the witness span: a bigger range admits a pair to the exact line reading and lengthens the metered span, which only refuses more
+crates/topo/src/boolean/ops.rs	ball_may_reach	2	refuses	the approximated-face fallback refuses unless the ball's extent clears the face box: a bigger box refuses a separated pair as CurvedBooleanUnsupported
+crates/topo/src/boolean/ops.rs	face_boundary_meets	1	refuses	a plane face's boundary edge boxes against the section circle's box: a bigger box sends the pair to FallbackExtentUnsupported unless the narrow phase parts it
+crates/topo/src/boolean/ops.rs	face_rows	2	examines	one box per face for the section certificate's pair scan: a loose box sends a separated pair through the classification and lengthens its reach lever
+crates/topo/src/boolean/ops.rs	gate	3	refuses	the cylinder-face arm clears a face box against the ball's extent before refusing by kind: a bigger box refuses an operation whose faces never meet
+crates/topo/src/boolean/ops.rs	overlap_reach	1	refuses	two faces' covers met within the band are the pair's section reach, a lever: wider lengthens it and decides a tilt less readily; narrower could miss the section
+crates/topo/src/boolean/ops.rs	sphere_extent_scan	2	refuses	the sphere ball's box and each section circle's box decide the extent fallback: a bigger box turns a separated pair into a typed refusal
+crates/topo/src/boolean/overlap.rs	half_plane	1	refuses	a piece's reach bounds from the overlap point lever its half-plane side: a bigger cover lengthens the lever and decides the side less readily
+crates/topo/src/boolean/reduce.rs	face_tree	1	prunes	the C10 candidate tree over face boxes: loose is slower work, never a different answer
+crates/topo/src/boolean/reduce.rs	first_unsupported_pair	2	refuses	the operand gate grants on non-overlap of an unsupported face's box: a bigger box refuses an operation unless the narrow phase parts the pair
+crates/topo/src/boolean/reduce.rs	gate_maximal_faces	1	refuses	an edge cover's farthest distance from its start levers the maximal-faces gate: longer reads a near-coplanar pair as undecided, never as one plane
+crates/topo/src/boolean/reduce.rs	sweep_direction	2	prunes	edge boxes in the C10 tree's edge pass: loose is slower work, never a different answer
+crates/topo/src/boolean/ruled_region.rs	ruled_face_region	1	refuses	each boundary edge's cover bounds a ruled face's reach, the lever of its crossings: bigger refuses more, never places a crossing wrongly
+crates/topo/src/boolean/solid_contain.rs	partial_reach	1	refuses	a face's reach from the ray anchor sizes the skip question's lever: a bigger cover lengthens it and refuses more
+crates/topo/src/boolean/solid_contain.rs	selection_reach	1	refuses	each face's reach from the query point sizes the selection ball the ray's skips are levered on: a bigger cover refuses more
+crates/topo/src/census.rs	backstop_apart	1	refuses	the backstop's aimed covers clear a pair on a definitely negative margin against a containing box: over-width costs probes, never a wrong clear
+crates/topo/src/census.rs	build	3	prunes	the pre-filter's face and edge boxes and pass two's curved-edge boxes feed the census trees: a loose box only admits more pairs to the exact sweeps
+crates/topo/src/census.rs	collinear_overlaps	1	prunes	line edges' boxes give the coincident-edge pass its candidates: a loose box hands the parallel screen more pairs, which it parts
+crates/topo/src/census.rs	curved_same_side_pairs	1	refuses	each cylinder face's cover's range along the first's axis is its axial span: a looser span overlaps where the faces are apart and sends the pair to Door 1
+crates/topo/src/census.rs	face_reach_in	1	refuses	the face's cover's box at the census scalar clears instance pairs only on a definitely negative margin: over-width costs probes, never a wrong clear
+crates/topo/src/census.rs	flush_at_rest	1	prunes	a tree over planar, cylinder and sphere face boxes whose overlaps are flush candidates: a loose box only adds candidates, each read exactly
+crates/topo/src/census.rs	tangent_sectors	1	refuses	a face's reach from the touch point levers the tangent sector reading: a bigger cover lengthens it and leaves more pairs unread
+crates/topo/src/census/curved.rs	tangent_on_interior	1	refuses	the edge's reach bounds from the point lever its departure: a bigger cover decides the departure less readily, never a wrong side
+crates/topo/src/census/depth_gap.rs	face_read	1	refuses	each face's cover's distance range from an axis or a centre clears on a depth gap: a looser cover raises the greatest depth and lowers the least, refusing a pair that is apart
+crates/topo/src/census/depth_gap.rs	least_on	2	refuses	a face's nearest distance where its least lies on the boundary: a looser reading lowers the least depth, refusing a pair that is apart
+crates/topo/src/census/in_plane.rs	standing	1	refuses	a curved edge's cover's support must lie definitely off the plane: a looser cover asks more of the edge and refuses a pair that is apart
+crates/topo/src/chart_region.rs	pair_cover	1	refuses	each face's cover read along the planes' normals and the cylinders' axes lengthens the margin and transfer lever: the pair declines or escalates more, never accepts
+crates/topo/src/chord_join.rs	section_reach	4	refuses	the section table's plane-cylinder, plane-cone and plane-torus arms read the face's axial range and reach: a bigger cover lengthens each lever and refuses more
+crates/topo/src/face_boxes.rs	of	1	prunes	every face's box in one tree for the blend's reach meter: loose only adds candidates and cells until the per-face cell budget refuses as uncertified
+crates/topo/src/face_reach.rs	face_extent	1	refuses	a face's reach from a vertex is the split's sector-row lever: a bigger cover lengthens it, so a reading lands in band more readily and refuses more
+crates/topo/src/link.rs	cleared	1	refuses	a face's far reach from the link point levers the link fan's reading beside the radius: a bigger cover lengthens it and refuses more
+crates/topo/src/pieces.rs	of	4	prunes	the piece sort's screen over the result's face boxes: two shells whose boxes clear are never probed against each other; a bigger box costs a probe
+crates/topo/src/pieces.rs	pieces_of	2	prunes	the boolean's exit builds the face-box closure the screen reads: a bigger box costs a probe, never an answer
+crates/topo/src/pieces.rs	sort_into_pieces	2	prunes	the screen's face boxes for each shell: a bigger box costs a point-in-solid probe, never an answer
+crates/topo/src/separating.rs	apart	1	refuses	the narrow phase reads each face's cover's support along a direction that turns with the pair: where it grants, a looser cover closes a gap that parts the pair
+crates/topo/src/separating.rs	apart_along	3	refuses	each face's cover's support along a candidate axis: a looser cover closes a gap that parts the pair, so it refuses a grant
+crates/topo/src/separating.rs	apart_by	2	refuses	the narrow phase's axes between two anchors, read on each face's cover: a looser cover closes a gap that parts the pair
+crates/topo/src/separating.rs	cover	3	refuses	an item's cover, face or edge, that the narrow phase reads its supports off: looser closes a gap that parts the pair
+crates/topo/src/separating.rs	span_by	2	refuses	a face's cover's span along an axis: looser overlaps where the items are apart, refusing the grant
+crates/topo/src/separating.rs	support_along	1	refuses	a face's cover's support along a direction: looser reaches further and closes a separating gap, refusing the grant
+crates/topo/src/separation.rs	of	2	refuses	both separation certificates grant on box non-overlap: a loose box withholds a certificate it should have given, never manufactures one
+crates/topo/src/session_box.rs	body_reach	1	refuses	each edge's cover along the world axes bounds the body's largest coordinate from below: exact on lines and circle arcs, so the box refuses only on a true lower bound
+crates/topo/src/shell.rs	edge_box_in	1	refuses	each edge's cover box in the face's plane builds the wall-clearance footprint: a bigger footprint sends a clearing pair to the wall reading, which refuses
+crates/topo/src/shell.rs	moved_walls	1	prunes	each wall's box from its edges' covers: walls whose boxes are apart are never read for a crossing; a bigger box costs that reading and lengthens its lever
+crates/topo/src/shell/tests/footprint_fuzz.rs	every_arc_lies_in_its_footprint_box	1	examines	a fuzz row's oracle reads the edge's cover over a span to check the footprint box holds the arc: it decides nothing
+crates/topo/src/splitting/classify.rs	edge_clears	1	refuses	an unarmed edge's cover in the plane's frame: a looser box reaches the plane and refuses the cut by kind
+crates/topo/src/splitting/containment.rs	arc_distance_floor	1	refuses	the arc's cover's nearest distance is the floor the cell door and touch gate clear on: a looser cover lowers the floor and clears less, never a wrong clear
+crates/topo/src/splitting/containment.rs	step_cover	1	refuses	each edge's cover folded into a ball about the point sizes the point-in-loop lever: bigger lands a decision in band more readily and refuses more
+crates/topo/src/validate.rs	ring_pairs	1	prunes	two rings of one face whose hulled edge boxes clear are never handed to the contact arms: a bigger box costs a pair the exact arms
+crates/topo/src/validate.rs	side	1	refuses	a conic or spiric edge's reach bounds from its start lever its departure: a bigger cover decides the departure less readily, never a wrong side

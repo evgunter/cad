@@ -291,6 +291,9 @@ jobs:
           rc=0
           if [ -n "$GATE_BASE" ]; then git fetch -q --no-tags --depth=1 origin "$GATE_BASE"; fi
           scripts/run-gates.sh || rc=1
+          # Its matcher is a reader of shapes, widened by review; its
+          # self-test costs ~15 s, so the PR holds it as well as the nightly.
+          scripts/gates/cover-kind-match.sh --selftest || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
       - uses: dtolnay/rust-toolchain@stable
