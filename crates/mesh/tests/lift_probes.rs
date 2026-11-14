@@ -9,6 +9,26 @@
 //! it. A JOINT of the chain is the step from one row's last point to the
 //! next row's first; the CLOSURE joint is the step from the last row
 //! back to the first.
+//!
+//! What is pinned, as measured:
+//!
+//! - every loop of a curved face a public door built has a lift, and it
+//!   closes in the chart: it returns to its start, along the pole or
+//!   apex row where it passes one;
+//! - a loop ends a whole `u` period from its start where it is a whole
+//!   turn about the axis with no seam (a rim-only face, both loops of a
+//!   seamless band), where it holds a pole inside it, and where it runs
+//!   through a cone's apex mid-edge; a loop through a sphere's pole
+//!   mid-edge ends on the involution of its start. Of those, only the
+//!   seamless cylinder and cone bands finish;
+//! - a ring's lift starts on its own first image: 23 of the 24 rings
+//!   measured sit inside their outer loop's polygon as stored, and one,
+//!   a whole projected circle on a ball's half band, sits one `u` period
+//!   below it;
+//! - the spiric-bounded torus wall's outer loop is a simple polygon,
+//!   wound with its face;
+//! - at a cone's apex the lift runs along the row `v = 0` through the
+//!   face's turn, as it does along a sphere's pole row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -1281,7 +1301,7 @@ fn the_unminted_witnesses_store_no_lift_and_mint_one() {
         })
         .collect();
     let facts = census(&minted, SAMPLES);
-    let read: Vec<(&str, Vec<(String, String)>, Vec<String>)> = minted
+    let read: Vec<_> = minted
         .iter()
         .map(|(name, body)| {
             let own: Vec<LoopFact> = loops_of(name, body, SAMPLES);
@@ -1392,7 +1412,9 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
 /// one-circle cuts: a sphere cap, a cone's apex cap, a one-rim cylinder
 /// face, a torus cut on its equator) winds `(±1, 0)`: its chain ends one
 /// `u` period from its start, `closes_in_chart` is false, and no edge of
-/// the face is a seam.
+/// the face is a seam. None of the four finishes (`topo::finish`; what it
+/// finds is pinned), and `meridian_free_face.rs` has what the mesh
+/// answers on them.
 ///
 /// **A seamless band has no loop that closes.** A cylinder, a cone
 /// frustum and a torus band between two whole-turn rims, through the
@@ -1406,8 +1428,37 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
 /// guard is ahead of the walk.
 #[test]
 fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
-    let cuts = census(&one_circle_cuts(), SAMPLES);
+    let cut = one_circle_cuts();
+    let cuts = census(&cut, SAMPLES);
     assert_eq!(cuts.len(), 6, "{}", table(&cuts));
+    let unfinished: Vec<(&str, Vec<String>)> = cut
+        .iter()
+        .map(|(name, body)| (name.as_str(), findings(body)))
+        .collect();
+    let found = |names: &[&str]| names.iter().map(|n| (*n).to_owned()).collect::<Vec<_>>();
+    let want = vec![
+        (
+            "two sphere caps on one rim",
+            found(&["ChartSingularityNotAVertex", "JoinableVertexAtRest"]),
+        ),
+        (
+            "a cone apex cap and its disc",
+            found(&[
+                "CurvedSenseInverted",
+                "JoinableVertexAtRest",
+                "LoopRoleInverted",
+            ]),
+        ),
+        (
+            "a one-rim cylinder face and its disc",
+            found(&["JoinableVertexAtRest", "LoopRoleInverted"]),
+        ),
+        (
+            "a torus cut on its outer equator",
+            found(&["EssentialCyclesUnpaired", "JoinableVertexAtRest"]),
+        ),
+    ];
+    assert_eq!(unfinished, want, "what finish finds on each one-circle cut");
     let bands: Vec<Named> = vec![
         ("the seamless pipe".to_owned(), seamless_pipe()),
         ("the seamless frustum".to_owned(), seamless_frustum()),
@@ -1452,7 +1503,7 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
             pair[0].body
         );
     }
-    let read: Vec<(&str, (Vec<String>, [bool; 3], Vec<String>))> = bands
+    let read: Vec<_> = bands
         .iter()
         .map(|(name, body)| (name.as_str(), verdict(body)))
         .collect();
