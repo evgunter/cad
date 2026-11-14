@@ -786,7 +786,7 @@ def main():
     for path in sorted(files):
         for kind, n, fn in sites(path, files[path], variants, doors):
             if kind == 'reader':
-                key = (path,) + fn
+                key = (path, *fn)
                 readers[key] = readers.get(key, 0) + 1
                 fn = ' '.join(fn)
             else:
