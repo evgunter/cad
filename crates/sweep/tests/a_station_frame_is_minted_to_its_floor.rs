@@ -1,9 +1,9 @@
 //! **A path sweep's station frame is minted at `Interval` to its floor**:
 //! each station's tangent is the path's derivative read through its
 //! hodograph (`crates/sweep/README.md` `[sweep.frame]`), so the frame a
-//! lane mints at a point path is a few tens of ulps wide, flat along the
-//! path. The derivative recursion's own enclosure is about 20 times
-//! wider; a frame minted from it reaches 2.6e-13 on these paths.
+//! lane mints at a point path is about 3.3e-14 wide (75–150 ulps of its
+//! order-1 coordinates), flat along the path. A frame minted from the
+//! derivative recursion's own enclosure reaches 2.6e-13 on these paths.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::print_stdout)]
 
