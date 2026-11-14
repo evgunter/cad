@@ -79,7 +79,10 @@ is checked against what was meant.
   is a value they can name, share and vary ([variables]). What the
   kernel needs beyond that — a 3-D carrier, a pcurve, a profile's
   loop — is a derived cache of a description of what the thing *is*,
-  certified against it ([edges], [recipe.forms]). An imported file has
+  certified against it ([edges], [recipe.forms]). A cache is computed
+  from the description, never from another cache: a swept face's plane
+  is the sketch plane moved by the sweep, and the vertices placed with
+  it are certified against it, never it fitted to them. An imported file has
   no variables, so adoption recovers descriptions and never intent
   ([import]).
 - **Intent is stated one way per kind of statement.**
@@ -1066,19 +1069,6 @@ EdgeDescription =
 - **What is true by construction is not measured.** A structural
   selector's curve is known in advance (the selector's question, above),
   so it owes no transversality margin.
-- **What a construction knows, it states.** A direction or a frame a
-  carrier stores (a plane's normal, an axis, a reference direction, a
-  line's director) is built from the inputs of the construction that
-  made it and moved only by that construction's rigid motions. It is
-  never fitted again to the points the construction placed: the points
-  are certified against the carrier, never the carrier against the
-  points. Over a parameter box a fit reads the box's width as tilt or
-  as length the geometry does not have, and a claim is built from its
-  own inputs ([scalars]). A reader is held to the same: what it built a
-  ray or a chart end from, it carries, and does not recompute from what
-  it built with it. A direction with no construction behind it (a
-  file's, the two points a person gave) is decided once, where it
-  enters.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,

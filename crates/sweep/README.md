@@ -920,7 +920,8 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
 - **A sweep's carriers come from its frames** (`docs/DESIGN.md`
-  [edges], what a construction knows). A cap is its station's frame:
+  [intent.stored], a cache is computed from the description; [scalars],
+  a frame is built from its own inputs). A cap is its station's frame:
   its normal is ± the frame's normal, signed by the profile's winding,
   its origin is the frame's origin moved by the sweep, and its
   reference direction is the frame's first axis. A wall, a rim and a
