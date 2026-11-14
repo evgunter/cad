@@ -826,3 +826,164 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         "bracket left on B"
     );
 }
+
+/// B's top cap, picked on B itself.
+fn top_of(body: RecipeNodeId) -> viewer::session::FaceSelection {
+    viewer::session::FaceSelection {
+        name: pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: body,
+            path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+        },
+        node: body,
+        body: 0,
+    }
+}
+
+/// **A body that reads a placed body only through a plane offers
+/// nothing for it** (orchestrator, within Ev's PR 6915 rule: built on a
+/// body means reads it as a body): `bracket = B` placed twice, a mirror
+/// of a post `X` in B's space whose plane is B's top cap, picked on B,
+/// offers nothing (nor does `X ∪ mirror(X)`, the body the gesture
+/// draws) — it reads B as a plane, not as a body.
+///
+/// *Breaks if* the offer's walk follows a mirror's plane seat.
+#[test]
+fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let raw = common::xy_box_in(&mut session, [0.008, 0.008, 0.004]);
+    let post = common::moved_to(&mut session, raw, [0.05, 0.0, 0.0]);
+    let home = session
+        .committed_doc()
+        .node_space(body)
+        .expect("B is in a space");
+    common::into_space(&mut session, post, home);
+    session.pump();
+    let out = session.perform(SessionOp::AddMirror {
+        body: post.into(),
+        plane: top_of(body),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let picture = viewer::world::Picture::of(doc);
+    // The gesture writes `X ∪ mirror(X)`; the union is what is drawn.
+    let mirror = *out
+        .minted
+        .iter()
+        .find(|&&n| picture.drawn.iter().any(|drawn| drawn.of_node(n)))
+        .expect("the mirror's body is drawn");
+    assert_eq!(
+        viewer::world::repoint_offer(doc, mirror, tol),
+        None,
+        "a mirror reading B only as its plane offers nothing for bracket"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, mirror, tol),
+        [],
+        "and says nothing"
+    );
+}
+
+/// **A separate part sketched on B's face offers nothing for B's
+/// placements** (orchestrator, within Ev's PR 6915 rule): `bracket = B`
+/// (a cylinder, whose wall a drawn frame traces) placed twice, a
+/// profile drawn on B's top cap and extruded on its own
+/// (no union with B) is another part: the extrude reads its profile,
+/// which reads B's face as a frame, not B as a body.
+///
+/// *Breaks if* the offer's walk follows an extrude's profile seat or a
+/// profile's frame.
+#[test]
+fn a_standalone_extrude_sketched_on_bs_face_offers_nothing_for_bracket() {
+    let tol = Tol::witness();
+    // B a disc's extrude (a frame traces a wall with an axis), placed
+    // twice through `bracket`.
+    let mut session = common::inline_without_door(Doc::empty_derived("sketched-part", tol), tol);
+    let disc = landed(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.01)],
+        },
+    );
+    let body = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: disc,
+            distance: common::len(0.01),
+        },
+    );
+    for name in [None, Some("bracket")] {
+        let op = place_op(session.committed_doc(), body.into(), name);
+        landed(&mut session, op);
+    }
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let wall = {
+        let ev = session.evaluation().expect("landed");
+        pncad::select::all_faces(ev, body)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(ev, body, name)
+                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
+            })
+            .expect("a wall")
+    };
+    let point =
+        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
+    let profile = landed(
+        &mut session,
+        SessionOp::AddDrawnProfile {
+            plane: top_of(body),
+            traced: vec![viewer::session::FaceSelection {
+                name: wall,
+                node: body,
+                body: 0,
+            }],
+            chains: vec![
+                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
+                    .line_to(point(0.002, -0.002))
+                    .line_to(point(0.002, 0.002))
+                    .line_to(point(-0.002, 0.002))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+    );
+    let extrude = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.003),
+        },
+    );
+    let doc = session.committed_doc();
+    assert!(
+        matches!(doc.node(profile), Some(pncad::document::Node::Profile(p)) if p.on.is_some()),
+        "the profile is drawn on B's face"
+    );
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(extrude)),
+        "the extrude is drawn"
+    );
+    let sources = viewer::world::repoint_offer(doc, extrude, tol)
+        .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>());
+    assert!(
+        !sources.iter().flatten().any(|&source| source == bracket),
+        "{sources:?}"
+    );
+    assert_eq!(
+        sources, None,
+        "an extrude reading B only through its profile's frame offers nothing"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, extrude, tol),
+        [],
+        "and says nothing"
+    );
+}
