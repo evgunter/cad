@@ -5,7 +5,8 @@
 //!
 //! - Every wall measures its closed form above ε = 1e-12. At ε = 1e-12
 //!   each that does not is pinned to the refusal it measures, typed by
-//!   its predicate and citing the row that holds it ([`PINS`]).
+//!   its predicate and citing the row that holds it ([`PINS`]); the
+//!   200-arc walls are a row of their own, for their cost.
 //! - A hand-built wall whose rim does not turn as its ends say refuses
 //!   before the whole-turn decision is asked, typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -379,12 +380,13 @@ const PINS: &[(&str, &str, Pin)] = &[
     ),
 ];
 
-/// **Each wall measures its closed form, or at ε = 1e-12 refuses as
-/// [`PINS`] records**, with every label checked, so a wall that starts to
+/// The ladder's walls of `arcs` arcs a rim (and, with `bands`, the
+/// whole-rim cylinder bands), each measuring its closed form or at
+/// ε = 1e-12 refusing as [`PINS`] records; then every pin whose label
+/// `pinned` selects names a wall it read, so a wall that starts to
 /// measure turns its pin red as surely as one that starts to refuse.
-#[test]
-fn far_tilted_walls_of_many_edges_measure_or_refuse_as_pinned() {
-    fn rows<T: Decide + Mid>(scalar: &str, seen: &mut Vec<String>) {
+fn ladder(arcs: &[usize], bands: bool, pinned: impl Fn(&str) -> bool) {
+    fn rows<T: Decide + Mid>(arcs: &[usize], bands: bool, scalar: &str, seen: &mut Vec<String>) {
         let mut check = |got: Result<f64, PropsError>, want: f64, what: String| {
             let pin = (eps() <= 1e-12)
                 .then(|| PINS.iter().find(|(w, s, _)| *w == what && *s == scalar))
@@ -413,13 +415,16 @@ fn far_tilted_walls_of_many_edges_measure_or_refuse_as_pinned() {
         };
         for r in [50.0, 213.0, 410.0, 990.0] {
             let (span, height) = (1.0, 0.7);
-            for n in [1, 6, 40, 200] {
+            for &n in arcs {
                 let l = cylinder_patch::<T>(r, span, height, n);
                 check(
                     measure(&cylinder::<T>(r), &[&l]),
                     r * span * height,
                     format!("cylinder patch r {r}, {n} arcs"),
                 );
+            }
+            if !bands {
+                continue;
             }
             let (lo, hi) = (
                 [rim::<T>(r, 0.0, 0.0, TAU)],
@@ -434,7 +439,7 @@ fn far_tilted_walls_of_many_edges_measure_or_refuse_as_pinned() {
         for major in [100.0, 300.0, 600.0, 990.0] {
             let minor = 2.5;
             let (v0, v1) = (0.2_f64, 0.7_f64);
-            for n in [1, 6, 40, 200] {
+            for &n in arcs {
                 let l = torus_patch::<T>(major, minor, 1.0, (v0, v1), n);
                 check(
                     measure(&torus::<T>(major, minor), &[&l]),
@@ -445,14 +450,28 @@ fn far_tilted_walls_of_many_edges_measure_or_refuse_as_pinned() {
         }
     }
     let mut seen = Vec::new();
-    rows::<f64>("f64", &mut seen);
-    rows::<geom_core::Interval>("interval", &mut seen);
-    for (what, scalar, _) in PINS {
+    rows::<f64>(arcs, bands, "f64", &mut seen);
+    rows::<geom_core::Interval>(arcs, bands, "interval", &mut seen);
+    for (what, scalar, _) in PINS.iter().filter(|(what, _, _)| pinned(what)) {
         assert!(
             seen.contains(&format!("{what} at {scalar}")),
             "the pin {what} at {scalar} names no wall"
         );
     }
+}
+
+/// **The ladder's walls of 1, 6 and 40 arcs a rim, and its bands**
+/// ([`ladder`]).
+#[test]
+fn far_tilted_walls_of_a_few_arcs_measure_or_refuse_as_pinned() {
+    ladder(&[1, 6, 40], true, |what| !what.ends_with("200 arcs"));
+}
+
+/// **The ladder's walls of 200 arcs a rim** ([`ladder`]), apart for
+/// their cost.
+#[test]
+fn far_tilted_walls_of_200_arcs_measure_or_refuse_as_pinned() {
+    ladder(&[200], false, |what| what.ends_with("200 arcs"));
 }
 
 /// **A hand-built far wall whose rim does not turn as its ends say

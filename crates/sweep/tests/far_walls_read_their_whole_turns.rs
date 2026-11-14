@@ -95,18 +95,19 @@ fn a_tilted_hollow_tube_measures() {
         if major > 900.0 && tol.eps() <= 1e-12 {
             let pinned = match &got {
                 Err(TubeError::Revolve(RevolveError::NotFinished { findings })) => {
-                    findings.as_slice().iter().all(|f| {
-                        matches!(
-                            f,
-                            topo::ValidationError::VolumeUncomputable {
-                                source: topo::MassPropsError::Face {
-                                    source: PropsError::Escalated { cause, .. },
+                    !findings.as_slice().is_empty()
+                        && findings.as_slice().iter().all(|f| {
+                            matches!(
+                                f,
+                                topo::ValidationError::VolumeUncomputable {
+                                    source: topo::MassPropsError::Face {
+                                        source: PropsError::Escalated { cause, .. },
+                                        ..
+                                    },
                                     ..
-                                },
-                                ..
-                            } if cause.predicate == Some("props_chart_loop_whole")
-                        )
-                    })
+                                } if cause.predicate == Some("props_chart_loop_whole")
+                            )
+                        })
                 }
                 _ => false,
             };

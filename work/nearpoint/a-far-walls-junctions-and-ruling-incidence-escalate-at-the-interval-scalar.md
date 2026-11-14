@@ -31,9 +31,9 @@ The setup is the same as that row's: hand-built legal walls through
   `[0, 1.02e-12]`.
 
 At ε = 1e-9 and 1e-6 every one of these walls measures. Each margin is
-about 1e-15 of the distance of the points it reads from the origin:
-it is the width of two points evaluated hundreds of metres out,
-compared as if they could disagree. The junction gap compares two
+about 1e-15 of the distance of the points it reads from the origin.
+Inferred from that ratio, not traced: it is the width of two points
+evaluated hundreds of metres out, compared as if they could disagree. The junction gap compares two
 different carriers' ends, so it is a real comparison, but its slack is
 `3ε` at any distance.
 

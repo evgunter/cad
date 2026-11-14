@@ -51,8 +51,12 @@ The 990 and 1100 arms are pinned in
 
 **What it is made of.** A carried arc's miss is the principal angle
 from its start, turned by its own turn, to its end, read about its
-centre. At the interval scalar it is charged about twice the width of
-its two ends' enclosures, whatever its radius:
+centre. Inferred, not measured: at the interval scalar it is charged
+about twice the width of its two ends' enclosures, whatever its radius.
+That is arithmetic from the per-arc charge printed below; no end's
+enclosure was printed on its own.
+
+The measured part:
 
 - On the tube at 990, the own turn is a point (±τ_f64). The width is
   all in the own-frame arms: cross ±2.1e-9 m² over dot 9.85e5 m², so
@@ -96,3 +100,41 @@ Whoever takes this row decides between two readings:
    now;
 2. it is true by construction, its pairing with its edge stated
    structurally instead.
+
+## The cone's carried rims and generators (from the review of PR 6946)
+
+PR 6946 routed the cone's rims through the same `EdgeTurn::carried`.
+The review's mutants on its head (`boxfinish/review-edge-turns`,
+`REVIEW-edge-turns-mutants-34c263a6.patch`) leave three cone mutants
+alive through every row, at both scalars and both ε:
+
+1. the cone rim's `carried` replaced by `exact`;
+2. the cone rim's lever set to zero;
+3. a cone generator's short turn replaced by a nominal zero
+   (`cone_loop_winding`).
+
+**Mutants 1 and 2** are this row's structural finding on the cone.
+The cone forms a rim's own turn in place, from the edge's own span, so
+there is no seam a test can desynchronise. A door's rim misses its
+ends by its admitted tilt squared, so no reachable loop separates
+`carried` from `exact`, or a lever from none.
+
+**Mutant 3** has no reachable twin of the cylinder's many-rulings row.
+That row was tried and refused `props_cone_loop_vertex`:
+
+- `require_cone_loop_vertices_distinct` needs every pair of
+  non-adjacent vertices more than `Kε` apart;
+- a generator's near end may sit at most `ε` off the line through the
+  apex and its far end, so it turns the axis by at most about `ε/ρ` at
+  its near end's radius `ρ`.
+
+Inferred from those two bounds: the near ends must spread along the
+slant, so the generators' total turn grows only like
+`(2/(K·sin α))·ln(ρ_max/ρ_min)`. Reaching the half turn at which a
+nominal zero would change a loop's count needs on the order of
+`ρ_max/(Kε)` edges, about 1e8 on any cone in the session box. A
+generator's turn below that is invisible to the whole-turn decision.
+
+Whoever takes this row decides whether those three readings are pinned
+some other way (a unit row at the constructor) or are true by
+construction and stated so.

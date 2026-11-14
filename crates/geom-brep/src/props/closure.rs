@@ -37,7 +37,6 @@ use geom_core::interval::{Interval, certified_hi};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt, tau_bracket};
-use super::curved::{about_axis, turn_about, turn_arms};
 use super::{PropsCheck, PropsError};
 use crate::dihedral::decide;
 
@@ -280,6 +279,36 @@ impl<T: Real> EdgeTurn<T> {
             ..Self::new(own, turn_arms(axis, a - centre, b - centre), lever)
         }
     }
+}
+
+/// How much farther round the unit `axis` (through `origin`) the point
+/// `p` sits than round a circle's own centre `center`: the turn from
+/// `p − center` to `p − origin`. A stored turn about the circle's centre
+/// plus its value at the end less its value at the start is the turn
+/// about the axis. It is read clear of the branch cut while the axis
+/// passes inside the circle, less than a quarter turn from any point of
+/// it: decided for the face by [`require_axis_inside`].
+pub(super) fn about_axis<T: Real>(
+    axis: Vec3<T>,
+    center: Point3<T>,
+    origin: Point3<T>,
+    p: Point3<T>,
+) -> T {
+    turn_about(axis, p - center, p - origin)
+}
+
+/// The signed angle about the unit `axis` from the offset `a` to the
+/// offset `b`, both from a point of the axis, the short way round.
+pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let (dot, cross) = turn_arms(axis, a, b);
+    cross.atan2(dot)
+}
+
+/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
+/// the unit `axis` of the offsets `a` and `b` less their parts along it.
+pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
+    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    (a.dot(b), a.cross(b).dot(axis))
 }
 
 /// One closed-form loop: its edges' turns and its joints, in loop order.

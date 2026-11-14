@@ -33,9 +33,10 @@ citing this row are in `crates/geom-brep/tests/far_walls_of_many_arcs.rs`.
 
 At ε = 1e-9 and 1e-6 every one of them measures.
 
-**What it is made of:** each arc's `f64` rounding, about 1e-16 rad,
-times the lever, summed over the loop's arcs against a slack of `3ε`
-once for the loop. The sum grows with the count of arcs and with the
+**What it is made of** (inferred, not measured per arc): each arc's
+`f64` rounding, estimated at about 1e-16 rad, times the lever, summed
+over the loop's arcs against a slack of `3ε` once for the loop. The
+margins grow with the arc count and the radius, as that sum would. The sum grows with the count of arcs and with the
 radius; the slack does not. A definite refusal of a legal body is the
 worse half: tier 3 calls such a body no boundary, rather than reporting
 that it cannot decide.

@@ -15,7 +15,7 @@ crates/geom-brep/src/pcurve_cache.rs	chart_box	2	chart
 crates/geom-brep/src/pcurve_cache/projected.rs	atan2_range	4	chart
 crates/geom-brep/src/pcurve_cache/projected.rs	window	4	chart
 crates/geom-brep/src/props/closure.rs	new	1	turn
-crates/geom-brep/src/props/curved.rs	turn_about	1	turn
+crates/geom-brep/src/props/closure.rs	turn_about	1	turn
 crates/geom-brep/src/props/curved.rs	solid_angle	2	chart
 crates/geom-brep/src/props/curved.rs	triangle_solid_angle	1	turn
 crates/geom-brep/src/props/curved.rs	sphere_loop	1	turn

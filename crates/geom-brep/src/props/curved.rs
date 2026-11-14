@@ -33,7 +33,7 @@ use geom_core::{
     RigidMotion, Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
-use super::closure::{self, ChartLoop, EdgeTurn, Joint};
+use super::closure::{self, ChartLoop, EdgeTurn, Joint, turn_about};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
@@ -1505,36 +1505,6 @@ fn cylinder_windings<T: Decide>(
     closure::closed_form_windings(&chart_loops, band)
 }
 
-/// How much farther round the unit `axis` (through `origin`) the point
-/// `p` sits than round a circle's own centre `center`: the turn from
-/// `p − center` to `p − origin`. A stored turn about the circle's centre
-/// plus its value at the end less its value at the start is the turn
-/// about the axis. It is read clear of the branch cut while the axis
-/// passes inside the circle, less than a quarter turn from any point of
-/// it: decided for the face by [`closure::require_axis_inside`].
-pub(super) fn about_axis<T: Real>(
-    axis: Vec3<T>,
-    center: Point3<T>,
-    origin: Point3<T>,
-    p: Point3<T>,
-) -> T {
-    turn_about(axis, p - center, p - origin)
-}
-
-/// The signed angle about the unit `axis` from the offset `a` to the
-/// offset `b`, both from a point of the axis, the short way round.
-pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
-    let (dot, cross) = turn_arms(axis, a, b);
-    cross.atan2(dot)
-}
-
-/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
-/// the unit `axis` of the offsets `a` and `b` less their parts along it.
-pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
-    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
-    (a.dot(b), a.cross(b).dot(axis))
-}
-
 /// A cylinder face's holes: each ring that does not wind the cylinder
 /// ([`cylinder_windings`]), as its chart area in m² (`R·A`) and
 /// boundary length. A ring that winds it is a band's rim, whose chart
@@ -2909,7 +2879,7 @@ struct ConeWinding<T: Real> {
 ///   its own centre, in the sense its axis makes with the cone's
 ///   (`props_cone_arc_sense`): it turns through its stored span, a whole
 ///   turn or more included, carried to the axis at each end
-///   ([`about_axis`]: its centre is within the band of the axis and its
+///   ([`closure::about_axis`]: its centre is within the band of the axis and its
 ///   ends are decided off it, so the axis passes inside it);
 /// - an ellipse on a cone is a plane section that meets every generator
 ///   of its nappe once, so its azimuth is monotone along it, in that
@@ -5535,8 +5505,8 @@ fn torus_chart_loop<T: Decide>(
         let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
         (xa * xb + ya * yb, xa * yb - ya * xb)
     };
-    // The short turn on a pair of arms.
-    let short = |(dot, cross): (T, T)| cross.atan2(dot);
+    // The principal angle on a pair of arms.
+    let principal = |(dot, cross): (T, T)| cross.atan2(dot);
     // How much farther round the tube a point sits about the core circle
     // than about a meridian's own centre: the turn, in the meridian's
     // plane, from `d` (the point less the meridian's centre) to `w` (the
@@ -5578,7 +5548,7 @@ fn torus_chart_loop<T: Decide>(
                 closure::require_axis_inside(r_c, band)?;
                 [
                     EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
-                    EdgeTurn::exact(short(tube), minor),
+                    EdgeTurn::exact(principal(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
@@ -5627,7 +5597,7 @@ fn torus_chart_loop<T: Decide>(
         .map(|((e, next), piece)| {
             let (pa, pb) = (e.traversal_ends().1, next.traversal_ends().0);
             let (a, b) = (pa - center, pb - center);
-            let tube = (short(tube_arms(a, b)), minor);
+            let tube = (principal(tube_arms(a, b)), minor);
             match piece.apex_after {
                 // The apex junction has no azimuth gap to read. The loop's
                 // turns about the axis need a positive meter there (one at
