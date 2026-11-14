@@ -271,3 +271,10 @@ Newest entries at the bottom; the tail is the program's live status.
   - CHROME's `the-front-probe-for-review-is-dead-without-the-app-feature` (P4).
 
 - 2026-11-14 — **PR 6919 merged** (three P3 rows closed). Fix pass 1, which answered the full review, was accepted on the orchestrator's read. The hosted change filter ran only `test (app)`, so the changed `node_labels` and `placement_target` rows passed locally only (the lane's run). I withdrew my "open on the loaded bundle" ruling on `a-pick-opening-the-edit-door-starts-a-mate-row`, because the trial broke 51 rows and left the loaded-mate case open. That row is a design fork again. `a-refusal-naming-a-value-slot-drops-its-axis` is re-costed to M.
+
+- 2026-11-14 — **PR 6917 merged** (the re-point offer reaches any depth and states a fact; the row is closed). Ev answered the `[ev]` follow-up on 6917 ("yes this sounds good"), read as the recommendation: "built on" means reads it as a body, and "built on a copy" narrows to match. That reading is stated at the top of the PR. Fork row 266 records it. The review history:
+  - a single full review: APPROVE-WITH-FIXES, with a MAJOR (my unasked narrowing of a ratified clause) taken to Ev;
+  - fix passes 2 and 3;
+  - the viewer slow set run at the head: 3 failures, all also failing on main (the rook story, two `door_at_rest` rows).
+
+  On the fork-log numbering: row number 266 is also used by another program's row on main. Both rows are kept, as with the earlier 260 duplicates.
