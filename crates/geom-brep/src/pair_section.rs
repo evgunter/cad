@@ -3196,6 +3196,39 @@ pub enum SiteReading<T: Real> {
     OnArc(SiteFoot<T>),
 }
 
+/// **A pick of one branch of a face pair's section**: which loop,
+/// component or line a site rides. It selects and holds no geometry:
+/// the branch itself is a [`CarriedComponent`], or the loop or line the
+/// reader's own reading of the pair returns.
+///
+/// It is decided once, at the site, and every reader of that site
+/// selects by the value rather than deciding again. So a reader selects
+/// with the reading the pick was made with: the same carried section,
+/// the same margin, or the same list of lines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SectionPick {
+    /// Nothing to choose: the section is one loop, loops that one frame
+    /// serves, or one line; or the site runs along an edge and rides
+    /// that edge's own curve.
+    Only,
+    /// Of a section of two loops told apart by a signed margin read at
+    /// a point of the section (a plane cutting a torus in two circles
+    /// or two ovals): the loop on which that margin is positive.
+    Positive,
+    /// The loop on which it is negative.
+    Negative,
+    /// The component with this index in [`CarriedSection::components`]:
+    /// the one the site has its foot on ([`SiteFoot::component`]). At a
+    /// node, which is on several, the arc whose end the site was read
+    /// from.
+    Component(usize),
+    /// Of a section that is two lines through one point (a plane
+    /// through a cone's apex): the line with this index, `0` or `1`,
+    /// in the order the pair's reading lists its two lines. The site
+    /// lies on that line, or at the common point runs along it.
+    Line(usize),
+}
+
 /// **One end of a component's span**: its first parameter or its last
 /// ([`NodeEnds`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

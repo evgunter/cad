@@ -515,3 +515,8 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   Every lane stopped on the weekly usage limit at about 04:50 and resumed after the reset.
   - Filed: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4), `a-branch-picks-its-loop-in-two-matches` (P2).
   - (ONEDOOR orchestrator)
+- 2026-11-14 — **PR [#6929](https://github.com/evgunter/cad/pull/6929) (the section branch to geom-brep as `SectionPick`) accepted.**
+  - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, so no R2.
+  - The fix pass took every item and folded census's `spiric_cap` twin.
+  - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
+  - (ONEDOOR orchestrator)
