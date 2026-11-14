@@ -295,15 +295,12 @@ fn two_world_copies_in_a_product(
 /// **Whether the pane says `node` is on the copy `copy` of `body`**, with
 /// the way back to `body` ([`viewer::frame::placement_offers`]).
 fn says_on_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: RecipeNodeId) -> bool {
-    match viewer::frame::placement_offers(doc, node, pncad::geom_core::Tol::witness()) {
-        (Some(text), offers) => {
-            text.contains("placed copy")
-                && offers
-                    .iter()
-                    .any(|(_, op)| *op == SessionOp::Select(Selection::Node(body)))
-        }
-        (None, _) => false,
-    }
+    viewer::frame::placement_offers(doc, node, pncad::geom_core::Tol::witness())
+        .iter()
+        .any(|offer| {
+            offer.said.contains("placed copy")
+                && offer.op == SessionOp::Select(Selection::Node(body))
+        })
 }
 
 /// **Every feature gesture picked on the first copy of `make`'s
@@ -457,29 +454,34 @@ fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
     );
     let offer = viewer::world::repoint_offer(&after, fillet, pncad::geom_core::Tol::witness())
         .expect("the fillet offers");
-    assert_eq!(offer.body, shared, "the body the source reads");
     assert_eq!(
         offer.rows,
         [viewer::world::RepointRow {
+            body: shared,
             source: bracket,
             placements: vec![first, second],
         }],
         "one row, the shared source and both its placements"
     );
-    let (said, offers) =
-        viewer::frame::placement_offers(&after, fillet, pncad::geom_core::Tol::witness());
-    assert_eq!(said, None, "a body picked as itself is on no copy");
+    let offers = viewer::frame::placement_offers(&after, fillet, pncad::geom_core::Tol::witness());
     let repoint = SessionOp::RepointPlacements {
         source: bracket,
         onto: fillet.into(),
     };
-    let [(label, op)] = &offers[..] else {
+    let [offer] = &offers[..] else {
         panic!("one offer: {offers:?}")
     };
-    assert_eq!(*op, repoint, "the offer is the redefinition");
+    assert_eq!(offer.op, repoint, "the offer is the redefinition");
     assert!(
-        label.starts_with("Re-point bracket (2 copies) onto "),
-        "{label}"
+        offer.said.starts_with("bracket (2 copies) copies ")
+            && offer.said.ends_with(", which this body is built on"),
+        "a body picked as itself is on no copy, and the row says what it re-points: {}",
+        offer.said
+    );
+    assert!(
+        offer.label.starts_with("Re-point bracket onto "),
+        "{}",
+        offer.label
     );
 
     let steps = session.history().len();
@@ -653,14 +655,11 @@ fn designer_as_worked_example() {
         viewer::world::built_on_copy(doc, on_c1),
         Some((c1, bracket))
     );
-    let (said, offers) =
-        viewer::frame::placement_offers(doc, on_c1, pncad::geom_core::Tol::witness());
-    assert!(said.is_some_and(|text| text.contains("placed copy")));
+    let offers = viewer::frame::placement_offers(doc, on_c1, pncad::geom_core::Tol::witness());
     assert!(
-        offers
-            .iter()
-            .any(|(_, op)| *op == SessionOp::Select(Selection::Node(bracket))),
-        "a way to B: {offers:?}"
+        offers.iter().any(|offer| offer.said.contains("placed copy")
+            && offer.op == SessionOp::Select(Selection::Node(bracket))),
+        "on the placed copy, with a way to B: {offers:?}"
     );
     assert_eq!(drawn::extent(&mut session, c2), stood, "C2 stands");
 
@@ -950,19 +949,27 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
         assert_eq!(
             offer.rows,
             [viewer::world::RepointRow {
+                body: doc.output(body, 0).expect("B's body"),
                 source: doc.copied_read(c2).expect("C2's source"),
                 placements: vec![c2],
             }],
             "gesture={gesture}: C1's source left out"
         );
-        let (_, offers) =
-            viewer::frame::placement_offers(&doc, u, pncad::geom_core::Tol::witness());
-        let (label, op) = offers
+        let offer = viewer::frame::placement_offers(&doc, u, pncad::geom_core::Tol::witness())
             .into_iter()
-            .find(|(_, op)| matches!(op, SessionOp::RepointPlacements { .. }))
+            .find(|offer| matches!(offer.op, SessionOp::RepointPlacements { .. }))
             .expect("the button");
-        assert!(label.starts_with("Re-point the copy "), "{label}");
-        let out = session.perform(op);
+        assert!(
+            offer.label.starts_with("Re-point the copy "),
+            "{}",
+            offer.label
+        );
+        assert!(
+            offer.said.starts_with("the copy ") && offer.said.contains(" copies "),
+            "{}",
+            offer.said
+        );
+        let out = session.perform(offer.op);
         assert!(
             out.refusal.is_none(),
             "gesture={gesture}: {:?}",
@@ -1610,25 +1617,26 @@ fn on_this_copy_at_depth_and_through_member_copies() {
     let doc = session.committed_doc();
     let mut bad = Vec::new();
     for &n in &chain {
-        let (said, offers) =
-            viewer::frame::placement_offers(doc, n, pncad::geom_core::Tol::witness());
-        let ok = said.as_deref().is_some_and(|s| s.contains("placed copy"))
-            && offers
-                .iter()
-                .any(|(_, op)| *op == SessionOp::Select(Selection::Node(body)));
+        let offers = viewer::frame::placement_offers(doc, n, pncad::geom_core::Tol::witness());
+        let ok = offers.iter().any(|offer| {
+            offer.said.contains("placed copy")
+                && offer.op == SessionOp::Select(Selection::Node(body))
+        });
         if !ok || viewer::world::built_on_copy(doc, n).map(|(c, _)| c) != Some(c2) {
             bad.push(format!(
-                "{n:?}: {said:?} {offers:?} {:?}",
+                "{n:?}: {offers:?} {:?}",
                 viewer::world::built_on_copy(doc, n)
             ));
         }
     }
     for id in doc.ids() {
         if matches!(doc.node(id), Some(Node::Profile(_))) {
-            let (said, _) =
-                viewer::frame::placement_offers(doc, id, pncad::geom_core::Tol::witness());
-            if !said.as_deref().is_some_and(|s| s.contains("placed copy")) {
-                bad.push(format!("profile {id:?}: {said:?}"));
+            let offers = viewer::frame::placement_offers(doc, id, pncad::geom_core::Tol::witness());
+            if !offers
+                .iter()
+                .any(|offer| offer.said.contains("placed copy"))
+            {
+                bad.push(format!("profile {id:?}: {offers:?}"));
             }
         }
     }
@@ -1714,10 +1722,10 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
         offer.rows
     );
     assert_eq!(offer.rows[0].placements, [c3]);
-    let (_, offers) = viewer::frame::placement_offers(&doc, u, pncad::geom_core::Tol::witness());
-    let (_, op) = offers
+    let op = viewer::frame::placement_offers(&doc, u, pncad::geom_core::Tol::witness())
         .into_iter()
-        .find(|(_, op)| matches!(op, SessionOp::RepointPlacements { .. }))
+        .map(|offer| offer.op)
+        .find(|op| matches!(op, SessionOp::RepointPlacements { .. }))
         .expect("the button");
     let out = session.perform(op);
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
@@ -1755,7 +1763,7 @@ fn a_split_of_a_body_only_placements_read_offers_the_re_point() {
         .expect("the ⊔ offers");
     assert_eq!(offer.rows.len(), 1, "one source: {:?}", offer.rows);
     assert_eq!(offer.rows[0].placements, [copy], "the copy");
-    assert_eq!(Some(offer.body), doc.output(body, 0));
+    assert_eq!(Some(offer.rows[0].body), doc.output(body, 0));
 }
 
 /// **A feature on a mirror of the copy survives the re-point and its
