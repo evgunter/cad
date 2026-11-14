@@ -838,7 +838,8 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathRollAlongTangent, PathUndecided,
+            StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, ParametersInvalid, Fit, KnotAlgebra,
             Structure,
         ];
@@ -861,7 +862,7 @@ mod kernel {
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
-            ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
+            ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
@@ -3468,6 +3469,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
         (
+            "PathRollAlongTangent",
+            E::PathRollAlongTangent { station: 4 },
+        ),
+        (
             "PathStationsCoincide",
             E::PathStationsCoincide { station: 4 },
         ),
@@ -3718,11 +3723,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge(never opens)",
-            E::KnifeEdge {
+            "WedgeUnsettled(lamina)",
+            E::WedgeUnsettled {
                 edge,
-                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
-                refusal: KnifeRefusal::NeverOpens,
+                wedge: sweep::blend::UnsettledWedge::Lamina,
             },
         ),
         (

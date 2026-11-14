@@ -123,3 +123,24 @@ every extrude, loft cap and partial-revolve cap stores at every scalar
 (a cap's origin moves from Newell's centroid to the frame's, so cap
 chart coordinates and their pcurve rows move), and it removes a
 decision and two refusals.
+
+## Measured (M3, 2026-11-14): a box on an in-plane dimension
+
+Probe row `m3_wide_slab` on `boxfinish/probe-switch-off` (commit
+`bba45062`), switch off. A slab of width 1 ± 0.05, depth exact:
+
+- caps: direction exact (0, 0, ±1), length `[0.8182, 1.2222]`;
+- the walls y = 0 and y = 1: direction exact, the same length;
+- the wall x = W, which the box moves:
+  `([0.9623, 1], [-0.2, 0.2], [-0.2, 0.2])`, tilted;
+- the wall x = 0: exact.
+
+The drive certifies in four leaves; the root and the halves refuse
+`OrientationUndecided` by the volume (`[-1.684, 4.272]`), and the
+quarters read by rays, at 8.5 to 8.9 s a leaf (why so slow is not
+traced). With the offset boxed too, 0 of 32 leaves certify. So "the
+side walls are exact in direction" above is the depth-boxed slab's
+case only. The frame gives this unit the caps and the fixed-direction
+walls; the moving wall's tilt comes from a line direction recomputed
+from boxed ends, which is
+`the-profile-drops-the-unit-directions-its-verbs-made`.

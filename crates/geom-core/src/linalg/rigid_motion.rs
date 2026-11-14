@@ -151,16 +151,17 @@
 //!
 //! A frame exists at a scalar only by being minted there: by an exact
 //! mint or a decided mint over inputs held at that scalar, or at `f64`
-//! by the `f64` door. One door carries a frame up from `f64`:
-//! [`RigidMotion::computed_at`], each component through
-//! [`Real::from_computed`], which a skin's station turn crosses by
-//! (`work/onehome/a-skin-stations-turn-crosses-up-from-f64-through-computed-at.md`).
-//! At `Sym` it enters twelve unknowns, over which nothing is proved; no
-//! other door crosses up. Every frame that
-//! would cross is the product of a decision, so at `Sym` it would
-//! enter either as literals, a theorem about its rounding (E12), or as
-//! unknowns, over which nothing is proved; minted at the scalar, it
-//! carries its inputs' dependence on the variables instead (Ev on
+//! by the `f64` door. No door carries a frame up from `f64`: a frame
+//! is a claim, and what a lane scalar takes from `f64` is a choice,
+//! the same across the box (DESIGN `[scalars]`). A skin's carry, over a
+//! path that is a constant of the model, chooses each station's roll at
+//! `f64` as one reference vector, a value that depends on none of the
+//! document's variables, and the station's frame is minted at the
+//! scalar from the path's tangent read there and that vector. Every
+//! frame that would cross is the product of a decision, so at `Sym` it
+//! would enter either as literals, a theorem about its rounding (E12),
+//! or as unknowns, over which nothing is proved; minted at the scalar,
+//! it carries its inputs' dependence on the variables instead (Ev on
 //! #5068, 2026-10-14).
 //!
 //! The one crossing is downward, closure-free: an arbitrary map of the
@@ -1110,24 +1111,6 @@ impl RigidMotion<f64> {
         }
         let origin = finite(at(map.translation), MotionPart::Translation)?;
         Ok(Self::from_linear(map.linear, origin))
-    }
-
-    /// **This motion entered at `T` as the computed values it is**:
-    /// every component through [`Real::from_computed`]. The crossing
-    /// changes no component's value, so the axes stay witnesses; at an
-    /// enclosure scalar each component is the point it was. The
-    /// crossing the other way is [`RigidMotion::point_value`]. The one
-    /// door that carries a frame up from `f64` ("Crossing scalars" in the
-    /// module docs).
-    #[must_use]
-    pub fn computed_at<T: Real>(self) -> RigidMotion<T> {
-        let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_computed));
-        RigidMotion {
-            origin: self.origin.map(T::from_computed),
-            u: axis(self.u),
-            v: axis(self.v),
-            w: axis(self.w),
-        }
     }
 }
 
@@ -2807,18 +2790,18 @@ mod crossing_and_turn_rows {
                     "{at}: the suites' door admits the f64 turn entered at Interval, as given"
                 );
                 // The same two directions at `Interval`, as point
-                // enclosures: each is the aim of an `f64` frame, entered
-                // at `Interval` as the computed values it is.
+                // enclosures: each the aim of an `f64` frame rigid within
+                // rounding (`aimed`), entered at `Interval` through the
+                // suites' door.
                 let at_interval = |d: UnitVec3<f64>| {
-                    let frame = RigidMotion::from_aim_and_reference(
-                        Point3::origin(),
-                        d,
-                        Vec3::new(0.3, -0.5, 0.8),
-                        SITE,
+                    let frame = RigidMotion::aimed(Point3::origin(), d)
+                        .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
+                    RigidMotion::admitted_for_a_suite(
+                        &frame.to_affine().map(Interval::from_f64),
                         band(),
                     )
-                    .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
-                    frame.computed_at::<Interval>().w()
+                    .unwrap_or_else(|e| panic!("{at}: the suites' door admits the frame: {e:?}"))
+                    .w()
                 };
                 let (ai, bi) = (at_interval(a), at_interval(b));
                 let mi = RigidMotion::turned_between(ai, bi, Point3::origin(), SITE, band())
@@ -2860,8 +2843,8 @@ mod crossing_and_turn_rows {
         );
     }
 
-    /// **`point_value` reads a frame minted at `Interval` from point
-    /// inputs back to the `f64` frame, bit for bit**, and refuses a
+    /// **`point_value` reads a frame admitted at `Interval` from point
+    /// entries back to the `f64` frame, bit for bit**, and refuses a
     /// motion whose components are boxes.
     #[test]
     fn point_value_reads_a_point_frame_and_a_box_has_no_point() {
@@ -2873,7 +2856,9 @@ mod crossing_and_turn_rows {
             band(),
         )
         .unwrap();
-        let at_interval: RigidMotion<Interval> = m.computed_at();
+        let at_interval =
+            RigidMotion::admitted_for_a_suite(&m.to_affine().map(Interval::from_f64), band())
+                .expect("the suites' door admits the f64 frame entered at Interval");
         let back = at_interval
             .point_value()
             .expect("a point motion has its f64 back");

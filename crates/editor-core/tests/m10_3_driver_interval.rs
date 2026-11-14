@@ -55,17 +55,14 @@ use std::sync::Arc;
 
 use editor_core::UnitSym;
 use editor_core::VarId;
-use editor_core::analysis::{
-    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, var_env_over,
-};
+use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, var_env_over};
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName,
-    evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 

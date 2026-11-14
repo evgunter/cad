@@ -41,7 +41,7 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
@@ -54,7 +54,9 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
 use super::{BandWall, Cavity, CavityOrigin, RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{decide, face_surface_key, placed_segment_spec, turn_axis};
+use crate::swept::{
+    decide, face_surface_key, placed_segment_spec, placed_segment_spec_about, turn_axis,
+};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -772,9 +774,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let half = theta * T::from_f64(0.5);
     let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
-    let Some(n_pi) = far.turn_vec(frame.n3) else {
-        unreachable!("a turned placing has a turn")
-    };
+    // The sketch normal is square to the axis, so the half turn turns it
+    // over: spelled as the negation, it has nothing to round
+    // (`geom::pole_form::azimuths`).
+    let n_pi = Vec3::zero() - frame.n3;
     let pinned = |i: usize| verts[i].pinned;
     let qw: Vec<Point3<T>> = wire.points.iter().map(|&p| frame.world(p)).collect();
     let qpi: Vec<Point3<T>> = (0..=k)
@@ -878,12 +881,17 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             // Unreachable: wire segments are off-axis by construction.
             WallClass::OnAxis => FaceSurface::Inherit,
         };
-        let mef = body.mef(
-            MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
-            surface,
-            tol,
-        )?;
+        // An arc centred on the axis is a meridian of its sphere, and the
+        // half turn fixes its centre: its angle-π copy takes the angle-0
+        // copy's centre, so the two are arcs of one circle in one plane.
+        let spec = match walls[i] {
+            WallClass::Wall {
+                kind: WallKind::Sphere { .. },
+                ..
+            } => placed_segment_spec_about(&segs[i], far, n_pi, |c| frame.world(c), qpi[i], tol),
+            _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
+        };
+        let mef = body.mef(MefSite::Chords { he1, he2 }, spec, surface, tol)?;
         faces.push(mef.face);
         tops.push(mef.edge);
     }

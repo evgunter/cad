@@ -88,7 +88,7 @@ use super::taylor::{Jet, W_SPIRIC, composite, node, trig_of, trig_range, w_ratio
 /// [`trig_range`]. Returns the window's `cos t`, its `ρ` and the speed
 /// bound `|P′| ≤ S`. `None` when the window's `f` is not certified
 /// positive (`ρ_lo ≤ |d|`).
-fn window_rates(e: &SpiricEdgeQ, lo: f64, hi: f64) -> Option<(Interval, Interval, Interval)> {
+fn window_rates(e: Radii, lo: f64, hi: f64) -> Option<(Interval, Interval, Interval)> {
     if !(e.minor.is_certified() && e.major.is_certified() && e.offset.is_certified()) {
         return None;
     }
@@ -117,7 +117,7 @@ pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
     if !(e.t0.is_certified() && e.t1.is_certified()) {
         return None;
     }
-    let (_, rho, speed) = window_rates(e, e.t0.lo(), e.t1.hi())?;
+    let (_, rho, speed) = window_rates(e.radii(), e.t0.lo(), e.t1.hi())?;
     if !speed.is_certified() {
         return None;
     }
@@ -151,7 +151,7 @@ pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
     }
     (0..pieces).try_fold(0.0, |len, i| {
         let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let piece = (pt(piece_speed(e, p, q)?) * (pt(q) - pt(p))).hi();
+        let piece = (pt(piece_speed(e.radii(), p, q)?) * (pt(q) - pt(p))).hi();
         Some(certified_hi(pt(len) + pt(piece)))
     })
 }
@@ -177,7 +177,7 @@ pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
 /// [`geom::spiric_rate_bounds`] itself is CURVED's
 /// `the-whole-period-spiric-speed-bound-reads-sin-and-f-apart`. `None`
 /// when the piece's `f` is not certified positive.
-fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
+fn piece_speed(e: Radii, p: f64, q: f64) -> Option<f64> {
     let (c, rho, apart) = window_rates(e, p, q)?;
     let d_abs = e.offset.sqr().sqrt();
     let x = (Interval::one() + c).clamped_to(0.0, 2.0);
@@ -205,6 +205,67 @@ fn rho_f(major: Interval, minor: Interval, offset: Interval, c: Jet) -> (Jet, Je
     (rho, f)
 }
 
+/// **A chart image's rates over the pieces between consecutive
+/// `breaks`** of the spiric `(R, r, d)`'s parameter, each read by [`piece_speed`]
+/// (`sin t` and `f` together near a tangent cut, apart elsewhere):
+/// `(sup|f′|, sup|atan2(f, d)′|)`, the rates of the cap's and the wall's
+/// images ([`crate::Pcurve::speed_bound`]). With `|P′| ≤ S` on a piece,
+/// `|P′|² = f′² + r²·cos²t` and `|P′|² − r² = (r·d·sin t/f)²`, so
+/// `|f′| ≤ √(S² − r²·inf cos²t)` and, since `atan2(f, d)′ = d·f′/ρ²
+/// = −r·d·sin t/(ρ·f)`, `|atan2(f, d)′| ≤ √(S² − r²)/ρ_lo`, or
+/// `r·|d|·sup|sin t|/(ρ_lo·f_lo)` where that is smaller (where the azimuth
+/// is still, the first reads its rounding). Certified upper ends. `None`
+/// when a piece's `f` is not certified positive.
+pub(crate) fn image_rates(
+    (major, minor, offset): (f64, f64, f64),
+    breaks: &[f64],
+) -> Option<(f64, f64)> {
+    let e = Radii {
+        major: pt(major),
+        minor: pt(minor),
+        offset: pt(offset),
+    };
+    let floor = |x: Interval| x.clamped_to(0.0, f64::INFINITY).sqrt();
+    breaks.windows(2).try_fold((0.0f64, 0.0f64), |(df, du), w| {
+        let (p, q) = (w[0], w[1]);
+        let (c, rho, _) = window_rates(e, p, q)?;
+        let speed = pt(piece_speed(e, p, q)?).sqr();
+        let cos_sq = if c.lo() <= 0.0 && c.hi() >= 0.0 {
+            Interval::zero()
+        } else {
+            pt(c.lo().abs().min(c.hi().abs())).sqr()
+        };
+        let f_rate = floor(speed - e.minor.sqr() * cos_sq);
+        // Two readings of the azimuth rate: through the paired speed,
+        // whose difference of squares floors at `√ε·r` where the azimuth
+        // is still, and apart, `r·|d|·sup|sin t|/(ρ_lo·f_lo)`, exactly 0
+        // at `d = 0` but unbounded near a tangent cut. The smaller holds.
+        let rho_lo = pt(rho.lo());
+        let paired = floor(speed - e.minor.sqr()) / rho_lo;
+        let (_, sin) = trig_range(p, q);
+        let apart = e.minor * pt(e.offset.mag()) * pt(sin.mag())
+            / (rho_lo * floor(rho_lo.sqr() - e.offset.sqr()));
+        let u_rate = [paired, apart]
+            .into_iter()
+            .filter(|x| x.is_certified() && x.hi().is_finite())
+            .map(Bounds::hi)
+            .reduce(f64::min);
+        match (f_rate.is_certified(), u_rate) {
+            (true, Some(u)) => Some((df.max(f_rate.hi()), du.max(u))),
+            _ => None,
+        }
+    })
+}
+
+/// A spiric's three radii, as [`window_rates`] and [`piece_speed`] read
+/// them.
+#[derive(Clone, Copy, Debug)]
+struct Radii {
+    major: Interval,
+    minor: Interval,
+    offset: Interval,
+}
+
 /// One spiric boundary edge of a cap or a wall, bracketed by the
 /// caller (key-free, like [`super::LoopEdge`]).
 #[derive(Clone, Copy, Debug)]
@@ -227,6 +288,16 @@ pub struct SpiricEdgeQ {
     pub t1: Interval,
     /// Loop traversal direction.
     pub forward: bool,
+}
+
+impl SpiricEdgeQ {
+    fn radii(&self) -> Radii {
+        Radii {
+            major: self.major,
+            minor: self.minor,
+            offset: self.offset,
+        }
+    }
 }
 
 /// A spiric's lifted image on its OWN torus wall

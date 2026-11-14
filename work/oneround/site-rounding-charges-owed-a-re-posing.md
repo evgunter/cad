@@ -86,8 +86,9 @@ re-posing that empties a file lowers or drops its row in the same change.
   decided at the band.
 - `editor-core::mate::value::chain_turns` (`pose`): gimbal lock read as
   `cos β > √u`; owed a decision at the band.
-- `mesh::trimmed` (`sphere_polygon_shape`, `at_pole`) (`pose`): a pole
-  read at a few ulps of `π/2`.
+- `mesh::chart_table` (`SingularPoint::passed_by`) (`pose`): a point
+  past a singular row that ends the chart's domain (a sphere's pole),
+  read a few ulps past the row's `|v|`.
 - `mesh::cert::rounding_allowance`: the verdict's own rounding.
 - `geom_brep::edge_nurbs::kernel_limit_ending`: a message's "kernel
   limit" arm, read at a width of a few ulps of the extent.
@@ -141,7 +142,7 @@ re-posing that empties a file lowers or drops its row in the same change.
   `Rounded` difference is now `geom::frame::plane_offset_rounded`.
   **New on main since the gate was seeded**, each a `re-pose` row, owed
   the same re-posing as the squared and cancelling forms above:
-  `topo::boolean::spline_region` (`floor`, `blend`, `point_rounding`,
+  `topo::spline_trim` (`floor`, `blend`, `point_rounding`,
   `bezier_cells`: a spline enclosure's per-control rounding),
   `geom_brep::pcurve_cache::spline_incidence`, `pcurve_cache` itself and
   `pcurve_cache::projected`, and one more site each in

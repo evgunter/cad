@@ -711,6 +711,21 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), q_from, tol)
+}
+
+/// [`placed_segment_spec`] with an arc's 3-space centre given by
+/// `centre` from its sketch centre, in place of `place`'s image of it:
+/// for a copy whose placement fixes the centre, which then takes the
+/// value the fixed copy has.
+pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
+    seg: &S,
+    place: Placing<T>,
+    normal: Vec3<T>,
+    centre: impl FnOnce(Point2<T>) -> Point3<T>,
+    q_from: Point3<T>,
+    tol: Tol,
+) -> EdgeCurveSpec<T> {
     let description =
         EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
             segment: sketch_segment(seg),
@@ -724,7 +739,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             param_end: (seg.b() - seg.a()).norm(),
         },
         SegmentKind::Arc { arc, turn } => {
-            let c_world = place.point(arc.centre);
+            let c_world = centre(arc.centre);
             let rim = q_from - c_world;
             // Rigidity, stated where it is guaranteed
             // (`register_rigidity` carries the proof). Bound out of the

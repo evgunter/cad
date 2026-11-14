@@ -62,7 +62,7 @@ a uniform-`w ≠ 1` net, none wrong:
 
 Correct constancy tests to copy: `pcurve_cache.rs` `constant_weights`,
 `edge_nurbs.rs`'s bitwise check, `mesh/src/chords.rs`
-`general_uv_speeds`.
+`geom_brep`'s `speed::general_speeds`.
 
 ## `offset_derive.rs` answers rational carriers now (NURBS, 2026-10-12)
 
