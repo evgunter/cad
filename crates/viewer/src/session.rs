@@ -485,6 +485,13 @@ pub struct DocSession {
     /// the panel, the picture and the op's own landing ask it of one
     /// change, and a scratch solve is a whole evaluation.
     bundles: crate::generation::GenerationMemo<SessionOp, BundleJudgement>,
+    /// **The placement editor's bundle last derived**
+    /// ([`DocSession::mate_proposal`]), kept per landed generation and
+    /// the draft it reads: the panel draws its value rows every frame.
+    proposals: crate::generation::GenerationMemo<
+        crate::matetool::ProposalInputs,
+        crate::matetool::Proposed,
+    >,
     /// **The last `SetBundle` committed**, with where the door's scratch
     /// solve of it stands every copy ([`DocSession::bundle_landing`]).
     landing: Option<BundleLanding>,
@@ -1085,6 +1092,7 @@ impl DocSession {
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
             bundles: crate::generation::GenerationMemo::default(),
+            proposals: crate::generation::GenerationMemo::default(),
             landing: None,
         };
         session.request_eval();
@@ -4989,6 +4997,21 @@ impl DocSession {
         })
     }
 
+    /// **The placement editor's bundle** ([`crate::matetool::MateTool::proposal`])
+    /// against the landed pair, kept per landed generation and the draft
+    /// `tool` holds, so the panel's frames, the picture and the offer
+    /// derive one draft state once. `None` before any run lands.
+    pub fn mate_proposal(
+        &self,
+        tool: &crate::matetool::MateTool,
+    ) -> Option<crate::matetool::Proposed> {
+        let landed = self.landed_generation()?;
+        let (doc, ev) = self.landed_pair()?;
+        Some(self.proposals.get_or(landed, &tool.proposal_inputs(), || {
+            Arc::new(tool.proposal(doc, ev, self.tol))
+        }))
+    }
+
     /// **Where the last `SetBundle` committed stands every copy, until
     /// its run lands**: while no run of its generation or a later one has
     /// landed, and the document still holds the bundle it wrote (an undo
@@ -6389,6 +6412,7 @@ impl core::fmt::Debug for DocSession {
             notation,
             offers: _,
             bundles: _,
+            proposals: _,
             landing: _,
         } = self;
         f.debug_struct("DocSession")

@@ -1285,6 +1285,24 @@ impl MateProposal {
     }
 }
 
+/// **A draft's bundle derived once and shared** by every reader of one
+/// draft state ([`crate::session::DocSession::mate_proposal`]).
+pub type Proposed = Arc<Result<MateProposal, MateToolError>>;
+
+/// **What [`MateTool::proposal`] reads of the tool**: the draft's door,
+/// rows, typed numbers, target and struck values, and nothing of its
+/// offer, its active row or what a Place asks.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProposalInputs(Option<DraftInputs>);
+
+type DraftInputs = (
+    PlaceDoor,
+    Vec<MateRow>,
+    Vec<(Coord, Formula)>,
+    PlaceTarget,
+    Vec<ConstraintId>,
+);
+
 /// **A target as the editor's first row says it**: the space by
 /// [`Doc::spoken_space`], or "a new space".
 #[must_use]
@@ -2465,6 +2483,23 @@ impl MateTool {
         tol: Tol,
         door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
+        self.offer_proposed(
+            doc,
+            |tool| Some(Arc::new(tool.proposal(doc, ev, tol))),
+            door,
+        )
+    }
+
+    /// [`Self::offer`], with the draft's bundle derived by `propose`
+    /// against the landed document `doc` (the session's memo,
+    /// `DocSession::mate_proposal`); one `propose` cannot answer is not
+    /// offered yet.
+    pub fn offer_proposed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        propose: impl FnOnce(&Self) -> Option<Proposed>,
+        door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
+    ) -> Option<SessionOp> {
         if !self
             .draft
             .as_ref()
@@ -2472,10 +2507,11 @@ impl MateTool {
         {
             return None;
         }
-        let proposed = self.proposal(doc, ev, tol);
+        let proposed = propose(self)?;
         let placement = self.door().map(|door| door.placement);
-        let formed = proposed
-            .map_err(|error| Refusal::Draft(Box::new(error)))
+        let formed = (*proposed)
+            .as_ref()
+            .map_err(|error| Refusal::Draft(Box::new(error.clone())))
             .map(|proposal| {
                 let Some(draft) = self.draft.as_ref() else {
                     unreachable!("an unsettled draft is open")
@@ -2549,12 +2585,12 @@ impl MateTool {
     /// answering an older document waits, not yet offered: its bundle,
     /// derived against the landed pair as the panel's rows are, is
     /// judged by `judge` (`DocSession::bundle_judgement`, which keeps
-    /// the judgement the offer then reads).
+    /// the judgement the offer then reads). `propose` derives the bundle
+    /// against the landed pair (`DocSession::mate_proposal`).
     pub fn draft_standing(
         &self,
         busy: bool,
-        landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
-        tol: Tol,
+        propose: impl FnOnce(&Self) -> Option<Proposed>,
         judge: impl FnOnce(&SessionOp) -> crate::session::BundleJudgement,
     ) -> HeldDraft {
         let refused = self
@@ -2568,10 +2604,12 @@ impl MateTool {
         if !(busy && self.differs_from_base()) {
             return HeldDraft::Quiet;
         }
-        let Some(proposal) = landed.and_then(|(doc, ev)| self.proposal(doc, ev, tol).ok()) else {
+        let Some(op) =
+            propose(self).and_then(|proposed| (*proposed).as_ref().ok().map(MateProposal::op))
+        else {
             return HeldDraft::WaitsUnwritten;
         };
-        match judge(&proposal.op()) {
+        match judge(&op) {
             Ok(Some(stood)) => HeldDraft::Waits(stood),
             Ok(None) => HeldDraft::Quiet,
             Err(refusal) => HeldDraft::Refused(Arc::new(refusal.into())),
@@ -2909,6 +2947,21 @@ impl MateTool {
             on: on_sites,
             to: to_sites,
         })
+    }
+
+    /// **What [`Self::proposal`] reads of the tool**: equal between two
+    /// tools whose proposals against one landed pair are equal.
+    #[must_use]
+    pub fn proposal_inputs(&self) -> ProposalInputs {
+        ProposalInputs(self.draft.as_ref().map(|draft| {
+            (
+                draft.door.clone(),
+                draft.rows.clone(),
+                draft.typed.clone(),
+                draft.target.clone(),
+                draft.struck_values.clone(),
+            )
+        }))
     }
 
     /// **The editor's bundle, derived from the draft** against the landed

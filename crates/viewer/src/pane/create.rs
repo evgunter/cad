@@ -807,12 +807,10 @@ impl ViewerBehavior<'_> {
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
-        let proposal = self.session.landed_pair().map(|(doc, ev)| {
-            tool.proposal(doc, ev, self.session.tol())
-                .map_err(|error| error.respoken(doc))
-        });
+        let proposed = self.session.mate_proposal(&tool);
+        let proposal = proposed.as_deref();
         let doc = self.session.committed_doc();
-        let coords: Vec<_> = match &proposal {
+        let coords: Vec<_> = match proposal {
             Some(Ok(proposal)) => proposal
                 .values
                 .iter()
@@ -821,7 +819,7 @@ impl ViewerBehavior<'_> {
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
-        match &proposal {
+        match proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
                 // person reads it ([`crate::matetool::value_text`]);
@@ -884,7 +882,11 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
+                let error = self.session.landed_pair().map_or_else(
+                    || error.clone(),
+                    |(landed, _)| error.clone().respoken(landed),
+                );
+                crate::widgets::message(ui, ToolKind::Mate.refuses(&error).to_string());
             }
             None => {}
         }
@@ -896,19 +898,22 @@ impl ViewerBehavior<'_> {
         let formed = if busy {
             None
         } else {
-            self.session.landed_pair().and_then(|(landed, ev)| {
-                edited.offer(landed, ev, self.session.tol(), |op| {
-                    self.session.bundle_door(op)
-                })
+            self.session.landed_pair().and_then(|(landed, _)| {
+                edited.offer_proposed(
+                    landed,
+                    |tool| self.session.mate_proposal(tool),
+                    |op| self.session.bundle_door(op),
+                )
             })
         };
         // The viewport draws the draft off the same value; where the
         // draft draws nothing it draws the document, a committed change
         // still landing included (`ViewerApp::placement_preview`).
-        let held =
-            edited.draft_standing(busy, self.session.landed_pair(), self.session.tol(), |op| {
-                self.session.bundle_judgement(op)
-            });
+        let held = edited.draft_standing(
+            busy,
+            |tool| self.session.mate_proposal(tool),
+            |op| self.session.bundle_judgement(op),
+        );
         let said = match &held {
             crate::matetool::HeldDraft::Quiet => None,
             crate::matetool::HeldDraft::Refused(refusal) => Some((

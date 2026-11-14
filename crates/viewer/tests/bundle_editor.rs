@@ -715,3 +715,37 @@ fn a_value_row_in_properties_names_its_axis() {
     assert_eq!(x.label, "slide along x value", "the slide along x's row");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
+
+/// **A change the door judged lands on that judgement**: asked twice
+/// of one change the door solves it once, and the `SetBundle` it then
+/// commits stands its copies where that one solve did, not where a
+/// second solve of its own would.
+#[test]
+fn a_judged_change_lands_on_its_one_solve() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-one-solve", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let tool = seated(&session, &bench);
+    let op = common::proposed(&session, &tool, rest())
+        .expect("the rest proposes")
+        .op();
+    let judged = match session.bundle_judgement(&op) {
+        Ok(Some(stood)) => stood,
+        other => panic!("the rest moves the copy and stands: {other:?}"),
+    };
+    let again = session.bundle_judgement(&op);
+    assert!(
+        matches!(&again, Ok(Some(stood)) if std::sync::Arc::ptr_eq(stood, &judged)),
+        "the door asked again of one change answers its one solve: {again:?}"
+    );
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let landing = session
+        .bundle_landing()
+        .expect("the committed change has not landed yet");
+    assert!(
+        std::sync::Arc::ptr_eq(&landing, &judged),
+        "the change lands on the door's solve, not a second one"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
