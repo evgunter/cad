@@ -6201,7 +6201,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   (via booleans). The whole-body embedding certificate belongs to
 ///   the at-rest gate (`DESIGN.md` `[topology.tiers]`), not to this
 ///   pass, and is not built yet:
-///   `work/clear/the-at-rest-gate-certifies-embedding.md`.
+///   `work/embed/the-at-rest-gate-certifies-embedding.md`.
 /// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
 ///   its material arm are both exempt by kind there (implicit-form
 ///   gradients are poison on a spline chart), so such an edge carries

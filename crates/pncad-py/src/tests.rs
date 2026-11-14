@@ -5816,6 +5816,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_parameter_step",
             "parameters_invalid",
             "path_folds_back",
+            "path_roll_along_tangent",
             "path_stations_coincide",
             "path_tangent_vanishes",
             "path_undecided",

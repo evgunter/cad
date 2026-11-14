@@ -5,7 +5,7 @@ title: every_site_that_reads_rust_source_is_in_the_ledger keys on the reader FIL
 status: open
 opened: 2026-09-12
 priority: P3
-cost: D
+cost: M
 ---
 
 

@@ -1623,6 +1623,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
         SkinError::PathStationsCoincide { .. } => "path_stations_coincide",
         SkinError::PathFoldsBack { .. } => "path_folds_back",
+        SkinError::PathRollAlongTangent { .. } => "path_roll_along_tangent",
         SkinError::PathUndecided { .. } => "path_undecided",
         SkinError::StationNotFinite { .. } => "station_not_finite",
         SkinError::Band(_) => "band",

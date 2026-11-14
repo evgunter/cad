@@ -55,6 +55,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    NameCarrier::Const("SWEEP_STATION_ROLL"),
+    NameCarrier::Const("SWEEP_STATION_STILL"),
     // The loft's pinned rim is an identity over its control rows, read
     // by `geom_brep::ladder::read_identity` under this constant's name.
     NameCarrier::Const("LOFT_RIM_PINNED"),
@@ -136,6 +138,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),
     ("sweep_path_turn", PATH),
+    ("sweep_station_roll", PATH),
+    ("sweep_station_still", PATH),
     ("cap_plane_orientation", CAP),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),

@@ -37,9 +37,8 @@
 //! by-value curved fold is [`geom_brep::implicit_outward_normal`],
 //! which normalizes and gates nothing: it reads the normal at `p`'s
 //! foot on the carrier, which is the normal at `p` where `p` is on it,
-//! and its callers (the contact verifier, the dihedral's material
-//! pairing, a blend battery's supports) certify the point themselves
-//! where they need it on the carrier. [`face_outward_normal_at_foot`]
+//! and a caller that needs `p` on the carrier certifies it itself.
+//! [`face_outward_normal_at_foot`]
 //! is that fold by key, for a point no reading places on the carrier.
 //! The two readings can differ in the last ulps on the same input, so
 //! neither substitutes for the other: a caller that wants the gate
@@ -1493,21 +1492,24 @@ mod tests {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
         let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
-        // as D6 spells it: a jet curvature measured along the plus
-        // face's outward normal, the sphere's radial flux term
-        // `R·Area` and a closed surface's whole flux, a witness's
-        // implicit residual read as its height above the face, a loop's
-        // chart-frame area, an offset distance into the material.
-        let sanctioned: Vec<(String, String)> = [
+        // as D6 spells it: a jet
+        // curvature measured along the plus face's outward normal, the
+        // sphere's radial flux term `R·Area` and a closed surface's
+        // whole flux, a witness's implicit residual read as its height
+        // above the face, an offset distance into the material.
+        let mut sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
             // encloses, for a face whose chart image is empty.
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
-            ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
             // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame.
+            // toward its face, in the plane's chart frame: once each in
+            // `present_plane`, `present_plane_corner` and
+            // `present_plane_vertex`.
+            ("crates/topo/src/injective.rs", "1.0"),
+            ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
             // A face's side of an iso edge's line, as the sign of the held
             // chart coordinate.
@@ -1525,17 +1527,7 @@ mod tests {
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
-        // Pinned red, NOT sanctioned: hand folds main carries while the
-        // row that owns their repair is open, so the repair landing reds
-        // here too and strikes them
-        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
-        let pinned = [
-            ("crates/mesh/src/trimmed.rs", "area"),
-            ("crates/mesh/src/trimmed.rs", "radial"),
-        ];
-        let mut expected = sanctioned;
-        expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));
-        expected.sort();
+        sanctioned.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -1572,12 +1564,10 @@ mod tests {
         );
         hits.sort();
         assert_eq!(
-            hits, expected,
-            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
-             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
-             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
-             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
-             from `pinned`."
+            hits, sanctioned,
+            "the hand folds under a face's sense bit are not the sanctioned scalars. \
+             A NORMAL folds through `OutwardNormal::from_chart` or a `face_normal` door, \
+             and a genuinely signed scalar joins the list with what it negates."
         );
     }
 

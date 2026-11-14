@@ -1220,20 +1220,23 @@ pub fn transformed_at(
     body: Option<u32>,
     values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
-    transform(session, node, body, values, None)
+    transform(session, node, body, values, None, None)
 }
 
 /// [`transformed`] with the editor's first row set to `into` in the same
 /// change as the values: the copy placed into another body's space,
 /// standing on its axes by those values — what a combine with that body
-/// needs, since a combine moves no copy.
+/// needs, since a combine moves no copy. `name` is what the person types
+/// where the Place asks for one: a body placed a second time shares its
+/// source by name (VARIABLES VR4).
 pub fn transformed_into(
     session: &mut DocSession,
     node: RecipeNodeId,
     values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
     into: pncad::document::VarId,
+    name: Option<&'static str>,
 ) -> SessionOp {
-    transform(session, node, None, values, Some(into))
+    transform(session, node, None, values, Some(into), name)
 }
 
 /// [`moved_to`] into `into`'s axes ([`transformed_into`]).
@@ -1243,7 +1246,7 @@ pub fn moved_in_space(
     by: [f64; 3],
     into: pncad::document::VarId,
 ) -> RecipeNodeId {
-    let op = transformed_into(session, node, &slides(by), into);
+    let op = transformed_into(session, node, &slides(by), into, None);
     let SessionOp::SetBundle { placement, .. } = &op else {
         panic!("the editor writes a bundle: {op:?}")
     };
@@ -1253,7 +1256,8 @@ pub fn moved_in_space(
     placement
 }
 
-/// The Transform tool's change, its target set to `into` where given.
+/// The Transform tool's change, its target set to `into` where given,
+/// a Place that asks for a name answered `name`.
 // The door answers the session's own `Refusal`, whatever its width.
 #[allow(clippy::result_large_err)]
 fn transform(
@@ -1262,13 +1266,25 @@ fn transform(
     body: Option<u32>,
     values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
     into: Option<pncad::document::VarId>,
+    name: Option<&'static str>,
 ) -> SessionOp {
     session.pump();
     let tol = session.tol();
     let (doc, _) = session.landed_pair().expect("landed");
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
-    if let Some(place) = tool.take_place(doc) {
+    let place = match tool.take_place(doc) {
+        Some(place) => Some(place),
+        None => match (tool.asking(), name) {
+            (None, _) => None,
+            (Some(viewer::matetool::PlaceAsk::Name { .. }), Some(name)) => Some(
+                tool.place_named(pncad::document::VarName::from_static(name))
+                    .expect("the asked Place, named"),
+            ),
+            (Some(ask), _) => panic!("the Place of {node:?} asks first: {ask:?}"),
+        },
+    };
+    if let Some(place) = place {
         let placement = placed_by(session, place);
         tool.placed(session.committed_doc(), placement);
     }

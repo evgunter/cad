@@ -10,8 +10,9 @@ cost: M
 
 
 Filed by `pcert/spline-chart-incidence`. `geom-brep/src/pcurve_cache/spline_incidence.rs`
-(a carrier's incidence on a spline chart) and `topo/src/boolean/spline_region.rs`
-(a point against a spline face) each cut the chart into Bézier cells and walk them
+(a carrier's incidence on a spline chart) and `topo/src/spline_trim.rs`
+(a point against a spline face's trim, and the cells the boolean's carrier walk
+in `topo/src/boolean/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
 by a hull lower bound and a chart-point upper bound. Differences worth one home:
 
 - Both cuts now refine the homogeneous net through the kernel's insertion plans
@@ -23,7 +24,7 @@ by a hull lower bound and a chart-point upper bound. Differences worth one home:
   rounding, and the charge is **written twice**: `splice/spline-region-charge`
   (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`)
   copied `Control`, `blend`, `refined`, `point_rounding` and the floor's
-  `rounding_charge` into `topo/src/boolean/spline_region.rs` instead of moving
+  `rounding_charge` into `topo/src/boolean/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
   them to one home, because a live PCERT branch
   (`pcert/spline-certificate-door`) was editing `spline_incidence.rs` at the
   time. topo's copy also charges the trim's pieces (`Piece::bbox`) and holds
@@ -38,7 +39,7 @@ fix Y12, PR 6498):
 
 - `geom-brep/src/pcurve_cache/spline_incidence.rs`: `Net::of`, `refined`,
   `Cell::split`, the floor (box and slab) and its `f64` charge;
-- `topo/src/boolean/spline_region.rs`: `bezier_cells`, `refined`, `blend`,
+- `topo/src/spline_trim.rs`: `bezier_cells`, `refined`, `blend`,
   `point_rounding`, `Patch::split`, `Patch::floor`, and the trim's `Piece`;
 - `geom-brep/src/patch_bound.rs`: `patch_cells`, `patch_cells_across_creases`,
   `patch_cells_refined` (an `f64` chart's partials per cell);
@@ -52,3 +53,5 @@ fix Y12, PR 6498):
 
 Move the cells, the cut and the floor to one home in geom-brep and read them from
 both.
+
+2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.

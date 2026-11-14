@@ -340,33 +340,27 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     }
 }
 
-/// **Row 11 — the census refusals reachable through public doors**,
-/// on the vessel's cavity: the mesh's trimmed lane (its torus/plane
-/// roster is the MESH frontier,
-/// `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
-/// and the STEP writer, which now WRITES an export-only spline and
-/// refuses this body for a different reason than "no arm": the
-/// sagitta certificate cannot state `ε/4` under the node cap at the
-/// kernel's ε (`work/curved/spiric-step-spline-bound-is-second-order.md`),
+/// **Row 11 — the census through public doors**, on the vessel's
+/// cavity: the mesh meshes it (its spiric-bounded torus wall on the
+/// trimmed lane's torus row), and the STEP writer, which now WRITES an
+/// export-only spline, refuses this body for a different reason than "no
+/// arm": the sagitta certificate cannot state `ε/4` under the node cap
+/// at the kernel's ε (`work/curved/spiric-step-spline-bound-is-second-order.md`),
 /// which is why the row asserts that exact `kind` rather than any
-/// `spiric…` prefix — the two refusals are different facts and the
-/// day the bound is fixed this row must move, loudly. The at-rest gate
-/// a boolean operand is finished through no longer refuses: check 7
-/// measures the spiric cap and wall (the closing rows below).
+/// `spiric…` prefix — the day the bound is fixed this row must move,
+/// loudly. The at-rest gate a boolean operand is finished through no
+/// longer refuses: check 7 measures the spiric cap and wall (the closing
+/// rows below).
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let cavity = topo::finish(cavity, tol())
         .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
-    let e =
-        mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
-    let mesh::TessellateError::UnsupportedCurve { note, .. } = &e else {
-        panic!("the trimmed frontier names its roster, got {e:?}");
-    };
-    assert!(
-        note.contains("trimmed-tessellation-lacks-torus-and-plane-arms"),
-        "got {note}"
-    );
+    let delta = 1e-3;
+    let mesh = mesh::tessellate(&cavity, delta, tol())
+        .unwrap_or_else(|e| panic!("the cavity meshes, its torus wall on the torus row: {e:?}"));
+    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("the cavity's mesh: {e:?}"));
+    crate::common::differential::assert_meshed_geometry("the cavity", &cavity, &mesh, delta);
     let e = step_export::step_string(&cavity, &step_export::StepOptions::default(), tol())
         .expect_err("the sagitta bound cannot state eps/4 under the node cap");
     assert!(
