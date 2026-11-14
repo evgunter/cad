@@ -39,8 +39,7 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 
 /// One Place of `body` into its own space, landed.
 fn placed(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let op = SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-        .expect("a body in a space");
+    let op = common::place_named(session.committed_doc(), body, "bracket");
     let out = session.perform(op);
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -139,13 +138,13 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
         VarId::WORLD,
         "premise: a construction is in a space of its own"
     );
-    let op = SessionOp::place_where_it_stands(session.committed_doc(), bolt.into())
-        .expect("a body in a space");
+    let op = common::place_named(session.committed_doc(), bolt, "bracket");
     assert_eq!(
         op,
         SessionOp::Place {
             body: bolt.into(),
-            target: Operand::Var(own)
+            target: Operand::Var(own),
+            name: None,
         },
         "the viewer's Place names the body's own space"
     );
@@ -699,10 +698,11 @@ fn the_combine_refuses_a_copy_in_another_space() {
         "the union is in the plate's space"
     );
     assert!(
-        doc.placements()
-            .into_iter()
-            .any(|p| doc.copied_read(p) == doc.read_of_node(loose)
-                && doc.node_space(p) == Some(room)),
+        doc.placements().into_iter().any(|p| doc
+            .copied_read(p)
+            .map(|s| doc.through_sources(s).read)
+            == doc.read_of_node(loose)
+            && doc.node_space(p) == Some(room)),
         "the body nothing placed is placed into the first operand's space"
     );
 }

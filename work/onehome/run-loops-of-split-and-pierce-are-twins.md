@@ -2,10 +2,12 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: onehome/star-cut
+closed: 2026-11-12
 ---
 
 
@@ -113,3 +115,14 @@ This applies PR 6359's decision and does not change it. Two designers weighed it
   - a near-axis split vertex refuses typed;
   - a whole-turn apex corner reads four pieces.
 - 2026-11-10: stage 2 landed in PR 6725, the side-free walk and one cut rule, after a full review and one fix pass. The review's MAJOR was fixed with per-fault `VertexRefusal` arms, and the reading consults only what main did. Stage 3 remains: the cut, the germ rule, the germ order and `entered_faces` reading the cuts. The row is open for it. (ONEHOME orchestrator)
+
+## Closed: stage 3 (PR 6871, 2026-11-12)
+
+Stage 3 lands, and with it the row. `topo::star` holds the cut and the germs' order:
+
+- **The cut** (`star/cut.rs`): `star::cuts` turns a verb's sides after its folds into its cuts, each naming the bound on the datum's positive side (`CutEnd`); `Run::cut_sectors` is a run's two. The split's `insert_null_edges` and the pierce's run germs read it; the pierce's `OutBound` and `run_transitions` go. `star::apart` is the raw-side test (`vertex_section::entered_faces`).
+- **One germ rule** (`star::germ_line`): `n_s × n_d` signed by the cut's codes, levered at the sector's farther reach, with its lean. The split's positive combination of its bounds (`split_germ_line`), the pierce's `pierce_germ_dir` and the vertex–vertex `germ_dir`'s membership sign read it. `Leaned` moved into the star.
+- **One germ order** (`star/order.rs`): `before` (from `insert::strut_order`), `germ_order` (from `vtxfac::germ_order`) and `turn` (the one sine), with the verb's ties (`Ties`) and refusals (`OrderFault`). The split's `section_chords` slot sort, the ring's order, the corner's strut order and the orbit's in-entry cut order (`walks_after`, planar arm) read it. K names: `germ_line`, `germ_side`, `germ_order`, `germ_sense`.
+- **The offset → side reading stays outside**, as decided.
+
+Both readings ran side by side before either was deleted; the counts and every disagreement are on the PR.

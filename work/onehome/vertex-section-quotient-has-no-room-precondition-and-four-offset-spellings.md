@@ -2,10 +2,12 @@
 id: vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings
 kind: issue
 title: The vertex section reading divides by a sine its bound can exceed, charges the wall normal by assertion, and spells offset and side three ways
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: onehome/star-cut
+closed: 2026-11-12
 ---
 
 Found by the third review of PR 4858 (`cleave/vertex-against-section`,
@@ -69,3 +71,10 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 - **Item 6:** `VertexRefusal` is split by decision (`Offset` → `VertexOnFace`, `Section` → `VertexOnSection`, `Sector(SectorFaceError)`), and the declaration read is built per question.
 
 Items 3–4 (offset and side spellings) ride stage 3 of `topo::star` (`run-loops-of-split-and-pierce-are-twins`, "Decided"). This row stays open for them.
+
+## Closed: items 3–4 (PR 6871, `topo::star` stage 3, 2026-11-12)
+
+- **Item 3.** The Boolean's `far` closure (`reduce::vertex_face_side`) reads a far vertex's side through `vertex_section::Offset::of(…).side_as(name, band)`, the one evaluation of an offset both doors decide a vertex by (`geom::plane_offset_rounded`, bit-identical to the plain `plane_offset` it replaced). It reads the face's outward frame on purpose: the section reads the bounds' sides against the outward reference, and a line edge's far side is compared with those, not with the vertex's own chart-normal offset. No verdict moves.
+- **Item 4.** `PlaneSide::of_sign` is the one Sign → side spelling (`splitting/classify.rs`, `splitting/finish.rs`'s edge side, `Offset::side_as`); `neighborhood.rs`'s spelling had already gone with stage 2. `entered_faces` reads one strict-apart test, the star's `star::apart`, for both its edge pair and its dividers; `opposes` goes.
+
+Every item is now dispositioned (item 2 to the rounding pose, PR 6376), and the row closes.

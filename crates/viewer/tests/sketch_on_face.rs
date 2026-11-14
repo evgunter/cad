@@ -114,7 +114,8 @@ fn a_sketch_on_a_face_is_one_action_and_one_body() {
         "a sketch on the box picked as itself writes no placement"
     );
     assert_eq!(
-        viewer::world::repoint_offer(doc, union).map(|offer| offer.body),
+        viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness())
+            .map(|offer| offer.body),
         doc.output(cube, 0),
         "and offers to re-point the box's placement onto the union"
     );

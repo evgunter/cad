@@ -458,7 +458,7 @@ fn a_copy_something_reads_is_placed_rather_than_moved() {
     let placed: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if source.read == read))
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if doc.through_sources(source.read).read == read))
         .collect();
     let [world] = placed[..] else {
         panic!("one placement of the copy: {placed:?}")
@@ -504,7 +504,7 @@ fn a_split_needs_the_half_a_pick_names() {
     let [copy] = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if source.read == half))
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if doc.through_sources(source.read).read == half))
         .collect::<Vec<_>>()[..]
     else {
         panic!("the half the pick named is placed")

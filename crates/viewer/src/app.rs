@@ -2468,7 +2468,7 @@ impl eframe::App for ViewerApp {
         );
         // A pick that asked the placement editor for Place commits it
         // in the batch of the click that asked.
-        ops.extend(self.tools.take_place());
+        ops.extend(self.tools.take_place(self.session.committed_doc()));
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -7671,17 +7671,18 @@ mod properties_pane_tests {
             let doc = self.app.session.committed_doc();
             doc.ids()
                 .into_iter()
-                .find(|&id| crate::world::repoint_offer(doc, id).is_some())
+                .find(|&id| crate::world::repoint_offer(doc, id, self.app.session.tol()).is_some())
                 .expect("a body built on the extrude offers the re-point")
         }
 
         /// The re-point `onto` offers, accepted; `land` pumps.
         fn repoint_onto(&mut self, onto: RecipeNodeId, land: bool) {
             let doc = self.app.session.committed_doc();
-            let offer = crate::world::repoint_offer(doc, onto).expect("an offer");
+            let offer =
+                crate::world::repoint_offer(doc, onto, self.app.session.tol()).expect("an offer");
             self.app.perform_batch(vec![SessionOp::RepointPlacements {
-                body: pncad::document::Operand::Var(offer.body),
-                onto,
+                source: offer.rows[0].source,
+                onto: onto.into(),
             }]);
             if land {
                 self.quiet();
@@ -7971,7 +7972,8 @@ mod properties_pane_tests {
             "on the copy the face was held on"
         );
         assert_eq!(
-            doc.copied_read(placement()),
+            doc.copied_read(placement())
+                .map(|s| doc.through_sources(s).read),
             doc.output(moved, 0),
             "which places the filleted body"
         );
@@ -8948,17 +8950,28 @@ mod properties_pane_tests {
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        let place = SessionOp::place_where_it_stands(
+        // The second placement shares the startup copy's source, named as
+        // the person names it (VR2).
+        let Some(SessionOp::Place { body, target, .. }) = SessionOp::place_where_it_stands(
             driven.app.session.committed_doc(),
             pncad::document::Operand::Node(extrude()),
-        )
-        .expect("a body in a space");
-        driven.perform(place);
+        ) else {
+            panic!("a body in a space")
+        };
+        driven.perform(SessionOp::Place {
+            body,
+            target,
+            name: Some(pncad::document::VarName::from_static("bracket")),
+        });
         let doc = driven.app.session.committed_doc().clone();
         let [copy] = doc
             .placements()
             .into_iter()
-            .filter(|&at| at != placement() && doc.copied_read(at) == doc.read_of_node(extrude()))
+            .filter(|&at| {
+                at != placement()
+                    && doc.copied_read(at).map(|s| doc.through_sources(s).read)
+                        == doc.read_of_node(extrude())
+            })
             .collect::<Vec<_>>()[..]
         else {
             panic!("the second placement is one more copy")
