@@ -556,8 +556,14 @@ mod tests {
                     (radial - want).norm() < 1e-12,
                     "x = {x}: the {what} radial {radial:?} against {want:?}"
                 );
-                assert!((radial.norm() - 1.0).abs() < 1e-15, "x = {x}: the {what} radial is unit");
-                assert!(arc.on_radial(radial).distance(end) < 1e-12, "x = {x}: on_radial lands on the {what}");
+                assert!(
+                    (radial.norm() - 1.0).abs() < 1e-15,
+                    "x = {x}: the {what} radial is unit"
+                );
+                assert!(
+                    arc.on_radial(radial).distance(end) < 1e-12,
+                    "x = {x}: on_radial lands on the {what}"
+                );
             }
         }
     }
@@ -572,9 +578,20 @@ mod tests {
             Vec2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
             Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
         );
-        let answers = |radials| arc.register_radials(a, b, radials, Tol::witness()).map(|(_, r)| r);
-        assert_eq!(answers([x, y]), [SymRegistration::Witnessed; 4], "the true radials");
-        assert_eq!(answers([y, x]), [SymRegistration::Contradicted; 4], "the radials swapped");
+        let answers = |radials| {
+            arc.register_radials(a, b, radials, Tol::witness())
+                .map(|(_, r)| r)
+        };
+        assert_eq!(
+            answers([x, y]),
+            [SymRegistration::Witnessed; 4],
+            "the true radials"
+        );
+        assert_eq!(
+            answers([y, x]),
+            [SymRegistration::Contradicted; 4],
+            "the radials swapped"
+        );
     }
 
     /// **A tangency at a foot, and a planted lie, at the exact witness.**

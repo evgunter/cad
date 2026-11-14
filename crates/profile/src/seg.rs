@@ -28,8 +28,8 @@ use geom_core::{
     Vec2,
 };
 
-use crate::Segment;
-use crate::validate::ArcCheck;
+use crate::validate::{ArcCheck, RecordedDirection};
+use crate::{Segment, SegmentDirections};
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
@@ -170,6 +170,24 @@ pub(crate) enum SegIssue<T: Real> {
         /// ([`resolves`]'s margin).
         headroom: MarginDiag,
     },
+    /// A recorded direction disagrees with the vertices it points at
+    /// (`segment_direction` classified the miss definitely off), or is
+    /// the other kind's ([`RecordedDirection::Kind`]).
+    DirectionInconsistent {
+        /// Which direction.
+        which: RecordedDirection,
+    },
+    /// `segment_direction` read a recorded direction off its vertex at
+    /// a magnitude whose `f64` rounding is itself past the band
+    /// (`segment_direction_resolution`).
+    DirectionBelowSceneResolution {
+        /// Which direction.
+        which: RecordedDirection,
+        /// What `segment_direction` classified.
+        margin: MarginDiag,
+        /// What `segment_direction_resolution` classified.
+        headroom: MarginDiag,
+    },
 }
 
 impl<T: Real> From<ShapeIssue<T>> for SegIssue<T> {
@@ -191,6 +209,10 @@ impl<T: Real> SegIssue<T> {
             Self::Shape(issue) => issue.predicate(),
             Self::Inconsistent { check } => check.predicate(),
             Self::BelowSceneResolution { .. } => Gate::ArcCarrierResolution.predicate(),
+            Self::DirectionInconsistent { .. } => Gate::SegmentDirection.predicate(),
+            Self::DirectionBelowSceneResolution { .. } => {
+                Gate::SegmentDirectionResolution.predicate()
+            }
         }
     }
 }
@@ -640,6 +662,136 @@ fn check_carrier<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The rounding a recorded direction carries into `segment_direction`'s
+/// miss ‖o + ℓ·d − p‖, in ulps of the check's scale, counted as
+/// [`ON_CARRIER_ULPS`] is: the direction's own (a chord's quotient, or a
+/// lowering's rational radial) 4, the length ℓ 2, and the walk's product,
+/// sum and distance 2.
+const DIRECTION_ULPS: f64 = 8.0;
+
+/// **The recorded directions of a table segment, against its vertices**
+/// ([`Consistency::Decide`]): a line's director walked the chord's
+/// length from its start, and an arc's radial walked its rim from the
+/// centre, each must land on the vertex it points at — the
+/// **`segment_direction`** predicate, margin ‖o + ℓ·d − p‖ (meters,
+/// direct), which is Zero exactly when `d` is the unit `(p − o)/ℓ`. A
+/// definite miss is refused typed where the scene resolves it
+/// (**`segment_direction_resolution`**, [`resolves`]'s margin).
+///
+/// An arc `s` reads as a line keeps no carrier, so its radials are not
+/// read either. Directions of the other kind than the stored segment
+/// are refused without a decision ([`RecordedDirection::Kind`]).
+pub(crate) fn check_directions<T: Decide>(
+    s: &Seg<T>,
+    stored: Segment<T>,
+    recorded: SegmentDirections<T>,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    match (stored, recorded, &s.kind) {
+        (Segment::Line, SegmentDirections::Line(d), _) => {
+            check_direction(s.a, s.b, s.len, d, RecordedDirection::Director, band)
+        }
+        (Segment::Arc(_), SegmentDirections::Arc { .. }, SegKind::Line) => Ok(()),
+        (Segment::Arc(_), SegmentDirections::Arc { start, end }, SegKind::Arc(g)) => {
+            let c = g.arc.centre;
+            check_direction(
+                c,
+                s.a,
+                g.arc.rim(s.a),
+                start,
+                RecordedDirection::StartRadial,
+                band,
+            )?;
+            check_direction(
+                c,
+                s.b,
+                g.arc.rim(s.b),
+                end,
+                RecordedDirection::EndRadial,
+                band,
+            )
+        }
+        _ => Err(SegIssue::DirectionInconsistent {
+            which: RecordedDirection::Kind,
+        }),
+    }
+}
+
+/// Whether recorded directions are of the stored segment's kind, the
+/// one structural half of [`check_directions`], which a constructed
+/// segment owes too.
+pub(crate) fn directions_match_kind<T: Real>(
+    stored: Segment<T>,
+    recorded: SegmentDirections<T>,
+) -> bool {
+    matches!(
+        (stored, recorded),
+        (Segment::Line, SegmentDirections::Line(_))
+            | (Segment::Arc(_), SegmentDirections::Arc { .. })
+    )
+}
+
+/// [`check_directions`]' one reading: `d` walked `len` from `o` against `p`.
+fn check_direction<T: Decide>(
+    o: Point2<T>,
+    p: Point2<T>,
+    len: T,
+    d: Vec2<T>,
+    which: RecordedDirection,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    let miss = (o + d * len).distance(p);
+    let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
+        .map_err(SegIssue::escalated)?;
+    match read.sign {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => {
+            let gate = decide_reported(
+                Gate::SegmentDirectionResolution,
+                Margin::of(resolution_headroom(
+                    reach(o).max(reach(p)),
+                    DIRECTION_ULPS,
+                    band,
+                )),
+                band,
+            )
+            .map_err(SegIssue::escalated)?;
+            match gate.sign {
+                Sign::Positive => Err(SegIssue::DirectionInconsistent { which }),
+                Sign::Zero | Sign::Negative => Err(SegIssue::DirectionBelowSceneResolution {
+                    which,
+                    margin: read.margin,
+                    headroom: gate.margin,
+                }),
+            }
+        }
+    }
+}
+
+/// **The directions a validated segment records**: the ones its
+/// construction or its table recorded, `recorded`, where they are of the
+/// kind `s` reads as; otherwise decided here, once, from what the
+/// segment holds — a line's chord unit (`s.unit`, under the
+/// `vertex_separation` decision already taken), an arc's centre-to-vertex
+/// units over its rim at each end.
+pub(crate) fn validated_directions<T: Real>(
+    s: &Seg<T>,
+    recorded: Option<SegmentDirections<T>>,
+) -> SegmentDirections<T> {
+    match (&s.kind, recorded) {
+        (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
+        | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
+        (SegKind::Line, _) => SegmentDirections::Line(s.unit),
+        (SegKind::Arc(g), _) => {
+            let radial = |p: Point2<T>| (p - g.arc.centre) / g.arc.rim(p);
+            SegmentDirections::Arc {
+                start: radial(s.a),
+                end: radial(s.b),
+            }
+        }
+    }
 }
 
 /// One read-back of a constructed arc against what was authored, past

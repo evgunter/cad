@@ -480,6 +480,8 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::PathSeamArrivalSide, NO_FIXTURE),
     (Gate::RayAdvance, NO_FIXTURE),
     (Gate::RaySide, NO_FIXTURE),
+    (Gate::SegmentDirection, NO_FIXTURE),
+    (Gate::SegmentDirectionResolution, NO_FIXTURE),
     (Gate::SegmentGap, NO_FIXTURE),
 ];
 

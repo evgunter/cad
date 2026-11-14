@@ -208,8 +208,8 @@ pub use validate::ARC_SCENE_RESOLUTION_RECOURSE;
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
     FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, OverrunLegs, PINNED_UNDER_GUIDANCE,
-    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
-    ValueNotAPoint, is_full_turn,
+    ProfileError, RecordedDirection, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
+    ValidatedSegment, ValueNotAPoint, is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

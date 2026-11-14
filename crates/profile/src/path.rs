@@ -3706,7 +3706,11 @@ impl<T: Real> Core<T> {
         match leaving {
             None => {
                 let director = self.directors.get(k).copied().flatten();
-                (start, Segment::Line, director.map(crate::SegmentDirections::Line))
+                (
+                    start,
+                    Segment::Line,
+                    director.map(crate::SegmentDirections::Line),
+                )
             }
             Some(built) => {
                 if let Some(tol) = tol {
