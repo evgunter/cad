@@ -2,9 +2,10 @@
 id: main-red-seat7-corner-table-moved-at-6832-and-kitchen-sink-after-it
 kind: issue
 title: main red: seat7's sweep digests moved again: corner_table at PR 6832 by arena keys alone, kitchen_sink in a later merge
-status: open
+status: closed
 opened: 2026-11-13
 parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
 ---
 
 

@@ -2,11 +2,12 @@
 id: main-red-two-slow-digest-rows-at-8ae2b9b
 kind: issue
 title: main is red on two slow-set digest rows at 8ae2b9b: seat7_sweep_lowering (corner_table) and m10_sym_profile_interval (plate)
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
 ---
 
 

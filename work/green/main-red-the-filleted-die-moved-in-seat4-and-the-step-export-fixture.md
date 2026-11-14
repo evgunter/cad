@@ -2,11 +2,12 @@
 id: main-red-the-filleted-die-moved-in-seat4-and-the-step-export-fixture
 kind: issue
 title: main red (slow set): the filleted die moved: seat4's die_fillet digest and step-export's filleted_die.step fixture, since 11-03..11-07
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: E
 parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), both slow-set rows:
