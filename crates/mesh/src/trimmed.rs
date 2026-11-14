@@ -1651,6 +1651,11 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 /// point is one, at `band`. It is the decision the loop's lift takes to
 /// turn the face there (`chart_table`'s module docs), read on the same
 /// points, so the polygon's sides at a singular point are the lift's.
+///
+/// # Errors
+///
+/// `SphereTrimShape { SingularUndecided }` at a vertex the band cannot
+/// place on or off a singular point, read before the polygon is walked.
 fn singular_vertices(
     body: &Body<f64>,
     fk: FaceKey,
@@ -1671,8 +1676,18 @@ fn singular_vertices(
                 .ok_or(TessellateError::MissingEntity {
                     what: "vertex position",
                 })?;
-            if row.is_singular(p, band) {
-                out.insert(id);
+            match row.is_singular(p, band) {
+                Ok(true) => {
+                    out.insert(id);
+                }
+                Ok(false) => {}
+                Err(_) => {
+                    return Err(TessellateError::SphereTrimShape {
+                        face: fk,
+                        edge: ek,
+                        cause: SphereTrimCause::SingularUndecided,
+                    });
+                }
             }
         }
     }
@@ -2011,17 +2026,28 @@ fn trim_polygon(
         .loop_cycle(first)
         .ok_or(TessellateError::MissingEntity { what: "loop cycle" })?;
     // The loop's lift (`topo::Body::loop_lift`), by half-edge: each
-    // image where the loop's chain places it. A loop with no lift reads
-    // as rowless at its every half-edge, and the walk refuses at the
-    // first.
-    let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
-        .loop_lift(lk)
-        .map(|rows| {
-            rows.into_iter()
-                .map(|row| (row.half_edge, row.pcurve))
-                .collect()
-        })
-        .unwrap_or_default();
+    // image where the loop's chain places it. A loop with no lift refuses
+    // at the half-edge its gap names: one that stores no image, no
+    // element on the joint into it, or an image its lift does not apply
+    // to.
+    let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = match body.loop_lift(lk) {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|row| (row.half_edge, row.pcurve))
+            .collect(),
+        Err(topo::pcurves::LiftGap { half_edge }) => {
+            let edge = body
+                .get_half_edge(half_edge)
+                .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+                .edge;
+            return Err(TessellateError::UnsupportedCurve {
+                edge,
+                note: "trimmed face's loop has no lift in its chart (`topo::Body::loop_lift`): \
+                       this half-edge stores no image, no element on the joint into it, or an \
+                       image its lift does not apply to",
+            });
+        }
+    };
     let mut travs: Vec<Vec<(f64, f64, u32)>> = Vec::with_capacity(cycle.len());
     let mut trav_edges: Vec<EdgeKey> = Vec::with_capacity(cycle.len());
     for hek in cycle {
@@ -2034,10 +2060,8 @@ fn trim_polygon(
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
         let forward = edge.he_plus == hek;
         let Some(image) = image else {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: he.edge,
-                note: "trimmed face half-edge carries no stored pcurve cache — caches \
-                       mint in the split/boolean pipelines",
+            return Err(TessellateError::MissingEntity {
+                what: "a half-edge of its loop missing from the loop's lift",
             });
         };
         // Trim-loop tessellation walks the forms whose UV steps the
@@ -3407,14 +3431,26 @@ pub(super) mod tests {
                 );
                 for s in row.singular_points() {
                     let p = s.point;
-                    assert!(row.is_singular(p, band), "{kind:?}: the point itself");
-                    assert!(
+                    assert_eq!(
+                        row.is_singular(p, band),
+                        Ok(true),
+                        "{kind:?}: the point itself"
+                    );
+                    assert_eq!(
                         row.is_singular(p + off * (0.5 * band.zero()), band),
+                        Ok(true),
                         "{kind:?}: half the band's zero off it"
                     );
-                    assert!(
-                        !row.is_singular(p + off * (2.0 * band.escalate()), band),
+                    assert_eq!(
+                        row.is_singular(p + off * (2.0 * band.escalate()), band),
+                        Ok(false),
                         "{kind:?}: twice the band's escalation off it"
+                    );
+                    assert!(
+                        row.is_singular(p + off * (0.5 * (band.zero() + band.escalate())), band)
+                            .is_err(),
+                        "{kind:?}: between the band's zero and its escalation, undecided, which \
+                         `singular_vertices` refuses typed"
                     );
                     seen += 1;
                 }

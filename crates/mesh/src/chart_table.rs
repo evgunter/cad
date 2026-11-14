@@ -51,6 +51,7 @@
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
+use geom_core::Indeterminate;
 use geom_core::Point3;
 use geom_core::predicate::Band;
 use topo::{Body, FaceKey};
@@ -438,14 +439,28 @@ impl<'a> AnalyticRow<'a> {
     /// **Whether the point `p` is one of the chart's singular points**,
     /// decided where the kernel decides it
     /// (`geom_brep::chart_singularity::vertex_at_singular_point`, their
-    /// 3-D distance at `band`). An escalation reads off, as the curved
-    /// lane's walk reads it (`walk`'s `singular_point_at`): a vertex the
-    /// loop's lift could not decide leaves the loop with no lift, and the
-    /// face refuses before this is read.
-    pub(crate) fn is_singular(&self, p: Point3<f64>, band: Band) -> bool {
-        self.singular.iter().any(|s| {
-            geom_brep::chart_singularity::vertex_at_singular_point(p, s.point, band) == Ok(true)
-        })
+    /// 3-D distance at `band`): `true` where it decides zero to one,
+    /// `false` where it decides every one clear.
+    ///
+    /// # Errors
+    ///
+    /// The escalation where no point decides zero and one is in the band:
+    /// a vertex the lane cannot place on or off the singular point at
+    /// this run's band. The lift was minted at the body's band and turns
+    /// the face at a vertex it decided on, so reading an escalation as
+    /// "off" would put the polygon's sides where the lift's are not;
+    /// `trimmed`'s `singular_vertices` refuses the face typed instead
+    /// (`SphereTrimCause::SingularUndecided`).
+    pub(crate) fn is_singular(&self, p: Point3<f64>, band: Band) -> Result<bool, Indeterminate> {
+        let mut undecided = None;
+        for s in &self.singular {
+            match geom_brep::chart_singularity::vertex_at_singular_point(p, s.point, band) {
+                Ok(true) => return Ok(true),
+                Ok(false) => {}
+                Err(e) => undecided = Some(e),
+            }
+        }
+        undecided.map_or(Ok(false), Err)
     }
 
     /// The face's outward normal at the foot of `p` on its chart, from the

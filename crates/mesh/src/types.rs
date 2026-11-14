@@ -636,6 +636,10 @@ pub enum SphereTrimCause {
     /// "The development") rounds them together, and the lane does not hold
     /// two mesh vertices as one CDT vertex.
     DevelopedMerge,
+    /// A vertex of the loop lies within the run's band of a singular
+    /// point, undecided: the lane cannot say whether the loop turns the
+    /// face there, which the polygon's sides at that point follow.
+    SingularUndecided,
 }
 
 impl SphereTrimCause {
@@ -649,6 +653,7 @@ impl SphereTrimCause {
             Self::ChordBudget => "chord_budget",
             Self::BothNappes => "both_nappes",
             Self::DevelopedMerge => "developed_merge",
+            Self::SingularUndecided => "singular_undecided",
         }
     }
 }
@@ -900,6 +905,11 @@ impl TessellateError {
                         "two vertices of its loop lie so near each other, or one so near \
                          the cone's apex, that the cone's development rounds them to one \
                          point, and the trimmed lane does not merge two vertices"
+                    }
+                    SphereTrimCause::SingularUndecided => {
+                        "a vertex of its loop lies so near a chart pole or apex that this \
+                         run's tolerance band cannot say whether it is one; mesh at the \
+                         band the body was built at, or move the vertex off the point"
                     }
                 };
                 write!(
