@@ -60,6 +60,7 @@ pub mod carrier_resolution;
 pub mod certify;
 pub mod chart_image;
 pub mod chart_singularity;
+pub mod chart_winding;
 pub mod conic_bend;
 pub mod curve_face;
 pub mod curve_pair;
@@ -134,6 +135,7 @@ pub use certify::{
     SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
     schedule_param, side_row_certifies,
 };
+pub use chart_winding::ChartWinding;
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,

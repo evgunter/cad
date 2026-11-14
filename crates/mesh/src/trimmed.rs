@@ -165,7 +165,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{OutwardNormal, Pcurve};
+use geom_brep::{ChartWinding, OutwardNormal, Pcurve};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -469,21 +469,21 @@ pub(crate) fn tessellate_trimmed(
             what: "degenerate trimmed boundary",
         });
     }
-    // THE ORIENTATION THE LOOP PROMISES, checked rather than read. The
-    // loop runs interior-left about the face's outward normal, and an
-    // analytic chart's normal `∂u × ∂v` is the surface's outward one,
-    // so the polygon runs counter-clockwise in the chart exactly when
-    // `sense` is true. The emit pass winds its triangles by the
-    // polygon's own shoelace; a polygon that contradicts the sense
-    // bounds the face's complement, and winding by it would ship that
-    // complement as a closed manifold mesh — so it refuses here. A
-    // spline chart's winding is not checked: the NURBS arm keeps the
-    // emit pass's reading.
-    if !nurbs_chart {
-        let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-        if (shoelace2(&poly2) > 0.0) != face.sense {
-            return Err(TessellateError::TrimLoopOrientation { face: fk });
-        }
+    // THE WINDING THE POLYGON HAS, read once; the emit pass winds its
+    // triangles by it. On an analytic arm it is also CHECKED against
+    // the winding the face promises (`ChartWinding::of_face`): a polygon
+    // that contradicts the sense bounds the face's complement, and
+    // winding by it would ship that complement as a closed manifold
+    // mesh. The spline arm takes the polygon's winding unchecked: its
+    // triangles follow the loop's stored traversal whatever the bit
+    // says.
+    let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
+    let winding =
+        ChartWinding::of_signed_area(shoelace2(&poly2)).ok_or(TessellateError::MissingEntity {
+            what: "degenerate trimmed boundary",
+        })?;
+    if !nurbs_chart && winding != ChartWinding::of_face(face.sense) {
+        return Err(TessellateError::TrimLoopOrientation { face: fk });
     }
     // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
     // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
@@ -636,6 +636,7 @@ pub(crate) fn tessellate_trimmed(
     let trimmed = TrimmedFace {
         fk,
         sense: face.sense,
+        winding,
         metric,
         surface,
         lane: &lane,
@@ -791,6 +792,9 @@ struct TrimmedFace<'a> {
     /// The face's orientation sense: its outward normal is the
     /// surface's when true ([`Self::outward`]).
     sense: bool,
+    /// The trim polygon's winding in the chart, which the emitted
+    /// triangles take.
+    winding: ChartWinding,
     /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
     /// scaling the axis that shrinks ([`Self::cdt_point`]).
     metric: f64,
@@ -1207,10 +1211,9 @@ impl TrimmedFace<'_> {
         let (surface, shared, tol) = (self.surface, self.shared, self.tol);
         // Even-odd interior flags, then emission with certificates.
         let inside = classify_faces(cdt, crossings);
-        let flip = {
-            let poly2: Vec<[f64; 2]> = self.polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-            shoelace2(&poly2) < 0.0
-        };
+        // The CDT's triangles are counter-clockwise in the chart; the
+        // patch's are wound as the polygon is.
+        let flip = self.winding == ChartWinding::Clockwise;
         // Pass 1: which grid candidates the kept triangles use; number
         // them in (v, u) row-major order over the FINAL kept set —
         // sorted by coordinates, not by candidate index, so refinement
@@ -2285,6 +2288,7 @@ mod tests {
         ChartPoles, ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError,
         chain_creases, id_repeats_apart, trim_polygon,
     };
+    use geom_brep::ChartWinding;
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
 
@@ -2959,9 +2963,13 @@ mod tests {
                         a.0 * b.1.sin() - b.0 * a.1.sin()
                     })
                     .sum::<f64>();
-            let area = if face.sense { area } else { -area };
+            assert_eq!(
+                ChartWinding::of_signed_area(area),
+                Some(ChartWinding::of_face(face.sense)),
+                "face {fk:?}: the polygon winds as its face's sense says ({area})"
+            );
             assert!(
-                area > 0.0 && area < 4.0 * core::f64::consts::PI,
+                area.abs() < 4.0 * core::f64::consts::PI,
                 "face {fk:?}: equal-area {area}"
             );
             if pole_sides == 2 {
@@ -3175,6 +3183,7 @@ mod tests {
                 let face = super::TrimmedFace {
                     fk: FaceKey::default(),
                     sense,
+                    winding: ChartWinding::of_face(sense),
                     metric: 1.0,
                     surface,
                     lane,
