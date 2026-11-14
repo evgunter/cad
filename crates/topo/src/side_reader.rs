@@ -1072,12 +1072,14 @@ mod aimed_ray_tests {
 
     /// **A boxed brick reads, by its rays, the side every member has**:
     /// `Out` where its top cap lies definitely above its bottom, and `In`
-    /// where it lies definitely below (inside out, every member), over a
-    /// fifth and a tenth of the brick's height. On the inside-out brick
-    /// the ray aimed at a cap crosses the other cap first, behind its
-    /// aim: red against a walk that reads only what lies ahead of the
-    /// aim, which reads `Out` there, and against a ray rebuilt from a
-    /// boxed start, which reads neither.
+    /// where it lies definitely below (inside out, every member), over
+    /// two fifths and a fifth of the brick's height. On the inside-out
+    /// brick the ray aimed at a cap crosses the other cap first, behind
+    /// its aim: red against a walk that reads only what lies ahead of the
+    /// aim, which reads `Out` there; against a ray rebuilt from a boxed
+    /// start, which reads neither; and against an edge pass that reads
+    /// the ray's direction back off its span's two ends, which reads
+    /// neither at these widths.
     ///
     /// A box where the top passes through the bottom, whose members have
     /// both sides, is not among these because no door builds it: the edge
@@ -1103,7 +1105,7 @@ mod aimed_ray_tests {
             })
             .0
         };
-        let (above, below) = (read(0.9, 1.1), read(-1.05, -0.95));
+        let (above, below) = (read(0.8, 1.2), read(-1.1, -0.9));
         assert_eq!(above, "Ok(Side(Out))", "definitely above");
         assert_eq!(below, "Ok(Side(In))", "definitely below");
     }

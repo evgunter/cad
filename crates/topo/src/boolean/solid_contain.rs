@@ -3335,8 +3335,7 @@ fn edge_meets<T: Decide>(
     let geom::Line { origin: q, dir: d } = ray.line;
     let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
     let top = reach * T::from_f64(2.0);
-    let far = q + d * top;
-    let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
+    let passes = crate::census::line_passes(body, (q, d, top), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
         lines: std::collections::BTreeSet::new(),
