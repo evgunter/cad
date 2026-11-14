@@ -4,6 +4,8 @@ kind: issue
 title: A split rim's re-minted row reads its kept chart corner through its measured map, so a split Interval loft refuses check 7
 status: open
 opened: 2026-11-14
+priority: P1
+cost: M
 ---
 
 

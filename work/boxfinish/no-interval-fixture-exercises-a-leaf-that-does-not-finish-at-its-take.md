@@ -4,6 +4,8 @@ kind: issue
 title: No executed row exercises an Interval sweep leaf that does not finish at its taker
 status: open
 opened: 2026-11-14
+priority: P2
+cost: E
 ---
 
 Found by `boxfinish/chart-ends`. Corrected in that PR's fix pass, after
