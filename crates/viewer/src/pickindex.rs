@@ -3045,6 +3045,22 @@ fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
     pncad::document::in_space(part).map(|map| map.to_affine())
 }
 
+/// **Where `evaluation` draws `node`'s body in its space**: its frame
+/// composed into the space's coordinates, the identity where it is in
+/// them already. `None` where `node` has no one body. What the
+/// placement editor's preview carries a copy by
+/// ([`crate::session::Stood::moved_from`]): a copy placed from a copy
+/// moves with its source's frame as well as its own pose.
+pub fn drawn_frame(evaluation: &Evaluation<f64>, node: RecipeNodeId) -> Option<Frame> {
+    let Some(Some(body)) = evaluation.value(node)?.payload.one_body() else {
+        return None;
+    };
+    Some(
+        pncad::document::in_space(body)
+            .map_or(Frame::IDENTITY, |map| Frame::from_affine(map.to_affine())),
+    )
+}
+
 /// **The one drawn edge's own nearest segment**, or `None` when no
 /// segment of it is a candidate at all.
 ///

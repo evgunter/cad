@@ -1268,7 +1268,7 @@ impl ViewerApp {
         };
         let (landed, ev) = session.landed_pair()?;
         let copies: BTreeMap<_, _> = stood
-            .moved_from(&pncad::document::SolvedPoses::of(landed, ev))
+            .moved_from(&crate::session::Stood::of(landed, ev))
             .map(|(copy, space, drawn, stands)| {
                 (
                     copy,
@@ -8766,11 +8766,20 @@ mod properties_pane_tests {
 
     /// The startup app over a [`Gated`] seam, open, and the gate.
     fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        gated_over(Clone::clone)
+    }
+
+    /// [`gated`] over `doc` of the startup document.
+    fn gated_over(
+        doc: impl FnOnce(
+            &pncad::document::Doc<pncad::document::ProfileProgram>,
+        ) -> pncad::document::Doc<pncad::document::ProfileProgram>,
+    ) -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
         let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let gate = std::sync::Arc::clone(&open);
         let driven = Driven::with_seams(Vec::new(), |app| {
             app.session = crate::session::DocSession::new(
-                app.session.doc().clone(),
+                doc(app.session.doc()),
                 pncad::tolerance::witness(),
                 Box::new(Gated {
                     inner: crate::evalseam::InlineEvaluator::new(),
@@ -9309,6 +9318,44 @@ mod properties_pane_tests {
         assert!(
             moved_by(&committed, &drawn, up),
             "the copy is drawn under the space's frame: {committed:?} -> {drawn:?}"
+        );
+    }
+
+    /// **A copy placed from a copy the draft moves is drawn moved with
+    /// it**: a second copy placed into the world from the startup copy,
+    /// at the identity, keeps its own pose while a waiting slide moves
+    /// the startup copy 5 mm along x, and it is drawn where it will land,
+    /// 5 mm along x with its source.
+    #[test]
+    fn a_copy_placed_from_a_previewed_copy_is_drawn_moved_with_it() {
+        let mut second = None;
+        let (mut driven, open) = gated_over(|doc| {
+            let (doc, again) = crate::test_support::inserted(
+                doc,
+                pncad::document::Node::place(
+                    pncad::document::BodyRead::plain(pncad::document::Operand::Node(placement())),
+                    pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+                    pncad::document::stand().bundle(),
+                ),
+                pncad::tolerance::witness(),
+            );
+            second = Some(again);
+            doc
+        });
+        let second = second.expect("the second copy was placed");
+        driven.settle();
+        let (first_was, second_was) = (drawn_box(&driven, placement()), drawn_box(&driven, second));
+        waiting_behind_a_rename(&mut driven, &open, |tool| slide_x(tool, 0.005));
+        let by = [0.005, 0.0, 0.0];
+        let first = drawn_box(&driven, placement());
+        assert!(
+            moved_by(&first_was, &first, by),
+            "the premise: the slid copy is drawn moved: {first_was:?} -> {first:?}"
+        );
+        let drawn = drawn_box(&driven, second);
+        assert!(
+            moved_by(&second_was, &drawn, by),
+            "the copy placed from it is drawn moved with it: {second_was:?} -> {drawn:?}"
         );
     }
 

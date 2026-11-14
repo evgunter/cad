@@ -513,36 +513,50 @@ struct BundleLanding {
 /// holds, or the refusal it would land with.
 pub type BundleJudgement = Result<Option<Arc<Stood>>, BundleRefusal>;
 
-/// **Where a scratch solve stands every copy**: each placement that
-/// evaluated, the space it stands in and its pose there.
+/// **Where an evaluation draws every copy**: each placement that
+/// evaluated to a body, the space it stands in and its body's frame
+/// composed into it ([`crate::pickindex::drawn_frame`]) — its pose over
+/// its source's frame, so a copy placed from a copy stands where its
+/// source does.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Stood {
-    /// Placement → its space and its pose in it.
+    /// Placement → its space and its body's frame in it.
     pub copies: std::collections::BTreeMap<RecipeNodeId, (VarId, Frame)>,
 }
 
 impl Stood {
+    /// **Where `evaluation`, an evaluation of `doc`, draws every copy.**
+    pub fn of(doc: &Doc<ProfileProgram>, evaluation: &Evaluation<f64>) -> Self {
+        Self {
+            copies: doc
+                .placements()
+                .into_iter()
+                .filter_map(|copy| {
+                    Some((
+                        copy,
+                        (
+                            doc.node_space(copy)?,
+                            crate::pickindex::drawn_frame(evaluation, copy)?,
+                        ),
+                    ))
+                })
+                .collect(),
+        }
+    }
+
     /// **Every copy this stands elsewhere than `drawn` does** — in
-    /// another space, or at another pose (bit for bit) — with its
-    /// space here, its pose in `drawn` and its pose here. A copy `drawn`
-    /// does not stand is left out: nothing of it is drawn to carry.
-    pub fn moved_from(
-        &self,
-        drawn: &pncad::document::SolvedPoses,
-    ) -> impl Iterator<Item = (RecipeNodeId, VarId, Frame, Frame)> + '_ {
-        let drawn: Vec<_> = self
-            .copies
-            .keys()
-            .map(|&copy| (drawn.space(copy), drawn.relative(copy)))
-            .collect();
-        self.copies
-            .iter()
-            .zip(drawn)
-            .filter_map(|((&copy, &(space, stands)), (was_in, was))| {
-                let was = was?;
-                (was_in != Some(space) || !was.bit_eq(&stands))
-                    .then_some((copy, space, was, stands))
-            })
+    /// another space, or at another frame (bit for bit) — with its
+    /// space here, its frame in `drawn` and its frame here. A copy
+    /// `drawn` does not stand is left out: nothing of it is drawn to
+    /// carry.
+    pub fn moved_from<'a>(
+        &'a self,
+        drawn: &'a Stood,
+    ) -> impl Iterator<Item = (RecipeNodeId, VarId, Frame, Frame)> + 'a {
+        self.copies.iter().filter_map(|(&copy, &(space, stands))| {
+            let &(was_in, was) = drawn.copies.get(&copy)?;
+            (was_in != space || !was.bit_eq(&stands)).then_some((copy, space, was, stands))
+        })
     }
 }
 
@@ -5046,24 +5060,19 @@ impl DocSession {
         let mut run = Recording::start(doc, self.tol);
         bundle_run(&mut run, placement, target, constraints.to_vec())
             .map_err(|error| BundleRefusal::Edit(Box::new(error.respoken(doc))))?;
-        let solved = pncad::document::solve_document(
+        let evaluation: Evaluation<f64> = pncad::document::evaluate(
             run.doc(),
-            &self.eval_options(),
+            None,
             &pncad::document::CancelToken::new(),
+            &self.eval_options(),
             self.tol,
         );
+        let solved = pncad::document::SolvedPoses::of(run.doc(), &evaluation);
         match (solved.fault(placement), solved.relative(placement)) {
             (Some(fault), _) => Err(BundleRefusal::Fails {
                 fault: Some(Box::new(fault.clone())),
             }),
-            (None, Some(_)) => Ok(Some(Stood {
-                copies: run
-                    .doc()
-                    .placements()
-                    .into_iter()
-                    .filter_map(|copy| Some((copy, (solved.space(copy)?, solved.relative(copy)?))))
-                    .collect(),
-            })),
+            (None, Some(_)) => Ok(Some(Stood::of(run.doc(), &evaluation))),
             (None, None) => Err(BundleRefusal::Fails { fault: None }),
         }
     }
