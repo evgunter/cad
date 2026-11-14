@@ -12,7 +12,7 @@ cost: E
 From the Approx-face survey (`tess/approx-face-survey`, `d423d1b46`),
 filed by the TESS orchestrator, 2026-09-22.
 
-- **Wrong noun.** `mesh::chords::nurbs_tighten`'s `UnsupportedCurve`
+- **Wrong noun.** `chords::tighten`'s `UnsupportedCurve`
   note and `topo::props`' `QuadratureUnsupported` (`nurbs_face` and
   `trimmed_face`, byte-identical) say "NURBS face"; the face wears
   `Surface::Approx` and only its chart is a spline. A reader grepping
