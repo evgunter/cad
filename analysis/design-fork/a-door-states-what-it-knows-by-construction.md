@@ -38,3 +38,7 @@ Each designer resumed and handed the other's first report whole, asked what move
 Both designers moved and met. Agreed final state: (1) every sweep door builds its carrier directions and frames from the construction's inputs and rigid motions, never from placed vertices (buildable now, no ruling); (2) the profile records each segment's unit directions; (3) what check 1 may ask of a frame that truly turns over the box is a separate question, both leaning to a carrier storing the witness; (4) the rule gets a written home. Residue, none of it a position: whether (2) touches ratified text (it does: `crates/profile/README.md`, "Profile format"; B's grep missed it), and which document holds the rule's clause (A: DESIGN.md beside `[edges]`, with the sweep README stating its instance; B: the sweep README), which is Ev's to pick.
 
 Models, as the harness reported each agent's dispatch: A = Fable 5.2 (`model: fable`), B = Opus 5.5 (`model: opus`); the orchestrator is Fable 5.2 (`get_session`: `last_served_model` claude-fable-5-2).
+
+## Ev decided (2026-11-14, PR 6936)
+
+Both changes approved; the rule's text cut down to one sentence in `[intent.stored]` (what a cache holds never flows back toward the description), neither designer's proposed home. The row (268) carries the decision and the mapping on the `[ev]` PR's branch.
