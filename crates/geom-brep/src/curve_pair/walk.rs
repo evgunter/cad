@@ -55,7 +55,10 @@
 //! the piece's knot spans, not the carrier's. The interval is the piece
 //! widened to the pair's polished parameter, so a polish that left the
 //! piece toward the meeting (past a crease, where the pieces stop only
-//! at the band) keeps its point. The ends' and the witnesses' feet stay
+//! at the band) keeps its point; a held search that stops at an end of
+//! the interval ([`geom::HeldFoot::AtEnd`]), where the nearest point may
+//! lie outside it, is read again on the whole carrier. The ends' and the
+//! witnesses' feet stay
 //! the whole carrier's: a seed piece that does not hold the joint the
 //! point stands on would stop at its own end, a few nanometres short.
 
@@ -273,6 +276,20 @@ fn polished_feet<T: Decide>(
     Ok(out)
 }
 
+/// **`q`'s foot on `curve` for a stop of the walk**: held to the piece
+/// `p` widened to `near`, the polished parameter
+/// ([`Curve3::foot_within`]), and the whole carrier's
+/// ([`Curve3::foot`]) where the held search stopped at an end of that
+/// interval, where the carrier's nearest point may lie outside it (module
+/// docs, "Why a stop's foot is held to its piece").
+#[allow(dead_code)]
+fn held_foot<T: Decide>(curve: &Curve3<T>, q: Point3<T>, near: T, p: Piece<T>) -> T {
+    match curve.foot_within(q, near, (p.a.min(near), p.b.max(near))) {
+        geom::HeldFoot::Inside(foot) => foot.seed(),
+        geom::HeldFoot::AtEnd(_) => curve.foot(q, near).seed(),
+    }
+}
+
 /// Whether two parameters are one, read exactly.
 fn same<T: Decide>(s: T, t: T) -> bool {
     super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
@@ -432,15 +449,8 @@ pub(super) fn meet<T: Decide>(
                 // Each foot held to its own piece, widened to the polished
                 // parameter where the polish left it: the window below
                 // certifies the candidate against the two pieces.
-                let held = |p: Piece<T>, u: T| (p.a.min(u), p.b.max(u));
-                let t = rb
-                    .curve()
-                    .foot_within(ra.curve().eval(s), t, held(pb, t))
-                    .seed();
-                let s = ra
-                    .curve()
-                    .foot_within(rb.curve().eval(t), s, held(pa, s))
-                    .seed();
+                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
+                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
                 let candidate = super::Candidate {
                     point: ra.curve().eval(s),
                     ta: s,

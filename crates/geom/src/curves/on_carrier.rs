@@ -113,6 +113,26 @@ const LEAST_SAMPLES: usize = 4;
 /// it.
 const SPLINE_SAMPLES: [f64; 4] = [0.125, 0.375, 0.625, 0.875];
 
+/// **A foot held to an interval** ([`Curve3::foot_within`]): one off
+/// both ends of it, or one at an end, where the search stopped against
+/// the interval and the carrier's nearest point may lie outside.
+#[derive(Clone, Copy, Debug)]
+pub enum HeldFoot<'c, T: Real> {
+    /// Off both ends: a polished point of the gap inside the interval.
+    Inside(Foot<'c, T>),
+    /// At an end of the interval, exactly.
+    AtEnd(Foot<'c, T>),
+}
+
+impl<'c, T: Real> HeldFoot<'c, T> {
+    /// The foot, wherever it stands.
+    pub fn foot(self) -> Foot<'c, T> {
+        match self {
+            Self::Inside(foot) | Self::AtEnd(foot) => foot,
+        }
+    }
+}
+
 /// A point's foot on a carrier, made only by [`Curve3::foot`] and
 /// [`Curve3::foot_within`], holding
 /// the point and the carrier it was found for (module docs).
@@ -473,17 +493,30 @@ impl<T: Decide> Curve3<T> {
     ///
     /// **A foot held at an end of the interval** is the interval's end,
     /// where the polish stopped against it, not a stationary point of the
-    /// gap: the nearest point of the carrier may lie outside. Like every
-    /// foot it certifies nothing ([`Foot::seed`]), and a reader that needs
-    /// an interior minimum reads the parameter against the interval.
+    /// gap: the nearest point of the carrier may lie outside, so it is
+    /// returned as [`HeldFoot::AtEnd`], and a foot off both ends as
+    /// [`HeldFoot::Inside`]. Like every foot it certifies nothing
+    /// ([`Foot::seed`]).
     ///
     /// Which samples lie inside the interval is read off each value's
     /// bracket middle, a choice of where to start, never a verdict: every
     /// start polishes to a foot of the interval. On every other kind the foot is [`Self::foot`]'s, the
     /// whole carrier's, found in closed form or polished from the seed,
     /// whose cost no interval changes.
-    pub fn foot_within(&self, q: Point3<T>, near: T, within: (T, T)) -> Foot<'_, T> {
-        self.foot_over(q, near, Some(within))
+    pub fn foot_within(&self, q: Point3<T>, near: T, within: (T, T)) -> HeldFoot<'_, T> {
+        let foot = self.foot_over(q, near, Some(within));
+        // An end's bits are what a held step or an end sample leaves, so
+        // a foot at an end reads it exactly.
+        let bits = |x: T| {
+            x.structure_bracket()
+                .map(|(a, b)| (a.to_bits(), b.to_bits()))
+        };
+        let at = bits(foot.t);
+        if at.is_some() && (at == bits(within.0) || at == bits(within.1)) {
+            HeldFoot::AtEnd(foot)
+        } else {
+            HeldFoot::Inside(foot)
+        }
     }
 
     /// [`Self::foot`] over `within`, the whole domain where `None`.

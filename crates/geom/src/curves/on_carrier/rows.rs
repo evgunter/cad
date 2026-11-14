@@ -856,7 +856,7 @@ fn a_spline_foot_held_to_an_interval_is_the_whole_foot_where_that_lies_inside() 
             );
             let near = rng.range(0.0, domain);
             let whole = c.foot(q, near);
-            let all = c.foot_within(q, near, (0.0, domain));
+            let all = c.foot_within(q, near, (0.0, domain)).foot();
             assert_eq!(
                 (all.seed().to_bits(), all.gap().to_bits()),
                 (whole.seed().to_bits(), whole.gap().to_bits()),
@@ -869,7 +869,7 @@ fn a_spline_foot_held_to_an_interval_is_the_whole_foot_where_that_lies_inside() 
                 continue;
             }
             let (lo, hi) = (rng.range(0.0, t - margin), rng.range(t + margin, domain));
-            let held = c.foot_within(q, near, (lo, hi));
+            let held = c.foot_within(q, near, (lo, hi)).foot();
             compared += 1;
             if whole.gap() - least <= 1e-9 {
                 whole_reaches += 1;

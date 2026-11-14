@@ -71,7 +71,7 @@ use crate::azimuth::{self, Azimuth};
 use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
-    CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
+    CarrierEscalation, CarrierRefusal, Clearance, Foot, HeldFoot, OnCarrier, PieceRead, PieceStep,
     PieceWalkRefusal, ellipse_level_clearance,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
