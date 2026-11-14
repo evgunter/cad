@@ -2,10 +2,11 @@
 id: nightly-reds-editor-core-digests-and-goldens
 kind: unit
 title: Nightly reds: the editor-core digests and goldens, the STEP fixtures and the thread-count golden
-status: dispatched
+status: review
 opened: 2026-11-14
 priority: P1
 cost: M
+branch: green/goldens
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
