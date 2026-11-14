@@ -1619,6 +1619,7 @@ pub(crate) mod tests {
             ("chord_join.rs", 6),
             ("cover_reach_rows.rs", 6),
             ("face_boxes.rs", 1),
+            ("face_reach.rs", 2),
             ("link.rs", 1),
             ("pieces.rs", 1),
             ("separating.rs", 4),
@@ -1627,7 +1628,6 @@ pub(crate) mod tests {
             ("shell.rs", 2),
             ("splitting/classify.rs", 1),
             ("splitting/containment.rs", 1),
-            ("splitting/rules.rs", 2),
             ("validate.rs", 1),
         ];
         const HOMES: [&str; 2] = ["boxes.rs", "cover.rs"];
