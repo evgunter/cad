@@ -349,13 +349,15 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
 }
 
 /// `he`'s place on edge `ek` (its record `data`), for a `he` that names
-/// `ek`: on a tier-1-valid body the edge claims it, so a miss panics.
+/// `ek`: on a tier-1-valid body the edge claims it, and mid-operation
+/// an operator writes a half-edge's `edge` and that edge's slot
+/// together, so a miss panics naming both premises.
 #[track_caller]
-fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
+pub(crate) fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
     data.claim(he).unwrap_or_else(|| {
         unreachable!(
             "{he:?}'s edge {ek:?} does not claim it in either slot: on a tier-1-valid \
-             body an edge claims the two half-edges that name it"
+             body an edge claims the two half-edges that name it; {OPERATORS_KEEP_LINKS}"
         )
     })
 }

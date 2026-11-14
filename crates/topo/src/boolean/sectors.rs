@@ -4858,7 +4858,7 @@ mod tests {
 }
 
 /// **A spline leaves a vertex along its tangent, not its chord.** The
-/// sweep rows' Bézier sheet (`reduce::planar_lane_carrier_rows`): the
+/// sweep rows' Bézier sheet (`test_support_fixtures`): the
 /// arc from `(0, 0, 0)` through the control point `(1, 2, 0)` to
 /// `(2, 0, 0)` leaves its start along `(1, 2, 0)`, the first leg of its
 /// control net, where its chord runs along `x̂`, in the plane `y = 0`
@@ -4867,12 +4867,12 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_departure_rows {
     use super::BoundSupport;
-    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use crate::test_support_fixtures::bezier_arc_sheet;
     use geom_core::Vec3;
 
     #[test]
     fn the_sector_walk_reads_a_splines_tangent() {
-        let (body, edge) = arc_sheet(1.0, 1.0);
+        let (body, edge) = bezier_arc_sheet(1.0, 1.0, geom_core::Tol::witness());
         let he = body.get_edge(edge).unwrap().he_plus;
         let vertex = body.get_half_edge(he).unwrap().start;
         let (dir, reach) = crate::star::departure(&body, vertex, he).unwrap();
