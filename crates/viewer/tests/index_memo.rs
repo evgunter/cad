@@ -1065,8 +1065,27 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// two crossings are further apart than the near-coplanar triangle is
 /// large. `a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it`
 /// is the other side of the same line, where they are not.
+///
+/// **Pinned to its premise's stop at every ε row**
+/// (`work/vgeom/the-wide-candidate-row-lost-its-near-coplanar-triangle-before-the-vertex.md`):
+/// the ring's planar caps are triangulated in their charts, whose origin
+/// is now the sketch frame's, and on the mesh that gives this ray's
+/// near-coplanar candidates answer at the vertex and `0.031` beyond it,
+/// none short of it, so the class the row carries has no fixture here.
 #[test]
 fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the ring's wide candidate",
+        &["the wide candidate still answers 0.031 short of the vertex"],
+        a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row,
+    );
+}
+
+/// The row [`a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex`]
+/// runs, under its pin.
+fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row() {
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
