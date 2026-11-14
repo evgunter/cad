@@ -50,8 +50,8 @@ that PR's diff does not touch:
     sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order took 1.042 s (existing test: 1.0 s)
     sweep::all pis_arc_capped_poses::the_cut_cylinder_reads_its_truth took 1.015 s (existing test: 1.0 s)
 
-The run before it on the same branch (43555174396, eight sweep test
-files apart at most) had both under the bar. The lane's integration
+The run before it on the same branch (43555174396) passed the same
+check, so both were under the bar there. The lane's integration
 could not re-run the job (`rerun-failed-jobs`: 403), so the only way to
 a second reading was a new commit. This is the second remedy's cost
 ("leave them and watch `check-fast-set-times` reds"): a red gate on a
