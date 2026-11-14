@@ -74,7 +74,6 @@ use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
 use crate::separating::Item;
-use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
@@ -685,24 +684,14 @@ fn vertex_face_side<T: Decide>(
             reference: geom_brep::ReferenceNormal::of_face_outward(outward),
         })
     };
+    // A far vertex's side is read in the frame the section reads the
+    // bounds' sides in, the face's outward one, by the door's one
+    // evaluation of an offset.
     let far = |far: VertexKey| {
         let q = x.resolve_vertex_point(far, crate::live::Proven);
-        let decided = geom_core::k_stats::decide_reported(
-            "bool_vertex_face_side",
-            Margin::of(geom::plane_offset(plane.origin, plane.normal, q)),
-            band,
-        )
-        .map_err(VertexRefusal::Offset)?;
-        Ok(match decided.sign {
-            Sign::Negative => SplitSide::Below,
-            Sign::Positive => SplitSide::Above,
-            Sign::Zero => SplitSide::On,
-        })
+        Offset::of(plane.origin, plane.normal, q).side_as("bool_vertex_face_side", band)
     };
-    let offset = Offset {
-        value: geom::plane_offset_rounded(origin, normal, at),
-        normal,
-    };
+    let offset = Offset::of(origin, normal, at);
     crate::vertex_section::decide_vertex_on_plane(
         "bool_vertex_face_side",
         (x, tips),

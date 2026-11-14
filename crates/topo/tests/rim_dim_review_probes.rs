@@ -4,7 +4,7 @@
 //! configurations (coverage-vacuity check), and the linearity pins
 //! for the sites the twin configs leave silent (flush-face subtract →
 //! `plane_eq_orient`; oblique split → `split_join_frame_arm`,
-//! `split_section_area`). `bool_strut_order` stays SILENT here too —
+//! `split_section_area`). `germ_order` stays SILENT here too —
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 //!
@@ -31,7 +31,7 @@ use topo::{BooleanResult, subtract};
 const FIXED: &[&str] = &[
     "props_rim_side",
     "bool_join_facing",
-    "bool_strut_order",
+    "germ_order",
     "plane_eq_orient",
     "pm_census_ee_parallel",
     "point_in_loop_arm",
@@ -163,12 +163,12 @@ fn silent_fixed_predicates_scale_linearly() {
     let mm = run(1e-3);
     let m = run(1.0);
     // The first three are the sites this probe exists to pin, so a
-    // silence there is a red; `bool_strut_order` stays optional (header).
+    // silence there is a red; `germ_order` stays optional (header).
     for (pred, required) in [
         ("plane_eq_orient", true),
         ("split_join_frame_arm", true),
         ("split_section_area", true),
-        ("bool_strut_order", false),
+        ("germ_order", false),
     ] {
         match (mm.get(pred), m.get(pred)) {
             (Some(a), Some(b)) => {
