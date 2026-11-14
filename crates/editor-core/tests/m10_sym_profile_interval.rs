@@ -280,22 +280,42 @@ fn eps_row(eps: f64) -> usize {
 /// forms), `Plain/Decision` 9809 → 9709 forms over the same calls (an
 /// edge's witness is its carrier's middle, which the walks spell with
 /// fewer forms than a strut's chord midpoint).
+///
+/// **Moved with a line rim's span read from its sketch segment** (PR
+/// 6953): a placed line's span is `‖b − a‖` over the sketch and its
+/// direction the sketch chord's unit placed, where both were read off
+/// the placed vertices, and its carrier end is registered against the
+/// placed far vertex, as an arc's is (`register_placed_line_end`).
+/// - The span spelling alone takes `Plain/Decision` 9709 → 9663 and
+///   `Plain/Assertion` 3503 → 3391 forms, same calls (PR 6953's review,
+///   on its first head): the 3-space difference `q_to − q_from`, its
+///   three squares, its norm and its normalization are formed no more
+///   for each line rim, and the two-coordinate sketch chord and its one
+///   norm, over sketch values other forms already hold, replace them.
+/// - The registration adds the `Door/Decision` walk, 940 calls and 5805
+///   forms: the door now proves each line rim's far-end decisions (check
+///   3) by the registered alias, and those decisions build no plain
+///   forms. With it `Plain/Decision` is 9559 forms, `Plain/Assertion`
+///   3375 and `Early/Assertion` 4931 → 4854, calls unchanged.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest 356e6bc8d414c449867c2fa116fe555b\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest d29e6603588f9290df3ef832f6e6a695\n\
+     Plain/Decision calls 976 forms 9559 frozen 0 digest cb0330eb6422ff0b3787f555a7c6bd20\n\
+     Plain/Assertion calls 988 forms 3375 frozen 0 digest 9d51ee8e5d27c08f84d2c19d6ada93a1\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 7b8f13deaebfb7286d3d5cae4aa38359",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224\n\
+     Door/Decision calls 940 forms 5805 frozen 0 digest c2b9c4762808824462b2b78791304bab",
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest 15650ad068981415de10a62c3c0b6d04\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 8ba06018ed2547dbea4dd12d641db960\n\
+     Plain/Decision calls 976 forms 9559 frozen 0 digest 1e76b0ed45fb1ecc9dbf35db192b2b8f\n\
+     Plain/Assertion calls 988 forms 3375 frozen 0 digest 2617924e0a82d92b5de4344b48457546\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 132566a5d2a8c5015e646a317640f1df",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600\n\
+     Door/Decision calls 940 forms 5805 frozen 0 digest 26359b3fd394d8bedb88cdad8ddc618d",
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest da582f77a3025ab853209680dd368f7c\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 0a321bffbfb7de6a6e9bf1bc04eadca6\n\
+     Plain/Decision calls 976 forms 9559 frozen 0 digest 2ea5e2fe9a0970fe0e4699410cb53451\n\
+     Plain/Assertion calls 988 forms 3375 frozen 0 digest 6e29316b4194cf0b9f3a5a71e3d022b4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 3d94bcd55c6752fd6cc9b3256f656dce",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79\n\
+     Door/Decision calls 940 forms 5805 frozen 0 digest eb14901c76d45bfaa0ea0a6ad389d7d9",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -481,12 +501,20 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 10422 → 14775), `Door/Decision` 403 → 555 calls (11719 → 15037
 /// forms), and `Plain/Decision` and `Early/Decision` keep their calls
 /// over fewer forms (41501 → 40761, 28904 → 28232).
+///
+/// **Moved with a line rim's span read from its sketch segment** (PR
+/// 6953, [`SLAB_LEDGER`]'s note): the span spelling alone takes
+/// `Plain/Assertion` 13400 → 13293 (PR 6953's review); with the far-end
+/// registration the door proves each line rim's far-end decisions,
+/// `Door/Decision` 555 → 1002 calls (15037 → 17994 forms), and
+/// `Plain/Assertion` reads 13305, `Plain/Decision` 40761 → 40813,
+/// `Early/Decision` 28232 → 28205, `Early/Assertion` 14775 → 14807.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1015 forms 40761 frozen 54 digest 5b07296e02e3891fdefde646874c13f4\n\
-     Plain/Assertion calls 1050 forms 13400 frozen 245 digest 0c08c295799141fb624ae59bcad32c59\n\
-     Early/Decision calls 308 forms 28232 frozen 0 digest d3ce1e02bc1dbb309fe24a2b5bc1e603\n\
-     Early/Assertion calls 1050 forms 14775 frozen 0 digest a11a330641699ef49bafd67159091d6b\n\
-     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
+     Plain/Decision calls 1015 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
+     Plain/Assertion calls 1050 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
+     Early/Decision calls 308 forms 28205 frozen 0 digest 26327ae7eaa72dca689e4aa27ad071c4\n\
+     Early/Assertion calls 1050 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
+     Door/Decision calls 1002 forms 17994 frozen 0 digest eb281c1e7844ca6a4dbffbced3401a31";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

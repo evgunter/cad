@@ -2043,21 +2043,14 @@ intensional description largely *is* the provenance.
 
 ## Parameterization conventions
 
-Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
-  complete loci; an edge's bounds are carrier parameters the
-  construction states from the quantity that defines them (a segment's
-  own length, an arc's span, an extrusion distance, a knot domain, a
-  split's certified parameter), on the `he_plus`-forward contract. The
-  vertices are the authority the bounds are certified against (check
-  2), not their source; where the vertices are the only definition (a
-  line between two computed points), their distance is the definition.
-  This is geom-core W1's choice of the spelling that is the quantity's
-  definition, under `[intent.stored]`. Certification enforces forward,
-  nonzero, ≤ one-period spans, the stored interval a certified cache
-  reconciled against vertex authority. Shared azimuthal frame for all revolution
+  complete loci; an edge's bounds derive from its vertices via the
+  `he_plus`-forward contract (certification enforces forward, nonzero,
+  ≤ one-period spans, the stored interval a certified cache reconciled
+  against vertex authority). Shared azimuthal frame for all revolution
   surfaces (axis = +a₃, v_ref = axis × u_ref, seam at u_ref — for
   revolved bodies u = 0 IS the profile half-plane); sphere uses
   latitude; cone v = slant length with the apex a true chart
