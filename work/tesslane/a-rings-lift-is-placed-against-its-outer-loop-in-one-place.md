@@ -2,10 +2,11 @@
 id: a-rings-lift-is-placed-against-its-outer-loop-in-one-place
 kind: unit
 title: a ring's lift is placed in its outer loop's sheet by one rule for every chart, where spline charts alone have one today
-status: spec
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
+branch: tesslane/ring-placement
 ---
 
 
