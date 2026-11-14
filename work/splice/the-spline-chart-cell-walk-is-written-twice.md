@@ -53,3 +53,5 @@ fix Y12, PR 6498):
 
 Move the cells, the cut and the floor to one home in geom-brep and read them from
 both.
+
+2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.
