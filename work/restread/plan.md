@@ -45,7 +45,7 @@ what it waits on now. The table above is the opening slate;
 
 The five P0 rows first. They are near-band reads JOIN and TANG found in the census's straight lanes, and they batch into two lanes: the crossing lane (`…-crossing-lane-escalates-a-line-gap-…`, `…-crossing-lane-misplaces-…`, `…-parallel-test-reads-…`) and the edge-on-face lane (`…-edge-face-cut-escalates-…`, `…-edge-face-lane-escalates-a-plane-residual-…`). CONTACT-12's lesson stands for both: a Zero that abandons a reading and a Zero that is a verdict want different bounds, so each brief asks, per verdict, which bound makes it sound.
 
-Then `census-cross-solid-curved-pairs-undecidable-on-shell-results` (H): REACHHOLD's `boolean-door-runs-the-census-over-its-result` waits on it.
+Then `census-cross-solid-curved-pairs-undecidable-on-shell-results` (H): REACHHOLD's `boolean-door-runs-the-census-over-its-result` waits on it. The row moved to REACHHOLD on 2026-11-14, by `git mv` with its id unchanged, so the door census's whole chain is one program's.
 
 The rest in any order; `census-face-reach-returns-a-nan-box-…` rides the first census lane.
 

@@ -4,6 +4,7 @@ kind: issue
 title: seat7_sweep_lowering's committed corner_table digest no longer matches on main
 status: open
 opened: 2026-11-01
+parent: nightly-reds-editor-core-digests-and-goldens
 ---
 
 
