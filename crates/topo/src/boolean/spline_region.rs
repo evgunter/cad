@@ -101,7 +101,7 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::Deck;
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::pcurves::{RingMiss, RingPlacementError, Side};
+use crate::pcurves::{RingMiss, Side};
 use crate::splitting::Escalation;
 use crate::validate::decide;
 
@@ -1620,37 +1620,6 @@ fn window_arms<T: Decide>(
     least
         .map(|(u, v)| (InfSpeed::new(u), InfSpeed::new(v)))
         .ok_or(None)
-}
-
-/// **The moves that place a spline face's rings in its outer loop's
-/// sheet** ([`crate::Body::face_lift`]'s spline arm): its trim's, in
-/// the face's ring order ([`Trim::with_rings`]).
-///
-/// # Errors
-///
-/// [`RingPlacementError::Unread`] where the trim is not read before a
-/// ring is placed (a placeholder chart, no Bézier decomposition, a row
-/// with no piece reading, periods stated and decided apart), and the
-/// ring's miss where it has no place.
-pub(crate) fn ring_decks<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    band: Band,
-) -> Result<Vec<Deck>, RingPlacementError> {
-    let view = body.proven_face(face);
-    let linked = view.surface();
-    let Some(chart) = linked.spline_chart() else {
-        unreachable!("the spline arm is reached on a spline chart")
-    };
-    if linked.is_placeholder_chart() {
-        return Err(RingPlacementError::Unread);
-    }
-    let cells = bezier_cells(chart).ok_or(RingPlacementError::Unread)?;
-    match Trim::placed(body, face, chart, &cells, Caps::READ, band) {
-        Ok((_, decks)) => Ok(decks),
-        Err(None) => Err(RingPlacementError::Unread),
-        Err(Some((ring, miss))) => Err(miss.of(ring)),
-    }
 }
 
 #[cfg(test)]

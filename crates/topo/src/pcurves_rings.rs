@@ -12,8 +12,10 @@
 //! The rule is one; where a point lies against the outer loop is read
 //! the chart's way, as a joint is (`decide_joint` reads a spline chart's
 //! joints apart from an analytic chart's). A spline chart's reading is
-//! its trim's (`crate::boolean::spline_region`): the ray parity over the
-//! rows' Bézier pieces, metered by the chart's cells. An analytic
+//! its trim's, in the boolean engine: the ray parity over the rows'
+//! Bézier pieces, metered by the chart's cells, which places its own
+//! rings by [`place_ring`]; this door answers a spline face
+//! [`RingPlacementError::SplineChart`]. An analytic
 //! chart's is [`Outer::side`]: the same parity over the lifted rows'
 //! chart boxes ([`Pcurve::chart_box`]), every clearance decided in
 //! metres through the chart's inf-side arms, so a point within the band
@@ -129,10 +131,11 @@ pub enum RingPlacementError {
         /// The in-band decision.
         cause: Option<Indeterminate>,
     },
-    /// A spline chart's trim reads no piece of a row, or the chart's
-    /// periods as stated and as decided part (`spline_region`'s
-    /// `Trim`).
-    Unread,
+    /// The face's chart is a spline chart, whose reading of a point
+    /// against the outer loop is its trim's, in the boolean engine,
+    /// which this door at the crate root does not reach
+    /// (`crates/topo/README.md` `[topo.homes]`).
+    SplineChart,
 }
 
 /// Why [`place_ring`] placed no ring.
@@ -281,9 +284,10 @@ pub(crate) fn face_lift<T: Decide>(
         });
     }
     let surface = view.surface();
-    let decks = if surface.spline_chart().is_some() {
-        crate::boolean::spline_region::ring_decks(body, face, band)?
-    } else {
+    if surface.spline_chart().is_some() {
+        return Err(RingPlacementError::SplineChart);
+    }
+    let decks = {
         let periods = ChartPeriods::of(surface, band);
         let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
