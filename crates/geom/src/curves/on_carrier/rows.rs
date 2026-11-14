@@ -511,7 +511,7 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
     const READERS: &[(&str, usize, &str)] = &[
         (
             "geom/src/curves/on_carrier/rows.rs",
-            5,
+            7,
             "the foot's own rows",
         ),
         (
@@ -751,5 +751,142 @@ fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
         read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
         "a box well inside the arc reads its centre's distance {truth}, its low end the \
          clearance's {clear:?} or above: {read:?}"
+    );
+}
+
+/// The nearest point of the spline `c` over `(lo, hi)` to `q`, as a
+/// dense oracle: the least gap over `samples` even steps, refined by a
+/// ternary search on the bracket about it, which a smooth gap's single
+/// minimum there converges on.
+fn dense_nearest(
+    c: &Curve3<f64>,
+    q: Point3<f64>,
+    (lo, hi): (f64, f64),
+    samples: u32,
+) -> (f64, f64) {
+    let gap = |t: f64| (q - c.eval(t)).norm();
+    let step = (hi - lo) / f64::from(samples);
+    let (mut best, mut at) = (f64::INFINITY, lo);
+    for k in 0..=samples {
+        let t = lo + step * f64::from(k);
+        if gap(t) < best {
+            (best, at) = (gap(t), t);
+        }
+    }
+    let (mut a, mut b) = ((at - step).max(lo), (at + step).min(hi));
+    for _ in 0..100 {
+        let (m1, m2) = (a + (b - a) / 3.0, b - (b - a) / 3.0);
+        if gap(m1) < gap(m2) {
+            b = m2;
+        } else {
+            a = m1;
+        }
+    }
+    let t = 0.5 * (a + b);
+    (gap(t).min(best), t)
+}
+
+/// **A spline foot held to an interval reaches the nearest point inside
+/// it as the whole-domain foot does.** Over 160 drawn splines (degree 2
+/// to 5, 6 to 40 control points, uneven knots, a third rational), eight
+/// points drawn about each, and an interval drawn about each point's
+/// nearest point of the whole curve (a dense oracle,
+/// [`dense_nearest`]), at least a hundredth of the domain clear of it on
+/// both sides, both searches seeded alike:
+///
+/// - held to the whole domain, the foot is [`Curve3::foot`]'s, bit for
+///   bit;
+/// - held to the interval, it reaches the oracle's gap (within `1e-9`
+///   metres) wherever the whole-domain foot does: on 980 of the 1227
+///   intervals drawn the whole foot reaches it, and the held one misses
+///   none of them (the row allows one in two hundred).
+///
+/// Neither search is exact: each polishes a few Gauss–Newton steps from
+/// a few starts, each step kept only where it shrinks the gap, so a
+/// start on a steep stretch can stop short (the whole-domain foot misses
+/// the oracle by more than `1e-9` on about a fifth of these draws). The
+/// held search has every start the whole one has inside the interval;
+/// a step the whole search would take outside the interval and back is
+/// held at the interval's end instead, which is the only way it can
+/// stop where the whole one does not.
+#[test]
+fn a_spline_foot_held_to_an_interval_is_the_whole_foot_where_that_lies_inside() {
+    let mut rng = test_utils::fuzz::Rng::from_seed(0xf007_1d1e);
+    let (mut compared, mut whole_reaches, mut held_misses_where_whole_reaches) = (0, 0, 0);
+    for case in 0..160 {
+        let p = 2 + case % 4;
+        let n = 6 + (case * 7) % 35;
+        let ctrl: Vec<Point3<f64>> = (0..n)
+            .map(|_| {
+                Point3::new(
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                    rng.range(-0.5, 0.5),
+                )
+            })
+            .collect();
+        let mut knots = vec![0.0; p + 1];
+        let mut u = 0.0;
+        for _ in 0..n - p - 1 {
+            u += rng.range(0.2, 1.2);
+            knots.push(u);
+        }
+        u += rng.range(0.2, 1.2);
+        knots.extend(std::iter::repeat_n(u, p + 1));
+        let weights: Vec<f64> = if case % 3 == 0 {
+            (0..n).map(|_| rng.range(0.5, 2.0)).collect()
+        } else {
+            vec![1.0; n]
+        };
+        let c = Curve3::Nurbs(std::sync::Arc::new(
+            crate::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(knots, p).unwrap(),
+                ctrl,
+                weights,
+            )
+            .unwrap(),
+        ));
+        let domain = u;
+        for _ in 0..8 {
+            let on = c.eval(rng.range(0.0, domain));
+            let q = Point3::new(
+                on.x + rng.range(-0.3, 0.3),
+                on.y + rng.range(-0.3, 0.3),
+                on.z + rng.range(-0.3, 0.3),
+            );
+            let near = rng.range(0.0, domain);
+            let whole = c.foot(q, near);
+            let all = c.foot_within(q, near, (0.0, domain));
+            assert_eq!(
+                (all.seed().to_bits(), all.gap().to_bits()),
+                (whole.seed().to_bits(), whole.gap().to_bits()),
+                "case {case}: held to the whole domain the foot moved — {}",
+                test_utils::fuzz::replay()
+            );
+            let (least, t) = dense_nearest(&c, q, (0.0, domain), 1500);
+            let margin = 0.01 * domain;
+            if t - margin <= 0.0 || t + margin >= domain {
+                continue;
+            }
+            let (lo, hi) = (rng.range(0.0, t - margin), rng.range(t + margin, domain));
+            let held = c.foot_within(q, near, (lo, hi));
+            compared += 1;
+            if whole.gap() - least <= 1e-9 {
+                whole_reaches += 1;
+                if held.gap() - least > 1e-9 {
+                    held_misses_where_whole_reaches += 1;
+                }
+            }
+        }
+    }
+    eprintln!(
+        "{compared} intervals; the whole foot reaches the oracle on {whole_reaches}, the held \
+         one misses {held_misses_where_whole_reaches} of those"
+    );
+    assert!(compared > 800, "only {compared} intervals drawn");
+    assert!(
+        held_misses_where_whole_reaches * 200 <= whole_reaches,
+        "held to its interval the foot misses the nearest point the whole foot reaches on \
+         {held_misses_where_whole_reaches} of {whole_reaches} draws"
     );
 }

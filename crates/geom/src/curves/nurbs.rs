@@ -338,6 +338,9 @@ macro_rules! nurbs_curve {
             /// [`Self::speed_upper_bound`], filled on first read, on the
             /// same terms as `speed`.
             speed_sup: OnceLock<geom_core::SupSpeed<T>>,
+            /// [`Self::accel_upper_bound`], filled on first read, on the
+            /// same terms as `speed`.
+            accel: OnceLock<T>,
             $(
                 /// Each range's restricted enclosure and derivative, kept
                 /// where [`NurbsCurve3::with_span_memo`] asked for them;
@@ -350,7 +353,7 @@ macro_rules! nurbs_curve {
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, speed: _, speed_sup: _, $($spans: _,)? } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, $($spans: _,)? } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -511,7 +514,7 @@ macro_rules! nurbs_curve {
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
                 let weights = Weights::from_point_parts(weights, weight_channel);
-                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), $($spans: None,)? })
+                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), $($spans: None,)? })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -600,13 +603,14 @@ macro_rules! nurbs_curve {
             /// coordinate and weight one value by `same`. Every field that
             /// states the curve is read; the memos are not part of it.
             pub fn same_content(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
-                let Self { knots, control, weights, speed: _, speed_sup: _, $($spans: _,)? } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, $($spans: _,)? } = self;
                 let Self {
                     knots: other_knots,
                     control: other_control,
                     weights: other_weights,
                     speed: _,
                     speed_sup: _,
+                    accel: _,
                     $($spans: _,)?
                 } = other;
                 let all = |a: &[T], b: &[T]| {
@@ -659,7 +663,7 @@ macro_rules! nurbs_curve {
                     knots.structure().control_count(),
                     weights.len()
                 );
-                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), $($spans: None,)? }
+                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), $($spans: None,)? }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1276,7 +1280,18 @@ macro_rules! nurbs_curve {
             /// the ceiling); at `Interval`, uncertified where a high
             /// degree meets a wide weight spread (the module docs'
             /// practical ceiling).
+            ///
+            /// Memoised on the same terms as [`Self::speed_lower_bound`]:
+            /// every reader of a carrier's acceleration bound
+            /// (`carrier_speed::accel_hi`, `curvature_hi`) asks it of the
+            /// whole curve, once per meeting a walk reads.
             pub fn accel_upper_bound(&self) -> T {
+                session_memo(&self.accel, || self.accel_upper_bound_uncached())
+            }
+
+            /// [`Self::accel_upper_bound`]'s computation: once per curve
+            /// outside a symbolic session, at every read inside one.
+            fn accel_upper_bound_uncached(&self) -> T {
                 if self.knots.structure().crease_runs().next().is_some() {
                     return T::from_f64(f64::INFINITY);
                 }
@@ -2060,6 +2075,7 @@ impl<T: Real> NurbsCurve3<T> {
             weights: Weights::from_point_parts(vec![T::one(), T::one()], vec![1.0, 1.0]),
             speed: OnceLock::new(),
             speed_sup: OnceLock::new(),
+            accel: OnceLock::new(),
             spans: None,
         }
     }
@@ -2347,5 +2363,50 @@ mod tests {
             c.speed.get().is_some(),
             "a read outside a session left the memo empty"
         );
+    }
+
+    /// **The acceleration bound's memo serves the computation's bits**,
+    /// on the speed memo's terms: empty until read, empty after a read
+    /// inside a symbolic session, filled by a read outside one with the
+    /// fresh computation's bits, and a read of a filled memo is served
+    /// from it (a memo planted with another value is what a read
+    /// answers, so nothing recomputes).
+    #[test]
+    fn the_accel_memo_serves_the_computations_bits_on_the_speed_memos_terms() {
+        use geom_core::SymBudget;
+        use geom_core::sym::with_session;
+        let c = swaying();
+        assert!(c.accel.get().is_none(), "a new curve's memo is filled");
+        let fresh = c.accel_upper_bound_uncached();
+        let first = c.accel_upper_bound();
+        assert_eq!(first.to_bits(), fresh.to_bits(), "the memo moved the bound");
+        assert_eq!(
+            c.accel.get().map(|a| a.to_bits()),
+            Some(fresh.to_bits()),
+            "the first read left the memo empty or holding another value"
+        );
+        // A read of a filled memo is the memo's: planted with another
+        // value, a fresh curve answers that value, so nothing recomputes.
+        let planted = swaying();
+        let sentinel = f64::from_bits(fresh.to_bits() ^ 1);
+        planted.accel.set(sentinel).unwrap();
+        assert_eq!(
+            planted.accel_upper_bound().to_bits(),
+            sentinel.to_bits(),
+            "a filled memo's read recomputed the bound"
+        );
+        let held = c.clone();
+        assert_eq!(
+            held.accel.get().map(|a| a.to_bits()),
+            Some(fresh.to_bits()),
+            "a clone carries the memo of the same value"
+        );
+        let s = swaying().map_scalar(Sym::<f64>::from_f64);
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let _ = with_session(budget, || s.accel_upper_bound());
+        assert!(s.accel.get().is_none(), "a session's read filled the memo");
     }
 }

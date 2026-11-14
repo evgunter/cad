@@ -32,7 +32,9 @@
 //! an enclosure reaching zero, and a piece stops only once its reach is
 //! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
-//! foot of the other's point is polished, and the point is read on both
+//! foot of the other's point is polished, held to that carrier's piece
+//! widened to the polished parameter ([`Curve3::foot_within`]), and the
+//! point is read on both
 //! spans ([`Span::contact`]) with the window the pieces make: the pair's
 //! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
 //! every pair of the pieces within the pieces' reach and the polish's
@@ -41,10 +43,21 @@
 //! no meeting of the spans; where its premise is not proved
 //! (`curve_pair_walk_basin`) the window is undecided and the Off
 //! escalates. Every piece the walk does not clear ends at such a pair,
-//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
-//! (the parent module's docs). A walk past
-//! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
-//! ([`Unsettled::Exhausted`]).
+//! so no meeting is left unread; an escalated clearing keeps its piece.
+//!
+//! **Why a stop's foot is held to its piece.** No foot certifies
+//! anything ([`geom::Foot::seed`]): what certifies a stop is its window,
+//! which covers every pair of the two pieces from wherever the polished
+//! parameters stand (its span is their run to each piece's middle plus
+//! the piece's reach), and the point's reading on both spans. A foot
+//! outside the piece only widens that span, so a whole-carrier foot on
+//! another branch is never what certifies a stop; the held foot costs
+//! the piece's knot spans, not the carrier's. The interval is the piece
+//! widened to the pair's polished parameter, so a polish that left the
+//! piece toward the meeting (past a crease, where the pieces stop only
+//! at the band) keeps its point. The ends' and the witnesses' feet stay
+//! the whole carrier's: a seed piece that does not hold the joint the
+//! point stands on would stop at its own end, a few nanometres short.
 
 use geom::{Curve3, PieceStep};
 use geom_core::bisect::{Step, bisect};
@@ -416,8 +429,18 @@ pub(super) fn meet<T: Decide>(
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
-                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
+                // Each foot held to its own piece, widened to the polished
+                // parameter where the polish left it: the window below
+                // certifies the candidate against the two pieces.
+                let held = |p: Piece<T>, u: T| (p.a.min(u), p.b.max(u));
+                let t = rb
+                    .curve()
+                    .foot_within(ra.curve().eval(s), t, held(pb, t))
+                    .seed();
+                let s = ra
+                    .curve()
+                    .foot_within(rb.curve().eval(t), s, held(pa, s))
+                    .seed();
                 let candidate = super::Candidate {
                     point: ra.curve().eval(s),
                     ta: s,

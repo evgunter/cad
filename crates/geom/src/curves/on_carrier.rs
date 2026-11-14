@@ -6,7 +6,8 @@
 //! **The foot** is a parameter of the carrier near the point's closest
 //! point, held with the point and the carrier it was found for, and its
 //! gap `|q − C(t)|`, which bounds the point's distance from the carrier
-//! from above. Only [`Curve3::foot`] makes one, so a foot cannot be read
+//! from above. Only [`Curve3::foot`] and its interval-held form
+//! [`Curve3::foot_within`] make one, so a foot cannot be read
 //! against another point or another carrier. Where it is found:
 //!
 //! - a line: in closed form;
@@ -23,6 +24,8 @@
 //!   gaps, so a branch whose nearest sample sits beside a nearer one of
 //!   another branch is still descended. A closed spline's two ends are
 //!   one point, so a descent held at one end continues from the other.
+//!   Held to an interval ([`Curve3::foot_within`]), the same search runs
+//!   on the interval's spans and ends alone, held to the interval.
 //!
 //! A closed kind's angle is read relative to the seed's direction, or to
 //! its opposite where the point lies definitely behind it, so an
@@ -110,7 +113,8 @@ const LEAST_SAMPLES: usize = 4;
 /// it.
 const SPLINE_SAMPLES: [f64; 4] = [0.125, 0.375, 0.625, 0.875];
 
-/// A point's foot on a carrier, made only by [`Curve3::foot`], holding
+/// A point's foot on a carrier, made only by [`Curve3::foot`] and
+/// [`Curve3::foot_within`], holding
 /// the point and the carrier it was found for (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct Foot<'c, T: Real> {
@@ -446,8 +450,44 @@ impl<T: Decide> Curve3<T> {
 
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
     /// parameter a consumer already holds for `q`, or any parameter of
-    /// the interval it reads.
+    /// the interval it reads. On a spline it is [`Self::foot_within`]
+    /// over the whole domain, bit for bit.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
+        self.foot_over(q, near, None)
+    }
+
+    /// **`q`'s foot on a spline, held to the parameter interval
+    /// `within`** (`lo ≤ hi`, inside the domain): the whole-domain
+    /// search ([`Self::foot`]) restricted to the knot spans the interval
+    /// overlaps. It samples the interval's two ends and those of the whole
+    /// search's samples (`SPLINE_SAMPLES` of each knot span) that lie
+    /// inside it, polishes from the seed and from the starts those
+    /// samples pick, and holds every polish step to the interval, so
+    /// every start the whole search has inside the interval it has too. Where
+    /// the whole-domain foot lies inside the interval, the two are the
+    /// same foot
+    /// (`a_spline_foot_held_to_an_interval_is_the_whole_foot_where_that_lies_inside`).
+    /// A reader that knows where its point's
+    /// foot can lie, a walk's piece, reads only that stretch, and the
+    /// cost is the stretch's spans, not the curve's.
+    ///
+    /// **A foot held at an end of the interval** is the interval's end,
+    /// where the polish stopped against it, not a stationary point of the
+    /// gap: the nearest point of the carrier may lie outside. Like every
+    /// foot it certifies nothing ([`Foot::seed`]), and a reader that needs
+    /// an interior minimum reads the parameter against the interval.
+    ///
+    /// Which samples lie inside the interval is read off each value's
+    /// bracket middle, a choice of where to start, never a verdict: every
+    /// start polishes to a foot of the interval. On every other kind the foot is [`Self::foot`]'s, the
+    /// whole carrier's, found in closed form or polished from the seed,
+    /// whose cost no interval changes.
+    pub fn foot_within(&self, q: Point3<T>, near: T, within: (T, T)) -> Foot<'_, T> {
+        self.foot_over(q, near, Some(within))
+    }
+
+    /// [`Self::foot`] over `within`, the whole domain where `None`.
+    fn foot_over(&self, q: Point3<T>, near: T, within: Option<(T, T)>) -> Foot<'_, T> {
         let Self::Nurbs(n) = self else {
             let Some(seed) = self.param_near(q, near) else {
                 unreachable!("only a spline reads no parameter near a point")
@@ -460,12 +500,36 @@ impl<T: Decide> Curve3<T> {
             };
         };
         let knots = n.knot_values();
-        let (lo, hi) = knots.domain();
+        let (lo, hi) = within.unwrap_or_else(|| knots.domain());
         let breaks: Vec<T> = knots.breakpoints().collect();
+        // The whole search's samples, each at its own place on its knot
+        // span; held to an interval, those inside it alone, beside the
+        // interval's two ends, so every start the whole search has
+        // inside the interval the held one has too.
+        let mid = |x: T| x.structure_bracket().map(|(a, b)| crate::mid_param(a, b));
+        let inside = |x: T| match (within, mid(x)) {
+            (None, _) => true,
+            (Some(_), Some(m)) => {
+                matches!((mid(lo), mid(hi)), (Some(l), Some(h)) if l < m && m < h)
+            }
+            (Some(_), None) => false,
+        };
+        let overlaps = |a: T, b: T| match (within, mid(a), mid(b), mid(lo), mid(hi)) {
+            (None, ..) => true,
+            (Some(_), Some(a), Some(b), Some(l), Some(h)) => a < h && l < b,
+            _ => false,
+        };
         let mut samples = vec![self.foot_at(q, lo)];
         for k in breaks.windows(2) {
+            if !overlaps(k[0], k[1]) {
+                continue;
+            }
             samples.extend(
-                SPLINE_SAMPLES.map(|s| self.foot_at(q, k[0] + (k[1] - k[0]) * T::from_f64(s))),
+                SPLINE_SAMPLES
+                    .map(|s| k[0] + (k[1] - k[0]) * T::from_f64(s))
+                    .into_iter()
+                    .filter(|&t| inside(t))
+                    .map(|t| self.foot_at(q, t)),
             );
         }
         samples.push(self.foot_at(q, hi));
