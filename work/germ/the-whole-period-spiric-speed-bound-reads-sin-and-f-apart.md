@@ -64,3 +64,7 @@ half becomes a call to it.
 From CURVED, which closed (Ev, in chat: "curved can close without a walk, and rows to germcert is good"; `docs/doc-ledger/curved-leaves-the-tracker.md`). Both rows came from GERM lanes and are about the spiric carrier's own facts.
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-14 — what TESSLANE's one chord rule did to this subject
+
+The chart image's speed bound (`geom_brep::Pcurve::speed_bound`, `pcurve_cache/speed.rs`) no longer reads `geom::spiric_period_rate_bounds` for a spiric image: it reads `props::spiric::image_rates` over pieces graded toward `t = π` (`speed::spiric_breaks`), each piece read by `piece_speed`, which pairs `sup|sin|` with `inf f` near a tangent cut. On `speed_rows`' poses the wall's azimuth bound sits within 1.3× of the sampled sup and the cap's within 1.41×, where the whole-period apart reading is 14× loose on a fat tube and unbounded at the pinch. `geom::spiric_period_rate_bounds` itself is unchanged and still reads `sin` and `f` apart: its other readers (the carrier's chord step, `spiric_curvature_sup`, STEP export's schedule) are this row's subject still.

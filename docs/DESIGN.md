@@ -79,7 +79,11 @@ is checked against what was meant.
   is a value they can name, share and vary ([variables]). What the
   kernel needs beyond that — a 3-D carrier, a pcurve, a profile's
   loop — is a derived cache of a description of what the thing *is*,
-  certified against it ([edges], [recipe.forms]). An imported file has
+  certified against it ([edges], [recipe.forms]). What a
+  cache holds never flows back toward the description: a face's
+  surface is stated from its construction (a swept cap's plane is the
+  sketch plane moved by the sweep), and the vertices placed with it are
+  certified against it, never it fitted to them. An imported file has
   no variables, so adoption recovers descriptions and never intent
   ([import]).
 - **Intent is stated one way per kind of statement.**

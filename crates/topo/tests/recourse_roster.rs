@@ -128,6 +128,12 @@ const PCURVES: Door = Door {
     prefixes: &["pcurve_"],
     error: std::any::type_name::<topo::PcurveMintError>,
 };
+/// The ring door's reading of a point against an analytic face's outer
+/// loop (`pcurves`' ring rule, `Body::face_lift`).
+const RING_PLACE: Door = Door {
+    prefixes: &["ring_place_"],
+    error: std::any::type_name::<topo::pcurves::RingPlacementError>,
+};
 /// A unit test's own fixture, decided in `#[cfg(test)]` code under
 /// `src`; no door reports it.
 const UNIT_TEST: Door = Door {
@@ -150,6 +156,7 @@ const DOORS: &[&Door] = &[
     &CHART_REGION,
     &SHELL,
     &PCURVES,
+    &RING_PLACE,
     &UNIT_TEST,
 ];
 
@@ -176,6 +183,13 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("sector_apex_window", &BOOLEAN),
     ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
+    // A point against a spline face's trim (`spline_trim`). Two doors
+    // raise them: the boolean's spline arm (`BooleanError`, through
+    // `ContainError::Escalated`) and the ring door
+    // (`RingPlacementError::Undecided`). The entry holds one door, so it
+    // names the boolean's, the first to raise them.
+    ("spline_trim_arm", &BOOLEAN),
+    ("spline_trim_clear", &BOOLEAN),
     ("stands_across_meeting", &BOOLEAN),
     ("tangent_lump_senses", &BOOLEAN),
     ("vertex_section_clear", &BOOLEAN),
@@ -360,9 +374,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
     NameCarrier::Const("SPHERE_SEAM"),
-    NameCarrier::Const("SPLINE_REGION_ARM"),
+    NameCarrier::Const("RING_PLACE_ARM"),
+    NameCarrier::Const("RING_PLACE_CLEAR"),
     NameCarrier::Const("SPLINE_REGION_CARRIER"),
-    NameCarrier::Const("SPLINE_REGION_TRIM"),
+    NameCarrier::Const("SPLINE_TRIM_ARM"),
+    NameCarrier::Const("SPLINE_TRIM_CLEAR"),
     NameCarrier::Const("SPLIT_GATE_BOX_SIDE"),
     NameCarrier::Const("TORUS_WITNESS"),
     NameCarrier::Const("TORUS_WITNESS_STRADDLE"),
@@ -414,6 +430,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("magnitude_door"),
     NameCarrier::Call("norm_gate"),
     NameCarrier::Call("on_as"),
+    NameCarrier::Call("ray_parity_as"),
     NameCarrier::Call("read_as"),
     NameCarrier::Call("relation_step"),
     NameCarrier::Call("settle_as"),
@@ -777,6 +794,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
+    ("chain_parity.rs: ray_parity_as: name", FORWARDS),
     (
         "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,

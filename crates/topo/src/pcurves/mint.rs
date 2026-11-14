@@ -1746,7 +1746,7 @@ impl<T: Decide> ChartPeriods<T> {
 /// `None` = the channel is NOT an angle, which is a different claim
 /// from "already metres": see [`v_meter`], which is what a caller
 /// wanting the channel's metre rate must ask.
-fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
+pub(super) fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     // Which `v` is an angle is the chart's answer; the arm is its radius.
     surface.angle_periods()?.1?;
     match *surface {

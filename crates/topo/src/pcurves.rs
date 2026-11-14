@@ -401,6 +401,14 @@ pub use mint::*;
 pub use site::*;
 pub use tier3::*;
 
+#[path = "pcurves_rings.rs"]
+mod rings;
+pub use rings::{FaceLift, PlacedRing, RingPlacementError, SplineTrimGap};
+pub(crate) use rings::{
+    HALVINGS, PIECE_DEPTH, PIECE_VISITS, RingMiss, SHIFTS, Shift, Side, WINDOW_SHARE, face_lift,
+    place_ring,
+};
+
 #[cfg(test)]
 pub(crate) mod staleness_posture;
 
