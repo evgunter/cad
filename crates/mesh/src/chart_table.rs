@@ -405,7 +405,11 @@ impl<'a> AnalyticRow<'a> {
                 cert::position_scale(center, tri),
             ),
             Surface::Cone { half_angle, .. } => (
-                cert::cert_cone(half_angle, uv, singular),
+                match std::env::var("CONE_CERT").as_deref() {
+                    Ok("zero") => 0.0,
+                    Ok("exact") => cert::cert_cone_exact(half_angle, uv, singular),
+                    _ => cert::cert_cone(half_angle, uv, singular),
+                },
                 cert::cone_scale(half_angle, uv),
             ),
             Surface::Torus {

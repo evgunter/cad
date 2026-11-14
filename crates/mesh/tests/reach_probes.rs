@@ -1484,3 +1484,39 @@ fn a_one_column_band_with_raised_rows_adds_no_lattice_point() {
         }
     }
 }
+
+/// PROBE (measurement, asserts nothing): the near-apex table under the
+/// certificate `CONE_CERT` selects.
+/// `CONE_CERT=zero cargo nextest run -p mesh --run-ignored only -E 'test(near_apex_probe)' --no-capture`
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn near_apex_probe() {
+    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
+    for h in [0.02, 1e-2, 3e-3, 1e-3, 1e-4, 1e-6] {
+        let body = finished(
+            "the funnel",
+            revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+            tol(),
+        );
+        let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
+        let split = topo::splitting::split(&body, &plane, tol()).unwrap();
+        let half = split.above.body().unwrap();
+        for delta in [2e-2, 5e-3, 1e-3, 2e-4, 5e-5] {
+            eprintln!("CASE h {h:e} delta {delta:e}");
+            let r = match mesh::tessellate(half, delta, tol()) {
+                Ok(m) => {
+                    let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
+                    match geometry(half, &m, delta) {
+                        Ok(()) => format!("meshed {tris} tris, geometry ok"),
+                        Err(e) => format!("meshed {tris} tris, GEOMETRY: {e}"),
+                    }
+                }
+                Err(mesh::TessellateError::CertificateExceeded { bound, .. }) => {
+                    format!("CertificateExceeded {:.3}δ", bound / delta)
+                }
+                Err(e) => format!("{e:?}"),
+            };
+            eprintln!("RESULT h {h:e} delta {delta:e}: {r}");
+        }
+    }
+}

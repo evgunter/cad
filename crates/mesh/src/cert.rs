@@ -153,6 +153,47 @@ pub fn cert_cone(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
     c_a * s_a * v_max * (1.0 - (du * 0.5).cos())
 }
 
+/// PROBE (measurement): the exact deviation of the flat triangle.
+pub fn cert_cone_exact(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
+    if uv.iter().flatten().any(|x| x.is_nan()) {
+        return f64::NAN;
+    }
+    let off: Vec<[f64; 2]> = (0..3).filter(|&i| !pole[i]).map(|i| uv[i]).collect();
+    if off.iter().any(|p| p[1] > 0.0) && off.iter().any(|p| p[1] < 0.0) {
+        return f64::INFINITY;
+    }
+    let k = half_angle.sin() * half_angle.cos();
+    let chord = |a: [f64; 2], b: [f64; 2]| -> f64 {
+        let (va, vb) = (a[1].abs(), b[1].abs());
+        let half = 0.5 * (b[0] - a[0]);
+        let (s, c) = (half.sin(), half.cos().abs());
+        let den = va + vb + 2.0 * (va * vb).sqrt() * c;
+        if den > 0.0 { k * 2.0 * va * vb * s * s / den } else { 0.0 }
+    };
+    let mut bound: f64 = 0.0;
+    for i in 0..off.len() {
+        for j in (i + 1)..off.len() {
+            bound = bound.max(chord(off[i], off[j]));
+        }
+    }
+    if off.len() == 3 {
+        let sn = [
+            (off[2][0] - off[1][0]).sin(),
+            (off[0][0] - off[2][0]).sin(),
+            (off[1][0] - off[0][0]).sin(),
+        ];
+        let v = [off[0][1].abs(), off[1][1].abs(), off[2][1].abs()];
+        if sn.iter().all(|&x| x >= 0.0) || sn.iter().all(|&x| x <= 0.0) {
+            let num = v[0] * v[1] * v[2] * (sn[0] + sn[1] + sn[2]).abs();
+            let den = (v[1] * v[2] * sn[0] + v[2] * v[0] * sn[1] + v[0] * v[1] * sn[2]).abs();
+            if den > 0.0 {
+                bound = bound.max(k * num / den);
+            }
+        }
+    }
+    bound
+}
+
 /// Torus certificate: `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` over the
 /// triangle's UV extents, with the second-partial sups taken over the
 /// triangle's own φ range (module docs; the derivation is

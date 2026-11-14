@@ -513,8 +513,30 @@ pub(crate) fn tessellate_trimmed(
                  with a single interior column (nu = 2, nv = {nv}) — the shape \
                  #678's non-manifold fan needs (curved::pole_columns)"
             );
+            let cand = if std::env::var("CONE_GRADE").is_ok() && a.development().is_some() {
+                let root = |v: f64| v.signum() * v.abs().sqrt();
+                let (s0, s1) = (root(v0), root(v1));
+                let vmax = v0.abs().max(v1.abs());
+                let n = ceil_count(2.0 * vmax.sqrt() * (s1 - s0), hv)?;
+                eprintln!("GRADE nu {nu} nv {nv} -> rows {n}");
+                let mut cand = Vec::new();
+                for j in 1..n {
+                    #[allow(clippy::cast_precision_loss)]
+                    let sj = s0 + (s1 - s0) * (j as f64 / n as f64);
+                    let vv = sj * sj.abs();
+                    for i in 1..nu {
+                        #[allow(clippy::cast_precision_loss)]
+                        let uu = u0 + (u1 - u0) * (i as f64 / nu as f64);
+                        cand.push((uu, vv));
+                    }
+                }
+                sort_candidates(&mut cand);
+                cand
+            } else {
+                uniform_candidates((u0, u1), (v0, v1), nu, nv)
+            };
             (
-                uniform_candidates((u0, u1), (v0, v1), nu, nv),
+                cand,
                 None,
                 a.metric((u0, u1), (v0, v1), (nu, nv)),
             )
@@ -944,6 +966,7 @@ impl TrimmedFace<'_> {
         // set stays valid); a refinement point landing exactly on a
         // constraint is caught by the same intermediate-vertex
         // classification as any candidate.
+        if std::env::var("CONE_REFINE").is_ok() && !refine.is_empty() { eprintln!("REFINE attempt {attempt}: {} over, worst {:.3}d", refine.len(), measure.worst / self.tol.delta); }
         if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
@@ -1283,6 +1306,7 @@ impl TrimmedFace<'_> {
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
         let refine_lane = matches!(self.row, ChartRow::Spline { .. });
+        let refine_cone = std::env::var("CONE_REFINE").is_ok() && matches!(plane, CdtPlane::Development { .. });
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the ear test below.
@@ -1405,6 +1429,22 @@ impl TrimmedFace<'_> {
             }
             let (bound, scale) = self.row.cert(tri, uv, singular);
             let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
+            if std::env::var("CONE_PROBE").is_ok()
+                && let Surface::Cone { half_angle, .. } = *surface
+            {
+                let exact = cert::cert_cone_exact(half_angle, uv, singular);
+                let old = cert::cert_cone(half_angle, uv, singular);
+                if old > tol.delta || exact > tol.delta {
+                    eprintln!(
+                        "PROBE tri old {:.3}d exact {:.3}d uv {:?} dev {:?} grid {:?}",
+                        old / tol.delta,
+                        exact / tol.delta,
+                        uv.map(|p| [(p[0] * 1e4).round() / 1e4, (p[1] * 1e5).round() / 1e5]),
+                        developed.map(|p| [(p.x * 1e5).round() / 1e5, (p.y * 1e5).round() / 1e5]),
+                        vs.map(|vtx| matches!(meta[vtx.fix().index()].2, Slot::Grid(_))),
+                    );
+                }
+            }
             match verdict {
                 cert::Verdict::Certified => {}
                 cert::Verdict::Exceeded => measure.exceeded = true,
@@ -1487,7 +1527,7 @@ impl TrimmedFace<'_> {
             if bound.is_nan() || measure.worst.is_nan() || bound > measure.worst {
                 measure.worst = bound;
             }
-            if refine_lane && verdict == cert::Verdict::Exceeded {
+            if (refine_lane || refine_cone) && verdict == cert::Verdict::Exceeded {
                 refine.push(Self::inside_point(plane, &uv, developed, singular));
             }
             triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
