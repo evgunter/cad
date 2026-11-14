@@ -98,8 +98,12 @@ const PRE_PASS: usize = 80;
 /// to the 655 it held before limb 2 was owed by every carrier. The
 /// extrude reads each of the 12 edges by its whole wedge, the arm, the
 /// wedge and a corner's sign at 7 stations where it read the arm and the
-/// wedge at one witness: 12 × 19 more than the 679 that leaves.
-const EXTRUDE_LOG: usize = 907;
+/// wedge at one witness: 12 × 19 more than the 679 that leaves. Its
+/// caps are the sketch frame and its walls the frame turning their
+/// segments, so it fits no plane: 26 fewer, the two caps'
+/// `cap_plane_orientation` and the six planes' four corners each of
+/// `newell_plane_residual`.
+const EXTRUDE_LOG: usize = 881;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 75;

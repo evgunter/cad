@@ -712,13 +712,19 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // plate +380, the annulus +152, the boss +190, the bracket +539 and
     // the link +280; symbolic the bracket −2 and the link −4, the witness
     // reads the tier proved, which no station's read reproduces. The
-    // ladder's recovery on the bracket holds at 6.
+    // ladder's recovery on the bracket holds at 6. Then the sweeps keep
+    // their sketch frames and fit no plane (no `newell_plane_residual`,
+    // no `cap_plane_orientation`), both ways: symbolic the plate −40, the
+    // annulus −24, the boss −18, the bracket −56 and the link −28;
+    // numeric the plate, the annulus, the boss, the bracket and the link
+    // −6, −4, −4, −6 and −4. The ladder's recovery on the bracket holds
+    // at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1015, 1050], [1015, 1050], 0),
-        ("r1_annulus", [535, 553], [535, 553], 0),
-        ("r1_segment_boss", [506, 575], [506, 575], 0),
-        ("r2_filleted_bracket", [1409, 1540], [1415, 1534], 6),
-        ("r2_link", [813, 947], [813, 947], 0),
+        ("two_hole_plate", [975, 1044], [975, 1044], 0),
+        ("r1_annulus", [511, 549], [511, 549], 0),
+        ("r1_segment_boss", [488, 571], [488, 571], 0),
+        ("r2_filleted_bracket", [1353, 1534], [1359, 1528], 6),
+        ("r2_link", [785, 943], [785, 943], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {

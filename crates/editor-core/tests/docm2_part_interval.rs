@@ -8,10 +8,10 @@
 //! The widening is scaled to the row's ε because the hosted matrix
 //! runs this row at every ε row and the widened split must certify at
 //! each. The floor is MEASURED by the ladder row below, not inferred
-//! from DOCM-1's extrude floor: at the default ε the split of a
-//! widened box escalates at ε/10, the union of its halves at ε/16 and
-//! ε/32, and every rung from ε/64 down certifies; the assertion row
-//! sits two rungs under that floor.
+//! from DOCM-1's extrude floor: at the default ε the union of a
+//! widened box's split halves escalates at ε/10 and ε/16, and every
+//! rung from ε/32 down certifies; the assertion row sits two rungs
+//! under that floor.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -163,50 +163,38 @@ enum Rung {
 /// **The width ladder, asserted rung by rung** — the measurement
 /// behind the row below, held at every ε row the matrix runs
 /// (enclosures scale with ε, so the rungs are the same at each). A
-/// plain-`Interval` extrude of a widened height certifies at ε/10
-/// (DOCM-1's measurement of record); the SPLIT of that box does not:
-/// at ε/10 its section-edge carrier certification against the mapped
-/// source escalates (`carrier_matches_mapped_source`, an enclosure a
-/// few parts per million over the band's zero). At ε/16 the split
-/// certifies and the union of its halves does not: the glue door reads
-/// the cut faces' plane offset in band (`plane_eq_offset`, an
-/// enclosure across zero), so the pair is not glued, and the corner that
-/// reads it one carrier refuses with that reading, and so at ε/32. The
-/// offset is read at the pair's extent's centre, which the faces'
-/// boundary covers bound: each edge's carrier over its span, hulled
-/// with its ends, so the centre is as wide as the carriers read there
-/// and the enclosure halves with the width. ε/64 is the widest
-/// width that clears it, and every narrower rung certifies. Each
-/// rung is asserted, so a floor that moves — up or down — reds this
+/// plain-`Interval` extrude of a widened height certifies at ε/4
+/// (DOCM-1's measurement of record); the UNION of the split's halves
+/// does not at ε/10 and ε/16: the glue door reads the cut faces as
+/// parallel in band (`bool_faces_parallel`), so the pair is not glued
+/// and the corner that reads it one carrier refuses with that reading.
+/// ε/32 is the widest width that clears it, and every narrower rung
+/// certifies. The split itself certifies at every rung; its section
+/// edges escalated `carrier_matches_mapped_source` at ε/10 while the
+/// box's walls were planes fitted to their boxed corners. Each rung is asserted, so a floor that moves — up or
+/// down — reds this
 /// row naming the rung.
 #[test]
 fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
-    let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
     let union = node_where(&doc, |n| matches!(n, Node::Union { .. }));
     let ladder: [(u32, Rung); 8] = [
         (
             10,
             Rung::Escalates {
-                node: split,
-                predicate: "carrier_matches_mapped_source",
+                node: union,
+                predicate: "bool_faces_parallel",
             },
         ),
         (
             16,
             Rung::Escalates {
                 node: union,
-                predicate: "plane_eq_offset",
+                predicate: "bool_faces_parallel",
             },
         ),
-        (
-            32,
-            Rung::Escalates {
-                node: union,
-                predicate: "plane_eq_offset",
-            },
-        ),
+        (32, Rung::Green),
         (64, Rung::Green),
         (128, Rung::Green),
         (256, Rung::Green),
@@ -249,7 +237,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
 
 /// The divisor of ε the assertion row is pinned at — two rungs under
 /// the floor the ladder measures at the default ε.
-const A7_DIVISOR: f64 = 256.0;
+const A7_DIVISOR: f64 = 128.0;
 
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the

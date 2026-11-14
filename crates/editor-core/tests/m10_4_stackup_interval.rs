@@ -669,23 +669,27 @@ fn the_two_hole_plate_stackup() {
 /// contributions stay (a band's limits are real limits) and so does
 /// the gating worst case.
 ///
-/// At ±0.05 on both axes — a real study — rather than `ε/8`: under
+/// At ±0.12 on both axes — a real study — rather than `ε/8`: under
 /// M10-10's tier the `ε/8` box certifies in ONE leaf, and a leaf that
 /// covers a band's whole support prices as 1 by the band's own rule
 /// (`box_mass`), so the coverage refusal this row also asserts needs a
 /// leaf that covers PART of a band, i.e. a drive that split. The
-/// fixture's whole-certifying half-width is about 0.018 at the default
+/// fixture's whole-certifying half-width is about 0.0998 at the default
 /// ε (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
-/// with `CAD_M10_10_CEILINGS`), so ±0.05 splits at every row.
+/// with `CAD_M10_10_CEILINGS`; 0.018 while the extrudes fitted their
+/// planes to the boxed corners), so ±0.12 splits at every row. That
+/// width sits at the plate's own limit, toward which the leaves bisect
+/// without end, so the drive is held to 16 leaves: the row needs a
+/// split, not the whole tree.
 #[test]
 fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
-    let half = 0.05;
+    let half = 0.12;
     let (doc, measure, _) = plate(Some(band(half)), Some(band(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(
         &doc,
         &analyzed,
-        &config(1024),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )

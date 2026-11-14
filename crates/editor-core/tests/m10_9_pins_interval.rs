@@ -254,6 +254,14 @@ pub(crate) struct Study {
 /// this ledger lists between PR 5728 and PR 5811
 /// are PR 5728's (the pad and the link door shut) and PR 5811's (the
 /// bracket door shut), measured at each merge and its first parent.
+/// Then the sweeps keep their sketch frames: a cap is its station's
+/// frame and a wall the frame turning its segment, so no extrude or loft
+/// fits a plane (`newell_plane_residual`, `cap_plane_orientation` go)
+/// and a latitude registers nothing: symbolic the plate 1015 -> 975,
+/// the annulus 535 -> 511, the link 813 -> 785, the bracket 1419 -> 1353
+/// and the pad 1515 -> 1467; door shut the link (723, 846) -> (695, 842),
+/// the bracket (1349, 1610) -> (1283, 1604) and the pad (1515, 1698) ->
+/// (1467, 1694).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -267,7 +275,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1015, 1015, 1015],
+            symbolic: [975, 975, 975],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -278,7 +286,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [535, 535, 535],
+            symbolic: [511, 511, 511],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -308,8 +316,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((723, 846), Some("Stalled { operand: Cylinder"))),
-            symbolic: [813, 813, 813],
+            without_the_registry: Some(((695, 842), Some("Stalled { operand: Cylinder"))),
+            symbolic: [785, 785, 785],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -344,13 +352,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
             // +1 numeric: the placement asks the session box of its image.
-            without_the_registry: Some(((1349, 1610), None)),
+            without_the_registry: Some(((1283, 1604), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1419, 1419, 1419],
+            symbolic: [1353, 1353, 1353],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -375,7 +383,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
             // +1 numeric: the placement asks the session box of its image.
-            without_the_registry: Some(((1515, 1698), None)),
+            without_the_registry: Some(((1467, 1694), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -390,7 +398,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1515, 1515, 1515],
+            symbolic: [1467, 1467, 1467],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -924,8 +932,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // session box of its image (`Replay::moved_by`): one numeric
     // decision, (1523, 1214, 3683). Then the constructors' whole-wedge
     // reads (the study's `symbolic`): (1523, 1214, 3683) -> (1515, 1698,
-    // 3989), each witness the edge's carrier middle.
-    assert_eq!(got[0], (1515, 1698, 3989), "rule F shut: the pad's receipt");
+    // 3989), each witness the edge's carrier middle. Then the sweeps
+    // keep their sketch frames, fitting no plane: (1515, 1698, 3989) ->
+    // (1467, 1694, 2786), the Newell sums' forms no longer frozen.
+    assert_eq!(got[0], (1467, 1694, 2786), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

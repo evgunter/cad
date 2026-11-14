@@ -475,3 +475,48 @@ fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direct
         assert_holds_its_members("a turned arc", &boxed_slab, members);
     });
 }
+
+/// The rectangle `[0, w] × [0, 1]`.
+fn rect<T: Real>(w: T) -> ProfileLoop<T> {
+    let z = T::zero;
+    bulge_loop(vec![
+        (p(0.0, 0.0), z()),
+        (Point2::new(w, T::zero()), z()),
+        (Point2::new(w, T::one()), z()),
+        (p(0.0, 1.0), z()),
+    ])
+}
+
+/// **A slab whose width carries a box**: the caps and the three walls
+/// the box does not move store exact unit normals, from the frame. The
+/// wall at `x = w`, both of whose ends carry the box, takes its sketch
+/// direction from those two ends, so it stores the box's width; the
+/// enclosure holds every member's normal, and it is narrower than the
+/// tilt a plane fitted to its corners stored (`±0.2` on two components,
+/// measured). The profile recording its segments' directions is what
+/// would make it exact (`the-profile-drops-the-unit-directions-its-verbs-made`).
+#[test]
+fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_wall() {
+    let (lo, hi) = (0.95, 1.05);
+    let members = members(lo, hi).map(|w| slab(SketchPlane::xy(), rect(w), 1.0));
+    in_session(|| {
+        let boxed_slab = slab(SketchPlane::xy(), rect(boxed(0x3a1, lo, hi)), lit(1.0));
+        let body: &Body<S> = &boxed_slab.body;
+        for (name, face) in [("top", boxed_slab.top), ("bottom", boxed_slab.bottom)] {
+            let (_, normal, u_ref) = plane(body, face);
+            assert_exact_unit(&format!("width box {name} cap normal"), normal);
+            assert_exact_unit(&format!("width box {name} cap u_ref"), u_ref);
+        }
+        let walls = &boxed_slab.walls[0];
+        for (i, wall) in walls.iter().enumerate().filter(|&(i, _)| i != 1) {
+            let (_, normal, _) = plane(body, wall.face);
+            assert_exact_unit(&format!("width box fixed wall {i} normal"), normal);
+        }
+        let (_, moving, _) = plane(body, walls[1].face);
+        assert!(
+            width(moving.z) <= ROUNDING && width(moving.x) < 0.4 && width(moving.y) < 0.4,
+            "the moving wall's normal is no wider than a fitted plane's: {moving:?}"
+        );
+        assert_holds_its_members("a width box", &boxed_slab, members);
+    });
+}

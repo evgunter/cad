@@ -367,7 +367,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 626, 625, 228),
+        (1, 644, 643, 244),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a region reading \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
@@ -386,7 +386,11 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
          reads the stored chart, which is now charted along the sketch's `x` axis or the \
          swept segment rather than off the axes, so the same window is cut along other \
          lines first; the sweep reaches the same verdict in 625 splits and proves 228 \
-         cells outside: {}",
+         cells outside. RE-BASELINED from (1, 626, 625, 228) when a sweep's cap became its \
+         station's frame: the stored cap's chart is anchored at the sketch origin carried \
+         by the sweep, not at its corners' centroid, so the window is cut from another \
+         origin; the sweep reaches the same verdict in 643 splits and proves 244 cells \
+         outside: {}",
         tight.serialize()
     );
 }

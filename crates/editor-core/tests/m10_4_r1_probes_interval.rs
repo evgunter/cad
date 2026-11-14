@@ -1004,13 +1004,12 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 /// `ChamberCertified` chamber over the whole box. The row pins the new
 /// datum with the same strictness the old one had.
 ///
-/// **Pinned at what main measures since PR 5728** (limb 2 for every
-/// carrier), identical at all three ε rows: the box certifies in four
-/// leaves after three splits, `Receipt { certified: 4, refused: 0,
-/// splits: 3 }`, and the study's chamber is the leaf `[-0.1, 0]` on both
-/// axes rather than the whole box. Why the whole box stopped certifying
-/// in one leaf is unread
-/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+/// **The whole box certifies in one leaf again** now that the extrudes
+/// keep their sketch frames. From PR 5728 (limb 2 for every carrier)
+/// until then it certified in four leaves after three splits, its
+/// chamber the leaf `[-0.1, 0]` on both axes: limb 2 enclosed the walls'
+/// carriers over the box, and the walls were planes fitted to boxed
+/// corners (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
 #[test]
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
@@ -1055,11 +1054,12 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
-            // DATUM (since PR 5728): the ±0.1 box certifies in four
-            // leaves after three splits, and the study's chamber is the
-            // leaf at `[-0.1, 0]` on both axes.
-            assert_eq!(verdict.certified().len(), 4, "{:?}", verdict.receipt());
-            assert_eq!(verdict.receipt().splits, 3, "{:?}", verdict.receipt());
+            // DATUM: the ±0.1 box certifies WHOLE, one leaf, no split,
+            // since the extrudes keep their sketch frames (it took four
+            // leaves after three splits while their planes were fitted
+            // to boxed corners), and the study's chamber is that leaf.
+            assert_eq!(verdict.certified().len(), 1, "{:?}", verdict.receipt());
+            assert_eq!(verdict.receipt().splits, 0, "{:?}", verdict.receipt());
             assert!(verdict.refused().is_empty(), "{:?}", verdict.receipt());
             let Chamber::ChamberCertified { leaf, .. } = &report.chamber else {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
@@ -1070,7 +1070,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                     .expect("the axis")
                     .span();
                 assert!(
-                    (lo + 0.1).abs() < 1e-12 && hi.abs() < 1e-12,
+                    (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"
                 );
             }

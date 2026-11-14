@@ -619,7 +619,9 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// it was 0.0596 while the extrude fitted its planes to the corners, and
 /// 0.022 before the circle stored its authored carrier), so an ε-scaled
 /// box does not split and a row about bisection has to be wider than
-/// that.
+/// that. Past it the leaves bisect toward the fixture's own limit
+/// without end, so the drive is held to 16 leaves: the row is about the
+/// split and the accounting, not the whole tree.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
     let doc = two_param_plate(uniform(0.16), uniform(0.16));
@@ -627,7 +629,7 @@ fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it(
     let v = drive(
         &doc,
         &analyzed,
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
@@ -1091,7 +1093,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
     let v = drive(
         &banded,
         &analyzed,
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
@@ -1107,7 +1109,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
     let u = drive(
         &priced,
         &analyzed_box(&priced, &AnalysisPolicy::default()),
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
