@@ -65,3 +65,16 @@ build at every ε. The status is GERM's to set once that PR merges.
 it now reads names a different predicate: `left: Some("pcurve_map_residual")`,
 `right: Some("carrier_matches_mapped_source")`, from a `CrossingInsertion`
 whose certification escalated `ChartResidual` at sample 7.
+
+**Moved earlier by PR 6505, and pinned there (GREEN `green/eps-1e-12`,
+2026-11-14).** At PR 6505's first parent `e996c0049` the row is red at
+1e-12 on this row's stop: the re-posed twin's `CrossingInsertion { operand:
+A, edge: 4v1 }` escalates `StatedImage` at sample 7 on
+`pcurve_map_residual` (margin `[0, 1.035e-12]`), where the row's escape
+admits `carrier_matches_mapped_source`. From PR 6505's merge `9e1484043`
+on, it stops earlier: operand B does not finish (`VolumeUncomputable`,
+`props_chart_loop_whole`, BOXFINISH's
+`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12.md`).
+The row is pinned at 1e-12 on operand B's stop and cites both rows; when
+BOXFINISH's fix lands, the pin goes red on this row's stop, and the pin
+moves here.

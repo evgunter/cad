@@ -185,151 +185,26 @@ fn both_blends_evaluate_in_one_document() {
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
 ///
-/// RE-BLESSED for the sketch frame, and the differential above no
-/// longer stands behind these numbers: a profile's plane became a
-/// document node, so each of these documents gained frames and every
-/// later node was renumbered. The digest feeds each node's id and each
-/// `StableName` — which carries the id of the node that minted it — so
-/// it moves for renumbering alone. What did NOT move is the body half:
-/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
-/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
-/// green across this change untouched, and those are id-free.
+/// A row that moves is re-cut when the move is explained and right, and
+/// the PR that re-cuts it says what moved and why; the feed takes ids,
+/// names, arena keys and every carrier's `Debug`, so most moves are a
+/// spelling. A row whose body moved with no one judging the new body is
+/// PINNED at what main reads and named below with the row that owes the
+/// judgment: the pin holds it still so the next move reds, and says
+/// nothing about the body being right.
 ///
-/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
-/// each surface's `Debug`, and every planar carrier's stored `u_ref`
-/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
-/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
-/// The plane's LOCUS did not move — origin and normal are
-/// bit-identical, which the STEP fixtures' record-level diff shows
-/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
-/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
-/// green across the change untouched.
-///
-/// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
-/// and with the same pins holding.
-///
-/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
-/// node is minted from slots holding variable ids, so every id moved
-/// and this digest feeds ids. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held untouched.
-///
-/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
-/// each document now places its bodies, and every placement is a node
-/// with a value and a name table of its own, so the evaluation this
-/// digest walks holds those copies. What each document delivers did
-/// not move: `intent_s2_c_world`'s migration check holds each product
-/// to its pre-C digest.
-///
-/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
-/// glue on Zero): a body no longer carries provenance side tables
-/// (`GeomSource` stamps, field and axis sources), and the digest feeds
-/// each body's `Debug`. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED for INTENT stage 2 PR E (a selection is a variable): each
-/// blend reads a selection variable its insert mints, so the blend's id
-/// moved and every name it mints with it. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held untouched. Merged over stage 4 E, the two numbers were re-taken
-/// once more, where both changes meet.
-///
-/// RE-BLESSED when an intrinsic edge description's two surfaces became a
-/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
-/// change above: the digest feeds each edge's description `Debug`,
-/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
-/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
-/// pins and `m5_pr8_bvh_diff` held.
-///
-/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
-/// mates): a placement is a `Place` holding a world pin where it was a
-/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
-/// moved, and every id the mint chain draws after it. No outcome or
-/// point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
-/// poses): each document places its copy where it stands by a loose
-/// `Place` and the named interim's world pin, where one edit minted
-/// the placement holding its world pin, so the placement's id and every
-/// id drawn after it moved. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
-/// a placement): each document was re-spelled without `Datum` or
-/// `Transform` (a construction is built in its own coordinates and
-/// placed into the world by a `Place`), so its nodes, their ids and the
-/// names they mint moved.
-///
-/// RE-BLESSED, both rows, for a minted reference that comes from the
-/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
-/// cap now takes from the sketch's `x` axis and an extruded wall from
-/// its segment, where `orthonormal_basis` picked it off the axes. No
-/// outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED for D′1 (a placement names its target space): each
-/// construction defines its space beside its body and every bundle is
-/// written whole, so ids moved, and with them the names and value
-/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
-/// held, so no point moved.
-///
-/// RE-BLESSED for D′3 (a placement copies one source, and the product is
-/// a slot reading a `⊔`): a copy carries its source's names with no
-/// `Placed` layer, and a `⊔` keys each member's names by its read, so
-/// the name tables this digest feeds moved, and the `⊔` node moved the
-/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin.
-///
-/// RE-BLESSED, both rows, for a certificate that keeps its turn: the
-/// digest feeds each edge curve's `Debug`, which now spells the
-/// certificate's `turn`. No outcome or point moved.
-///
-/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
-/// `1235f4c050`: D′2's moves (main red, filed as
-/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
-/// stage 4 I's ids and the walls' reads, beneath
-/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
-///
-/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
-/// moved from the edge's `Certificate` onto the edge, which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
-///
-/// RE-BLESSED when `Intersection`'s witness became its selector
-/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
-/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
-/// RE-BLESSED when `Curve3::Circle` and `Curve3::Ellipse` came to hold a
-/// `geom::Circle` / `geom::Ellipse` over a `geom::Frame`
-/// (`Circle(Circle { frame: Frame { .. }, radius })` where it spelled
-/// `Circle { center, axis, radius, u_ref }`), which changes the edge
-/// curve's `Debug` the digest feeds. With that `Debug` written in main's
-/// shape every row here reproduces main's value at all three ε rows, so
-/// nothing else moved.
-/// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
-/// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every row here reproduces main's value at all three ε
-/// rows, so nothing else moved.
-/// RE-BLESSED when `geom::Frame` came to name its point `origin`
-/// (`Frame { origin, .. }` where it spelled `Frame { center, .. }`), which
-/// changes the edge curve's `Debug` the digest feeds. With that `Debug`
-/// written in main's shape every row here reproduces main's value at all
-/// three ε rows, so nothing else moved.
+/// **Pinned, unjudged** in
+/// [`the_blend_documents_evaluate_to_their_committed_digests`]:
+/// `die_fillet`, whose body moved when a blend band came to read its
+/// directions off its stored geometry. It waits on
+/// `work/onecopy/the-filleted-dies-body-moved-at-6533-and-is-pinned-unjudged.md`.
+/// `die_chamfer` is judged.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x9d27_e739_ef2f_43bd_u64),
-        ("die_chamfer", 0x018f_a268_82df_d471),
+        ("die_fillet", 0x5629_3fdb_a9ca_baed_u64),
+        ("die_chamfer", 0x3093_8ea6_f95c_075d),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -406,223 +281,24 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// is what "nothing observable moved" means here; without it the
 /// constants would only say the branch agrees with itself.
 ///
-/// RE-BLESSED for the sketch frame, and the differential above no
-/// longer stands behind these numbers: a profile's plane became a
-/// document node, so each of these documents gained frames and every
-/// later node was renumbered. The digest feeds each node's id and each
-/// `StableName` — which carries the id of the node that minted it — so
-/// it moves for renumbering alone. What did NOT move is the body half:
-/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
-/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
-/// green across this change untouched, and those are id-free.
+/// A row that moves is re-cut when the move is explained and right, and
+/// the PR that re-cuts it says what moved and why; the feed takes ids,
+/// names, arena keys and every carrier's `Debug`, so most moves are a
+/// spelling. A row whose body moved with no one judging the new body is
+/// PINNED at what main reads and named below with the row that owes the
+/// judgment: the pin holds it still so the next move reds, and says
+/// nothing about the body being right.
 ///
-/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
-/// each surface's `Debug`, and every planar carrier's stored `u_ref`
-/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
-/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
-/// The plane's LOCUS did not move — origin and normal are
-/// bit-identical, which the STEP fixtures' record-level diff shows
-/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
-/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
-/// green across the change untouched.
-///
-/// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
-/// and with the same pins holding.
-///
-/// RE-BLESSED, `heat_sink` only, when declaring a variable began
-/// minting its id on the document's chain: every node minted after a
-/// declare was renumbered, and this digest feeds ids. The id-free body
-/// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
-/// untouched, and every row of a document that declares nothing held
-/// its word.
-///
-/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
-/// node is minted from slots holding variable ids, so every id moved
-/// and this digest feeds ids. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held untouched.
-///
-/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
-/// each document now places its bodies, and every placement is a node
-/// with a value and a name table of its own, so the evaluation this
-/// digest walks holds those copies. What each document delivers did
-/// not move: `intent_s2_c_world`'s migration check holds each product
-/// to its pre-C digest.
-///
-/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
-/// glue on Zero): a body no longer carries provenance side tables
-/// (`GeomSource` stamps, field and axis sources), and the digest feeds
-/// each body's `Debug`. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED when an intrinsic edge description's two surfaces became a
-/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
-/// change above: the digest feeds each edge's description `Debug`,
-/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
-/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
-/// pins and `m5_pr8_bvh_diff` held.
-///
-/// RE-BLESSED, every row, for CONTACTHOLD's at-rest record (contact
-/// records are one list of unordered cell pairs): the digest feeds each
-/// value's `Debug`, and the records' `Debug` shape moved from seven
-/// per-kind lists to one list of canonical pairs. No outcome, count or
-/// point moved: every other row of these suites held.
-///
-/// RE-BLESSED, `crossing_slots` only, for the killed-lineage chase
-/// (`emit_topo`'s `KilledSplits`): its second slot's bottom-rim pieces,
-/// split off around stretches the subtract killed, are named as pieces
-/// of that rim rather than as chords, and two floor corners' vertex
-/// names moved with them. The digest feeds the name table. No body
-/// moved.
-///
-/// RE-BLESSED, `crossing_slots` only, for the output stage's killed
-/// lineage (the records of the edges the merge kills, copied into
-/// `BooleanNaming::killed_lineage`): a stretch of the first cavity's
-/// bottom rim the merge left is named as a piece of that rim rather
-/// than as a seam, and one floor corner moved from a touch to a
-/// crossing of the two rims. The digest feeds the name table. No body
-/// moved.
-///
-/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
-/// mates): a placement is a `Place` holding a world pin where it was a
-/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
-/// moved, and every id the mint chain draws after it. No outcome or
-/// point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
-/// poses): each document places its copy where it stands by a loose
-/// `Place` and the named interim's world pin, where one edit minted
-/// the placement holding its world pin, so the placement's id and every
-/// id drawn after it moved. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED, `crossing_slots` only, for a seam citing the parent face
-/// (N3): the two seams beside its merged floor cite the floor's `Merged`
-/// parent where they cited one floor. The digest feeds the name table.
-/// No body moved.
-///
-/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
-/// a placement): each document was re-spelled without `Datum` or
-/// `Transform` (a construction is built in its own coordinates and
-/// placed into the world by a `Place`), so its nodes, their ids and the
-/// names they mint moved.
-///
-/// RE-BLESSED, `heat_sink` only, for the identity bundle (FORK-REST): a
-/// copy standing where its body stands is placed by no mate and the
-/// constant `0` on every freedom, written as one `AddValues`, which
-/// mints a different number of ids from the plane mate and three values it replaces.
-/// So every node minted after a stand moved its id, and this digest
-/// feeds ids. Every standing copy in the corpus is bit-identical to its
-/// source (measured with a lane probe over `body_digest`).
-///
-/// RE-BLESSED, `crossing_slots` only, for a seam's sides and a
-/// crossing's lines named in the subtract's own table, in name order
-/// (N3). The digest feeds the name table. No body moved
-/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held).
-/// Re-measured merging main at `be82e5ad6b` into D, `crossing_slots`:
-/// main's N3 names each seam side and crossing line with the read it
-/// came in through, and in D a later operand is a placed copy, so the
-/// names it spells moved under both changes and the value is neither
-/// tree's. No other row moved.
-///
-/// RE-BLESSED, `crossing_slots`, `heat_sink` and `kiss_carry`, for a
-/// minted reference that comes from the inputs (PR #5547): the digest
-/// feeds each plane's `u_ref`, which a cap now takes from the sketch's
-/// `x` axis and an extruded wall from its segment, where
-/// `orthonormal_basis` picked it off the axes. No outcome or point
-/// moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// RE-BLESSED for D′1 (a placement names its target space): each
-/// construction defines its space beside its body and every bundle is
-/// written whole, so ids moved, and with them the names and value
-/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
-/// held, so no point moved.
-///
-/// RE-BLESSED for D′3 (a placement copies one source, and the product is
-/// a slot reading a `⊔`): a copy carries its source's names with no
-/// `Placed` layer, and a `⊔` keys each member's names by its read, so
-/// the name tables this digest feeds moved, and the `⊔` node moved the
-/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin.
-///
-/// RE-BLESSED, every row, for a certificate that keeps its turn: the
-/// digest feeds each edge curve's `Debug`, which now spells the
-/// certificate's `turn`. No outcome or point moved.
-///
-/// RE-BLESSED, `crossing_slots` only, for a pair boolean's `Borders`
-/// walls citing their parent as the boolean's own table names it (the
-/// `From` each came in through): the second subtract's divided pieces'
-/// names moved. No outcome or point moved.
-///
-/// RE-BLESSED, `crossing_slots` only, for a run line's sense that is no
-/// longer optional (an orientation is read, never chosen): the
-/// subtracts' `EdgeCrossing` names spell each line's sense bare. No
-/// outcome or point moved.
-///
-/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
-/// `1235f4c050`: D′2's moves (main red, filed as
-/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
-/// stage 4 I's ids and the walls' reads, beneath
-/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
-///
-/// Measured again for D′3 over main's merge at `4c341b9225`, which
-/// brings the run line's bare sense (above) beneath D′3's names and ids;
-/// the ids-masked fence held.
-///
-/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
-/// moved from the edge's `Certificate` onto the edge, which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
-///
-/// RE-BLESSED when `Intersection`'s witness became its selector
-/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
-/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
-/// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
-/// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every row here reproduces main's value at all three ε
-/// rows, so nothing else moved.
-///
-/// RE-BLESSED, `crossing_slots` and `kiss_carry`, for a boolean that
-/// leaves each glued one-carrier pair's faces on one surface record
-/// (DESIGN `[coincidence.door]`): the moved faces' surface keys and
-/// senses feed the digest. The same value at all three ε rows;
-/// `m10_p_fence`'s f64 row and its ids-masked geometry row held, so no
-/// point moved.
-///
-/// RE-BLESSED, `crossing_slots`, for a verdict whose census is taken over the
-/// faces it leaves on one record and whose moved set is its operand
-/// closure lowered: with every arena key masked (curve, surface, face,
-/// edge and point), each document's dump is main's line for line — the
-/// same surfaces, senses, points, curves and descriptions — and only the
-/// keys the arenas hand out moved, which the digest feeds.
-///
-/// RE-BLESSED, `crossing_slots` only, after PR 6832. A vertex pair's
-/// null edges now pair from the side the op keeps; before, where two
-/// crossings met, they paired in the records' order. So a subtract
-/// builds its null edges in another order and its faces take other
-/// arena keys, which the digest feeds. A probe at that merge read every
-/// cell by its geometry and found every name denoting what it denoted;
-/// nothing here guards that (filed as
-/// `work/onedoor/name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena.md`).
+/// Every row of
+/// [`the_boolean_documents_evaluate_to_their_committed_digests`] is
+/// judged; none is pinned.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd17d_36af_80b3_4d6b_u64),
-        ("heat_sink", 0x4010_8826_71c7_f1f3),
-        ("kiss_carry", 0xc72b_0f2e_7ec6_8bd7),
+        ("crossing_slots", 0x43d5_f7b3_2524_7ad2_u64),
+        ("heat_sink", 0x2688_0623_4b9c_24a3),
+        ("kiss_carry", 0xa0df_ef99_39cc_6214),
     ] {
         let doc = corpus::documents()
             .into_iter()
