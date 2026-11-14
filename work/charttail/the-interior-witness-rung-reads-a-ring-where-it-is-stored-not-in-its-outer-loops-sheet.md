@@ -15,6 +15,6 @@ Found by the sweep of `work/tesslane/a-rings-lift-is-placed-against-its-outer-lo
 - The area deductions (`overlap_of_regions`, the cylinder band's area margin) are translation-invariant, so a displaced ring deducts what a placed one does.
 - `boundary_segments`, for the interior-witness rung, arranges the rings' segments where they are stored. A displaced ring's segments lie outside the outer polygon, so the arrangement does not cut the region where the hole is. A cell centre can then fall in the hole; `contfp` answers it `Out`, and the rung loses that witness. It is not unsound, only weaker.
 
-`topo::Body::face_lift` places each ring in the outer loop's sheet on an analytic chart. It serves the minted read here; the derived read (`ChartRead::Derived`) has no stored rows and would need the same rule over derived images.
+`topo::Body::face_lift` places each ring in the outer loop's sheet, on an analytic chart or a spline one. It serves the minted read here; the derived read (`ChartRead::Derived`) has no stored rows and would need the same rule over derived images.
 
 Not measured: whether any pair the interior-witness rung is asked about holds a displaced ring.

@@ -9,20 +9,16 @@
 //! ([`place_ring`]). One point decides the whole ring: a ring meets no
 //! edge of its face, so its lift crosses no row of the outer loop's.
 //!
-//! The rule is one; the reading of a point against the outer loop is
-//! two today. A spline chart's is its trim's, in the boolean engine
-//! (`boolean::spline_region`'s `Trim::place_in_cover`): the ray parity
-//! over the rows' Bézier pieces, metered by the chart's cells, which
-//! places its own rings by [`place_ring`]; this door answers a spline
-//! face [`RingPlacementError::SplineChart`]. An analytic chart's is
-//! [`Outer::side`]: the same ray parity, clearance rule and window over
-//! the lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
+//! The rule is one, and so is the ray parity that reads a point against
+//! the outer loop ([`ray_parity_as`]); each chart family supplies its
+//! pieces' boxes and the window's arms. A spline chart's are its trim's
+//! ([`crate::spline_trim`], `Trim::place_in_cover`): the rows' Bézier
+//! pieces, metered by the chart's cells, which the spline trim places
+//! its own rings by too. An analytic chart's are [`Outer::side`]'s: the
+//! lifted rows' chart boxes ([`Pcurve::chart_box`]), every clearance
 //! decided in metres through the chart's inf-side arms, so a point
 //! within the band of the outer loop, along the chart, is undecided
-//! rather than read on a side. The two loops are near line for line one
-//! loop over two box sources; they become one when the trim's reader
-//! moves to the crate root
-//! (`work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
+//! rather than read on a side.
 //! The work bounds below are the one home of both readers' bounds.
 //!
 //! **A row whose box does not tighten.** An `IsoArc`'s box is its whole
@@ -41,6 +37,7 @@ use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Point2, Real, Sign};
 
 use super::{ChartPeriods, Lift, LiftGap, polar_arm};
 use crate::body::Body;
+use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, ray_parity_as};
 use crate::entity::{FaceKey, LoopKey};
 use crate::joint::{Deck, Winding};
 use crate::validate::decide;
@@ -56,8 +53,8 @@ pub(crate) const RING_PLACE_ARM: &str = "ring_place_arm";
 /// the shifts one closed channel may try in [`place_ring`], where a
 /// channel past it answers [`RingMiss::Copies`]; and the product of a
 /// query's copies over both channels that the spline trim reads
-/// (`boolean::spline_region`'s `Trim::copies`, which reads it as
-/// `COPIES`), where a product past it reads `Near(None)`. Raising it
+/// (`crate::spline_trim`'s `Trim::copies`, which reads it as `COPIES`),
+/// where a product past it reads `Near(None)`. Raising it
 /// moves both.
 pub(crate) const SHIFTS: usize = 9;
 /// How many times a piece of an outer loop is halved before a point it
@@ -180,12 +177,42 @@ pub enum RingPlacementError {
         /// The in-band decision.
         cause: Option<Indeterminate>,
     },
-    /// This door does not read a spline chart yet. It says nothing about
-    /// the face's rings, which the spline trim places itself, by the
-    /// same rule, inside the boolean engine, where a door at the crate
-    /// root does not reach (`crates/topo/README.md` `[topo.homes]`;
-    /// `work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
-    SplineChart,
+    /// The face's chart is a spline and its trim is not read there
+    /// ([`SplineTrimGap`]): the outer loop's (`ring` is `None`), or a
+    /// ring's chain.
+    SplineTrimUnread {
+        /// The ring whose chain is not read; `None` for the outer loop's
+        /// trim or the chart.
+        ring: Option<LoopKey>,
+        /// Why.
+        cause: SplineTrimGap,
+    },
+}
+
+/// Why a spline face's trim is not read
+/// ([`RingPlacementError::SplineTrimUnread`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplineTrimGap {
+    /// The chart is a placeholder, mid-operation.
+    Placeholder,
+    /// The chart has no Bézier cells: a degree of zero, a knot past its
+    /// degree's multiplicity or with no value, a weight not shown
+    /// positive, or an insertion plan that refuses.
+    NoCells,
+    /// A channel the chart is decided closed in states no period, or
+    /// another one.
+    Periods,
+    /// A loop's lift bounds no region: it is empty, lacks a joint
+    /// element, or winds.
+    NoClosedLift,
+    /// A row is moved by a period on a channel the chart states but does
+    /// not decide closed, or onto the twin sheet.
+    Moved,
+    /// A row's image is of a kind the trim reads no pieces of, or its
+    /// Bézier decomposition does not run.
+    NoPieces,
+    /// A piece's box has no value.
+    NoBox,
 }
 
 /// Why [`place_ring`] placed no ring: the rule's answer, before a ring
@@ -215,7 +242,8 @@ impl RingMiss {
     }
 }
 
-/// Where a point lies against the outer loop, in the cover.
+/// Where a query lies against a closed chain in the chart's cover: an
+/// outer loop the ring rule reads, or a spline face's trim.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Side {
     /// Inside, decided.
@@ -341,10 +369,10 @@ pub(crate) fn face_lift<T: Decide>(
         });
     }
     let surface = view.surface();
-    if surface.spline_chart().is_some() {
-        return Err(RingPlacementError::SplineChart);
-    }
-    let decks = {
+    let decks = if surface.spline_chart().is_some() {
+        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
+        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
+    } else {
         let periods = ChartPeriods::of(surface, band);
         let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
@@ -411,16 +439,6 @@ enum Piece<'a, T: Real> {
 }
 
 impl<T: Decide> Piece<'_, T> {
-    /// Its two ends, in the order its span runs. Bit-identical wherever
-    /// two pieces share one: each is read off the same parameter of the
-    /// same image, or copied.
-    fn ends(&self) -> (Point2<T>, Point2<T>) {
-        match self {
-            Piece::Image { pcurve, span } => (pcurve.eval(span.0), pcurve.eval(span.1)),
-            Piece::Segment(a, b) => (*a, *b),
-        }
-    }
-
     /// A box holding every point of the piece.
     fn bbox(&self) -> ChartWindow<T> {
         match self {
@@ -432,6 +450,49 @@ impl<T: Decide> Piece<'_, T> {
                 v_max: a.y.max(b.y),
             },
         }
+    }
+}
+
+impl<T: Decide> ChainPiece<T> for Piece<'_, T> {
+    type Query = Point2<T>;
+
+    /// A point: its ray leaves from it, and it is a rectangle of size
+    /// zero.
+    fn ray(q: Point2<T>) -> RayQuery {
+        let [u, v] = [q.x.value_channel(), q.y.value_channel()];
+        RayQuery {
+            centre: [u, v],
+            rect: [(u, u), (v, v)],
+        }
+    }
+
+    fn boxed(&self, q: Point2<T>) -> Option<PieceBox<T>> {
+        let b = self.bbox();
+        Some(PieceBox {
+            gap: [
+                (b.u_min - q.x).max(q.x - b.u_max).max(T::zero()),
+                (b.v_min - q.y).max(q.y - b.v_max).max(T::zero()),
+            ],
+            extent: [
+                (b.u_min.value_channel(), b.u_max.value_channel()),
+                (b.v_min.value_channel(), b.v_max.value_channel()),
+            ],
+        })
+    }
+
+    /// A shared end is bit-identical: the halves of an image span share
+    /// the one midpoint parameter and read it off the one image, and a
+    /// joint's segment copies the two row ends [`Outer::of`] evaluated
+    /// at the parameters the rows' own spans end at.
+    fn ends(&self) -> ([f64; 2], [f64; 2]) {
+        let (s, e) = match self {
+            Piece::Image { pcurve, span } => (pcurve.eval(span.0), pcurve.eval(span.1)),
+            Piece::Segment(a, b) => (*a, *b),
+        };
+        (
+            [s.x.value_channel(), s.y.value_channel()],
+            [e.x.value_channel(), e.y.value_channel()],
+        )
     }
 
     fn halves(&self) -> (Self, Self) {
@@ -562,7 +623,7 @@ impl<'a, T: Decide> Outer<'a, T> {
                     Err(diag) => return Side::Near(Some(diag)),
                 }
             }
-            return self.parity(q, arms, band);
+            return ray_parity_as(RING_PLACE_CLEAR, &self.pieces, q, arms, PIECE_VISITS, band);
         }
         Side::Near(pending)
     }
@@ -598,56 +659,6 @@ impl<'a, T: Decide> Outer<'a, T> {
             )
         };
         Ok((InfSpeed::new(gate(u)?), InfSpeed::new(gate(v)?)))
-    }
-
-    /// The ray parity of `q` along `+u`, every piece decided clear of it
-    /// first: a clear piece wholly past `q` in `u` crosses the ray as
-    /// often, mod 2, as its ends lie either side of `v = q_v` under the
-    /// half-open rule `v ≥ q_v`; any other clear piece misses it. A piece
-    /// not clear is halved.
-    fn parity(&self, q: Point2<T>, (au, av): (InfSpeed<T>, InfSpeed<T>), band: Band) -> Side {
-        let (cu, cv) = (q.x.value_channel(), q.y.value_channel());
-        let mut stack: Vec<(Piece<'_, T>, usize)> =
-            self.pieces.iter().rev().map(|p| (p.clone(), 0)).collect();
-        let (mut parity, mut visits) = (false, 0usize);
-        while let Some((piece, depth)) = stack.pop() {
-            visits += 1;
-            if visits > PIECE_VISITS {
-                return Side::Near(None);
-            }
-            let b = piece.bbox();
-            let gu = (b.u_min - q.x).max(q.x - b.u_max).max(T::zero());
-            let gv = (b.v_min - q.y).max(q.y - b.v_max).max(T::zero());
-            let mut diag = None;
-            let mut clear = false;
-            for (g, arm) in [(gu, au), (gv, av)] {
-                match decide(RING_PLACE_CLEAR, Margin::metered(g, arm), band) {
-                    Ok(Sign::Positive) => clear = true,
-                    Ok(_) => {}
-                    Err(d) => diag = diag.or(Some(d)),
-                }
-            }
-            if clear {
-                if b.v_min.value_channel() > cv
-                    || b.v_max.value_channel() < cv
-                    || b.u_max.value_channel() < cu
-                {
-                    continue;
-                }
-                if b.u_min.value_channel() > cu {
-                    let (s, e) = piece.ends();
-                    parity ^= (s.y.value_channel() >= cv) != (e.y.value_channel() >= cv);
-                    continue;
-                }
-            }
-            if depth == PIECE_DEPTH {
-                return Side::Near(diag);
-            }
-            let (l, r) = piece.halves();
-            stack.push((r, depth + 1));
-            stack.push((l, depth + 1));
-        }
-        if parity { Side::In } else { Side::Out }
     }
 }
 
