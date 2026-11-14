@@ -357,3 +357,10 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   #6324, #6361), STYLE on each pin PR (#6343, #6355), the census
   tracker-only on the orchestrator's read. Every review that ran found
   something worth a fix pass; #6324 took three.
+
+## 2026-11-14 — picked up (Ev, in chat: orchestrate GREEN)
+
+- Track set `active`. Four main-red rows arrive from tcost by `git mv`, ids unchanged, at P1: the far-off-origin union (rewritten: it now fails at 1e-12 only, with a different refusal), the round keel at 1e-6, the filleted die, `revalue_boss_union`.
+- Nightly 43371638371 (main `e36675c1`, 2026-11-13) read whole from its junit artifacts: 22 failures at the default ε, 35 at 1e-6, 38 at 1e-12; `suite under --all-features` did not finish its build in 60 minutes; `k-lint (dev-probe)`, `viewer app feature`, the first-refusal mutant job and `gate self-tests` are red. The 1e-12 leg ran 92 minutes, and 118 the night before, against a 120-minute cap.
+- No `triage/nightly-*` PR is open, so the wait-for-the-triage rule has nothing to wait on, as on 10-31; this sitting reads the nightly itself.
+- Review tier for this PR: orchestrator's read (tracker headers and moves only).

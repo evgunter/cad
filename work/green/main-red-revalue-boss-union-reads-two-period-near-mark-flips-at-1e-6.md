@@ -21,3 +21,5 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), triaging nigh
 So the failure is older than 50cfcf499d. It is unbisected.
 
 Both flips are `geom-core/src/period.rs`'s `period_near_mark` on a margin of exactly `0.0` against `8.9e-16`: a parameter on a period's mark, read on either side of it by the two builds. Decide whether boss_union owes these two flips (and say so in the row's owed list, with the reason) or whether the mark read should not turn on that ulp.
+
+Nightly 43371638371 (2026-11-13): red at 1e-12 as well as 1e-6; green at the default ε. (GREEN, 2026-11-14)

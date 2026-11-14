@@ -4,6 +4,8 @@ kind: issue
 title: Nine test sites swap the process-global panic hook around each capture instead of using test_utils::panic_capture::caught
 status: open
 opened: 2026-10-19
+priority: P4
+cost: M
 ---
 
 

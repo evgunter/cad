@@ -4,7 +4,7 @@ kind: issue
 title: Nine source censuses each cut a file's shipped part by hand; a tenth, the copysign census, cut at the first cfg(test) line and hid four sites until PR 6610
 status: open
 opened: 2026-11-09
-priority: P1
+priority: P3
 cost: M
 ---
 

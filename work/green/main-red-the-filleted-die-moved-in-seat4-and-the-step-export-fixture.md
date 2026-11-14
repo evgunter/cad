@@ -4,7 +4,8 @@ kind: issue
 title: main red (slow set): the filleted die moved: seat4's die_fillet digest and step-export's filleted_die.step fixture, since 11-03..11-07
 status: open
 opened: 2026-11-09
-priority: P0
+priority: P1
+cost: E
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), both slow-set rows:
