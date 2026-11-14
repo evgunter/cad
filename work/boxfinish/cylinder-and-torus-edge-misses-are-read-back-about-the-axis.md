@@ -2,7 +2,7 @@
 id: cylinder-and-torus-edge-misses-are-read-back-about-the-axis
 kind: issue
 title: The cylinder's and torus's per-edge whole-turn misses are read back about the axis, so their Interval width is charged as disagreement on a far generic-pose body
-status: spec
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
