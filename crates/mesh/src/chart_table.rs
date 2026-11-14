@@ -345,7 +345,8 @@ impl<'a> AnalyticRow<'a> {
     /// ([`Self::steps`]): on a ruled chart, rows every `lever·hu` metres,
     /// square in 3-D at the face's widest radius (the cylinder's radius,
     /// the cone's largest), which shape the triangulation and move no
-    /// bound; on a torus and a spindle sheet both periodic steps capped at
+    /// bound (the trimmed lane grades the cone's rows from that step to
+    /// each row's own radius, [`Self::lattice_rows`]); on a torus and a spindle sheet both periodic steps capped at
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
