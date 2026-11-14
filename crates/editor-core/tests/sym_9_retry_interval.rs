@@ -914,14 +914,14 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         [1400, 1762, 0],
         "the shipped ladder's leaf receipt"
     );
+    // With nothing retried the receipt writes no ladder column, as the
+    // bare drive's does below; no fixture here retries in a one-leaf
+    // drive now (`work/sym/the-ladders-receipt-row-has-no-drive-that-retries.md`).
     assert!(
-        line.contains(" retried=32\n"),
-        "the goldening line carries `retried=` after the discharge columns: {line}"
+        !line.contains("retried="),
+        "nothing retried, no column: {line}"
     );
-    assert!(
-        human.contains("; 32 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-two as the ladder's: {human}"
-    );
+    assert!(!human.contains("second attempt"), "{human}");
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
     // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
@@ -936,7 +936,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1358, 1379, 0] -> [1358, 1380, 0]. Then the constructors'
     // whole-wedge reads, as the shipped receipt's: [1358, 1380, 0] ->
     // [1352, 1862, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1352, 1862, 0]);
+    // Then the sweeps' frames: the ladder retries nothing on this leaf,
+    // and the bare drive reads the shipped receipt, [1400, 1762, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1400, 1762, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

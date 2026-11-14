@@ -386,12 +386,13 @@ fn faces<T: topo::AtRestPolicy>(e: &Extruded<T>) -> Vec<FaceKey> {
 
 /// Every face of `boxed` (top, bottom, walls in order) against the same
 /// face of each member's `f64` build: the box's enclosure contains every
-/// member's datum, and somewhere the truth varies by more than rounding,
-/// which the enclosure is at least as wide as.
+/// member's datum, and, where `varies`, somewhere the truth varies by
+/// more than rounding, which the enclosure is at least as wide as.
 fn assert_holds_its_members(
     what: &str,
     boxed: &Extruded<S>,
     members: impl IntoIterator<Item = Extruded<f64>>,
+    varies: bool,
 ) {
     let held: Vec<[Vec3<S>; 2]> = faces(boxed)
         .into_iter()
@@ -418,7 +419,7 @@ fn assert_holds_its_members(
         }
     }
     assert!(
-        spread > 10.0 * ROUNDING,
+        !varies || spread > 10.0 * ROUNDING,
         "{what}: the truth varies across the box ({spread:e}), so the row reads a width"
     );
 }
@@ -439,7 +440,7 @@ fn a_frame_turned_by_a_boxed_angle_stores_every_members_direction() {
             quad(lit(1.0), lit(0.0)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned plane", &boxed_slab, members);
+        assert_holds_its_members("a turned plane", &boxed_slab, members, true);
     });
 }
 
@@ -456,7 +457,7 @@ fn a_wall_whose_edge_turns_with_a_boxed_vertex_stores_every_members_direction() 
             quad(boxed(0x7a2, lo, hi), lit(0.0)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned edge", &boxed_slab, members);
+        assert_holds_its_members("a turned edge", &boxed_slab, members, true);
     });
 }
 
@@ -472,7 +473,7 @@ fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direct
             quad(lit(1.0), boxed(0x7a3, lo, hi)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned arc", &boxed_slab, members);
+        assert_holds_its_members("a turned arc", &boxed_slab, members, true);
     });
 }
 
@@ -487,17 +488,17 @@ fn rect<T: Real>(w: T) -> ProfileLoop<T> {
     ])
 }
 
-/// **A slab whose width carries a box**: the caps and the three walls
-/// the box does not move store exact unit normals, from the frame. The
-/// wall at `x = w`, both of whose ends carry the box, takes its sketch
-/// direction from those two ends, so it stores the box's width; the
-/// enclosure holds every member's normal, and it is narrower than the
-/// tilt a plane fitted to its corners stored (`±0.2` on two components,
-/// measured). The profile recording its segments' directions is what
-/// would make it exact (`the-profile-drops-the-unit-directions-its-verbs-made`).
+/// **A slab whose width carries a box**: the caps and the wall at
+/// `x = 0`, whose ends the box does not move, store exact unit normals,
+/// from the frame. The other three walls each have an end that carries
+/// the box, and take their sketch directions from their ends, so they
+/// store the box's width in the sketch plane and none across it; the
+/// enclosure holds every member's normal. The profile recording its segments' directions is what would
+/// make it exact (`the-profile-drops-the-unit-directions-its-verbs-made`).
+/// The box is a leaf's, as for every profile-vertex box here.
 #[test]
-fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_wall() {
-    let (lo, hi) = (0.95, 1.05);
+fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_walls() {
+    let (lo, hi) = (1.0 - vertex_box(), 1.0 + vertex_box());
     let members = members(lo, hi).map(|w| slab(SketchPlane::xy(), rect(w), 1.0));
     in_session(|| {
         let boxed_slab = slab(SketchPlane::xy(), rect(boxed(0x3a1, lo, hi)), lit(1.0));
@@ -508,15 +509,15 @@ fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_wal
             assert_exact_unit(&format!("width box {name} cap u_ref"), u_ref);
         }
         let walls = &boxed_slab.walls[0];
-        for (i, wall) in walls.iter().enumerate().filter(|&(i, _)| i != 1) {
-            let (_, normal, _) = plane(body, wall.face);
-            assert_exact_unit(&format!("width box fixed wall {i} normal"), normal);
+        let (_, fixed, _) = plane(body, walls[3].face);
+        assert_exact_unit("width box wall x = 0 normal", fixed);
+        for wall in &walls[..3] {
+            let (_, moving, _) = plane(body, wall.face);
+            assert!(
+                width(moving.z) <= ROUNDING,
+                "a wall the box moves takes no width across the sketch plane: {moving:?}"
+            );
         }
-        let (_, moving, _) = plane(body, walls[1].face);
-        assert!(
-            width(moving.z) <= ROUNDING && width(moving.x) < 0.4 && width(moving.y) < 0.4,
-            "the moving wall's normal is no wider than a fitted plane's: {moving:?}"
-        );
-        assert_holds_its_members("a width box", &boxed_slab, members);
+        assert_holds_its_members("a width box", &boxed_slab, members, false);
     });
 }
