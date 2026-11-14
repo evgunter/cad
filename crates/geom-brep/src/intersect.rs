@@ -2401,9 +2401,16 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
-    let arm = ExtentBall::of_circle(apex + a * t, rim_r)
-        .lever()
-        .max(extent);
+    // A circle with no cover (the plane along the axis puts it at no
+    // finite point) is no candidate section, and adds no reach.
+    let arm = geom::cover::Cover::circle(geom::cover::Core {
+        axis: geom::Line {
+            origin: apex + a * t,
+            dir: a,
+        },
+        radius: rim_r,
+    })
+    .map_or(extent, |c| ExtentBall::of_cover(&c).lever().max(extent));
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
@@ -2824,8 +2831,10 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt =
-                Margin::levered(a.cross(n).norm(), ExtentBall::of_torus(c, big_r, r).lever());
+            let tilt = Margin::levered(
+                a.cross(n).norm(),
+                ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
+            );
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the

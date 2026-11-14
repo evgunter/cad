@@ -109,7 +109,7 @@ fn plane_and_wall(
         radius: R,
         u_ref: Vec3::unit_y(),
     };
-    let reach = Reach::Ball(ExtentBall::of_sphere(Point3::origin(), RHO));
+    let reach = Reach::Ball(ExtentBall::fixture(Point3::origin(), RHO));
     plane_cylinder_section(&plane, &wall, &reach, band)
 }
 
@@ -182,7 +182,7 @@ fn two_walls(tilt: f64, apart: f64, r2: f64) -> (Surface<f64>, Surface<f64>, Ext
         radius: r2,
         u_ref: Vec3::unit_z(),
     };
-    (c1, c2, ExtentBall::of_sphere(Point3::new(0.0, R, 0.0), RHO))
+    (c1, c2, ExtentBall::fixture(Point3::new(0.0, R, 0.0), RHO))
 }
 
 fn pair(
