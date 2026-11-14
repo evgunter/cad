@@ -2,8 +2,13 @@
 id: split-section-corrupt-is-payload-free
 kind: issue
 title: SectionError::Corrupt is payload-free, and one of its sites is not a dangling key
-status: open
+status: closed
 opened: 2026-11-12
+priority: P3
+cost: E
+closed: 2026-11-14
+pr: 6927
+branch: onedoor/section-corrupt
 ---
 
 
@@ -72,3 +77,9 @@ the eight raises is a record miss on the join's scratch body, so by D2
 - `live::claimed`'s panic names `OPERATORS_KEEP_LINKS` beside the
   tier-1 premise, as the other link panics do, since the walk reads a
   mid-operation body.
+
+## Closed (PR 6927, 2026-11-14)
+
+DESIGN D2 governs: a torn body is a kernel bug. The eight `SectionError::Corrupt` constructions in `splitting/section.rs` therefore panic, naming the record, the key and the premise (`OPERATORS_KEEP_LINKS`), and the variant is retired. The reviewer traced every panic site to `plane_section`'s own scratch body: the walk reads only keys the join wrote, after every tolerance decision is already typed, so no valid body reaches them. The walk is now the claimed one (`loop_walk_of`), which adds the `parent_loop` premise. `NestFault::Torn` stands for the topo row's `SplitFinishError` line.
+
+Model-compare row: `docs/model-compare-log/rows/PR-6927.md`.
