@@ -94,3 +94,10 @@ What moved:
 What is left between them is wording and where one backstop sits (A, B: the two exact drops become typed refusals; C: they stay as unreachable backstops).
 
 Harness figures for the round: A 268,377 tokens as reported, 78 s; C 470,718 tokens as reported, 803 s; B: see below.
+B's round 4: 294,678 tokens as reported for the resumed run, 327 s.
+
+## Put to Ev, 2026-11-14
+
+`[ev]` PR 6966 (`tesslane/ev-flat-triangles`): `crates/mesh/README.md` gains `[mesh.winding]`, the clearance bullet of `[mesh.sizing]` and its constant; row 269 of `docs/DESIGN-FORK-LOG.md` carries the recommendation half, labels only. The PR body carries each designer's round-4 `For Ev` section verbatim under its label and names no model. The mapping above (Fable = C; the two Opus designers A and B; each as the harness transcripts report it: A and B `claude-opus-5-5`, C `claude-fable-5-2`) goes into the row only after Ev decides.
+
+Token counts for the row, first report / last reported total: A 200,501 / 268,377; B 220,956 / 294,678; C 318,459 / 470,718. The totals are the harness's figure for each resumed run, which appears to be the running context and not a sum over runs.
