@@ -765,7 +765,7 @@ pub(crate) fn half_edge_face<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> FaceVi
 ///
 /// [`PcurveMintError::NoCarrier`] where the edge is null scaffolding.
 #[track_caller]
-fn half_edge_curve<T: Real>(
+pub(crate) fn half_edge_curve<T: Real>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, PcurveMintError> {
@@ -789,7 +789,6 @@ pub(crate) fn side_image_of<T: Decide>(
     wall: &Surface<T>,
     band: Band,
 ) -> Option<Pcurve<T>> {
-    use geom_core::{Point2, Vec2};
     let chart = wall.spline_chart()?;
     let span = t1 - t0;
     let picked = if matches!(carrier, geom::Curve3::Circle(..)) {
@@ -799,19 +798,12 @@ pub(crate) fn side_image_of<T: Decide>(
             chart.knot_values_u().domain(),
             chart.knot_values_v().domain(),
         );
-        let line = |p0: Point2<T>, pl: Vec2<T>| Pcurve::IsoLine { p0, pl };
-        let rows = [v0, v1].into_iter().flat_map(|y| {
-            [(u0, u1), (u1, u0)].map(|(a, b)| {
-                let slope = (b - a) / span;
-                line(Point2::new(a - slope * t0, y), Vec2::new(slope, T::zero()))
-            })
-        });
-        let columns = [u0, u1].into_iter().flat_map(|x| {
-            [(v0, v1), (v1, v0)].map(|(a, b)| {
-                let slope = (b - a) / span;
-                line(Point2::new(x, a - slope * t0), Vec2::new(T::zero(), slope))
-            })
-        });
+        let rows = [v0, v1]
+            .into_iter()
+            .flat_map(|y| [(u0, u1), (u1, u0)].map(|u| Pcurve::iso_row(y, u, (t0, t1))));
+        let columns = [u0, u1]
+            .into_iter()
+            .flat_map(|x| [(v0, v1), (v1, v0)].map(|v| Pcurve::iso_column(x, v, (t0, t1))));
         probe_pick(
             "pcurve_shared_side",
             carrier,
@@ -1069,15 +1061,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // here (its arm is the arc rim's); an ellipse or a spiric has no
         // exact class on a spline chart.
         let iso = line || matches!(carrier, geom::Curve3::Nurbs(_));
-        let columns = [cu0, cu1].into_iter().filter(|_| iso).flat_map(|x| {
-            [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
-                let slope = (v_at_t1 - v_at_t0) / span;
-                Pcurve::IsoLine {
-                    p0: Point2::new(x, v_at_t0 - slope * t0),
-                    pl: Vec2::new(T::zero(), slope),
-                }
-            })
-        });
+        let columns = [cu0, cu1]
+            .into_iter()
+            .filter(|_| iso)
+            .flat_map(|x| [(cv0, cv1), (cv1, cv0)].map(|v| Pcurve::iso_column(x, v, (t0, t1))));
         // A cap–wall rim traverses a boundary ROW, `u` moving —
         // offered to a spline only in a direction whose carrier is in
         // the row's own spline space (`RowSpace`: the row class
@@ -1101,13 +1088,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
             .collect();
         let rows = [cv0, cv1].into_iter().flat_map(|y| {
-            directions.iter().map(move |&(u_at_t0, u_at_t1)| {
-                let slope = (u_at_t1 - u_at_t0) / span;
-                Pcurve::IsoLine {
-                    p0: Point2::new(u_at_t0 - slope * t0, y),
-                    pl: Vec2::new(slope, T::zero()),
-                }
-            })
+            directions
+                .iter()
+                .map(move |&u| Pcurve::iso_row(y, u, (t0, t1)))
         });
         // Each pick is a lane choice (D3): a candidate the probe shows
         // is taken, and one it does not, in band or decided off, passes
@@ -1159,6 +1142,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .map(|y| Pcurve::IsoLine {
                     p0: Point2::new(f0.x - su * t0, y),
                     pl: Vec2::new(su, T::zero()),
+                    ends: None,
                 });
             let columns = [cu0, cu1, f0.x]
                 .into_iter()
@@ -1166,6 +1150,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .map(|x| Pcurve::IsoLine {
                     p0: Point2::new(x, f0.y - sv * t0),
                     pl: Vec2::new(T::zero(), sv),
+                    ends: None,
                 });
             if let Ok(Some(cand)) = probe_pick(
                 what,
@@ -1225,10 +1210,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // stated `v` map is a candidate only, since nothing here says
         // the two charts share the seam's parameterization.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
-            pcurve: Pcurve::IsoLine { p0, pl },
+            pcurve: Pcurve::IsoLine { p0, pl, ends },
             ..
         }) => {
-            // The neighbour's `v` map, verbatim, as a column of this
+            // The neighbour's `v` map and its stated `v` ends, verbatim, as a column of this
             // chart: at each chart boundary, then at the column the
             // start's measured foot names (a chart wider than the face
             // it trims). They lead the boundary-iso schedule, which
@@ -1240,6 +1225,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             let column = |x: T| Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
+                ends: ends.map(|e| e.map(|p| Point2::new(x, p.y))),
             };
             let at_foot = derive_chart_foot(carrier.eval(t0), surface)
                 .ok()

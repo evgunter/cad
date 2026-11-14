@@ -869,23 +869,6 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
 /// the scale and the tilt, in the turned frame.
 #[test]
 fn a_turned_near_square_split_of_a_rod_validates_its_halves() {
-    // Pinned red: the body's volume escalates in band
-    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the turned near-square split",
-        &[
-            "the moved body is not a finished body",
-            "VolumeUncomputable",
-            "props_chart_loop_whole",
-        ],
-        a_turned_near_square_split_of_a_rod_validates_its_halves_row,
-    );
-}
-
-/// The row [`a_turned_near_square_split_of_a_rod_validates_its_halves`] runs, under its pin.
-fn a_turned_near_square_split_of_a_rod_validates_its_halves_row() {
     let map = turn();
     for r in TURNED_SCALES {
         let body = moved_body(&rod(r), &map);
@@ -907,23 +890,6 @@ fn a_turned_near_square_split_of_a_rod_validates_its_halves_row() {
 /// the tilt, in the turned frame.
 #[test]
 fn a_turned_near_square_rod_minus_a_box_builds() {
-    // Pinned red: the body's volume escalates in band
-    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the turned near-square rod minus a box",
-        &[
-            "the moved body is not a finished body",
-            "VolumeUncomputable",
-            "props_chart_loop_whole",
-        ],
-        a_turned_near_square_rod_minus_a_box_builds_row,
-    );
-}
-
-/// The row [`a_turned_near_square_rod_minus_a_box_builds`] runs, under its pin.
-fn a_turned_near_square_rod_minus_a_box_builds_row() {
     let map = turn();
     for r in TURNED_SCALES {
         let cutter = moved_body(
