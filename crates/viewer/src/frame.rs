@@ -2570,78 +2570,93 @@ pub fn product_recourse(
     }
 }
 
-/// **What the selection says about the copy it is on, and the steps it
-/// offers** (Ev, PR 6353), read off the committed document:
+/// **One row of what the selection says about placements**
+/// ([`placement_offers`]): the fact it states, and the step beside it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacementOffer {
+    /// The fact: "bracket (2 copies) copies B, which this body is built
+    /// on".
+    pub said: String,
+    /// The button's label: "Re-point bracket onto G".
+    pub label: String,
+    /// What the button does.
+    pub op: SessionOp,
+}
+
+/// **What the selection says about the copies it is on or built on, and
+/// the steps it offers** (Ev, PR 6353 and PR 6915), read off the
+/// committed document, one row per fact:
 /// - a pick on a placed copy, or a body built on one, is said to be on
 ///   that placed copy, with a button to its original body
 ///   ([`crate::world::built_on_copy`]);
-/// - a body built on a body picked as itself, where placements read that
-///   body through a source, offers to redefine each source onto it, one
-///   explicit step per source (`bracket = F`;
+/// - a body that reads, at any depth, as a body, one that placements
+///   read through a source says so of each source, with a button that
+///   redefines the source onto it (`bracket = G`;
 ///   [`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
-///   A source defined as another source follows it and has no button.
+///   A source defined as another source follows it and has no row.
 ///
-/// The sentence, where there is one, then each button's label and op.
+/// Both read off one walk ([`crate::world::placement_reading`]).
 pub fn placement_offers(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     tol: pncad::geom_core::Tol,
-) -> (Option<String>, Vec<(String, SessionOp)>) {
+) -> Vec<PlacementOffer> {
     let by = Speaker::of(doc);
-    let mut said = None;
-    let mut offers = Vec::new();
-    let on_copy = crate::world::copy_source(doc, node, 0)
-        .is_some()
-        .then(|| (node, crate::world::original_of(doc, node)))
-        .or_else(|| crate::world::built_on_copy(doc, node));
-    if let Some((copy, original)) = on_copy {
-        said = Some(if copy == node {
-            format!(
-                "a placed copy of {}: a feature on it belongs to this copy alone",
-                by.node(original)
-            )
-        } else {
-            format!(
-                "on the placed copy {} of {}: it belongs to that copy alone",
-                by.node(copy),
-                by.node(original)
-            )
-        });
-        offers.push((
-            format!("Go to the original body, {}", by.node(original)),
-            SessionOp::Select(crate::session::Selection::Node(original)),
-        ));
-    }
-    if let Some(offer) = crate::world::repoint_offer(doc, node, tol) {
-        for row in offer.rows {
-            let label = match doc.var_name(row.source) {
+    let offer = match crate::world::placement_reading(doc, node, tol) {
+        None => return Vec::new(),
+        Some(crate::world::PlacementReading::Offer(offer)) => offer,
+        Some(crate::world::PlacementReading::OnCopy { copy, original }) => {
+            let said = if copy == node {
+                format!(
+                    "a placed copy of {}: a feature on it belongs to this copy alone",
+                    by.node(original)
+                )
+            } else {
+                format!(
+                    "on the placed copy {} of {}: it belongs to that copy alone",
+                    by.node(copy),
+                    by.node(original)
+                )
+            };
+            return vec![PlacementOffer {
+                said,
+                label: format!("Go to the original body, {}", by.node(original)),
+                op: SessionOp::Select(crate::session::Selection::Node(original)),
+            }];
+        }
+    };
+    offer
+        .rows
+        .into_iter()
+        .map(|row| {
+            let (who, what) = match doc.var_name(row.source) {
                 Some(name) => {
                     let count = row.placements.len();
                     let plural = if count == 1 { "y" } else { "ies" };
-                    format!(
-                        "Re-point {name} ({count} cop{plural}) onto {}",
-                        by.node(node)
-                    )
+                    (format!("{name} ({count} cop{plural})"), name.to_string())
                 }
-                None => format!(
-                    "Re-point the copy {} onto {}",
-                    row.placements.first().map_or_else(
-                        || by.read(row.source).to_string(),
-                        |&copy| { by.node(copy).to_string() }
-                    ),
-                    by.node(node)
-                ),
+                None => {
+                    let copy = row
+                        .placements
+                        .first()
+                        .map_or_else(|| by.read(row.source), |&copy| by.node(copy).to_string());
+                    let who = format!("the copy {copy}");
+                    (who.clone(), who)
+                }
             };
-            offers.push((
-                label,
-                SessionOp::RepointPlacements {
+            PlacementOffer {
+                said: format!(
+                    "{who} copies {}, which this body is built on",
+                    by.read(row.body)
+                ),
+                label: format!("Re-point {what} onto {}", by.node(node)),
+                op: SessionOp::RepointPlacements {
                     source: row.source,
                     onto: node.into(),
                 },
-            ));
-        }
-    }
-    (said, offers)
+            }
+        })
+        .collect()
 }
 
 /// **What the chrome badges about the δ the display budget chose**,
