@@ -141,7 +141,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
-use crate::face_reach::{face_axial_range, face_extent};
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
@@ -1083,57 +1082,50 @@ pub(crate) fn corrupt_face(face: FaceKey) -> JoinError {
 }
 
 /// Where the section table reads a wall's pose, and how far `face`
-/// reaches from there, measured from the base vertex `at`'s point: on a
-/// cone the [`geom_brep::Reach::Face`] the cone lane reads
-/// (`face_reach::cone_face_reach`), and on a cylinder the
-/// [`WallReach`] [`agreed_section`] reads: the face's axial range from
-/// the vertex ([`face_axial_range`], the curved edges' bulge included)
-/// and its distance from it, each edge read over its span
-/// ([`face_extent`]) and round its whole carrier
-/// (`face_reach_round_from`). A sphere's lane reads neither. `within`
-/// is a window along a cone's axis the consumed region also lies in:
-/// the partner wall face's, where `face` is the plane the boolean cuts
-/// it with.
+/// reaches from there, measured from the base vertex `at`'s point off
+/// the face's cover: on a cone the [`geom_brep::Reach::Face`] the cone
+/// lane reads ([`crate::cover::cone_face_reach`]), on a cylinder the
+/// [`WallReach`] [`wall_face_section`] reads, on a torus its farthest
+/// distance. A sphere's lane reads none. `within` is a second face's
+/// cover the consumed region also lies in: the partner wall face's,
+/// where `face` is the plane the boolean cuts it with.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-    (wall, within): (&geom::Surface<T>, Option<(T, T)>),
+    (wall, within): (&geom::Surface<T>, Option<&geom::cover::Cover<T>>),
     band: Band,
 ) -> Result<SectionReach<T>, JoinError> {
     let p = body.resolve_vertex_point(at, Proven);
+    let uncovered = |_| uncovered(face);
     Ok(match wall {
         geom::Surface::Cylinder { axis, .. } => {
-            let extent = face_extent(body, at, face).map_err(unbounded)?;
-            let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
-            let round =
-                crate::face_reach::face_reach_round_from(body, face, p).map_err(unbounded)?;
+            let (below, above) =
+                crate::cover::face_axial_range(body, face, p, *axis, band).map_err(uncovered)?;
             SectionReach::Cylinder(WallReach {
                 at: p,
                 below,
                 above,
-                span: extent,
-                round,
+                across: crate::cover::face_reach_from(body, face, p, band).map_err(uncovered)?,
             })
         }
         geom::Surface::Cone { .. } => SectionReach::Cone(
-            crate::face_reach::cone_face_reach(body, face, p, (wall, within), band)
-                .map_err(unbounded)?,
+            crate::cover::cone_face_reach(body, face, p, (wall, within), band)
+                .map_err(uncovered)?,
         ),
         geom::Surface::Torus { .. } => SectionReach::Torus(
-            crate::face_reach::face_reach_from(body, face, p).map_err(unbounded)?,
+            crate::cover::face_reach_from(body, face, p, band).map_err(uncovered)?,
         ),
         _ => SectionReach::Unmeasured,
     })
 }
 
-/// [`face_extent`]'s refusal as the join's typed frontier: a face with
-/// no outer boundary has no extent to meter a section across.
-fn unbounded(e: crate::face_reach::UnboundedFace) -> JoinError {
+/// A face with no cover as the join's typed frontier: it has no extent
+/// to meter a section across.
+fn uncovered(face: FaceKey) -> JoinError {
     JoinError::SectionInvariant {
-        face: e.face,
-        what: "the face's outer loop is a lone vertex, so it has no extent to meter the \
-               section across",
+        face,
+        what: "the face has no cover, so no extent to meter the section across",
     }
 }
 
@@ -1365,10 +1357,10 @@ pub(crate) enum JoinLane<'a, T: Real> {
     BoolPlanar {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
-        /// The partner wall face's window along a cone's axis
-        /// (`face_reach::cone_axial_window`), which the section
-        /// this face shares with it lies in; `None` off a cone.
-        window: Option<(T, T)>,
+        /// The partner wall face's cover (`crate::cover::face_cover`),
+        /// which the section this face shares with it lies in; `None` off
+        /// a cone.
+        window: Option<geom::cover::Cover<T>>,
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
         /// The germ's branch: the loop of a two-loop section the chord
@@ -1515,16 +1507,21 @@ impl<T: Decide> SectionCurve<T> {
     }
 }
 
-impl<T: Real> SectionCurve<T> {
-    /// The length a departure's cosine is levered by: a conic's larger
-    /// semi-axis, whichever its seam lies along, an oval's own extent.
+impl<T: geom_core::spline::SpanLocate> SectionCurve<T> {
+    /// The length a departure's cosine is levered by: a conic's whole
+    /// cover's ball (its larger semi-axis, whichever its seam lies
+    /// along), an oval's own extent.
     fn lever(&self) -> geom_core::Lever<T> {
         match self {
-            Self::Conic(c) => c.as_conic(geom_brep::ExtentBall::of_conic).lever(),
+            Self::Conic(c) => {
+                geom_brep::ExtentBall::of_covered(c.carrier.cover().as_ref().ok()).lever()
+            }
             Self::Oval(o) => o.extent,
         }
     }
+}
 
+impl<T: Real> SectionCurve<T> {
     /// The carrier itself.
     fn carrier(&self) -> &geom::Curve3<T> {
         match self {
@@ -1640,7 +1637,7 @@ fn section_loop<T: Decide>(
 pub(crate) enum SectionReach<T: Real> {
     /// A cone wall's face, as the plane×cone arm reads it.
     Cone(geom_brep::Reach<T>),
-    /// A cylinder wall's face, as [`agreed_section`] reads it.
+    /// A cylinder wall's face, as [`wall_face_section`] reads it.
     Cylinder(WallReach<T>),
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
@@ -1652,72 +1649,33 @@ pub(crate) enum SectionReach<T: Real> {
 
 /// **A plane×cylinder wall face's reach from the one point it is read
 /// from**: how far it reaches either way along the cylinder's axis from
-/// `at`, and its farthest distance from `at` measured two ways — each
-/// edge read over the span it holds (`face_reach::face_reach_from`)
-/// and round its whole carrier (`face_reach_round_from`).
+/// `at` ([`crate::cover::face_axial_range`]), and its farthest distance
+/// from `at` ([`crate::cover::face_reach_from`]), both read off the
+/// face's cover.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WallReach<T: geom_core::Real> {
-    /// The point both measures are taken from.
+    /// The point the measures are taken from.
     pub(crate) at: Point3<T>,
     /// How far the face reaches from `at` against the axis.
     pub(crate) below: T,
     /// How far the face reaches from `at` along the axis.
     pub(crate) above: T,
-    /// The farthest distance, each edge over its span.
-    pub(crate) span: geom_core::Lever<T>,
-    /// The farthest distance, each edge round its whole carrier.
-    pub(crate) round: geom_core::Lever<T>,
+    /// The face's farthest distance from `at`.
+    pub(crate) across: geom_core::Lever<T>,
 }
 
-/// **A plane×cylinder section, served only where a wall face's two
-/// measures of its reach across agree** ([`WallReach`]). Both the chord
-/// lane ([`section_case`]) and the germ frame
-/// (`boolean::join::pair_section_frame_at`) read the section on the
-/// declared-tangency path, which a shorter lever must not widen: an
-/// escalation under either reading escalates, and the two readings
-/// parting the conic lane from the rulings' lane are two sound bounds on
-/// the axis' tilt over the face, straddling the band
-/// (`pc_axis_plane_parallel_straddle`, [`geom_core::k_stats::straddle`]).
-/// Nothing else parts them: both are read at the one point `at`, so the
-/// rulings' gap datum is one number, whose two swings cannot put it on
-/// two sides of the band, and the conic lane's rim and tilted ellipse
-/// read no reach.
-pub(crate) fn agreed_section<T: Decide>(
+/// **A plane×cylinder section over a wall face's reach**
+/// ([`WallReach`], read as a [`geom_brep::Reach::Face`]): the chord lane
+/// ([`section_case`]) and the germ frame
+/// (`boolean::join::pair_section_frame_at`) read it.
+pub(crate) fn wall_face_section<T: Decide>(
     plane: &impl geom_brep::SectionPlane<T>,
     wall: &geom::Surface<T>,
     reach: WallReach<T>,
     band: Band,
 ) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
-    use geom_brep::PlaneCylinderSection as S;
-    let read = |across| {
-        let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), across);
-        geom_brep::plane_cylinder_section_read(plane, wall, &face, band)
-    };
-    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
-    match (read(reach.span), read(reach.round)) {
-        (Err(e), _) | (Ok(_), Err(e)) => Err(e),
-        (Ok((s, _)), Ok((r, _))) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => {
-            Ok(s)
-        }
-        (Ok((s, span)), Ok((r, round))) if conic(&s) != conic(&r) => {
-            let (lower, upper) = if span.sign < round.sign {
-                (span, round)
-            } else {
-                (round, span)
-            };
-            Err(geom_brep::SectionError::Escalated(
-                geom_core::k_stats::straddle("pc_axis_plane_parallel_straddle", lower, upper, band),
-            ))
-        }
-        (Ok((s, span)), Ok((r, round))) => unreachable!(
-            "one plane and wall served {s:?} over the span reach and {r:?} round it, both in one \
-             lane (`pc_axis_plane_parallel` {:?} on {:e} and {:?} on {:e}): both reaches are read \
-             at {:?}, so the rulings' gap datum is one number and only its swing differs, which \
-             cannot place it on two sides of the band, and `pc_rim_alignment` and the ellipse \
-             constructor, which part the conic lane, read no reach",
-            span.sign, span.margin, round.sign, round.margin, reach.at
-        ),
-    }
+    let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), reach.across);
+    geom_brep::plane_cylinder_section(plane, wall, &face, band)
 }
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
@@ -1958,7 +1916,7 @@ fn plane_wall_case<T: Decide>(
             };
         }
     };
-    let sec = agreed_section(plane_s, wall, reach, band).map_err(table)?;
+    let sec = wall_face_section(plane_s, wall, reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => conic(c, false),
         geom_brep::PlaneCylinderSection::Rim(c) => conic(c, true),
@@ -2476,7 +2434,7 @@ fn chord_spec<T: Decide>(
                 band,
                 face,
                 wall_key,
-                (&wall, window),
+                (&wall, window.as_ref()),
                 (partner_key, branch),
                 u1,
                 u2,
@@ -2717,10 +2675,8 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 /// the face ([`chord_spec`]) and the split's pairing of the face's
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
-/// plane, and nothing here knows which lane asks. So a cylinder wall is
-/// read as the most guarded lane needs it, the Boolean's germ join on the
-/// declared-tangency path: served only where the face's reach over its
-/// edges' spans and round their whole turn agree ([`agreed_section`]).
+/// plane, and nothing here knows which lane asks; a cylinder wall is
+/// read over its face's cover ([`wall_face_section`]).
 ///
 /// # Errors
 ///
@@ -2998,7 +2954,7 @@ fn bool_planar_chord_spec<T: Decide>(
     band: Band,
     face: FaceKey,
     plane_key: SurfaceKey,
-    (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
+    (wall, partner_window): (&geom::Surface<T>, Option<&geom::cover::Cover<T>>),
     (partner_key, branch): (&mut Option<SurfaceKey>, geom_brep::SectionPick),
     u1: VertexKey,
     u2: VertexKey,
@@ -5196,7 +5152,8 @@ impl RimSide {
                     "bool_lone_ring_region_side",
                     Margin::levered(
                         left,
-                        geom_brep::ExtentBall::of_circle(center, radius).lever(),
+                        geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok())
+                            .lever(),
                     ),
                     band,
                 )
@@ -6459,11 +6416,9 @@ mod tests {
     /// patch (100 µm × 1 µm at ε = 1e-9) of a 1 km wall, bounded by two rim
     /// arcs and two rulings, read at a corner and cut by the plane through that corner and the axis
     /// tilted by `sin β = k·zero/e` about the radial: the patch stands
-    /// within `k·zero` of the corner's ruling. Read over its arcs' spans
-    /// the turn is Zero (the rulings); round the arcs' whole turn (2 km
-    /// across) it reads definite (a conic). The section serves only what
-    /// both readings serve ([`agreed_section`]), so it escalates on the
-    /// split, and never serves the whole turn's conic.
+    /// within `k·zero` of the corner's ruling. Read over the patch's cover
+    /// the turn is Zero, and the section is the rulings; round the arcs'
+    /// whole turn (2 km across) it would read definite (a conic).
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
@@ -6495,68 +6450,39 @@ mod tests {
                     let normal =
                         UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band)
                             .unwrap();
-                    let bracket = geom_core::k_stats::Bracket::open();
                     let got = wall_section(&body, band, base, normal, face, corner);
-                    let recorded = bracket.finish();
-                    let err = match got {
-                        Err(err @ JoinError::Escalated { .. }) => err,
-                        got => panic!(
-                            "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
-                            got.map(|w| w.map(|w| match w.case {
-                                SectionCase::Straight(_) => "straight",
-                                SectionCase::Tangent(_) => "tangent",
-                                SectionCase::Conic(_) => "conic",
-                                SectionCase::Loops { .. } => "loops",
+                    assert!(
+                        matches!(
+                            &got,
+                            Ok(Some(WallSection {
+                                case: SectionCase::Straight(_),
+                                ..
                             }))
                         ),
-                    };
-                    let JoinError::Escalated { diag, .. } = &err else {
-                        unreachable!("matched as an escalation")
-                    };
-                    assert_eq!(
-                        diag.predicate,
-                        Some("pc_axis_plane_parallel_straddle"),
-                        "k = {k}"
-                    );
-                    // The two readings' enclosure, on the frame: never poison.
-                    assert_eq!(
-                        diag.margin.kind(),
-                        geom_core::MarginKind::Enclosure,
-                        "k = {k}"
-                    );
-                    assert_eq!(
-                        recorded.escalations.last().map(|e| e.source),
-                        Some(*diag),
-                        "k = {k}: on the frame"
-                    );
-                    // The section's escalation ends as geom-brep ends it: the
-                    // enclosure's whole ending, kind lever first. (That a
-                    // straddle's enclosure reads as subdividable is open on the
-                    // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
-                    assert!(
-                        err.render(geom_brep::recourse::Reading::Build).contains(&format!(
-                            "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
-                         move the geometry",
-                            diag.payload()
-                        )),
-                        "k = {k}: {err_at}", err_at = err.render(geom_brep::recourse::Reading::Build)
+                        "k = {k}: the patch's rulings, got {:?}",
+                        got.map(|w| w.map(|w| match w.case {
+                            SectionCase::Straight(_) => "straight",
+                            SectionCase::Tangent(_) => "tangent",
+                            SectionCase::Conic(_) => "conic",
+                            SectionCase::Loops { .. } => "loops",
+                        }))
                     );
                 }
             },
         );
     }
 
-    /// **The Boolean's germ join never serves a rim patch where main
-    /// escalated.** The germ join's wall side mints its chord through the
-    /// split lane ([`JoinLane::Split`], `boolean::join`'s `split_curve`).
-    /// A `1e5·ε × 1e3·ε` patch on a wall of radius `3·zero/c²` is cut by
+    /// **The Boolean's germ join reads a rim patch at its own cover.**
+    /// The germ join's wall side mints its chord through the split lane
+    /// ([`JoinLane::Split`], `boolean::join`'s `split_curve`). A
+    /// `1e5·ε × 1e3·ε` patch on a wall of radius `3·zero/c²` is cut by
     /// the plane through a corner and the axis tilted by
-    /// `c = 0.5·zero/e`. Round the rims' whole turn the turn moves the
-    /// patch by about `c²·r = 3·zero`, in the band, so main escalates.
-    /// Over the arcs' spans it moves the patch by about `0.5·zero`, so the
-    /// span alone serves the rulings. The chord escalates.
+    /// `c = 0.5·zero/e`. Round the rims' whole turn the turn would move
+    /// the patch by about `c²·r = 3·zero`, in the band; over the patch's
+    /// own cover it moves it by about `0.5·zero`, so the rulings serve,
+    /// and so does the chord.
     #[test]
-    fn the_germ_join_escalates_a_rim_patch_main_escalated() {
+    fn the_germ_join_reads_a_rim_patch_at_its_cover() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
         let eps = Tol::witness().eps();
         let (e, w) = (1e3 * eps, 1e5 * eps);
@@ -6590,24 +6516,16 @@ mod tests {
         };
         let wall = crate::test_support_fixtures::CylFrame::canonical(r).surface::<f64>();
         let (below, above) =
-            crate::face_reach::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
-        let read = |across| {
-            let reach = geom_brep::Reach::of_face(base, (below, above), across);
-            geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
-        };
-        let span = crate::face_reach::face_reach_from(&body, face, base).unwrap();
-        let round = crate::face_reach::face_reach_round_from(&body, face, base).unwrap();
-        assert!(
-            matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
-            "main's whole-turn reading escalates"
-        );
+            crate::cover::face_axial_range(&body, face, base, Vec3::unit_z(), band).unwrap();
+        let across = crate::cover::face_reach_from(&body, face, base, band).unwrap();
+        let reach = geom_brep::Reach::of_face(base, (below, above), across);
         assert!(
             matches!(
-                read(span),
+                geom_brep::plane_cylinder_section(&plane, &wall, &reach, band),
                 Ok(geom_brep::PlaneCylinderSection::ParallelLines { .. }
                     | geom_brep::PlaneCylinderSection::TangentLine(_))
             ),
-            "the span alone serves the rulings"
+            "the patch's cover serves the rulings"
         );
         let mut ctx = SectionCtx {
             origin: base,
@@ -6629,8 +6547,8 @@ mod tests {
             leave,
         );
         assert!(
-            matches!(got, Err(JoinError::Escalated { .. })),
-            "the germ join's chord escalates, got {:?}",
+            matches!(got, Ok(None)),
+            "the germ join's chord reads the rulings, which are straight: got {:?}",
             got.map(|s| s.is_some())
         );
     }
@@ -7088,8 +7006,7 @@ mod section_case_pair_tests {
             at: Point3::origin(),
             below: 4.0,
             above: 4.0,
-            span: geom_core::test_support::fixture_lever(4.0),
-            round: geom_core::test_support::fixture_lever(4.0),
+            across: geom_core::test_support::fixture_lever(4.0),
         };
         SectionReach::Cylinder(reach)
     }

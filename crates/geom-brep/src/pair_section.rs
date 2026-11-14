@@ -433,11 +433,12 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_sphere(self.center, self.big_r)
+        ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
     }
 
-    /// **The ball the ruling sweep reads the section against**: about the
-    /// sphere's centre, of radius `R + max(R, 64·escalate)`. The section
+    /// **The ball the ruling sweep reads the section against**: the
+    /// sphere's cover's ball, its centre out to `R`, widened by
+    /// `max(R, 64·escalate)` ([`ExtentBall::of_cover_within`]). The section
     /// lies on the sphere, so its own ball holds it whole and no component
     /// has a cut end; but every meeting lies on that ball's boundary,
     /// where no leaf of the sweep decides a side. Every meeting stands `R`
@@ -452,7 +453,10 @@ impl<T: Decide> CylinderSpherePose<T> {
     /// but inside: neither enters this pair's count.
     pub(crate) fn sweep_ball(&self, band: Band) -> ExtentBall<T> {
         let pad = self.big_r.max(T::from_f64(64.0 * band.escalate()));
-        ExtentBall::of_sphere(self.center, self.big_r + pad)
+        self.sphere.cover().map_or_else(
+            |_| ExtentBall::of_covered(None),
+            |sphere| ExtentBall::of_cover_within(&sphere, pad),
+        )
     }
 
     /// **The cylinder's rulings against the sphere**
@@ -3794,7 +3798,7 @@ mod wiring {
             Point3::new(0.1, 0.0, 0.0),
             Vec3::new(0.0, 0.3f64.sin(), 0.3f64.cos()),
         );
-        let region = crate::ExtentBall::of_sphere(Point3::origin(), 1.5);
+        let region = crate::ExtentBall::fixture(Point3::origin(), 1.5);
         let section = match super::pair_section(&a, &b, Some(region), None, band()) {
             Ok(super::SectionRead::Built(s)) => s,
             other => panic!("the value builds the pair: {other:?}"),

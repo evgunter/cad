@@ -45,7 +45,7 @@ boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    16  boolean/region.rs
 boolean-names-splitting     1  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
-boolean-names-splitting    36  boolean/solid_contain.rs
+boolean-names-splitting    33  boolean/solid_contain.rs
 boolean-names-splitting     4  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
 boolean-names-splitting    18  boolean/torus_region.rs
@@ -81,7 +81,7 @@ crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
-crate-visible              42  splitting/containment.rs
+crate-visible              41  splitting/containment.rs
 crate-visible               4  splitting/finish.rs
 crate-visible               7  splitting/join.rs
 crate-visible              15  splitting/mod.rs
