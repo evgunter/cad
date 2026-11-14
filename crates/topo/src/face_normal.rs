@@ -803,7 +803,8 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
         return Err(SplineNormalError::PlaceholderChart);
     }
     let uv = (T::from_computed(u), T::from_computed(v));
-    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();
     geom_brep::chart_point_normal(
         chart,
         f.sense(),
@@ -1516,7 +1517,7 @@ mod tests {
             // The whole turn a face takes round a singular point of its
             // chart, in periods: the side the azimuth advances on, as an
             // integer (`pcurves::singular_turn`), a chart count, no normal.
-            ("crates/topo/src/pcurves.rs", "1"),
+            ("crates/topo/src/pcurves/decision.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`

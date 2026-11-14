@@ -1901,11 +1901,16 @@ struct Germ<T: geom_core::Real> {
     /// Its cells.
     cells: Cells,
     /// Its branch.
-    branch: super::Branch,
+    branch: geom_brep::SectionPick,
 }
 
 impl<T: geom_core::Real> Germ<T> {
-    fn new(cut: Cut<T>, codes: (SideCode, SideCode), cells: Cells, branch: super::Branch) -> Self {
+    fn new(
+        cut: Cut<T>,
+        codes: (SideCode, SideCode),
+        cells: Cells,
+        branch: geom_brep::SectionPick,
+    ) -> Self {
         Self {
             cut,
             codes,
@@ -2806,7 +2811,7 @@ fn mint_run<T: Decide>(
     from: usize,
     to: usize,
     run_side: SideCode,
-    germ_meta: [(Cells, Vec3<T>, super::Branch); 2],
+    germ_meta: [(Cells, Vec3<T>, geom_brep::SectionPick); 2],
     spike_from_first: bool,
     anchor: Option<HalfEdgeKey>,
 ) -> Result<(BoolNullEdgeRecord<T>, (VertexKey, HalfEdgeKey)), BooleanError> {

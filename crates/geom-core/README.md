@@ -336,9 +336,9 @@ This section is where that rule's parts live.
   `levered_inv` and the metric doors.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
-  (an edge's span, a face's boundary, two boxes' overlap, a bounded
-  carrier), never from a length a caller vouches for. `ExtentBall` is
-  its ball payload.
+  (an edge over its span, a face's region, two faces' meet, a bounded
+  carrier, each read as its cover), never from a length a caller
+  vouches for. `ExtentBall` is its ball payload.
 - **The session box** is one predicate over a body's largest
   `|coordinate|`, read from below off its vertices' and its edges' own
   points, never a carrier's stored terms: the box bounds each

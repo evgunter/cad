@@ -1,12 +1,12 @@
 //! **A conic arc's span reach is never short of its farthest point**
-//! (`Reach::span_reach_from`), hunted over random circles and ellipses
+//! (`Reach::lever_from`), hunted over random circles and ellipses
 //! (eccentricities to 0.999999, a negative or swapped semi-axis), spans
 //! from 1e-6 rad to two turns either way, and pivots on the arc, at its
 //! centre, along and against its crests, far off its plane and just off
 //! it. The farthest point is sampled and each local maximum refined by
 //! golden section. The reach is never short of it to rounding, a
 //! circle's never past it either and an ellipse's never by more than a
-//! quarter's bulge, and never past the whole turn ([`Reach::lever_from`]).
+//! quarter's bulge.
 
 #![allow(clippy::panic, clippy::cast_precision_loss)]
 
@@ -111,7 +111,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 t0,
                 t1,
             };
-            let got = reach.span_reach_from(p).length();
+            let got = reach.lever_from(p).length();
             let far = farthest(&carrier, t0, t1, p);
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
             let tol = 16.0 * f64::EPSILON * scale;
@@ -130,19 +130,15 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 "{label}: {got} passes the farthest point {far} by more than {slack}; {}",
                 fuzz::replay()
             );
-            assert!(
-                got <= reach.lever_from(p).length(),
-                "{label}: {got} passes the whole turn; {}",
-                fuzz::replay()
-            );
         }
     }
 }
 
 /// **Arcs whose span cover rounds past the whole turn**, read from the
-/// conic's centre: the arc's cover reads its far distance an ulp above
-/// the whole conic's cover. The hunt found each (seeds
-/// `0xe429b8c6a93f17ee` and `0x52cefed7fc20b9ed`).
+/// conic's centre: the window's piece alone reads its far distance an
+/// ulp above the whole conic's, and the arc's reach reads the lesser.
+/// The hunt found each (seeds `0xe429b8c6a93f17ee` and
+/// `0x52cefed7fc20b9ed`).
 #[test]
 fn an_arc_read_from_its_centre_is_never_past_the_whole_turn() {
     let ellipse = |origin: [f64; 3], axis: [f64; 3], u_ref: [f64; 3], a: f64, b: f64| {
@@ -200,11 +196,16 @@ fn an_arc_read_from_its_centre_is_never_past_the_whole_turn() {
         ),
     ];
     for ((carrier, centre), (t0, t1)) in rows {
-        let reach = Reach::Span { carrier, t0, t1 };
-        let (got, whole) = (
-            reach.span_reach_from(centre).length(),
-            reach.lever_from(centre).length(),
-        );
+        let reach = |t0, t1| {
+            Reach::Span {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+            }
+            .lever_from(centre)
+            .length()
+        };
+        let (got, whole) = (reach(t0, t1), reach(0.0, core::f64::consts::TAU));
         assert!(
             got <= whole,
             "the arc over [{t0}, {t1}]: its span reach {got} passes the whole turn {whole}"

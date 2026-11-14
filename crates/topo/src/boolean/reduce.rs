@@ -6937,7 +6937,7 @@ mod in_plane_rows;
 mod curved_lane_spline_rows;
 #[cfg(test)]
 #[path = "planar_lane_carrier_rows.rs"]
-pub(crate) mod planar_lane_carrier_rows;
+mod planar_lane_carrier_rows;
 
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its

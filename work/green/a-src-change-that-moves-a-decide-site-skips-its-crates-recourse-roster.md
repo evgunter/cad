@@ -72,3 +72,15 @@ The class came back three more times in one sitting. Each time, geom-brep's `rec
 - band 72188539ad: two closures that forward their callers' names, mended on `pcert/roster-band-rows`.
 
 Each occurrence costs a main red and a mend. The priority is green's call.
+
+## Evidence: nightly 43371638371 (main `e36675c1`), six more
+
+Each moved by a merge that never touched the census, each greened on `green/censuses`:
+- topo `recourse_roster`: PR 6891 (`af389cfc0a`, `sectarms/spline-ring-winding`), three `IsoPiece::travel()` calls read as the declared `travel` carrier.
+- geom-core `certified_endpoint_census`: CLEAR's PRs 6885, 6892, 6894 and 6905 (`clearance.rs` +3, `injective.rs` +16).
+- topo `face_normal` fold guard: PR 6823 (`mesh/walk.rs`'s wrap strip) and PR 6894 (`injective.rs`'s corner quarter-turn).
+- test-utils `hand_written_impl_census`: PR 6811 (`ee63af5d67`, `NodeFrame`'s `PartialEq`).
+- editor-core `node_standing`: PR 6431 (`viewer/src/session.rs`), on top of PR 6735's two files above.
+- While that PR was in review, PR 6907 (`280d7c0d87`, `clear/curved-corner-2`) added `present_plane_vertex` to `injective.rs`: 7 more endpoint reads and a third sanctioned `1.0` for the fold guard.
+
+The gate self-tests are not this class: `reporting-margin-door.sh --selftest` went red when PR 6820 made `topo/src/validate.rs` a mint site that the clean fixture then overwrote.

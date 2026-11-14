@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-profile-drops-the-unit-directions-its-verbs-made, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends]
+blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 

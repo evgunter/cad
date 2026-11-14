@@ -106,3 +106,20 @@ main `4c7404c2` (switch on) and on the probe (switch off).
 **The test that says it is closed gains a row on main:** the cut plate
 over the study box no longer refuses on a `u_ref`, with the switch as
 it is.
+
+## Split in two (2026-11-14)
+
+This row keeps the `profile` half and is its own PR: a validated
+segment records its unit directions, and nothing reads them yet. The
+doors' half, and the tour and cut-plate tests above, moved to
+`the-sweep-doors-read-the-profiles-recorded-directions`, which waits
+for `boxfinish/sweep-frames`. Decided when the outage cost that lane
+ten hours: holding this half for it would have held a finished change
+unreviewed.
+
+**The test that says THIS row is closed:** in `profile`, at `f64` and
+at a box scalar, each verb's segment records the direction its
+construction made, exact where the construction is; a table's is
+decided once at validate; the lift carries it verbatim; reversal swaps
+and negates and rotates nothing; a recorded direction that disagrees
+with its vertices refuses at validate.
