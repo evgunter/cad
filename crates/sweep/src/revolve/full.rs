@@ -884,11 +884,22 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // An arc centred on the axis is a meridian of its sphere, and the
         // half turn fixes its centre: its angle-π copy takes the angle-0
         // copy's centre, so the two are arcs of one circle in one plane.
+        // Its start radial, where the start is pinned, lies along the axis,
+        // which the turn fixes too: it takes the angle-0 copy's.
+        let radial = if pinned(i) { place.into() } else { far };
         let spec = match walls[i] {
             WallClass::Wall {
                 kind: WallKind::Sphere { .. },
                 ..
-            } => placed_segment_spec_about(&segs[i], far, n_pi, |c| frame.world(c), qpi[i], tol),
+            } => placed_segment_spec_about(
+                &segs[i],
+                far,
+                n_pi,
+                |c| frame.world(c),
+                radial,
+                qpi[i],
+                tol,
+            ),
             _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
         };
         let mef = body.mef(MefSite::Chords { he1, he2 }, spec, surface, tol)?;

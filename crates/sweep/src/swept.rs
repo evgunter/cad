@@ -711,18 +711,21 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
-    placed_segment_spec_about(seg, place, normal, |c| place.point(c), q_from, tol)
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), place, q_from, tol)
 }
 
 /// [`placed_segment_spec`] with an arc's 3-space centre given by
-/// `centre` from its sketch centre, in place of `place`'s image of it:
-/// for a copy whose placement fixes the centre, which then takes the
-/// value the fixed copy has.
+/// `centre` from its sketch centre, in place of `place`'s image of it,
+/// and its start radial carried by `radial` in place of `place`: for a
+/// copy whose placement fixes the centre (and, where its start lies on
+/// the turn's axis, the radial along that axis), which then takes the
+/// values the fixed copy has.
 pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Placing<T>,
     normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
+    radial: Placing<T>,
     q_from: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
@@ -750,7 +753,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                 c_world,
                 turn_axis(turn, normal),
                 arc.radius,
-                place.direction(sketch_direction(seg)),
+                radial.direction(sketch_direction(seg)),
             );
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed

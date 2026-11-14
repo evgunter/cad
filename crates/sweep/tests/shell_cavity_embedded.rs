@@ -215,16 +215,22 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
 /// `Interval` in the general offset door before the cavity is built, an
 /// escalation at `offset_corner_on_surface`. It waits on
 /// `work/shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
-/// whose fix turns this row into a `CavityCrosses` row.
+/// whose fix turns this row into a `CavityCrosses` row. At ε = 1e-6 it
+/// is that row already, since the extrude's caps and walls are its
+/// sketch frame: the door reaches the cavity gate, which refuses the
+/// neck, typed.
 #[test]
 fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
+    let at_1e6 = Tol::witness().eps() == 1e-6;
     match shell(dumbbell::<Interval>(-0.2), 0.15) {
+        Err(ShellError::CavityCrosses { .. }) if at_1e6 => {}
         Err(ShellError::Face { error, .. })
-            if matches!(
-                &*error,
-                topo::ReplaceFaceError::Escalated { source }
-                    if source.predicate == Some("offset_corner_on_surface")
-            ) => {}
+            if !at_1e6
+                && matches!(
+                    &*error,
+                    topo::ReplaceFaceError::Escalated { source }
+                        if source.predicate == Some("offset_corner_on_surface")
+                ) => {}
         other => panic!(
             "the general offset door refuses the curved twin at Interval, typed; got {:?}",
             other.map(|_| ())
