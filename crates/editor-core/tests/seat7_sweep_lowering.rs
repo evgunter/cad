@@ -520,17 +520,36 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge and point), each document's dump is main's line for line — the
 /// same surfaces, senses, points, curves and descriptions — and only the
 /// keys the arenas hand out moved, which the digest feeds.
-/// `corner_table`'s pin carries main's own move under it, which
-/// `work/green/seat7-sweep-digest-drifted-on-main.md` still owes a
-/// judgment of.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a placed copy came to carry its
+/// source's edge certificates rather than re-deriving them after the
+/// transform (PR 6820, `topo::FinishedBody::moved`): the digest feeds
+/// each edge's `Debug`, whose `max_residual` is now the source's. It is
+/// the value `seat8_split_lowering` took for the same document off the
+/// same feed in that PR.
+///
+/// RE-BLESSED, every row, for a placement that mints the source it reads
+/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// placement, so every id minted after it moved, and with it the names
+/// this digest feeds. With mint ids read by rank of first appearance
+/// each document's feed is the one before that merge, byte for byte.
+///
+/// **`corner_table` and `boss_union` are PINNED at what main reads, and
+/// their bodies are NOT judged.** Each carries, under the id move above,
+/// a move of its body that no one has said is right: `corner_table`
+/// PR 5848's (then PR 6832's, which moved arena keys alone), on
+/// `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`;
+/// `boss_union` one not yet bisected, on
+/// `work/green/seat7-sweep-digest-drifted-on-main.md`. The wanted answer
+/// is that judgment; the pins hold the rows still so the next move reds.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x29ab_9b8c_2c18_a18c),
-        ("corner_table", 0x3676_c700_af58_ca2d),
-        ("cut_cylinder", 0x2e84_77bc_7b57_1d78),
-        ("boss_union", 0x6545_3fae_8b1d_55d3),
-        ("kitchen_sink", 0x33f5_17f1_f2a9_621a),
+        ("die", 0xafe1_196f_2dde_1c67),
+        ("corner_table", 0x17ca_9ca7_6aa4_93c1),
+        ("cut_cylinder", 0x5e08_1dd5_cb6e_8844),
+        ("boss_union", 0x5be6_6936_f8d1_0205),
+        ("kitchen_sink", 0xa3b0_4b0c_e8ec_f963),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

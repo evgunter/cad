@@ -324,12 +324,26 @@ fn both_blends_evaluate_in_one_document() {
 /// changes the edge curve's `Debug` the digest feeds. With that `Debug`
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
+///
+/// RE-BLESSED, both rows, for a placement that mints the source it reads
+/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// placement, so every id minted after it moved, and with it the names
+/// this digest feeds. With mint ids read by rank of first appearance
+/// each document's feed is the one before that merge, byte for byte.
+///
+/// **`die_fillet` is PINNED at what main reads, and its body is NOT
+/// judged.** Under the id move above it carries PR 6533's move of the
+/// filleted die's body (a blend band's directions read off its stored
+/// geometry), which no one has said is right. The wanted answer is that
+/// judgment, on
+/// `work/onecopy/the-filleted-dies-body-moved-at-6533-and-is-pinned-unjudged.md`;
+/// the pin holds the row still so the next move reds.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x9d27_e739_ef2f_43bd_u64),
-        ("die_chamfer", 0x018f_a268_82df_d471),
+        ("die_fillet", 0x5629_3fdb_a9ca_baed_u64),
+        ("die_chamfer", 0x3093_8ea6_f95c_075d),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -616,13 +630,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// cell by its geometry and found every name denoting what it denoted;
 /// nothing here guards that (filed as
 /// `work/onedoor/name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena.md`).
+///
+/// RE-BLESSED, every row, for a placement that mints the source it reads
+/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// placement, so every id minted after it moved, and with it the names
+/// this digest feeds. With mint ids read by rank of first appearance
+/// each document's feed is the one before that merge, byte for byte.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd17d_36af_80b3_4d6b_u64),
-        ("heat_sink", 0x4010_8826_71c7_f1f3),
-        ("kiss_carry", 0xc72b_0f2e_7ec6_8bd7),
+        ("crossing_slots", 0x43d5_f7b3_2524_7ad2_u64),
+        ("heat_sink", 0x2688_0623_4b9c_24a3),
+        ("kiss_carry", 0xa0df_ef99_39cc_6214),
     ] {
         let doc = corpus::documents()
             .into_iter()

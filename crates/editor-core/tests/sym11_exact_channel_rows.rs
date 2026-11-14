@@ -77,12 +77,22 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket 1556 -> 1618, pad 1616 -> 1684; the link's numeric 805 -> 821
 /// and the frozen of the link 2241 -> 5161, the bracket 914 -> 1313 and
 /// the pad 2476 -> 3268, the forms the read builds.
+///
+/// **PINNED at what main reads, and NOT judged.** Every row below is
+/// main's reading, identical at all three ε rows, and differs from the
+/// E1c table above (plate `[1203, 824, 229]`, annulus `[720, 555, 212]`,
+/// link `[998, 821, 5161]`, bracket `[1618, 1159, 1313]`, pad
+/// `[1684, 1262, 3268]`) in every column. No one has said which
+/// decisions moved or that the moves are right, which is what this row
+/// asks for; the pin holds the table still so the NEXT move reds. The
+/// wanted answer is an account of each move, on
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1203, 824, 229]),
-    ("r1_annulus", [720, 555, 212]),
-    ("r2_link", [998, 821, 5161]),
-    ("r2_filleted_bracket", [1618, 1159, 1313]),
-    ("r2_rounded_pad", [1684, 1262, 3268]),
+    ("two_hole_plate", [1015, 1050, 299]),
+    ("r1_annulus", [535, 553, 278]),
+    ("r2_link", [813, 947, 3576]),
+    ("r2_filleted_bracket", [1425, 1545, 969]),
+    ("r2_rounded_pad", [1515, 1698, 3989]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
