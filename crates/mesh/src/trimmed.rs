@@ -63,11 +63,12 @@
 //! ([`singular_row_shape`]): the loop's lift (`topo::Body::loop_lift`)
 //! runs along the row through the face's turn there, so each run of the
 //! loop between two such points already sits where the face is. A face
-//! holding a row's point inside it refuses typed
-//! ([`TessellateError::SphereTrimShape`]), and so does a tilted circle
-//! passing so near a sphere's pole that its chord schedule asks one edge
+//! holding a row's point inside it winds about it, and the door refuses
+//! it ([`TessellateError::DomainUnread`]); a tilted circle passing so
+//! near a sphere's pole that its chord schedule asks one edge
 //! for more than the sphere arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
-//! `chords::tighten`). On every analytic arm a trim polygon wound
+//! `chords::tighten`) refuses typed
+//! ([`TessellateError::SphereTrimShape`]). On every analytic arm a trim polygon wound
 //! against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), a triangle folded over
 //! the chord beside it is dropped and rebuilt or refuses
@@ -1983,9 +1984,10 @@ fn sort_candidates(cand: &mut [(f64, f64)]) {
 /// mesh. The spline arm (`spline`) takes the polygon's unchecked:
 /// its triangles follow the loop's stored traversal whatever the bit
 /// says. Every ring is checked against the outer loop on every arm: a
-/// ring bounds the face from inside and winds the other way, and one
-/// wound with the outer loop would have the even-odd reading keep its
-/// hole as the face.
+/// ring bounds the face from inside and winds the other way
+/// (`geom_brep::PolygonOrientation`'s rule), so a ring wound with the
+/// outer loop says the face's loops contradict each other, and the lane
+/// refuses rather than mesh by one of them.
 ///
 /// # Errors
 ///

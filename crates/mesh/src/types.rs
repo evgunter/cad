@@ -549,7 +549,10 @@ pub enum TessellateError {
     /// A trimmed face's boundary polygon on an analytic chart (cylinder
     /// or sphere) is oriented against the orientation its face's `sense` promises
     /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
-    /// complement. Meshing it
+    /// complement; or, on any chart, a ring is wound with its outer
+    /// loop, against the rule that a ring bounds its face from inside and
+    /// winds the other way, so the face's loops contradict each other.
+    /// Meshing it
     /// would ship the complement, or the face wound inward, as a closed
     /// manifold mesh, so it refuses. A valid body does not reach it; a
     /// face whose `sense` disagrees with its loops does.
