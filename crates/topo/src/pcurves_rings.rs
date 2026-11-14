@@ -103,7 +103,7 @@ pub struct PlacedRing<T: Real> {
 impl<T: Real> PlacedRing<T> {
     /// The ring.
     #[must_use]
-    pub fn r#loop(&self) -> LoopKey {
+    pub fn ring(&self) -> LoopKey {
         self.r#loop
     }
 
