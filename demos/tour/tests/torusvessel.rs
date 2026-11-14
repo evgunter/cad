@@ -1,11 +1,10 @@
 //! `demo_tour::torusvessel`'s tests.
 
 mod the_sectioned_vessel {
-    //! The scene's third panel, driven by the TEST SUITE as well as the
-    //! render walk: [`sectioned`]'s only other caller is [`stops`], whose
-    //! only caller is the tour's render walk, so without this row a mesh
-    //! of the cutaway that stopped enclosing its body would show only in
-    //! a frame.
+    //! The sectioned vessel (the module's fourth step), which has no panel
+    //! yet (`work/tesslane/the-sectioned-vessel-meshes-and-has-no-panel.md`):
+    //! this row is [`sectioned`]'s only caller, so without it a mesh of the
+    //! cutaway that stopped enclosing its body would show nowhere.
 
     use demo_tour::torusvessel::*;
     use pncad::geom_core::Tol;

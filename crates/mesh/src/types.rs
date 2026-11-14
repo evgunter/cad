@@ -129,8 +129,10 @@ pub enum TessellateError {
     /// its stored pcurve caches, or one whose image is a form its chart
     /// does not mint (a trimmed face whose shape about a singular row
     /// the lane does not mesh refuses [`Self::SphereTrimShape`]
-    /// instead). Every chart's trimmed face is a CONSTRUCTION lane
-    /// (`trimmed`), not a refusal.
+    /// instead). Every chart has a trimmed arm (`trimmed`), and a face
+    /// it reaches is constructed there, not refused; the spindle arm is
+    /// reached by no door yet
+    /// (`work/tesslane/no-door-builds-a-trimmed-spindle-face.md`).
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
@@ -624,6 +626,10 @@ pub enum SphereTrimCause {
     /// tilted circle passing near a chart pole, whose uniform schedule is
     /// as fine everywhere as at its closest approach.
     ChordBudget,
+    /// The loop has points on both sides of a singular point inside the
+    /// chart: a cone face on both nappes, through its apex. The lane
+    /// triangulates a cone face in its development, which is one nappe's.
+    BothNappes,
 }
 
 impl SphereTrimCause {
@@ -635,6 +641,7 @@ impl SphereTrimCause {
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
+            Self::BothNappes => "both_nappes",
         }
     }
 }
@@ -877,6 +884,10 @@ impl TessellateError {
                          that chording it asks more points of one edge than the arm's \
                          budget; re-pose the sphere so its chart poles are away from \
                          its circles"
+                    }
+                    SphereTrimCause::BothNappes => {
+                        "its loop runs onto both nappes of a cone, through the apex, and \
+                         the trimmed lane meshes a cone face on one nappe"
                     }
                 };
                 write!(

@@ -1,18 +1,25 @@
 //! **One row per chart**: what the mesh knows about the chart a curved
-//! face is meshed on. A row is built once per face ([`ChartRow::of`])
-//! and every lane and the chord pass read it:
+//! face is meshed on. A row is built once per face ([`ChartRow::of`]),
+//! and the curved lane, the trimmed lane and the chord pass read it:
 //!
 //! - its **steps** for a deviation target ([`ChartRow::steps`]): on each
 //!   chart axis, the step the chart's cell bound needs, `+∞` along a
 //!   ruling (a cylinder's or a cone's `v`), where no cell bound reads the
 //!   extent. The chord pass's one rule (`chords::tighten`) holds every
-//!   boundary chord to one step; the curved and trimmed lanes lay their
-//!   lattices from the same steps;
+//!   boundary chord to one step;
+//! - on an analytic chart, the **lattice** a lane lays from those steps
+//!   ([`AnalyticRow::lattice_steps`]: rows every `lever·h_u` on a ruled
+//!   chart, square in 3-D at the face's widest radius; periodic steps
+//!   capped at `sizing::MAX_ANGULAR_STEP`) and the plane the trimmed
+//!   lane's triangulation runs in: the chart in its **metric**
+//!   ([`AnalyticRow::metric`]), or on the cone its **development**
+//!   ([`AnalyticRow::development`]);
 //! - the per-triangle **certificate** ([`ChartRow::cert`], `crate::cert`
 //!   and the spline cell table), with the magnitude it rounds at;
-//! - its **singular rows** ([`ChartRow::singular_rows`]): the rows of the
-//!   chart where a whole `u` line is one point (below);
-//! - its **outward normal** at a point ([`ChartRow::outward`]).
+//! - on an analytic chart, its **singular points** and the rows they are
+//!   ([`AnalyticRow::singular_points`], below), its **outward normal**
+//!   ([`AnalyticRow::outward`]) and the per-edge chord budget its arm
+//!   holds ([`AnalyticRow::chord_budget`]).
 //!
 //! A row carries the face's own window where a chart's steps read one: a
 //! cone's largest radius and a sphere's latitude nearest the equator
@@ -20,80 +27,81 @@
 //! (`sizing::torus_grid_steps` says why), and the cylinder's and the
 //! spline's need none.
 //!
-//! # The singular-row rule
+//! # Singular points and the rows they are
 //!
-//! A singular row is a value `v = v_s` of the chart where the whole line
-//! `u ↦ S(u, v_s)` is one point: a sphere's poles at `v = ±π/2`, a cone's
-//! apex at `v = 0`, a spindle sheet's apexes at `v = ±v*`. A cylinder, a
-//! torus and a spline chart have none. A boundary loop that passes the
-//! point arrives along one `u` and leaves along another, and its lift
-//! (`topo::Body::loop_lift`) runs along the row between them through the
-//! face's turn there, so the trimmed lane's polygon keeps the point twice,
-//! once at each `u`, and the row is a side of the polygon
-//! (`trimmed::flat_points`). Every lane reads the row the same way:
+//! A chart's singular point is one point `S(u, v_s)` for every `u`: a
+//! sphere's poles at `v = ±π/2`, a cone's apex at `v = 0`, a spindle
+//! sheet's apexes at `v = ±v*` (a horn's one cusp, at `π`). The row reads
+//! them from `topo::chart::Chart::poles`, their one home beneath which is
+//! `geom_brep::chart_singularity`, and adds what is the mesh's: where the
+//! row sits in the chart's `v` domain ([`RowEnd`]). A cylinder, a torus
+//! and a spline chart have none.
 //!
-//! - a triangle with two corners on the point is degenerate in 3-D and
-//!   dropped, so the triangles left at the point are a fan about it;
-//! - a corner on a singular row has no azimuth, and its certificate reads
-//!   the other corners' ([`ChartRow::cert`]'s `singular` flags);
-//! - the lattice keeps off the one shape where that fan is not manifold,
-//!   exactly one column strictly between the side's ends
-//!   (`trimmed::pole_side_columns`, `curved::pole_columns`);
-//! - a point read past the row, a side off the row turning more than
-//!   `3π/2` in `u`, and a mesh vertex at two chart places off the row
-//!   refuse typed (`trimmed::singular_row_shape`).
-//!
-//! A point is on a row when it is within `64ε` of it in the chart's own
-//! `v` unit (radians on a sphere and a spindle sheet, slant metres on a
-//! cone), or past it where the row ends the chart's `v` domain: a pole's
-//! latitude is read from an `atan2` a few ulps off `±π/2`, and the cone's
-//! apex row is read at `v == 0.0` exactly
-//! (`lift_probes::a_lift_runs_along_the_apex_row_through_the_faces_turn`).
-//! `64ε` is far inside the nearest a chord point off the row can sit at
-//! any count `sizing::MAX_COUNT` admits.
+//! Whether a loop vertex IS a singular point is a fact about the body,
+//! decided once, where the kernel decides it:
+//! `geom_brep::chart_singularity::vertex_at_singular_point`, their 3-D
+//! distance against the run's band ([`AnalyticRow::is_singular`]). It is
+//! the decision the loop's lift takes when it turns the face there
+//! (`topo::pcurves`' `singular_at`), so the trimmed lane reads the lift's
+//! own structure and no threshold of its own, in a quantity that moves
+//! with neither scale nor pose. The trimmed lane's rule at such a vertex
+//! is `trimmed::singular_row_shape`'s. The curved lane meets the same
+//! points through its walk (`walk`'s pole entries, read off
+//! `Chart::poles` at `eps`).
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
-use geom_core::{Point3, Vec3};
+use geom_core::Point3;
+use geom_core::predicate::Band;
 use topo::{Body, FaceKey};
 
 use crate::cert;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, face_cells, lattice_budget};
-use crate::sizing::{cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, face_cells, lattice_budget, lattice_metric};
+use crate::sizing::{
+    cap_angular, cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps,
+};
 use crate::types::TessellateError;
 
 /// What the mesh knows about one face's chart (module docs). The spline
 /// row borrows the face's certified cell table from the chord pass's
 /// memo ([`FaceBounds`]).
 pub(crate) enum ChartRow<'a> {
-    /// A cylinder: `v` axial metres, ruled in `v`.
-    Cylinder {
-        origin: Point3<f64>,
-        axis: Vec3<f64>,
-        radius: f64,
-    },
-    /// A cone: `v` slant metres from the apex, ruled in `v`, with the
-    /// face's largest radius.
-    Cone { half_angle: f64, rho_max: f64 },
-    /// A sphere: `v` latitude, with the cosine of the face's latitude
-    /// nearest the equator.
-    Sphere {
-        center: Point3<f64>,
-        radius: f64,
-        widest: f64,
-    },
-    /// A ring torus: `v` the minor angle.
-    Torus { major: f64, minor: f64 },
-    /// A spindle sheet: the torus's chart with a signed major radius,
-    /// closed in `v` between its apexes at `±apex`.
-    Spindle { major: f64, minor: f64, apex: f64 },
+    /// A cylinder, cone, sphere, torus or spindle sheet.
+    Analytic(AnalyticRow<'a>),
     /// A described NURBS face, or an approximating surface meshed on its
     /// fit: the certified cell table.
     Spline { grid: &'a NurbsCellGrid },
 }
 
-/// Where a singular row sits in the chart's `v` domain: at its top end,
-/// its bottom end, or inside it (a cone's apex, between its two nappes).
+/// An analytic chart's row: its kind with the data its steps and
+/// certificate read, its surface, and its singular points.
+pub(crate) struct AnalyticRow<'a> {
+    /// The chart's kind and the data its steps and certificate read.
+    pub kind: Analytic,
+    surface: &'a Surface<f64>,
+    singular: Vec<SingularPoint>,
+}
+
+/// The analytic charts, each with what its steps and certificate read.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Analytic {
+    /// A cylinder: `v` axial metres, ruled in `v`.
+    Cylinder { radius: f64 },
+    /// A cone: `v` slant metres from the apex, ruled in `v`, with the
+    /// face's largest radius.
+    Cone { half_angle: f64, rho_max: f64 },
+    /// A sphere: `v` latitude, with the cosine of the face's latitude
+    /// nearest the equator.
+    Sphere { radius: f64, widest: f64 },
+    /// A ring torus: `v` the minor angle.
+    Torus { major: f64, minor: f64 },
+    /// A spindle sheet: the torus's chart with a signed major radius.
+    Spindle { major: f64, minor: f64 },
+}
+
+/// Where a singular point's row sits in the chart's `v` domain: at its
+/// top end, its bottom end, or inside it (a cone's apex, between its two
+/// nappes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RowEnd {
     Top,
@@ -101,34 +109,23 @@ pub(crate) enum RowEnd {
     Inside,
 }
 
-/// One singular row of a chart (module docs, the singular-row rule).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct SingularRow {
+/// One singular point of a chart (module docs).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SingularPoint {
+    /// The point in model space.
+    pub point: Point3<f64>,
     /// The row's `v`.
     pub v: f64,
-    /// Where it sits in the chart's `v` domain.
+    /// Where the row sits in the chart's `v` domain.
     pub end: RowEnd,
 }
 
-/// A point within this of a singular row, in the chart's `v` unit, is on
-/// it (module docs).
-const ON_ROW: f64 = 64.0 * f64::EPSILON;
-
-impl SingularRow {
-    /// Whether `v` is on this row: within [`ON_ROW`] of it, or past it
-    /// where it ends the domain.
-    pub(crate) fn holds(self, v: f64) -> bool {
-        match self.end {
-            RowEnd::Top => self.v - v <= ON_ROW,
-            RowEnd::Bottom => v - self.v <= ON_ROW,
-            RowEnd::Inside => (v - self.v).abs() <= ON_ROW,
-        }
-    }
-
-    /// Whether `v` lies past this row's end of the domain by more than
-    /// the rounding of the chart's own evaluation there, `4ε` relative:
-    /// a point no image the lane reads can reach but through the row.
-    /// A row inside the domain has no past.
+impl SingularPoint {
+    /// Whether chart `v` lies past this row's end of the domain by more
+    /// than the rounding of the chart's own evaluation there, `4ε`
+    /// relative to the row's angle: a point no image the lane reads can
+    /// reach but through the row. A row inside the domain has no past.
+    /// Read on a sphere's and a spindle sheet's `v`, angles both.
     pub(crate) fn passed_by(self, v: f64) -> bool {
         let reach = self.v.abs() * (1.0 + 4.0 * f64::EPSILON);
         match self.end {
@@ -140,10 +137,9 @@ impl SingularRow {
 }
 
 impl<'a> ChartRow<'a> {
-    /// The row of face `fk`, on `surface`, reading its window from its
-    /// outer loop ([`crate::sizing::cone_face_rho_max`],
-    /// [`crate::sizing::sphere_face_widest_cos`]) and a spline face's cell
-    /// table from `bounds`, which the chord pass has filled.
+    /// The row of face `fk`, on `surface`: an analytic chart's
+    /// ([`AnalyticRow::of`]), or a spline face's cell table from `bounds`,
+    /// which the chord pass has filled.
     ///
     /// # Errors
     ///
@@ -154,61 +150,26 @@ impl<'a> ChartRow<'a> {
     pub(crate) fn of(
         body: &Body<f64>,
         fk: FaceKey,
-        surface: &Surface<f64>,
+        surface: &'a Surface<f64>,
         bounds: &'a FaceBounds,
     ) -> Result<Self, TessellateError> {
-        Ok(match *surface {
-            Surface::Plane { .. } => {
-                return Err(TessellateError::MissingEntity {
-                    what: "a chart row for a plane",
-                });
-            }
+        match *surface {
             // The mvfs "no description yet" state (types docs). An
             // approximating surface has no such state: its fit is
             // certified by construction.
             Surface::Nurbs(ref payload) if payload.is_placeholder() => {
-                return Err(TessellateError::UnsupportedSurface { face: fk });
+                Err(TessellateError::UnsupportedSurface { face: fk })
             }
-            Surface::Nurbs(_) | Surface::Approx(_) => Self::Spline {
+            Surface::Nurbs(_) | Surface::Approx(_) => Ok(Self::Spline {
                 grid: face_cells(bounds, fk)?,
-            },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Self::Cylinder {
-                origin,
-                axis,
-                radius,
-            },
-            Surface::Cone { half_angle, .. } => Self::Cone {
-                half_angle,
-                rho_max: crate::sizing::cone_face_rho_max(body, fk, half_angle)?,
-            },
-            Surface::Sphere { center, radius, .. } => Self::Sphere {
-                center,
-                radius,
-                widest: crate::sizing::sphere_face_widest_cos(body, fk, surface)?,
-            },
-            Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => Self::Torus {
-                major: major_radius,
-                minor: minor_radius,
-            },
-            Surface::Spindle {
-                major_radius,
-                minor_radius,
-                ..
-            } => Self::Spindle {
-                major: major_radius,
-                minor: minor_radius,
-                apex: geom::sheet_apex(major_radius, minor_radius).v,
-            },
-        })
+            }),
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => Ok(Self::Analytic(AnalyticRow::of(body, fk, surface)?)),
+        }
     }
 
     /// The steps `(h_u, h_v)` the chart's cell bound needs at deviation
@@ -218,54 +179,23 @@ impl<'a> ChartRow<'a> {
     /// whole-patch certificate's at the lane's lattice budget
     /// ([`lattice_budget`]); its lattice is laid per cell.
     pub(crate) fn steps(&self, target: f64) -> (f64, f64) {
-        match *self {
-            Self::Cylinder { radius, .. } => (sagitta_step(target, radius), f64::INFINITY),
-            Self::Cone {
-                half_angle,
-                rho_max,
-            } => (cone_grid_step(target, half_angle, rho_max), f64::INFINITY),
-            Self::Sphere { radius, widest, .. } => sphere_grid_steps(target, radius, widest),
-            Self::Torus { major, minor } | Self::Spindle { major, minor, .. } => {
-                torus_grid_steps(target, major, minor)
-            }
+        match self {
+            Self::Analytic(row) => row.steps(target),
             Self::Spline { grid } => grid.patch().grid_steps(lattice_budget(target)),
         }
     }
 
     /// The certificate of one triangle, with its 3-D corners `tri`, its
-    /// chart corners `uv` and which corners lie on a singular row, and
-    /// the magnitude the bound rounds at (`cert::verdict`'s `scale`).
+    /// chart corners `uv` and which corners are a singular point, and the
+    /// magnitude the bound rounds at (`cert::verdict`'s `scale`).
     pub(crate) fn cert(
         &self,
         tri: [Point3<f64>; 3],
         uv: [[f64; 2]; 3],
         singular: [bool; 3],
     ) -> (f64, f64) {
-        match *self {
-            Self::Cylinder {
-                origin,
-                axis,
-                radius,
-            } => (
-                cert::cert_cylinder(origin, axis, radius, tri),
-                cert::position_scale(origin, tri),
-            ),
-            Self::Sphere { center, radius, .. } => (
-                cert::cert_sphere(center, radius, tri),
-                cert::position_scale(center, tri),
-            ),
-            Self::Cone { half_angle, .. } => (
-                cert::cert_cone(half_angle, uv, singular),
-                cert::cone_scale(half_angle, uv),
-            ),
-            Self::Torus { major, minor } => {
-                let bound = cert::cert_torus(major, minor, uv);
-                (bound, cert::uv_scale(bound, uv))
-            }
-            Self::Spindle { major, minor, .. } => {
-                let bound = cert::cert_spindle(major, minor, uv, singular);
-                (bound, cert::uv_scale(bound, uv))
-            }
+        match self {
+            Self::Analytic(row) => row.cert(tri, uv, singular),
             // The cell(s) covering the triangle's chart box: one band's
             // cells in `v`, since rows land on the `v` cuts, but possibly
             // several in `u`, whose columns do not (`NurbsCellGrid::cert`
@@ -276,175 +206,283 @@ impl<'a> ChartRow<'a> {
             }
         }
     }
+}
 
-    /// The chart's singular rows (module docs, the singular-row rule).
-    pub(crate) fn singular_rows(&self) -> Vec<SingularRow> {
-        use core::f64::consts::FRAC_PI_2;
-        let row = |v, end| SingularRow { v, end };
-        match *self {
-            Self::Sphere { .. } => {
-                vec![row(FRAC_PI_2, RowEnd::Top), row(-FRAC_PI_2, RowEnd::Bottom)]
+impl<'a> AnalyticRow<'a> {
+    /// The row of face `fk` on the analytic `surface`, reading its window
+    /// from its outer loop ([`crate::sizing::cone_face_rho_max`],
+    /// [`crate::sizing::sphere_face_widest_cos`]) and its singular points
+    /// from its chart.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::MissingEntity`] for a plane or a spline surface,
+    /// which have no analytic row; the window readers' errors.
+    pub(crate) fn of(
+        body: &Body<f64>,
+        fk: FaceKey,
+        surface: &'a Surface<f64>,
+    ) -> Result<Self, TessellateError> {
+        let kind = match *surface {
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                return Err(TessellateError::MissingEntity {
+                    what: "an analytic chart row for a plane or a spline surface",
+                });
             }
-            Self::Cone { .. } => vec![row(0.0, RowEnd::Inside)],
-            Self::Spindle { apex, .. } => vec![row(apex, RowEnd::Top), row(-apex, RowEnd::Bottom)],
-            Self::Cylinder { .. } | Self::Torus { .. } | Self::Spline { .. } => Vec::new(),
+            Surface::Cylinder { radius, .. } => Analytic::Cylinder { radius },
+            Surface::Cone { half_angle, .. } => Analytic::Cone {
+                half_angle,
+                rho_max: crate::sizing::cone_face_rho_max(body, fk, half_angle)?,
+            },
+            Surface::Sphere { radius, .. } => Analytic::Sphere {
+                radius,
+                widest: crate::sizing::sphere_face_widest_cos(body, fk, surface)?,
+            },
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => Analytic::Torus {
+                major: major_radius,
+                minor: minor_radius,
+            },
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => Analytic::Spindle {
+                major: major_radius,
+                minor: minor_radius,
+            },
+        };
+        let chart = topo::chart::Chart::of(surface).ok_or(TessellateError::MissingEntity {
+            what: "an analytic surface's chart",
+        })?;
+        let singular = chart
+            .poles()
+            .into_iter()
+            .map(|(point, v)| SingularPoint {
+                point,
+                v,
+                end: if v > 0.0 {
+                    RowEnd::Top
+                } else if v < 0.0 {
+                    RowEnd::Bottom
+                } else {
+                    RowEnd::Inside
+                },
+            })
+            .collect();
+        Ok(Self {
+            kind,
+            surface,
+            singular,
+        })
+    }
+
+    /// The steps the chart's cell bound needs at `target` ([`ChartRow::steps`]).
+    pub(crate) fn steps(&self, target: f64) -> (f64, f64) {
+        match self.kind {
+            Analytic::Cylinder { radius } => (sagitta_step(target, radius), f64::INFINITY),
+            Analytic::Cone {
+                half_angle,
+                rho_max,
+            } => (cone_grid_step(target, half_angle, rho_max), f64::INFINITY),
+            Analytic::Sphere { radius, widest } => sphere_grid_steps(target, radius, widest),
+            Analytic::Torus { major, minor } | Analytic::Spindle { major, minor } => {
+                torus_grid_steps(target, major, minor)
+            }
         }
+    }
+
+    /// The steps a lane's lattice lays from the cell steps `(hu, hv)`
+    /// ([`Self::steps`]): on a ruled chart, rows every `lever·hu` metres,
+    /// square in 3-D at the face's widest radius (the cylinder's radius,
+    /// the cone's largest), which shape the triangulation and move no
+    /// bound; on a torus and a spindle sheet both periodic steps capped at
+    /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
+    /// capped already.
+    pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
+        match self.kind {
+            Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
+                (hu, lever * hu)
+            }
+            Analytic::Torus { .. } | Analytic::Spindle { .. } => (cap_angular(hu), cap_angular(hv)),
+            Analytic::Sphere { .. } => (hu, hv),
+        }
+    }
+
+    /// **The metric the trimmed lane's triangulation runs in**: the
+    /// lattice metric `k` (`nurbs_cert::lattice_metric`) of a uniform
+    /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`.
+    /// The sphere's is the chart's own at the box's mid latitude,
+    /// `(u·cos v, v)` to the nearest power of two: there a small face's
+    /// boundary circle is near round, so an ear on it usually has the
+    /// face's interior points in its circumcircle and the CDT does not cut
+    /// it. Every other chart's is its lattice's realized spacing: a ruled
+    /// lattice square in 3-D is a strip of aspect about `1/lever` in the
+    /// chart, and a torus's is `√(r/(R + r))`.
+    pub(crate) fn metric(
+        &self,
+        (u0, u1): (f64, f64),
+        (v0, v1): (f64, f64),
+        (nu, nv): (usize, usize),
+    ) -> f64 {
+        #[allow(clippy::cast_precision_loss)]
+        let aspect = match self.kind {
+            Analytic::Sphere { .. } => 1.0 / geom::mid_param(v0, v1).cos(),
+            Analytic::Cylinder { .. }
+            | Analytic::Cone { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64),
+        };
+        lattice_metric(std::iter::once(aspect))
+    }
+
+    /// The certificate of one triangle ([`ChartRow::cert`]).
+    pub(crate) fn cert(
+        &self,
+        tri: [Point3<f64>; 3],
+        uv: [[f64; 2]; 3],
+        singular: [bool; 3],
+    ) -> (f64, f64) {
+        match (self.kind, self.surface) {
+            (Analytic::Cylinder { radius }, &Surface::Cylinder { origin, axis, .. }) => (
+                cert::cert_cylinder(origin, axis, radius, tri),
+                cert::position_scale(origin, tri),
+            ),
+            (Analytic::Sphere { radius, .. }, &Surface::Sphere { center, .. }) => (
+                cert::cert_sphere(center, radius, tri),
+                cert::position_scale(center, tri),
+            ),
+            (Analytic::Cone { half_angle, .. }, _) => (
+                cert::cert_cone(half_angle, uv, singular),
+                cert::cone_scale(half_angle, uv),
+            ),
+            (Analytic::Torus { major, minor }, _) => {
+                let bound = cert::cert_torus(major, minor, uv);
+                (bound, cert::uv_scale(bound, uv))
+            }
+            (Analytic::Spindle { major, minor }, _) => {
+                let bound = cert::cert_spindle(major, minor, uv, singular);
+                (bound, cert::uv_scale(bound, uv))
+            }
+            (Analytic::Cylinder { .. } | Analytic::Sphere { .. }, _) => {
+                unreachable!("AnalyticRow::of builds a row's kind from its own surface")
+            }
+        }
+    }
+
+    /// The chart's singular points (module docs), none for a cylinder or a
+    /// torus.
+    pub(crate) fn singular_points(&self) -> &[SingularPoint] {
+        &self.singular
+    }
+
+    /// **Whether the point `p` is one of the chart's singular points**,
+    /// decided where the kernel decides it
+    /// (`geom_brep::chart_singularity::vertex_at_singular_point`, their
+    /// 3-D distance at `band`). An escalation reads off, as the curved
+    /// lane's walk reads it (`walk`'s `singular_point_at`): a vertex the
+    /// loop's lift could not decide leaves the loop with no lift, and the
+    /// face refuses before this is read.
+    pub(crate) fn is_singular(&self, p: Point3<f64>, band: Band) -> bool {
+        self.singular.iter().any(|s| {
+            geom_brep::chart_singularity::vertex_at_singular_point(p, s.point, band) == Ok(true)
+        })
     }
 
     /// The face's outward normal at the foot of `p` on its chart, from the
     /// chart's implicit form (`geom_brep::implicit_outward_normal`), folded
     /// through the face's `sense`; poison where the foot is not one point.
-    /// `None` on a spline chart, which has no implicit form.
-    pub(crate) fn outward(
-        &self,
-        surface: &Surface<f64>,
-        sense: bool,
-        p: Point3<f64>,
-    ) -> Option<OutwardNormal<f64>> {
-        match *self {
-            Self::Cylinder { .. }
-            | Self::Cone { .. }
-            | Self::Sphere { .. }
-            | Self::Torus { .. }
-            | Self::Spindle { .. } => Some(geom_brep::implicit_outward_normal(surface, sense, p)),
-            Self::Spline { .. } => None,
+    pub(crate) fn outward(&self, sense: bool, p: Point3<f64>) -> OutwardNormal<f64> {
+        geom_brep::implicit_outward_normal(self.surface, sense, p)
+    }
+
+    /// **Whether the trimmed lane's arm on this chart chords its boundary
+    /// to its lattice** (`chords::tighten`): every arm's but the
+    /// cylinder's, which chords at its target alone
+    /// (`work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
+    pub(crate) fn chorded_to_lattice(&self) -> bool {
+        match self.kind {
+            Analytic::Cylinder { .. } => false,
+            Analytic::Cone { .. }
+            | Analytic::Sphere { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => true,
         }
     }
 
-    /// Whether the row is a spline chart's.
-    pub(crate) fn is_spline(&self) -> bool {
-        match *self {
-            Self::Spline { .. } => true,
-            Self::Cylinder { .. }
-            | Self::Cone { .. }
-            | Self::Sphere { .. }
-            | Self::Torus { .. }
-            | Self::Spindle { .. } => false,
+    /// **The per-edge chord budget of the arm on this chart**, where it
+    /// holds one: the sphere's ([`crate::trimmed::MAX_SPHERE_EDGE_CHORDS`],
+    /// a projected circle passing near a pole), none elsewhere.
+    pub(crate) fn chord_budget(&self) -> Option<usize> {
+        match self.kind {
+            Analytic::Sphere { .. } => Some(crate::trimmed::MAX_SPHERE_EDGE_CHORDS),
+            Analytic::Cylinder { .. }
+            | Analytic::Cone { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => None,
         }
     }
-}
 
-/// Whether chart `v` is on any of `rows` ([`SingularRow::holds`]).
-pub(crate) fn on_singular_row(rows: &[SingularRow], v: f64) -> bool {
-    rows.iter().any(|r| r.holds(v))
+    /// **The plane the trimmed lane's triangulation runs in, where it is
+    /// not the chart**: on the cone, its development, answered as
+    /// `sin α`, the factor that turns the chart's azimuth `u` into the
+    /// development's angle (`v` is already the slant length, the
+    /// development's radius). The cone is the one row whose surface is
+    /// developable with a singular point the chart spreads over a row: a
+    /// ruling is a straight line of the surface, so the apex and two
+    /// points of one ruling are one line in 3-D, while the chart puts
+    /// the apex copy anywhere along `v = 0` and a Delaunay triangulation
+    /// of the chart can join them into a triangle of zero area. In the
+    /// development the apex is one point and the ruling a ray from it,
+    /// so the triangulation never can (`crate::trimmed`, "The
+    /// development"). The sphere's meridians are arcs, the cylinder has
+    /// no singular point, and the torus and spindle are not developable:
+    /// none of them, nor the spline row, answers.
+    pub(crate) fn development(&self) -> Option<f64> {
+        match self.kind {
+            Analytic::Cone { half_angle, .. } => Some(<f64 as geom_core::Real>::sin(half_angle)),
+            Analytic::Cylinder { .. }
+            | Analytic::Sphere { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => None,
+        }
+    }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::ChartRow;
+pub(crate) mod tests {
+    use super::{Analytic, AnalyticRow, RowEnd};
     use geom::Surface;
     use geom_core::{Point3, Vec3};
 
-    /// **The row's singular rows are the chart's singular points.** For
-    /// each analytic kind, the `v` of every singular row is one of the
-    /// singular points `topo::chart::Chart::poles` reads off
-    /// `geom_brep::chart_singularity` for the same surface, and every one
-    /// of those is a row: a sphere's two poles, a cone's apex, a spindle
-    /// sheet's two apexes, a horn's one cusp (listed once, at `π`, by the
-    /// chart, and as both ends `±π` by the row), none on a cylinder or a
-    /// ring torus. The trimmed lane asserts the empty half of this per
-    /// face; this row holds both halves on every kind.
-    #[test]
-    fn the_rows_singular_rows_are_the_charts_poles() {
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
-        let spindle = |major: f64, minor: f64| Surface::Spindle {
-            center: o,
-            axis: z,
-            major_radius: major,
-            minor_radius: minor,
-            u_ref: x,
-        };
-        let surfaces = [
-            Surface::Cylinder {
-                origin: o,
-                axis: z,
-                radius: 1.0,
-                u_ref: x,
-            },
-            Surface::Cone {
-                apex: o,
-                axis: z,
-                half_angle: 0.5,
-                u_ref: x,
-            },
-            Surface::Sphere {
-                center: o,
-                radius: 1.0,
-                axis: z,
-                u_ref: x,
-            },
-            Surface::Torus {
-                center: o,
-                axis: z,
-                major_radius: 2.0,
-                minor_radius: 0.5,
-                u_ref: x,
-            },
-            spindle(-0.5, 1.0),
-            spindle(0.4, 1.0),
-            spindle(1.0, 1.0),
-        ];
-        for surface in &surfaces {
-            let row = match *surface {
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    ..
-                } => ChartRow::Cylinder {
-                    origin,
-                    axis,
-                    radius,
+    /// An analytic row of `surface` with the window `kind` states, as
+    /// [`AnalyticRow::of`] builds one without a body to read a window
+    /// from.
+    pub(crate) fn row(kind: Analytic, surface: &Surface<f64>) -> AnalyticRow<'_> {
+        let singular = topo::chart::Chart::of(surface)
+            .unwrap()
+            .poles()
+            .into_iter()
+            .map(|(point, v)| super::SingularPoint {
+                point,
+                v,
+                end: if v > 0.0 {
+                    RowEnd::Top
+                } else if v < 0.0 {
+                    RowEnd::Bottom
+                } else {
+                    RowEnd::Inside
                 },
-                Surface::Cone { half_angle, .. } => ChartRow::Cone {
-                    half_angle,
-                    rho_max: 1.0,
-                },
-                Surface::Sphere { center, radius, .. } => ChartRow::Sphere {
-                    center,
-                    radius,
-                    widest: 1.0,
-                },
-                Surface::Torus {
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => ChartRow::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-                Surface::Spindle {
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => ChartRow::Spindle {
-                    major: major_radius,
-                    minor: minor_radius,
-                    apex: geom::sheet_apex(major_radius, minor_radius).v,
-                },
-                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-                    unreachable!("the rows above are analytic surfaces")
-                }
-            };
-            let rows: Vec<f64> = row.singular_rows().iter().map(|r| r.v).collect();
-            let poles: Vec<f64> = topo::chart::Chart::of(surface)
-                .expect("an analytic chart")
-                .poles()
-                .iter()
-                .map(|&(_, v)| v)
-                .collect();
-            #[allow(clippy::float_cmp)]
-            let holds = |of: &[f64], v: f64| {
-                of.iter()
-                    .any(|&w| w == v || w == -v && w.abs() == core::f64::consts::PI)
-            };
-            assert!(
-                rows.iter().all(|&v| holds(&poles, v)) && poles.iter().all(|&v| holds(&rows, v)),
-                "{:?}: the row's singular rows {rows:?} against the chart's poles {poles:?}",
-                surface.kind()
-            );
+            })
+            .collect();
+        AnalyticRow {
+            kind,
+            surface,
+            singular,
         }
     }
 
@@ -465,8 +503,8 @@ mod tests {
             Point3::new(p.x / rho, p.y / rho, 0.0)
         };
         type From = fn(Point3<f64>) -> Point3<f64>;
-        type Case<'a> = (&'a str, Surface<f64>, ChartRow<'a>, From, [Point3<f64>; 2]);
-        let rows: [Case<'_>; 4] = [
+        type Case = (&'static str, Surface<f64>, Analytic, From, [Point3<f64>; 2]);
+        let cases: [Case; 4] = [
             (
                 "cylinder",
                 Surface::Cylinder {
@@ -475,11 +513,7 @@ mod tests {
                     radius: 1.0,
                     u_ref: x,
                 },
-                ChartRow::Cylinder {
-                    origin: o,
-                    axis: z,
-                    radius: 1.0,
-                },
+                Analytic::Cylinder { radius: 1.0 },
                 foot,
                 [Point3::new(0.6, 0.3, 0.2), Point3::new(1.2, 0.6, 0.4)],
             ),
@@ -491,8 +525,7 @@ mod tests {
                     axis: z,
                     u_ref: x,
                 },
-                ChartRow::Sphere {
-                    center: o,
+                Analytic::Sphere {
                     radius: 1.0,
                     widest: 1.0,
                 },
@@ -507,7 +540,7 @@ mod tests {
                     half_angle: core::f64::consts::FRAC_PI_4,
                     u_ref: x,
                 },
-                ChartRow::Cone {
+                Analytic::Cone {
                     half_angle: core::f64::consts::FRAC_PI_4,
                     rho_max: 1.0,
                 },
@@ -523,7 +556,7 @@ mod tests {
                     minor_radius: 0.5,
                     u_ref: x,
                 },
-                ChartRow::Torus {
+                Analytic::Torus {
                     major: 1.0,
                     minor: 0.5,
                 },
@@ -531,13 +564,11 @@ mod tests {
                 [Point3::new(1.1, 0.0, 0.1), Point3::new(1.5, 0.4, 0.3)],
             ),
         ];
-        for (name, surface, row, from, points) in &rows {
+        for (name, surface, kind, from, points) in &cases {
+            let row = row(*kind, surface);
             for sense in [true, false] {
                 for (side, p) in ["inside", "outside"].into_iter().zip(*points) {
-                    let n = row
-                        .outward(surface, sense, p)
-                        .expect("an analytic row reads outward")
-                        .vec();
+                    let n = row.outward(sense, p).vec();
                     assert_eq!(
                         n.dot(p - from(p)) > 0.0,
                         sense,

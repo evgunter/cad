@@ -355,12 +355,14 @@ pub(crate) struct SizingTols {
     pub eps: Eps,
     /// The linear decision band props classifies with, minted from
     /// the same [`Tol`] as `eps` at operation entry (the calling
-    /// convention `Band::linear` prescribes). Consumed by two sites —
+    /// convention `Band::linear` prescribes). Consumed by three sites —
     /// `curved`'s shape door, which hands it to
     /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch`, and the walk's wrap strip, which
-    /// hands it to `geom_brep::chart_singularity::vertex_at_singular_point`
-    /// — and by no rule of this crate's own: `mesh` decides nothing
+    /// `require_one_chart_branch`, the walk's wrap strip, and the trimmed
+    /// lane's singular vertices (`crate::chart_table::AnalyticRow::is_singular`),
+    /// both of which hand it to
+    /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
+    /// no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.
@@ -569,9 +571,11 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// form over the edge's interval (`geom_brep::harmonic_range`): a tilted
 /// circle's latitude turns inside its interval, so vertices alone do not
 /// bound it, and the curved lane's iso faces (rims constant, meridians
-/// monotone) read the same window from the same arithmetic. Any other
-/// edge's is its stored chart image's box over the edge's interval
+/// monotone) read the same window from the same arithmetic. A spline
+/// edge's (a section with another curved surface) is its stored chart
+/// image's box over the edge's interval
 /// ([`geom_brep::Pcurve::chart_box`]), a latitude range taken to heights.
+/// A line, an ellipse or a spiric lies on no sphere, and refuses typed.
 /// The circle's closed form is the exact range where the box of its
 /// projected image is a conservative one. The chord pass, the curved lane
 /// and the trimmed lane read it from this one place, through the face's
@@ -611,14 +615,25 @@ pub(crate) fn sphere_face_widest_cos(
                     note: "a sphere face bounded by a line — no line lies on a sphere",
                 });
             }
-            geom::Curve3::Ellipse(..) | geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => {
+            // A plane meets a sphere in a circle, so neither a plane
+            // section's ellipse nor a torus section's spiric lies on one.
+            geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "a sphere face bounded by an ellipse or a spiric — neither lies on a \
+                           sphere",
+                });
+            }
+            // A section with another curved surface (a cylinder's, as in
+            // `sweep`'s `cylinder_sphere_frame`) is a spline.
+            geom::Curve3::Nurbs(_) => {
                 let w = image_box(
                     body,
                     hek,
                     ek,
                     curve,
-                    "a sphere face's edge that is not a circle carries no stored chart \
-                     image, so the face's latitude range is unread",
+                    "a sphere face's spline edge carries no stored chart image, so the \
+                     face's latitude range is unread",
                 )?;
                 let lat = |v: f64| {
                     radius
