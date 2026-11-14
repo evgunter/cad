@@ -75,7 +75,10 @@ pub(super) fn kind_of(body: &Body<f64>, fk: topo::FaceKey) -> SurfaceKind {
 }
 
 /// The carrier kinds and stored image forms of a loop, edge by edge.
-pub(super) fn loop_forms(body: &Body<f64>, lk: topo::LoopKey) -> Vec<(CurveKind, Option<&'static str>)> {
+pub(super) fn loop_forms(
+    body: &Body<f64>,
+    lk: topo::LoopKey,
+) -> Vec<(CurveKind, Option<&'static str>)> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary
     else {
         return Vec::new();

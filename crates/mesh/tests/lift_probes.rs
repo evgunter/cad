@@ -138,7 +138,12 @@ fn pipe_and_bars() -> Vec<Named> {
     for (what, x, y, z) in [
         ("the bar through", (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
         ("the bar half in", (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
-        ("the bar off the axis", (-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1)),
+        (
+            "the bar off the axis",
+            (-1.1, 1.1),
+            (0.15, 0.7),
+            (-0.4, 0.1),
+        ),
     ] {
         let bar = finished("the bar", brick::<f64>(x, y, z, tol()), tol());
         out.extend(six_bodies(what, &pipe, &bar));
@@ -378,7 +383,12 @@ fn seamless_band(
         r#loop: seed.r#loop,
     };
     let cap_b = body
-        .mef(lone, whole_turn(wall, bottom.clone()), FaceSurface::Inherit, tol)
+        .mef(
+            lone,
+            whole_turn(wall, bottom.clone()),
+            FaceSurface::Inherit,
+            tol,
+        )
         .unwrap();
     let site = MevSite::Fan {
         he1: cap_b.he_plus,
@@ -393,7 +403,12 @@ fn seamless_band(
         he2: strut.he_minus,
     };
     let cap_t = body
-        .mef(chords, whole_turn(wall, top.clone()), FaceSurface::Inherit, tol)
+        .mef(
+            chords,
+            whole_turn(wall, top.clone()),
+            FaceSurface::Inherit,
+            tol,
+        )
         .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let [plane_b, plane_t] = caps;
@@ -461,7 +476,13 @@ fn seamless_pipe() -> Body<f64> {
         normal: n,
         u_ref: major,
     };
-    seamless_band(cylinder, rim(0.0, r), ellipse, [level(0.0, false), tilted], None)
+    seamless_band(
+        cylinder,
+        rim(0.0, r),
+        ellipse,
+        [level(0.0, false), tilted],
+        None,
+    )
 }
 
 /// A seamless frustum: the cone of half-angle `π/4` between `z = 1` and
@@ -1030,7 +1051,8 @@ fn turn_table(turns: &[Turn]) -> String {
 fn not_closing(facts: &[LoopFact]) -> Vec<String> {
     let mut out = Vec::new();
     for f in facts {
-        let mut fail = |what: &str| out.push(format!("{} {:?} {}: {what}", f.body, f.chart, f.role()));
+        let mut fail =
+            |what: &str| out.push(format!("{} {:?} {}: {what}", f.body, f.chart, f.role()));
         let c = match &f.chain {
             Ok(c) => c,
             Err(gap) => {
@@ -1075,10 +1097,13 @@ fn tally(facts: &[LoopFact]) -> Vec<(String, usize, usize, usize, usize)> {
     let mut out: Vec<(String, usize, usize, usize, usize)> = Vec::new();
     for f in facts {
         let chart = format!("{:?}", f.chart);
-        let i = out.iter().position(|row| row.0 == chart).unwrap_or_else(|| {
-            out.push((chart, 0, 0, 0, 0));
-            out.len() - 1
-        });
+        let i = out
+            .iter()
+            .position(|row| row.0 == chart)
+            .unwrap_or_else(|| {
+                out.push((chart, 0, 0, 0, 0));
+                out.len() - 1
+            });
         let row = &mut out[i];
         if f.ring.is_none() {
             row.1 += 1;
@@ -1395,7 +1420,12 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
         let turns = c.winding.u;
         assert!(
             turns.abs() == 1
-                && c.winding == (Deck { u: turns, v: 0, twin: false })
+                && c.winding
+                    == (Deck {
+                        u: turns,
+                        v: 0,
+                        twin: false
+                    })
                 && !c.closes
                 && c.closure(f.chart) == Joint::Periods(-turns, 0)
                 && c.inner_joints(f.chart).iter().all(|j| *j == Joint::Meets)
@@ -1581,7 +1611,11 @@ fn the_spiric_bounded_torus_walls_outer_loop_is_a_simple_polygon() {
             seen.push((f.body.clone(), samples));
         }
     }
-    assert_eq!(seen.len(), 9, "one wall on the vessel, two on the elbow: {seen:?}");
+    assert_eq!(
+        seen.len(),
+        9,
+        "one wall on the vessel, two on the elbow: {seen:?}"
+    );
 }
 
 /// **At a cone's apex the lift runs along the apex row through the
@@ -1604,9 +1638,15 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
         ("common::cone".to_owned(), common::cone()),
         ("the T1 cone".to_owned(), Body::clone(&t1_cone())),
         ("the funnel".to_owned(), funnel),
-        ("common::cone_wedge(1, 1)".to_owned(), common::cone_wedge(1.0, 1.0)),
+        (
+            "common::cone_wedge(1, 1)".to_owned(),
+            common::cone_wedge(1.0, 1.0),
+        ),
         ("common::ball".to_owned(), common::ball()),
-        ("common::sphere_wedge(1)".to_owned(), common::sphere_wedge(1.0)),
+        (
+            "common::sphere_wedge(1)".to_owned(),
+            common::sphere_wedge(1.0),
+        ),
     ];
     let facts = census(&sample, SAMPLES);
     let bad = not_closing(&facts);
