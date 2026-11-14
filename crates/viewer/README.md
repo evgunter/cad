@@ -2473,8 +2473,8 @@ body (`frame::placement_offers`). Picked as the body itself (in the
 tree, or shown again in the View pane), it makes a new body, and that
 body offers, one explicit step per source, to redefine the sources the
 body's placements read onto it (`world::repoint_offer`,
-`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket (2
-copies) onto F", or for an anonymous source "Re-point the copy C5". A
+`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket onto
+F", or for an anonymous source "Re-point the copy C5 onto F". A
 placement reads its body through a source, `bracket = B`, so the
 re-point is one definition edit, `bracket = F`, through the kernel's
 takeover (`Recording::take_over`), with the `Rebind`s of what reads each
@@ -2488,11 +2488,11 @@ the new body itself reads (a cycle), one a reader could not take (a
 member left reading a member of no family), or one whose copies a pick
 reads that the re-point would strand has no button. The offer is read
 once per document change, not per frame. The offer is a reading of the
-document, not a question: it stands on every drawn body built, at any
-depth, on a body a source places (and on no placed copy), as a fact with
-its button — "bracket (2 copies) copies B, which this body is built on",
-"Re-point bracket onto G" — for as long as that is true, and nothing
-records a decline: not pressing it is the decline. The source's own row
+document, not a question: it stands on every drawn body that reads,
+at any depth, as a body, one a source places (and on no placed copy),
+as a fact with its button — "bracket (2 copies) copies B, which this
+body is built on", "Re-point bracket onto G" — for as long as that is
+true, and nothing records a decline: not pressing it is the decline. The source's own row
 and the placement's "copy of" row re-point too. No gesture re-points a
 placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
