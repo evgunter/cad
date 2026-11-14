@@ -4,8 +4,9 @@ kind: issue
 title: A cylinder wall notched by rulings and an arc, or carrying a hole, builds and measures but does not tessellate
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P0
 cost: H
+design: true
 ---
 
 
@@ -76,3 +77,13 @@ guard). The fix above wants the trimmed lane's chart region as well:
 the same polygon with the ring's ellipse images for edges.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## Measured on main (2026-11-14, TESSLANE) — re-banded P0
+
+Run at `d6e1eb1f` (probes `reach_probes::a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors` and `a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard` on `tesslane/measure-reach`). This row's table reproduces exactly at δ 5e-3, 1e-3 and 2e-4.
+
+- **The notch** (bars 1 and 2; ∪ in both orders and pipe ∖ bar): `UnsupportedCurvedShape { source: NotIsoRectangle { what: "props_rim_level" } }`, built by `curved::require_iso_rectangle_face` from `geom_brep::props`' `require_rims_at_extremes`. Every half-edge of the notched wall carries a `Harmonic` image, and the trimmed cylinder arm with `cert::cert_cylinder` and its lattice exists, but nothing routes the face to it: `lane_of` reads carrier kinds, and an all-iso loop goes to the curved lane, whose door refuses a loop that is not a rectangle.
+- **The ring** (bar 3; the brick turned 0.3 about x, ∪ and pipe ∖ bar; cone T1, ∪ in both orders and cone ∖ box): `RingOnCurvedFace`, raised by `curved::tessellate_curved`'s ring guard. This row's ellipse-ring paragraph names `tessellate_trimmed`'s guard; that is not the site, because the ellipse arcs are on the rings and the outer loop is iso.
+- ∩ and bar ∖ pipe mesh and pass `check_mesh`; with the turned brick they mesh through the trimmed cylinder arm.
+
+**P0**: a pipe with a boss or a slot through its wall is as ordinary as a body gets, and it cannot be drawn. With designers alongside `trimmed-tessellation-lacks-torus-and-plane-arms` (`design: true`).
