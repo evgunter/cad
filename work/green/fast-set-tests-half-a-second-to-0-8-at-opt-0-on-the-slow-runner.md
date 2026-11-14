@@ -40,3 +40,19 @@ lists every test at or above 0.5 s with its opt-1 time beside it.
 Decide between two remedies. One is to move the 24 that opt 0 put over
 0.5 s to the slow set, by the discipline's own 0.5 s rule. The other is
 to leave them and watch `check-fast-set-times` reds for them.
+
+## Two crossed the bar on an unrelated PR (PR 6931, run 43619394495, 2026-11-14)
+
+`test (kernel)` on `green/default-eps` at `c602fc639` passed all 7166
+default-ε tests and failed the time check on two existing sweep tests
+that PR's diff does not touch:
+
+    sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order took 1.042 s (existing test: 1.0 s)
+    sweep::all pis_arc_capped_poses::the_cut_cylinder_reads_its_truth took 1.015 s (existing test: 1.0 s)
+
+The run before it on the same branch (43555174396, eight sweep test
+files apart at most) had both under the bar. The lane's integration
+could not re-run the job (`rerun-failed-jobs`: 403), so the only way to
+a second reading was a new commit. This is the second remedy's cost
+("leave them and watch `check-fast-set-times` reds"): a red gate on a
+PR that changed neither test.
