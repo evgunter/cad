@@ -699,7 +699,10 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
             .enclosure
             .volume;
         let moved_thin = pose == Pose::Moved && m == 10.5 && s == 0.0 && rel == 5e-2;
-        match MOVED_THIN_READS.iter().find(|(o, _)| moved_thin && *o == op) {
+        match MOVED_THIN_READS
+            .iter()
+            .find(|(o, _)| moved_thin && *o == op)
+        {
             Some(&(_, read)) => assert!(
                 ((got - read) / read).abs() < 1e-2,
                 "{what}: the channel's shell reads {read:e} as pinned, got {got:e}"
