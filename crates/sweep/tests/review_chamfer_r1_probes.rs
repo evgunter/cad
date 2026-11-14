@@ -328,7 +328,6 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
         names,
         vec![
             "fillet3_chain_arm",
-            "fillet3_convexity_sign",
             "fillet3_corner_independence",
             "fillet3_face_clearance",
         ],

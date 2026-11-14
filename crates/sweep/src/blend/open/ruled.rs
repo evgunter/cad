@@ -36,7 +36,7 @@
 //! transverse intersection with the cap.
 //!
 //! **Either material side.** The walk reads no convexity: the arm's
-//! feet already fold the chain's verdict (`Convexity::ball_side` in
+//! feet already fold the chain's verdict (`battery::ball_side` in
 //! the sheet reduction), the band's sense bit folds it once more at
 //! the surface pass, and the combinatorics are the same on a concave
 //! chain. The cap face loses the region under the arc on either side:

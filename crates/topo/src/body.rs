@@ -1744,6 +1744,34 @@ impl<T: Real> Body<T> {
         crate::pcurves::Lift::read(self, r#loop)
     }
 
+    /// **A face's loops in one sheet** ([`crate::pcurves::FaceLift`]):
+    /// its outer loop's lift as [`Body::loop_lift`] reads it, and each
+    /// ring's moved by the one whole number of periods per closed
+    /// channel that puts the ring's first point in the region the outer
+    /// loop's lift bounds, decided at `band` against the outer loop
+    /// alone (`crate::pcurves`' ring rule).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
+    /// outer loop or a ring does not close in the chart, or a ring has
+    /// no one decided place.
+    ///
+    /// # Panics
+    ///
+    /// Where `face` does not resolve, and [`Body::loop_lift`]'s.
+    #[track_caller]
+    pub fn face_lift(
+        &self,
+        face: crate::entity::FaceKey,
+        band: geom_core::Band,
+    ) -> Result<crate::pcurves::FaceLift<T>, crate::pcurves::RingPlacementError>
+    where
+        T: geom_core::Decide,
+    {
+        crate::pcurves::face_lift(self, face, band)
+    }
+
     /// Writes one row — `half_edge`'s image and the element of the joint
     /// into it, or no element where the writer decided none.
     pub(crate) fn write_row(

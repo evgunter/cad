@@ -83,6 +83,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
+pub mod polygon_orientation;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
@@ -141,15 +142,14 @@ pub use description::{
 };
 pub use dihedral::{
     AlignmentReading, Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN,
-    DIHEDRAL_SIGN, Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation,
-    GRADIENT_ALIGNMENT_LEVER, GradientAlignment, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    DIHEDRAL_SIGN, DIHEDRAL_WEDGE, Dihedral, DihedralClass, GRADIENT_ALIGNMENT_LEVER,
+    GradientAlignment, MATERIAL_CUSP_SIDE, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
     MaterialPairing, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryRung, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace,
-    SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
-    classify_dihedral, classify_dihedral_reported, classify_edge_wedge, classify_seam,
-    folded_lever_arm, gradient_alignment, material_kappa_rel, must_carry_description,
-    must_carry_over_edge, normals_alignment, reask_chart, reask_pair, rest_locus,
-    tangent_second_order,
+    MustCarryRung, MustCarryVerdict, PairRefusal, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    SmoothJoin, Station, TANGENT_SECOND_ORDER, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_seam, folded_lever_arm,
+    gradient_alignment, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -163,7 +163,9 @@ pub use edge_nurbs::{
     is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
     probe_pick, sub_arc_joint,
 };
-pub use edge_wedge::{Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over};
+pub use edge_wedge::{
+    Bend, FoldNames, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
@@ -247,15 +249,16 @@ pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
     ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
     FocalImage, FramedCarrier, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal, IsoFamily,
-    IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, OffMargin, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
-    ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
-    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, incidence_ended_unwitnessed,
-    iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
-    read_point_incidence, ruling_miss,
+    IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoSpeedBound, OffMargin, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
+    ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus,
+    angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve, chart_pcurve_over,
+    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of,
+    harmonic_range, incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal,
+    read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
+pub use polygon_orientation::PolygonOrientation;
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,

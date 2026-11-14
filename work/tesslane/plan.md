@@ -28,6 +28,34 @@ viewer cannot draw is where that goal most visibly breaks.
 A new arm lands with its theorem or with its headroom filed, so a reach
 unit reads the sizing rows of the lane it extends before it is specced.
 
+## The chart lane
+
+The reach rows are one gap (the 2026-11-14 measurement, in `log.md`): a curved face is routed on the kinds of its outer loop's carriers, the trimmed lane constructs three arms, and both curved lanes return at a ring. Two designers weighed what a non-rectangular curved face is meshed from and reached the same final state independently; their reports are in the body of the PR that wrote this section.
+
+**The final state.** One lane meshes every non-planar face: today's trimmed lane, with what it holds per arm factored out.
+
+- **The face's domain is read from the body, every loop.** A loop's lift is its stored chart images placed end to end; the domain is the outer loop's lift less the rings'. Boundary points are the shared chord points, interior points are a lattice, and inside or outside is the planar lane's even-odd count.
+- **A chart is one table row**: lattice steps for a target, the per-triangle certificate, the metric the triangulation runs in, its singular rows, its outward normal.
+- **A boundary image carries three facts**: its value at a parameter, a box over a span, a speed bound per chart axis over a span. The chord pass has one rule for every face.
+- **The sizing theorem factors the same way**: a cell bound per chart, which exists, and a containment lemma per kind of boundary run. A run on a chart iso line gets a lattice line and sizes at δ; a run that crosses lattice lines sizes at the one named `UNPROVED_HEADROOM` until its lemma is proved.
+
+So it is charts plus images, not charts times images, and a face is never routed by what kind of curve bounds it.
+
+**The units, in order.** Units 1 to 4 turn refusals into meshes and move nothing the mesh emits today.
+
+| | unit | closes |
+|---|---|---|
+| 1 | `one-chord-rule-over-each-boundary-images-speed-bound` | |
+| 2 | `one-chart-table-and-the-lane-takes-every-analytic-chart` | torus × spiric, cone × ellipse |
+| 3 | `a-curved-faces-domain-is-read-from-every-loop` | the ring guards; rings on a cylinder, cone, sphere and torus, which it routes to the chart lane |
+| 4 | `a-curved-face-is-routed-by-its-domain-not-its-carriers` | the notch; the carrier-kind predicates |
+| 5 | `one-containment-lemma-for-an-oblique-boundary` | three missing-theorem rows; independent of 2 to 4 |
+| 6 | `rectangle-faces-move-to-the-chart-lane` | the curved lane; Ev's call, with a density measurement |
+
+**What is Ev's.** Unit 6, and with it the re-cut of `crates/mesh/README.md` `[mesh.sizing]`'s list of lanes. Until then the page's rule is unchanged and its lanes still exist; where a unit moves a mechanism the page names (the rim-chord bullet's three doors become one), the page is re-worded with that unit.
+
+**Not this design.** A section spline with a full-multiplicity knot and the turned ball's pole entry are separate defects with their own rows. The interior-pole form Ev tabled is not needed: a loop that does not close refuses in one place, which is where it would be taught if reopened.
+
 ## Ratified ground (cited, not re-litigated)
 
 - `docs/DESIGN.md` `[tolerance.chordal]` and `crates/mesh/README.md`

@@ -2458,6 +2458,14 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
     }
 }
 
+#[path = "pcurves_rings.rs"]
+mod rings;
+pub use rings::{FaceLift, PlacedRing, RingPlacementError, SplineTrimGap};
+pub(crate) use rings::{
+    HALVINGS, PIECE_DEPTH, PIECE_VISITS, RingMiss, SHIFTS, Shift, Side, WINDOW_SHARE, face_lift,
+    place_ring,
+};
+
 /// One half-edge of a [`Lift`].
 #[derive(Clone, Debug)]
 pub struct LiftedRow<T: Real> {
@@ -2627,7 +2635,24 @@ impl<T: Decide> Lift<T> {
     /// ([`loop_rows`]).
     #[track_caller]
     pub fn read(body: &Body<T>, r#loop: LoopKey) -> Result<Self, LiftGap> {
-        Self::read_with(body, r#loop, Scaffolding::Refused)
+        Self::read_with(body, r#loop, Scaffolding::Refused, Deck::IDENTITY)
+    }
+
+    /// [`Lift::read`] in another gauge: the chain moved by `start`, each
+    /// row's lift `start` composed after its own, and its image moved by
+    /// that sum from the stored row — rounded afresh, so not [`Lift::read`]'s
+    /// image moved by `start` bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// [`Lift::read`]'s, and a row `start` does not apply to.
+    ///
+    /// # Panics
+    ///
+    /// [`Lift::read`]'s.
+    #[track_caller]
+    pub(crate) fn read_from(body: &Body<T>, r#loop: LoopKey, start: Deck) -> Result<Self, LiftGap> {
+        Self::read_with(body, r#loop, Scaffolding::Refused, start)
     }
 
     /// **[`Lift::read`] past the loop's placeholders**
@@ -2651,16 +2676,18 @@ impl<T: Decide> Lift<T> {
     /// [`Lift::read`]'s, and [`crate::null::is_placeholder`]'s.
     #[track_caller]
     pub(crate) fn read_past_placeholders(body: &Body<T>, r#loop: LoopKey) -> Result<Self, LiftGap> {
-        Self::read_with(body, r#loop, Scaffolding::Skipped)
+        Self::read_with(body, r#loop, Scaffolding::Skipped, Deck::IDENTITY)
     }
 
-    /// The one read [`Lift::read`] and [`Lift::read_past_placeholders`]
-    /// make, a placeholder's half as `scaffolding` says.
+    /// The one read [`Lift::read`], [`Lift::read_from`] and
+    /// [`Lift::read_past_placeholders`] make, a placeholder's half as
+    /// `scaffolding` says, in the gauge `start`.
     #[track_caller]
     fn read_with(
         body: &Body<T>,
         r#loop: LoopKey,
         scaffolding: Scaffolding,
+        start: Deck,
     ) -> Result<Self, LiftGap> {
         let cycle = loop_rows(body, r#loop);
         let face = proven(&body.loops, r#loop, EntityId::Loop).face;
@@ -2689,7 +2716,7 @@ impl<T: Decide> Lift<T> {
             .into_iter()
             .zip(stored)
             .zip(lift_decks(&elements))
-            .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
+            .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, start.compose(lift))))
             .map(|(half_edge, row, lift)| {
                 let pcurve = lift
                     .apply(row.pcurve(), surface, periods)

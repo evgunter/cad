@@ -1069,6 +1069,25 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 18v1) escalates on an enclosure of ±4.5e-11
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the closed spine",
+        &[
+            "the closed spine sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        a_closed_spine_reads_violated_top_against_bottom_row,
+    );
+}
+
+/// The row [`a_closed_spine_reads_violated_top_against_bottom`] runs, under its pin.
+fn a_closed_spine_reads_violated_top_against_bottom_row() {
     fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
@@ -1215,6 +1234,25 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 20v1) escalates on an enclosure of ±1.9e-12
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the S duct",
+        &[
+            "the S path sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        the_s_duct_walls_hold_against_themselves_row,
+    );
+}
+
+/// The row [`the_s_duct_walls_hold_against_themselves`] runs, under its pin.
+fn the_s_duct_walls_hold_against_themselves_row() {
     fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;
@@ -3024,6 +3062,16 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// meridians' plane; read as a loose vertex, every polar strip of one
 /// half-band against every one of the other split until the walk ran
 /// out of its 65,536 pairs, at depth 32.
+///
+/// At a pole one half-band's corner is on one meridian and the other's
+/// on the other, and the corner is zero under the plane only where the
+/// plane lists both. The revolve stores the two in one plane, so at
+/// `f64` the plane built from either does. At `Interval` the small
+/// ball's centre is a bracket (its profile arc's centre rounds), and
+/// two meridians stored in one bracket need not lie in one plane for
+/// every member, so its plane lists its own meridian alone and its pole
+/// refuses `Departure` there. Red at `f64` if the meridians are stored
+/// in two planes, or if the corner is read as zero off the list.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3048,11 +3096,34 @@ fn a_two_ball_union_holds_with_its_poles_read() {
             topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
         Body::clone(&union.body().expect("a body").body)
     }
-    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
-        assert!(
-            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
-            "the poles cost a few hundred pairs, not the budget: {:?}",
-            report.receipt
-        );
-    }
+    let float = snowman::<f64>();
+    let report = injective(&float, None, BUDGET);
+    assert_holds("the snowman", &report, &float);
+    assert!(
+        report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+        "the poles cost a few hundred pairs, not the budget: {:?}",
+        report.receipt
+    );
+    let twin = snowman::<Interval>();
+    let verdict = injective(&twin, None, BUDGET).verdict;
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        shared: SharedCell::Edge(edge),
+        arm: CertificateArm::Departure,
+        ..
+    }) = verdict
+    else {
+        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
+    };
+    let curve = twin.get_edge(edge).expect("a live edge").curve;
+    let carrier = twin
+        .get_curve_geom(curve)
+        .and_then(|g| g.certified())
+        .map(|c| c.carrier().clone());
+    let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = carrier else {
+        panic!("the refusing edge is a meridian circle: {carrier:?}");
+    };
+    assert!(
+        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
+        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    );
 }
