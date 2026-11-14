@@ -51,6 +51,14 @@ fn in_session<R>(f: impl FnOnce() -> R) -> R {
     with_session_rules(budget, SymRules::shipped(), f).0
 }
 
+/// A box half-width small enough that unguided validation's pair
+/// readings decide at the run's ε (a sixty-fourth of it): the boxed
+/// polygon rows are about the directions' width, which is none at any
+/// box, not about how wide a box validation reads.
+fn small() -> f64 {
+    tol().eps() / 64.0
+}
+
 /// The parameter `name` over `c ± h`.
 fn param(name: &str, c: f64, h: f64) -> Lane {
     Sym::param(
@@ -178,11 +186,11 @@ fn a_reversed_loop_swaps_its_radials_and_negates_its_directors() {
 #[test]
 fn a_rectangles_directors_are_the_axes_over_a_box() {
     in_session(|| {
-        let centre = Point2::new(param("x", 1.0, 1e-11), param("y", 0.0, 1e-11));
+        let centre = Point2::new(param("x", 1.0, small()), param("y", 0.0, small()));
         let lp = profile::rectangle(
             centre,
-            param("w", 2.0, 1e-11),
-            param("h", 1.0, 1e-11),
+            param("w", 2.0, small()),
+            param("h", 1.0, small()),
             tol(),
         )
         .unwrap();
@@ -203,7 +211,7 @@ fn a_rectangles_directors_are_the_axes_over_a_box() {
 #[test]
 fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
     in_session(|| {
-        let t = param("t", 1.0, 1e-11);
+        let t = param("t", 1.0, small());
         let (z, one) = (Lane::from_f64(0.0), Lane::from_f64(1.0));
         let lp = Open
             .at(Point2::new(t, z))
@@ -225,7 +233,7 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
         );
         // The hop from (t + 1, 0) to (2t, t + 1): direction (t − 1, t + 1)/|·|.
         let d1 = director(segs[1].directions);
-        for tv in [1.0f64 - 1e-11, 1.0 + 1e-11] {
+        for tv in [1.0f64 - small(), 1.0 + small()] {
             let (dx, dy) = (tv - 1.0, tv + 1.0);
             let n = dx.hypot(dy);
             let (wx, wy) = (dx / n, dy / n);
@@ -473,7 +481,7 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
 #[test]
 fn a_hop_along_an_axis_mints_its_director_with_no_width() {
     in_session(|| {
-        let w = param("W", 1.0, 1e-11);
+        let w = param("W", 1.0, small());
         let (z, one) = (Lane::from_f64(0.0), Lane::from_f64(1.0));
         let lp = Open
             .at(Point2::new(z, z))

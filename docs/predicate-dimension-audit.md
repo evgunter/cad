@@ -1875,24 +1875,24 @@ Flagged, NOT fixed here (dispositions):
 
 - **F43** (added by BOXFINISH's profile-directions unit)
   `profile/src/seg.rs` `axis_or` and `literal_sign`, under
-  `segment_direction_axis` and `segment_direction_sign`. The first: each
-  component of the vector a validated segment's direction is minted
-  from (a line's chord, an arc's centre-to-vertex), read at the least
-  band. An exact zero (a theorem of the parameters at `Sym`, an exact
-  zero at `f64`) mints the axis the vector lies along, signed by its
-  other component; anything else, an escalation included, mints the
-  quotient by its length. **Both outcomes are the direction** wherever
-  the component is zero, so no reader rests on the pick and it is
-  never a refusal: the axis only drops the width a quotient of two
-  values that share a parameter carries. Read through
-  `k_stats::check_unlogged(.., "F43")`; its K samples reach the sink
-  under `segment_direction_axis`. The second: the sign that signs a
-  direction (an axis chord's other component, a bulge's for its
-  lowering's radials), read at the least band into the literal ±1;
-  anything but a definite sign leaves the direction to its other
-  spelling (the quotient, or validation's mint). Both outcomes are
-  again sound, and the literal keeps an opaque `copysign` atom out of
-  the symbolic tier. Not `decide_flagged` sites;
+  `segment_direction_axis` and `segment_direction_sign`. The first:
+  each component of the vector a validated segment's direction is
+  minted from (a line's chord, an arc's centre-to-vertex), its sign
+  read once at the least band whatever it answers. One component
+  exactly zero (a theorem of the parameters at `Sym`, an exact zero at
+  `f64`) with the other definite mints the axis, signed by the other as
+  a literal ±1; anything else, an escalation included, mints the
+  quotient by its length. The second: a bulge's sign, read once per
+  bulge leg into the literal ±1 that signs its lowering's radials; an
+  indefinite sign leaves them to validation's mint. **Both outcomes of
+  each are the direction**, so no reader rests on the pick and neither
+  is ever a refusal: the axis only drops the width a quotient of two
+  values that share a parameter carries, and the literal keeps an
+  opaque `copysign` atom out of the symbolic tier. A mint's readings
+  do not depend on their answers, so a lane that answers differently
+  reads the same population. Read through
+  `k_stats::check_unlogged(.., "F43")`; the K samples reach the sink
+  under the two names. Not `decide_flagged` sites;
   `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
