@@ -66,10 +66,9 @@ fn seeds() -> Vec<BlendError> {
             gap: MarginDiag::value(0.2),
             cross_chain: true,
         },
-        BlendError::KnifeEdge {
+        BlendError::WedgeUnsettled {
             edge: EdgeKey::default(),
-            margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
-            refusal: KnifeRefusal::NeverOpens,
+            wedge: sweep::blend::UnsettledWedge::Lamina,
         },
         BlendError::KnifeEdge {
             edge: EdgeKey::default(),

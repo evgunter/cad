@@ -4,7 +4,7 @@
 //! blend's own identity: a ball resting on both faces touches them
 //! along the edge itself, so the blend there has no effect: a silent
 //! no-op. Both verbs read it through the kernel's one edge-wedge door
-//! (`geom_brep::classify_edge_wedge`) and leave it out of every chain,
+//! (`topo::edge_wedge_as`) and leave it out of every chain,
 //! so a request gives exactly what it gives with its smooth edges left
 //! out, and a request whose every edge is smooth returns the body as it
 //! is, key for key. A cusp or slit
