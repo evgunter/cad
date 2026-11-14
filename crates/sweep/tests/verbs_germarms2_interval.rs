@@ -216,6 +216,24 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// [`same_door_or_escalated`] writes the reason for.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
+    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
+    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the meeting-axes pose",
+        &[
+            "operand B is not a finished body",
+            "VolumeUncomputable",
+            "FaceKey(4v1)",
+            "props_chart_loop_whole",
+        ],
+        the_meeting_axes_pose_builds_at_the_certified_scalar_row,
+    );
+}
+
+/// The row [`the_meeting_axes_pose_builds_at_the_certified_scalar`] runs, under its pin.
+fn the_meeting_axes_pose_builds_at_the_certified_scalar_row() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),

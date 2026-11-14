@@ -27,3 +27,12 @@ row is pinned at 1e-12 on `3° (B, A), ∖: the node builds, got
 Err(Pieces(Probe`; it goes red the day the row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
+
+## Re-pinned (GREEN, 2026-11-14)
+
+The row now stops before B ∖ A, at the 3° pose's A ∩ B
+(`VolumeUncomputable`, `props_chart_junction_closed`, since PR 6466), and
+the pin names that stop
+(`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`).
+Whether B ∖ A still exhausts its probe ray at 1e-12 is unmeasured on
+main; the pin still cites this row.

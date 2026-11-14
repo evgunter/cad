@@ -55,3 +55,20 @@ too thin nor an area: it is the whole-turn residual of the bore's loop
 A local mirror of the cone's constructors (rulings exact, rims carried),
 unreviewed and not pushed, made this row pass at 1e-12 with Σ.hi
 3.6e-13 m. That sizes the fix; it is not the fix.
+
+## The merge, and three more rows (GREEN, 2026-11-14)
+
+A first-parent bisect of main at 1e-12 names PR 6505
+(`onedoor/one-surface-record`, the face-anchored measure, merge
+`9e1484043`); its first parent `e996c0049` passes the bead. Three more
+rows of nightly 43371638371 refuse with the same signature
+(`VolumeUncomputable`, `props_chart_loop_whole`, check `Inventory`,
+margin `[0, H]`) and moved at the same merge; whether each face is a
+cylinder is unmeasured:
+
+- `sweep` `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds` (face `3v1`, H 3.65e-12);
+- `sweep` `near_circular_sections::a_turned_near_square_split_of_a_rod_validates_its_halves` (face `3v1`, H 3.35e-12);
+- `sweep` `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar` (operand B, face `4v1`, H 1.11e-12).
+
+All four are pinned at 1e-12 on main's stop and cite this row; each pin
+goes red the day its row builds, which is this row's done-when.

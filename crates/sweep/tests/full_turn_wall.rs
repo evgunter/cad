@@ -91,6 +91,23 @@ const POLARS: [f64; 4] = [0.2, 0.6, 1.6, 2.9];
 /// scales: every verdict the doors give is the one the geometry gives.
 #[test]
 fn both_doors_answer_the_bead_by_its_height_window() {
+    // Pinned red at ε 1e-12 since PR 6505: the body's volume escalates in band
+    // (`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the bead",
+        &[
+            "VolumeUncomputable",
+            "FaceKey(3v1)",
+            "props_chart_loop_whole",
+        ],
+        both_doors_answer_the_bead_by_its_height_window_row,
+    );
+}
+
+/// The row [`both_doors_answer_the_bead_by_its_height_window`] runs, under its pin.
+fn both_doors_answer_the_bead_by_its_height_window_row() {
     let b = band();
     for tilted in [false, true] {
         for scale in [1.0, 100.0] {

@@ -1264,15 +1264,19 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// both, an edge four triangles hold that the body has no counterpart of.
 #[test]
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
-    // Pinned red since PR 5664: at ε = 1e-12 the 3° pose's B ∖ A exhausts its
-    // probe ray (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`,
-    // `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`).
+    // Pinned red at ε 1e-12: the 3° pose's A ∩ B escalates its volume in band
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`);
+    // B ∖ A's probe-ray exhaustion past it is unmeasured
+    // (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the slanted bores",
         &[
-            "3° (B, A), ∖: the node builds, got Err(Pieces(Probe { shell: ShellKey(2v5), source: Loop(RayExhausted { loop: LoopKey(16v5) }) }))",
+            "3° (A, B), ∩: the node builds",
+            "VolumeUncomputable",
+            "FaceKey(8v11)",
+            "props_chart_junction_closed",
         ],
         slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
     );
@@ -1503,13 +1507,14 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
             Outcome::Built(m.enclosure.volume, m.enclosure.volume_pad)
         }
         Ok(_) => Outcome::Built(0.0, 0.0),
-        Err(topo::BooleanError::Escalated { decision, diag }) => Outcome::Escalated(
-            format!("{decision:?}"),
-            diag.margin
+        Err(topo::BooleanError::Escalated { decision, diag }) => {
+            let margin = diag
+                .margin
                 .diagnostic_f64_for_error_text()
                 .value()
-                .expect("an f64 margin"),
-        ),
+                .unwrap_or_else(|| panic!("an f64 margin: {decision:?} {diag:?}"));
+            Outcome::Escalated(format!("{decision:?}"), margin)
+        }
         Err(e) => {
             let text = format!("{e:?}");
             Outcome::Refused(

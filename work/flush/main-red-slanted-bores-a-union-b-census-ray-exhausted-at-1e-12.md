@@ -28,3 +28,14 @@ The same ray exhaustion as the tang row, read by tier 3′'s census on the
 union instead of by the pieces probe on the difference: likely one root.
 Add the union's finding to that row, or widen the pin, once the root is
 read.
+
+## Moved (GREEN, 2026-11-14)
+
+The A ∪ B census stop is gone at 1e-12: it cleared at PR 6466
+(`sectarms/cylinder-node-listing`, merge `c053873aa`; first parent
+`6775be78c` still stops here), and on main `2c843a2e7` A ∪ B passes and
+the row stops next at A ∩ B, `VolumeUncomputable` on
+`props_chart_junction_closed`
+(`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`).
+Nothing on main reproduces this row's finding; its owner can close it
+after confirming.
