@@ -2,10 +2,11 @@
 id: a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt
 kind: issue
 title: a ball turned a quarter turn refuses the curved lanes CDT insert at its pole - the chart frame an ulp off its axis (first met as a PlacedUnion master against exact copy frames)
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P0
 cost: M
+branch: tesslane/turned-ball
 ---
 
 Found by INTENT stage 3 D's exact-turn lane (`work/intent/transform-retires-into-a-placement.md`), which measured it and then moved its own corpus off it; nothing in the suite reaches it now.
@@ -31,3 +32,14 @@ Met by the reach measurement at `d6e1eb1f`; pinned as `reach_probes::a_z_poled_b
 The quarter turn leaves the chart frame an ulp off the axis it means (a cosine of `6.1e-17`), which is this row's cause; the witness shows it needs no `PlacedUnion` and no cutting plane, only a turned ball. It is also why tube ∪ ball in `valid-ringed-torus-faces-build-but-cannot-be-meshed` reports `Triangulation` rather than its ring.
 
 **P0**: a whole ball that a user has rotated does not draw at an ordinary δ. Not yet measured: why radius √2 and not 1, and what `−4.838e−49` is a product of.
+
+## Unit (2026-11-14, TESSLANE)
+
+**Letter M. Tier: single review, FULL.** The change is at a chart pole in the curved lane's CDT, where watertightness and the pole fan are argued rather than visible: believing a fix takes more than reading it, so the review carries claims to falsify.
+
+Branch `tesslane/turned-ball`, cut from `tesslane/measure-reach` so the probe `reach_probes::a_z_poled_ball_of_radius_root_two` is in hand.
+
+- **Measure before building.** The site is known (spade's `insert` errors in `curved::tessellate_curved`, on a pole entry with `u = −4.838e−49`, `v = ±π/2`). Not known: what that `u` is computed from, why radius √2 refuses and 1 and 0.3 mesh, and whether the `PlacedUnion` witness this row was filed on (a master ball an ulp off its cutting plane, `die_tool.rs` at `ccf433d0e4`) is the same defect or a second one at `can_add_constraint`. The unit answers those first and says so in the PR body.
+- **Fix it where it starts.** A chart coordinate at a pole is not a number the chart defines; whatever reads one as if it were is the cause. A threshold typed in to absorb the dust is not a fix: a comparison that decides anything goes through the kernel's own band, and a new constant owes its derivation.
+- **Done when** the probe is re-pinned to `Ok` with `check_mesh` at both δ and at radius √2, 1 and 0.3; the tube ∪ ball op of `reach_probes::a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard` is re-pinned to what it then answers; and the ulp-tilted witness either meshes or the PR says, measured, what it still needs.
+- A mesh byte that moves (D9 digests, the budget baseline, tour pins) is re-baselined with its cause named.
