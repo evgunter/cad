@@ -82,7 +82,14 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         } else {
             turned(T::zero() - theta)
         }),
-        carrier: Curve3::circle(center, Vec3::zero() - axis_c, radius, from_far.normalize()),
+        // `u_ref` points at the far end: the seam direction `u₃` (the
+        // vertex lies at `r > 0`), turned with it.
+        carrier: Curve3::circle(
+            center,
+            Vec3::zero() - axis_c,
+            radius,
+            ends.place_far.carry(frame.u3),
+        ),
         param_start: T::zero(),
         param_end: theta.abs(),
     };
@@ -90,10 +97,10 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         body,
         r#loop,
         ends.near,
-        placed_segment_spec(seg, ends.place_far, ends.n_far, ends.far, ends.far, tol),
+        placed_segment_spec(seg, ends.place_far, ends.n_far, ends.far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, frame.place, frame.n3, ends.near, ends.near, tol),
+        placed_segment_spec(seg, frame.place, frame.n3, ends.near, tol),
         near_cap,
         tol,
     )?;

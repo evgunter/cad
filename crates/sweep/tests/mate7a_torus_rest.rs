@@ -435,22 +435,26 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     for r in radii(&a).into_iter().chain(radii(&b)) {
         assert_eq!(r, TUBE, "both segments carry the same tube radius");
     }
-    let plane_origins = |body: &Body<f64>| {
+    // A cap's plane, read as a plane: its origin is its station's frame
+    // origin, which need not lie in the cap's disc.
+    let planes = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(fk, _)| match body.face_surface(fk) {
-                Some(&geom::Surface::Plane { origin, .. }) => Some(origin),
+                Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
                 _ => None,
             })
             .collect::<Vec<_>>()
     };
-    let shared = plane_origins(&a)
+    let shared = planes(&a)
         .into_iter()
-        .flat_map(|oa| {
-            plane_origins(&b)
-                .into_iter()
-                .map(move |ob| (oa - ob).norm())
+        .flat_map(|(oa, na)| {
+            planes(&b).into_iter().map(move |(ob, nb)| {
+                na.cross(nb).norm() < 1e-12
+                    && (ob - oa).dot(na).abs() < 1e-12
+                    && (oa - ob).dot(nb).abs() < 1e-12
+            })
         })
-        .filter(|d| *d < 1e-12)
+        .filter(|&coincide| coincide)
         .count();
     assert_eq!(
         shared, 1,

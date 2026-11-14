@@ -1539,27 +1539,11 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
     assert_holds("the filleted drum", &report, body);
-    // The known divergence `a-fillet-band-rim-phase-outruns-the-touch-concession-at-interval`
-    // (CLEAR): at `Interval` the band's rim phase is wider than the touch
-    // concession, and the walk runs out of depth beside the rim.
-    let twin = injective(&filleted::<Interval>(), None, BUDGET);
-    println!(
-        "[rimscalar] the filleted drum: f64 {} {:?} | Interval {} {:?}",
-        class(&report.verdict),
-        report.receipt,
-        class(&twin.verdict),
-        twin.receipt
-    );
-    assert!(
-        matches!(
-            twin.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(
-                topo::clearance::CellBudget::Depth { .. }
-            ))
-        ),
-        "the filleted drum's known divergence at Interval is a depth refusal: {:?}",
-        twin.verdict
-    );
+    // At `Interval` as at `f64`: the band's rim phase is the drum's
+    // frame turned, exact to rounding, so the touch concession reads it.
+    let interval_body = filleted::<Interval>();
+    let twin = injective(&interval_body, None, BUDGET);
+    assert_holds("the filleted drum at Interval", &twin, &interval_body);
     let torus = body
         .faces()
         .map(|(k, _)| k)

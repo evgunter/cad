@@ -1371,6 +1371,15 @@ once per cap, two per body, and reads ±(half-perimeter) to within
 a `Negative` sample is a cap whose inscribed polygon winds against its
 region (a large convex arc) and is flipped.
 
+**Roster change (BOXFINISH `sweep-frames`, 2026-11-14): one name
+retired, one thinned.** A sweep's cap is its station's frame (`sweep`'s
+`cap_plane`: the frame's origin, first axis and normal, signed by the
+traversal and the cap's end), so `cap_plane_orientation` decides
+nothing and is retired. The sweeps no longer fit a Newell plane to a cap
+or a line wall, so `newell_plane_residual` loses every sweep sample;
+`geom_brep::newell_plane` is a test fixture's mint now
+(`test-support`).
+
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
 `decide`, which recorded a sample for every offset it was handed. It

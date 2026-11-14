@@ -1,6 +1,6 @@
 //! The B-rep geometry layer: D2's intensional edge descriptions,
-//! certified carrier caches, the dihedral classification predicate, and
-//! Newell face equations (M2 PR 3).
+//! certified carrier caches, and the dihedral classification predicate
+//! (M2 PR 3).
 //!
 //! This crate sits between the evaluators (`geom`) and the arena
 //! store (`topo`): it defines **what an
@@ -8,14 +8,15 @@
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
 //! is unrepresentable), and the two geometric classifiers M2's
-//! constructions and tier-3 validation stand on:
+//! constructions and tier-3 validation stand on, and the plane mint
+//! test fixtures build their bodies with:
 //!
 //! - [`classify_dihedral`] — the material wedge-angle predicate's first
 //!   arrival: transverse / smooth / sliver-escalation, via
 //!   implicit-form gradients (never chart normals) and D4 ¶1's
 //!   displacement-through-lever-arm margins.
-//! - [`newell_plane`] — certified planes from loop vertex data,
-//!   translate-to-origin by default.
+//! - `newell_plane` (behind `test-support`) — certified planes from
+//!   loop vertex data, translate-to-origin by default.
 //!
 //! [`ssi`] is M5 PR 7's addition: rung 3 of the C1 ladder — surface
 //! intersection by march-then-certify, with the full three-limb C2
@@ -93,6 +94,7 @@ pub mod ladder {
 pub mod locus;
 pub mod mapped;
 pub(crate) mod memo;
+#[cfg(any(test, feature = "test-support"))]
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -174,7 +176,7 @@ pub use enters::{
 pub use extent::{
     ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
     edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
-    polygon_half_perimeter, surface_anchored_at,
+    surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -208,6 +210,7 @@ pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
+#[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,

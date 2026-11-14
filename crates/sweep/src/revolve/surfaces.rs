@@ -81,8 +81,9 @@ pub(super) fn wall_surface<T: Real>(
 /// A latitude strut/rim spec: the sketch point's trajectory under the
 /// rotation family (`MappedSource::RevolvedPoint`), carrier the
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
-/// interval `(0, |θ|]`; `u_ref` points at the start point `q` — the
-/// carrier-frame convention, distinct from the surfaces' shared `u₃`).
+/// interval `(0, |θ|]`); `u_ref` points at the start point `q`, which
+/// lies on the seam side of the axis (`r > 0`), so it is the frame's
+/// `u₃`.
 ///
 /// Not `extrude`'s `extruded_strut_spec`, which mints the same
 /// topological edge out of the translation family: a line carrier over
@@ -117,7 +118,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
                 angle: theta,
             },
         )),
-        carrier: Curve3::circle(center, axis_c, radius, rim.normalize()),
+        carrier: Curve3::circle(center, axis_c, radius, frame.u3),
         param_start: T::zero(),
         param_end: theta.abs(),
     }

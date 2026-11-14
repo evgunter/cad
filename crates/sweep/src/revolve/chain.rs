@@ -60,7 +60,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
     let first = body.mev(
         MevSite::Lone { r#loop },
         qs[1],
-        placed_segment_spec(&segs[0], place, normal, qs[0], qs[1], tol),
+        placed_segment_spec(&segs[0], place, normal, qs[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -73,7 +73,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&segs[j - 1], place, normal, qs[j - 1], qs[j], tol),
+            placed_segment_spec(&segs[j - 1], place, normal, qs[j - 1], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -85,7 +85,7 @@ pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&segs[n - 1], place, normal, qs[n - 1], qs[0], tol),
+        placed_segment_spec(&segs[n - 1], place, normal, qs[n - 1], tol),
         cap,
         tol,
     )?;

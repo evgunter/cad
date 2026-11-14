@@ -145,7 +145,6 @@ mod upgrade;
 
 use core::fmt;
 
-use crate::swept::CapPlaneError;
 use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
@@ -745,12 +744,6 @@ pub enum RevolveError {
         /// Canonical index of the station vertex.
         vertex_index: usize,
     },
-    /// A cap plane could not be certified or oriented (unreachable for
-    /// validated profiles — surfaced rather than trusted).
-    CapPlane {
-        /// The cap-plane failure.
-        source: CapPlaneError,
-    },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure
     /// ([`EulerOpError::Certification`]).
@@ -1047,7 +1040,6 @@ impl RevolveError {
                 "loop {loop_index} vertex {vertex_index} joins two walls of one run but lies \
                  on the axis, so the run's wall has no strut there"
             ),
-            Self::CapPlane { source } => write!(f, "{source}"),
             Self::Op { source } => {
                 write!(
                     f,

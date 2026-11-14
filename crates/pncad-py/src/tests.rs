@@ -4890,7 +4890,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "extrude_error_tag",
         values: &[
             "band",
-            "cap_plane",
             "cosurface_escalated",
             "degenerate_extrusion",
             "empty_profile",
@@ -4900,7 +4899,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "oblique_extrusion",
             "op",
             "pcurve",
-            "side_plane",
             "sliver_join",
             "sliver_rim",
             "smooth_join_refuted",
@@ -5039,7 +5037,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "loft_error_tag",
         values: &[
             "band",
-            "cap_plane",
             "clearance_fault",
             "clearance_undecided",
             "corner_escalated",
@@ -5629,7 +5626,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "axis_escalated",
             "axis_gap_escalated",
             "band",
-            "cap_plane",
             "cosurface_escalated",
             "degenerate_angle",
             "degenerate_axis",
@@ -6332,7 +6328,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("assertion_dimension", 2),
     ("band", 17),
-    ("cap_plane", 3),
     // One fact: a ring meeting its outer loop and a ring meeting
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.

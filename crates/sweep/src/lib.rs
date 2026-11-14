@@ -183,7 +183,6 @@ pub use revolve::{
     BandWall, Cavity, CavityOrigin, ClearanceDecision, Revolution, RevolveAxis, RevolveError,
     Revolved, RevolvedKind, WedgeCapsError, WedgeFrames, revolve, revolved_caps,
 };
-pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must

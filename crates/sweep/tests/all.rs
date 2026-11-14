@@ -162,6 +162,8 @@ mod a_split_operand_does_not_finish;
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
+#[path = "a_sweep_keeps_the_frame_it_is_handed.rs"]
+mod a_sweep_keeps_the_frame_it_is_handed;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]

@@ -1148,33 +1148,3 @@ fn a_convex_arc_c_shape_caps_point_out_against_the_normal_and_reversed() {
         "the C-shape revolved through a negative quarter turn certifies"
     );
 }
-
-/// **Every new cap-plane refusal states one ending and no
-/// declaration.** The orientation escalation and the edge-on plane are
-/// only reachable through a kernel defect or a non-rigid frame, so
-/// each renders the one kernel-defect ending, and none hands the user
-/// the generic recourse menu an `Indeterminate`'s own Display carries.
-///
-/// **How it goes red.** Rendering the whole `Indeterminate` adds its
-/// recourse menu (`recourse_markers` 2, and the declaration wording);
-/// dropping the ending leaves 0. The runtime value is each rendered
-/// sentence.
-#[test]
-fn every_new_cap_plane_refusal_states_one_ending_and_no_declaration() {
-    let band = Band::linear(Tol::witness()).expect("the run's band forms");
-    let esc = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value((band.zero() + band.escalate()) / 2.0),
-        band,
-        predicate: Some("cap_plane_orientation"),
-        terminal_sliver: false,
-    };
-    for e in [
-        sweep::CapPlaneError::Orientation(esc),
-        sweep::CapPlaneError::EdgeOn,
-    ] {
-        let s =
-            sweep::ExtrudeError::CapPlane { source: e }.render(geom_brep::recourse::Reading::Build);
-        assert_eq!(test_utils::refusal::recourse_markers(&s), 1, "{s}");
-        assert!(!s.contains("declare"), "{s}");
-    }
-}

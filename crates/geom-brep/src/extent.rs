@@ -103,16 +103,6 @@ pub fn points_diameter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
     Lever::of_consumed_extent(farthest_pair(points))
 }
 
-/// **Half the perimeter of the closed polygon through the consumed
-/// `points`**, in order: no two of its vertices stand farther apart, the
-/// two ways round between them summing to the perimeter. Zero for none.
-pub fn polygon_half_perimeter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
-    let perimeter = points.iter().enumerate().fold(T::zero(), |sum, (i, &p)| {
-        sum + (points[(i + 1) % points.len()] - p).norm()
-    });
-    Lever::of_consumed_extent(perimeter * T::from_f64(0.5))
-}
-
 /// **What a stored datum's kind forgets**: the orbit its symmetry lets
 /// the datum slide along without moving the carrier ([`anchored_at`]).
 #[derive(Clone, Copy, Debug)]

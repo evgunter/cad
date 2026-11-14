@@ -279,8 +279,7 @@ fn pieces<T: Decide>(
                 let c = &strip[i];
                 let ends = (c[0], c[c.len() - 1]);
                 let seg = SweptSeg::forward(profile_loop, j);
-                let spec =
-                    placed_segment_spec(&seg, place.placement(), normal, ends.0, ends.1, tol);
+                let spec = placed_segment_spec(&seg, place.placement(), normal, ends.0, tol);
                 Piece {
                     at: LoopSegment {
                         loop_index: l,

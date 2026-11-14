@@ -26,9 +26,7 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{
-    CapEnd, Placing, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
-};
+use crate::swept::{CapEnd, Placing, cap_plane, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
@@ -47,7 +45,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let place = frame.place;
     let far =
         Placing::turned(place, frame.origin3, frame.axis, theta).map_err(RevolveError::Turn)?;
-    let place_end = far.map();
     let Some(n_end) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
     };
@@ -122,16 +119,8 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // Start cap plane: derived from the sketch data alone — it reads no
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
-    let start_plane = cap_plane(
-        &cap_points(outer, qs, place),
-        place,
-        reverse,
-        CapEnd::Start,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let start_cap = FaceSurface::New {
-        surface: start_plane,
+        surface: cap_plane(place, reverse, CapEnd::Start),
         sense: true,
     };
     let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
@@ -258,18 +247,10 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let end_plane = cap_plane(
-        &cap_points(loops[0], &rpoints[0], far),
-        place_end,
-        reverse,
-        CapEnd::End,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {
-            surface: end_plane,
+            surface: cap_plane(far, reverse, CapEnd::End),
             sense: true,
         },
     )?;
@@ -553,8 +534,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     sense,
                 },
             };
-            let end = (j + 1) % n;
-            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], rq[end], tol);
+            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], tol);
             Ok::<_, RevolveError>(Some((far, surface)))
         },
         tol,

@@ -800,7 +800,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[0], place, frame.n3, qw[0], qw[1], tol),
+        placed_segment_spec(&segs[0], place, frame.n3, qw[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -812,7 +812,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -881,7 +881,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[i], far, n_pi, qpi[i], qpi[i + 1], tol),
+            placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
             surface,
             tol,
         )?;
@@ -957,7 +957,9 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 })
                 .restrict(T::from_f64(0.5), T::one()),
             ),
-            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, rim.normalize()),
+            // `u_ref` points at the turned vertex: the seam direction
+            // `u₃` (the vertex lies at `r > 0`), turned with it.
+            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, far.carry(frame.u3)),
             param_start: T::zero(),
             param_end: half.abs(),
         };

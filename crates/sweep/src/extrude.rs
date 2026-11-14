@@ -93,10 +93,11 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, MustCarryDescription,
-    NewellError, WedgeRefusal, newell_plane,
+    WedgeRefusal,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2,
+    Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
@@ -104,8 +105,8 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::swept;
 use crate::swept::{
-    CapEnd, CapPlaneError, CosurfaceNames, SweptChord, cap_plane, cap_points, decide,
-    face_surface_key, placed_segment_spec, turn_axis,
+    CapEnd, CosurfaceNames, Placing, SweptChord, cap_plane, decide, face_surface_key,
+    placed_segment_spec, sketch_direction, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -381,7 +382,7 @@ pub enum ExtrudeError {
     /// A cosurface-sharing predicate escalated at a join: the geometry
     /// is neither definitely one carrier nor definitely two.
     ///
-    /// Defense-in-depth (the `CapPlane` posture): unreachable from
+    /// Defense-in-depth: unreachable from
     /// validated profiles, because profile simplicity classifies the
     /// same displacements first — an in-band carrier near-identity
     /// already escalated at the profile gate. Surfaced rather than
@@ -436,7 +437,7 @@ pub enum ExtrudeError {
     /// band no station read; two smooth stations whose material pairings
     /// or ends differ name a material verdict no station established.
     ///
-    /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
+    /// Defense-in-depth: both walls are ruled
     /// along a strut, and a rim that reads smooth is a line between two
     /// planes (arc walls are ruled in the sketch normal —
     /// `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
@@ -449,27 +450,6 @@ pub enum ExtrudeError {
         edge: EdgeKey,
         /// The two neighbouring stations that disagree.
         mixed: geom_brep::MixedStations,
-    },
-    /// A cap plane could not be certified or oriented (non-planar or
-    /// degenerate loop data — unreachable for validated profiles,
-    /// surfaced rather than trusted).
-    CapPlane {
-        /// The cap-plane failure.
-        source: CapPlaneError,
-    },
-    /// A side-wall plane failed Newell certification.
-    ///
-    /// Defense-in-depth (the `CapPlane` posture): a validated segment's
-    /// swept quad is non-degenerate whenever the extrusion itself is
-    /// (already classified) — unreachable from validated profiles,
-    /// surfaced rather than trusted.
-    SidePlane {
-        /// Canonical index of the loop.
-        loop_index: usize,
-        /// Canonical index of the segment.
-        segment_index: usize,
-        /// The Newell failure.
-        source: NewellError,
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure, which arrives as
@@ -561,15 +541,6 @@ impl ExtrudeError {
                 "along the join {edge:?}, {mixed}. {}",
                 geom_core::MOVE_RECOURSE
             ),
-            Self::CapPlane { source } => write!(f, "{source}"),
-            Self::SidePlane {
-                loop_index,
-                segment_index,
-                source,
-            } => write!(
-                f,
-                "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
-            ),
             Self::Op { source } => {
                 write!(
                     f,
@@ -619,7 +590,7 @@ pub(crate) struct WallSeg<T: Real> {
     /// chart normal into material, sense `false`) iff `Negative`.
     /// Concavity is a property of the 2-D region against the carrier
     /// circle alone, so the extrusion direction (the swept reversal)
-    /// never enters. Line walls are Newell-outward by construction:
+    /// never enters. Line walls face outward by construction:
     /// always `true`.
     pub(crate) wall_sense: bool,
 }
@@ -649,7 +620,7 @@ pub(crate) fn wall_segments<T: Real>(lp: &ValidatedLoop<T>, reverse: bool) -> Ve
 /// `true` exactly when the material is on the far side of the carrier
 /// from the chord — which is [`swept::centre_on_material_side`], the
 /// same rule and the same body revolve's arc walls use. Line walls are
-/// Newell-outward by construction.
+/// outward by construction.
 fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
     match s.kind {
         SegmentKind::Line => true,
@@ -669,23 +640,76 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
 }
 
-/// **The strut's carrier, in one expression.** A strut is the ruling
-/// of the sweep through its seed vertex: the line from the vertex's
-/// bottom image along the extrusion direction, arc-length
-/// parameterized over `0..w_norm`. The mint writes it; the join pass
-/// re-describes the stored edge ([`Body::restate_stored_edge`]) and
-/// never re-derives it, because `Curve3::line_between(q, q + w)`
-/// recomputes the direction and the interval from endpoints that need
-/// not be bitwise the ones the edge was minted with, which moves
-/// geometry in a pass whose whole contract is that only the
-/// DESCRIPTION moves.
-fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
-    Curve3::line(q_bottom, w.normalize())
+/// **Which way an extrusion runs, decided once** from what the user
+/// wrote: a depth runs along ± the sketch normal, a vector along its
+/// own unit direction. Every direction the door stores that the sweep
+/// sets (a strut's, a line wall's normal) is read from here, never
+/// from points the sweep placed.
+#[derive(Clone, Copy, Debug)]
+enum Course<T: Real> {
+    /// [`Extrusion::Distance`]: along the sketch normal, or against it.
+    Normal {
+        /// Against the normal ([`ExtrudeSide::Against`]).
+        reversed: bool,
+    },
+    /// [`Extrusion::Vector`]: along `dir`, the vector normalized.
+    Vector {
+        /// The vector's unit direction.
+        dir: Vec3<T>,
+        /// `dir` points against the sketch normal.
+        reversed: bool,
+    },
+}
+
+impl<T: Real> Course<T> {
+    /// Whether the sweep runs against the sketch normal, which reverses
+    /// the swept traversal ([`Extruded::reversed`]).
+    fn reversed(self) -> bool {
+        match self {
+            Self::Normal { reversed } | Self::Vector { reversed, .. } => reversed,
+        }
+    }
+
+    /// The sweep's unit direction, `normal` the sketch plane's.
+    fn dir(self, normal: Vec3<T>) -> Vec3<T> {
+        match self {
+            Self::Normal { reversed: false } => normal,
+            Self::Normal { reversed: true } => -normal,
+            Self::Vector { dir, .. } => dir,
+        }
+    }
+
+    /// The outward normal of the plane a line swept along this course
+    /// lies in, its swept direction `d` (a unit sketch direction) placed
+    /// by `place`: `d × dir`, which is outward for a material-left loop.
+    /// Along the normal that is the frame turning `d`'s right normal
+    /// `(d.y, −d.x)`, negated when the sweep runs against it; along a
+    /// vector, the cross product normalized.
+    fn wall_normal(self, place: Placing<T>, d: Vec2<T>) -> Vec3<T> {
+        match self {
+            Self::Normal { reversed } => {
+                let right = Vec2::new(d.y, T::zero() - d.x);
+                place.direction(if reversed { -right } else { right })
+            }
+            Self::Vector { dir, .. } => place.direction(d).cross(dir).normalize(),
+        }
+    }
+}
+
+/// The extrusion: its vector, the vector's length, and its course. A
+/// depth extrusion's length is its depth, decided positive and swept
+/// along a unit normal, so a strut's far end is `q + w` as the sketch
+/// wrote it rather than a length read back off `w`.
+#[derive(Clone, Copy, Debug)]
+struct Sweep<T: Real> {
+    w: Vec3<T>,
+    length: T,
+    course: Course<T>,
 }
 
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
-/// carrier from the bottom point along the extrusion vector,
-/// parameterized by arc length over `0..w_norm`.
+/// carrier from the bottom point along the sweep's direction,
+/// parameterized by arc length over `0..length`.
 ///
 /// Not `revolve::surfaces`'s `revolved_strut_spec`, which mints the
 /// same topological edge out of the rotation family: different
@@ -696,20 +720,20 @@ fn extruded_strut_spec<T: Real>(
     point: Point2<T>,
     place: Affine3<T>,
     q_bottom: Point3<T>,
-    w: Vec3<T>,
-    w_norm: T,
+    normal: Vec3<T>,
+    sweep: Sweep<T>,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
             MappedSource::ExtrudedPoint {
                 point,
                 place,
-                vec: w,
+                vec: sweep.w,
             },
         )),
-        carrier: strut_carrier(q_bottom, w),
+        carrier: Curve3::line(q_bottom, sweep.course.dir(normal)),
         param_start: T::zero(),
-        param_end: w_norm,
+        param_end: sweep.length,
     }
 }
 
@@ -739,7 +763,7 @@ struct LoopBase {
 ///
 /// [`ExtrudeError`] — closed and typed: degenerate/oblique/sliver
 /// extrusion vectors, sliver dihedrals at joins, escalated cosurface
-/// decisions, Newell failures, and every operator/certification
+/// decisions, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
 /// [`EulerOpError::Certification`]).
 ///
@@ -762,7 +786,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
-    let (w, reverse) = match extrusion {
+    let (w, course) = match extrusion {
         Extrusion::Distance { depth, side } => {
             let decided =
                 swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)
@@ -775,8 +799,12 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                         depth: decided.margin,
                     });
                 }
-                (Sign::Positive, ExtrudeSide::Along) => (normal * depth, false),
-                (Sign::Positive, ExtrudeSide::Against) => (normal * (-depth), true),
+                (Sign::Positive, ExtrudeSide::Along) => {
+                    (normal * depth, Course::Normal { reversed: false })
+                }
+                (Sign::Positive, ExtrudeSide::Against) => {
+                    (normal * (-depth), Course::Normal { reversed: true })
+                }
             }
         }
         Extrusion::Vector(v) => {
@@ -797,10 +825,24 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => return Err(ExtrudeError::ObliqueExtrusion),
             }
-            (v, reverse)
+            (
+                v,
+                Course::Vector {
+                    dir: v.normalize(),
+                    reversed: reverse,
+                },
+            )
         }
     };
-    let w_norm = w.norm();
+    let reverse = course.reversed();
+    let sweep = Sweep {
+        w,
+        length: match extrusion {
+            Extrusion::Distance { depth, .. } => depth,
+            Extrusion::Vector(v) => v.norm(),
+        },
+        course,
+    };
     let top_place = Affine3::translation(w) * place;
 
     // ---- Swept traversals, each wall run collapsed to one segment
@@ -854,21 +896,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    // Bottom cap plane, fitted where the cap is minted, after the
-    // chain's certifications.
-    let bottom_cap = || -> Result<FaceSurface<T>, ExtrudeError> {
-        let surface = cap_plane(
-            &cap_points(outer, qs, place),
-            place,
-            reverse,
-            CapEnd::Start,
-            band,
-        )
-        .map_err(|source| ExtrudeError::CapPlane { source })?;
-        Ok(FaceSurface::New {
-            surface,
-            sense: true,
-        })
+    let bottom_cap = FaceSurface::New {
+        surface: cap_plane(place, reverse, CapEnd::Start),
+        sense: true,
     };
     // A loop swept whole in phases 1–2 (a one-segment loop, which is
     // built far rim first: `sweep_full_turn`) carries its sweep here.
@@ -878,16 +908,13 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let seed = body.mvfs(qs[0] + w, true)?;
         let turn = sweep_full_turn(
             &mut body,
-            0,
             &outer[0],
             seed.r#loop,
             qs[0],
             [place, top_place],
             normal,
-            w,
-            w_norm,
-            bottom_cap()?,
-            band,
+            sweep,
+            bottom_cap,
             tol,
         )?;
         bases.push(LoopBase {
@@ -904,7 +931,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             qs[1],
-            placed_segment_spec(&outer[0], place, normal, qs[0], qs[1], tol),
+            placed_segment_spec(&outer[0], place, normal, qs[0], tol),
             tol,
         )?;
         hes.push(first.he_plus);
@@ -916,7 +943,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 qs[j],
-                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
+                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], tol),
                 tol,
             )?;
             hes.push(m.he_plus);
@@ -927,8 +954,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-            bottom_cap()?,
+            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], tol),
+            bottom_cap,
             tol,
         )?;
         hes.push(close.he_plus);
@@ -954,16 +981,13 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 |b, ring, disc| {
                     let turn = sweep_full_turn(
                         b,
-                        li,
                         &segs[0],
                         ring,
                         hq[0],
                         [place, top_place],
                         normal,
-                        w,
-                        w_norm,
+                        sweep,
                         disc,
-                        band,
                         tol,
                     )?;
                     Ok::<_, ExtrudeError>((turn, ()))
@@ -983,7 +1007,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1],
-            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1], tol),
+            placed_segment_spec(&segs[0], place, normal, hq[0], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -995,7 +1019,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
+                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -1006,7 +1030,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
+            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], tol),
             swept::transient_disc(bottom_surface),
             tol,
         )?;
@@ -1036,8 +1060,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 place,
                 top_place,
                 normal,
-                w,
-                w_norm,
+                sweep,
                 band,
                 tol,
             )?,
@@ -1046,19 +1069,12 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         top_rims.push(swept.top_rims);
     }
 
-    // ---- Phase 5: the swept face survives as the top cap; attach its
-    // plane (translated outer loop in next order ⇒ outward normal
-    // along the extrusion). ----
-    let far_loop: Vec<Point3<T>> = cap_points(&loops[0], &points[0], place)
-        .iter()
-        .map(|&q| q + w)
-        .collect();
-    let top_plane = cap_plane(&far_loop, place, reverse, CapEnd::End, band)
-        .map_err(|source| ExtrudeError::CapPlane { source })?;
+    // ---- Phase 5: the swept face survives as the top cap, on the
+    // sketch frame carried by the sweep. ----
     body.set_face_surface(
         top_face,
         FaceSurface::New {
-            surface: top_plane,
+            surface: cap_plane(top_place, reverse, CapEnd::End),
             sense: true,
         },
     )?;
@@ -1128,12 +1144,12 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     place: Affine3<T>,
     top_place: Affine3<T>,
     normal: Vec3<T>,
-    w: Vec3<T>,
-    w_norm: T,
+    sweep: Sweep<T>,
     band: Band,
     tol: Tol,
 ) -> Result<LoopSwept, ExtrudeError> {
     let n = segs.len();
+    let w = sweep.w;
 
     // Struts: one swept vertex per (collapsed) segment's start.
     let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
@@ -1144,7 +1160,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             qs[j] + w,
-            extruded_strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
+            extruded_strut_spec(segs[j].chord.a, place, qs[j], normal, sweep),
             tol,
         )?);
     }
@@ -1157,10 +1173,18 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         |j| struts[j].he_minus,
         |body, j, faces| {
             let surface = side_surface(
-                body, loop_index, segs, joins, faces, j, qs, place, normal, w, band, tol,
-            )?;
-            let end = (j + 1) % n;
-            let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, qs[end] + w, tol);
+                body,
+                segs,
+                joins,
+                faces,
+                j,
+                qs,
+                place,
+                normal,
+                sweep.course,
+                tol,
+            );
+            let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
         tol,
@@ -1282,35 +1306,29 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::too_many_arguments)] // two call sites; the sweep's fixed context.
 fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
-    loop_index: usize,
     seg: &WallSeg<T>,
     r#loop: topo::LoopKey,
     q: Point3<T>,
     [place, top_place]: [Affine3<T>; 2],
     normal: Vec3<T>,
-    w: Vec3<T>,
-    w_norm: T,
+    sweep: Sweep<T>,
     near_cap: FaceSurface<T>,
-    band: Band,
     tol: Tol,
 ) -> Result<swept::FullTurn, ExtrudeError> {
-    let segs = core::slice::from_ref(seg);
     let wall = side_surface(
         body,
-        loop_index,
-        segs,
+        core::slice::from_ref(seg),
         &[swept::Join::Corner],
         &[None],
         0,
         &[q],
         place,
         normal,
-        w,
-        band,
+        sweep.course,
         tol,
-    )?;
-    let far = q + w;
-    let back = Vec3::zero() - w;
+    );
+    let far = q + sweep.w;
+    let back = Vec3::zero() - sweep.w;
     let strut = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
             MappedSource::ExtrudedPoint {
@@ -1319,18 +1337,18 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
                 vec: back,
             },
         )),
-        carrier: strut_carrier(far, back),
+        carrier: Curve3::line(far, -sweep.course.dir(normal)),
         param_start: T::zero(),
-        param_end: w_norm,
+        param_end: sweep.length,
     };
     let turn = swept::build_full_turn(
         body,
         r#loop,
         q,
-        placed_segment_spec(seg, top_place, normal, far, far, tol),
+        placed_segment_spec(seg, top_place, normal, far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, place, normal, q, q, tol),
+        placed_segment_spec(seg, place, normal, q, tol),
         near_cap,
         tol,
     )?;
@@ -1367,20 +1385,20 @@ struct LoopSwept {
 
 /// The surface spec of the wall over collapsed segment `j`, from the
 /// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
-/// segment order). A line is one wall on a freshly built plane (Newell
-/// over its quad corners in loop order — outward by the orientation
-/// contract — charted along the swept segment's direction). An arc is
-/// one wall on a fresh cylinder (turn-signed axis, crate docs) whose
-/// `u_ref` aims at its start vertex — except across a circle's
+/// segment order). A line is one wall on a fresh plane through its
+/// start vertex: its normal the course's ([`Course::wall_normal`]),
+/// outward for a material-left loop, its chart along the swept
+/// segment's direction. An arc is one wall on a fresh cylinder
+/// (turn-signed axis, crate docs) whose `u_ref` is the frame turning
+/// the arc's radial at its start vertex — except across a circle's
 /// canonical cut ([`swept::Join::Cut`]), where each wall after the
 /// first shares its key ([`swept::shared_wall`]). Every arm states the
 /// segment's [`WallSeg::wall_sense`]: a concave arc's wall has its
 /// material outside the carrier cylinder, against the outward-radial
 /// chart normal.
-#[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
-fn side_surface<T: Decide>(
+#[allow(clippy::too_many_arguments)] // two internal call sites; the sweep's fixed context.
+fn side_surface<T: Real>(
     body: &Body<T>,
-    loop_index: usize,
     segs: &[WallSeg<T>],
     joins: &[swept::Join],
     faces: &[Option<FaceKey>],
@@ -1388,33 +1406,21 @@ fn side_surface<T: Decide>(
     qs: &[Point3<T>],
     place: Affine3<T>,
     normal: Vec3<T>,
-    w: Vec3<T>,
-    band: Band,
+    course: Course<T>,
     tol: Tol,
-) -> Result<FaceSurface<T>, ExtrudeError> {
+) -> FaceSurface<T> {
     let sense = segs[j].wall_sense;
     if let Some(f) = swept::shared_wall(joins, faces, j) {
         let key = face_surface_key(body, f);
-        return Ok(FaceSurface::Shared { key, sense });
+        return FaceSurface::Shared { key, sense };
     }
-    let end = (j + 1) % segs.len();
-    match segs[j].chord.kind.get() {
-        SegmentKind::Line => {
-            // Quad corners in the side loop's next order starting at
-            // the segment's start: v_j′, v_j, v_end, v_end′.
-            let corners = [qs[j] + w, qs[j], qs[end], qs[end] + w];
-            let plane = newell_plane(&corners, qs[end] - qs[j], band).map_err(|source| {
-                ExtrudeError::SidePlane {
-                    loop_index,
-                    segment_index: segs[j].chord.canonical_segment,
-                    source,
-                }
-            })?;
-            Ok(FaceSurface::New {
-                surface: plane,
-                sense,
-            })
-        }
+    let d = sketch_direction(&segs[j]);
+    let surface = match segs[j].chord.kind.get() {
+        SegmentKind::Line => Surface::Plane {
+            origin: qs[j],
+            normal: course.wall_normal(place.into(), d),
+            u_ref: Placing::from(place).direction(d),
+        },
         SegmentKind::Arc { arc, turn } => {
             // The carrier axis line is the arc's centre extruded:
             // `place · (centre, 0)` — the same computation the rim
@@ -1426,23 +1432,19 @@ fn side_surface<T: Decide>(
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
             let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
-            let rim = qs[j] - c_world;
-            // The SAME rigidity the bottom rim carrier registers, at
-            // the same guarantee and through the same helper: this
-            // wall's `u_ref` is built from the same lamina vertex and
-            // the same extruded centre (`swept::register_rigidity`).
-            crate::swept::register_rigidity(rim, arc, segs[j].chord.a, tol);
-            Ok(FaceSurface::New {
-                surface: Surface::Cylinder {
-                    origin: c_world,
-                    axis: turn_axis(turn, normal),
-                    radius: arc.radius,
-                    u_ref: rim.normalize(),
-                },
-                sense,
-            })
+            // The SAME rigidity the bottom rim carrier registers, about
+            // the same extruded centre through the same lamina vertex
+            // (`swept::register_rigidity`).
+            crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
+            Surface::Cylinder {
+                origin: c_world,
+                axis: turn_axis(turn, normal),
+                radius: arc.radius,
+                u_ref: Placing::from(place).direction(d),
+            }
         }
-    }
+    };
+    FaceSurface::New { surface, sense }
 }
 
 /// Upgrades one cap–wall rim edge to `Intersection { cap, wall,

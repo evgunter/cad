@@ -119,15 +119,22 @@ fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
         .collect()
 }
 
+/// Whether the plane through `origin` along `normal` holds `p`. A
+/// cap's plane is read as a plane: its origin is its station's frame
+/// origin, which need not lie in the cap's disc.
+fn holds(origin: Point3<f64>, normal: Vec3<f64>, p: Point3<f64>) -> bool {
+    (p - origin).dot(normal).abs() < 1e-9
+}
+
 /// The coplanar cross cap pairs at the fork (stem end cap against
-/// arch start cap), counted by POSITION: the weld's whole flush
-/// contact.
+/// arch start cap), counted by POSITION: two planes through the fork
+/// that face along one line, the weld's whole flush contact.
 pub(crate) fn weld_cap_pairs(stem: &Body<f64>, arch: &Body<f64>) -> usize {
     let fork = arch_frame().fork;
     let mut pairs = 0;
-    for &(_, oa, _) in &plane_faces(stem) {
-        for &(_, ob, _) in &plane_faces(arch) {
-            if (oa - fork).norm() < 1e-9 && (ob - fork).norm() < 1e-9 {
+    for &(_, oa, na) in &plane_faces(stem) {
+        for &(_, ob, nb) in &plane_faces(arch) {
+            if holds(oa, na, fork) && holds(ob, nb, fork) && na.cross(nb).norm() < 1e-9 {
                 pairs += 1;
             }
         }
@@ -222,13 +229,11 @@ fn p1_wall1_glues_the_stem_into_one_body() {
         }
     }
     let frame = arch_frame();
-    let far_cap = plane_faces(&a)
-        .into_iter()
-        .find(|&(_, o, _)| (o - Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
-        .expect("the arch has a cap more than 2 m from the world origin");
     assert!(
-        (far_cap.1 - frame.far).norm() < 1e-9,
-        "that cap sits at the turtle math's arch end point"
+        plane_faces(&a)
+            .into_iter()
+            .any(|(_, o, n)| holds(o, n, frame.far) && !holds(o, n, frame.fork)),
+        "the arch has a far cap, through the turtle math's arch end point"
     );
 
     // (b) The far cap's loci never approach — every point of its disc

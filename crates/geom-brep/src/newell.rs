@@ -3,12 +3,15 @@
 //! accuracy fix as the **default**, not an exercise).
 //!
 //! [`newell_plane`] turns an ordered loop of vertex positions into a
-//! certified [`Surface::Plane`]. Plane equations are *derived caches* —
-//! Euler operators never fill them (M2-PLAN's source grounding); the
-//! sweeps call this when they create planar caps and side faces from
-//! profile data (they know planarity by construction — Newell turns
-//! vertex data into the certified surface), and the tier-3 validator
-//! re-checks the stored plane against the vertices at rest.
+//! certified [`Surface::Plane`]. No production door calls it: a door
+//! that builds a planar face states the plane its construction holds
+//! (a sweep's cap is its station's frame, a wall's normal the frame
+//! turning its segment's direction), and fitting a plane to the
+//! vertices it placed would give the plane width the face does not
+//! have over a parameter box. It is the test fixtures' plane mint —
+//! a body laid down from corner lists needs a certified plane through
+//! them — and lives behind `test-support` for that reason. The tier-3
+//! validator re-checks a stored plane against the vertices at rest.
 //!
 //! # The method, and why translate-to-origin
 //!
@@ -27,8 +30,8 @@
 //! along the normal removed, normalized.
 //!
 //! **This module picks no reference.** The caller holds an in-plane
-//! direction from its own construction (a swept segment's direction, a
-//! sketch's x axis lifted by its placement) and passes it, so the
+//! direction from its own construction (a fixture's first edge) and
+//! passes it, so the
 //! plane's `u_ref` is a function of the inputs and moves with them under
 //! a rigid motion of the computing frame (D10 `[placement.frame]`). The
 //! certification below measures vertex distances to `(origin, normal)`
@@ -70,9 +73,8 @@
 //! collinearity escalates via the poison normal; the near-collinear
 //! band cannot, because the residuals honestly certify). Consumers
 //! reading the normal as an *orientation* (outward-normal contracts)
-//! must not feed near-collinear loops expecting a stable direction —
-//! the sweeps never do (validated profiles have definite area), and
-//! anything that might should treat the direction as data-quality-
+//! must not feed near-collinear loops expecting a stable direction,
+//! and anything that might should treat the direction as data-quality-
 //! limited. (M2 PR 3 review, N3 — pinned by the promoted
 //! `fixed_n3_*` test.)
 
