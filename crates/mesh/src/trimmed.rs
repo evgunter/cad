@@ -128,7 +128,14 @@
 //! exact predicates read any three points of one ruling as collinear,
 //! and no triangle lies along one. Three points of a cone on one line
 //! lie on a ruling (a line meets the quadric in two points or lies in
-//! it), so no other triangle of zero area exists to make.
+//! it), so no other triangle of zero area exists to make. A THIN triangle
+//! is another matter, and nothing bounds it: beside a ruling a triangle's
+//! `2·area/L²` goes as `(h/L)²`, and a needle cone or a face ending near
+//! its apex meshes certified triangles near `1e-8`
+//! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
+//! A face ending close to its apex can also refuse at fine δ, because
+//! the chart's certificate reads the span the development makes short
+//! (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
 //!   origin. The development rounds, so it is not injective: a polygon
