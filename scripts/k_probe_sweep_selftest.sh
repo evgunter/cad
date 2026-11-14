@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Drives scripts/k_probe_sweep.sh against a stub `cargo` and a stub probe
 # census in a scratch tree, and checks its exit and its census input in
-# five states: a red plain suite, two red plain suites, a plain run that
+# six states: a red plain suite, two red plain suites, a plain run that
 # crashed with no `test result:` line, a red census with every suite
-# green, and all green.
+# green, all green, and a crash after an earlier sweep left its
+# dumps-complete marker.
 #
 #   scripts/k_probe_sweep_selftest.sh
 set -euo pipefail
@@ -69,5 +70,14 @@ case_ "two red plain suites" 1 3 "crateA::modA crateB::modB" STUB_RED="modA modB
 case_ "a crashed plain run" 1 0 "without a test result" STUB_CRASH=modB
 case_ "a red census, every suite green" 3 3 "=== k-probe sweep @ eps=1e-12" CENSUS_RC=3
 case_ "all green" 0 3 "wrote " STUB_RED=
-[ "$bad" = 0 ] && echo "k_probe_sweep selftest OK: 5 cases"
+# A marker an earlier sweep left behind is gone after one that crashed.
+rm -rf "$tree/out" "$tree/log"
+: >"$tree/dumped"
+(cd "$tree" && env PATH="$tree/bin:$PATH" CENSUS_SEEN="$tree/seen.tsv" K_SWEEP_DUMPED="$tree/dumped" STUB_CRASH=modB \
+  bash scripts/k_probe_sweep.sh "$tree/out" >"$tree/log" 2>&1) || true
+if [ -e "$tree/dumped" ]; then
+  echo "FAIL a stale marker: a crashed sweep left an earlier sweep's dumps-complete marker in place" >&2
+  bad=1
+fi
+[ "$bad" = 0 ] && echo "k_probe_sweep selftest OK: 6 cases"
 exit "$bad"

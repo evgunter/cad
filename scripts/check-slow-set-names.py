@@ -191,6 +191,7 @@ def main(argv: list[str]) -> int:
     rc = check(entries(text), suites, complete, members)
     # A `ci` override names its tests the same way, so a renamed one is as
     # dead as a renamed slow-set entry: each override is checked on its own.
+    # An override's filter must be the slow set's exact-name shape, `(binary_id(B) & (test(=..) | ..))`; any other spelling fails here.
     for i, override in enumerate(overrides):
         rc |= check(entries(f"not ({override['filter']})"), suites, complete, members, f"ci override {i}")
     return rc

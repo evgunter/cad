@@ -48,6 +48,8 @@ prefix=${K_SWEEP_PREFIX:-k-eps-}
 
 mkdir -p "$outdir/m2"
 mkdir -p "$outdir/driver"
+# A marker left from an earlier sweep would vouch for this one's dumps.
+[ -z "${K_SWEEP_DUMPED:-}" ] || rm -f "$K_SWEEP_DUMPED"
 
 # WHAT ACTUALLY RAN, one row per invocation:
 # `<mode><TAB><crate><TAB><module><TAB><passed><TAB><ignored>`.
