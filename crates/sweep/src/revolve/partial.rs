@@ -600,9 +600,12 @@ fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
             points.push(arc.apex(s.a, s.b));
         }
     }
-    let n = T::from_f64(points.len() as f64);
-    let (x, y) = points
+    // The count is summed in `T` beside the coordinates, one per point,
+    // so no computed value enters through `from_f64`.
+    let (x, y, n) = points
         .iter()
-        .fold((T::zero(), T::zero()), |(x, y), p| (x + p.x, y + p.y));
+        .fold((T::zero(), T::zero(), T::zero()), |(x, y, n), p| {
+            (x + p.x, y + p.y, n + T::one())
+        });
     Point2::new(x / n, y / n)
 }
