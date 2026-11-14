@@ -18,3 +18,7 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), in nightly 42
 - also red at `7e1bb780`, `3e7ce509`, `2e4c44de` and main `019bed88`, at line 75 each time.
 
 Read the diff (`PERF12_BLESS_CENSUS=1` writes the new golden), decide whether the new verdict at line 75 is right, and re-bless deliberately with the argument. The census row names the verdict. Check the 1e-6 golden as well, which is also red.
+
+## Pinned (GREEN, `green/goldens`, 2026-11-14)
+
+Still red at line 75 at every ε row in nightly 43371638371 and on main `b363f5fa1`, and at every commit measured from `9a256348` to main. GREEN PINNED the three goldens at what main reads (written with `PERF12_BLESS_CENSUS=1`), unjudged, so the row is green and reds on the next move; the test's doc names this row. The diff of the goldens is in that PR. Still owed here: whether PR 6757's verdict at line 75 is right.
