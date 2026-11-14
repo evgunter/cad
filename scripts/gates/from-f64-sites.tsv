@@ -145,7 +145,8 @@ crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc bre
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
-crates/sweep/src/skin.rs	1	constant	s	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
+crates/sweep/src/skin.rs	2	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples (its point and its hodograph read there)
+crates/sweep/src/skin.rs	1	constant	f64::from(u32::try_from(p).unwrap_or(u32::MAX))	the path's degree, a count (the hodograph's factor p)
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance

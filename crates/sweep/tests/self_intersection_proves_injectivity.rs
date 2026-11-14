@@ -940,24 +940,6 @@ fn a_filleted_corners_ball_holds_against_a_face_at_its_pole() {
 /// half of an axis, so it is admitted by the other half narrowing.
 #[test]
 fn a_long_helical_sweep_certifies_within_the_default_budget() {
-    // Pinned red at ε = 1e-12: each station's frame is minted at
-    // `Interval`, about 1.4e-13 wide, and the wall fitted through the
-    // stations reads against the 1e-12 band, where `pcurve_loop_continuity` escalates on an enclosure of ±2.1e-12
-    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the long helical sweep",
-        &[
-            "the helix sweeps: Pcurve(Escalated",
-            "predicate: Some(\"pcurve_loop_continuity\")",
-        ],
-        a_long_helical_sweep_certifies_within_the_default_budget_row,
-    );
-}
-
-/// The row [`a_long_helical_sweep_certifies_within_the_default_budget`] runs, under its pin.
-fn a_long_helical_sweep_certifies_within_the_default_budget_row() {
     fn helical<T: Scalar>() -> Body<T> {
         let path = helix(2.0, 0.4);
         let place = plane_at(&normal_start_place(&path));
