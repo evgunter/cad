@@ -25,3 +25,15 @@ The review suggested two witnesses. Neither serves:
 - An operand write does report the payload names it strands (`edit.rs`, `DocEdit::SetParam`'s doc; `stranded_by_repoint`, `Took::Reach`). But every creation's `⊔`/product re-point hands the seat a result that reads the taken body. That body therefore stays upstream of the seat, and no name goes out of reach.
 
 The kernel docs' disagreement the review saw (`edit.rs`'s `SetParam` doc against the outcome contract) is about reach strands. Those are real, but no creation reaches one.
+
+## Done (branch `placing/p3-editor-batch`)
+
+The netting half is dropped as subsumed, the second of the two ways
+this row allows. No creation's run reports a maintenance row (both
+attempts above), so
+`node_labels::a_labelled_creation_nets_the_maintenance_its_own_run_reports`
+compared two empty lists. It is deleted. `labelled_as_one_undo` still
+holds every sampled creation's labelled outcome equal to its own
+unlabelled run, maintenance included, so a creation that someday
+strands something is netted under that check. The helper now answers
+only the node it made.

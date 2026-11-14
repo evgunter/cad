@@ -10,9 +10,7 @@ use crate::common;
 use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
-use pncad::document::{
-    Doc, DocEdit, Label, Maintenance, Node, ProfileProgram, RecipeNodeId, SlotId,
-};
+use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, SessionOp};
@@ -226,16 +224,11 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 /// (`OpOutcome::made`), the same minted ids and the same netted maintenance, and
 /// ONE evaluation requested for the whole of it. The label is on that
 /// node, and ONE undo returns the document to what it was before the
-/// action. Answers that node and the maintenance the action netted.
+/// action. Answers that node.
 ///
 /// The helper behind
-/// `every_creation_labelled_is_one_undo_whatever_door_commits_it` and
-/// `a_labelled_creation_nets_the_maintenance_its_own_run_reports`.
-fn labelled_as_one_undo(
-    session: &mut DocSession,
-    op: SessionOp,
-    text: &str,
-) -> (RecipeNodeId, Vec<Maintenance>) {
+/// `every_creation_labelled_is_one_undo_whatever_door_commits_it`.
+fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
     let before = session.committed_doc().clone();
     let what = format!("{op:?}");
     let alone = session.perform(op.clone());
@@ -291,7 +284,7 @@ fn labelled_as_one_undo(
         "{what}: redo brings both back"
     );
     session.pump();
-    (node, outcome.maintenance)
+    node
 }
 
 /// **A refused creation applies no label**, whether the door refuses
@@ -342,50 +335,6 @@ fn a_refused_creation_applies_no_label() {
     }
 }
 
-/// **A labelled creation nets the maintenance its own run reports**:
-/// a fillet picked on a block's world copy that the product reads. The
-/// label is one more edit of the same run, so the outcome carries the
-/// run's netted rows and nothing of the label's own
-/// ([`labelled_as_one_undo`] holds the two equal). No creation's run
-/// strands anything now that no gesture deletes a copy, so the rows
-/// compared are empty: the residue is filed as
-/// `work/placing/a-labelled-creation-has-no-maintenance-witness.md`.
-#[test]
-fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-maintenance", tol);
-    let mut session = DocSession::inline(doc, tol);
-    let made = session.perform(SessionOp::AddProfile {
-        loops: vec![common::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
-    });
-    let [profile] = made.minted[..] else {
-        panic!("one profile minted: {:?}", made.minted);
-    };
-    let made = session.perform(SessionOp::AddExtrude {
-        profile,
-        distance: common::len(0.01),
-    });
-    let block = made.made.expect("an extrude");
-    let (mut session, copy) = common::world_copy_in(&session, block, tol);
-    session.pump();
-    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), copy)[0].clone();
-    let (fillet, maintenance) = labelled_as_one_undo(
-        &mut session,
-        SessionOp::AddFillet {
-            target: copy,
-            radius: common::len(0.001),
-            selection: vec![edge],
-        },
-        "rounded",
-    );
-    assert!(maintenance.is_empty(), "{maintenance:?}");
-    assert_eq!(
-        session.committed_doc().product(),
-        session.committed_doc().output(fillet, 0),
-        "the fillet took the product slot over"
-    );
-}
-
 /// **Every creating op, labelled, is one undo** — whichever commit door
 /// it takes, since every door stages its run through one recorder.
 /// The sample set is held to `SessionOp::creates_a_node` through the
@@ -402,7 +351,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let mut sampled = std::collections::BTreeSet::new();
     let mut run = |session: &mut DocSession, op: SessionOp, text: &str| {
         sampled.insert(format!("{:?}", std::mem::discriminant(&op)));
-        labelled_as_one_undo(session, op, text).0
+        labelled_as_one_undo(session, op, text)
     };
 
     let profile = run(
