@@ -14,11 +14,9 @@
 //! widths of the SAME code agree whenever the loss is width-independent
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
-//! So `thread-count-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the walk is serial, and the four-thread walk is read against it: a
-//! row cut on this branch would record what this branch does, which is
-//! the thing under test. The one case where a lane re-cuts here
-//! anyway, and what licenses it, is at `expected`.
+//! So `thread-count-digest/eps-*.txt` holds what the SERIAL walk reads
+//! (the one-thread row holds it to that), and the four-thread walk is
+//! read against it. When a line of it moves, the rule is at `expected`.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -387,9 +385,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
     )
 }
 
-/// The committed digest for each ε row the matrix gates. Cut on the
-/// MERGE BASE (see the module docs); an ε with no entry prints its
-/// block and fails, which is how a new row gets cut.
+/// The committed digest for each ε row the matrix gates: what the
+/// serial walk reads. An ε with no entry prints its block and fails,
+/// which is how a new row gets cut.
 ///
 /// **What a golden holds.** The `# f64` block is one line per roster
 /// body ([`line`]): the certified volume, area and their pads as bits,
@@ -403,42 +401,23 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// shape report's length. Every receipt also clears
 /// [`dispute_coverage`] before the table is read.
 ///
-/// **When a lane may re-cut here instead, and what licenses it.** The
-/// merge-base rule exists to stop a branch recording its own
-/// regression as the baseline — not to make a pinned number a
-/// contract. A branch re-cuts on itself exactly when its own change is
-/// what moved the table AND the new reading is the right answer, with
-/// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
-/// certified bound that gets tighter re-baselines like any other move)
-/// and `memories/output-stability-as-justification.md`. A move the
-/// branch cannot explain is a finding, and the table stays where it is.
-/// A move in the wrong direction that is the named consequence of a
-/// change that makes the code right re-cuts, with the cause named at the
-/// cut and an item filed for the looseness (the INLANE orchestrator's
-/// ruling on C6 S3, PR 5290: one 90° rational sub-arc in place of two
-/// 45° ones, filed as
-/// `work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans.md`).
+/// **When a line moves.** The table is the SERIAL walk's reading:
+/// [`the_walk_matches_the_serial_golden_at_one_thread`] holds it to
+/// that, so a re-cut cannot record a width-dependent move as the
+/// baseline. A line whose move is explained and right is re-cut, with
+/// the cause named in the PR body (a certified bound that gets tighter
+/// re-baselines like any other move, and so does a looser one that is
+/// the named consequence of a change that makes the code right, with an
+/// item filed for the looseness). A line whose move nobody has
+/// explained is PINNED at the serial reading and named here with the
+/// row that owes the account, so the row is green and the next move
+/// reds; a pin is not a judgment that the reading is right.
 ///
-/// **Each re-cut names its cause in its PR body**, and the history of
-/// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
-///
-/// The 1e-12 table's `sym_arc_loft validate_geometric chk=97/104` is rule
-/// H's (`SymRules::angle_sum`; shut, it reads 99/104). Its form of one
-/// `Mul`'s kid carries a coefficient of about 100 bits, against the
-/// other kid's 160 at this row's scale. Their product passes the 256-bit
-/// ring, the early walk freezes the node, and the two contradiction
-/// checks whose residual is a multiple of it read frozen. Their
-/// decisions hold, and no dispute is lost.
-///
-/// The two `Sym` bodies' `validate_geometric` rows were re-cut here by
-/// PCERT E1c (PR 5889), whose mints read incidence before they store:
-/// their decisions hold, and `frozen` rose (at 1e-9, 4 -> 462 and
-/// 60 -> 348). Those are the forms of the read's sampled distances,
-/// which the plain walks freeze, and the count follows how the read's
-/// arithmetic is spelled: before main's merge the same reads froze 4 and
-/// 60, the merge's port with its divisor decision 406 and 1112, and the
-/// plane's foot in place of its slide 398 and 1104. The cost is
-/// `work/pcert/the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads.md`.
+/// **Pinned, unexplained**, read by
+/// [`the_walk_matches_the_serial_golden_at_four_threads`]: the two `Sym`
+/// bodies' `validate_geometric` lines at every ε row, and
+/// `arc_loft_1e9eps`' volume at 1e-12. They wait on
+/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
@@ -465,15 +444,22 @@ fn check_against_golden(threads: usize) {
         got.trim(),
         want.trim(),
         "at {threads} thread(s) the face walk's readings or its recorded channels differ \
-         from what the SERIAL walk recorded at the merge base (eps={eps:e}). This is not a \
-         baseline to preserve: if the new behaviour is right, re-cut the table on the merge \
-         base and say in the PR what moved and why."
+         from what the SERIAL walk recorded (eps={eps:e}). This is not a baseline to \
+         preserve: `expected` says what to do with a line that moved."
     );
 }
 
 #[test]
 fn the_walk_matches_the_serial_golden_at_four_threads() {
     check_against_golden(4);
+}
+
+/// The golden is the SERIAL walk's reading, so the serial walk must
+/// read it too: a golden re-cut from the four-thread row alone would
+/// otherwise record a width-dependent move as the baseline.
+#[test]
+fn the_walk_matches_the_serial_golden_at_one_thread() {
+    check_against_golden(1);
 }
 
 /// Non-vacuity, and it is about the GOLDEN as much as about the code:

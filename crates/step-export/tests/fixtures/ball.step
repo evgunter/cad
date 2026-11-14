@@ -15,7 +15,7 @@ DATA;
 #8 = CARTESIAN_POINT('', (0.0, -1.0, 0.0));
 #9 = VERTEX_POINT('', #8);
 #10 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));
-#11 = DIRECTION('', (-1.2246467991473532E-16, 0.0, 1.0));
+#11 = DIRECTION('', (0.0, 0.0, 1.0));
 #12 = DIRECTION('', (0.0, 1.0, 0.0));
 #13 = AXIS2_PLACEMENT_3D('', #10, #11, #12);
 #14 = CIRCLE('', #13, 1.0);

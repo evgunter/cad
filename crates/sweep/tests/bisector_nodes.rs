@@ -1264,15 +1264,16 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// both, an edge four triangles hold that the body has no counterpart of.
 #[test]
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
-    // Pinned red since PR 5664: at ε = 1e-12 the 3° pose's B ∖ A exhausts its
-    // probe ray (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`,
-    // `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`).
+    // Pinned red: every cell of the 3° pose escalates its volume in band
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the slanted bores",
         &[
-            "3° (B, A), ∖: the node builds, got Err(Pieces(Probe { shell: ShellKey(2v5), source: Loop(RayExhausted { loop: LoopKey(16v5) }) }))",
+            "3° (A, B), ∩: the node builds",
+            "VolumeUncomputable",
+            "props_chart_junction_closed",
         ],
         slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
     );
@@ -1468,14 +1469,32 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
-///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`);
-///   at a band tight enough to read that tilt definite (`1e-12`), both
-///   orders refuse at a pcurve certificate of the long bisector ellipse,
-///   past what its stored form evaluates within the band
-///   (`work/germ/a-sliver-crossings-long-bisector-ellipse-is-served-past-representability.md`),
-///   one in the join and one in the merge.
+///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
+///
+/// At `1e-12` every pose but the rod along `y` at `1e-9°` escalates
+/// `Coincidence(Section, Moot)` on `curve_carrier_straddle`, its margin
+/// an enclosure, in both operations and both orders, the enclosures
+/// differing by order.
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
+    // Pinned red: the section straddle escalates on an enclosure, which the
+    // row's comparison cannot read
+    // (`work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the glued rod",
+        &[
+            "Coincidence(Section, Moot)",
+            "curve_carrier_straddle",
+            "Enclosure",
+        ],
+        a_rod_glued_in_its_bore_answers_alike_in_either_order_row,
+    );
+}
+
+/// The row [`a_rod_glued_in_its_bore_answers_alike_in_either_order`] runs, under its pin.
+fn a_rod_glued_in_its_bore_answers_alike_in_either_order_row() {
     let tol = Tol::witness();
     let default_band = tol.eps() == geom_core::tolerance::DEFAULT_EPS;
     let bore = finished(
@@ -1503,13 +1522,14 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
             Outcome::Built(m.enclosure.volume, m.enclosure.volume_pad)
         }
         Ok(_) => Outcome::Built(0.0, 0.0),
-        Err(topo::BooleanError::Escalated { decision, diag }) => Outcome::Escalated(
-            format!("{decision:?}"),
-            diag.margin
+        Err(topo::BooleanError::Escalated { decision, diag }) => {
+            let margin = diag
+                .margin
                 .diagnostic_f64_for_error_text()
                 .value()
-                .expect("an f64 margin"),
-        ),
+                .unwrap_or_else(|| panic!("an f64 margin: {decision:?} {diag:?}"));
+            Outcome::Escalated(format!("{decision:?}"), margin)
+        }
         Err(e) => {
             let text = format!("{e:?}");
             Outcome::Refused(
@@ -1647,6 +1667,103 @@ fn a_seam_builds_from_twice_root_band_off_a_node() {
                     }
                 }
             }
+        }
+    }
+}
+
+/// **At ε 1e-12 the 3° slanted bores refuse their volume in every cell,
+/// and the glued rod escalates its section straddle in both orders.**
+/// What stands behind the two rows' pins
+/// ([`slanted_bores_build_every_operation_one_difference_pinched_to_itself`],
+/// [`a_rod_glued_in_its_bore_answers_alike_in_either_order`]), each of
+/// which stops at its row's first cell:
+///
+/// - all six cells of the 3° pose (∩, ∪, ∖, both orders) return
+///   `ResultInvalid { NotFinished { VolumeUncomputable } }` on
+///   `props_chart_junction_closed`; none stops in the pieces probe or
+///   reaches tier 3′'s census;
+/// - the rod along `y` at `1e-8°`, ∩ and ∪, escalates
+///   `Coincidence(Section, Moot)` on `curve_carrier_straddle` in both
+///   operand orders, its margin an enclosure.
+///
+/// Pinned red at what main produces, waiting on
+/// `work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`
+/// and
+/// `work/sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`:
+/// red when either moves, which is the day those rows owe a re-measure.
+/// Stands down off ε 1e-12.
+#[test]
+fn at_1e_12_the_slanted_bores_refuse_every_cell_and_the_glued_rod_escalates_in_both_orders() {
+    let tol = Tol::witness();
+    if tol.eps() != 1e-12 {
+        test_utils::vacuity::stood_down(
+            "ε 1e-12 only",
+            "what stands behind the two rows' 1e-12 pins; the rows hold every other ε",
+        );
+        return;
+    }
+    let a = finished(
+        "A",
+        bored(
+            [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+            spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+        ),
+        tol,
+    );
+    let b = finished(
+        "B",
+        bored(
+            [(-1.5, 1.5), (-3.0, 3.0), (-1.5, 1.5)],
+            spin(
+                &rod_y(8.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0 - 3.0_f64.to_radians(),
+            ),
+        ),
+        tol,
+    );
+    for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+        for (op, r) in [
+            ("∩", topo::intersect(x, y, tol)),
+            ("∪", topo::union(x, y, tol)),
+            ("∖", topo::subtract(x, y, tol)),
+        ] {
+            let text = format!("{:?}", r.map(|_| ()));
+            assert!(
+                text.contains("ResultInvalid")
+                    && text.contains("VolumeUncomputable")
+                    && text.contains("props_chart_junction_closed"),
+                "3° ({order}), {op}: refuses its volume at the chart junction, got {text}"
+            );
+        }
+    }
+    let rod = finished(
+        "the rod",
+        spin(
+            &rod_y(4.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            (90.0_f64 - 1e-8).to_radians(),
+        ),
+        tol,
+    );
+    for (op, f) in [
+        (
+            "∩",
+            topo::intersect::<topo::AtRestBody<f64>> as fn(_, _, _) -> _,
+        ),
+        ("∪", topo::union::<topo::AtRestBody<f64>>),
+    ] {
+        for (order, r) in [
+            ("rod, bore", f(&rod, &a, tol)),
+            ("bore, rod", f(&a, &rod, tol)),
+        ] {
+            let text = format!("{:?}", r.map(|_| ()));
+            assert!(
+                text.contains("Coincidence(Section, Moot)")
+                    && text.contains("curve_carrier_straddle")
+                    && text.contains("Enclosure"),
+                "along y, 1e-8°, {op} ({order}): escalates its section straddle on an enclosure, got {text}"
+            );
         }
     }
 }
