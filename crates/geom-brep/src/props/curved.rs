@@ -1464,13 +1464,21 @@ fn cylinder_windings<T: Decide>(
             // rim's stored turn about its own centre, carried to the axis
             // at each end; a ruling's short turn, which a ruling certified
             // axial may still make by `ε/R`.
+            //
+            // Each miss is stated where it is exact: a ruling's short turn
+            // is read off the very arms of its ends, so it misses them by
+            // nothing; a rim's carried turn misses its ends by what its
+            // stored turn `du` misses them about its own centre, since the
+            // carry adds the same to both. That holds because `du` is this
+            // edge's own span (the parse mints one rim per circle, in loop
+            // order), and the sweep is `du` plus exactly the carry read
+            // about the axis the arms are read about.
             let mut rim_turns = rims[start..end].iter().map(|&(_, du)| du);
             let pieces = edges
                 .iter()
                 .map(|e| {
                     let (a, b) = e.traversal_ends();
-                    let arms = turn_arms(axis, a - origin, b - origin);
-                    let sweep = match e.carrier {
+                    Ok([match e.carrier {
                         Curve3::Circle(geom::Circle {
                             frame: geom::Frame { origin: center, .. },
                             ..
@@ -1478,12 +1486,19 @@ fn cylinder_windings<T: Decide>(
                             let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
                                 what: "a cylinder loop with more circles than parsed rims",
                             })?;
-                            du + about_axis(axis, center, origin, b)
-                                - about_axis(axis, center, origin, a)
+                            EdgeTurn::carried(
+                                du + about_axis(axis, center, origin, b)
+                                    - about_axis(axis, center, origin, a),
+                                du,
+                                turn_arms(axis, a - center, b - center),
+                                radius,
+                            )
                         }
-                        _ => arms.1.atan2(arms.0),
-                    };
-                    Ok([EdgeTurn::new(sweep, arms, radius)])
+                        _ => {
+                            let (dot, cross) = turn_arms(axis, a - origin, b - origin);
+                            EdgeTurn::exact(cross.atan2(dot), radius)
+                        }
+                    }])
                 })
                 .collect::<Result<_, PropsError>>()?;
             let joints = edges
@@ -5535,6 +5550,15 @@ fn torus_chart_loop<T: Decide>(
     // turn about its own centre carried to the axis at each end, and its
     // short tube turn; a meridian's stored tube turn about its own centre
     // carried to the core circle at each end, and its short azimuth turn.
+    //
+    // A short turn is read off the very arms of the ends it turns
+    // between, so it misses them by nothing ([`EdgeTurn::exact`]). A
+    // parallel's carried azimuth turn misses its ends by what its stored
+    // turn `du` (this piece's own span) misses them about its own centre
+    // ([`EdgeTurn::carried`]): the carry, read about the same axis, adds
+    // the same to both. A meridian's carried tube turn is read back about
+    // the core circle: its arms there sit at the minor radius, so their
+    // width costs a lever no larger than that.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
         let Curve3::Circle(geom::Circle {
@@ -5547,18 +5571,19 @@ fn torus_chart_loop<T: Decide>(
             });
         };
         let (wa, wb) = (a - center, b - center);
-        let (azimuth, tube) = (turn_arms(axis, wa, wb), tube_arms(wa, wb));
+        let tube = tube_arms(wa, wb);
         Ok(match p.step {
             TorusStep::Rim { du, .. } => {
                 closure::require_axis_inside(r_c, band)?;
                 [
-                    EdgeTurn::new(
+                    EdgeTurn::carried(
                         du + about_axis(axis, centre, center, b)
                             - about_axis(axis, centre, center, a),
-                        azimuth,
+                        du,
+                        turn_arms(axis, a - centre, b - centre),
                         r_c,
                     ),
-                    EdgeTurn::new(short(tube), tube, minor),
+                    EdgeTurn::exact(short(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
@@ -5580,7 +5605,7 @@ fn torus_chart_loop<T: Decide>(
                 );
                 let azimuth = turn_arms(axis, ua, ub);
                 [
-                    EdgeTurn::new(short(azimuth), azimuth, near(ua).min(near(ub))),
+                    EdgeTurn::exact(short(azimuth), near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
