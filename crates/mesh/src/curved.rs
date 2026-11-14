@@ -911,9 +911,9 @@ fn require_swept_rectangle(
 /// of it.
 ///
 /// Only pole faces with `nu == 2` re-size, and a full revolve is never
-/// one: [`sagitta_step`] hard-caps at
+/// one: [`crate::sizing::sagitta_step`] hard-caps at
 /// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
-/// [`torus_grid_steps`]' azimuth step is capped against the same value
+/// [`crate::sizing::torus_grid_steps`]' azimuth step is capped against the same value
 /// here, so a `2*pi` span gives `nu >= 8`.
 ///
 /// **That arithmetic is VERIFIED and it is NOT the seam case's whole
