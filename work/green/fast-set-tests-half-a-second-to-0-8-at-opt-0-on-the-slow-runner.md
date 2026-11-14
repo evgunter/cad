@@ -43,4 +43,6 @@ to leave them and watch `check-fast-set-times` reds for them.
 
 ## 2026-11-14: one over the 1 s bar on a PR that does not touch it (PR 6934)
 
-`editor-core::all emit_sphere_cut_in_cap::the_holdings_over_a_cut_in_name_only_their_operands_faces` took 1.11 s in `test (app)`'s default-eps step on PR 6934's head `5a50b4459` (run 43619658550) and failed the fast-set bar there. The PR's diff is test pins in `sweep` and one `editor-core` test file, none of them this one. One sighting; if the PR's next run repeats it, the test moves to the slow set in that PR.
+`editor-core::all emit_sphere_cut_in_cap::the_holdings_over_a_cut_in_name_only_their_operands_faces` took 1.11 s in `test (app)`'s default-eps step on PR 6934's head `5a50b4459` (run 43619658550) and failed the fast-set bar there. The PR's diff is test pins in `sweep` and one `editor-core` test file, none of them this one. One sighting: on the PR's next run (43629480473, head `5d21825c2`) `test (app)` was green and the test is not listed, so it stays in the fast set.
+
+That run failed one of the PR's own instead: `sweep::all band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes` at 0.535 s, held to the 0.5 s bar because the PR's pin edits it. It is in the slow set from that PR.
