@@ -291,7 +291,8 @@ not (
   (binary_id(sweep::all) & test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::the_lune_fillets_place_every_lattice_point)) |
   (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_by_its_tools_seat_reads_the_tool_as_material) | test(=a_vertex_through_a_declared_seat::a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn) | test(=a_vertex_through_a_declared_seat::a_block_inside_the_seats_material_is_cut_away) | test(=a_vertex_through_a_declared_seat::a_tool_of_three_stacked_solids_is_one_material) | test(=a_vertex_through_a_declared_seat::a_piece_touching_the_seats_plate_at_a_line_or_point_rides_its_record) | test(=a_vertex_through_a_declared_seat::a_seat_whose_outlines_cross_builds) | test(=a_vertex_through_a_declared_seat::a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry))) |
   (binary_id(geom-brep) & (test(=pcurve_cache::closed_image_rows::a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart) | test(=pcurve_cache::closed_image_rows::no_closed_form_is_certified_past_its_miss) | test(=pcurve_cache::closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it) | test(=pcurve_cache::closed_image_rows::an_enclosing_patch_holds_its_chart) | test(=pcurve_cache::closed_image_rows::a_closed_form_on_its_carrier_certifies_in_every_spelling))) |
-  (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse))
+  (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse)) |
+  (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar))
 )
 """
 
