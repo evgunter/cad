@@ -20,4 +20,8 @@ A boundary run on a chart iso line gets a lattice line through it, so a notched 
 
 ## Closes
 
-`a-notched-or-ringed-cylinder-wall-does-not-tessellate` and `valid-ringed-torus-faces-build-but-cannot-be-meshed`: the notch and the rings on a cylinder, cone, sphere and torus mesh and pass `check_mesh`, and their four `reach_probes` rows are re-pinned.
+`a-notched-or-ringed-cylinder-wall-does-not-tessellate`: the notch meshes and passes `check_mesh`, and its `reach_probes` row is re-pinned.
+
+## The ring half moved to unit 3 (2026-11-14)
+
+A face that holds a ring is routed to the chart lane by unit 3, with the lane that reads it: a guard left standing between the two units would have needed a refusal text nobody could state truthfully. So unit 3 closes `valid-ringed-torus-faces-build-but-cannot-be-meshed` and the rings on a cylinder, cone, sphere and torus, and removes `TessellateError::RingOnCurvedFace`. This unit keeps the notch, the iso-line lattice rule above, and the retirement of the carrier-kind predicates.
