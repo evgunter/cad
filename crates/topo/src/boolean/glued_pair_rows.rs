@@ -5,10 +5,10 @@
 //! given one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::carrier_pair::face_carrier;
 use super::{Glue, GluedPairs, glue, verify_glued_contacts};
 use crate::AtRestBody;
 use crate::contact::GlueClass;
+use crate::face_normal::face_carrier_desc;
 use crate::test_support::finished;
 use crate::test_support_fixtures::{
     FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
@@ -146,10 +146,13 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         .find(|p| p.class() == GlueClass::Rest)
         .expect("the door glues the top against the tilted bottom, Rest");
     let (na, nb) = match (
-        face_carrier(&lower, glued.a).unwrap(),
-        face_carrier(&upper, glued.b).unwrap(),
+        face_carrier_desc(&lower, glued.a).unwrap(),
+        face_carrier_desc(&upper, glued.b).unwrap(),
     ) {
-        (CarrierDesc::Plane { normal: na, .. }, CarrierDesc::Plane { normal: nb, .. }) => (na, nb),
+        (
+            CarrierDesc::Plane(geom_brep::PlaneDesc { normal: na, .. }),
+            CarrierDesc::Plane(geom_brep::PlaneDesc { normal: nb, .. }),
+        ) => (na, nb),
         other => panic!("two planes: {other:?}"),
     };
     assert!(
@@ -358,8 +361,8 @@ fn a_fold_step_glues_a_pair_its_door_reads_in_band_today() {
             .map(|(k, _)| k)
             .filter(|&k| {
                 matches!(
-                    face_carrier(body, k),
-                    Some(CarrierDesc::Plane { normal, .. }) if normal.z > 0.5
+                    face_carrier_desc(body, k),
+                    Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. })) if normal.z > 0.5
                 )
             })
             .collect::<Vec<_>>()

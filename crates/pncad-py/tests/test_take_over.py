@@ -12,7 +12,19 @@ copy then holds the new names and not the old.
 
 import unittest
 
-from pncad import Doc, Formula, Node, Open, Start, evaluate, m
+from pncad import (
+    Doc,
+    DocEdit,
+    EditError,
+    Formula,
+    Node,
+    Open,
+    Start,
+    VarDecl,
+    VarName,
+    evaluate,
+    m,
+)
 
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -62,6 +74,53 @@ class TestATakeoverMovesTheCopysNames(unittest.TestCase):
         before = self.doc.node_count
         self.assertEqual(self.doc.take_over([], self.sketched.union), [])
         self.assertEqual(self.doc.node_count, before)
+
+
+class TestATakeoverRefusesWhatItCannotTakeAsAsked(unittest.TestCase):
+    """The three refusals `take_over` answers before it writes: a copy
+    named twice, a node that is no placement, and a copy whose source a
+    copy not named reads too (redefining it would re-point that one
+    unasked). Each writes nothing."""
+
+    def setUp(self):
+        self.doc = Doc("take-over-refusals")
+        square = self.doc.insert(Node.polygon(SQUARE))
+        self.plate = self.doc.insert(Node.extrude(square, Formula.length_in(0.2, m)))
+        self.doc.apply(
+            DocEdit.declare_var(VarName("bracket"), VarDecl.source(self.plate))
+        )
+        bracket = self.doc.var(VarName("bracket"))
+        self.a = self.doc.place(bracket, self.doc.world)
+        self.b = self.doc.place(bracket, self.doc.world)
+        self.other = self.doc.insert(
+            Node.extrude(
+                self.doc.insert(Node.polygon(SQUARE)), Formula.length_in(0.3, m)
+            )
+        )
+
+    def refused(self, copies):
+        before = self.doc.node_count
+        with self.assertRaises(EditError) as caught:
+            self.doc.take_over(copies, self.other)
+        self.assertEqual(self.doc.node_count, before, "nothing written")
+        return caught.exception
+
+    def test_a_copy_whose_source_another_copy_reads_refuses(self):
+        refused = self.refused([self.a])
+        self.assertEqual(refused.variant, "take_over_shared_source")
+        self.assertEqual(refused.param, "bracket")
+
+    def test_a_copy_named_twice_refuses(self):
+        lone = self.doc.place(self.plate, self.doc.world)
+        self.assertEqual(self.refused([lone, lone]).variant, "take_over_repeats_copy")
+
+    def test_a_node_that_is_no_placement_refuses(self):
+        self.assertEqual(self.refused([self.plate]).variant, "unknown_slot")
+
+    def test_every_copy_reading_the_source_takes_it_over(self):
+        before = self.doc.node_count
+        self.assertIsInstance(self.doc.take_over([self.a, self.b], self.other), list)
+        self.assertEqual(self.doc.node_count, before, "a redefinition, no node")
 
 
 if __name__ == "__main__":

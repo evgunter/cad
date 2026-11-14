@@ -118,7 +118,7 @@ sweep. When the chart changes, it drops the face's rows through
 setter is declared `Transfers`. `set_edge_curve` stays `Neither`,
 with its blind spot on a half-minted face stated. The residues were
 filed when found:
-`work/tess/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`,
+`work/tesslane/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`,
 `work/topo/three-spellings-of-one-chart-answer-the-same-question-differently`,
 `work/trim/the-pcurves-module-header-restates-the-posture-table-below-it`,
 and evidence on

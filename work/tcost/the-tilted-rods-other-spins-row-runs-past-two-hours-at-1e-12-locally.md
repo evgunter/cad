@@ -5,7 +5,7 @@ title: germ_tilted_rod's other-spins row ran over 2h18m at 1e-12 on a session bo
 status: open
 opened: 2026-11-04
 priority: P2
-cost: C
+cost: M
 ---
 
 

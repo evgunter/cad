@@ -926,6 +926,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full revolve emits each PLANAR wall as one face: a disc's centre is
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
+- **A sweep's carriers come from its frames** (`docs/DESIGN.md`
+  [intent.stored], nothing flows back toward the description; [scalars],
+  a frame is built from its own inputs). A cap is its station's frame:
+  its normal is ± the frame's normal, signed by the profile's winding,
+  its origin is the frame's origin moved by the sweep, and its
+  reference direction is the frame's first axis. A wall, a rim and a
+  strut each take the frame turning a direction the sketch holds
+  (`crates/profile/README.md`, the profile format). No sweep fits a
+  plane to vertices it placed, or divides the difference of two of them
+  by its own length.
 - **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
   extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes, and the gaps between a full

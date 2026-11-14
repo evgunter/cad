@@ -607,7 +607,7 @@ fn one_segment_circles_revolve_at_interval() {
 /// per one-segment loop with its strut the body's one wrap edge, all
 /// three tiers at `f64`, and at `Interval` tiers 1–2 and the two-arc
 /// circle's tier-3 verdict. A rational wall is not meshed
-/// (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
+/// (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
 /// its volume is the next row's.
 #[test]
 fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {

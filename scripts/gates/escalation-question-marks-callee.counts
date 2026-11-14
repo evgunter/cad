@@ -83,8 +83,6 @@ crates/topo/src/boolean/section_cert/ruling.rs 1
 crates/topo/src/boolean/sectors.rs 2
 # slit: slot_from_far_end, which slot: WHICH.
 crates/topo/src/boolean/slit.rs 1
-# vtxfac: germ_order, a sort: NOT A SEARCH.
-crates/topo/src/boolean/vtxfac.rs 1
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves.rs 1
 # containment: place_off (WHICH, ruled). conic_crossings reads its roots

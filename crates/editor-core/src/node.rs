@@ -2573,11 +2573,10 @@ impl<P> Node<P> {
             return Some(InputFault::IndexedFamily);
         }
         self.body_reads().into_iter().find_map(|(seat, read)| {
-            if !read.is_member() {
-                return None;
-            }
-            let rank = doc.var_reach(read.read).chain().map_or(0, <[VarId]>::len);
-            (read.at.len() != rank).then_some(InputFault::IndexRank {
+            // A read whose body is gone is a strand (VR7): it refuses at
+            // evaluation, and its family's rank is no longer there to ask.
+            let rank = doc.member_rank_fault(read.read, read.at.len())?;
+            Some(InputFault::IndexRank {
                 seat,
                 found: read.at.len(),
                 rank,
@@ -3435,25 +3434,42 @@ impl<P, S: Slot> Node<P, S> {
             constraints,
         }
     }
+}
 
+impl<P> Node<P, crate::Formula> {
     /// Builds a [`Node::Place`] copying `source` into `target` under
     /// `constraints`, the whole bundle: a value naming a mate of it
     /// names the mate's id as written, which the insert mints
     /// ([`crate::mate::pin::Placed::bundle`]).
+    ///
+    /// A placement reads its body through a source (VARIABLES VR4):
+    /// `source`'s read is written as a source authored at the seat
+    /// ([`crate::Operand::Source`]), which the door answers by the one rule
+    /// every placement goes through — a body (a node, a port, an output's
+    /// variable, a pick) mints an anonymous source for this placement, as
+    /// a written `5 mm` mints a variable, and a source is shared. A member
+    /// read `xs[k]` reads member `k` of a source of the family, so its
+    /// index stays this placement's slot.
     pub fn place(
-        source: impl Into<crate::BodyRead<S>>,
-        target: impl Into<S::Read>,
-        constraints: Vec<crate::mate::Constraint<S>>,
+        source: impl Into<crate::BodyRead<crate::Formula>>,
+        target: impl Into<crate::Operand>,
+        constraints: Vec<crate::mate::Constraint<crate::Formula>>,
     ) -> Self {
+        let crate::BodyRead { read, at } = source.into();
+        let source = crate::BodyRead {
+            read: match read {
+                read @ crate::Operand::Source(_) => read,
+                read => crate::Operand::source(crate::BodyRead::plain(read)),
+            },
+            at,
+        };
         Node::Place {
-            source: source.into(),
+            source,
             target: target.into(),
             constraints,
         }
     }
-}
 
-impl<P> Node<P, crate::Formula> {
     /// A [`Node::Measure`] over `primitive`, each reference authored as
     /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
     /// as the selection of it in the body it is read at).

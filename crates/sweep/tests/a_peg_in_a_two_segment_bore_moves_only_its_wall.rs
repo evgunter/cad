@@ -134,8 +134,8 @@ fn a_peg_in_one_segment_of_a_bore_moves_only_its_wall_in_both_orders() {
     let peg_wall = walls(&peg)[0];
 
     let (cp, cb) = (
-        topo::face_carrier(&peg, peg_wall).unwrap(),
-        topo::face_carrier(&bore, f2).unwrap(),
+        topo::face_normal::face_carrier_desc(&peg, peg_wall).unwrap(),
+        topo::face_normal::face_carrier_desc(&bore, f2).unwrap(),
     );
     assert!(
         matches!(

@@ -496,8 +496,8 @@ fn one_cylinder(
             outward: sb,
         }),
     ) = (
-        topo::boolean::face_carrier(a, fa),
-        topo::boolean::face_carrier(b, fb),
+        topo::face_normal::face_carrier_desc(a, fa),
+        topo::face_normal::face_carrier_desc(b, fb),
     )
     else {
         return None;

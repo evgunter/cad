@@ -2080,7 +2080,11 @@ is its preview.
   door. The editor's add-loop choices (circle, rectangle, path) are
   the templates.
 - **Place** on an unplaced body inserts its placement with no mates
-  and opens the placement editor on it. Every mate is added there.
+  and opens the placement editor on it. Every mate is added there. A
+  second Place of a body reads the source the first one does, so what
+  the node reads includes which source, and its name where the source
+  becomes shared (VR2): the field opens empty, as accepting an unnamed
+  offer opens it, and several sources are a choice of buttons.
 - **A creation proposes no label.** The insert stores "Kind N", and
   the node's label row renames it.
 - **Variables**: `New variable` adds the variable's row. Its name and
@@ -2312,9 +2316,22 @@ spin at zero (taking over what read the body along a seen path, never
 a copy's source), and opens the editor on it (**A create gesture
 commits the node**, above). A pick on a body picked as itself is Place
 (`MateTool::take_place`), whether nothing places it yet or the View
-pane shows it again beside its copies: a second placement is made the
-way the first is. A pick that lands on a copy opens that copy's
-placement instead. The editor opens on a placement — from Place, its
+pane shows it again beside its copies. **A placement reads its body
+through a source** (VARIABLES VR4, `world::source_to_place`): a body no
+source reads gets an anonymous source of its own; a body one source
+reads is placed through it, so the copies share it, and where that
+source is anonymous and already read the editor opens its name field,
+empty (`matetool::PlaceAsk::Name`), since a shared variable is named and
+nothing proposes a name (VR2) — the name and the placement land as one
+action, `SessionOp::Place`'s `name`; a body several sources read asks
+which, a button per source (`PlaceAsk::Source`), and Place on a source
+places through it. A pick that lands on a copy opens that copy's
+placement instead (`Refusal::PlaceOnACopy` for a Place asked of one).
+The editor's **copy of** row says the body the copy copies and the
+source it reads, named or its own, and redefines that source as a read
+of the body selected in the tree; a named source's row in the
+variables pane (`bracket = B`, `props::source_rows`) does the same for
+every placement reading it. The editor opens on a placement — from Place, its
 tree row (`edit placement`), a mate row's `remove`, or a pick on its
 copy — and **each change is offered live**: a pick seated, a kind or
 a sense chosen, a row added or struck, a value field committed, each
@@ -2393,7 +2410,30 @@ unpinned, two spaces, a side off the copy, a pick its kind cannot read
 stays open through every change (`ToolKind::commits` closes it on
 none). A copy that would not stand (a fault, or a read that does not
 evaluate) is not written: `SessionOp::SetBundle` refuses it
-(`Refusal::PlacementFails`), and the editor holds the draft. **A placement's target is its own property, and no mate changes it**
+(`Refusal::PlacementFails`), and the editor holds the draft. The
+door's judgement is kept per generation and op
+(`DocSession::bundle_judgement`), so a change is solved once however
+often the panel, the picture and its own landing ask. Where the draft
+stands with the document is one value (`MateTool::draft_standing`,
+`matetool::HeldDraft`), asked with the session's busy state, that the
+panel's line and the picture's drawing of the draft both read. A draft
+that waits for the picture, not yet offered, is judged by the door
+and drawn as the judgement stands it: every copy the scratch solve
+stands elsewhere — the edited one, every copy mated to it, and every
+copy placed from one of those, each read by its body's frame in its
+space (`pickindex::preview_copies`) — is drawn there if it is a copy
+of one body, under the display frame of the space it stands in
+(`display::PreviewedPlacement`), as the profile editor draws its draft
+in place of the committed loops; the line says it waits and is drawn.
+A waiting draft the door would refuse says the refusal; one that
+derives no bundle yet (a seat empty) says that it waits and draws
+nothing; a draft the picture has answered is offered, not drawn. Where
+the draft draws nothing, the picture draws the document, from its
+second source: the last change committed through the door
+(`DocSession::bundle_landing`) is drawn where its solve stands the
+copies until its run lands or an undo takes it out, whatever else
+changes meanwhile and whether or not the editor stays open.
+**A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's
 target: a live change like any other, judged by the same door and
@@ -2432,14 +2472,32 @@ other copies of the body are untouched, and the Properties pane says
 the result belongs to that placed copy, with a button to the original
 body (`frame::placement_offers`). Picked as the body itself (in the
 tree, or shown again in the View pane), it makes a new body, and that
-body offers, as one explicit step, to re-point the variable the body's
-placements share onto it (`world::repoint_offer`,
-`SessionOp::RepointPlacements`): every placement reads the body's own
-output, the one variable they share, and the re-point sets each
-placement's source to the new body through the kernel's takeover
-(`Recording::take_over`), rebinding what read each copy and reading
-each copy's mates' `on` sides off the new body, in one action. No
-gesture re-points a placement unasked. A pattern's member 0 stands
+body offers, one explicit step per source, to redefine the sources the
+body's placements read onto it (`world::repoint_offer`,
+`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket onto
+F", or for an anonymous source "Re-point the copy C5 onto F". A
+placement reads its body through a source, `bracket = B`, so the
+re-point is one definition edit, `bracket = F`, through the kernel's
+takeover (`Recording::take_over`), with the `Rebind`s of what reads each
+copy and of what selects in the source (each copy's mates' `on` sides,
+which select the source), in one action. A source defined as another
+source follows it and has no button of its own, and a source whose
+re-point would refuse is left out: the offer asks the button's own
+checks (`session::repoint_refusal`, the takeover's first edit through
+the definition door and the load's whole-document check), so a source
+the new body itself reads (a cycle), one a reader could not take (a
+member left reading a member of no family), or one whose copies a pick
+reads that the re-point would strand has no button. The offer is read
+once per document change, not per frame. The offer is a reading of the
+document, not a question: it stands on every drawn body that reads,
+at any depth, as a body, one a source places (and on no placed copy),
+as a fact with its button — "bracket (2 copies) copies B, which this
+body is built on", "Re-point bracket onto G" — for as long as that is
+true, and nothing records a decline: not pressing it is the decline. The source's own row
+and the placement's "copy of" row re-point too, onto the selected
+body, under the offer's verb and asking the offer's check: where it
+refuses, the button is disabled and says the refusal. No gesture re-points a
+placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
 `above ⊔ below`, its two halves standing where that body stood. A split
 of a body that placements read writes `above ⊔ below` too: that `⊔` is
@@ -2453,9 +2511,10 @@ Every placement is a copy to the viewer, wherever its target stands
 (D10 `[placement.placement]`: "each placement is a copy of its own"):
 one placed in its body's own space or in another construction's
 space, as Place's and a pattern's are, is a copy as one in the world
-is. The body a placement copies (`world::copy_source`) is what the
-placed badge, the placement editor's `on` side, the re-point offer and
-the way to the original body read; a pick on a copy seats that copy.
+is. The body a placement copies (`world::copy_source`, down its source) is
+what the placed badge, the re-point offer and the way to the original
+body read, and the placement editor's `on` side selects in the source
+the placement reads (`bracket.top`); a pick on a copy seats that copy.
 Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
 is the placement editor opened on its pick with no mate row

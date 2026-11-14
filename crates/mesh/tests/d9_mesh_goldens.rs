@@ -262,7 +262,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "rounded_prism",
         [0x0d7a_8827_002b_0ba9, 0x0d7a_8827_002b_0ba9],
     ),
-    ("ball", [0xcb6a_4bef_173f_8581, 0x4a7d_529a_cfd5_0ea3]),
+    ("ball", [0x7808_bbdc_c848_c50e, 0xc6d1_f5b7_bcec_efdf]),
     (
         "sphere_wedge",
         [0xc0e4_3c76_081e_10f3, 0x70f4_2f79_af65_0fee],

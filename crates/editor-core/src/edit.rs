@@ -946,11 +946,21 @@ impl Lowering {
     /// Mints the edit's fresh table into `new`: each entry a variable
     /// under the entry's name, or none, its definition lowered in the
     /// document's names and the entries before it.
-    fn start<P>(new: &mut Doc<P>, fresh: &[FreshEntry]) -> Result<Self, EditError> {
+    fn start<P: crate::ProfilePayload>(
+        new: &mut Doc<P>,
+        fresh: &[FreshEntry],
+    ) -> Result<Self, EditError> {
         let mut minted = Self::none();
         for FreshEntry { name, decl } in fresh {
+            let Some(dim) = decl.dim() else {
+                return Err(EditError::SourceRead {
+                    var: SpokenVar::new(new.mint.would_declare(decl.kind()), name.clone()),
+                    fault: SourceFault::Fresh,
+                });
+            };
             let def = match decl {
                 VarDecl::Free(free) => WrittenDef::Free(free.clone()),
+                VarDecl::Source(_) => unreachable!("a source has no dimension, refused above"),
                 VarDecl::Defined(_) | VarDecl::Index { .. } => {
                     // A definition that does not lower draws no id (the
                     // anonymous draw reads what it holds), so a refusal
@@ -959,7 +969,6 @@ impl Lowering {
                     lower_decl(new, &minted, &spoken, decl)?
                 }
             };
-            let dim = decl.dim();
             minted.defined.set(
                 minted.defined.get() | matches!(def, WrittenDef::Defined(_) | WrittenDef::Index(_)),
             );
@@ -1374,6 +1383,7 @@ fn lower_read<P: crate::ProfilePayload>(
         }
         crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
         crate::Operand::Pick { placement, of } => mint_pick(doc, spoken, slot, placement, of)?,
+        crate::Operand::Source(body) => mint_source(doc, spoken, slot, body, expected)?,
     };
     // A selection read here is read in a body this seat admits, whoever
     // authored it: a selection of a pattern's copies, authored at a mate
@@ -1598,7 +1608,8 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
     slot: SlotId,
     body: &crate::BodyRead<VarId>,
 ) -> Option<crate::var::SelectionFault> {
-    if !body.is_indexed() {
+    // A body whose operation is gone is a strand (VR7), asked no rank.
+    if !body.is_indexed() || doc.unresolved_read(body.read).is_some() {
         return None;
     }
     // Only an operand seat reads a selection or a pose: every other slot
@@ -1821,6 +1832,129 @@ fn mint_pick<P: crate::ProfilePayload>(
     )
 }
 
+/// **A source authored at a seat** (VARIABLES VR4): the one rule a
+/// placement's read goes through. Its body read is lowered as the seat
+/// (`expected`) reads a body — one member of a family where it is indexed,
+/// each index a `Count` written at the seat. A plain read of a source is
+/// that source, shared: the seat reads it, and VR2 asks for its name where
+/// it is anonymous and read already. Any other read mints one anonymous
+/// source for the seat to read.
+///
+/// A member read at the family's own indices (`xs[i]`, `i` the index the
+/// family is over) reads every member at its own value, which is the family
+/// read whole; it is stored as the plain read, as a selection's body is, so
+/// the two spellings mint one source definition.
+fn mint_source<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    body: &crate::BodyRead<Formula>,
+    expected: crate::SlotKind,
+) -> Result<VarId, EditError> {
+    let read = lower_read(
+        doc,
+        spoken,
+        slot,
+        &body.read,
+        match body.is_indexed() {
+            true => crate::SlotKind::Is(VarKind::Bodies),
+            false => expected,
+        },
+        Reader::of(expected),
+    )?;
+    if !body.is_indexed() && doc.source(read).is_some() {
+        return Ok(read);
+    }
+    let mut at = Vec::with_capacity(body.at.len());
+    for (k, formula) in body.rows() {
+        let index = match slot {
+            SlotId::Operand(seat) => SlotId::Index { seat, k },
+            other => other,
+        };
+        at.push(lower_index(doc, &spoken(), index, formula)?);
+    }
+    let own = doc
+        .var_reach(read)
+        .chain()
+        .is_some_and(|chain| chain == at.as_slice());
+    mint_anonymous(
+        doc,
+        WrittenDef::Source(crate::BodyRead {
+            read,
+            at: if own { Vec::new() } else { at },
+        }),
+    )
+}
+
+/// **A declared source's body read as the door writes it** (VR4): a
+/// node, a port, or a variable by id or name, held to be a body (a
+/// member read's to be a family of them), each index of a member read
+/// a `Count` lowered in the document's names and the edit's fresh
+/// table — a lone variable as itself, any other formula an anonymous
+/// definition the source alone reads.
+fn lower_source_decl<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    lowering: &Lowering,
+    var: &SpokenVar,
+    body: &crate::BodyRead<Formula>,
+) -> Result<WrittenDef, EditError> {
+    let refused = |fault| EditError::SourceRead {
+        var: var.clone(),
+        fault,
+    };
+    let unresolved = || {
+        refused(SourceFault::Unresolved {
+            read: Box::new(body.read.clone()),
+        })
+    };
+    let read = match &body.read {
+        crate::Operand::Node(id) => match doc.seat_outputs(*id, false).as_slice() {
+            [one] => *one,
+            _ => return Err(unresolved()),
+        },
+        crate::Operand::Output { node, port } => doc.output(*node, *port).ok_or_else(unresolved)?,
+        crate::Operand::Var(read) => *read,
+        crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
+        crate::Operand::Select { .. }
+        | crate::Operand::Pose(_)
+        | crate::Operand::Pick { .. }
+        | crate::Operand::Source(_) => return Err(refused(SourceFault::WrittenInPlace)),
+    };
+    let Some(held) = doc.var(read) else {
+        return Err(unresolved());
+    };
+    let expected = crate::SlotKind::Is(match body.is_indexed() {
+        true => VarKind::Bodies,
+        false => VarKind::Body,
+    });
+    if let Some(crate::doc::ReadFault::Kind { found }) =
+        doc.read_fault(read, held, expected, Reader::Constructs)
+    {
+        return Err(refused(SourceFault::Kind { found }));
+    }
+    if let Some(rank) = doc.member_rank_fault(read, body.at.len()) {
+        return Err(refused(SourceFault::IndexRank {
+            found: body.at.len(),
+            rank,
+        }));
+    }
+    let mut at = Vec::with_capacity(body.at.len());
+    for (k, formula) in body.rows() {
+        let expr = lowering.lower_definition(doc, var, formula)?;
+        if expr.dim() != Dimension::Count {
+            return Err(refused(SourceFault::IndexNotCount {
+                k,
+                found: expr.dim(),
+            }));
+        }
+        at.push(match expr.as_var() {
+            Some(index) => index,
+            None => mint_anonymous(doc, WrittenDef::Defined(expr))?,
+        });
+    }
+    Ok(WrittenDef::Source(crate::BodyRead { read, at }))
+}
+
 /// **Why `of` names no piece of the copy `copy`**, or `None`: `Some(None)`
 /// where `copy` is no placement's or instance's output or `of` is empty,
 /// `Some(Some(k))` where step `k` names no one operand of the `⊔` the walk
@@ -1847,7 +1981,7 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
             continue;
         }
         match doc.operation_of(var).and_then(|at| doc.node(at)) {
-            Some(Node::Place { source, .. }) => var = source.read,
+            Some(Node::Place { source, .. }) => var = doc.through_sources(source.read).read,
             Some(Node::InstantiatePart { .. }) => return Reached::Part,
             _ => return Reached::Body(var),
         }
@@ -1886,7 +2020,7 @@ fn inside_part<P>(doc: &Doc<P>, mut copy: VarId) -> bool {
             continue;
         }
         match doc.operation_of(copy).and_then(|at| doc.node(at)) {
-            Some(Node::Place { source, .. }) => copy = source.read,
+            Some(Node::Place { source, .. }) => copy = doc.through_sources(source.read).read,
             Some(Node::InstantiatePart { .. }) => return true,
             _ => return false,
         }
@@ -1990,6 +2124,16 @@ pub fn selection_into<P>(
     id
 }
 
+/// **A source minted into `doc` as given**, outside any edit: a read of
+/// `body`, with no door around it.
+#[cfg(any(test, feature = "test-support"))]
+pub fn source_into<P>(doc: &mut Doc<P>, body: crate::BodyRead<VarId>) -> VarId {
+    let def = WrittenDef::Source(body);
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
 /// **A pick minted into `doc` as given**, outside any edit: the piece
 /// `of` names of the copy `placement` reads, with no door around it.
 #[cfg(any(test, feature = "test-support"))]
@@ -2087,6 +2231,44 @@ fn definition_name_refusal<P>(
     }
 }
 
+/// **Why a source is refused as declared** ([`EditError::SourceRead`]).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum SourceFault {
+    /// Its read names no variable the document holds.
+    Unresolved {
+        /// The read.
+        read: Box<crate::Operand>,
+    },
+    /// Its read is written in place (a selection, a pose, a pick or a
+    /// source), which only a seat authors: a definition reads a variable
+    /// by id or name, or a node or its port.
+    WrittenInPlace,
+    /// Its read is of a kind no source reads: a source reads one body, or
+    /// a member of a family of them.
+    Kind {
+        /// The read's kind.
+        found: VarKind,
+    },
+    /// A member read at `found` indices of a family of `rank` (VR4: a
+    /// member is read at its family's rank).
+    IndexRank {
+        /// The indices written.
+        found: usize,
+        /// The family's rank.
+        rank: usize,
+    },
+    /// Index `k` of a member read is no `Count`.
+    IndexNotCount {
+        /// The index's position.
+        k: usize,
+        /// Its dimension.
+        found: Dimension,
+    },
+    /// It is an entry of an edit's fresh table, which a formula reads:
+    /// a source is no scalar, so it is declared or read in place.
+    Fresh,
+}
+
 /// **Why an index is refused as declared** ([`EditError::Index`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum IndexFault {
@@ -2105,7 +2287,7 @@ pub enum IndexFault {
 /// [`check_definition`] gives a faulty read of `var`'s definition; an
 /// index its count lowered so, and what it is within an index of the
 /// document.
-fn lower_decl<P>(
+fn lower_decl<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     lowering: &Lowering,
     var: &SpokenVar,
@@ -2137,6 +2319,7 @@ fn lower_decl<P>(
             let count = lowering.lower_definition(doc, var, count)?;
             Ok(WrittenDef::Index(crate::Index { count, within }))
         }
+        VarDecl::Source(body) => lower_source_decl(doc, lowering, var, body),
     }
 }
 
@@ -2981,6 +3164,25 @@ pub enum EditError {
         /// What is wrong with it.
         fault: IndexFault,
     },
+    /// **A source refused as declared** (VARIABLES VR4): what it reads
+    /// is no body the document holds, or is spelled where only a seat
+    /// spells it.
+    SourceRead {
+        /// The source.
+        var: SpokenVar,
+        /// What is wrong with it.
+        fault: SourceFault,
+    },
+    /// **A placement reads its body directly** (D10
+    /// `[placement.placement]`, VARIABLES VR4): a placement's source slot
+    /// reads a source, a `Body` variable defined as a read of the body,
+    /// never the body itself.
+    PlacementReadsNoSource {
+        /// The placement.
+        node: SpokenNode,
+        /// What its source slot reads.
+        read: SpokenVar,
+    },
     /// A carry-forward door ([`DocEdit::SetVarValue`],
     /// [`DocEdit::SetVarUnit`], [`DocEdit::SetVarDistribution`]) named
     /// a defined variable. A defined variable holds no value, notation
@@ -3232,6 +3434,34 @@ pub enum EditError {
     TakeOverRepeatsCopy {
         /// The copy given twice.
         node: SpokenNode,
+    },
+    /// A takeover was handed a variable that is no source
+    /// ([`crate::Recording::take_over`] redefines the sources placements
+    /// read, VARIABLES VR4).
+    TakeOverNotASource {
+        /// The variable.
+        var: SpokenVar,
+    },
+    /// A takeover named `copy`, whose source `source` another copy,
+    /// `other`, reads too and was not named: redefining the source would
+    /// re-point that copy unasked.
+    TakeOverSharedSource {
+        /// The copy named.
+        copy: SpokenNode,
+        /// Its source (boxed, with `other`, to keep `EditError` small).
+        source: Box<SpokenVar>,
+        /// A copy reading the same source, not named.
+        other: Box<SpokenNode>,
+    },
+    /// Redefining the source `source` would write a document the load
+    /// refuses (`reader`, the load's own whole-document check): a reader
+    /// of it — a further source, a selection in it, a pick of its copy —
+    /// left holding what no document holds.
+    SourceReaderRefused {
+        /// The source redefined.
+        source: SpokenVar,
+        /// The load's own refusal of the document as redefined.
+        reader: Box<crate::PersistError>,
     },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
@@ -3708,6 +3938,25 @@ impl EditError {
             Self::UnknownSlot { id, slot: _ } => {
                 *id = id.respoken(doc);
             }
+            Self::PlacementReadsNoSource { node, read } => {
+                *node = node.respoken(doc);
+                *read = read.respoken(doc);
+            }
+            Self::TakeOverNotASource { var } => {
+                *var = var.respoken(doc);
+            }
+            Self::SourceReaderRefused { source, .. } => {
+                *source = source.respoken(doc);
+            }
+            Self::TakeOverSharedSource {
+                copy,
+                source,
+                other,
+            } => {
+                *copy = copy.respoken(doc);
+                **source = source.respoken(doc);
+                **other = other.respoken(doc);
+            }
             Self::IndicesUnrelated { node, a, b } => {
                 *node = node.respoken(doc);
                 **a = a.respoken(doc);
@@ -3806,6 +4055,7 @@ impl EditError {
                 offered: _,
             }
             | Self::Index { var, fault: _ }
+            | Self::SourceRead { var, fault: _ }
             | Self::VarCountHasNoUnit { var }
             | Self::VarCountHasNoDistribution { var }
             | Self::VarUnitMismatch {
@@ -4534,6 +4784,57 @@ impl EditError {
                     ),
                 )
             }
+            Self::SourceRead { var, fault } => {
+                match fault {
+                    SourceFault::Unresolved { read } => write!(
+                        f,
+                        "{var} is a source reading {read}, which the document does not hold"
+                    )?,
+                    SourceFault::WrittenInPlace => write!(
+                        f,
+                        "{var} is a source whose read is written in place, which only a seat \
+                         writes"
+                    )?,
+                    SourceFault::Kind { found } => write!(
+                        f,
+                        "{var} is a source reading {} {found}, and a source reads one body",
+                        crate::sentence::article(&found.to_string())
+                    )?,
+                    SourceFault::IndexRank { found, rank } => write!(
+                        f,
+                        "{var} is a source reading a member by {found} {}, where its \
+                         family has {rank}, and a member is read at its family's rank",
+                        if *found == 1 { "index" } else { "indices" }
+                    )?,
+                    SourceFault::IndexNotCount { k, found } => write!(
+                        f,
+                        "{var} is a source reading a member at index {} that is {} {found}, \
+                         and an index is a count",
+                        k + 1,
+                        found.article()
+                    )?,
+                    SourceFault::Fresh => write!(
+                        f,
+                        "{var} is a source in an edit's fresh table, and a fresh entry is a \
+                         scalar a formula reads"
+                    )?,
+                }
+                tail.recourse(
+                    f,
+                    format_args!("define it as a read of a body, by its node, port or variable"),
+                )
+            }
+            Self::PlacementReadsNoSource { node, read } => {
+                write!(
+                    f,
+                    "{node} reads {read} as its source directly, and a placement reads its body \
+                     through a source"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read a source of it, or write one in place at the source slot"),
+                )
+            }
             Self::VarKindFixed { var, kind, offered } => {
                 write!(
                     f,
@@ -4721,6 +5022,42 @@ impl EditError {
             Self::TakeOverRepeatsCopy { node } => {
                 write!(f, "{node} is given twice to the takeover")?;
                 tail.recourse(f, format_args!("give each copy once"))
+            }
+            Self::TakeOverNotASource { var } => {
+                write!(
+                    f,
+                    "{var} is no source, and a takeover redefines the sources placements read"
+                )?;
+                tail.recourse(f, format_args!("hand it the source a placement reads"))
+            }
+            Self::TakeOverSharedSource {
+                copy,
+                source,
+                other,
+            } => {
+                write!(
+                    f,
+                    "{copy} reads its body through {source}, which {other} reads too, so \
+                     redefining it would re-point {other} unasked"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name every copy reading {source}, or redefine {source} itself"),
+                )
+            }
+            Self::SourceReaderRefused { source, reader } => {
+                write!(
+                    f,
+                    "redefining {source} so would leave what reads it holding what no \
+                     document holds: {reader}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "redefine {source} as a read of what its readers read, or change \
+                         the readers first"
+                    ),
+                )
             }
             Self::EmptyWitnessBulk => {
                 f.write_str("a re-witness bulk with no entries would change nothing")?;
@@ -6349,6 +6686,7 @@ fn standing_var<P>(
         | VarDef::Select(_)
         | VarDef::Pose(_)
         | VarDef::Pick(_)
+        | VarDef::Source(_)
         | VarDef::Index(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
@@ -6361,7 +6699,20 @@ fn standing_var<P>(
 /// document holds, at its kind; it does not read itself back (VR3);
 /// and no variable's expansion outgrows [`DEFINITION_NODE_BOUND`].
 /// A free definition reads nothing and passes.
-fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
+fn check_definition<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: VarId,
+    tol: Tol,
+) -> Result<(), EditError> {
+    // A source joins the recipe graph: what reads it reads its body, so
+    // a definition reading downstream of its own placements is a cycle
+    // through nodes (`bracket = F`, `F = fillet(C)`, `C = place(bracket)`)
+    // as well as one through definitions.
+    if new.source(id).is_some() {
+        expansion_refusal(new)?;
+        check_acyclic(new)?;
+        return check_source_readers(new, id, tol);
+    }
     let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
         return Ok(());
     };
@@ -6390,6 +6741,73 @@ fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
     // reads it, so the whole document is asked, by the search the load
     // walk asks too.
     expansion_refusal(new)
+}
+
+/// **Every reader of the source `id` still admits what it reads**
+/// (VARIABLES VR4): a redefinition changes the body behind each reader,
+/// so the document it writes is asked again what the load asks of it.
+///
+/// - Each node seat reading `id`, directly or down further sources, or
+///   through a selection or pose reaching it, first in this door's own
+///   words: the load's read predicate ([`Doc::read_fault`]) and the
+///   node's input rules ([`check_node_inputs`]).
+/// - Then the **load's own whole-document check**
+///   (`persist::check::validate_document`, the function `load` and
+///   `save` run) of the document as redefined, its first fault refused
+///   as [`EditError::SourceReaderRefused`]. A source's readers are of
+///   every kind a document holds (a placement, a further source, a
+///   selection, a pose, a pick, a delete's hand-over), and a list of
+///   them here would miss the next kind as each review round found; the
+///   load's check reads every one, so the door writes nothing the load
+///   refuses, by construction. A payload no load reads (a test's own
+///   profile type, [`crate::ProfilePayload::evaluable`]) has no load
+///   check to ask.
+pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: VarId,
+    tol: Tol,
+) -> Result<(), EditError> {
+    let reaches = |read: VarId| new.source_steps(read).iter().any(|&(at, _)| at == id);
+    for (&node_id, node) in &new.nodes {
+        let mut reads = false;
+        for (seat, var) in node.operand_rows() {
+            let selects = seat_selections(new, var).into_iter().any(|selection| {
+                new.selection(selection)
+                    .is_some_and(|select| reaches(select.body.read))
+            });
+            if !reaches(var) && !selects {
+                continue;
+            }
+            reads = true;
+            let Some(held) = new.var(var) else {
+                continue;
+            };
+            let expected = node.seat_kind(seat);
+            if let Some(crate::doc::ReadFault::Kind { found }) =
+                new.read_fault(var, held, expected, Reader::of(expected))
+            {
+                return Err(EditError::SlotVarKind {
+                    var: Box::new(new.spoken_var(var)),
+                    node: new.spoken(node_id),
+                    slot: SlotId::Operand(seat),
+                    found,
+                    expected,
+                });
+            }
+        }
+        if reads {
+            check_node_inputs(new, node_id, node)?;
+        }
+    }
+    if let Some(doc) = P::evaluable(new)
+        && let Err(reader) = crate::persist::check::validate_document(doc, &[], tol)
+    {
+        return Err(EditError::SourceReaderRefused {
+            source: new.spoken_var(id),
+            reader: Box::new(reader),
+        });
+    }
+    Ok(())
 }
 
 /// **The expansion search's answer as this door refuses it**: a
@@ -6690,7 +7108,9 @@ fn check_written_node<P: crate::ProfilePayload>(
     if let Writes::Node = writes {
         check_payload_refs(doc, new, node)?;
     }
-    check_node_inputs(doc, id, node)?;
+    // Asked of the written document: a read this edit minted (a source
+    // or a selection written in place) is held there.
+    check_node_inputs(new, id, node)?;
     check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
         node: spoken(),
         fault,
@@ -6701,6 +7121,14 @@ fn check_written_node<P: crate::ProfilePayload>(
         return Err(EditError::WorldIsUndeletable { node: spoken() });
     }
     check_node_slots(new, doc, id, node)?;
+    if let Node::Place { source, .. } = node
+        && new.source(source.read).is_none()
+    {
+        return Err(EditError::PlacementReadsNoSource {
+            node: spoken(),
+            read: new.spoken_var(source.read),
+        });
+    }
     // D10 `[placement.spaces]`: a node written whole reads one space,
     // decided from the recipe. A re-point is held to the same rule at
     // the door ([`door`]), where a re-target is told apart.
@@ -8576,12 +9004,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
             new.vars.insert(id, Var::written(def.clone()));
             new.var_names.insert(id, name.clone());
-            check_definition(new, id)?;
+            check_definition(new, id, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
                 minted_var: Some(id),
-                structural: def.kind() == VarKind::Count,
+                // A count changes how many values exist, a source what body
+                // its placements copy.
+                structural: matches!(def.kind(), VarKind::Count | VarKind::Body),
                 fresh: Vec::new(),
                 outputs: Vec::new(),
             }
@@ -8609,15 +9039,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let def = lower_decl(new, &lowering, &spoken, def)?;
             let record = match def {
                 WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
-                WrittenDef::Defined(_) | WrittenDef::Index(_) => {
+                WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
-                    check_definition(new, id)?;
+                    check_definition(new, id, tol)?;
                     EditRecord {
                         minted: None,
                         minted_constraints: Vec::new(),
                         minted_var: None,
-                        structural: kind == VarKind::Count,
+                        structural: matches!(kind, VarKind::Count | VarKind::Body),
                         fresh: Vec::new(),
                         outputs: Vec::new(),
                     }
@@ -9238,10 +9668,11 @@ fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections:
 }
 
 /// **What a read at a seat reaches**: the read itself, a selection's
-/// body, and through a pose written in place (an anonymous definition)
-/// every read inside it, in read order. A named pose is a read of its
-/// own and is not walked: removing what it reads strands the pose, not
-/// the seat ([`stranded_reads`]).
+/// body, through a pose written in place (an anonymous definition) every
+/// read inside it, in read order, and through an anonymous source its
+/// body read. A named pose or source is a read of its own and is not
+/// walked: removing what it reads strands it, not the seat
+/// ([`stranded_reads`]).
 pub(crate) fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
     reached(doc, var, false)
 }
@@ -9271,6 +9702,9 @@ fn reached<P>(doc: &Doc<P>, var: VarId, named: bool) -> Vec<VarId> {
                 for (_, &read, _, _) in def.reads() {
                     walk(doc, read, named, out);
                 }
+            }
+            Some(crate::var::VarDef::Source(body)) if named || doc.var_name(var).is_none() => {
+                walk(doc, body.read, named, out);
             }
             _ => {}
         }
@@ -9641,9 +10075,10 @@ fn product_read<P: crate::ProfilePayload>(
         crate::Operand::Output { node, port } => doc.output(*node, *port),
         crate::Operand::Var(var) => doc.var(*var).map(|_| *var),
         crate::Operand::Name(name) => doc.var_named(name.as_str()),
-        crate::Operand::Select { .. } | crate::Operand::Pose(_) | crate::Operand::Pick { .. } => {
-            None
-        }
+        crate::Operand::Select { .. }
+        | crate::Operand::Pose(_)
+        | crate::Operand::Pick { .. }
+        | crate::Operand::Source(_) => None,
     }
     .filter(|&var| doc.unresolved_read(var).is_none())
     .ok_or_else(|| refused(ProductReadFault::Unresolved))?;

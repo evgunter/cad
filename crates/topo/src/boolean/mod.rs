@@ -279,8 +279,7 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, face_carrier,
-    flush_pair_relation,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -7921,8 +7920,8 @@ fn decided_site<T: Decide>(
 ) -> crate::DecisionSite {
     let plane = |body: &Body<T>, f| {
         matches!(
-            carrier_pair::face_carrier(body, f),
-            Some(CarrierDesc::Plane { .. })
+            crate::face_normal::face_carrier_desc(body, f),
+            Some(CarrierDesc::Plane(_))
         )
     };
     if plane(a, fa) && plane(b, fb) {
@@ -9681,7 +9680,7 @@ mod tests {
             let hits: Vec<FaceKey> = crate::query::all_faces(body)
                 .into_iter()
                 .filter(|&f| {
-                    matches!(face_carrier(body, f), Some(CarrierDesc::Plane { origin, normal })
+                    matches!(crate::face_normal::face_carrier_desc(body, f), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { origin, normal }))
                         if (origin.z - 1.0).abs() < 1e-12 && normal.z * sign > 0.5)
                 })
                 .collect();

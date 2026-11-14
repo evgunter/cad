@@ -50,7 +50,7 @@ pub enum MeshError {
     ///
     /// **Why this validator names it, and `tessellate` does not.** A
     /// REFUSAL is decided on structure and reads no count: TESS-1
-    /// ruled that (`work/tess/TESS-1.md`, `## Closed` — "no float
+    /// ruled that (`work/tesslane/TESS-1.md`, `## Closed` — "no float
     /// decides it"; the spec itself is deleted) and
     /// [`crate::TessellateError::MeridianFreeCurvedFace`] is built that
     /// way. This is the other thing: a property RE-DERIVED from the

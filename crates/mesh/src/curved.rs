@@ -150,12 +150,13 @@
 //! face's widest latitude; torus —
 //! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
 //! direction from the doubly-curved chord bound that function derives.
-//! The boundary chord tightening in [`crate::chords`] puts the sphere's,
-//! cone's and torus's rims on the same steps.
+//! The chord pass's one rule ([`crate::chords`]) puts every rim and
+//! meridian on the same steps.
 
 use std::collections::HashMap;
 
 use geom::Surface;
+use geom_brep::PolygonOrientation;
 use geom_core::{Band, Point3};
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::props::LoopEdgesError;
@@ -249,21 +250,18 @@ pub(crate) fn tessellate_curved(
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
-    // S10 CATEGORY B — do NOT fold the face's `sense` in.
-    // `area2` is the UV shoelace of the boundary walk, which runs CCW in
-    // the chart's UV plane iff the outward normal agrees with the chart
-    // normal, i.e. iff `sense`. A reversed face therefore lands here
-    // with a negative `area2` and flips, which is exactly right. The
-    // walk puts the sense in the polygon: from the loop's STORED
-    // TRAVERSAL order, which interior-left ties to the outward normal,
-    // and on the wrap strip, whose loop walks one edge both ways and so
-    // has no order to read, from the sense itself (`walk::wrap_strip`).
-    // `revert` reverses the loops AND flips `sense` together, so
-    // multiplying here would double-count the reversal and emit
-    // inward-wound triangles. (The pole-to-pole band's azimuth in
-    // `walk` also reads the sense, as a DIRECTION in the chart frame,
-    // not a winding.)
-    let flip = area2 < 0.0;
+    // The polygon's orientation is READ, never taken from the face's
+    // `sense`: the CDT's triangles are counter-clockwise in the chart
+    // and the patch's are wound as the polygon is. The walk puts the
+    // sense in the polygon (`PolygonOrientation::of_face` is the one it
+    // then has): from the loop's STORED TRAVERSAL order, which
+    // interior-left ties to the outward normal, and on the wrap strip,
+    // whose loop walks one edge both ways and so has no order to read,
+    // from the sense itself (`walk::wrap_strip`). `revert` reverses the
+    // loops AND flips `sense` together, so folding the bit in here as
+    // well would double-count the reversal and emit inward-wound
+    // triangles.
+    let flip = PolygonOrientation::of_signed_area(area2) == Some(PolygonOrientation::Clockwise);
 
     // The walk's chart singularity, as `grid_counts` reads it: whether
     // a pole/apex entry is present, and how many INTERIOR chord points
@@ -316,8 +314,10 @@ pub(crate) fn tessellate_curved(
                   id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
+        // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
+        // floored point.
         let h = cdt
-            .insert(SpadePoint::new(u, v))
+            .insert(crate::cdt::spade_point(u, v))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
@@ -912,7 +912,7 @@ fn require_swept_rectangle(
 /// the paragraph rests on and the one that makes this arm different
 /// from the cone's rather than a restatement of it. Dirty needs
 /// `nv >= 3`, and the meridian is chorded at the grid's own step
-/// (`chords`' adjacent-grid tightening), so `nv >= 3` FORCES at least
+/// (`chords`' one rule), so `nv >= 3` FORCES at least
 /// two of those points. The arm is kept (Ev, 2026-08-19) so the rule reads as one
 /// sentence rather than one chart but not the other, and the mechanism
 /// it rests on — the occluding points EXIST — is asserted in
@@ -1006,12 +1006,12 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// superset of the pole-incident one it replaces, so no coverage
 /// moves with this definition.
 ///
-/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
-/// the spade-equality rule lives for both lanes; this function is that
-/// set unioned with the pole flags.
+/// The repeat half is [`crate::cdt::ids_at_two_uvs`], where the
+/// spade-equality rule lives for every lane; this function is that set
+/// unioned with the pole flags.
 #[cfg(debug_assertions)]
 fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
-    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    let mut identified = crate::cdt::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
     identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
     identified
 }
@@ -1096,7 +1096,7 @@ fn grid_counts(
                 // `(nu, 1)`, the cylinder's shape and for its reason: no
                 // rows. `cert::cert_cone` never reads v beyond the
                 // triangle's largest radius, and with both rims chorded
-                // on this step (`chords`' adjacent-grid tightening) and
+                // on this step (`chords`' one rule) and
                 // nothing on the sides between them, the strip argument
                 // at `sizing::sagitta_step` holds every triangle to one
                 // column, so the worst one is a rim-chord triangle on the
@@ -1111,7 +1111,7 @@ fn grid_counts(
             // keeps the lattice — rows every `ρ_max·hu` slant metres,
             // which put interior columns between the sides — and the
             // certificate, not a theorem, is what holds it
-            // (`work/tess/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
+            // (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
             let nu = pole_columns(ceil_count(uspan, hu)?, has_pole);
             if nu == 1 {
                 return Ok((1, 1));
