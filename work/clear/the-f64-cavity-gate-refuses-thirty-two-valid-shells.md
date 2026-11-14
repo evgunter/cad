@@ -76,6 +76,48 @@ row's table 1:
 the switch, the two f64 pins and the mutant land, with the two
 crossings re-pinned to their refusals.
 
+## Measured on main `2b68e8551c` (CLEAR, lane clear-corner2, 2026-11-13)
+
+After PRs 6886, 6892, 6894 and 6902, the 32 rows asked at f64 through
+the verdict door, with a local, uncommitted switch in `CavityGate::at`
+(the rows' whole test modules, local `nextest`, opt 1). **15 now shell;
+17 still refuse:**
+
+- **9 `Budget(Pairs { max_cell_pairs: 65536 })`:**
+  - `cross_solid_apart::a_hollow_shelled_again_passes_the_census`;
+  - `shell7_r2_probes::e2e_a_consumer_shells_classifies_measures_and_tessellates_tori`;
+  - `shell7_seam_corner::a_two_arc_sphere_shells_to_its_closed_form`;
+  - `shell9_probe::sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_shell_runs`;
+  - `shell9_r2_probes::r2_e2e_two_arc_sphere_hollows_and_tessellates`;
+  - three `shell_curved_mouth` rows: the dome short of tangent, the
+    tangent dome, and opening a tangent dome;
+  - `verbs_shell::the_full_period_torus_shells_solid_and_hollow_alike`.
+- **6 `Uncertified`, arm `Departure`:**
+  - the two drum rows, `shell9_r1_probes::r1_drum_reverted_cavity_alone`
+    and `shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form`;
+  - the three `torax_axial` sphere-lune rows;
+  - `torax_axial::torax_the_torus_corners_survive_a_rigid_re_pose`,
+    counted out of pairs above; it now refuses on the departure arm
+    instead.
+- **2 refused at a window:** the conical wedge and the three-quarter
+  cone frustum, as above.
+
+The 15 that shell: `shell10_r2_probes`' two e2e rows,
+`shell8_r1_probes::r1_e2e_two_parts_one_body`, `shell8_r2_probes`'
+consumer seat and three-solids rows, `shell_curved_mouth`'s bulging
+cap, spherical cap, void's cap and sphere window,
+`sf2b_axial::a_torus_belly_and_a_tangent_bullet_hollow_through_the_axial_door`,
+`verbs_shell`'s two record rows and its dome sectors, `spiric_rim`'s
+sectioned vessel, and `editor-core`'s capped vessel.
+
+`departure-reads-no-curved-corner-off-its-shared-edge` traces the six
+departure rows. Its lens reading makes two of the three lune rows shell
+(`torax_the_sphere_lune_hollows_to_its_closed_form` and
+`torax_the_sphere_lune_lifts_its_rims_onto_the_caps`), so on that
+change 15 rows still refuse: 9 out of pairs, 4 on the departure arm
+(the two drums, the two-arc lune, the torus belly re-posed), 2 at a
+window.
+
 ## Carried by the switch (review of PR 6885)
 
 - At `Probe` the switch puts the cavity sweep's samples into the K
