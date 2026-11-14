@@ -41,3 +41,14 @@ building at 1e-12.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to HONEPOSE (`work/honepose/`) by `git mv`, id and body unchanged: the P2 track opened for in-band refusals at measured poses: a reading that lands in band where the pose is not near a decision. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+**The first stop on main at 1e-12 is earlier now (GREEN
+`green/eps-1e-12`, 2026-11-14).** From PR 6505 (`onedoor/one-surface-record`,
+merge `9e1484043`) on, the row stops before the join: operand B does not
+finish (`VolumeUncomputable`, `props_chart_loop_whole`, BOXFINISH's
+`work/boxfinish/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12.md`).
+At its first parent `e996c0049` the stop was the re-posed twin's
+`CrossingInsertion` (`StatedImage`, `pcurve_map_residual`), GERM's
+`work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12.md`;
+`EndpointEnd` is not what main produced at either commit. The row is
+pinned at operand B's stop and cites both rows.
