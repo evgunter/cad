@@ -49,7 +49,7 @@ Review of `a-rings-lift-is-placed-against-its-outer-loop-in-one-place` found tha
 - the same half-open `v ≥ q_v` parity;
 - `Near` at the depth limit.
 
-What differs is the box source: Bézier pieces with rounding charges on a spline chart, `Pcurve::chart_box` on an analytic one. So the loop can be one, over a piece reading (box, ends, halves) that each family supplies, with each family keeping its own boxes. Then `with_rings` decides what it decides now. This unit makes them one. The work bounds are already one home (`pcurves::{SHIFTS, PIECE_DEPTH, PIECE_VISITS, HALVINGS, WINDOW_SHARE}`, which the trim reads).
+What differs is the box source: Bézier pieces with rounding charges on a spline chart, `Pcurve::chart_box` on an analytic one. So the loop can be one, over a piece reading (box, ends, halves) that each family supplies, with each family keeping its own boxes. Then `with_rings` decides what it decides now. This unit makes them one. The trim's ring rows (`boolean/spline_region_rows.rs`) pin the region its ring placement gives, not the deck it moved the ring by, since the trim reports no deck; a pin on the deck returns here, when the door reads a spline face and hands its deck out. The work bounds are already one home (`pcurves::{SHIFTS, PIECE_DEPTH, PIECE_VISITS, HALVINGS, WINDOW_SHARE}`, which the trim reads).
 
 The other ray-parity readers in `topo` are the class to sweep when the loop is made one:
 - `chart_region`'s `ray_walk` and `point_in_polygon`;

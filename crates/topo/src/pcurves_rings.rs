@@ -52,9 +52,13 @@ pub(crate) const RING_PLACE_CLEAR: &str = "ring_place_clear";
 /// length.
 pub(crate) const RING_PLACE_ARM: &str = "ring_place_arm";
 
-/// The shifts one closed channel may try, and the copies of a query the
-/// spline trim reads on a closed chart: a work bound, not a fact about
-/// the face. A channel past it answers [`RingMiss::Copies`].
+/// A work bound, not a fact about the face, on two different counts:
+/// the shifts one closed channel may try in [`place_ring`], where a
+/// channel past it answers [`RingMiss::Copies`]; and the product of a
+/// query's copies over both channels that the spline trim reads
+/// (`boolean::spline_region`'s `Trim::copies`, which reads it as
+/// `COPIES`), where a product past it reads `Near(None)`. Raising it
+/// moves both.
 pub(crate) const SHIFTS: usize = 9;
 /// How many times a piece of an outer loop is halved before a point it
 /// is not clear of reads near it: a work bound, read as `Near`.
@@ -136,7 +140,11 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
-    /// A ring does not close in its chart.
+    /// A ring does not close in its chart. A guard no body reaches: an
+    /// outer loop that winds zero bounds a disc with holes in the lifted
+    /// sheet, so every ring inside it winds zero too. A ring that winds
+    /// needs an outer loop that winds, and the door answers
+    /// [`Self::OuterOpen`] first.
     RingOpen {
         /// The ring.
         ring: LoopKey,
@@ -654,7 +662,7 @@ mod tests {
     use geom_core::predicate::Band;
     use geom_core::{Point2, Point3, Tol, Vec3};
 
-    use super::{Outer, Piece, RingMiss, Shift, Side, place_ring};
+    use super::{Outer, Piece, RingMiss, Shift, Side, place_ring, whole};
 
     /// The rule over a scripted reading: the shifts it tries and what it
     /// answers.
@@ -989,6 +997,48 @@ mod tests {
             Some(TAU),
         );
         assert_eq!(place(&tall, [1.0, 0.0]), Ok([0, 0]), "a loop 6 rad tall");
+    }
+
+    /// **A count of periods with no `i32` answers typed, never
+    /// saturated**: past `i32`, NaN and ±∞ have no whole, so the rule
+    /// answers `Copies` for a ring point stored that far, and the reader
+    /// answers `Near` for a point whose latitude copy it cannot count.
+    #[test]
+    fn a_count_past_i32_answers_copies_and_near() {
+        assert_eq!(
+            [
+                whole(3.0),
+                whole(-2_147_483_648.0),
+                whole(2_147_483_648.0),
+                whole(-2_147_483_649.0),
+                whole(f64::NAN),
+                whole(f64::INFINITY),
+                whole(f64::NEG_INFINITY),
+            ],
+            [Some(3), Some(i32::MIN), None, None, None, None, None],
+            "a whole in range, the least i32, one past each end, NaN, ±∞"
+        );
+        let reach = [(0.0, TAU), (0.0, 1.0)];
+        for at in [1e12, f64::NAN, f64::INFINITY] {
+            assert_eq!(
+                place_ring([Some(TAU), None], reach, [at, 0.5], |_| Side::In).map(|s| s.deck.u),
+                Err(RingMiss::Copies),
+                "a ring point stored at u = {at}"
+            );
+        }
+        let band = Band::linear(Tol::witness()).unwrap();
+        let sphere = unit_sphere();
+        let half = chain(
+            &sphere,
+            &[(PI, -1.2), (TAU, -1.2), (TAU, 1.2), (PI, 1.2)],
+            Some(TAU),
+        );
+        for v in [1e12, f64::NAN] {
+            assert!(
+                matches!(half.side(Point2::new(4.5, v), band), Side::Near(None)),
+                "a point at v = {v} has no latitude copy to read its arms at"
+            );
+        }
     }
 
     #[test]
