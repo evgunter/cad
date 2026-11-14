@@ -845,9 +845,14 @@ fn top_of(body: RecipeNodeId) -> viewer::session::FaceSelection {
 /// body means reads it as a body): `bracket = B` placed twice, a mirror
 /// of a post `X` in B's space whose plane is B's top cap, picked on B,
 /// offers nothing (nor does `X ∪ mirror(X)`, the body the gesture
-/// draws) — it reads B as a plane, not as a body.
+/// draws) — it reads B as a plane, not as a body. The post is itself a
+/// placed copy (`moved_to` places it), which the union reads as a body,
+/// so the pane says the union is on the post's copy, not on B (Ev, PR
+/// 6917: "built on a copy" reads bodies as bodies too).
 ///
-/// *Breaks if* the offer's walk follows a mirror's plane seat.
+/// *Breaks if* the offer's walk follows a mirror's plane seat, or "built
+/// on a copy" does (it would reach B, built from nothing, and say
+/// nothing).
 #[test]
 fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
     let tol = Tol::witness();
@@ -874,10 +879,22 @@ fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
         None,
         "a mirror reading B only as its plane offers nothing for bracket"
     );
+    let original = viewer::world::original_of(doc, post);
+    assert_ne!(original, body, "the post's original is not B");
     assert_eq!(
-        viewer::frame::placement_offers(doc, mirror, tol),
-        [],
-        "and says nothing"
+        viewer::world::built_on_copy(doc, mirror),
+        Some((post, original)),
+        "the union is on the post's copy"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, mirror, tol)
+            .into_iter()
+            .map(|offer| offer.op)
+            .collect::<Vec<_>>(),
+        [SessionOp::Select(viewer::session::Selection::Node(
+            original
+        ))],
+        "one row: on the post's copy, its button the post's original"
     );
 }
 
@@ -1020,15 +1037,14 @@ fn minted_union(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> RecipeNod
     union
 }
 
-/// **A body reached first as a plane and then as a body still offers**
-/// (the offer's walk visits a node once as a body and once otherwise):
-/// `X = fillet(B)`, `A = chamfer(X)`, and a mirror of `A` whose plane is
-/// picked on `X`. The walk from `A ∪ mirror(A)` meets `X` first as the
-/// mirror's plane, and then as the body `A` chamfers; through the
-/// second it reads `B` as a body, so the union offers `bracket`.
+/// **A body read both as a plane and as a body still offers**: `X =
+/// fillet(B)`, `A = chamfer(X)`, and a mirror of `A` whose plane is
+/// picked on `X`. `A ∪ mirror(A)` reads `X` as the mirror's plane and,
+/// through `A`, as the body `A` chamfers; through the second it reads
+/// `B` as a body, so the union offers `bracket`.
 ///
-/// *Breaks if* the walk keeps one `seen` per node, so a node first met
-/// through a plane is never walked as a body.
+/// *Breaks if* a node met through a plane is marked seen and never
+/// walked as a body (the walk follows body seats alone).
 #[test]
 fn a_body_reached_first_as_a_plane_then_as_a_body_offers() {
     let tol = Tol::witness();
@@ -1151,18 +1167,23 @@ fn a_split_half_does_not_offer_its_siblings_placements() {
     );
 }
 
-/// **A body built on a copy only through its frame is on that copy**
-/// (`world::built_on_copy` reads every seat): a cylinder's world copy
-/// `C`, a profile drawn on `C`'s top cap and extruded on its own. The
-/// extrude reads `C` only through its profile's frame, and is said to
-/// be on the placed copy `C`, with the button to the cylinder.
+/// **A body that reaches a copy only through its frame is not on that
+/// copy** (Ev, PR 6917: "built on a copy" reads bodies as bodies, as the
+/// offer does): a cylinder's world copy `C`, a profile drawn on `C`'s
+/// top cap and extruded on its own — another part. The extrude reads
+/// `C` only through its profile's frame: it is on no placed copy, offers
+/// nothing for `C`'s source, and the pane says nothing.
 ///
-/// *Breaks if* "built on a copy" follows body seats only.
+/// *Breaks if* "built on a copy" follows every seat.
 #[test]
-fn a_body_on_a_copy_only_through_its_frame_is_on_that_copy() {
+fn a_body_reaching_a_copy_only_through_its_frame_is_not_on_that_copy() {
     let tol = Tol::witness();
     let (session, body) = disc_extrude("framed-on-a-copy", tol);
     let (mut session, copy) = common::world_copy_by_hand_in(&session, body, tol);
+    let source = session
+        .committed_doc()
+        .copied_read(copy)
+        .expect("C's source");
     let profile = square_drawn_on(&mut session, body, copy);
     let extrude = landed(
         &mut session,
@@ -1172,17 +1193,69 @@ fn a_body_on_a_copy_only_through_its_frame_is_on_that_copy() {
         },
     );
     let doc = session.committed_doc();
-    assert_eq!(
-        viewer::world::built_on_copy(doc, extrude),
-        Some((copy, body)),
-        "the extrude is on the copy it is sketched on"
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(extrude)),
+        "the extrude is drawn"
     );
     assert_eq!(
-        viewer::frame::placement_offers(doc, extrude, tol)
+        viewer::world::built_on_copy(doc, extrude),
+        None,
+        "the extrude is on no placed copy"
+    );
+    let sources = viewer::world::repoint_offer(doc, extrude, tol)
+        .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>());
+    assert!(
+        !sources.iter().flatten().any(|&s| s == source),
+        "nothing for C's source: {sources:?}"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, extrude, tol),
+        [],
+        "and the pane says nothing"
+    );
+}
+
+/// **A mirror whose plane is picked on a copy is not on that copy**
+/// (Ev, PR 6917): world copies `C` of B and then `D` of X, and a mirror
+/// of `D` whose plane is `C`'s top cap. `D ∪ mirror(D)` reads `D` as a
+/// body and `C` only as its plane, so it is on `D`, not on `C` — though
+/// `C` is minted first, which a walk over every seat would answer.
+///
+/// *Breaks if* "built on a copy" follows a mirror's plane seat.
+#[test]
+fn a_mirror_whose_plane_is_on_a_copy_is_not_on_that_copy() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("mirror-on-a-copy", tol);
+    let other = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let (session, c) = common::world_copy_by_hand_in(&session, body, tol);
+    let (mut session, d) = common::world_copy_by_hand_in(&session, other, tol);
+    assert!(c < d, "C is minted first");
+    let out = session.perform(SessionOp::AddMirror {
+        body: d.into(),
+        plane: viewer::session::FaceSelection {
+            node: c,
+            ..top_of(body)
+        },
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let union = minted_union(doc, &out.minted);
+    assert_eq!(
+        viewer::world::built_on_copy(doc, union),
+        Some((d, other)),
+        "on D, the copy it reads as a body, not on C"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, union, tol)
             .into_iter()
             .map(|offer| offer.op)
             .collect::<Vec<_>>(),
-        [SessionOp::Select(viewer::session::Selection::Node(body))],
-        "one row, its button the original body"
+        [SessionOp::Select(viewer::session::Selection::Node(other))],
+        "one row, its button X"
     );
 }

@@ -606,24 +606,25 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
-/// **What `node` is built on**: everything it reads, at any depth and
-/// in no order, the walk down its reads stopping at each copy it
-/// reaches ([`copy_source`]). One walk, two answers: the copies reached
-/// through any seat answer "built on a copy" ([`built_on_copy`]: an
-/// extrude of a profile drawn on `C`'s face reads `C` only through the
-/// profile's frame, and is on `C`), and the
-/// outputs read as bodies — down seats [`reads_as_body`] admits only —
-/// answer "built on bodies" ([`repoint_offer`]: a mirror whose plane is
-/// picked on `B` reads `B` as no body).
+/// **What `node` is built on**: everything it reads as a body, at any
+/// depth and in no order — down the seats [`reads_as_body`] admits
+/// alone — the walk stopping at each copy it reaches ([`copy_source`]).
+/// One rule for both questions (Ev, PR 6917): the copies reached answer
+/// "built on a copy" ([`built_on_copy`]) and the outputs read answer
+/// "built on bodies" ([`repoint_offer`]), and "a body built from
+/// nothing" counts only bodies read as bodies, the same rule applied
+/// once. A body that reaches `B` or a copy `C` only through a plane, a
+/// frame or another reference reads neither as a body: a mirror whose
+/// plane is picked on `B` is built on no `B`, and an extrude of a
+/// profile drawn on `C`'s face on no `C`.
 struct BuiltOn {
-    /// The copies reached, through any seat.
+    /// The copies read as bodies.
     copies: BTreeSet<RecipeNodeId>,
     /// Every output read as a body other than through a copy, a copy's
-    /// own included, as its operation and port: reached from the node
-    /// down body seats alone.
+    /// own included, as its operation and port.
     bodies: BTreeSet<(RecipeNodeId, u8)>,
-    /// Whether a body built from nothing is reached other than through
-    /// a copy.
+    /// Whether a body that reads no body (an extrude, a revolve) is read
+    /// other than through a copy.
     from_nothing: bool,
 }
 
@@ -645,32 +646,23 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
         bodies: BTreeSet::new(),
         from_nothing: false,
     };
-    // Each node is walked once as a body (reached down body seats alone)
-    // and once otherwise at most: a node first reached through a plane
-    // is walked again where a body seat reaches it.
-    let mut seen = BTreeSet::from([(node, true)]);
-    let mut next = vec![(node, true)];
-    while let Some((at, as_body)) = next.pop() {
-        let reads: Vec<(bool, RecipeNodeId, u8)> = doc
+    let mut seen = BTreeSet::from([node]);
+    let mut next = vec![node];
+    while let Some(at) = next.pop() {
+        let reads: Vec<(RecipeNodeId, u8)> = doc
             .node(at)
             .into_iter()
             .flat_map(Node::operand_rows)
-            .flat_map(|(seat, var)| {
-                let body = as_body && reads_as_body(seat);
-                doc.read_ports(var)
-                    .into_iter()
-                    .map(move |(read, port)| (body, read, port))
-            })
+            .filter(|&(seat, _)| reads_as_body(seat))
+            .flat_map(|(_, var)| doc.read_ports(var))
             .collect();
         built.from_nothing |= reads.is_empty() && at != node;
-        for (body, read, port) in reads {
-            if body {
-                built.bodies.insert((read, port));
-            }
+        for (read, port) in reads {
+            built.bodies.insert((read, port));
             if copy_source(doc, read, 0).is_some() {
                 built.copies.insert(read);
-            } else if seen.insert((read, body)) {
-                next.push((read, body));
+            } else if seen.insert(read) {
+                next.push(read);
             }
         }
     }
@@ -681,11 +673,14 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
 /// body** (Ev, PR 6353: a feature picked on a copy belongs to that
 /// placed copy, with an easy way to the original body).
 ///
-/// Read off what `node` is built on ([`built_on`]). `node` is built on
-/// a copy where it reaches at least one copy and reaches no body other
-/// than through a copy — `fillet(C)`, `chamfer(fillet(C))`,
-/// `C ∪ mirror(C)`, a sketch fused onto `C` (whose boss is a copy of
-/// the sketch's own extrude). `∪[B, C]`, which reads the body `B` as
+/// Read off what `node` is built on ([`built_on`]), which reads bodies
+/// as bodies only. `node` is built on a copy where it reads at least one
+/// copy as a body and reads no other body other than through a copy —
+/// `fillet(C)`, `chamfer(fillet(C))`, `C ∪ mirror(C)`, a sketch fused
+/// onto `C` (whose boss is a copy of the sketch's own extrude, a member
+/// of the union with `C`). A body that reaches `C` only through a plane
+/// or a frame — a mirror of another body whose plane is picked on `C`,
+/// an extrude of a profile drawn on `C`'s face — is not on `C`. `∪[B, C]`, which reads the body `B` as
 /// well as a copy of it, is built on no copy, whichever operand comes
 /// first: it is built on `B`, and offers `B`'s re-point. Where several
 /// copies are reached, the answer is the one minted first. The original
