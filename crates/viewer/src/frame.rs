@@ -2640,7 +2640,8 @@ pub fn placement_offers(
                         .placements
                         .first()
                         .map_or_else(|| by.read(row.source), |&copy| by.node(copy).to_string());
-                    (format!("the copy {copy}"), format!("the copy {copy}"))
+                    let who = format!("the copy {copy}");
+                    (who.clone(), who)
                 }
             };
             PlacementOffer {

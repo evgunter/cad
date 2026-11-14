@@ -609,8 +609,9 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 /// **What `node` is built on**: everything it reads, at any depth and
 /// in no order, the walk down its reads stopping at each copy it
 /// reaches ([`copy_source`]). One walk, two answers: the copies reached
-/// through any seat answer "built on a copy" ([`built_on_copy`]: a
-/// sketch fused onto `C` reads `C` through its frame too), and the
+/// through any seat answer "built on a copy" ([`built_on_copy`]: an
+/// extrude of a profile drawn on `C`'s face reads `C` only through the
+/// profile's frame, and is on `C`), and the
 /// outputs read as bodies — down seats [`reads_as_body`] admits only —
 /// answer "built on bodies" ([`repoint_offer`]: a mirror whose plane is
 /// picked on `B` reads `B` as no body).
@@ -702,11 +703,11 @@ pub fn built_on_copy(
         Node::Profile(_) => return copy_downstream_of(doc, node),
         _ => {}
     }
-    copy_built_on(doc, &built_on(doc, node))
+    copy_of_walk(doc, &built_on(doc, node))
 }
 
 /// [`built_on_copy`] off a walk already taken.
-fn copy_built_on(
+fn copy_of_walk(
     doc: &Doc<ProfileProgram>,
     built: &BuiltOn,
 ) -> Option<(RecipeNodeId, RecipeNodeId)> {
@@ -748,7 +749,7 @@ pub fn placement_reading(
             .or_else(|| repoint_offer_on(doc, node, None, tol).map(PlacementReading::Offer)),
         _ => {
             let built = built_on(doc, node);
-            match copy_built_on(doc, &built) {
+            match copy_of_walk(doc, &built) {
                 Some(copy) => Some(on_copy(copy)),
                 None => repoint_offer_on(doc, node, Some(built), tol).map(PlacementReading::Offer),
             }

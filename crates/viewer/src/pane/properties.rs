@@ -701,8 +701,8 @@ impl ViewerBehavior<'_> {
     /// **The copy the selection is on, and the steps it offers**
     /// ([`crate::frame::placement_offers`]): the way to the original
     /// body from a placed copy, and the re-point of a body's placements
-    /// onto a body built on it, each beside the fact it acts on. Read off the committed document, once per
-    /// change ([`crate::session::DocSession::placement_offers`]).
+    /// onto a body built on it, each beside the fact it acts on. Read
+    /// off the committed document, once per change ([`crate::session::DocSession::placement_offers`]).
     fn placement_ui(&mut self, ui: &mut egui::Ui) {
         let Some(node) = self.session.selection().seat_node() else {
             return;

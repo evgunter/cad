@@ -867,13 +867,8 @@ fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
     let doc = session.committed_doc();
-    let picture = viewer::world::Picture::of(doc);
     // The gesture writes `X ∪ mirror(X)`; the union is what is drawn.
-    let mirror = *out
-        .minted
-        .iter()
-        .find(|&&n| picture.drawn.iter().any(|drawn| drawn.of_node(n)))
-        .expect("the mirror's body is drawn");
+    let mirror = minted_union(doc, &out.minted);
     assert_eq!(
         viewer::world::repoint_offer(doc, mirror, tol),
         None,
@@ -900,20 +895,7 @@ fn a_standalone_extrude_sketched_on_bs_face_offers_nothing_for_bracket() {
     let tol = Tol::witness();
     // B a disc's extrude (a frame traces a wall with an axis), placed
     // twice through `bracket`.
-    let mut session = common::inline_without_door(Doc::empty_derived("sketched-part", tol), tol);
-    let disc = landed(
-        &mut session,
-        SessionOp::AddProfile {
-            loops: vec![common::circle_at([0.0, 0.0], 0.01)],
-        },
-    );
-    let body = landed(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: disc,
-            distance: common::len(0.01),
-        },
-    );
+    let (mut session, body) = disc_extrude("sketched-part", tol);
     for name in [None, Some("bracket")] {
         let op = place_op(session.committed_doc(), body.into(), name);
         landed(&mut session, op);
@@ -922,36 +904,7 @@ fn a_standalone_extrude_sketched_on_bs_face_offers_nothing_for_bracket() {
         .committed_doc()
         .var_named("bracket")
         .expect("the source");
-    let wall = {
-        let ev = session.evaluation().expect("landed");
-        pncad::select::all_faces(ev, body)
-            .into_iter()
-            .find(|name| {
-                pncad::select::face_carrier_kind(ev, body, name)
-                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
-            })
-            .expect("a wall")
-    };
-    let point =
-        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
-    let profile = landed(
-        &mut session,
-        SessionOp::AddDrawnProfile {
-            plane: top_of(body),
-            traced: vec![viewer::session::FaceSelection {
-                name: wall,
-                node: body,
-                body: 0,
-            }],
-            chains: vec![
-                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
-                    .line_to(point(0.002, -0.002))
-                    .line_to(point(0.002, 0.002))
-                    .line_to(point(-0.002, 0.002))
-                    .line_to(pncad::document::ProgramTarget::Start),
-            ],
-        },
-    );
+    let profile = square_drawn_on(&mut session, body, body);
     let extrude = landed(
         &mut session,
         SessionOp::AddExtrude {
@@ -985,5 +938,251 @@ fn a_standalone_extrude_sketched_on_bs_face_offers_nothing_for_bracket() {
         viewer::frame::placement_offers(doc, extrude, tol),
         [],
         "and says nothing"
+    );
+}
+
+/// A disc's extrude in a session of its own, landed: a body with a
+/// planar cap and a wall with an axis, which a drawn frame traces.
+fn disc_extrude(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = common::inline_without_door(Doc::empty_derived(name, tol), tol);
+    let disc = landed(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.01)],
+        },
+    );
+    let body = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: disc,
+            distance: common::len(0.01),
+        },
+    );
+    (session, body)
+}
+
+/// A small square drawn on `body`'s top cap as seen on `on` (`body`
+/// itself, or a copy of it), its frame tracing the wall: the profile.
+fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeId) -> RecipeNodeId {
+    let wall = {
+        let ev = session.evaluation().expect("landed");
+        pncad::select::all_faces(ev, body)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(ev, body, name)
+                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
+            })
+            .expect("a wall")
+    };
+    let point =
+        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
+    landed(
+        session,
+        SessionOp::AddDrawnProfile {
+            plane: viewer::session::FaceSelection {
+                node: on,
+                ..top_of(body)
+            },
+            traced: vec![viewer::session::FaceSelection {
+                name: wall,
+                node: on,
+                body: 0,
+            }],
+            chains: vec![
+                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
+                    .line_to(point(0.002, -0.002))
+                    .line_to(point(0.002, 0.002))
+                    .line_to(point(-0.002, 0.002))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+    )
+}
+
+/// The one union among `minted`, drawn: the body a mirror gesture
+/// (`X ∪ mirror(X)`) or a combine makes.
+fn minted_union(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> RecipeNodeId {
+    let unions: Vec<RecipeNodeId> = minted
+        .iter()
+        .copied()
+        .filter(|&n| matches!(doc.node(n), Some(pncad::document::Node::Union { .. })))
+        .collect();
+    let [union] = unions[..] else {
+        panic!("one union minted: {unions:?}");
+    };
+    assert!(
+        viewer::world::Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(union)),
+        "the union is drawn"
+    );
+    union
+}
+
+/// **A body reached first as a plane and then as a body still offers**
+/// (the offer's walk visits a node once as a body and once otherwise):
+/// `X = fillet(B)`, `A = chamfer(X)`, and a mirror of `A` whose plane is
+/// picked on `X`. The walk from `A ∪ mirror(A)` meets `X` first as the
+/// mirror's plane, and then as the body `A` chamfers; through the
+/// second it reads `B` as a body, so the union offers `bracket`.
+///
+/// *Breaks if* the walk keeps one `seen` per node, so a node first met
+/// through a plane is never walked as a body.
+#[test]
+fn a_body_reached_first_as_a_plane_then_as_a_body_offers() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edges = lateral_edges(&session, body);
+    let x = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), x)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { of, .. }] if *of.name() == edges[1])
+        })
+        .expect("X carries a second lateral edge of B");
+    let a = landed(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: x,
+            distance: common::len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    let out = session.perform(SessionOp::AddMirror {
+        body: a.into(),
+        plane: viewer::session::FaceSelection {
+            node: x,
+            ..top_of(body)
+        },
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let union = minted_union(doc, &out.minted);
+    assert_eq!(
+        viewer::world::repoint_offer(doc, union, tol).map(|offer| offer
+            .rows
+            .iter()
+            .map(|row| row.source)
+            .collect::<Vec<_>>()),
+        Some(vec![bracket]),
+        "A ∪ mirror(A) reads B as a body, through A and X"
+    );
+}
+
+/// **A split half does not offer its sibling's placements**: `B` split,
+/// its body 1 placed alone, then each half fused with another body. The
+/// union of body 0 reads no placed body as a body and offers nothing;
+/// the union of body 1 offers body 1's source.
+///
+/// *Breaks if* the walk takes every output of a node it reads rather
+/// than the output read (a split's two halves are one node's two).
+#[test]
+fn a_split_half_does_not_offer_its_siblings_placements() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("split-halves", tol);
+    let raw = common::xy_box_in(&mut session, [0.004, 0.004, 0.004]);
+    let other = common::moved_to(&mut session, raw, [0.0, 0.0, 0.0]);
+    let plane = common::cut_across(&session, body, SIZE[2] / 2.0);
+    let out = session.perform(SessionOp::AddSplit {
+        target: body.into(),
+        plane,
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let split = *out
+        .minted
+        .iter()
+        .find(|&&n| {
+            matches!(
+                session.committed_doc().node(n),
+                Some(pncad::document::Node::Split { .. })
+            )
+        })
+        .expect("the split");
+    let half = |port| Operand::output(split, port);
+    let placed = {
+        let op = place_op(session.committed_doc(), half(1), None);
+        landed(&mut session, op)
+    };
+    let source = session
+        .committed_doc()
+        .copied_read(placed)
+        .expect("body 1's source");
+    let home = session
+        .committed_doc()
+        .node_space(split)
+        .expect("the split's space");
+    common::into_space(&mut session, other, home);
+    session.pump();
+    let fused = |session: &mut DocSession, port| {
+        let doc = session.committed_doc();
+        let spec = viewer::session::BooleanSpec::Union(vec![
+            pncad::document::BodyRead::plain(half(port)),
+            pncad::document::BodyRead::plain(Operand::from(doc.output(other, 0).expect("other"))),
+        ]);
+        landed(session, SessionOp::AddBoolean { spec })
+    };
+    let zero = fused(&mut session, 0);
+    let one = fused(&mut session, 1);
+    let doc = session.committed_doc();
+    let sources = |node| {
+        viewer::world::repoint_offer(doc, node, tol)
+            .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>())
+    };
+    assert_eq!(sources(zero), None, "body 0's union offers nothing");
+    assert_eq!(
+        sources(one),
+        Some(vec![source]),
+        "body 1's union offers body 1's source"
+    );
+}
+
+/// **A body built on a copy only through its frame is on that copy**
+/// (`world::built_on_copy` reads every seat): a cylinder's world copy
+/// `C`, a profile drawn on `C`'s top cap and extruded on its own. The
+/// extrude reads `C` only through its profile's frame, and is said to
+/// be on the placed copy `C`, with the button to the cylinder.
+///
+/// *Breaks if* "built on a copy" follows body seats only.
+#[test]
+fn a_body_on_a_copy_only_through_its_frame_is_on_that_copy() {
+    let tol = Tol::witness();
+    let (session, body) = disc_extrude("framed-on-a-copy", tol);
+    let (mut session, copy) = common::world_copy_by_hand_in(&session, body, tol);
+    let profile = square_drawn_on(&mut session, body, copy);
+    let extrude = landed(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.003),
+        },
+    );
+    let doc = session.committed_doc();
+    assert_eq!(
+        viewer::world::built_on_copy(doc, extrude),
+        Some((copy, body)),
+        "the extrude is on the copy it is sketched on"
+    );
+    assert_eq!(
+        viewer::frame::placement_offers(doc, extrude, tol)
+            .into_iter()
+            .map(|offer| offer.op)
+            .collect::<Vec<_>>(),
+        [SessionOp::Select(viewer::session::Selection::Node(body))],
+        "one row, its button the original body"
     );
 }
