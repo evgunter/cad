@@ -780,11 +780,10 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
         // far end against `q_to`) rather than define it, and their width
         // at a lane scalar is not the span's.
         SegmentKind::Line => {
-            let chord = seg.b() - seg.a();
-            let span = chord.norm();
+            let (dir, span) = (seg.b() - seg.a()).direction_and_length();
             let line = geom::Line {
                 origin: q_from,
-                dir: place.vector(chord / span),
+                dir: place.vector(dir),
             };
             // Rigidity, stated where it is guaranteed, as the arc arm
             // states its own (`register_placed_line_end` carries the
