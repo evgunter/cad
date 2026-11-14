@@ -153,9 +153,19 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
+      # The ci profile for its junit report and fail-fast = false; its default
+      # filter (the slow set) is ignored, so every viewer test runs.
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
         if: '!cancelled()'
-        run: cargo nextest run -p viewer --features app
+        run: |
+          rc=0
+          cargo nextest run --profile ci --ignore-default-filter -p viewer --features app \
+            --no-fail-fast || rc=$?
+          scripts/nextest-failures.py "viewer app" "$rc"
+          exit "$rc"
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
   rustdoc-roots:
     name: rustdoc (gate, every root)
     runs-on: ubuntu-latest
@@ -299,6 +309,8 @@ jobs:
       fail-fast: false
       matrix:
         row: [dev-default, release-default, release-budget, dev-budget, dev-probe]
+    # A row's steps run past an earlier red (`!cancelled()`); only a step that
+    # reads an earlier step's output waits on it, and says so when it is absent.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -317,10 +329,10 @@ jobs:
             tools/tess-lint
             tools/tess-meter
       - name: demos tour fmt + clippy
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: install cargo-nextest (pinned, official prebuilt)
         if: matrix.row == 'release-default'
@@ -328,38 +340,43 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: cd demos/tour && cargo nextest run --release --no-fail-fast
       # The per-PR `eps_regression` runs `demo-tour certified` at the default
       # ε only (#3291: minutes per run, almost never red at one ε alone), so
       # the other two rows are re-taken here, once a day. The cells assert
       # their captions inside the narration, so exit 0 is the check.
       - name: the tour's certified cells at the other ε rows
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd demos/tour
+          red=""
           for eps in 1e-6 1e-12; do
             echo "== demo-tour certified at eps = $eps"
-            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified
+            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified || red="$red $eps"
           done
+          if [ -n "$red" ]; then
+            echo "::error title=demo-tour certified::red at eps$red"
+            exit 1
+          fi
       - name: the tour die corpus is regenerable byte-for-byte
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: |
           cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
           diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-lint
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
           cargo test
       - name: tess-meter tool fmt + clippy + tests
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-meter
           cargo fmt --check
@@ -396,13 +413,13 @@ jobs:
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         run: cd demos/tour && cargo test --features probe --test all k_probe_brackets
       - name: large-K lint (pinned red — the gate must still fail, and reports its counts)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         # Pinned at main's verdict while
         # work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md
         # stays open: the gate must fail (exit 2). A pass means that row's
@@ -412,6 +429,9 @@ jobs:
           # +e: the runner's `bash -e` would exit on the pinned exit 2
           # before the case below reads it.
           set +e -uo pipefail
+          for f in target/k-fresh/k-eps-1e-6.csv target/k-fresh/k-eps-1e-9.csv target/k-fresh/k-eps-1e-12.csv; do
+            [ -s "$f" ] || { echo "::error title=large-K lint not run::the probe sweep wrote no $f"; exit 1; }
+          done
           cd tools/k-lint
           cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
@@ -435,9 +455,12 @@ jobs:
               ;;
           esac
       - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         run: |
           set +e -uo pipefail
+          for f in target/k-fresh/driver/k-eps-1e-6.csv target/k-fresh/driver/k-eps-1e-9.csv target/k-fresh/driver/k-eps-1e-12.csv; do
+            [ -s "$f" ] || { echo "::error title=driver K-telemetry lint not run::the probe sweep wrote no $f"; exit 1; }
+          done
           cd tools/k-lint
           status=0
           cargo run -- --gate-rule-1-only \

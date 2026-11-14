@@ -64,7 +64,7 @@ run() { # run LOG [RUSTFLAGS…]: every pin, its outcomes to LOG
   shift
   set +e
   RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --no-fail-fast \
-    --run-ignored all --ignore-default-filter \
+    --color never --run-ignored all --ignore-default-filter \
     --success-output never --failure-output never \
     -E "test(/::($filter)\$/)" >"$log" 2>&1
   set -e
@@ -79,8 +79,11 @@ CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run "$mutant" --
 python3 - "$control" "$mutant" $pins <<'PY'
 import re, sys
 pins = sys.argv[3:]
+# Status lines are read as plain text: colour escapes (a runner exports
+# CARGO_TERM_COLOR=always) would hide every status word from the pattern.
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 def outcomes(path, what):
-    log = open(path, errors="replace").read()
+    log = ANSI.sub("", open(path, errors="replace").read())
     ran = {}
     for m in re.finditer(r"^\s*(PASS|FAIL|SIGABRT|SIGSEGV|TIMEOUT)\b.*?::([A-Za-z_0-9]+)\s*$", log, re.M):
         ran.setdefault(m.group(2), set()).add(m.group(1))

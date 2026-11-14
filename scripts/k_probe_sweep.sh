@@ -87,12 +87,12 @@ record_ran() {
   printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$RAN_TALLY"
 }
 
-# One field of `test result: ok. 1 passed; 0 failed; 1 ignored; …`, which
-# is the runner's own account of what EXECUTED and what it skipped.
-# Defaults to 0 so a caller can never read the empty string.
+# One field of `test result: ok. 1 passed; 0 failed; 1 ignored; …` (or
+# `FAILED.`), which is the runner's own account of what EXECUTED and what
+# it skipped. Defaults to 0 so a caller can never read the empty string.
 result_field() {
   local n
-  n=$(awk -v f="$2;" '/^test result: ok\./ { for (i = 2; i <= NF; i++) if ($i == f) { print $(i-1) + 0; exit } }' "$1")
+  n=$(awk -v f="$2;" '/^test result: (ok|FAILED)\./ { for (i = 2; i <= NF; i++) if ($i == f) { print $(i-1) + 0; exit } }' "$1")
   printf '%s' "${n:-0}"
 }
 
@@ -103,7 +103,8 @@ result_field() {
 # `sel_passed` and `sel_ignored` for the caller's own guards.
 finish_run() {
   local mode=$1 pkg=$2 module=$3 log=$4
-  sel_passed=$(result_field "$log" passed)
+  # EXECUTED, red or green: a test that failed ran.
+  sel_passed=$(( $(result_field "$log" passed) + $(result_field "$log" failed) ))
   sel_ignored=$(result_field "$log" ignored)
   rm -f "$log"
   record_ran "$mode" "$pkg" "$module" "$sel_passed" "$sel_ignored"
@@ -190,14 +191,28 @@ run_dump() {
 # this property is already paid; what running the plain selection buys is
 # that these test bodies EXECUTE at all, and the complement count above.
 # Sweeping them would buy a third copy of an ε sweep that already exists.
+#
+# A RED HERE DOES NOT STOP THE SWEEP. These are assertions, not the dumps
+# the lints read, so a red is recorded, the dumps and the census still
+# run, and the script fails at its end naming every red suite. A run that
+# printed no `test result:` line (a build failure, a crash) has no counts
+# for the census to read, and stops here.
 PLAIN_EPS=1e-9
+plain_reds=()
 run_plain() {
-  local pkg=$1 module=$2 feats log
+  local pkg=$1 module=$2 feats log rc=0
   feats=$(feats_for "$module")
   log=$(mktemp)
   echo "=== probe suite (default selection) @ eps=$PLAIN_EPS: $pkg::$module ==="
   CAD_TOLERANCE_EPS=$PLAIN_EPS \
-    cargo test -p "$pkg" --features "$feats" --test all -- "$module::" | tee "$log"
+    cargo test -p "$pkg" --features "$feats" --test all -- "$module::" | tee "$log" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    if ! grep -qE '^test result: FAILED\.' "$log"; then
+      echo "ERROR: $pkg::$module exited $rc without a test result (a build failure or a crash); the sweep stops here." >&2
+      exit 1
+    fi
+    plain_reds+=("$pkg::$module")
+  fi
   finish_run plain "$pkg" "$module" "$log"
 }
 
@@ -261,4 +276,10 @@ done
 # this is what turns a sweep that selected everything and ran nothing
 # into a failure, and what catches a suite growing a test no selection
 # reaches. It is the only place with the evidence for either.
-scripts/gates/probe-suite-census.sh --check-executed < "$ran"
+census_rc=0
+scripts/gates/probe-suite-census.sh --check-executed < "$ran" || census_rc=$?
+if [ "${#plain_reds[@]}" -gt 0 ]; then
+  echo "ERROR: ${#plain_reds[@]} probe suite(s) red under the default selection at eps=$PLAIN_EPS (their failures are above): ${plain_reds[*]}" >&2
+  exit 1
+fi
+exit "$census_rc"
