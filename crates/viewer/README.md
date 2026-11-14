@@ -2451,8 +2451,8 @@ body (`frame::placement_offers`). Picked as the body itself (in the
 tree, or shown again in the View pane), it makes a new body, and that
 body offers, one explicit step per source, to redefine the sources the
 body's placements read onto it (`world::repoint_offer`,
-`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket (2
-copies) onto F", or for an anonymous source "Re-point the copy C5". A
+`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket onto
+F", or for an anonymous source "Re-point the copy C5 onto F". A
 placement reads its body through a source, `bracket = B`, so the
 re-point is one definition edit, `bracket = F`, through the kernel's
 takeover (`Recording::take_over`), with the `Rebind`s of what reads each

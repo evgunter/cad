@@ -168,9 +168,8 @@ fn accepting_the_offer_redefines_the_source_once() {
         },
     );
     let before = session.committed_doc().clone();
-    let (_, offers) =
-        viewer::frame::placement_offers(&before, fillet, pncad::geom_core::Tol::witness());
-    let [(label, op)] = &offers[..] else {
+    let offers = viewer::frame::placement_offers(&before, fillet, pncad::geom_core::Tol::witness());
+    let [viewer::frame::PlacementOffer { said, label, op }] = &offers[..] else {
         panic!("one offer: {offers:?}")
     };
     assert_eq!(
@@ -182,9 +181,11 @@ fn accepting_the_offer_redefines_the_source_once() {
         "the offer redefines the named source"
     );
     assert!(
-        label.starts_with("Re-point bracket (2 copies) onto "),
-        "{label}"
+        said.starts_with("bracket (2 copies) copies ")
+            && said.ends_with(", which this body is built on"),
+        "the row states the fact: {said}"
     );
+    assert!(label.starts_with("Re-point bracket onto "), "{label}");
 
     let steps = session.history().len();
     let out = session.perform(op.clone());
@@ -624,5 +625,204 @@ fn a_place_naming_a_named_source_refuses() {
             if source.name().map(VarName::as_str) == Some("bracket")),
         "{:?}",
         out.refusal
+    );
+}
+
+/// The lateral edges of `node`'s body, as the landed evaluation names
+/// them.
+fn lateral_edges(session: &DocSession, node: RecipeNodeId) -> Vec<pncad::prelude::StableName> {
+    pncad::select::all_edges(session.evaluation().expect("landed"), node)
+        .into_iter()
+        .filter(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .collect()
+}
+
+/// **The offer reaches through a chain of features** (Ev, PR 6915: it
+/// stands on every drawn body built, at any depth, on a body a source
+/// places): `F = fillet(B)` offers `bracket`; left unpressed, `G =
+/// chamfer(F)` makes `F` an intermediate body the picture no longer
+/// draws, so `F` offers nothing and `G` offers `bracket`, saying what it
+/// re-points. Pressed, `bracket` reads `G`.
+///
+/// *Breaks if* the offer looks only at the bodies the node reads
+/// directly (`G` reads `F`, which no source reads), or an undrawn `F`
+/// keeps offering.
+#[test]
+fn a_feature_on_an_unpressed_fillet_offers_bracket() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edges = lateral_edges(&session, body);
+    let f = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edges[0].clone()],
+        },
+    );
+    let sources = |doc: &Doc<ProfileProgram>, node| {
+        viewer::world::repoint_offer(doc, node, tol)
+            .map(|offer| offer.rows.iter().map(|row| row.source).collect::<Vec<_>>())
+    };
+    assert_eq!(
+        sources(session.committed_doc(), f),
+        Some(vec![bracket]),
+        "F, drawn, offers bracket"
+    );
+
+    let carried = pncad::select::all_edges(session.evaluation().expect("landed"), f)
+        .into_iter()
+        .find(|name| {
+            matches!(name.path.as_slice(),
+                [RoleSeg::From { of, .. }] if *of.name() == edges[1])
+        })
+        .expect("F carries a second lateral edge of B");
+    let g = landed(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: f,
+            distance: common::len(0.0005),
+            selection: vec![carried],
+        },
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    let doc = session.committed_doc().clone();
+    let picture = viewer::world::Picture::of(&doc);
+    let drawn = |node| picture.drawn.iter().any(|d| d.of_node(node));
+    assert_eq!([drawn(f), drawn(g)], [false, true], "G is drawn, F is not");
+    assert_eq!(sources(&doc, f), None, "F, no longer drawn, offers nothing");
+    assert_eq!(
+        sources(&doc, g),
+        Some(vec![bracket]),
+        "G, built on B through F, offers bracket"
+    );
+    let by = pncad::document::Speaker::of(&doc);
+    let b = doc.output(body, 0).expect("B's body");
+    let offers = viewer::frame::placement_offers(&doc, g, tol);
+    assert_eq!(
+        offers,
+        [viewer::frame::PlacementOffer {
+            said: format!(
+                "bracket (2 copies) copies {}, which this body is built on",
+                by.read(b)
+            ),
+            label: format!("Re-point bracket onto {}", by.node(g)),
+            op: SessionOp::RepointPlacements {
+                source: bracket,
+                onto: g.into(),
+            },
+        }],
+        "the row states the fact beside its button"
+    );
+
+    let out = session.perform(offers[0].op.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.source(bracket).map(|read| read.read),
+        doc.output(g, 0),
+        "bracket reads G"
+    );
+}
+
+/// **A cut offers the source of its tool too** (Ev, PR 6915: a node that
+/// reaches several placed bodies offers a row for each source): with
+/// `bracket = B` placed twice and a tool `T` (the Transform's copy of a
+/// post, in B's space) placed in the world through an anonymous source,
+/// `D = B − T` offers both, in id order, each row saying which body its
+/// source copies; the tool's row lands.
+///
+/// *Breaks if* the offer stops at the first body with a placed source,
+/// or leaves out a copy the node reads as a body (the walk stops at `T`,
+/// whose own placement is still a row).
+#[test]
+fn a_cut_offers_the_source_of_its_tool_as_well() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    // A post through B's edge, moved into B's space (a combine moves no
+    // copy), and that copy placed in the world by hand.
+    let raw = common::xy_box_in(&mut session, [0.008, 0.008, 0.02]);
+    let tool = common::moved_to(&mut session, raw, [0.01, 0.0, -0.005]);
+    let home = session
+        .committed_doc()
+        .node_space(body)
+        .expect("B is in a space");
+    common::into_space(&mut session, tool, home);
+    let (mut session, tool_copy) = common::world_copy_by_hand_in(&session, tool, tol);
+    let tool_source = session
+        .committed_doc()
+        .copied_read(tool_copy)
+        .expect("T's source");
+    let cut = landed(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Subtract {
+                from: body.into(),
+                tool: tool.into(),
+            },
+        },
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    let doc = session.committed_doc().clone();
+    let b = doc.output(body, 0).expect("B's body");
+    let t = doc.output(tool, 0).expect("T's body");
+    let offer = viewer::world::repoint_offer(&doc, cut, tol).expect("the cut offers");
+    let mut want = vec![(bracket, b), (tool_source, t)];
+    want.sort();
+    assert_eq!(
+        offer
+            .rows
+            .iter()
+            .map(|row| (row.source, row.body))
+            .collect::<Vec<_>>(),
+        want,
+        "a row for bracket and one for T's source, in id order"
+    );
+    let offers = viewer::frame::placement_offers(&doc, cut, tol);
+    let by = pncad::document::Speaker::of(&doc);
+    let tool_row = offers
+        .iter()
+        .find(|offer| {
+            offer.op
+                == SessionOp::RepointPlacements {
+                    source: tool_source,
+                    onto: cut.into(),
+                }
+        })
+        .unwrap_or_else(|| panic!("T's row: {offers:?}"));
+    assert_eq!(
+        tool_row.said,
+        format!(
+            "the copy {} copies {}, which this body is built on",
+            by.node(tool_copy),
+            by.read(t)
+        ),
+        "the tool's row names its copy and the body it copies"
+    );
+
+    let out = session.perform(tool_row.op.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.source(tool_source).map(|read| read.read),
+        doc.output(cut, 0),
+        "T's copy reads the cut"
+    );
+    assert_eq!(
+        doc.source(bracket).map(|read| read.read),
+        Some(b),
+        "bracket left on B"
     );
 }
