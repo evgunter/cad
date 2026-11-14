@@ -231,7 +231,8 @@
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
 //! ([`TessellateError::SelfTouchingTrimLoop`]): a boundary point
-//! inside another segment of its loop. A loop through two vertices at
+//! inside another segment of the polygon, of its own loop or of another
+//! (a ring touching its outer loop along a side). A loop through two vertices at
 //! one point is not that shape; both are walk entries at one handle,
 //! which [`Pinches`] reads. The refusal has no at-rest fixture:
 //! hand-building a boundary point inside another segment at the mesh
@@ -517,16 +518,15 @@ pub(crate) fn tessellate_trimmed(
             // and this is the line that says so. At a singular point
             // `pole_side_columns` keeps the count off the shape.
             //
-            // VACUOUS TODAY, and the search that says so was
-            // adversarial rather than incidental: across the suite's
-            // 19 trimmed-cylinder faces `nu` is 5, 16 or 50 and no
-            // polygon repeats an id apart, and the two conditions are
-            // arithmetically exclusive — `nu == 2` needs
-            // `u1 - u0 <= π/2`, a repeat-apart needs the full `2π`
-            // seam. Recorded as *searched for by a reviewer told what
-            // to look for and not found*, which survives someone
-            // adding a fixture in a way that *nothing in tree does
-            // this* does not.
+            // VACUOUS, and the search that said so was adversarial
+            // rather than incidental: across the suite's 19
+            // trimmed-cylinder faces before rings reached this lane,
+            // `nu` was 5, 16 or 50 and no polygon repeated an id apart.
+            // The two conditions are arithmetically exclusive on any
+            // face — `nu == 2` needs `u1 - u0 <= π/2`, a repeat-apart
+            // needs the full `2π` seam — and a ring adds no such id: it
+            // closes in the chart, so it meets each of its vertices
+            // once.
             debug_assert!(
                 !matches!(a.kind(), Analytic::Cylinder { .. })
                     || nu != 2
@@ -1746,11 +1746,14 @@ fn singular_vertices(
 ///
 /// A loop that winds about a singular point inside the face does not
 /// close in the chart, and the door refuses it before any polygon is
-/// drawn ([`TessellateError::DomainUnread`]). So no singular point lies
-/// strictly inside a polygon read here: a row that ends the chart's `v`
-/// domain bounds every loop, so the region's open inside stops short of
-/// it, and a row inside the domain (a cone's apex) has the face's points
-/// on one side of it only.
+/// drawn ([`TessellateError::DomainUnread`]). What is left is held by
+/// the refusals here, not asserted beside them: past a row that ends the
+/// chart's `v` domain no point is admitted (`PastPole`), so the open
+/// region a closed loop bounds stops short of the row; and on both sides
+/// of a row inside the domain no face is admitted (`BothNappes`), so a
+/// cone's apex is at most a corner. A polygon these admit holds no
+/// singular point strictly inside it, and a check of that would re-run
+/// these two.
 ///
 /// Each refusal is [`TessellateError::SphereTrimShape`] naming its
 /// [`SphereTrimCause`] and the edge the offending point or side comes

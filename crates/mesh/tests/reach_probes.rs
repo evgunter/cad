@@ -66,11 +66,20 @@ enum Got {
     NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
-    /// `Ok`, `check_mesh` passes and [`geometry`] holds but for
-    /// triangles of no area on a face of this chart: a lattice point the
-    /// trimmed lane lays within rounding of a boundary chord point
+    /// `Ok`, `check_mesh` passes and [`geometry`] holds but for this many
+    /// triangles of no area, the first on a face of this chart: a lattice
+    /// point the trimmed lane lays within rounding of a boundary chord
+    /// point
     /// (`work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md`).
-    NoArea(SurfaceKind),
+    NoArea(SurfaceKind, usize),
+    /// `Ok`, and `check_mesh` refuses `NonManifoldEdge` with this count.
+    NonManifold(u32),
+    /// `CertificateExceeded` on a face of this chart, from the trimmed
+    /// lane's verdict (`trimmed::TrimmedFace::attempt`).
+    CertificateExceeded(SurfaceKind),
+    /// `FoldedTriangle` on a face of this chart, from the trimmed lane's
+    /// winding census.
+    Folded(SurfaceKind),
     /// Anything else, spelled out.
     Other(String),
 }
@@ -128,9 +137,12 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         Ok(m) => match mesh::validate::check_mesh(&m) {
             Ok(()) => match geometry(body, &m, delta) {
                 Ok(()) => Got::Meshed,
-                Err(Miss::NoArea(kind)) => Got::NoArea(kind),
+                Err(Miss::NoArea(kind, n)) => Got::NoArea(kind, n),
                 Err(Miss::Other(e)) => Got::Other(format!("meshed, and {e}")),
             },
+            Err(mesh::validate::MeshError::NonManifoldEdge { count, .. }) => {
+                Got::NonManifold(count)
+            }
             Err(e) => Got::Other(format!("meshed, and check_mesh refuses: {e:?}")),
         },
         Err(E::UnsupportedCurve { edge, note }) if note.contains("C⁰ kink") => {
@@ -155,6 +167,8 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
                 },
         }) => Got::NotIsoRectangle(kind_of(body, face)),
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
+        Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
+        Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
         Err(e) => Got::Other(format!("{e:?}")),
     }
 }
@@ -230,7 +244,7 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss>
                 .partial_cmp(&MIN_SHAPE)
                 .is_none_or(core::cmp::Ordering::is_lt)
             {
-                no_area = no_area.or(Some(kind));
+                no_area = Some(no_area.map_or((kind, 1), |(k, n)| (k, n + 1)));
             }
             const N: usize = 6;
             #[allow(clippy::cast_precision_loss)]
@@ -248,14 +262,14 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss>
             }
         }
     }
-    no_area.map_or(Ok(()), |kind| Err(Miss::NoArea(kind)))
+    no_area.map_or(Ok(()), |(kind, n)| Err(Miss::NoArea(kind, n)))
 }
 
 /// What [`geometry`] finds wrong with a mesh.
 enum Miss {
-    /// Every other check holds, and a triangle on a face of this chart
-    /// has no area.
-    NoArea(SurfaceKind),
+    /// Every other check holds, and this many triangles have no area, the
+    /// first on a face of this chart.
+    NoArea(SurfaceKind, usize),
     /// Anything else, spelled out: the first miss found.
     Other(String),
 }
@@ -1037,19 +1051,8 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// at `δ = 0.04` (`Got::NoArea`).
 #[test]
 fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
-    let torus = bulge_loop(vec![
-        (Point2::new(2.0, -0.5), 1.0),
-        (Point2::new(2.0, 0.5), 1.0),
-    ]);
-    let donut = revolve(&validated(vec![torus]), axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body
-        .into_body();
     let bar = brick::<f64>((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol());
-    let (donut, bar) = (
-        finished("the torus", donut, tol()),
-        finished("B2", bar, tol()),
-    );
+    let (donut, bar) = (donut(), finished("B2", bar, tol()));
     let what = "the donut and B2 (A the donut)";
     assert_six(
         what,
@@ -1058,7 +1061,7 @@ fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
         &[2e-2, 5e-3],
         &core::array::from_fn(|_| Got::Meshed),
     );
-    let ring = Got::NoArea(SurfaceKind::Torus);
+    let ring = Got::NoArea(SurfaceKind::Torus, 2);
     assert_six(
         what,
         &donut,
@@ -1525,4 +1528,260 @@ fn a_one_column_band_with_raised_rows_adds_no_lattice_point() {
             );
         }
     }
+}
+
+/// The donut `(2, 0.5)` about `y` of the torus ring rows.
+fn donut() -> AtRestBody<f64> {
+    let torus = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ]);
+    let donut = revolve(&validated(vec![torus]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body();
+    finished("the torus", donut, tol())
+}
+
+/// T1's cone, apex and all, turned a quarter about `y`, and its box,
+/// whose edge sits at `(0.5·s, h − 1.5·s, 0)`: at `s = 0.6` the
+/// `cone_join_lane` pose, smaller `s` moving the box's cut toward the
+/// apex.
+fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let height = 1.2 / FRAC_PI_6.tan();
+    let cone = posed(
+        "the cone",
+        revolved(&[(0.0, 0.0), (1.2, 0.0), (0.0, height)]),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
+    );
+    let edge = Point3::new(0.5 * s, height - 1.5 * s, 0.0);
+    let turn = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        -50f64.to_radians(),
+    );
+    let wedge = posed(
+        "the box",
+        brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol()),
+        Affine3::translation(edge - Point3::origin()) * turn,
+    );
+    (cone, wedge)
+}
+
+/// The op `op` of `six(a, b)`'s, built.
+fn op_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>, op: &str) -> Body<f64> {
+    let (_, run) = six(a, b)
+        .into_iter()
+        .find(|(name, _)| *name == op)
+        .expect("one of the six ops");
+    let built = run.unwrap_or_else(|e| panic!("{op}: the op builds, got {e:?}"));
+    Body::clone(&built.body().unwrap_or_else(|| panic!("{op}: a body")).body)
+}
+
+/// Each `(op, δ, want)`: op `op` of `a` and `b` answers `want` at `δ`.
+fn assert_ops(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: &[(&str, f64, Got)]) {
+    for (op, delta, want) in want {
+        assert_eq!(
+            &got(&op_of(a, b, op), *delta),
+            want,
+            "{what}, {op}, δ = {delta:e}"
+        );
+    }
+}
+
+/// The deck translation the door moves each ring of each curved face of
+/// `body` by.
+fn ring_moves(body: &Body<f64>) -> Vec<(SurfaceKind, (i32, i32))> {
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    body.faces()
+        .filter(|(fk, f)| !f.rings.is_empty() && kind_of(body, *fk) != SurfaceKind::Plane)
+        .flat_map(|(fk, _)| {
+            let lift = body
+                .face_lift(fk, band)
+                .unwrap_or_else(|e| panic!("the door places the rings, got {e:?}"));
+            lift.rings()
+                .iter()
+                .map(|r| (kind_of(body, fk), (r.by().u, r.by().v)))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// **A ring stored a period away meshes where the door moves it**, on
+/// the torus and the cylinder as on ball ∖ tube. B2 turned 0.7 about `y`
+/// leaves both ringed torus faces' rings a `u` period from their outer
+/// loops; the bar `(0.5, 1.1) × (0.15, 0.7) × (−0.4, 0.1)` turned 5.0
+/// about `z` leaves the pipe wall's. The door moves each `(1, 0)`, and
+/// every op meshes at every δ. Meshed where it is stored, the ring is a
+/// period outside its face.
+#[test]
+fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
+    let turned = |what, raw, axis: Vec3<f64>, angle: f64| {
+        posed(
+            what,
+            raw,
+            Affine3::rotation_about_axis(Point3::origin(), axis, angle),
+        )
+    };
+    let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
+    let cases = [
+        (
+            "the donut and B2 turned 0.7",
+            donut(),
+            turned(
+                "B2",
+                brick((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol()),
+                Vec3::new(0.0, 1.0, 0.0),
+                0.7,
+            ),
+            SurfaceKind::Torus,
+        ),
+        (
+            "the pipe and the bar turned 5.0",
+            pipe,
+            turned(
+                "the bar",
+                brick((0.5, 1.1), (0.15, 0.7), (-0.4, 0.1), tol()),
+                Vec3::new(0.0, 0.0, 1.0),
+                5.0,
+            ),
+            SurfaceKind::Cylinder,
+        ),
+    ];
+    for (what, a, b, kind) in &cases {
+        let moved: Vec<_> = ["A ∪ B", "B ∪ A", "A ∖ B"]
+            .into_iter()
+            .flat_map(|op| ring_moves(&op_of(a, b, op)))
+            .collect();
+        assert!(
+            !moved.is_empty() && moved.iter().all(|m| *m == (*kind, (1, 0))),
+            "{what}: every ring a period off, moved (1, 0): {moved:?}"
+        );
+        assert_six(
+            what,
+            a,
+            b,
+            &[2e-2, 5e-3, 1e-3],
+            &core::array::from_fn(|_| Got::Meshed),
+        );
+    }
+}
+
+/// **Ringed curved faces that still refuse, by cause.** Each pose is a
+/// ring the lane reads and a face it cannot yet mesh; the ringed ops
+/// (both unions and the difference that keeps the ring) answer by the
+/// variant the cause raises.
+///
+/// - **A cone face ending near its apex**
+///   (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`):
+///   T1's box moved toward the apex ([`t1_toward_the_apex`]) keeps the
+///   cone face's ring; its outer rim's chart certificate reads the
+///   development's triangles near the apex at full width, as on that
+///   row's funnel, and refuses `CertificateExceeded` at the finer δ, at
+///   every δ by `s = 0.01`; at `s = 10⁻³` the ring is within the band of
+///   the outer loop and the door answers `undecided`.
+/// - **A torus outer loop the ring reader cannot read**
+///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`):
+///   the donut less a slab has spirics on its torus faces' outer loops,
+///   and a stub turned 0.33 about `y` rings one of them; the spiric
+///   image's box never tightens, so the door answers `undecided`.
+/// - **A sphere ring passing near a pole**
+///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
+///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`
+///   rings the ball's face about 0.006 rad from its pole, and at
+///   `δ = 2·10⁻²` a triangle folds over the ring's chord there; finer δ
+///   mesh.
+#[test]
+fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
+    let ringed = |want: [Got; 3]| -> Vec<(&'static str, f64, Got)> {
+        ["A ∪ B", "B ∪ A", "A ∖ B"]
+            .into_iter()
+            .flat_map(|op| {
+                [2e-2, 5e-3, 1e-3]
+                    .into_iter()
+                    .zip(want.clone())
+                    .map(move |(d, w)| (op, d, w))
+            })
+            .collect()
+    };
+    let cone = || Got::CertificateExceeded(SurfaceKind::Cone);
+    for (s, want) in [
+        (0.1, [Got::Meshed, cone(), cone()]),
+        (0.03, [Got::Meshed, cone(), cone()]),
+        (0.01, [cone(), cone(), cone()]),
+        (
+            1e-3,
+            core::array::from_fn(|_| Got::Unread(SurfaceKind::Cone, "undecided")),
+        ),
+    ] {
+        let (a, b) = t1_toward_the_apex(s);
+        assert_ops(&format!("T1's box at s = {s}"), &a, &b, &ringed(want));
+    }
+    let slab = finished(
+        "the slab",
+        brick::<f64>((-0.6, 0.6), (-1.0, 1.0), (1.2, 2.8), tol()),
+        tol(),
+    );
+    let holed = finished(
+        "the donut less the slab",
+        op_of(&donut(), &slab, "A ∖ B"),
+        tol(),
+    );
+    let stub = posed(
+        "the stub",
+        brick((-0.02, 0.02), (-0.1, 0.1), (2.3, 3.0), tol()),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.33),
+    );
+    assert_ops(
+        "the holed donut and the stub turned 0.33",
+        &holed,
+        &stub,
+        &ringed(core::array::from_fn(|_| {
+            Got::Unread(SurfaceKind::Torus, "undecided")
+        })),
+    );
+    let tube = posed(
+        "the tube",
+        rod(0.3, 1.0, 2.0),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 3.0)
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.22),
+    );
+    let ball = finished("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()), tol());
+    let sphere = [Got::Folded(SurfaceKind::Sphere), Got::Meshed, Got::Meshed];
+    let want: Vec<_> = ["A ∪ B", "B ∪ A", "B ∖ A"]
+        .into_iter()
+        .flat_map(|op| {
+            [2e-2, 5e-3, 1e-3]
+                .into_iter()
+                .zip(sphere.clone())
+                .map(move |(d, w)| (op, d, w))
+        })
+        .collect();
+    assert_ops(
+        "the near-pole tube on the ball (A the tube)",
+        &tube,
+        &ball,
+        &want,
+    );
+}
+
+/// **A ringless cone face near its apex meshes into a non-manifold
+/// edge: this row pins a wrong mesh**
+/// (`work/tesslane/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`).
+/// T1's cone and its box at `s = 0.03` ([`t1_toward_the_apex`]): A ∩ B
+/// and B ∩ A keep no ring, `tessellate` returns `Ok` at `δ = 5·10⁻³`,
+/// and `check_mesh` refuses an edge four triangles use. The same on
+/// main.
+#[test]
+fn a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four() {
+    let (a, b) = t1_toward_the_apex(0.03);
+    assert_ops(
+        "T1's box at s = 0.03",
+        &a,
+        &b,
+        &[
+            ("A ∩ B", 5e-3, Got::NonManifold(4)),
+            ("B ∩ A", 5e-3, Got::NonManifold(4)),
+        ],
+    );
 }

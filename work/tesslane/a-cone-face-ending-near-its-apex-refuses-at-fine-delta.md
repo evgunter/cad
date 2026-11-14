@@ -60,3 +60,16 @@ and its first row.
    only), inserting the developed centroid (`TrimmedFace::inside_point`).
 3. A lattice graded toward the face's small end, so no triangle spans from
    the section's small end to a far row.
+
+## A ring reaches it (2026-11-14, TESSLANE unit 3)
+
+Since unit 3 a cone face with a ring meshes on the cone row, and the
+same class reaches it. T1's cone and its box moved toward the apex (the
+box's edge at `(0.5·s, h − 1.5·s, 0)`, `reach_probes::t1_toward_the_apex`):
+the ringed ops (both unions, cone ∖ box) mesh at `s = 0.6` and `0.3`; at
+`s = 0.1` and `0.03` they mesh at δ `2·10⁻²` and refuse
+`CertificateExceeded` at `5·10⁻³` and `10⁻³` (bounds `1.1δ` to `4.8δ`, the reviewers' measurement);
+at `s = 0.01` at all three. The ringless ops of `s = 0.1` mesh at every
+δ. At `s = 10⁻³` the door answers `Undecided` (the ring within the band
+of the outer loop). Pinned by
+`reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.

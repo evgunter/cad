@@ -22,8 +22,10 @@ candidate only where it lands EXACTLY on a polygon point
 vertex) or exactly on a side (`TrimmedFace::constrain_boundary`). A
 candidate a few ulps from a boundary chord point is neither: the CDT
 keeps both, and the triangles between them have no area. `check_mesh`
-passes such a mesh, and no deviation certificate sees it; an STL
-export of it would refuse `DegenerateTriangle`.
+and `check_volume` pass such a mesh, and no deviation certificate sees
+it. An STL export writes it: `stl`'s `DegenerateTriangle` refuses only a
+cross product of length exactly zero or not finite (`stl::facets`), and these read about `4·10⁻¹⁸`, so each such facet is
+written with a normal that is rounding noise.
 
 ## Measured
 
@@ -44,6 +46,15 @@ export of it would refuse `DegenerateTriangle`.
   extreme chord point `(0, 0.25, 2.433)`. The bar's face `y = 0.25`
   is the tube's latitude `π/6`, a lattice row there, and the point's
   azimuth a lattice column. The row pins it (`Got::NoArea`).
+
+- **The census of the review of PR 6960.** 16 torus ring poses (bars
+  and stubs through the donut, turned 0, 0.7, π and 4.0 about `y`) × 3
+  ringed ops × δ `2·10⁻²`, `5·10⁻³`, `10⁻³`: 12 of 144 meshes carry the
+  pair, all at `10⁻³`, on B2 turned 0 and π and the bar at
+  `y ∈ (−0.35, −0.25)` turned 0 and π. The sphere, cylinder and cone ring
+  poses carry none. On the donut and B2 the pair is `[27049, 13, 689]`
+  and `[27049, 689, 11]`: cross-product length `4.17·10⁻¹⁸`, sides
+  `0.0500026`, `0.0500026` and `6.0·10⁻¹⁶`.
 
 ## A fix, and why it is not taken
 
