@@ -14,6 +14,6 @@ keep_out: [opened 2026-10-28 by TESS's semantic-seam split when TESS measured 14
 
 What the mesh says rather than what it does: refusals too long for the viewer, a refusal spelled five times, `MissingEntity` covering four causes, kernel-bug wording on a case not yet built, whether a faceless body refuses at the door, and docs and rows that describe a tree that moved.
 
-Cut out of TESS (`work/tess/`) by its 2026-10-28 semantic-seam split.
-TESS's review posture applies (`work/tess/plan.md`, Process). Slate:
+Cut out of TESS (`work/tesslane/`) by its 2026-10-28 semantic-seam split.
+TESS's review posture applies (`work/tesslane/plan.md`, Process). Slate:
 `work/tessword/plan.md`; narrative in `work/tessword/log.md`.
