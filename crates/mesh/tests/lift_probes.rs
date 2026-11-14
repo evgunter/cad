@@ -1017,134 +1017,527 @@ fn turn_table(turns: &[Turn]) -> String {
     out
 }
 
-/// What the validators and `mesh::tessellate` answer on `body`.
-fn verdicts(name: &str, body: &Body<f64>) -> String {
-    let band = geom_core::Band::linear(tol()).unwrap();
-    let mut out = format!("{name}:\n");
-    let _ = writeln!(
-        out,
-        "  validate_closed: {:?}",
-        topo::validate::validate_closed(body)
-    );
-    let _ = writeln!(
-        out,
-        "  validate_geometric: {:?}",
-        topo::validate::validate_geometric(body, tol())
-    );
-    let _ = writeln!(
-        out,
-        "  validate_pcurves: {:?}",
-        topo::pcurves::validate_pcurves(body, band)
-    );
-    for delta in [1e-2, 1e-3] {
-        let _ = writeln!(
-            out,
-            "  tessellate δ={delta:e}: {:?}",
-            mesh::tessellate(body, delta, tol()).map(|m| (
-                m.patches.len(),
-                m.patches.iter().map(|p| p.triangles.len()).sum::<usize>(),
-                mesh::validate::check_mesh(&m)
-            ))
-        );
+// ---------------------------------------------------------------- probes
+
+/// What a census of closing loops must read, as the lines that do not:
+/// every loop has a lift; its winding is the identity and
+/// `closes_in_chart` says so; every joint, the closure joint too, meets
+/// or runs along a singular row, and only a sphere's or a cone's does
+/// the latter; its polygon is simple, counter-clockwise on an outer loop
+/// exactly where the face's `sense` is true and the other way on a ring;
+/// and `Lift::window` answers exactly where every row is `Harmonic` or
+/// `FocalSection`.
+fn not_closing(facts: &[LoopFact]) -> Vec<String> {
+    let mut out = Vec::new();
+    for f in facts {
+        let mut fail = |what: &str| out.push(format!("{} {:?} {}: {what}", f.body, f.chart, f.role()));
+        let c = match &f.chain {
+            Ok(c) => c,
+            Err(gap) => {
+                fail(gap);
+                continue;
+            }
+        };
+        if c.winding != Deck::IDENTITY || !c.closes {
+            fail("the loop winds");
+        }
+        let singular_chart = matches!(f.chart, SurfaceKind::Sphere | SurfaceKind::Cone);
+        let mut joints = c.inner_joints(f.chart);
+        joints.push(c.closure(f.chart));
+        if !joints
+            .iter()
+            .all(|j| *j == Joint::Meets || (singular_chart && matches!(j, Joint::Singular(_))))
+        {
+            fail("a joint neither meets nor runs along a singular row");
+        }
+        let poly = c.polygon();
+        if crossings(&poly) != (0, 0) {
+            fail("the polygon is not simple");
+        }
+        if (shoelace(&poly) > 0.0) != (f.sense == f.ring.is_none()) {
+            fail("the polygon is wound against the face");
+        }
+        let boxed = c
+            .forms
+            .iter()
+            .all(|form| matches!(*form, "Harmonic" | "FocalSection"));
+        if c.window != boxed {
+            fail("`Lift::window` answers off its forms");
+        }
     }
     out
 }
 
+/// Per chart, in `SurfaceKind`'s `Debug` order of first appearance:
+/// `(chart, faces, faces with a seam, rings, loops with a joint on a
+/// singular row)`.
+fn tally(facts: &[LoopFact]) -> Vec<(String, usize, usize, usize, usize)> {
+    let mut out: Vec<(String, usize, usize, usize, usize)> = Vec::new();
+    for f in facts {
+        let chart = format!("{:?}", f.chart);
+        let i = out.iter().position(|row| row.0 == chart).unwrap_or_else(|| {
+            out.push((chart, 0, 0, 0, 0));
+            out.len() - 1
+        });
+        let row = &mut out[i];
+        if f.ring.is_none() {
+            row.1 += 1;
+            row.2 += usize::from(f.seam);
+        } else {
+            row.3 += 1;
+        }
+        if let Ok(c) = &f.chain {
+            let mut joints = c.inner_joints(f.chart);
+            joints.push(c.closure(f.chart));
+            row.4 += usize::from(joints.iter().any(|j| matches!(j, Joint::Singular(_))));
+        }
+    }
+    out.sort();
+    out
+}
+
+fn rows(of: &[(&str, usize, usize, usize, usize)]) -> Vec<(String, usize, usize, usize, usize)> {
+    of.iter()
+        .map(|&(chart, a, b, c, d)| (chart.to_owned(), a, b, c, d))
+        .collect()
+}
+
+/// Every body of the reach probes that builds in well under a second,
+/// the swept fixtures of `common/`, and the reach probes' operands.
+fn door_built() -> Vec<Named> {
+    let mut out = spiric_hollows();
+    out.extend(cone_sections());
+    out.extend(donut_and_bar());
+    out.extend(tube_on_ball());
+    out.extend(pipe_and_bars());
+    out.extend(cone_and_box());
+    out.extend(lofts());
+    out.extend(common_swept());
+    out.extend([
+        ("the T1 cone".to_owned(), Body::clone(&t1_cone())),
+        ("the pipe".to_owned(), rod(1.0, -2.0, 4.0)),
+        (
+            "the z-poled ball".to_owned(),
+            ball_poled_z(SQRT_2, Vec3::zero(), tol()),
+        ),
+        ("the vessel quarter".to_owned(), vessel_quarter()),
+        ("the klein elbow".to_owned(), klein_elbow(0.275)),
+    ]);
+    out
+}
+
+/// **Every loop of every curved face a public door built has a lift,
+/// and the lift closes in the chart.** Over the reach probes' bodies
+/// (the spline section's two are
+/// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
+/// swept fixtures and the operands: `loop_lift` answers on all 213 loops
+/// of the 189 curved faces, the 24 rings among them. Each winds nothing
+/// and returns to its start, through the face's turn along the pole or
+/// apex row where it passes one (34 loops), and its sampled polygon is
+/// simple and wound with the face ([`not_closing`]). The faces a seam
+/// closes (the washer's and the donut's walls) close the same way: the
+/// seam is walked twice, a period apart.
 #[test]
-fn dump() {
-    let t0 = std::time::Instant::now();
-    let mut log = String::new();
-    let mut sample = Vec::new();
-    let mut add = |what: &str, part: Vec<Named>, log: &mut String| {
-        let _ = writeln!(log, "built {what}: {} bodies at {:?}", part.len(), t0.elapsed());
-        sample.extend(part);
-    };
-    add("spiric_hollows", spiric_hollows(), &mut log);
-    add("cone_sections", cone_sections(), &mut log);
-    add("donut_and_bar", donut_and_bar(), &mut log);
-    add("tube_on_ball", tube_on_ball(), &mut log);
-    add("pipe_and_bars", pipe_and_bars(), &mut log);
-    add("cone_and_box", cone_and_box(), &mut log);
-    add("ball_across_a_wall", ball_across_a_wall(), &mut log);
-    add("lofts", lofts(), &mut log);
-    add("common", common_swept(), &mut log);
-    add("unminted", unminted_witnesses(), &mut log);
-    add("one_circle_cuts", one_circle_cuts(), &mut log);
-    let mut minted = Vec::new();
-    for (name, mut body) in unminted_witnesses() {
-        match topo::mint_pcurves(&mut body, tol()) {
-            Ok(()) => minted.push((format!("minted: {name}"), body)),
-            Err(e) => {
-                let _ = writeln!(log, "mint_pcurves refuses the witness {name}: {e:?}");
-            }
-        }
-    }
-    add("minted witnesses", minted, &mut log);
-    let mut bands = Vec::new();
-    for (name, build) in [
-        ("the seamless pipe", seamless_pipe as fn() -> Body<f64>),
-        ("the seamless frustum", seamless_frustum),
-        ("the seamless torus band", seamless_torus_band),
-    ] {
-        match std::panic::catch_unwind(build) {
-            Ok(body) => bands.push((name.to_owned(), body)),
-            Err(e) => {
-                let _ = writeln!(
-                    log,
-                    "{name} does not build: {:?}",
-                    e.downcast_ref::<String>()
-                );
-            }
-        }
-    }
-    for (name, body) in &bands {
-        log.push_str(&verdicts(name, body));
-    }
-    add("bands", bands, &mut log);
-    add(
-        "operands",
-        vec![
-            ("the T1 cone".to_owned(), Body::clone(&t1_cone())),
-            ("the pipe".to_owned(), rod(1.0, -2.0, 4.0)),
-            (
-                "the z-poled ball".to_owned(),
-                ball_poled_z(SQRT_2, Vec3::zero(), tol()),
-            ),
-        ],
-        &mut log,
+fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
+    let facts = census(&door_built(), SAMPLES);
+    let bad = not_closing(&facts);
+    assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
+    assert_eq!(
+        tally(&facts),
+        rows(&[
+            ("Cone", 0, 0, 0, 0),
+            ("Cylinder", 0, 0, 0, 0),
+            ("Nurbs", 0, 0, 0, 0),
+            ("Sphere", 0, 0, 0, 0),
+            ("Torus", 0, 0, 0, 0),
+        ]),
+        "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
+        table(&facts)
     );
-    let facts = census(&sample, SAMPLES);
-    let _ = writeln!(log, "census at {:?}", t0.elapsed());
-    let rings = rings_of(&facts);
-    let turns = turns_of(&facts);
-    let mut spiric = String::new();
-    for samples in [8, 32, 128] {
-        for (name, body) in &sample[..2] {
-            for f in loops_of(name, body, samples) {
-                let Ok(c) = &f.chain else { continue };
-                if !c.forms.contains(&"Spiric") {
-                    continue;
-                }
-                let poly = c.polygon();
-                let _ = writeln!(
-                    spiric,
-                    "{} | {:?} {} | {} at {samples}/row: {} points, crossings {:?}, 2A {:+.6}",
-                    f.body,
-                    f.chart,
-                    if f.sense { '+' } else { '-' },
-                    f.role(),
-                    poly.len(),
-                    crossings(&poly),
-                    shoelace(&poly)
-                );
+}
+
+/// **The spline section's bodies read the same.** The reach probes'
+/// ball across a cylinder's wall, ∩ and ∪: the section's `Projected`
+/// images chain with the rims' and meridians' harmonic ones, every loop
+/// closes, and `Lift::window` answers on none of the loops the section
+/// bounds.
+#[test]
+fn the_spline_section_bodies_read_lifts_that_close() {
+    let facts = census(&ball_across_a_wall(), SAMPLES);
+    let bad = not_closing(&facts);
+    assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
+    assert_eq!(
+        tally(&facts),
+        rows(&[("Cylinder", 0, 0, 0, 0), ("Sphere", 0, 0, 0, 0)]),
+        "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
+        table(&facts)
+    );
+}
+
+/// The variant names of what `topo::finish` finds on `body`, sorted and
+/// deduplicated; empty where it finishes.
+fn findings(body: &Body<f64>) -> Vec<String> {
+    let mut out: Vec<String> = match topo::finish(body.clone(), tol()) {
+        Ok(_) => Vec::new(),
+        Err(not) => not
+            .as_slice()
+            .iter()
+            .map(|e| {
+                let text = format!("{e:?}");
+                text.split([' ', '{', '(']).next().unwrap_or("").to_owned()
+            })
+            .collect(),
+    };
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// `(winding, closure joint)` of each loop of `facts`, in order.
+fn windings(facts: &[LoopFact]) -> Vec<(String, Joint)> {
+    facts
+        .iter()
+        .map(|f| {
+            let c = f.chain.as_ref().expect("a lift");
+            (deck(c.winding), c.closure(f.chart))
+        })
+        .collect()
+}
+
+/// **`common/`'s Euler-door witnesses store no lift, and mint one.** As
+/// built, the first half-edge of every curved loop of the five stores no
+/// image and no joint element: `loop_lift` answers `LiftGap`, and
+/// `trim_polygon` would read every half-edge as rowless.
+/// `topo::mint_pcurves` accepts all five, and then:
+///
+/// - the keyway and the slit close;
+/// - the oblique lens, whose loop of two tilted circle arcs holds a pole
+///   inside it, ends a period from its start on both faces;
+/// - the pole-crossing half cap, whose arcs run through a pole mid-edge,
+///   ends neither on its start nor a period from it: its winding is the
+///   involution, and the chain ends at `(u + π, π − v)` of its start,
+///   with latitudes up to `5π/6`;
+/// - the apex-crossing bow tie, whose generators run through the apex
+///   mid-edge onto the mirror nappe, ends a period from its start.
+///
+/// None of the five finishes; what `topo::finish` finds is pinned.
+#[test]
+fn the_unminted_witnesses_store_no_lift_and_mint_one() {
+    let unminted = census(&unminted_witnesses(), SAMPLES);
+    assert_eq!(unminted.len(), 10, "two curved faces a witness\n{}", table(&unminted));
+    for f in &unminted {
+        let gap = f.chain.as_ref().err().map(String::as_str);
+        assert!(
+            gap.is_some_and(|g| g.ends_with("image stored false, joint stored false")),
+            "{} is rowless at its first half-edge\n{}",
+            f.body,
+            table(&unminted)
+        );
+    }
+    let minted: Vec<Named> = unminted_witnesses()
+        .into_iter()
+        .map(|(name, mut body)| {
+            topo::mint_pcurves(&mut body, tol())
+                .unwrap_or_else(|e| panic!("{name} mints, got {e:?}"));
+            (name, body)
+        })
+        .collect();
+    let facts = census(&minted, SAMPLES);
+    let read: Vec<(&str, Vec<(String, Joint)>, Vec<String>)> = minted
+        .iter()
+        .map(|(name, body)| {
+            let own: Vec<LoopFact> = loops_of(name, body, SAMPLES);
+            (name.as_str(), windings(&own), findings(body))
+        })
+        .collect();
+    let want: Vec<(&str, Vec<(String, Joint)>, Vec<String>)> = Vec::new();
+    assert_eq!(read, want, "\n{}", table(&facts));
+}
+
+/// What the validators and `mesh::tessellate` answer on `body`: the
+/// variant names `topo::finish` finds, whether `validate_closed`,
+/// `validate_geometric` and `validate_pcurves` are clean, and the mesh's
+/// answer at two δ.
+fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let clean = [
+        topo::validate::validate_closed(body).is_ok(),
+        topo::validate::validate_geometric(body, tol()).is_ok(),
+        topo::pcurves::validate_pcurves(body, band).is_empty(),
+    ];
+    let meshed = [1e-2, 1e-3]
+        .into_iter()
+        .map(|delta| match mesh::tessellate(body, delta, tol()) {
+            Ok(_) => "meshed".to_owned(),
+            Err(mesh::TessellateError::RingOnCurvedFace { face }) => {
+                format!("RingOnCurvedFace on a {:?}", kind_of(body, face))
             }
+            Err(e) => format!("{e:?}"),
+        })
+        .collect();
+    (findings(body), clean, meshed)
+}
+
+/// **A loop of whole-turn rims ends a period from its start.** On every
+/// analytic chart, a loop that is one circle about the axis (`common/`'s
+/// one-circle cuts: a sphere cap, a cone's apex cap, a one-rim cylinder
+/// face, a torus cut on its equator) winds `(±1, 0)`: its chain ends one
+/// `u` period from its start, `closes_in_chart` is false, and no edge of
+/// the face is a seam.
+///
+/// **A seamless band has no loop that closes.** A cylinder, a cone
+/// frustum and a torus band between two whole-turn rims, through the
+/// Euler doors: the outer loop winds `(1, 0)` and the ring `(−1, 0)`, no
+/// whole-period move puts the ring inside a polygon of the outer loop,
+/// and the face has no seam. The pipe and the frustum finish
+/// (`topo::finish`); the torus band mints, and `validate_geometric`
+/// refuses its volume. `mesh::tessellate` refuses all three
+/// `RingOnCurvedFace`: the outer loop is a circle, so
+/// `tessellate::lane_of` sends the face to the curved lane, whose ring
+/// guard is ahead of the walk.
+#[test]
+fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
+    let cuts = census(&one_circle_cuts(), SAMPLES);
+    assert_eq!(cuts.len(), 6, "{}", table(&cuts));
+    let bands: Vec<Named> = vec![
+        ("the seamless pipe".to_owned(), seamless_pipe()),
+        ("the seamless frustum".to_owned(), seamless_frustum()),
+        ("the seamless torus band".to_owned(), seamless_torus_band()),
+    ];
+    let banded = census(&bands, SAMPLES);
+    assert_eq!(banded.len(), 6, "{}", table(&banded));
+    for f in cuts.iter().chain(&banded) {
+        let c = f.chain.as_ref().expect("a minted loop has a lift");
+        let turns = c.winding.u;
+        assert!(
+            turns.abs() == 1
+                && c.winding == (Deck { u: turns, v: 0, twin: false })
+                && !c.closes
+                && c.closure(f.chart) == Joint::Periods(-turns, 0)
+                && c.inner_joints(f.chart).iter().all(|j| *j == Joint::Meets)
+                && !f.seam,
+            "{} {}: a seamless loop one period round\n{}{}",
+            f.body,
+            f.role(),
+            table(&cuts),
+            table(&banded)
+        );
+    }
+    let rings = rings_of(&banded);
+    assert!(
+        rings.len() == 3 && rings.iter().all(|r| r.places.is_empty()),
+        "no move places a band's ring in its outer loop\n{}",
+        ring_table(&rings)
+    );
+    for pair in banded.chunks(2) {
+        let wind = |f: &LoopFact| f.chain.as_ref().map(|c| c.winding.u).ok();
+        assert_eq!(
+            (wind(&pair[0]), wind(&pair[1])),
+            (Some(1), Some(-1)),
+            "{}: the outer loop and the ring wind opposite ways",
+            pair[0].body
+        );
+    }
+    let read: Vec<(&str, (Vec<String>, [bool; 3], Vec<String>))> = bands
+        .iter()
+        .map(|(name, body)| (name.as_str(), verdict(body)))
+        .collect();
+    let want: Vec<(&str, (Vec<String>, [bool; 3], Vec<String>))> = Vec::new();
+    assert_eq!(
+        read, want,
+        "(findings of finish, [closed, geometric, pcurves] clean, the mesh at two δ)"
+    );
+}
+
+/// Whether the hull `inner` lies in the hull `outer`, to [`MEET`].
+fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64))) -> bool {
+    let within = |i: (f64, f64), o: (f64, f64)| i.0 >= o.0 - MEET && i.1 <= o.1 + MEET;
+    within(inner.0, outer.0) && within(inner.1, outer.1)
+}
+
+/// **Where a ring's lift sits against its outer loop's.** The 24 rings
+/// of the reach probes' ringed faces: a spiric oval on each half of the
+/// donut's tube, ruling-and-arc and ellipse-arc rings on the pipe's
+/// half walls, an ellipse ring on the cone's half, and a tilted circle
+/// on the ball's half band.
+///
+/// 23 sit inside the polygon their outer loop's lift draws as stored,
+/// and no other whole-period move puts them there. One does not: on
+/// ball ∖ tube the ring is one whole `Projected` circle, its lift is on
+/// the image's own branch (`u ∈ (−2.44, −0.70)`), and the outer loop's
+/// is on `u ∈ [π, 2π]`: the ring is one `u` period below, and `(1, 0)`
+/// is the one move that places it. On ball ∪ tube the same circle is
+/// two arcs and sits inside as stored.
+///
+/// Every ring runs clockwise where its face's `sense` is true, no row of
+/// a ringed face is moved by the sphere's involution, and the ball's
+/// ring and outer loop both lie between the pole rows `v = ±π/2`.
+#[test]
+fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
+    let mut sample = donut_and_bar();
+    sample.extend(tube_on_ball());
+    sample.extend(pipe_and_bars());
+    sample.extend(cone_and_box());
+    let facts = census(&sample, SAMPLES);
+    let rings = rings_of(&facts);
+    let by_chart = |chart: SurfaceKind| rings.iter().filter(|r| r.chart == chart).count();
+    assert_eq!(
+        (
+            rings.len(),
+            by_chart(SurfaceKind::Torus),
+            by_chart(SurfaceKind::Cylinder),
+            by_chart(SurfaceKind::Cone),
+            by_chart(SurfaceKind::Sphere)
+        ),
+        (24, 6, 12, 3, 3),
+        "the ringed faces\n{}",
+        ring_table(&rings)
+    );
+    for r in &rings {
+        let displaced = r.body == "the tube on the ball, B ∖ A";
+        let want = if displaced { (1, 0) } else { (0, 0) };
+        assert_eq!(
+            (r.places.as_slice(), hull_within(r.ring_hull, r.outer_hull)),
+            (&[want][..], !displaced),
+            "{} ring {}: the one move that places it, and whether it is inside as stored\n{}",
+            r.body,
+            r.ring,
+            ring_table(&rings)
+        );
+        assert!(
+            (r.area2 < 0.0) == r.sense && !r.twin,
+            "{} ring {}: clockwise on a face of true sense, and no twin row\n{}",
+            r.body,
+            r.ring,
+            ring_table(&rings)
+        );
+        if r.chart == SurfaceKind::Sphere {
+            let between = |v: (f64, f64)| v.0 >= -FRAC_PI_2 - MEET && v.1 <= FRAC_PI_2 + MEET;
+            assert!(
+                between(r.ring_hull.1) && between(r.outer_hull.1),
+                "{}: both loops between the pole rows\n{}",
+                r.body,
+                ring_table(&rings)
+            );
         }
     }
-    let _ = writeln!(log, "done at {:?}", t0.elapsed());
-    panic!(
-        "\nLOOPS\n{}\nRINGS\n{}\nTURNS\n{}\nSPIRIC\n{spiric}\nLOG\n{log}",
-        table(&facts),
-        ring_table(&rings),
+    let displaced = rings
+        .iter()
+        .find(|r| r.body == "the tube on the ball, B ∖ A")
+        .expect("the ball less the tube holds a ring");
+    let (u, o) = (displaced.ring_hull.0, displaced.outer_hull.0);
+    assert!(
+        displaced.forms == ["Projected"]
+            && u.0 < -2.4
+            && u.1 < -0.7
+            && (o.0 - PI).abs() < MEET
+            && (o.1 - TAU).abs() < MEET,
+        "the displaced ring is one whole projected circle, a period below its outer loop\n{}",
+        ring_table(&rings)
+    );
+}
+
+/// **The spiric-bounded torus wall's outer loop is a simple polygon.**
+/// The cavity walls of the reach probes' two hollowed partial revolves
+/// (one on the vessel, two on the klein elbow): spiric, meridian arc,
+/// spiric, meridian arc. Sampled uniformly in each edge's own parameter
+/// at 8, 32 and 128 chords an edge, the lift's four rows meet end to
+/// end, no two sides of the polygon cross or touch, and it runs
+/// clockwise in `(u, v)` on these faces of `sense` false, which is the
+/// orientation `tessellate_trimmed` checks an analytic chart's polygon
+/// for. `Lift::window` answers `None` on it.
+#[test]
+fn the_spiric_bounded_torus_walls_outer_loop_is_a_simple_polygon() {
+    let hollows = spiric_hollows();
+    let mut seen = Vec::new();
+    for samples in [8, 32, 128] {
+        let facts = census(&hollows, samples);
+        for f in &facts {
+            let c = f.chain.as_ref().expect("a lift");
+            if !c.forms.contains(&"Spiric") {
+                continue;
+            }
+            let poly = c.polygon();
+            assert!(
+                f.chart == SurfaceKind::Torus
+                    && f.ring.is_none()
+                    && !f.sense
+                    && c.forms == ["Spiric", "Harmonic", "Spiric", "Harmonic"]
+                    && c.closes
+                    && c.closure(f.chart) == Joint::Meets
+                    && c.inner_joints(f.chart) == [Joint::Meets; 3]
+                    && poly.len() == 4 * samples
+                    && crossings(&poly) == (0, 0)
+                    && shoelace(&poly) < 0.0
+                    && !c.window,
+                "{} at {samples} an edge: crossings {:?}, 2A {}\n{}",
+                f.body,
+                crossings(&poly),
+                shoelace(&poly),
+                table(&facts)
+            );
+            seen.push((f.body.clone(), samples));
+        }
+    }
+    assert_eq!(seen.len(), 9, "one wall on the vessel, two on the elbow: {seen:?}");
+}
+
+/// **At a cone's apex the lift runs along the apex row through the
+/// face's turn**, as it does along a sphere's pole row. A full cone
+/// revolves into two half faces and a wedge into one; each face's loop
+/// is rim, generator, generator, and the two generators' images meet
+/// the apex row `v = 0` at different azimuths: the arriving one's last
+/// point and the leaving one's first are both at `v == 0.0` exactly,
+/// and the step between them in `u` is the face's turn there, `π` for a
+/// half and the sweep for a wedge, signed so the polygon closes wound
+/// with the face.
+///
+/// The sphere's rows beside it: a ball's half band and a wedge of one
+/// have two such joints each, at `v = ±π/2` to within the `64ε` that
+/// `trimmed::at_pole` admits.
+#[test]
+fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
+    let funnel = revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+    let sample: Vec<Named> = vec![
+        ("common::cone".to_owned(), common::cone()),
+        ("the T1 cone".to_owned(), Body::clone(&t1_cone())),
+        ("the funnel".to_owned(), funnel),
+        ("common::cone_wedge(1, 1)".to_owned(), common::cone_wedge(1.0, 1.0)),
+        ("common::ball".to_owned(), common::ball()),
+        ("common::sphere_wedge(1)".to_owned(), common::sphere_wedge(1.0)),
+    ];
+    let facts = census(&sample, SAMPLES);
+    let bad = not_closing(&facts);
+    assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
+    let turns = turns_of(&facts);
+    let read: Vec<(&str, f64, f64)> = turns
+        .iter()
+        .map(|t| (t.body.as_str(), t.arriving[1].1, t.turn()))
+        .collect();
+    for t in &turns {
+        let (exit, entry) = (t.arriving[1], t.leaving[0]);
+        #[allow(clippy::float_cmp)]
+        let on_row = match t.chart {
+            SurfaceKind::Cone => exit.1 == 0.0 && entry.1 == 0.0,
+            _ => [exit.1, entry.1]
+                .iter()
+                .all(|v| FRAC_PI_2 - v.abs() <= 64.0 * f64::EPSILON),
+        };
+        // The rows either side are meridians: constant in `u`.
+        #[allow(clippy::float_cmp)]
+        let meridians = t.arriving[0].0 == exit.0 && t.leaving[1].0 == entry.0;
+        assert!(
+            on_row && meridians && t.sense,
+            "{}: both points on the singular row, between two meridians\n{}",
+            t.body,
+            turn_table(&turns)
+        );
+    }
+    let want: Vec<(&str, f64, f64)> = Vec::new();
+    assert_eq!(
+        read,
+        want,
+        "(loop, the row's v, the step in u)\n{}",
         turn_table(&turns)
     );
 }
