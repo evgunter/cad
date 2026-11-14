@@ -3347,7 +3347,14 @@ fn edge_meets<T: Decide>(
     };
     for pass in &passes {
         for v in pass.ends {
-            meets.vertex(body, v, [pass.faces.0, pass.faces.1], (ray, top), band, rows)?;
+            meets.vertex(
+                body,
+                v,
+                [pass.faces.0, pass.faces.1],
+                (ray, top),
+                band,
+                rows,
+            )?;
         }
     }
     for pass in passes {

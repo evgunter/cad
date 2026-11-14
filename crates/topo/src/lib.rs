@@ -543,7 +543,7 @@ pub mod test_support {
 
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
-    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn aimed_rays<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
@@ -561,11 +561,11 @@ pub mod test_support {
 
     /// One aimed ray at `aim` on `face`, at the aimed incidence to
     /// `normal` (`side_reader`): the probes aim it at and about an edge.
-    pub fn ray_at(
-        body: &Body<f64>,
+    pub fn ray_at<T: geom_core::Decide>(
+        body: &Body<T>,
         face: crate::FaceKey,
-        aim: geom_core::Point3<f64>,
-        normal: geom_core::Vec3<f64>,
+        aim: geom_core::Point3<T>,
+        normal: geom_core::Vec3<T>,
         band: geom_core::Band,
     ) -> String {
         crate::side_reader::ray_at_report(body, face, aim, normal, band)

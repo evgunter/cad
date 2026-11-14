@@ -690,9 +690,9 @@ enum Aimed {
 /// crossing walk reads every crossing from `aim`
 /// ([`geom::Ray::starting`]), so a crossing is as wide as `aim`, `out`
 /// and the face crossed make it, and the start's width, which is the
-/// reach's, reaches only the forward tests, each of a crossing at least
-/// the reach past the start. `out` is unit as `normal` is, so an advance
-/// along it is a length.
+/// reach's, enters only the forward tests ([`geom::Ray::ahead`]), where
+/// a crossing of a face lies at least the reach past the start. `out` is
+/// unit as `normal` is, so an advance along it is a length.
 #[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
@@ -1015,6 +1015,158 @@ pub(crate) fn ray_counts(
         .into_iter()
         .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
         .collect())
+}
+
+#[cfg(test)]
+mod aimed_ray_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::construction::FaceSurface;
+    use crate::test_support_fixtures::{FaceGeometry, brick, prism_ops};
+    use geom::Surface;
+    use geom_core::{Interval, ParamSymbol, Real as _, Sym, SymBudget, Tol};
+
+    type Boxed = Sym<Interval>;
+
+    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+
+    /// The unit brick at the symbolic box scalar with its top cap at
+    /// height `top`, every plane's normal the unit brick's own, exact:
+    /// the one thing boxed is where the top cap lies.
+    fn brick_topped_at(top: Boxed, tol: Tol) -> Body<Boxed> {
+        let iv = Boxed::from_f64;
+        let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let mut body = Body::<Boxed>::new();
+        prism_ops(
+            &mut body,
+            &SQUARE,
+            (0.0, 1.0),
+            |x, y, z| Point3::new(iv(x), iv(y), if z == 1.0 { top } else { iv(z) }),
+            FaceGeometry::Declined,
+            tol,
+        );
+        for (face, _) in twin.faces() {
+            let Surface::Plane { normal, u_ref, .. } = *twin.proven_face(face).surface() else {
+                panic!("a brick's face is planar");
+            };
+            let corner = body.proven_face(face).edges()[0].ends[0];
+            let origin = *body
+                .get_vertex(corner)
+                .and_then(|v| body.get_point(v.point))
+                .expect("the boxed brick shares the twin's keys");
+            body.set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: Surface::Plane {
+                        origin,
+                        normal: normal.map(iv),
+                        u_ref: u_ref.map(iv),
+                    },
+                    sense: true,
+                },
+            )
+            .expect("the face takes its plane");
+        }
+        body
+    }
+
+    /// **A boxed brick reads, by its rays, the side every member has**:
+    /// `Out` where its top cap lies definitely above its bottom, and `In`
+    /// where it lies definitely below (inside out, every member), over a
+    /// fifth and a tenth of the brick's height. On the inside-out brick
+    /// the ray aimed at a cap crosses the other cap first, behind its
+    /// aim: red against a walk that reads only what lies ahead of the
+    /// aim, which reads `Out` there, and against a ray rebuilt from a
+    /// boxed start, which reads neither.
+    ///
+    /// A box where the top passes through the bottom, whose members have
+    /// both sides, is not among these because no door builds it: the edge
+    /// between the caps refuses its own span there
+    /// (`interval_span_forward`), before any reader runs.
+    #[test]
+    fn a_boxed_brick_reads_by_its_rays_the_side_its_members_have() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let read = |lo: f64, hi: f64| {
+            let budget = SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            };
+            geom_core::sym::with_session(budget, || {
+                let top = Sym::param_over(
+                    ParamSymbol::new(test_utils::symbol_id("top_cap_height")),
+                    Interval::from_bounds(lo, hi),
+                    lo,
+                    hi,
+                );
+                aimed_rays_report(&brick_topped_at(top, tol), band).join("; ")
+            })
+            .0
+        };
+        let (above, below) = (read(0.9, 1.1), read(-1.05, -0.95));
+        assert_eq!(above, "Ok(Side(Out))", "definitely above");
+        assert_eq!(below, "Ok(Side(In))", "definitely below");
+    }
+
+    /// **A ray that starts before its line's origin reads what lies
+    /// between them**: the crossings and marks of a ray from its start
+    /// are those of the same half-line given through a point `k` further
+    /// along it, each advance `k` less. One line crosses two faces of a
+    /// brick clear of its edges; the other runs through two opposite
+    /// corners, where only its marks are compared (a crossing read at a
+    /// corner is rounding's, and the mark there is what the count
+    /// reads). Red against a walk that drops what lies behind the origin,
+    /// or holds a vertex's distance from the ray at the origin and not at
+    /// the start.
+    #[test]
+    fn a_ray_started_before_its_origin_reads_what_lies_between() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().expect("a brick has faces").0;
+        let counts = |ray: &geom::Ray<f64>, marks_only: bool| {
+            let mut hits = ray_counts(&body, face, ray, band, (0, false)).expect("the ray reads");
+            hits.retain(|hit| hit.3 || !marks_only);
+            hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+            hits
+        };
+        let through_faces = (Point3::new(-1.0, 0.4, 0.3), Vec3::new(1.0, 0.0, 0.0));
+        let third = 1.0 / 3.0_f64.sqrt();
+        let through_corners = (
+            Point3::new(-1.0, -1.0, -1.0),
+            Vec3::new(third, third, third),
+        );
+        for (what, (start, d), hits, marks_only) in [
+            ("through two faces", through_faces, 2, false),
+            ("through two corners", through_corners, 2, true),
+        ] {
+            let from_start = counts(&geom::Ray::new(start, d), marks_only);
+            assert!(
+                from_start.len() >= hits,
+                "{what}: the ray from its start reads the brick: {from_start:?}"
+            );
+            for k in [0.5, 3.0, 7.0] {
+                let given = counts(&geom::Ray::starting(start + d * k, d, -k), marks_only);
+                assert_eq!(
+                    given.len(),
+                    from_start.len(),
+                    "{what}, origin {k} along: {given:?} against {from_start:?}"
+                );
+                for (a, b) in from_start.iter().zip(&given) {
+                    assert!(
+                        (a.0 - k - b.0).abs() < 1e-9
+                            && (a.1 - k - b.1).abs() < 1e-9
+                            && (a.2, a.3) == (b.2, b.3),
+                        "{what}, origin {k} along: {b:?} is not {a:?} less {k}"
+                    );
+                }
+            }
+            // The same origin with no start before it reads nothing
+            // behind itself.
+            let past = counts(&geom::Ray::new(start + d * 7.0, d), marks_only);
+            assert!(past.is_empty(), "{what}: past the brick: {past:?}");
+        }
+    }
 }
 
 #[cfg(test)]

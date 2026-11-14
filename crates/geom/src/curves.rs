@@ -1878,6 +1878,27 @@ mod tests {
 
     use super::*;
 
+    /// **A ray is read forward from its start, not from its line's
+    /// origin**: a ray started `2` before its origin has an advance of
+    /// `−1` ahead and `−3` behind, where the ray from the origin itself
+    /// has `−1` behind. Red against a forward test that reads the advance
+    /// alone.
+    #[test]
+    fn a_ray_started_before_its_origin_is_read_from_its_start() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (origin, dir) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
+        let ahead = |ray: Ray<f64>, at: f64| ray.ahead(at, "ray_start_row", band).unwrap();
+        let started = Ray::starting(origin, dir, -2.0);
+        assert_eq!(started.start(), -2.0);
+        assert_eq!(ahead(started, -1.0), Sign::Positive);
+        assert_eq!(ahead(started, -3.0), Sign::Negative);
+        assert_eq!(ahead(started, -2.0), Sign::Zero);
+        let plain = Ray::new(origin, dir);
+        assert_eq!(plain.start(), 0.0);
+        assert_eq!(ahead(plain, -1.0), Sign::Negative);
+        assert_eq!(ahead(plain, 1.0), Sign::Positive);
+    }
+
     /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
     /// oval repeat every turn, at `τ` exactly; a line and a spline do not.
     /// The bits are `τ`'s, so a renaming by whole periods reads the same
