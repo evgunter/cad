@@ -473,8 +473,9 @@ def sites(path, lines, variants, doors):
     if path not in READER_HOMES and doors:
         ref = re.compile(r'(?<![\w])(?:' + '|'.join(doors) + r')\b')
         uses = [(u.start(), u.end()) for u in re.finditer(r'\buse\b[^;]*;', text)]
+        decls = {d.start(1) for d in re.finditer(r'\bfn\s+(' + '|'.join(doors) + r')\b', text)}
         for m in ref.finditer(text):
-            if re.search(r'\bfn\s+$', text[max(0, m.start() - 8):m.start()]):
+            if m.start() in decls:
                 continue
             if any(a <= m.start() < b for a, b in uses):
                 continue
