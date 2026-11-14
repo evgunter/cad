@@ -2034,7 +2034,7 @@ impl PathCarry {
         let band = self.band;
         let path = self.path.map_scalar(T::from_f64);
         let o = Point3::origin();
-        let read = |station: usize, s: f64| read_tangent(&path, station, T::from_f64(s), band);
+        let read = |station: usize, s: f64| read_tangent(&path, station, s, band);
         let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
             RigidMotion::from_aim_and_reference(
                 o,
@@ -2103,17 +2103,20 @@ impl PathCarry {
 /// rotation carrying the start frame there, `None` for the identity.
 type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
 
-/// Station `station`'s point on `path` at `t` and its tangent, decided
-/// into a direction under `sweep_path_tangent`.
+/// Station `station`'s point on `path` at the parameter `at` and its
+/// tangent, decided into a direction under `sweep_path_tangent`: the
+/// path's point ([`NurbsCurve3::eval`]) and its derivative through the
+/// hodograph ([`NurbsCurve3::derivative_at`]). The `f64` carry and every
+/// lane read this one expression.
 fn read_tangent<T: Decide>(
     path: &NurbsCurve3<T>,
     station: usize,
-    t: T,
+    at: f64,
     band: Band,
 ) -> Result<(Point3<T>, UnitVec3<T>), SkinError> {
-    let (p, d) = path.ders1(t);
-    UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
-        .map(|t| (p, t))
+    let t = T::from_f64(at);
+    UnitVec3::new(path.derivative_at(at), SWEEP_PATH_TANGENT, band)
+        .map(|d| (path.eval(t), d))
         .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
 }
 

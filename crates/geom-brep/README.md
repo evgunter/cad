@@ -1241,7 +1241,8 @@ face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
 a point in space has its placement built
 (`topo::boolean::spline_region`, the spline arm of the boolean's
-point-in-face door): on the carrier by a foot decided within the band,
+point-in-face door, over the trim and the chart's Bézier cells of
+`topo::spline_trim`): on the carrier by a foot decided within the band,
 off it where every Bézier cell of the chart is decided past it; then in
 where such a foot lies in the trim, read from the face's lifted pcurve
 loops, and out where a foot exists and every cell not decided past the
