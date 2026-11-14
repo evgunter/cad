@@ -592,3 +592,19 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - Two merge artifacts were fixed: a slow-set entry listed twice, and `verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`, which ran 1.03 s on CI. The branch times that test the same as main locally, and other branches run it at 0.58–0.86 s on CI, so it joins the slow set as runner variance.
   - **A verdict moved:** `recl::an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`. Its skeletal faces have no cover, so the glue door reads no extent and passes. Main's pin of the collapsed-line refusal wording has no reachable fixture under the cover reading. The row's owner should know.
   - Dispatched `cover-kind-match-gate` (the last unit), which started from the cover-levers branch before the merge.
+- 2026-11-14: PR 6957's single FULL review (`cover-kind-match-gate`, head `06ed312a64`): APPROVE-WITH-FIXES.
+  - **The cover move is sound** (C4): `Arc::near` reads the conic annulus. The reviewer probed 3000 ellipses with no unsound result at f64 or at Interval, and the old floor is never tighter.
+  - **All three MAJORs are taken, and all are in the gate:**
+    - (1) shrink-only `reader` pins would block every future cover reader, the right answer itself. They become a registry with an argued direction per site.
+    - (2) `ball` misses receiver-qualified radii, wrapped sums and sphere variants, and three tree instances are unpinned.
+    - (3) `arm` misses aliases, imported variants, `Self::` arms and neutrally named distance bounds. Name resolution replaces the literal prefix.
+  - **All MINORs are taken:**
+    - `READERS` derived from the doors' `pub` items, not hand-copied;
+    - `arc_distance_floor`'s Line arm and kind dispatch moved or filed;
+    - stale `arc_floor_rows` prose fixed;
+    - moved verdicts named, with an `arcs_along` row;
+    - the `rho_sum` and `(R−r)(R+r)` false positives excluded;
+    - pins follow a git rename;
+    - self-test gaps closed.
+  - **Class finding, the build's recurring one in gate form:** a gate keyed on spellings is a second hand-written list. MAJOR-1 is a gate that would have pushed sites away from the one right place.
+  - **The `foot_on` pivot is a design fork.** Two designers were dispatched (draw 112/242, recorded on `analysis/design-fork/foot-on-pivot`).
