@@ -8,6 +8,7 @@ priority: P1
 cost: E
 closed: 2026-11-14
 branch: green/censuses
+pr: 6921
 ---
 
 Found by ONEHOME's `onehome/star-cut` lane (PR 6871) running the topo suite on its merge with main.
