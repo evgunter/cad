@@ -52,7 +52,7 @@ use crate::splitting::Escalation;
 use crate::validate::decide;
 // What this arm's rows read of the trim beside what the arm itself does.
 #[cfg(test)]
-use crate::spline_trim::{Piece, SPLINE_REGION_TRIM, bezier_pieces, image_pieces, point_rounding};
+use crate::spline_trim::{Piece, SPLINE_TRIM_CLEAR, bezier_pieces, image_pieces, point_rounding};
 
 /// A cell's control hull, or a foot candidate, against the point: how
 /// far the point lies off the spline face's carrier.

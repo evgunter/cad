@@ -285,7 +285,7 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
+            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
@@ -721,7 +721,7 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
+        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_TRIM_CLEAR)),
         "the way out of the window is in the band: {near:?}"
     );
 }

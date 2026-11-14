@@ -183,6 +183,11 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("sector_apex_window", &BOOLEAN),
     ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
+    // A point against a spline face's trim (`spline_trim`), which the
+    // boolean's spline arm and the ring door both read; the boolean's is
+    // the first door to raise them.
+    ("spline_trim_arm", &BOOLEAN),
+    ("spline_trim_clear", &BOOLEAN),
     ("stands_across_meeting", &BOOLEAN),
     ("tangent_lump_senses", &BOOLEAN),
     ("vertex_section_clear", &BOOLEAN),
@@ -369,9 +374,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SPHERE_SEAM"),
     NameCarrier::Const("RING_PLACE_ARM"),
     NameCarrier::Const("RING_PLACE_CLEAR"),
-    NameCarrier::Const("SPLINE_REGION_ARM"),
     NameCarrier::Const("SPLINE_REGION_CARRIER"),
-    NameCarrier::Const("SPLINE_REGION_TRIM"),
+    NameCarrier::Const("SPLINE_TRIM_ARM"),
+    NameCarrier::Const("SPLINE_TRIM_CLEAR"),
     NameCarrier::Const("SPLIT_GATE_BOX_SIDE"),
     NameCarrier::Const("TORUS_WITNESS"),
     NameCarrier::Const("TORUS_WITNESS_STRADDLE"),

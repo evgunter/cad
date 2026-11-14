@@ -519,7 +519,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
         spline_region::SPLINE_REGION_CARRIER => "how far a point lies off a spline face's carrier",
-        crate::spline_trim::SPLINE_REGION_ARM | crate::spline_trim::SPLINE_REGION_TRIM => {
+        crate::spline_trim::SPLINE_TRIM_ARM | crate::spline_trim::SPLINE_TRIM_CLEAR => {
             "whether a point of a spline face's carrier lies clear of the face's trim"
         }
         _ => return None,

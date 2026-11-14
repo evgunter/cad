@@ -73,9 +73,9 @@ use crate::pcurves::Side;
 use crate::validate::decide;
 
 /// A chart window's inf-side lever arm, gated as a length.
-pub(crate) const SPLINE_REGION_ARM: &str = "bool_spline_region_arm";
+pub(crate) const SPLINE_TRIM_ARM: &str = "spline_trim_arm";
 /// A query's clearance from the face's trim along the chart.
-pub(crate) const SPLINE_REGION_TRIM: &str = "bool_spline_region_trim";
+pub(crate) const SPLINE_TRIM_CLEAR: &str = "spline_trim_clear";
 
 /// The kept cells one reading may visit ([`Caps`]).
 const CELL_VISITS: usize = 1 << 13;
@@ -1027,7 +1027,7 @@ impl Trim {
                 continue;
             }
             match decide(
-                SPLINE_REGION_TRIM,
+                SPLINE_TRIM_CLEAR,
                 Margin::metered(T::from_computed(room.max(0.0)), arm),
                 band,
             ) {
@@ -1109,7 +1109,7 @@ impl Trim {
             let mut clear = false;
             for (g, arm) in [(gu, au), (gv, av)] {
                 match decide(
-                    SPLINE_REGION_TRIM,
+                    SPLINE_TRIM_CLEAR,
                     Margin::metered(T::from_computed(g), arm),
                     band,
                 ) {
@@ -1318,7 +1318,7 @@ fn window_arms<T: Decide>(
         let surface = cell.restricted(part).surface().ok_or(None)?;
         let floor = |x: T| x.structure_bracket().map_or(f64::NAN, |(lo, _)| lo);
         let (au, av) =
-            crate::chart_region::spline_chart_arms(&surface, SPLINE_REGION_ARM, floor, band)
+            crate::chart_region::spline_chart_arms(&surface, SPLINE_TRIM_ARM, floor, band)
                 .map_err(|gate| match gate {
                     crate::chart_region::ArmGate::Unbounded => None,
                     crate::chart_region::ArmGate::Escalated(diag) => Some(diag),
