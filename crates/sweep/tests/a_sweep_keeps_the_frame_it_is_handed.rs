@@ -387,7 +387,8 @@ fn faces<T: topo::AtRestPolicy>(e: &Extruded<T>) -> Vec<FaceKey> {
 /// Every face of `boxed` (top, bottom, walls in order) against the same
 /// face of each member's `f64` build: the box's enclosure contains every
 /// member's datum, and, where `varies`, somewhere the truth varies by
-/// more than rounding, which the enclosure is at least as wide as.
+/// more than the narrowest box here, which the enclosure is at least as
+/// wide as.
 fn assert_holds_its_members(
     what: &str,
     boxed: &Extruded<S>,
@@ -419,7 +420,7 @@ fn assert_holds_its_members(
         }
     }
     assert!(
-        !varies || spread > 10.0 * ROUNDING,
+        !varies || spread > vertex_box(),
         "{what}: the truth varies across the box ({spread:e}), so the row reads a width"
     );
 }

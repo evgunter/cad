@@ -417,8 +417,10 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 /// certifies WHOLE at every width the search tries: the slab's caps are
 /// its sketch frame carried by the depth, and its walls' normals the
 /// frame turning its segments' directions, so nothing the door stores
-/// widens with the box, and the search settles within its last step of
-/// `1.0`. Two mechanisms once ended the one-leaf regime well short of
+/// widens with the box, and the search settles where the depth's low
+/// end, `1 − half`, meets the sliver band a depth must clear (`10ε`,
+/// measured: `1 − 1e-5` at ε = 1e-6), or within the search's last step
+/// of `1.0` where that is the finer. Two mechanisms once ended the one-leaf regime well short of
 /// it — a wall's line carrier with no certified enclosure over the box
 /// (0.094756 at every ε row), and before that `dihedral_wedge` and a
 /// side wall's Newell normal whose enclosure reached zero — and both
@@ -454,9 +456,10 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
             hi = mid
         }
     }
-    // The search's last step is `2^-24`: the ceiling is the flip.
+    // The ceiling is the flip, less the sliver band, to the search's
+    // last step (`2^-24`).
     assert!(
-        1.0 - lo <= 2.0 * 2f64.powi(-24),
+        1.0 - lo <= 10.0 * e * 1.01 + 2.0 * 2f64.powi(-24),
         "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}), short of the \
          flip at 1.0: something the door stores widens with the box again, and the account \
          above needs re-reading, not a band"
