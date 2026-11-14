@@ -90,9 +90,18 @@
 //! spread far apart, so the NURBS schedule also raises a band's rows
 //! when its columns stay too narrow over `k`
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
-//! narrow-column bands**). The map is affine, so constraint segments
-//! stay straight; and exact, so every coincidence in UV is one in the
-//! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
+//! narrow-column bands**). The map is applied after the crate's
+//! coordinate floor (`crate::cdt`), which merges the band
+//! `(0, 2⁻¹⁴²)` into `0.0` and is neither affine nor injective there;
+//! the metric itself scales the axis that grows by a power of two, so
+//! it is affine (constraint segments stay straight), exact and
+//! injective on floored points, and two points are one CDT vertex
+//! exactly when they are one location after the floor. It is `(u/k, v)`
+//! times a uniform power of two: spade's predicates are exact under
+//! that scale, but its bulk loader's hull walk compares against an
+//! absolute `f64::EPSILON`, so the triangulation is not guaranteed the
+//! one `(u/k, v)` itself would give, and nothing here relies on it
+//! being. Only the CDT sees it: `meta`, the creases, the polygon's
 //! orientation and every certificate read UV.
 //!
 //! # C⁰ creases
@@ -165,7 +174,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{OutwardNormal, Pcurve};
+use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -469,22 +478,7 @@ pub(crate) fn tessellate_trimmed(
             what: "degenerate trimmed boundary",
         });
     }
-    // THE ORIENTATION THE LOOP PROMISES, checked rather than read. The
-    // loop runs interior-left about the face's outward normal, and an
-    // analytic chart's normal `∂u × ∂v` is the surface's outward one,
-    // so the polygon runs counter-clockwise in the chart exactly when
-    // `sense` is true. The emit pass winds its triangles by the
-    // polygon's own shoelace; a polygon that contradicts the sense
-    // bounds the face's complement, and winding by it would ship that
-    // complement as a closed manifold mesh — so it refuses here. A
-    // spline chart's winding is not checked: the NURBS arm keeps the
-    // emit pass's reading.
-    if !nurbs_chart {
-        let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-        if (shoelace2(&poly2) > 0.0) != face.sense {
-            return Err(TessellateError::TrimLoopOrientation { face: fk });
-        }
-    }
+    let orientation = trim_orientation(fk, face.sense, nurbs_chart, &polygon)?;
     // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
     // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
     // the emit pass never collapses a pole fan (#678). Every other arm's
@@ -636,6 +630,7 @@ pub(crate) fn tessellate_trimmed(
     let trimmed = TrimmedFace {
         fk,
         sense: face.sense,
+        orientation,
         metric,
         surface,
         lane: &lane,
@@ -791,8 +786,14 @@ struct TrimmedFace<'a> {
     /// The face's orientation sense: its outward normal is the
     /// surface's when true ([`Self::outward`]).
     sense: bool,
-    /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
-    /// scaling the axis that shrinks ([`Self::cdt_point`]).
+    /// The trim polygon's orientation in the chart
+    /// ([`trim_orientation`]), which the emitted triangles take. It is
+    /// the polygon's and not `sense` restated: on the spline arm
+    /// nothing compares the two.
+    orientation: PolygonOrientation,
+    /// The lattice metric `k`: points enter the CDT at `(u/k, v)` times
+    /// a uniform power of two, scaling the axis that grows
+    /// ([`Self::cdt_point`]).
     metric: f64,
     surface: &'a Surface<f64>,
     lane: &'a Lane,
@@ -837,18 +838,23 @@ struct Emitted {
 }
 
 impl TrimmedFace<'_> {
-    /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
-    /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
-    /// by `1/k` when `k > 1`, `v` by `k` when `k < 1`, so the
-    /// coordinates stay within the chart's own magnitude. `k` is a power
-    /// of two, so the product is exact and every coincidence in UV is
-    /// one in the CDT. Only the CDT sees these: `meta`, the creases,
-    /// the polygon's orientation and every certificate read UV.
+    /// `(u, v)` as the CDT sees it: floored ([`crate::cdt::spade_point`]),
+    /// then in the lattice metric, `(u/k, v)` times a uniform power of
+    /// two (module docs, "The lattice metric", on what that scale does
+    /// and does not leave unchanged). The axis that GROWS is scaled, `v`
+    /// by `k` when `k > 1` and `u` by `1/k` when `k < 1`: a power of two
+    /// of at least one, which rounds nothing and cannot carry a value
+    /// spade accepts into the floor's band, so the scale is injective on
+    /// floored points and two chart points are one CDT vertex exactly
+    /// when [`crate::cdt::ids_at_two_uvs`] reads them as one location.
+    /// Only the CDT sees these: `meta`, the creases, the polygon's
+    /// orientation and every certificate read UV.
     fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
+        let p = crate::cdt::spade_point(u, v);
         if self.metric > 1.0 {
-            SpadePoint::new(u / self.metric, v)
+            SpadePoint::new(p.x, p.y * self.metric)
         } else {
-            SpadePoint::new(u, v * self.metric)
+            SpadePoint::new(p.x / self.metric, p.y)
         }
     }
 
@@ -981,7 +987,7 @@ impl TrimmedFace<'_> {
         #[cfg(debug_assertions)]
         {
             let identified =
-                crate::walk::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
+                crate::cdt::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
             // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
             // copies the whole patch, and this block runs in every
             // build with debug assertions on — the shipped release
@@ -1207,10 +1213,9 @@ impl TrimmedFace<'_> {
         let (surface, shared, tol) = (self.surface, self.shared, self.tol);
         // Even-odd interior flags, then emission with certificates.
         let inside = classify_faces(cdt, crossings);
-        let flip = {
-            let poly2: Vec<[f64; 2]> = self.polygon.iter().map(|&(u, v, _)| [u, v]).collect();
-            shoelace2(&poly2) < 0.0
-        };
+        // The CDT's triangles are counter-clockwise in the chart; the
+        // patch's take the polygon's orientation.
+        let flip = self.orientation == PolygonOrientation::Clockwise;
         // Pass 1: which grid candidates the kept triangles use; number
         // them in (v, u) row-major order over the FINAL kept set —
         // sorted by coordinates, not by candidate index, so refinement
@@ -1519,11 +1524,11 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
 /// is a single interior column between them).
 ///
 /// The rule for "different" is spade's and is stated once, at
-/// [`crate::walk::ids_at_two_uvs`], which both lanes call. This
+/// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
 /// function is that set's emptiness, named for the question the
 /// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// **The sphere arm's poles.** A pole the loop passes through is a
@@ -1581,7 +1586,7 @@ fn sphere_polygon_shape(
     }) {
         return refuse(i, SphereTrimCause::PoleInside);
     }
-    let apart = crate::walk::ids_at_two_uvs(polygon.iter().copied());
+    let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
         .iter()
         .position(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
@@ -1807,6 +1812,41 @@ fn trim_frontier(
     Ok(TessellateError::MissingEntity {
         what: "trimmed router fired without a trim carrier",
     })
+}
+
+/// The orientation the trim polygon HAS in the chart, which the emit
+/// pass gives its triangles. On an analytic arm it is also CHECKED
+/// against the one the face promises ([`PolygonOrientation::of_face`]):
+/// a polygon that contradicts the sense bounds the face's complement,
+/// and emitting by it would ship that complement as a closed manifold
+/// mesh. The spline arm (`nurbs_chart`) takes the polygon's unchecked:
+/// its triangles follow the loop's stored traversal whatever the bit
+/// says.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] for a polygon of no signed area,
+/// or of a poisoned one: it bounds no region, and an orientation
+/// assumed for it would hand the CDT a boundary that crosses itself or
+/// lies on one line as though it were a face.
+/// [`TessellateError::TrimLoopOrientation`] on an analytic arm whose
+/// polygon is oriented against its face.
+fn trim_orientation(
+    fk: FaceKey,
+    sense: bool,
+    nurbs_chart: bool,
+    polygon: &[(f64, f64, u32)],
+) -> Result<PolygonOrientation, TessellateError> {
+    let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
+    let orientation = PolygonOrientation::of_signed_area(shoelace2(&poly2)).ok_or(
+        TessellateError::MissingEntity {
+            what: "degenerate trimmed boundary",
+        },
+    )?;
+    if !nurbs_chart && orientation != PolygonOrientation::of_face(sense) {
+        return Err(TessellateError::TrimLoopOrientation { face: fk });
+    }
+    Ok(orientation)
 }
 
 /// The pcurve-driven UV polygon of the face's outer loop: per
@@ -2285,6 +2325,7 @@ mod tests {
         ChartPoles, ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError,
         chain_creases, id_repeats_apart, trim_polygon,
     };
+    use geom_brep::PolygonOrientation;
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
 
@@ -2667,7 +2708,7 @@ mod tests {
     /// which pairs are one vertex: an ulp apart at seam magnitude is
     /// two spade vertices and must read APART, and `-0.0` against
     /// `0.0` is one spade vertex and must not — the case a `to_bits`
-    /// spelling gets backwards, and the reason this compares `f64`s.
+    /// spelling gets backwards.
     #[test]
     fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
         let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
@@ -2676,9 +2717,8 @@ mod tests {
         let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
         assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
 
-        // An ulp at SEAM magnitude (2π), not at zero: an ulp of 0.0 is
-        // 5e-324, a subnormal no chart coordinate reaches, and pinning
-        // there would pin the wrong scale.
+        // An ulp at SEAM magnitude (2π), not at zero: near zero the
+        // floor merges everything below 2⁻¹⁴² (`crate::cdt`'s rows).
         let seam = std::f64::consts::TAU;
         let ulp = [
             (0.0, 0.0, 7u32),
@@ -2959,9 +2999,13 @@ mod tests {
                         a.0 * b.1.sin() - b.0 * a.1.sin()
                     })
                     .sum::<f64>();
-            let area = if face.sense { area } else { -area };
+            assert_eq!(
+                PolygonOrientation::of_signed_area(area),
+                Some(PolygonOrientation::of_face(face.sense)),
+                "face {fk:?}: the polygon is oriented as its face's sense says ({area})"
+            );
             assert!(
-                area > 0.0 && area < 4.0 * core::f64::consts::PI,
+                area.abs() < 4.0 * core::f64::consts::PI,
                 "face {fk:?}: equal-area {area}"
             );
             if pole_sides == 2 {
@@ -2972,6 +3016,62 @@ mod tests {
             with_poles >= 2,
             "both balls' remnants pass both poles: {with_poles}"
         );
+    }
+
+    /// [`super::trim_orientation`]'s three answers, on polygons written
+    /// out: the polygon's own orientation where it is the face's; a
+    /// typed refusal where an analytic arm's contradicts its face, and
+    /// the polygon's own on the spline arm, which does not compare; and
+    /// a refusal on every arm for a polygon of no signed area (a
+    /// figure-eight of equal lobes, three points on one line), which has
+    /// no orientation to assume.
+    #[test]
+    fn a_trim_polygon_is_oriented_as_read_and_one_of_no_area_refuses() {
+        use PolygonOrientation::{Clockwise, CounterClockwise};
+        let fk = FaceKey::default();
+        let poly = |uv: &[(f64, f64)]| -> Vec<(f64, f64, u32)> {
+            uv.iter().map(|&(u, v)| (u, v, 0)).collect()
+        };
+        let ccw = poly(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+        let cw: Vec<_> = ccw.iter().rev().copied().collect();
+        for (polygon, has) in [(&ccw, CounterClockwise), (&cw, Clockwise)] {
+            let promised = has == CounterClockwise;
+            for nurbs_chart in [false, true] {
+                assert_eq!(
+                    super::trim_orientation(fk, promised, nurbs_chart, polygon).ok(),
+                    Some(has),
+                    "{has:?}, spline arm {nurbs_chart}: oriented as its face is"
+                );
+            }
+            assert!(
+                matches!(
+                    super::trim_orientation(fk, !promised, false, polygon),
+                    Err(TessellateError::TrimLoopOrientation { face }) if face == fk
+                ),
+                "{has:?}: an analytic arm refuses a polygon against its face"
+            );
+            assert_eq!(
+                super::trim_orientation(fk, !promised, true, polygon).ok(),
+                Some(has),
+                "{has:?}: the spline arm takes the polygon's, whatever the bit"
+            );
+        }
+        let eight = poly(&[(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0)]);
+        let line = poly(&[(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]);
+        for (name, polygon) in [("figure-eight", &eight), ("collinear", &line)] {
+            for (sense, nurbs_chart) in [(true, false), (false, false), (true, true), (false, true)]
+            {
+                assert!(
+                    matches!(
+                        super::trim_orientation(fk, sense, nurbs_chart, polygon),
+                        Err(TessellateError::MissingEntity {
+                            what: "degenerate trimmed boundary"
+                        })
+                    ),
+                    "{name}, sense {sense}, spline arm {nurbs_chart}: no area, no orientation"
+                );
+            }
+        }
     }
 
     /// The tilted cylinder halves of `m5_pr11_trimmed` at radius `r`: a
@@ -3175,6 +3275,7 @@ mod tests {
                 let face = super::TrimmedFace {
                     fk: FaceKey::default(),
                     sense,
+                    orientation: PolygonOrientation::of_face(sense),
                     metric: 1.0,
                     surface,
                     lane,
@@ -3204,6 +3305,97 @@ mod tests {
                          point away from the axis exactly when sense is set"
                     );
                 }
+            }
+        }
+    }
+
+    /// **`cdt_point` floors before it scales, and agrees with
+    /// `ids_at_two_uvs` about which points are one.** At a metric above
+    /// one (`v` grows) and below one (`u` grows): a sub-floor coordinate
+    /// of either sign enters as `+0.0` on either axis, a legal value on
+    /// the growing axis is multiplied exactly, the other axis passes
+    /// bit-identical, and two chart points are equal after `cdt_point`
+    /// exactly when [`crate::cdt::ids_at_two_uvs`] reads them as one
+    /// location.
+    #[test]
+    fn cdt_point_floors_then_scales_the_growing_axis() {
+        use core::f64::consts::TAU;
+        use geom::Surface;
+        use geom_core::{Band, Point3, Tol, Vec3};
+        use spade::MIN_ALLOWED_VALUE as FLOOR;
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let lane = super::Lane::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            steps: (0.1, 0.1),
+        };
+        let tol = crate::sizing::SizingTols {
+            delta: 1e-2,
+            eps: crate::sizing::Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        };
+        let dust = 4.838_220_930_617_058e-49;
+        for k in [4.0, 0.25] {
+            let face = super::TrimmedFace {
+                fk: FaceKey::default(),
+                sense: true,
+                orientation: PolygonOrientation::of_face(true),
+                metric: k,
+                surface: &sphere,
+                lane: &lane,
+                polygon: &[],
+                creases: None,
+                shared: &[],
+                tol: &tol,
+            };
+            let bits = |p: SpadePoint<f64>| (p.x.to_bits(), p.y.to_bits());
+            for c in [dust, -dust] {
+                assert_eq!(
+                    bits(face.cdt_point(c, 0.5)).0,
+                    0.0f64.to_bits(),
+                    "k = {k}: u = {c:e} enters as +0.0"
+                );
+                assert_eq!(
+                    bits(face.cdt_point(0.5, c)).1,
+                    0.0f64.to_bits(),
+                    "k = {k}: v = {c:e} enters as +0.0"
+                );
+            }
+            let p = face.cdt_point(FLOOR, FLOOR);
+            let (grown, kept) = if k > 1.0 { (p.y, p.x) } else { (p.x, p.y) };
+            assert_eq!(
+                grown.to_bits(),
+                (FLOOR * k.max(1.0 / k)).to_bits(),
+                "k = {k}: the growing axis is multiplied exactly"
+            );
+            assert_eq!(
+                kept.to_bits(),
+                FLOOR.to_bits(),
+                "k = {k}: the other axis passes bit-identical"
+            );
+            let pairs = [
+                ((dust, 0.5), (0.0, 0.5)),
+                ((0.5, -dust), (0.5, dust)),
+                ((-0.0, 0.5), (0.0, 0.5)),
+                ((FLOOR, 0.5), (0.0, 0.5)),
+                ((0.5, FLOOR), (0.5, 0.0)),
+                ((TAU, 0.5), (TAU.next_up(), 0.5)),
+                ((0.3, 0.2), (0.3, 0.2)),
+            ];
+            for ((au, av), (bu, bv)) in pairs {
+                let one_vertex = face.cdt_point(au, av) == face.cdt_point(bu, bv);
+                let one_location =
+                    crate::cdt::ids_at_two_uvs([(au, av, 7), (bu, bv, 7)]).is_empty();
+                assert_eq!(
+                    one_vertex, one_location,
+                    "k = {k}: ({au:e}, {av:e}) and ({bu:e}, {bv:e}) — the CDT and \
+                     ids_at_two_uvs must agree about whether they are one point"
+                );
             }
         }
     }
