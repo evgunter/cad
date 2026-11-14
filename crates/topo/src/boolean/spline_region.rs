@@ -100,6 +100,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
 use crate::live::proven;
+use crate::pcurves::Side;
 use crate::splitting::Escalation;
 use crate::validate::decide;
 
@@ -116,13 +117,10 @@ pub(crate) const SPLINE_REGION_TRIM: &str = "bool_spline_region_trim";
 const CELL_DEPTH: usize = 48;
 /// The kept cells one reading may visit ([`Caps`]).
 const CELL_VISITS: usize = 1 << 13;
-/// How many times a trim piece is halved before a query it is not clear
-/// of reads near the trim.
-const PIECE_DEPTH: usize = 52;
-/// The piece visits one query's trim reading may make ([`Caps`]).
-const PIECE_VISITS: usize = 1 << 14;
-/// The copies of a query a closed chart's periods may ask for.
-const COPIES: usize = 9;
+// The trim's work bounds are the ring rule's, at the crate root
+// (`crate::pcurves`): one home for both readers of a point against a
+// loop, and the one count for a ring's shifts and a query's copies.
+use crate::pcurves::{HALVINGS, PIECE_DEPTH, PIECE_VISITS, SHIFTS as COPIES, WINDOW_SHARE};
 
 /// **The spline arm of [`super::contain::curved_face_placement`]** (module
 /// docs): the point `q`, already off every boundary edge, against `face`,
@@ -1157,13 +1155,10 @@ impl Trim {
         })
     }
 
-    /// **This outer trim with `rings` in its cover.** Each loop's lift
-    /// starts on one of its own rows, so on a closed channel a ring can
-    /// sit whole periods from the region its outer loop's lift bounds.
-    /// A ring is moved by the one whole number of periods per closed
-    /// channel that places its first point in that region, decided
-    /// against the outer loop alone; `None` where no such shift, or more
-    /// than one, is decided.
+    /// **This outer trim with `rings` in its cover**, each moved by the
+    /// ring rule ([`crate::pcurves::place_ring`]) with this trim's own
+    /// reading of a point in the cover ([`Self::place_in_cover`]); `None`
+    /// where a ring has no place.
     fn with_rings<T: Decide>(
         self,
         cells: &[Patch<T>],
@@ -1173,30 +1168,21 @@ impl Trim {
         let mut pieces = self.pieces.clone();
         for ring in rings {
             let [u, v] = ring.first()?.ends().0;
-            let shifts = |k: usize, x: f64, (r0, r1): (f64, f64)| -> Vec<f64> {
-                match self.periods[k].filter(|p| *p > 0.0) {
-                    None => vec![0.0],
-                    Some(p) => {
-                        let (lo, hi) = (((r0 - x) / p).floor(), ((r1 - x) / p).ceil());
-                        let n = (hi - lo).max(0.0);
-                        if n > COPIES as f64 {
-                            return Vec::new();
-                        }
-                        (0..=n as usize).map(|i| (lo + i as f64) * p).collect()
-                    }
-                }
-            };
-            let mut found = None;
-            for du in shifts(0, u, self.reach.u) {
-                for dv in shifts(1, v, self.reach.v) {
+            let shift = crate::pcurves::place_ring(
+                self.periods,
+                [self.reach.u, self.reach.v],
+                [u, v],
+                |shift| {
+                    let [du, dv] = shift.offset;
                     match self.place_in_cover(cells, Rect::point(u + du, v + dv), band) {
-                        Place::In if found.is_none() => found = Some((du, dv)),
-                        Place::Out => {}
-                        Place::In | Place::Near(_) => return None,
+                        Place::In => Side::In,
+                        Place::Out => Side::Out,
+                        Place::Near(diag) => Side::Near(diag),
                     }
-                }
-            }
-            let (du, dv) = found?;
+                },
+            )
+            .ok()?;
+            let [du, dv] = shift.offset;
             pieces.extend(ring.iter().map(|p| p.shifted(du, dv)));
         }
         Self::from_pieces(
@@ -1239,11 +1225,11 @@ impl Trim {
         let (du, dv) = self.domain.size();
         let (su, sv) = q.size();
         let reach = (
-            if su > 0.0 { su } else { du / 16.0 },
-            if sv > 0.0 { sv } else { dv / 16.0 },
+            if su > 0.0 { su } else { du / WINDOW_SHARE },
+            if sv > 0.0 { sv } else { dv / WINDOW_SHARE },
         );
         let mut pending = None;
-        for halving in 0..6 {
+        for halving in 0..HALVINGS {
             let scale = f64::from(1u32 << halving);
             let (ru, rv) = (reach.0 / scale, reach.1 / scale);
             let window = Rect {
