@@ -342,7 +342,7 @@ pub enum LoftError {
     /// a face's loop walk resets a joint only on a sphere's pole or a
     /// cone's apex (`geom_brep::chart_singularity::singular_points`),
     /// and reads a spline chart's joint by its chart-space gap
-    /// (`topo` `pcurves.rs`, `decide_joint`), which a collapsed column
+    /// (`topo` `pcurves/decision.rs`, `decide_joint`), which a collapsed column
     /// is (`work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md`).
     /// A limit of the kernel, not a fault in the sections.
     PinnedCornerUnsupported {

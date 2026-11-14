@@ -2567,16 +2567,16 @@ fn exact_zero<T: Bounds>(x: T) -> bool {
 /// endpoint this is; `Err(what)` names the violated inventory clause.
 fn pcurve_entry<T: Decide + Bounds>(
     pcurve: &geom_brep::Pcurve<T>,
-    t0: T,
-    t1: T,
+    span: geom_brep::StoredSpan<T>,
     forward: bool,
 ) -> Result<Point2<T>, &'static str> {
     use geom_brep::Pcurve;
+    let (t0, t1) = span.ends();
     match pcurve {
         // Straight by variant: `P(t) = p0 + pl·t`, its ends read as its
         // mint placed them where it stored them.
         Pcurve::IsoLine { .. } => {
-            let [start, end] = pcurve.span_ends((t0, t1));
+            let [start, end] = pcurve.span_ends(span);
             Ok(if forward { start } else { end })
         }
         // The UV image lies on the straight segment `p0 → p0 + pd` by
@@ -2682,8 +2682,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         };
         let cache = body.pcurve(he).zip(image);
         let entry = if let Some((cache, image)) = cache {
-            let (t0, t1) = cache.params();
-            pcurve_entry(&image, t0, t1, forward).map_err(refuse)?
+            pcurve_entry(&image, cache.edge_span(), forward).map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2705,7 +2704,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                         None => refuse("no closed-form chart image for this carrier kind"),
                     }
                 })?;
-            pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
+            pcurve_entry(&pcurve, curve.edge_span(), forward).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
         };
@@ -4340,8 +4339,16 @@ mod tests {
             pl: Vec2::new(0.5, 1.0),
             ends: None,
         };
-        assert_pt(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), 0.25, 0.0);
-        assert_pt(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), 1.25, 2.0);
+        assert_pt(
+            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), true).unwrap(),
+            0.25,
+            0.0,
+        );
+        assert_pt(
+            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), false).unwrap(),
+            1.25,
+            2.0,
+        );
 
         let arc = geom_brep::Pcurve::IsoArc {
             p0: Point2::new(0.0, 1.0),
@@ -4355,15 +4362,32 @@ mod tests {
         // variant; a span that is the whole arc ends at its ends,
         // structurally.
         let quarter = core::f64::consts::FRAC_PI_2;
-        assert_pt(pcurve_entry(&arc, 0.0, quarter, true).unwrap(), 0.0, 1.0);
-        assert_pt(pcurve_entry(&arc, 0.0, quarter, false).unwrap(), 1.0, 1.0);
+        assert_pt(
+            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), true).unwrap(),
+            0.0,
+            1.0,
+        );
+        assert_pt(
+            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), false).unwrap(),
+            1.0,
+            1.0,
+        );
         // A span covering part of the arc (a split rim's child) ends
         // where the image is at its parameter: on one sub-arc of a
         // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
         let half = core::f64::consts::FRAC_PI_4;
-        assert_pt(pcurve_entry(&arc, 0.0, half, false).unwrap(), 0.5, 1.0);
-        assert_pt(pcurve_entry(&arc, half, quarter, true).unwrap(), 0.5, 1.0);
-        let end = pcurve_entry(&arc, half, quarter, false).unwrap();
+        assert_pt(
+            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, half), false).unwrap(),
+            0.5,
+            1.0,
+        );
+        assert_pt(
+            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), true).unwrap(),
+            0.5,
+            1.0,
+        );
+        let end =
+            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), false).unwrap();
         assert!(
             (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
             "the child ending at the arc's end ends at its corner: {end:?}"
@@ -4378,7 +4402,11 @@ mod tests {
             Vec2::zero(),
             Vec2::new(1.0, 0.0),
         );
-        assert_pt(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), 0.0, 0.5);
+        assert_pt(
+            pcurve_entry(&linear, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).unwrap(),
+            0.0,
+            0.5,
+        );
 
         // The tilted-cut class: an alive sin channel refuses typed.
         let sinusoid = geom_brep::Pcurve::free_harmonic(
@@ -4387,7 +4415,7 @@ mod tests {
             Vec2::new(0.0, 0.3),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&sinusoid, 0.0, 3.0, true).is_err());
+        assert!(pcurve_entry(&sinusoid, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
     }
 
     #[test]
@@ -4400,7 +4428,7 @@ mod tests {
             Vec2::zero(),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&nearly, 0.0, 3.0, true).is_err());
+        assert!(pcurve_entry(&nearly, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -4763,7 +4791,14 @@ mod tests {
             Vec2::new(0.0, 0.5),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&sinusoid, 0.0, core::f64::consts::PI, true).is_err());
+        assert!(
+            pcurve_entry(
+                &sinusoid,
+                geom_brep::StoredSpan::for_tests(0.0, core::f64::consts::PI),
+                true
+            )
+            .is_err()
+        );
     }
 
     // ------------------------------------------------------------------
@@ -5142,7 +5177,7 @@ mod tests {
                         Vec2::new(1.0, 0.0),
                     );
                     assert!(
-                        pcurve_entry(&h, 0.0, 1.0, true).is_err(),
+                        pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
                     );
                 }
@@ -5159,7 +5194,11 @@ mod tests {
                 Vec2::new(0.0, -0.0),
                 Vec2::new(1.0, 2.0),
             );
-            assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
+            assert_pt(
+                pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.5, 1.0), true).unwrap(),
+                0.75,
+                1.5,
+            );
         }
 
         // ---- Claim 2: the same-chart lane is airtight, its boundary

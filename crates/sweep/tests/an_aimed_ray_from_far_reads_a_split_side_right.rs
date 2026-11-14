@@ -15,7 +15,7 @@ use std::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, SplitFinishError, SplitPart, split};
-use topo::{AtRestBody, ValidationError, mass_properties, validate_geometric};
+use topo::{AtRestBody, Stop, ValidationError, mass_properties, validate_geometric};
 
 use crate::split_seam_vanishing_tilt::carrier_resolution;
 
@@ -37,6 +37,15 @@ fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
 /// own rounding, a side whose side the reader could not read and whose
 /// volume does not sign it, the split refused before it had sides, or a
 /// side refused at rest inside out.
+///
+/// `Unsettled` is none of those: both sides built and one's measure
+/// stopped at its floor short of the pinned resolution, where the
+/// reading wanted is `Built`. It is here so the poses that do it are a
+/// pin and not a panic: `the_seam_split_census_reads_no_side_inside_out`
+/// holds which they are, [`read`] how wide they stop
+/// ([`FLOOR_STOP_PAD`]), and
+/// `a_seam_split_a_hair_off_tangency_reads_no_side_inside_out` that its
+/// family has none.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Read {
     Built,
@@ -44,7 +53,14 @@ enum Read {
     Unread,
     Refused,
     InsideOut,
+    Unsettled,
 }
+
+/// The volume half-width (m³) an [`Read::Unsettled`] pose's sliver side
+/// stops at, about a volume of 2.67e-10: a pin of what is read at ε 1e-9,
+/// held to 1% either way. The wanted measure meets the pinned resolution
+/// (work/spiricarm/a-seam-split-slivers-measure-stops-at-its-floor-2600-volumes-wide-since-the-rotational-cylinder-lane.md).
+const FLOOR_STOP_PAD: f64 = 7.039_484e-7;
 
 impl Read {
     /// One letter per reading, for the census's line.
@@ -55,6 +71,7 @@ impl Read {
             Self::Unread => 'U',
             Self::Refused => 'R',
             Self::InsideOut => 'X',
+            Self::Unsettled => 'S',
         }
     }
 }
@@ -62,8 +79,10 @@ impl Read {
 /// What the split through the seam vertex at `phi`, tilted `psi` off the
 /// wall's tangent plane, its origin `l` along the rim's tangent, reads
 /// ([`Read`]). A side returned that tier 3 refuses, sides that miss `π`,
-/// a side refused at rest on anything but the ellipse's rounding or
-/// inside out, or a refusal the at-rest gate should have made, panics.
+/// a measure that stops short of the pinned resolution anywhere but its
+/// floor or at any width but [`FLOOR_STOP_PAD`], a side refused at rest
+/// on anything but the ellipse's rounding or inside out, or a refusal
+/// the at-rest gate should have made, panics.
 fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
     let pose = format!("φ {phi} ψ {psi:e} L {l} sign {sign}");
     let cyl = cylinder(phi, tol);
@@ -74,6 +93,8 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
     match split(&cyl, &plane, tol) {
         Ok(r) => {
             let mut volume = 0.0;
+            let mut pad = 0.0;
+            let mut unsettled = false;
             for (word, part) in [("above", &r.above), ("below", &r.below)] {
                 let SplitPart::Body(b) = part else { continue };
                 assert_eq!(
@@ -81,16 +102,34 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
                     Ok(()),
                     "{pose}: the {word} side"
                 );
-                volume += mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                let measured = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                     .unwrap_or_else(|e| {
                         panic!(
                             "{pose}: {word} measures: {e_at}",
                             e_at = e.render(geom_brep::recourse::Reading::AtRest)
                         )
-                    })
-                    .met()
-                    .expect("the pinned resolution is met")
-                    .volume;
+                    });
+                volume += measured.enclosure.volume;
+                if measured.stop != Stop::Met {
+                    assert_eq!(
+                        measured.stop,
+                        Stop::Floor,
+                        "{pose}: the {word} side's measure stops at its floor"
+                    );
+                    pad += measured.enclosure.volume_pad;
+                    unsettled = true;
+                }
+            }
+            if unsettled {
+                assert!(
+                    (pad - FLOOR_STOP_PAD).abs() <= 1e-2 * FLOOR_STOP_PAD,
+                    "{pose}: the measure stops {FLOOR_STOP_PAD:e} wide as pinned, got {pad:e}"
+                );
+                assert!(
+                    (volume - PI).abs() <= pad + 1e-6,
+                    "{pose}: the sides' brackets hold the cylinder's π: {volume} ± {pad}"
+                );
+                return Read::Unsettled;
             }
             assert!(
                 (volume - PI).abs() < 1e-6,
@@ -168,6 +207,10 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
         !reads.contains(&Read::InsideOut),
         "no pose reads a side inside out: {reads:?}"
     );
+    assert!(
+        !reads.contains(&Read::Unsettled),
+        "no pose of the family stops a measure short of the pinned resolution: {reads:?}"
+    );
     // Measured: at 1e-9 18 build and 3 refuse on the ellipse's rounding;
     // at 1e-12 all 21 refuse so, where five read inside out with the
     // reach at the ellipse's whole carrier; at 1e-6 8 build and 13 refuse
@@ -189,13 +232,15 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
 }
 
 /// The census: 24 seam azimuths, four tilts, two offsets, both normals.
-/// No side reads inside out at any ε row.
+/// No side reads inside out at any ε row, and the poses whose measure
+/// stops at its floor are the ones pinned.
 #[test]
 fn the_seam_split_census_reads_no_side_inside_out() {
     let tol = Tol::witness();
-    let mut reads = [0; 5];
+    let mut reads = [0; 6];
     let mut line = String::new();
     let mut inside_out = Vec::new();
+    let mut unsettled = Vec::new();
     for i in 0..24 {
         for psi in [1e-7_f64, 2e-7, 5e-7, 1e-6] {
             for l in [0.0, 0.1] {
@@ -206,6 +251,9 @@ fn the_seam_split_census_reads_no_side_inside_out() {
                     if got == Read::InsideOut {
                         inside_out.push((azimuth(i), psi, l, sign));
                     }
+                    if got == Read::Unsettled {
+                        unsettled.push((i, psi, l, sign));
+                    }
                 }
             }
         }
@@ -215,17 +263,36 @@ fn the_seam_split_census_reads_no_side_inside_out() {
         println!(
             "SEAM-CENSUS eps={:e}: of 384, {} build, {} refuse a side on the ellipse's \
              rounding, {} refuse a side unread, {} refuse the split, {} read a side inside \
-             out: {inside_out:?}\nSEAM-LINE eps={:e}: {line}",
+             out: {inside_out:?}, {} stop a measure at its floor: {unsettled:?}\nSEAM-LINE \
+             eps={:e}: {line}",
             tol.eps(),
             reads[0],
             reads[1],
             reads[2],
             reads[3],
             reads[4],
+            reads[5],
             tol.eps()
         );
     }
     assert!(inside_out.is_empty(), "no side reads inside out");
+    // Measured: at ε 1e-9 the second azimuth `5·10⁻⁷` off tangency, at
+    // both offsets and either normal, builds both sides and a side's
+    // measure stops at its floor short of the pinned resolution. The
+    // wanted reading is `Built`, the resolution met:
+    // work/spiricarm/a-seam-split-slivers-measure-stops-at-its-floor-2600-volumes-wide-since-the-rotational-cylinder-lane.md
+    let floor_stops: Vec<(u32, f64, f64, f64)> = if tol.eps() == 1e-9 {
+        [0.0, 0.1]
+            .into_iter()
+            .flat_map(|l| [1.0, -1.0].map(|sign| (1, 5e-7, l, sign)))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    assert_eq!(
+        unsettled, floor_stops,
+        "the poses whose measure stops at its floor"
+    );
 }
 
 /// **The side reader's reach bounds a section's arc, not its ellipse.**

@@ -231,11 +231,12 @@ pub use pair_section::{
     CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
     NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
     Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionNode,
-    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
-    SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
-    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
-    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
-    axis_pose, line_tilt, pair_section, spline_pair_section, square_part, tori_coincide,
+    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
+    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
+    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -250,8 +251,8 @@ pub use pcurve_cache::{
     FocalImage, FramedCarrier, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal, IsoFamily,
     IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoSpeedBound, OffMargin, Pcurve,
     PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
-    ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus,
-    angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve, chart_pcurve_over,
+    ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, StoredSpan, WalkStop,
+    WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve, chart_pcurve_over,
     chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of,
     harmonic_range, incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal,
     read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,

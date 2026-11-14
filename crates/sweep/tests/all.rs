@@ -92,6 +92,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_groove_at_a_shafts_root_continues_its_wall.rs"]
+mod a_groove_at_a_shafts_root_continues_its_wall;
 #[path = "a_keel_on_a_bores_ruling.rs"]
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]

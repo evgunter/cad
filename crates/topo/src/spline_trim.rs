@@ -836,9 +836,8 @@ impl TrimChart {
             {
                 return Err(SplineTrimGap::Moved);
             }
-            let (t0, t1) = row.params;
             let mut run =
-                image_pieces(&row.pcurve, t0, t1, self.scale).ok_or(SplineTrimGap::NoPieces)?;
+                image_pieces(&row.pcurve, row.params, self.scale).ok_or(SplineTrimGap::NoPieces)?;
             if !walks_forward(body, row.half_edge) {
                 run = run.into_iter().rev().map(Piece::reversed).collect();
             }
@@ -1237,10 +1236,10 @@ fn walks_forward<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> bool {
 /// short chain's rounding at `scale` past it (`p0 + d·g`).
 pub(crate) fn image_pieces<T: Decide>(
     pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
+    span: geom_brep::StoredSpan<T>,
     scale: f64,
 ) -> Option<Vec<Piece>> {
+    let (t0, t1) = span.ends();
     let end = |p: geom_core::Point2<T>| {
         let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
             let m = middle(c);
@@ -1254,7 +1253,7 @@ pub(crate) fn image_pieces<T: Decide>(
     };
     match pcurve {
         Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
-            let [a, b] = pcurve.span_ends((t0, t1));
+            let [a, b] = pcurve.span_ends(span);
             Some(vec![Piece::segment(end(a), end(b))])
         }
         Pcurve::Fitted(image) | Pcurve::General(image) => {
