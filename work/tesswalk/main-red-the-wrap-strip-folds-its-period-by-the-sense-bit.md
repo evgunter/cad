@@ -36,3 +36,13 @@ Do one of these:
 Reproduce with:
 
     cargo test -p topo --lib face_normal::tests::no_source_file_folds_the_bit_by_hand
+
+## 2026-11-14 — sanctioned on `tesslane/sense-door`
+
+TESSLANE's sense-door unit, which edits the guard, met this hit still red
+at main `d6e1eb1f07` and takes the second repair: `("crates/mesh/src/walk.rs",
+"TAU")` joins `sanctioned` as the strip's far-side `u` displacement, a chart
+length that no door yields (`wrap_strip`'s doc: the period's sign winds the
+polygon counter-clockwise in the chart exactly when `sense` is set). The row
+closes when that branch merges; folding the period through a door instead
+remains open to this program if it judges the sanction wrong.

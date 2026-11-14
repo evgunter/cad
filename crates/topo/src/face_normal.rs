@@ -1497,16 +1497,26 @@ mod tests {
         // `R·Area` and a closed surface's whole flux, a witness's
         // implicit residual read as its height above the face, a loop's
         // chart-frame area, an offset distance into the material.
-        let sanctioned: Vec<(String, String)> = [
+        let mut sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
             // encloses, for a face whose chart image is empty.
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
+            // A test's trim polygon area in the sphere's equal-area chart
+            // frame, signed by the loop's chart winding.
+            ("crates/mesh/src/trimmed.rs", "area"),
             ("crates/mesh/src/walk.rs", "area"),
+            // A wrap strip's period: the far side's `u` displacement from
+            // the near side (`walk::wrap_strip`), a chart length, no normal.
+            ("crates/mesh/src/walk.rs", "TAU"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
             // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame.
+            // toward its face, in the plane's chart frame: once each in
+            // `present_plane`, `present_plane_corner` and
+            // `present_plane_vertex`.
+            ("crates/topo/src/injective.rs", "1.0"),
+            ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
             // A face's side of an iso edge's line, as the sign of the held
             // chart coordinate.
@@ -1524,17 +1534,7 @@ mod tests {
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
-        // Pinned red, NOT sanctioned: hand folds main carries while the
-        // row that owns their repair is open, so the repair landing reds
-        // here too and strikes them
-        // (`work/tesslane/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
-        let pinned = [
-            ("crates/mesh/src/trimmed.rs", "area"),
-            ("crates/mesh/src/trimmed.rs", "radial"),
-        ];
-        let mut expected = sanctioned;
-        expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));
-        expected.sort();
+        sanctioned.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -1571,12 +1571,10 @@ mod tests {
         );
         hits.sort();
         assert_eq!(
-            hits, expected,
-            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
-             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
-             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
-             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
-             from `pinned`."
+            hits, sanctioned,
+            "the hand folds under a face's sense bit are not the sanctioned scalars. \
+             A NORMAL folds through `OutwardNormal::from_chart` or a `face_normal` door, \
+             and a genuinely signed scalar joins the list with what it negates."
         );
     }
 

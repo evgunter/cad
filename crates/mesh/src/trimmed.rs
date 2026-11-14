@@ -165,7 +165,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::Pcurve;
+use geom_brep::{OutwardNormal, Pcurve};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -852,17 +852,18 @@ impl TrimmedFace<'_> {
         }
     }
 
-    /// The face's outward normal direction at `p`, on an analytic arm:
-    /// the surface's radial direction (off the cylinder's axis, off the
-    /// sphere's centre), reversed on a reversed face. `None` on the
-    /// NURBS arm, whose winding the census does not read.
-    fn outward(&self, p: Point3<f64>) -> Option<geom_core::Vec3<f64>> {
-        let radial = match *self.lane {
-            Lane::Cylinder { origin, axis, .. } => geom::Line { origin, dir: axis }.offset(p),
-            Lane::Sphere { center, .. } => p - center,
-            Lane::Nurbs { .. } => return None,
-        };
-        Some(if self.sense { radial } else { -radial })
+    /// The face's outward normal at the foot of `p` on its carrier, on
+    /// an analytic arm (`geom_brep::implicit_outward_normal`); poison
+    /// where the foot is not one point (the cylinder's axis, the
+    /// sphere's centre). `None` on the NURBS arm, whose winding the
+    /// census does not read.
+    fn outward(&self, p: Point3<f64>) -> Option<OutwardNormal<f64>> {
+        match *self.lane {
+            Lane::Cylinder { .. } | Lane::Sphere { .. } => Some(
+                geom_brep::implicit_outward_normal(self.surface, self.sense, p),
+            ),
+            Lane::Nurbs { .. } => None,
+        }
     }
 
     /// One attempt of the retry loop (module docs): the points, the
@@ -1362,7 +1363,11 @@ impl TrimmedFace<'_> {
                     ears.push(uv_centroid(&uv));
                 }
             }
-            if self.outward(centroid).is_some_and(|n| normal.dot(n) <= 0.0) {
+            // Folded unless wound definitely outward: a poisoned
+            // `outward` reads as a fold, not as a pass.
+            if self.outward(centroid).is_some_and(|n| {
+                normal.dot(n.vec()).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater)
+            }) {
                 let grid: Vec<usize> = vs
                     .iter()
                     .filter_map(|vtx| match meta[vtx.fix().index()].2 {
