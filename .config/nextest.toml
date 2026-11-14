@@ -64,10 +64,10 @@ failure-output = "immediate-final"
 #    1.48 s  mesh::all reach_probes::a_turned_ball_meshes_its_whole_volume_at_every_radius
 #    0.67 s  mesh::all reach_probes::a_one_column_band_with_raised_rows_adds_no_lattice_point
 #    0.45 s  mesh::all reach_probes::a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard
-#    0.35 s  mesh::all reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row
+#    1.32 s  mesh::all reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row
 #    0.33 s  mesh::all reach_probes::a_spiric_bounded_torus_wall_meshes_on_the_torus_row
-#    2.28 s  mesh::all reach_probes::a_cone_face_through_its_apex_meshes_at_every_scale_and_pose
-#    1.71 s  mesh::all reach_probes::a_cone_face_ending_near_its_apex_meshes_at_every_delta
+#    2.98 s  mesh::all reach_probes::a_cone_face_through_its_apex_meshes_at_every_scale_and_pose
+#    5.98 s  mesh::all reach_probes::a_cone_face_ending_near_its_apex_meshes_at_every_delta
 # The lift measurements: the reach pins' bodies again, each loop's lift
 # sampled; the first is two booleans across a B-spline section (a local
 # run, 4 vCPUs):
