@@ -368,7 +368,7 @@ fn vf_reading(
 /// from the wall past the band's escalation edge read it stale; a cube
 /// set in by half the band confirms it. A record on a spline face (a
 /// swept elbow's NURBS wall) of a vertex off it reads stale too, its trim
-/// read on its chart (`topo::boolean::spline_region`); the record ties the
+/// read on its chart (`topo::spline_trim`); the record ties the
 /// vertex to the wall for the self-touch sweep, where a spline face held
 /// inside has no carrier frame for its tangent plane's fan, and the point
 /// refuses undecided.

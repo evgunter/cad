@@ -14,7 +14,7 @@ Filed by TESS's sphere-arm unit
 
 **Measured.** The trimmed lane's sphere arm bounds each boundary
 chord's UV step by its lattice steps, from a closed-form speed bound
-of the circle's image (`mesh::chords::sphere_uv_speeds`):
+of the circle's image (`geom_brep::Pcurve::speed_bound`):
 `|u′| ≤ |p′|/ρ`, which grows as `1/cos v` toward a pole. The chord
 schedule is uniform in the carrier parameter, so a circle passing a
 pole at polar distance `d` is chorded everywhere as finely as its

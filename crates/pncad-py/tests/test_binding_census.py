@@ -3026,6 +3026,9 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
+    # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
+    # (`wedge_unsettled`) already names at the Python seam.
+    "UnsettledWedge": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "

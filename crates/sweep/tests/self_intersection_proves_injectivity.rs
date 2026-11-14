@@ -1069,6 +1069,25 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 18v1) escalates on an enclosure of ±4.5e-11
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the closed spine",
+        &[
+            "the closed spine sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        a_closed_spine_reads_violated_top_against_bottom_row,
+    );
+}
+
+/// The row [`a_closed_spine_reads_violated_top_against_bottom`] runs, under its pin.
+fn a_closed_spine_reads_violated_top_against_bottom_row() {
     fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
@@ -1215,6 +1234,25 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 20v1) escalates on an enclosure of ±1.9e-12
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the S duct",
+        &[
+            "the S path sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        the_s_duct_walls_hold_against_themselves_row,
+    );
+}
+
+/// The row [`the_s_duct_walls_hold_against_themselves`] runs, under its pin.
+fn the_s_duct_walls_hold_against_themselves_row() {
     fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;

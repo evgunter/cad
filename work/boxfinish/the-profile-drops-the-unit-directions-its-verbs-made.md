@@ -69,3 +69,40 @@ where they derive a 2-D direction from a segment today. Branch
 **Letter M; review tier: dual (sequential).** It changes the stored
 form of every profile, which every sweep door, the lift and the
 symbolic tier's replay read, and which is hard to change again later.
+
+## Measured (M3, 2026-11-14): it is live on main, and a line needs it too
+
+Probe rows `m3_cut_plate` and `m3_wide_slab` in
+`crates/editor-core/tests/boxfinish_m3_probe.rs` on
+`boxfinish/probe-switch-off` (commit `bba45062`, never merged), run on
+main `4c7404c2` (switch on) and on the probe (switch off).
+
+- **Main refuses the cut plate today.** The tour's plate with its two
+  holes subtracted (`demos/tour/src/plate.rs`, `author(cut = true)`,
+  re-spelled without its measure and assertion), over the tour's study
+  box: the first `Subtract` refuses `UnfinishedLeaf { input: hole a's
+  placement, findings: [2× SurfaceDatumUndecided { kind: Cylinder,
+  datum: URef, measure: Length, end: Upper, margin: Enclosure
+  { -2.9714e-4, 2.4116e-4 } }, 4× CurveDatumUndecided { kind: Circle,
+  datum: URef, same margin }] }`, raised in the finish the Subtract's
+  take runs. A drive certifies 0 of 512 leaves, with the same receipt
+  switch on and off. So this row does not wait for the switch.
+- **The rim circles carry it too:** one refusing hole's findings are
+  six, two faces and four rim edges. Stored on walls and rims alike:
+  axis (0, 0, 1) exact, radius `[1.22e-3, 1.28e-3]`, `u_ref`
+  `([0.811595, 1.232142], 0, 0)`.
+- **Narrower boxes:** from 1e-6 of the study box down, check 1 decides
+  and every finish passes, and the leaf still bisects with no failed
+  node. Inferred, not traced: `period_near_mark` (escalated 68 times)
+  and `curve_carrier_gap` (24) in the build hold it. What the tour's
+  own `cut_wall` is held by is not measured.
+- **A line needs its director recorded.** A slab whose WIDTH is
+  1 ± 0.05 (four formula corners): the wall the box moves, x = W, whose
+  ends are (W, 0) and (W, 1), stores a normal tilted ±0.2, because its
+  direction is recomputed from ends that both carry W. The walls whose
+  ends carry the box but whose direction does not are exact in
+  direction and `[0.8182, 1.2222]` long.
+
+**The test that says it is closed gains a row on main:** the cut plate
+over the study box no longer refuses on a `u_ref`, with the switch as
+it is.
