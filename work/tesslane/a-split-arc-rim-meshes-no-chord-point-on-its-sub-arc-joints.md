@@ -20,7 +20,7 @@ parent's row and arc (`split_edge`'s carry, and since that PR the mint's
 re-derivation, `geom_brep::arc_rim_measured`), so its span is a strict
 part of the arc.
 
-`mesh::chords`' `nurbs_tighten` (the `Pcurve::IsoArc` arm) needs a
+`mesh::chords`' `chords::tighten` (the `Pcurve::IsoArc` arm) needs a
 chord point on each sub-arc joint, a C⁰ crease of the wall, and gets it
 by rounding a uniform schedule to a multiple of the sub-arc count. That
 lands on the joints only when the arc is the edge's interval bit for

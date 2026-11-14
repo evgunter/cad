@@ -42,3 +42,15 @@ branch"); one home would make it once.
 CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26): CHART had closed
 every P0 and P1 row, and its last rows are the chart boundary's tail.
 Id and body unchanged.
+
+## A third assembly (2026-11-14, TESSLANE)
+
+`topo/src/pcurves_rings.rs` `Outer::arms` (the ring door's analytic reader, branch `tesslane/ring-placement`) assembles the analytic inf arms a third time. Its azimuth arm reads `azimuth_lever_inf`, which is now `pub` and exported from `geom_brep`. Its second arm is the polar radius (`pcurves::polar_arm`) or 1. A plane reads `(1, 1)`. Both arms are gated by `chart_region::gate_arm_as` on `ring_place_arm`.
+
+So the azimuth formula is spelled twice, not three times, but the per-chart assembly (which arm per kind, the plane's, the gate) is now written in two places in `topo`.
+
+The two disagree past a sphere's pole rows:
+- `certified_arms` refuses `ArmUnbounded` where the window's `|v|` bracket tops `π/2`;
+- `azimuth_lever_inf` clamps `|v|` at `π/2`, reads zero there, and `Outer::arms`' gate turns that into `Unbounded`.
+
+At `f64` the two land on the same refusal. Under an interval scalar, `certified_arms` reads the bracket's top through `Bounds`, while `azimuth_lever_inf` takes `min` and `cos` at the scalar, so the edge cases differ. Neither reads the twin sheet's true arm `r·|cos v|` past the pole. One home would be `certified_arms` reading `azimuth_lever_inf` and `polar_arm`, with `Outer::arms` calling it. That needs `certified_arms` without its `Bounds` bound, which `scripts/gates/bounds-allowlist.sh` holds.

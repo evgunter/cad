@@ -387,7 +387,7 @@ pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
 /// the half-width by the interval rotation — the one widening every
 /// enclosure here reads (a parameter bracket, a piece, an edge's span).
 /// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
-pub(super) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
+pub(crate) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
     let m = geom::bracket_mid((lo, hi));
     if !(m.is_finite() && lo <= hi) {
         return (Interval::refused(), Interval::refused());
