@@ -162,8 +162,18 @@ fn close(got: Result<f64, PropsError>, want: f64, what: &str) {
     );
 }
 
-/// Every wall of the ladder, each outcome printed; the row is red on
-/// the first that does not measure its closed form, after printing all.
+/// Every wall of the ladder, each outcome printed (`REVIEW-WALL`); the
+/// row is red when any does not measure its closed form, after printing
+/// all.
+///
+/// Measured on the frozen head `e010b7d7`: green at ε = 1e-9 and 1e-6
+/// (72 of 72), RED at ε = 1e-12, where 33 of 72 measure (30 under the
+/// merge base's reading). What still escalates `props_chart_loop_whole`
+/// at the interval scalar there is every wall whose rims are several
+/// PARTIAL arcs (6 arcs a rim at r = 50; one arc a rim at r = 410): a
+/// carried arc is charged about twice the width of its ends' enclosures
+/// whatever its radius. At `f64` the 200-arc walls refuse on rounding,
+/// before and after.
 #[test]
 fn far_tilted_walls_of_many_edges_measure() {
     fn rows<T: Decide + Mid>(scalar: &str, bad: &mut Vec<String>) {
@@ -191,7 +201,10 @@ fn far_tilted_walls_of_many_edges_measure() {
                     format!("cylinder patch r {r}, {n} arcs a rim, at {scalar}"),
                 );
             }
-            let (lo, hi) = ([rim::<T>(r, 0.0, 0.0, TAU)], [rim::<T>(r, height, TAU, 0.0)]);
+            let (lo, hi) = (
+                [rim::<T>(r, 0.0, 0.0, TAU)],
+                [rim::<T>(r, height, TAU, 0.0)],
+            );
             note(
                 measure(&cylinder::<T>(r), &[&lo, &hi]),
                 r * TAU * height,
@@ -214,7 +227,12 @@ fn far_tilted_walls_of_many_edges_measure() {
     let mut bad = Vec::new();
     rows::<f64>("f64", &mut bad);
     rows::<geom_core::Interval>("the interval scalar", &mut bad);
-    assert!(bad.is_empty(), "{} walls did not measure:\n{}", bad.len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} walls did not measure:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// A hand-assembled far cylinder wall whose bottom rim does not turn as
@@ -266,9 +284,15 @@ fn a_hand_built_far_wall_whose_rim_disagrees_still_refuses() {
             assert!(got.is_err(), "a rim tilted {tilt} at {scalar}: {got:?}");
         }
         for (what, bottom) in [
-            ("a whole turn past its ends", rim::<T>(r, 0.0, 0.0, span + TAU)),
+            (
+                "a whole turn past its ends",
+                rim::<T>(r, 0.0, 0.0, span + TAU),
+            ),
             ("the opposite normal, the wrong way", flipped(0.0, span)),
-            ("a span short of its ruling", rim::<T>(r, 0.0, 0.0, span - 1e-3)),
+            (
+                "a span short of its ruling",
+                rim::<T>(r, 0.0, 0.0, span - 1e-3),
+            ),
         ] {
             let got = with_bottom(bottom);
             eprintln!("REVIEW {what} at {scalar}: {got:?}");
