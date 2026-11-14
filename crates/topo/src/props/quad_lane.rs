@@ -1392,7 +1392,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         let (t0, t1) = cache.params();
-        let (pa, pb) = (image.eval(t0), image.eval(t1));
+        let [pa, pb] = image.span_ends((t0, t1));
         let (a, b) = if le.forward {
             ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
         } else {

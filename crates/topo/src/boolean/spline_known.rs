@@ -128,8 +128,7 @@ fn corners<T: Decide + AtRestPolicy>(
         let Ok((_, t0, t1)) = crate::pcurves::half_edge_carrier(body, *he) else {
             continue;
         };
-        for t in [t0, t1] {
-            let p: Point2<T> = image.pcurve().eval(t);
+        for p in image.pcurve().span_ends((t0, t1)) {
             let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
                 continue;
             };

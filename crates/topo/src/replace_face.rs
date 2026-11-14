@@ -4066,6 +4066,13 @@ fn plan_reanchors<T: Decide>(
             } else {
                 t1 = t_new;
             }
+            if let EdgeDescriptionSpec::Chart {
+                image: Some(ref mut image),
+                ..
+            } = description
+            {
+                *image = image.with_end_at(!is_start, t_new);
+            }
         }
         // **The witness follows the parameter range.** An intrinsic
         // description's witness is pinned to the edge's MID-PARAMETER
@@ -4851,6 +4858,13 @@ fn read_ends<T: Decide>(
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
+    if let EdgeDescriptionSpec::Chart {
+        image: Some(ref mut image),
+        ..
+    } = plan.spec.description
+    {
+        *image = image.over_span((t0, t1));
+    }
     // A sketch record beside the edge ends where the edge now does.
     let restate = |m, point, is_start| {
         move_mapped_endpoint(m, point, is_start).ok_or(ReplaceFaceError::CarrierLaneUnsupported {

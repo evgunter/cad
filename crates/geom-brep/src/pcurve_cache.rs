@@ -1453,28 +1453,46 @@ impl<T: SpanLocate> Pcurve<T> {
         }
     }
 
-    /// This image as its edge's two children at the split parameter `t`
-    /// store it, `(first, second)` over `[t0, t]` and `[t, t1]`: the same
-    /// map, an [`Pcurve::IsoLine`]'s stated end kept on the child that
-    /// keeps that end of the span, and the cut read through the map.
+    /// This image over its edge's span with one end moved to `t` (the
+    /// span's end where `end`, its start otherwise): the same map, an
+    /// [`Pcurve::IsoLine`]'s stated end at the moved end read through
+    /// the map there, and the other kept.
     #[must_use]
-    pub fn split_at(&self, t: T) -> (Self, Self) {
+    pub fn with_end_at(&self, end: bool, t: T) -> Self {
         match self {
             Pcurve::IsoLine {
                 p0,
                 pl,
-                ends: Some([start, end]),
+                ends: Some(ends),
             } => {
-                let cut = self.eval(t);
-                let child = |ends| Pcurve::IsoLine {
+                let mut ends = *ends;
+                ends[usize::from(end)] = self.eval(t);
+                Pcurve::IsoLine {
                     p0: *p0,
                     pl: *pl,
                     ends: Some(ends),
-                };
-                (child([*start, cut]), child([cut, *end]))
+                }
             }
-            _ => (self.clone(), self.clone()),
+            _ => self.clone(),
         }
+    }
+
+    /// This image over a span `(t0, t1)` its edge was given anew, its
+    /// stated ends read through the map at both ([`Pcurve::with_end_at`]):
+    /// where an edge's span is re-read, nothing says either end is still
+    /// the one the mint placed.
+    #[must_use]
+    pub fn over_span(&self, (t0, t1): (T, T)) -> Self {
+        self.with_end_at(false, t0).with_end_at(true, t1)
+    }
+
+    /// This image as its edge's two children at the split parameter `t`
+    /// store it, `(first, second)` over `[t0, t]` and `[t, t1]`
+    /// ([`Pcurve::with_end_at`]): a stated end kept on the child that
+    /// keeps that end of the span, and the cut read through the map.
+    #[must_use]
+    pub fn split_at(&self, t: T) -> (Self, Self) {
+        (self.with_end_at(true, t), self.with_end_at(false, t))
     }
 
     /// The chart point at the **carrier parameter** `t` (module docs:
