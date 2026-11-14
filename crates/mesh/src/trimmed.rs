@@ -90,9 +90,18 @@
 //! spread far apart, so the NURBS schedule also raises a band's rows
 //! when its columns stay too narrow over `k`
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
-//! narrow-column bands**). The map is affine, so constraint segments
-//! stay straight; and exact, so every coincidence in UV is one in the
-//! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
+//! narrow-column bands**). The map is applied after the crate's
+//! coordinate floor (`crate::cdt`), which merges the band
+//! `(0, 2⁻¹⁴²)` into `0.0` and is neither affine nor injective there;
+//! the metric itself scales the axis that grows by a power of two, so
+//! it is affine (constraint segments stay straight), exact and
+//! injective on floored points, and two points are one CDT vertex
+//! exactly when they are one location after the floor. It is `(u/k, v)`
+//! times a uniform power of two: spade's predicates are exact under
+//! that scale, but its bulk loader's hull walk compares against an
+//! absolute `f64::EPSILON`, so the triangulation is not guaranteed the
+//! one `(u/k, v)` itself would give, and nothing here relies on it
+//! being. Only the CDT sees it: `meta`, the creases, the polygon's
 //! orientation and every certificate read UV.
 //!
 //! # C⁰ creases
@@ -782,8 +791,9 @@ struct TrimmedFace<'a> {
     /// the polygon's and not `sense` restated: on the spline arm
     /// nothing compares the two.
     orientation: PolygonOrientation,
-    /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
-    /// scaling the axis that shrinks ([`Self::cdt_point`]).
+    /// The lattice metric `k`: points enter the CDT at `(u/k, v)` times
+    /// a uniform power of two, scaling the axis that grows
+    /// ([`Self::cdt_point`]).
     metric: f64,
     surface: &'a Surface<f64>,
     lane: &'a Lane,
@@ -828,18 +838,23 @@ struct Emitted {
 }
 
 impl TrimmedFace<'_> {
-    /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
-    /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
-    /// by `1/k` when `k > 1`, `v` by `k` when `k < 1`, so the
-    /// coordinates stay within the chart's own magnitude. `k` is a power
-    /// of two, so the product is exact and every coincidence in UV is
-    /// one in the CDT. Only the CDT sees these: `meta`, the creases,
-    /// the polygon's orientation and every certificate read UV.
+    /// `(u, v)` as the CDT sees it: floored ([`crate::cdt::spade_point`]),
+    /// then in the lattice metric, `(u/k, v)` times a uniform power of
+    /// two (module docs, "The lattice metric", on what that scale does
+    /// and does not leave unchanged). The axis that GROWS is scaled, `v`
+    /// by `k` when `k > 1` and `u` by `1/k` when `k < 1`: a power of two
+    /// of at least one, which rounds nothing and cannot carry a value
+    /// spade accepts into the floor's band, so the scale is injective on
+    /// floored points and two chart points are one CDT vertex exactly
+    /// when [`crate::cdt::ids_at_two_uvs`] reads them as one location.
+    /// Only the CDT sees these: `meta`, the creases, the polygon's
+    /// orientation and every certificate read UV.
     fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
+        let p = crate::cdt::spade_point(u, v);
         if self.metric > 1.0 {
-            SpadePoint::new(u / self.metric, v)
+            SpadePoint::new(p.x, p.y * self.metric)
         } else {
-            SpadePoint::new(u, v * self.metric)
+            SpadePoint::new(p.x / self.metric, p.y)
         }
     }
 
@@ -972,7 +987,7 @@ impl TrimmedFace<'_> {
         #[cfg(debug_assertions)]
         {
             let identified =
-                crate::walk::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
+                crate::cdt::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
             // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
             // copies the whole patch, and this block runs in every
             // build with debug assertions on — the shipped release
@@ -1509,11 +1524,11 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
 /// is a single interior column between them).
 ///
 /// The rule for "different" is spade's and is stated once, at
-/// [`crate::walk::ids_at_two_uvs`], which both lanes call. This
+/// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
 /// function is that set's emptiness, named for the question the
 /// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// **The sphere arm's poles.** A pole the loop passes through is a
@@ -1571,7 +1586,7 @@ fn sphere_polygon_shape(
     }) {
         return refuse(i, SphereTrimCause::PoleInside);
     }
-    let apart = crate::walk::ids_at_two_uvs(polygon.iter().copied());
+    let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
         .iter()
         .position(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
@@ -2693,7 +2708,7 @@ mod tests {
     /// which pairs are one vertex: an ulp apart at seam magnitude is
     /// two spade vertices and must read APART, and `-0.0` against
     /// `0.0` is one spade vertex and must not — the case a `to_bits`
-    /// spelling gets backwards, and the reason this compares `f64`s.
+    /// spelling gets backwards.
     #[test]
     fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
         let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
@@ -2702,9 +2717,8 @@ mod tests {
         let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
         assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
 
-        // An ulp at SEAM magnitude (2π), not at zero: an ulp of 0.0 is
-        // 5e-324, a subnormal no chart coordinate reaches, and pinning
-        // there would pin the wrong scale.
+        // An ulp at SEAM magnitude (2π), not at zero: near zero the
+        // floor merges everything below 2⁻¹⁴² (`crate::cdt`'s rows).
         let seam = std::f64::consts::TAU;
         let ulp = [
             (0.0, 0.0, 7u32),
@@ -3291,6 +3305,97 @@ mod tests {
                          point away from the axis exactly when sense is set"
                     );
                 }
+            }
+        }
+    }
+
+    /// **`cdt_point` floors before it scales, and agrees with
+    /// `ids_at_two_uvs` about which points are one.** At a metric above
+    /// one (`v` grows) and below one (`u` grows): a sub-floor coordinate
+    /// of either sign enters as `+0.0` on either axis, a legal value on
+    /// the growing axis is multiplied exactly, the other axis passes
+    /// bit-identical, and two chart points are equal after `cdt_point`
+    /// exactly when [`crate::cdt::ids_at_two_uvs`] reads them as one
+    /// location.
+    #[test]
+    fn cdt_point_floors_then_scales_the_growing_axis() {
+        use core::f64::consts::TAU;
+        use geom::Surface;
+        use geom_core::{Band, Point3, Tol, Vec3};
+        use spade::MIN_ALLOWED_VALUE as FLOOR;
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let lane = super::Lane::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            steps: (0.1, 0.1),
+        };
+        let tol = crate::sizing::SizingTols {
+            delta: 1e-2,
+            eps: crate::sizing::Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        };
+        let dust = 4.838_220_930_617_058e-49;
+        for k in [4.0, 0.25] {
+            let face = super::TrimmedFace {
+                fk: FaceKey::default(),
+                sense: true,
+                orientation: PolygonOrientation::of_face(true),
+                metric: k,
+                surface: &sphere,
+                lane: &lane,
+                polygon: &[],
+                creases: None,
+                shared: &[],
+                tol: &tol,
+            };
+            let bits = |p: SpadePoint<f64>| (p.x.to_bits(), p.y.to_bits());
+            for c in [dust, -dust] {
+                assert_eq!(
+                    bits(face.cdt_point(c, 0.5)).0,
+                    0.0f64.to_bits(),
+                    "k = {k}: u = {c:e} enters as +0.0"
+                );
+                assert_eq!(
+                    bits(face.cdt_point(0.5, c)).1,
+                    0.0f64.to_bits(),
+                    "k = {k}: v = {c:e} enters as +0.0"
+                );
+            }
+            let p = face.cdt_point(FLOOR, FLOOR);
+            let (grown, kept) = if k > 1.0 { (p.y, p.x) } else { (p.x, p.y) };
+            assert_eq!(
+                grown.to_bits(),
+                (FLOOR * k.max(1.0 / k)).to_bits(),
+                "k = {k}: the growing axis is multiplied exactly"
+            );
+            assert_eq!(
+                kept.to_bits(),
+                FLOOR.to_bits(),
+                "k = {k}: the other axis passes bit-identical"
+            );
+            let pairs = [
+                ((dust, 0.5), (0.0, 0.5)),
+                ((0.5, -dust), (0.5, dust)),
+                ((-0.0, 0.5), (0.0, 0.5)),
+                ((FLOOR, 0.5), (0.0, 0.5)),
+                ((0.5, FLOOR), (0.5, 0.0)),
+                ((TAU, 0.5), (TAU.next_up(), 0.5)),
+                ((0.3, 0.2), (0.3, 0.2)),
+            ];
+            for ((au, av), (bu, bv)) in pairs {
+                let one_vertex = face.cdt_point(au, av) == face.cdt_point(bu, bv);
+                let one_location =
+                    crate::cdt::ids_at_two_uvs([(au, av, 7), (bu, bv, 7)]).is_empty();
+                assert_eq!(
+                    one_vertex, one_location,
+                    "k = {k}: ({au:e}, {av:e}) and ({bu:e}, {bv:e}) — the CDT and \
+                     ids_at_two_uvs must agree about whether they are one point"
+                );
             }
         }
     }
