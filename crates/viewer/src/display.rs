@@ -869,8 +869,12 @@ pub struct DisplayView {
     /// The drawings nothing turned off reaches: a body one of them covers stays
     /// in the picture ([`DisplayView::hides`]).
     pub shown_drawn: Vec<crate::world::Drawn>,
-    /// Drawn node → the probe frame governing it — what the scene
-    /// displaces and marks, and the pick carries rays into.
+    /// Drawn node → the display frame of the space it is drawn in, a
+    /// committed one or a free-move probe — what the scene displaces and
+    /// marks. Where the placement editor previews a copy in another
+    /// space, that space's frame governs it instead
+    /// ([`DisplayView::space_frame`]); every reader of where a node is
+    /// drawn reads [`DisplayView::display_map`].
     pub moved_nodes: BTreeMap<RecipeNodeId, Frame>,
     /// **The committed profile drawn by its edit preview instead**
     /// ([`DisplayView::previewing`]): the committed-profile lane leaves
@@ -880,29 +884,39 @@ pub struct DisplayView {
     /// meets what is drawn. `None` from [`DisplayState::view`], which
     /// knows no editor.
     pub previewed_profile: Option<PreviewedProfile>,
-    /// **The copy the placement editor draws where its waiting draft
-    /// stands it** ([`DisplayView::placing`]). `None` from
+    /// **The copies the placement editor draws where its draft stands
+    /// them** ([`DisplayView::placing`]). `None` from
     /// [`DisplayState::view`], which knows no editor.
     pub previewed_placement: Option<PreviewedPlacement>,
 }
 
-/// **A placement's copy drawn where the placement editor's waiting
-/// draft stands it**, in place of where the drawn evaluation stands it:
-/// both poses in the copy's space, so the copy's drawing is carried by
-/// the one onto the other ([`PreviewedPlacement::carry`]).
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// **The copies drawn where the placement editor's draft stands them**,
+/// in place of where the drawn evaluation stands them: every copy the
+/// draft's scratch solve stands elsewhere, the one it edits and every
+/// copy mated to it.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PreviewedPlacement {
-    /// The placement whose copy is drawn.
-    pub node: RecipeNodeId,
-    /// Where the drawn evaluation stands the copy.
+    /// Placement → where its copy is drawn and where the draft stands it.
+    pub copies: BTreeMap<RecipeNodeId, PreviewedCopy>,
+}
+
+/// **One copy as the placement editor previews it**: the space the
+/// draft stands it in and its pose there, beside its pose in the space
+/// the drawn evaluation stands it in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PreviewedCopy {
+    /// The space the draft stands the copy in, whose display frame it
+    /// is drawn under.
+    pub space: VarId,
+    /// Where the drawn evaluation stands the copy, in its space.
     pub drawn: Frame,
-    /// Where the draft's scratch solve stands it.
+    /// Where the draft's scratch solve stands it, in `space`.
     pub stands: Frame,
 }
 
-impl PreviewedPlacement {
-    /// The display map, in the copy's space, from where the copy is
-    /// drawn to where the draft stands it.
+impl PreviewedCopy {
+    /// The map from the copy's pose as drawn to its pose as the draft
+    /// stands it, beneath its space's display frame.
     pub fn carry(&self) -> Affine3<f64> {
         self.stands.affine() * self.drawn.affine().inverse()
     }
@@ -952,9 +966,8 @@ impl DisplayView {
         }
     }
 
-    /// This view with a placement's copy drawn where the placement
-    /// editor's waiting draft stands it
-    /// ([`DisplayView::previewed_placement`]).
+    /// This view with the copies drawn where the placement editor's
+    /// draft stands them ([`DisplayView::previewed_placement`]).
     #[must_use]
     pub fn placing(self, placement: Option<PreviewedPlacement>) -> Self {
         Self {
@@ -963,20 +976,35 @@ impl DisplayView {
         }
     }
 
-    /// **The display map `node`'s drawing is carried by**, in its
-    /// space: the placement editor's preview of its copy, then the
-    /// free-move probe of its space. `None` where it is under neither.
-    pub fn display_map(&self, node: RecipeNodeId) -> Option<Affine3<f64>> {
-        let probe = self.moved_nodes.get(&node).map(Frame::affine);
-        let preview = self
-            .previewed_placement
-            .filter(|preview| preview.node == node)
-            .map(|preview| preview.carry());
-        match (probe, preview) {
-            (None, preview) => preview,
-            (Some(probe), None) => Some(probe),
-            (Some(probe), Some(preview)) => Some(probe * preview),
+    /// **The placement editor's carry of `node`'s copy**, if it
+    /// previews it ([`PreviewedCopy::carry`]).
+    pub fn preview_carry(&self, node: RecipeNodeId) -> Option<Affine3<f64>> {
+        self.previewed(node).map(PreviewedCopy::carry)
+    }
+
+    /// **The display frame of the space `node` is drawn in**: the space
+    /// the placement editor's draft stands its copy in where it previews
+    /// it, else the node's own space's ([`DisplayView::moved_nodes`]).
+    pub fn space_frame(&self, node: RecipeNodeId) -> Option<Frame> {
+        match self.previewed(node) {
+            Some(copy) => self.moved.get(&copy.space).copied(),
+            None => self.moved_nodes.get(&node).copied(),
         }
+    }
+
+    /// **The display map `node`'s drawing is carried by**, in its
+    /// space's coordinates: the placement editor's carry, then the
+    /// display frame of the space it is drawn in. `None` where it is
+    /// under neither.
+    pub fn display_map(&self, node: RecipeNodeId) -> Option<Affine3<f64>> {
+        crate::scene::composed(
+            self.space_frame(node).as_ref().map(Frame::affine),
+            self.preview_carry(node),
+        )
+    }
+
+    fn previewed(&self, node: RecipeNodeId) -> Option<&PreviewedCopy> {
+        self.previewed_placement.as_ref()?.copies.get(&node)
     }
 
     /// The node [`DisplayView::previewed_profile`] draws by its preview.

@@ -1665,8 +1665,11 @@ impl PickIndex {
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved_nodes.get(&part.node()).copied(),
-                placed: previewed(display, part),
+                probe: display.space_frame(part.node()),
+                placed: crate::scene::composed(
+                    display.preview_carry(part.node()),
+                    in_space_of(part),
+                ),
                 outside: self.is_outside(part.node(), part.body()),
             });
         }
@@ -1751,14 +1754,15 @@ impl PickIndex {
         // origin at the world's — so the merge below orders the batches
         // as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
-        // A part drawn under a probe is its own group, picked by the
-        // ray carried back through the probe's display map. A part's own
+        // A part drawn under a display map (its space's frame, or the
+        // placement editor's preview) is its own group, picked by the
+        // ray carried back through that map. A part's own
         // frame is the kernel's door's to read ([`pick_face`] reads the
         // ray into each target's frame), so copies in one space are one
         // batch the kernel orders.
         let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
         for part in self.parts.iter().filter(visible) {
-            match probed(display, part) {
+            match display_mapped(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
@@ -2013,7 +2017,7 @@ impl PickIndex {
 
     /// The world polyline a drawn edge is drawn as, under a display
     /// view: the tessellation's own chord points, carried through the
-    /// free-move probe frame of its space when it has one.
+    /// display map its node is drawn under ([`DisplayView::display_map`]).
     ///
     /// Empty for an id this index did not assign and for an edge whose
     /// part is hidden — a hidden part is out of the picture, so there
@@ -2920,8 +2924,8 @@ struct Candidate {
 }
 
 /// Where a drawn part's geometry actually lands: its own coordinates,
-/// or those coordinates through the free-move probe frame the display
-/// view puts the owning node under.
+/// or those coordinates through the display map the display view puts
+/// the owning node under ([`DisplayView::display_map`]).
 ///
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
@@ -3005,29 +3009,7 @@ pub fn clear_of_drawn(
 /// under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    compose(display.display_map(part.node()), in_space_of(part))
-}
-
-/// **Where a drawn part stands in its space as the picture draws it**:
-/// its body's frame in its space, carried where the placement editor's
-/// waiting draft stands it when the part is that copy
-/// ([`DisplayView::previewed_placement`]). The probe is the scene's to
-/// compose, since it marks what it moves.
-fn previewed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    let carry = display
-        .previewed_placement
-        .filter(|preview| preview.node == part.node())
-        .map(|preview| preview.carry());
-    compose(carry, in_space_of(part))
-}
-
-/// `outer` after `inner`, either of which may be the identity (`None`).
-fn compose(outer: Option<Affine3<f64>>, inner: Option<Affine3<f64>>) -> Option<Affine3<f64>> {
-    match (outer, inner) {
-        (None, inner) => inner,
-        (Some(outer), None) => Some(outer),
-        (Some(outer), Some(inner)) => Some(outer * inner),
-    }
+    crate::scene::composed(display.display_map(part.node()), in_space_of(part))
 }
 
 /// **A clearance witness's leg, where the picture draws it**: each end,
@@ -3053,7 +3035,7 @@ pub(crate) fn witness_leg(
 /// **The display map a part's node is drawn under**, if the display
 /// view puts it under one ([`DisplayView::display_map`]): a display
 /// map, not the model's.
-fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+fn display_mapped(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     display.display_map(part.node())
 }
 

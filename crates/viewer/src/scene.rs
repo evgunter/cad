@@ -405,6 +405,16 @@ pub struct SceneMesh {
     stats: SceneStats,
 }
 
+/// **`outer` after `inner`**, either of which may be the identity
+/// (`None`): the one composition of the picture's display maps.
+pub fn composed(outer: Option<Affine3<f64>>, inner: Option<Affine3<f64>>) -> Option<Affine3<f64>> {
+    match (outer, inner) {
+        (None, inner) => inner,
+        (Some(outer), None) => Some(outer),
+        (Some(outer), Some(inner)) => Some(outer * inner),
+    }
+}
+
 /// One piece of the drawn picture: a tessellation, and the id its
 /// patches are drawn under.
 ///
@@ -610,12 +620,7 @@ impl SceneMesh {
             // The probe's display map, applied in f64 BEFORE the f32
             // cast: the displaced picture takes the same one rounding
             // step an undisplaced one does.
-            let map: Option<Affine3<f64>> =
-                match (part.probe.map(|frame| frame.affine()), part.placed) {
-                    (None, placed) => placed,
-                    (Some(probe), None) => Some(probe),
-                    (Some(probe), Some(placed)) => Some(probe * placed),
-                };
+            let map = composed(part.probe.map(|frame| frame.affine()), part.placed);
             let flag = if part.probe.is_some() {
                 probe_parts += 1;
                 Self::FLAG_PROBE

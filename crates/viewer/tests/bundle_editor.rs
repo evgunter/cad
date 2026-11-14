@@ -183,7 +183,7 @@ fn the_door_names_a_repeated_equation_before_it_lands() {
     assert_eq!(twice.mates.len(), 2);
     let states = session.history().len();
     let verdict = session.bundle_door(&twice.op());
-    let Err(Refusal::Edit(said)) = &verdict else {
+    let Some(Refusal::Edit(said)) = verdict.as_ref().err().map(|refusal| &**refusal) else {
         panic!("a second rest of the same faces is the door's refusal: {verdict:?}")
     };
     assert!(
@@ -229,7 +229,7 @@ fn a_bundle_whose_copy_would_not_stand_is_refused() {
     let proposal = common::proposed(&session, &tool, point).expect("two faces propose as points");
     let verdict = session.bundle_door(&proposal.op());
     assert!(
-        matches!(&verdict, Err(Refusal::PlacementFails { fault: Some(fault) })
+        matches!(verdict.as_ref().err().map(|refusal| &**refusal), Some(Refusal::PlacementFails { fault: Some(fault) })
             if matches!(**fault, pncad::document::MateFault::SideUnevaluated { .. })),
         "a point read off a flat face does not evaluate: {verdict:?}"
     );

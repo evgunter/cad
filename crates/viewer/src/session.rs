@@ -477,9 +477,30 @@ pub struct DocSession {
     /// check behind it), so they are read once per document change and
     /// selected node, not once per frame. Keyed by
     /// [`DocSession::generation`], which every route that changes the
-    /// shown document moves ([`DocSession::request_eval`]). Behind a
-    /// mutex because the panes ask through a shared borrow.
-    offers: std::sync::Mutex<Option<(Generation, RecipeNodeId, PlacementOffers)>>,
+    /// shown document moves ([`DocSession::request_eval`]).
+    offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The door's judgement of the placement editor's last bundle**
+    /// ([`DocSession::bundle_judgement`]), kept per generation and op:
+    /// the panel, the picture and the op's own landing ask it of one
+    /// change, and a scratch solve is a whole evaluation.
+    bundles: crate::generation::GenerationMemo<SessionOp, BundleJudgement>,
+    /// **Where the last `SetBundle` committed stands every copy**, from
+    /// the door's scratch solve of it, and the generation it made
+    /// ([`DocSession::bundle_landing`]).
+    landing: Option<(Generation, Arc<Stood>)>,
+}
+
+/// **The door's judgement of a `SetBundle`**: where its scratch solve
+/// stands every copy, `None` for an op that writes what the placement
+/// holds, or the refusal it would land with.
+pub type BundleJudgement = Result<Option<Arc<Stood>>, Arc<Refusal>>;
+
+/// **Where a scratch solve stands every copy**: each placement that
+/// evaluated, the space it stands in and its pose there.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Stood {
+    /// Placement → its space and its pose in it.
+    pub copies: std::collections::BTreeMap<RecipeNodeId, (VarId, Frame)>,
 }
 
 /// **What [`crate::frame::placement_offers`] answers**: the sentence and
@@ -1026,7 +1047,9 @@ impl DocSession {
             inserts: std::collections::BTreeMap::new(),
             resolver: None,
             notation: Notation::DEFAULT,
-            offers: std::sync::Mutex::new(None),
+            offers: crate::generation::GenerationMemo::default(),
+            bundles: crate::generation::GenerationMemo::default(),
+            landing: None,
         };
         session.request_eval();
         session
@@ -1594,19 +1617,9 @@ impl DocSession {
     /// of the committed document, read once per generation and node and
     /// kept (`DocSession::offers`).
     pub fn placement_offers(&self, node: RecipeNodeId) -> PlacementOffers {
-        let mut memo = self
-            .offers
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some((generation, at, offers)) = memo.as_ref()
-            && *generation == self.generation
-            && *at == node
-        {
-            return offers.clone();
-        }
-        let offers = crate::frame::placement_offers(self.committed_doc(), node, self.tol);
-        *memo = Some((self.generation, node, offers.clone()));
-        offers
+        self.offers.get_or(self.generation, &node, || {
+            crate::frame::placement_offers(self.committed_doc(), node, self.tol)
+        })
     }
 
     /// The generation of the result currently on screen — what a
@@ -4748,10 +4761,27 @@ impl DocSession {
         target: PlaceTarget,
         constraints: Vec<pncad::document::Constraint<Formula>>,
     ) -> OpOutcome {
-        if let Err(refusal) = self.bundle_judged(placement, base, &target, &constraints) {
-            return OpOutcome::refused(refusal);
+        let op = SessionOp::SetBundle {
+            placement,
+            base: base.clone(),
+            target: target.clone(),
+            constraints: constraints.clone(),
+        };
+        let stood = match self.bundle_judgement(&op) {
+            Ok(stood) => stood,
+            // The kept refusal is shared; the outcome owns its own.
+            Err(_) => match self.bundle_judged(placement, base, &target, &constraints) {
+                Err(refusal) => return OpOutcome::refused(refusal),
+                Ok(stood) => stood.map(Arc::new),
+            },
+        };
+        let outcome = self.set_bundle(placement, base, target, constraints);
+        if outcome.refusal.is_none()
+            && let Some(stood) = stood
+        {
+            self.landing = Some((self.generation, stood));
         }
-        self.set_bundle(placement, base, target, constraints)
+        outcome
     }
 
     /// **A copy given a space of its own** ([`SessionOp::IntoOwnSpace`]):
@@ -4897,37 +4927,47 @@ impl DocSession {
     /// # Errors
     ///
     /// The refusal `op` would land with.
-    pub fn bundle_door(&self, op: &SessionOp) -> Result<(), Refusal> {
-        self.bundle_stands(op).map(drop)
+    pub fn bundle_door(&self, op: &SessionOp) -> Result<(), Arc<Refusal>> {
+        self.bundle_judgement(op).map(drop)
     }
 
-    /// **Where [`Self::bundle_door`]'s scratch solve stands the copy**:
-    /// its pose in its space, or `None` for an op that writes what the
-    /// placement holds, which lands as nothing and moves nothing.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::bundle_door`].
-    pub fn bundle_stands(&self, op: &SessionOp) -> Result<Option<Frame>, Refusal> {
-        match op {
+    /// **[`Self::bundle_door`]'s judgement, with where its scratch solve
+    /// stands every copy**, kept per generation and op, so the panel,
+    /// the picture and the op's landing solve one change once.
+    pub fn bundle_judgement(&self, op: &SessionOp) -> BundleJudgement {
+        self.bundles.get_or(self.generation, op, || match op {
             SessionOp::SetBundle {
                 placement,
                 base,
                 target,
                 constraints,
-            } => self.bundle_judged(*placement, base, target, constraints),
+            } => self
+                .bundle_judged(*placement, base, target, constraints)
+                .map(|stood| stood.map(Arc::new))
+                .map_err(Arc::new),
             other => unreachable!("only the placement editor's bundle is judged: {other:?}"),
-        }
+        })
     }
 
-    /// [`Self::bundle_stands`] of a `SetBundle`'s parts.
+    /// **Where the last `SetBundle` committed stands every copy**, while
+    /// the document is still the one it made: its run has not landed, so
+    /// the picture draws the copies where the document before it stood
+    /// them.
+    pub fn bundle_landing(&self) -> Option<Arc<Stood>> {
+        self.landing
+            .as_ref()
+            .filter(|(made, _)| *made == self.generation && self.busy())
+            .map(|(_, stood)| Arc::clone(stood))
+    }
+
+    /// [`Self::bundle_judgement`] of a `SetBundle`'s parts, solved.
     fn bundle_judged(
         &self,
         placement: RecipeNodeId,
         base: &PlacementBase,
         target: &PlaceTarget,
         constraints: &[pncad::document::Constraint<Formula>],
-    ) -> Result<Option<Frame>, Refusal> {
+    ) -> Result<Option<Stood>, Refusal> {
         let doc = self.committed_doc();
         self.bundle_fresh(placement, base)?;
         if bundle_writes_nothing(doc, placement, base, target, constraints) {
@@ -4950,7 +4990,14 @@ impl DocSession {
             (Some(fault), _) => Err(Refusal::PlacementFails {
                 fault: Some(Box::new(fault.clone())),
             }),
-            (None, Some(at)) => Ok(Some(at)),
+            (None, Some(_)) => Ok(Some(Stood {
+                copies: run
+                    .doc()
+                    .placements()
+                    .into_iter()
+                    .filter_map(|copy| Some((copy, (solved.space(copy)?, solved.relative(copy)?))))
+                    .collect(),
+            })),
             (None, None) => Err(Refusal::PlacementFails { fault: None }),
         }
     }
@@ -6300,6 +6347,8 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            bundles: _,
+            landing: _,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)

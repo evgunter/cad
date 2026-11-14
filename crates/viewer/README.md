@@ -2410,15 +2410,25 @@ unpinned, two spaces, a side off the copy, a pick its kind cannot read
 stays open through every change (`ToolKind::commits` closes it on
 none). A copy that would not stand (a fault, or a read that does not
 evaluate) is not written: `SessionOp::SetBundle` refuses it
-(`Refusal::PlacementFails`), and the editor holds the draft. A
-draft that waits for the picture (`MateTool::waits`, the predicate the
-panel's "waits for the picture" line reads) is drawn where the same
-scratch solve stands its copy (`DocSession::bundle_stands`), in place
-of where the drawn evaluation stands it
+(`Refusal::PlacementFails`), and the editor holds the draft. The
+door's judgement is kept per generation and op
+(`DocSession::bundle_judgement`), so a change is solved once however
+often the panel, the picture and its own landing ask. Where the draft
+stands with the document is one value (`MateTool::draft_standing`,
+`matetool::HeldDraft`) that the panel's line and the picture both
+read. A draft that waits for the picture, not yet offered, is judged
+by the door and drawn as the judgement stands it: every copy the
+scratch solve stands elsewhere — the edited one and every copy mated to
+it — is drawn there, under the display frame of the space it stands in
 (`display::PreviewedPlacement`), as the profile editor draws its draft
-in place of the committed loops; a draft held for an empty seat or a
-door refusal stands nowhere, and its copy is drawn where the document
-stands it. **A placement's target is its own property, and no mate changes it**
+in place of the committed loops; the line says it waits and is drawn.
+Once offered and committed, the copies stay drawn there until the
+change's own run lands (`DocSession::bundle_landing`). A waiting draft
+the door would refuse says the refusal; one that derives no bundle yet
+(a seat empty) says that it waits and draws nothing, and its copy is
+drawn where the document stands it, as is a draft held by a refusal. A
+copy placed from a previewed copy is drawn where it stands now.
+**A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's
 target: a live change like any other, judged by the same door and
