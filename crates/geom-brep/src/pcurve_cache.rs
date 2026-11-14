@@ -1638,6 +1638,12 @@ impl Pcurve<f64> {
     /// certify, an arc rim with no sub-arc, a closed form outside its
     /// regime, a projected image through its chart's singular set.
     pub fn speed_bound(&self, t0: f64, t1: f64) -> Result<(f64, f64), NoSpeedBound> {
+        if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
+            return Err(NoSpeedBound::NotASpan);
+        }
+        if !speed::finite_input(self) {
+            return Err(NoSpeedBound::NonFinite);
+        }
         match self {
             Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
             Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
@@ -1655,7 +1661,7 @@ impl Pcurve<f64> {
                 minor,
                 offset,
                 image,
-            } => speed::spiric_speeds((*major, *minor, *offset), image),
+            } => speed::spiric_speeds((*major, *minor, *offset), image, (t0, t1)),
             Pcurve::FocalSection(image) => speed::focal_section_speeds(image),
             Pcurve::Projected(image) => speed::projected_speeds(image, (t0, t1)),
         }
@@ -5692,7 +5698,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// window's largest `|v|` (`cos` decreases in `|v|` up to `π`, and the
 /// sheet's apexes read zero). Never negative: a window on a pole or an
 /// apex reads zero.
-fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+///
+/// # Panics
+///
+/// On a chart with no azimuth: a plane or a spline chart.
+pub fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
     let arm = match *surface {
         Surface::Cylinder { radius, .. } => radius,
         Surface::Sphere { radius, .. } => {

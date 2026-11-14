@@ -117,6 +117,7 @@ crates/mesh/src/cert.rs	test	1	oracle
 crates/mesh/src/chart_table.rs	prod	2	pose
 crates/mesh/src/nurbs_cert.rs	test	8	oracle
 crates/mesh/src/walk.rs	test	1	oracle
+crates/mesh/tests/lift_probes.rs	test	1	oracle
 crates/pncad/tests/all.rs	test	1	oracle
 crates/profile/src/path.rs	test	7	oracle
 crates/profile/src/seg.rs	prod	6	far-centre

@@ -36,7 +36,7 @@ use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 use crate::common::{axis_y, quad, validated};
 
-fn tol() -> Tol {
+pub(super) fn tol() -> Tol {
     Tol::witness()
 }
 
@@ -52,10 +52,10 @@ enum Got {
     Kink(CurveKind),
     /// `UnsupportedCurve` from `trimmed::trim_polygon`'s crease check.
     Crease,
-    /// `SphereTrimShape { ChordBudget }` from `chords::tighten`: an edge
-    /// of a face on this chart asks the trimmed sphere arm's lattice for
-    /// more chords than its per-edge budget.
-    ChordBudget(SurfaceKind),
+    /// `UnsupportedCurve` from `chords::chart_image`: a trimmed analytic
+    /// face's edge of this carrier stores a projected image, which the
+    /// chord pass bounds for a conic's image only.
+    ConicImageOnly(CurveKind),
     /// `RingOnCurvedFace` on a face of this chart; `true` where the
     /// face's outer loop holds lines and circles only and no projected
     /// image, so `tessellate::lane_of` sent it to the curved lane and
@@ -71,12 +71,15 @@ enum Got {
     Other(String),
 }
 
-fn kind_of(body: &Body<f64>, fk: topo::FaceKey) -> SurfaceKind {
+pub(super) fn kind_of(body: &Body<f64>, fk: topo::FaceKey) -> SurfaceKind {
     body.face_surface(fk).expect("a live face").kind()
 }
 
 /// The carrier kinds and stored image forms of a loop, edge by edge.
-fn loop_forms(body: &Body<f64>, lk: topo::LoopKey) -> Vec<(CurveKind, Option<&'static str>)> {
+pub(super) fn loop_forms(
+    body: &Body<f64>,
+    lk: topo::LoopKey,
+) -> Vec<(CurveKind, Option<&'static str>)> {
     let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary
     else {
         return Vec::new();
@@ -133,11 +136,11 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         {
             Got::Crease
         }
-        Err(E::SphereTrimShape {
-            face,
-            cause: mesh::types::SphereTrimCause::ChordBudget,
-            ..
-        }) => Got::ChordBudget(kind_of(body, face)),
+        Err(E::UnsupportedCurve { edge, note })
+            if note.contains("bounds the UV speed of a conic's image only") =>
+        {
+            Got::ConicImageOnly(carrier_of(body, edge))
+        }
         Err(E::RingOnCurvedFace { face }) => {
             let outer = body.get_face(face).expect("the refused face").outer;
             let iso = loop_forms(body, outer).iter().all(|(carrier, image)| {
@@ -222,10 +225,10 @@ fn assert_at_every(what: &str, body: &Body<f64>, deltas: &[f64], want: &Got) {
     }
 }
 
-type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>);
+pub(super) type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>);
 
 /// Every op of `a` and `b` in both member orders.
-fn six(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
+pub(super) fn six(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
     [
         ("A ∪ B", topo::union(a, b, tol())),
         ("B ∪ A", topo::union(b, a, tol())),
@@ -255,7 +258,7 @@ fn assert_six(
     }
 }
 
-fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
+pub(super) fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
     finished(
         what,
         topo::transform_rigid(&raw, &geom_core::test_support::rigid(&pose, tol())).unwrap(),
@@ -264,7 +267,7 @@ fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
 }
 
 /// A disc of radius `r` about `(0, 0, z0)` extruded `depth` along `z`.
-fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
+pub(super) fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()])
@@ -277,7 +280,7 @@ fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
         .into_body()
 }
 
-fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
+pub(super) fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol())
         .unwrap()
@@ -286,7 +289,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
 }
 
 /// The frustum of radius `0.5 → 1` over `y ∈ [0, 1]`.
-fn widening() -> Body<f64> {
+pub(super) fn widening() -> Body<f64> {
     revolved(&[(0.0, 0.0), (0.5, 0.0), (1.0, 1.0), (0.0, 1.0)])
 }
 
@@ -294,7 +297,7 @@ fn widening() -> Body<f64> {
 
 /// The tour's torus-walled vessel meridian revolved a quarter turn
 /// (`sweep`'s `spiric_rim` rows build the same body).
-fn vessel_quarter() -> Body<f64> {
+pub(super) fn vessel_quarter() -> Body<f64> {
     let tol = tol();
     let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
     let (y_foot, y_shoulder, y_mouth) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0);
@@ -339,7 +342,7 @@ fn vessel_quarter() -> Body<f64> {
 }
 
 /// The disc of radius `r` revolved a quarter turn about `x = 1.2`.
-fn klein_elbow(r: f64) -> Body<f64> {
+pub(super) fn klein_elbow(r: f64) -> Body<f64> {
     let disc = bulge_loop(vec![
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
@@ -527,14 +530,14 @@ fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
 /// first pose of `sweep`'s `cylinder_sphere_frame` rows: the section is
 /// two B-spline carriers, on a cylinder face and a sphere face that
 /// store their `Pcurve::Projected` images. The sphere face is the
-/// trimmed sphere arm's, and the first section edge the chord pass
-/// reaches asks its lattice for more chords than the arm's per-edge
-/// budget (`SphereTrimShape { ChordBudget }`), before the other edge's
-/// carrier is read: its projected image's speed bound is `1.4·10¹²` per
-/// unit of the carrier's parameter where its sampled speed is 21
+/// trimmed lane's sphere row's, and the first section edge the chord
+/// pass reaches refuses there: the chord pass bounds a projected image's
+/// speed for a conic's image only (`chords::chart_image`), before the
+/// other edge's carrier is read. That other carrier has an interior knot
+/// of full multiplicity, a C⁰ kink `chords::nurbs_chord_count` refuses.
+/// The bound the conic-only rule keeps unread is eleven orders loose on
+/// this image
 /// (`work/tesslane/a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose.md`).
-/// That other carrier has an interior knot of full multiplicity, a C⁰
-/// kink `chords::nurbs_chord_count` refuses.
 #[test]
 fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
     let cylinder = finished("the cylinder", rod(0.5, -1.0, 2.0), tol());
@@ -577,7 +580,7 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
             op,
             body,
             &[2e-2, 5e-3, 1e-3],
-            &Got::ChordBudget(SurfaceKind::Sphere),
+            &Got::ConicImageOnly(CurveKind::Nurbs),
         );
     }
 }
@@ -621,12 +624,10 @@ fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
 
 /// **A ball face holed by a tilted tube's rim.** `sweep`'s
 /// `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim crosses neither
-/// seam meridian and stays a ring of one half-band. Ball ∪ tube and
+/// seam meridian and stays a ring of one half-band. Both unions and
 /// ball ∖ tube refuse at the curved lane's ring guard (the ring's
 /// projected circles are not on the outer loop, which is what
-/// `trimmed::has_tilted_circle` reads). Tube ∪ ball refuses
-/// `Triangulation` first, on the OTHER half-band, which has no ring:
-/// the ball's own faces refuse it ([`a_z_poled_ball_of_radius_root_two`]).
+/// `trimmed::has_tilted_circle` reads).
 #[test]
 fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
     let tube = posed(
@@ -642,7 +643,7 @@ fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
         &ball,
         &[2e-2, 5e-3, 1e-3],
         &[
-            Got::Triangulation(SurfaceKind::Sphere),
+            ring.clone(),
             ring.clone(),
             Got::Meshed,
             Got::Meshed,
@@ -652,22 +653,19 @@ fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
     );
 }
 
-/// **The `z`-poled ball of radius `√2` does not mesh; radius 1 does.**
+/// **The `z`-poled ball meshes at every radius.**
 /// `sweep::test_support::ball_poled_z` turns a revolved ball a quarter
-/// turn about `x`. At radius `√2` both of its faces refuse
-/// `Triangulation`: `curved::tessellate_curved`'s `insert` closure hands
-/// the CDT a pole entry whose azimuth is `−4.8e−49`, which `spade`
-/// refuses as a coordinate. No ring and no trim is involved.
+/// turn about `x`, which leaves its chart axis at `(0, cos(π/2), 1)`
+/// with `cos(π/2) = 6.1e−17` in floats. The seam meridian's column is
+/// `atan2(p · v_ref, p · u_ref)` at the meridian's mid point, and
+/// `p · v_ref` is the residue of an exact zero. At `r = 1` and `0.3`
+/// it rounds to `0.0`; at `r = √2` and `0.1` it is a nonzero below
+/// spade's coordinate floor (`u = −4.8e−49` at `√2`), which the crate's
+/// CDT feed (`cdt::spade_point`) enters as `0.0`.
 #[test]
 fn a_z_poled_ball_of_radius_root_two() {
     let deltas = [2e-2, 5e-3];
-    assert_at_every(
-        "the z-poled ball, r = √2",
-        &ball_poled_z(SQRT_2, Vec3::zero(), tol()),
-        &deltas,
-        &Got::Triangulation(SurfaceKind::Sphere),
-    );
-    for r in [1.0, 0.3] {
+    for r in [SQRT_2, 0.1, 1.0, 0.3] {
         assert_at_every(
             &format!("the z-poled ball, r = {r}"),
             &ball_poled_z(r, Vec3::zero(), tol()),
@@ -675,6 +673,110 @@ fn a_z_poled_ball_of_radius_root_two() {
             &Got::Meshed,
         );
     }
+}
+
+/// `body` meshes at `delta`, passes `check_mesh`, and its signed volume.
+fn meshed_volume(what: &str, body: &Body<f64>, delta: f64) -> f64 {
+    let m = mesh::tessellate(body, delta, tol())
+        .unwrap_or_else(|e| panic!("{what}: meshes at δ = {delta:e}, got {e:?}"));
+    mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{what}: check_mesh: {e:?}"));
+    mesh::validate::signed_volume(&m)
+}
+
+/// **A ball, turned and placed every way a user turns one, meshes and
+/// encloses the ball**, at about forty radii over `[0.07, 40]`. Every
+/// mesh vertex lies on the sphere, so the mesh is an inscribed
+/// polyhedron: its volume is at most `4/3·π·r³` and short of it by at
+/// most the sphere's area times δ. `check_mesh` alone cannot see a
+/// wrong region; the bracket can.
+#[test]
+fn a_turned_ball_meshes_its_whole_volume_at_every_radius() {
+    use core::f64::consts::{FRAC_PI_3, PI};
+    let n = 40;
+    let rot =
+        |axis: Vec3<f64>, angle: f64| Affine3::rotation_about_axis(Point3::origin(), axis, angle);
+    let diagonal = Vec3::new(1.0, 1.0, 0.0) * (1.0 / SQRT_2);
+    for k in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let r = 0.07 * (40.0f64 / 0.07).powf(k as f64 / (n - 1) as f64);
+        let delta = r / 50.0;
+        let z = ball_poled_z(r, Vec3::zero(), tol());
+        let poses: [(&str, Body<f64>); 8] = [
+            ("poled z", z.clone()),
+            (
+                "poled x",
+                sweep::test_support::ball_poled(r, Vec3::zero(), Vec3::unit_x(), tol()),
+            ),
+            (
+                "then ¼ turn about y",
+                (*posed("y", z.clone(), rot(Vec3::unit_y(), FRAC_PI_2))).clone(),
+            ),
+            (
+                "then ¼ turn about x",
+                (*posed("x", z.clone(), rot(Vec3::unit_x(), FRAC_PI_2))).clone(),
+            ),
+            (
+                "then π/3 about z",
+                (*posed("π/3", z.clone(), rot(Vec3::unit_z(), FRAC_PI_3))).clone(),
+            ),
+            (
+                "then 3π/2 about z",
+                (*posed("3π/2", z.clone(), rot(Vec3::unit_z(), 1.5 * PI))).clone(),
+            ),
+            (
+                "then ¼ turn about (1,1,0)/√2",
+                (*posed("diag", z.clone(), rot(diagonal, FRAC_PI_2))).clone(),
+            ),
+            (
+                "off the origin",
+                ball_poled_z(r, Vec3::new(0.3, -1.7, 2.9), tol()),
+            ),
+        ];
+        let ball = 4.0 / 3.0 * PI * r.powi(3);
+        let slack = 4.0 * PI * r * r * delta;
+        for (pose, body) in &poses {
+            let what = format!("ball r = {r}, {pose}");
+            let v = meshed_volume(&what, body, delta);
+            assert!(
+                v <= ball && v >= ball - slack,
+                "{what}: volume {v} outside [{}, {ball}]",
+                ball - slack
+            );
+        }
+    }
+}
+
+/// **A slab cut by a ball whose chart axis is an ulp off the cut's
+/// normal** (`ball_poled_z`'s pole is `(0, 6.1e−17, 1)` against the
+/// slab's `z` face) meshes, and its volume is the slab's less the cap,
+/// `π·h²·(3r − h)/3`, within the cap's area times δ: every vertex of
+/// the cavity lies on the sphere or on the cut circle, so the cavity
+/// mesh is inscribed in the cap.
+#[test]
+fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
+    use core::f64::consts::PI;
+    let slab = finished(
+        "the slab",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let (r, h, delta) = (0.09, 0.05, 1e-3);
+    let ball = finished(
+        "the ball",
+        ball_poled_z(r, Vec3::new(0.5, 0.5, 1.0 + r - h), tol()),
+        tol(),
+    );
+    let cut = topo::subtract(&slab, &ball, tol()).expect("the cut builds");
+    let body = &cut.body().expect("a body").body;
+    let v = meshed_volume("the slab less the cap", body, delta);
+    let cap = PI * h * h * (3.0 * r - h) / 3.0;
+    let slack = 2.0 * PI * r * h * delta;
+    assert!(
+        v >= 1.0 - cap && v <= 1.0 - cap + slack,
+        "volume {v} outside [{}, {}]",
+        1.0 - cap,
+        1.0 - cap + slack
+    );
 }
 
 /// **A bar through a pipe's wall**, the three bars of
@@ -840,7 +942,7 @@ fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
 
 /// The section of a blade `2·scale` wide and `0.01·scale` thick, turned
 /// by `turn` about the sketch origin.
-fn blade(scale: f64, turn: f64) -> Section {
+pub(super) fn blade(scale: f64, turn: f64) -> Section {
     let (s, c) = turn.sin_cos();
     let p = |x: f64, y: f64| {
         let (x, y) = (x * scale, y * scale);
@@ -855,7 +957,7 @@ fn blade(scale: f64, turn: f64) -> Section {
 }
 
 /// A loft of [`blade`] sections at `zs`, each turned `rate·z`.
-fn lofted_blade(zs: &[f64], rate: f64, degree: usize) -> Body<f64> {
+pub(super) fn lofted_blade(zs: &[f64], rate: f64, degree: usize) -> Body<f64> {
     let sections: Vec<Section> = zs.iter().map(|&z| blade(1.0, rate * z)).collect();
     loft_body::<f64>(&sections, &stacked_at(zs), degree, tol())
         .unwrap_or_else(|e| {

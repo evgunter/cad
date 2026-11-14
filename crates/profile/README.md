@@ -569,8 +569,14 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   between its two vertices), or an arc (centre, radius and signed sweep
   Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
-  carrier is one edge. The form is redundant (the vertices lie on the
-  carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
+  carrier is one edge. A segment also records the unit directions its
+  construction made, a line's director and an arc's radial at each
+  end: the verb that drew the segment holds them exactly, a table's are
+  decided once at validate, and a door that needs one reads it here and
+  never divides the difference of two vertices by its own length. The
+  form is redundant (the vertices lie on the
+  carrier, a recorded direction agrees with them, Δθ agrees with them
+  mod 2π, 0 < |Δθ| ≤ 2π), and those
   consistency conditions are never trusted: each is either checked at
   validate (a table) or holds by construction (a constructed arc),
   proved by what built the arc over the reals and checked at the

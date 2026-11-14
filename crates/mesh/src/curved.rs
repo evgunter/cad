@@ -156,6 +156,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
+use geom_brep::PolygonOrientation;
 use geom_core::{Band, Point3};
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::props::LoopEdgesError;
@@ -249,21 +250,18 @@ pub(crate) fn tessellate_curved(
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
-    // S10 CATEGORY B — do NOT fold the face's `sense` in.
-    // `area2` is the UV shoelace of the boundary walk, which runs CCW in
-    // the chart's UV plane iff the outward normal agrees with the chart
-    // normal, i.e. iff `sense`. A reversed face therefore lands here
-    // with a negative `area2` and flips, which is exactly right. The
-    // walk puts the sense in the polygon: from the loop's STORED
-    // TRAVERSAL order, which interior-left ties to the outward normal,
-    // and on the wrap strip, whose loop walks one edge both ways and so
-    // has no order to read, from the sense itself (`walk::wrap_strip`).
-    // `revert` reverses the loops AND flips `sense` together, so
-    // multiplying here would double-count the reversal and emit
-    // inward-wound triangles. (The pole-to-pole band's azimuth in
-    // `walk` also reads the sense, as a DIRECTION in the chart frame,
-    // not a winding.)
-    let flip = area2 < 0.0;
+    // The polygon's orientation is READ, never taken from the face's
+    // `sense`: the CDT's triangles are counter-clockwise in the chart
+    // and the patch's are wound as the polygon is. The walk puts the
+    // sense in the polygon (`PolygonOrientation::of_face` is the one it
+    // then has): from the loop's STORED TRAVERSAL order, which
+    // interior-left ties to the outward normal, and on the wrap strip,
+    // whose loop walks one edge both ways and so has no order to read,
+    // from the sense itself (`walk::wrap_strip`). `revert` reverses the
+    // loops AND flips `sense` together, so folding the bit in here as
+    // well would double-count the reversal and emit inward-wound
+    // triangles.
+    let flip = PolygonOrientation::of_signed_area(area2) == Some(PolygonOrientation::Clockwise);
 
     // The walk's chart singularity, as `grid_counts` reads it: whether
     // a pole/apex entry is present, and how many INTERIOR chord points
@@ -311,8 +309,10 @@ pub(crate) fn tessellate_curved(
                   id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
+        // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
+        // floored point.
         let h = cdt
-            .insert(SpadePoint::new(u, v))
+            .insert(crate::cdt::spade_point(u, v))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
@@ -979,12 +979,12 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// superset of the pole-incident one it replaces, so no coverage
 /// moves with this definition.
 ///
-/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
-/// the spade-equality rule lives for both lanes; this function is that
-/// set unioned with the pole flags.
+/// The repeat half is [`crate::cdt::ids_at_two_uvs`], where the
+/// spade-equality rule lives for every lane; this function is that set
+/// unioned with the pole flags.
 #[cfg(debug_assertions)]
 fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
-    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    let mut identified = crate::cdt::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
     identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
     identified
 }

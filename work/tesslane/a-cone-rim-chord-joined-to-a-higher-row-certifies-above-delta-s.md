@@ -17,7 +17,7 @@ builds it.
 `mesh::chords` sizes a rim's chords on the rim's own radius
 (`sagitta_step(δ_s, circle_radius(carrier))`). It tightens a rim to the
 face's grid step only for the torus (`torus_boundary_step`) and NURBS
-(`nurbs_tighten`). `mesh::cert`'s cone certificate (`cert_cone`)
+(`chords::tighten`). `mesh::cert`'s cone certificate (`cert_cone`)
 reads the triangle's own `v_max` and Δu. Consider a truncated cone
 whose small rim ρ_small is chorded coarse in u, and whose first grid
 row sits at a larger radius ρ_row. The rim-adjacent triangle then
@@ -46,7 +46,7 @@ radii 0.05 and 1.5 at half-angle 40°, at δ = 0.0085, 0.008, 0.005 and
 on the cone face, which is the designer's estimate
 `cos α · (ρ_row/ρ_small) · δ_s` for this shape. With the change the
 chord pass chords every circle edge of a cone face within the face's
-grid step (`sizing::grid_boundary_step`), so the strip argument keeps
+grid step (`chords::tighten`), so the strip argument keeps
 each triangle inside one column and the cone theorem
 (`sizing::cone_grid_step`) covers it; the row certifies at all four δ
 under `check_mesh_acceptance`'s dense sampling. The sphere's latitude

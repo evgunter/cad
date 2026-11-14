@@ -37,11 +37,12 @@ worst triangle, and takes the coarsest step that bound allows.
   cover. So a lane whose theorem is about grid cells chords its rims
   at its own grid step. The chord pass states this once
   (`chords::tighten`): on each chart axis, a boundary's chord count is
-  at least its image's speed along that axis
-  (`geom_brep::Pcurve::speed_bound`) times the parameter span, over the
-  face's lattice step on that axis. The curved lane, the trimmed lane's
-  cone, sphere, torus and spindle arms and the NURBS lane are sized by
-  it; the trimmed cylinder's boundary is chorded at its target alone.
+  at least its image's speed along that axis times the parameter span,
+  over the face's lattice step on that axis. The image is the one the
+  face's lane reads: on the curved lane an iso circle, which moves at
+  unit speed along its own axis; on the trimmed lane's cone, sphere,
+  torus and spindle arms and the NURBS lane the stored row, whose speed
+  is `geom_brep::Pcurve::speed_bound`.
 - **A lane without its theorem yet** keeps an explicitly named
   `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
   is to write the theorem, not to tune the factor.

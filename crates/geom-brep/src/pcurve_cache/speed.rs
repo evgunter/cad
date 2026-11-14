@@ -7,9 +7,22 @@
 //! within a lattice step (`n ≥ s·Δt/h` per axis).
 //!
 //! Every bound is a supremum over the span or over the image's whole
-//! period, never a sample. Plain `f64`, as the chord counts it feeds:
-//! each is conservative by its own slack, and its rounding sits far
-//! below the `ceil` of the count it sizes.
+//! period, never a sample. The spiric, focal-section and projected bounds
+//! and the general image's hull are read in outward-rounded interval
+//! arithmetic, so each dominates in floats as well as in reals, with two
+//! decisions inside them taken at `f64`: whether a span holds a harmonic
+//! extremum's phase ([`harmonic_extremes`]) and whether it holds a
+//! projected line's nearest point ([`line_levers`]). A span whose end sits
+//! within rounding of either reads the end, which is below the extremum
+//! only to second order in that rounding. Where the spiric's pieces fall
+//! ([`spiric_breaks`]) is a choice, not a decision: any cover of the span
+//! is sound. The harmonic, iso-line and arc-rim bounds are their closed
+//! forms in plain `f64`: each is attained, so its rounding can leave it an
+//! ulp either side of the true sup, a relative `ε` of the count it sizes.
+//!
+//! A span is read forward: `t₀ ≤ t₁`, both finite, or the bound refuses
+//! ([`NoSpeedBound::NotASpan`]); an image with a non-finite coefficient
+//! refuses ([`NoSpeedBound::NonFinite`], [`finite_input`]).
 //!
 //! # Per form
 //!
@@ -47,21 +60,28 @@ pub enum NoSpeedBound {
     /// A general image whose weights are not one constant: its
     /// derivative is a quotient, not the differenced net.
     RationalGeneral,
-    /// A general image read past its own knot domain, where its
-    /// evaluator extends the end span's polynomial and no hull bounds it.
-    OutsideGeneralDomain,
+    /// A spline image or carrier read past its own knot domain, where
+    /// its evaluator extends the end span's polynomial and no hull bounds
+    /// it.
+    OutsideDomain,
+    /// The span is not one: reversed, or not finite.
+    NotASpan,
+    /// A closed-form image whose coefficients give no finite bound.
+    NonFinite,
     /// A spline net whose derivative bound does not certify.
     NetUnbounded,
     /// An arc rim whose breaks hold no sub-arc.
     NoSubArc,
     /// The image's own parameters lie outside the regime its closed
-    /// form holds in: a spiric past the two-oval regime (`|d| ≥ R − r`),
-    /// a focal section with `|β| ≥ 1`.
+    /// form holds in: a spiric off a ring torus's two-oval regime
+    /// (`0 < r < R`, `|d| < R − r`), a focal section with `|β| ≥ 1`.
     OffRegime,
-    /// A projected image whose distance from its chart's singular set
-    /// (a sphere's or a torus's axis, a cone's, a torus's core circle)
-    /// has no positive lower bound over the span: the chart's inverse is
-    /// not Lipschitz there.
+    /// A projected image whose lever arm (its distance from the chart's
+    /// singular set: a cylinder's, cone's, sphere's or torus's axis, a
+    /// torus's core circle) reads no positive lower bound over the span.
+    /// The bound read is the closed form's for a conic or a line, and for
+    /// a net its control box's over the whole domain, which can reach the
+    /// singular set where the curve does not.
     ThroughSingularSet,
 }
 
@@ -145,7 +165,7 @@ pub(super) fn general_speeds(
     let kv = image.knots_f64_interim();
     let (d0, d1) = kv.domain();
     if !(t0 >= d0 && t1 <= d1) {
-        return Err(NoSpeedBound::OutsideGeneralDomain);
+        return Err(NoSpeedBound::OutsideDomain);
     }
     let mut speeds = [f64::NAN; 2];
     for (axis, s) in speeds.iter_mut().enumerate() {
@@ -169,91 +189,93 @@ pub(super) fn general_speeds(
     }
 }
 
+/// The pieces of a period [`spiric_breaks`] cuts a span into.
+const SPIRIC_PIECES: u32 = 64;
+
+/// The steps of `√2` [`spiric_breaks`] grades toward each `t = π + 2kπ`.
+const SPIRIC_GRADE: i32 = 60;
+
+/// The breaks of the pieces [`spiric_speeds`] reads over `[t0, t1]`: a
+/// period's [`SPIRIC_PIECES`] equal pieces, and toward each
+/// `t = π + 2kπ` in the span pieces shrinking by `√2`, [`SPIRIC_GRADE`]
+/// times. There `ρ` is least, and the image's rates peak within
+/// `√(2(R − r)/r)` of it, which on a fat tube is far narrower than an
+/// equal piece: a piece read whole pairs its least `ρ` with its widest
+/// `sin t`.
+///
+/// The two constants are a typed-in schedule trading work for
+/// tightness, not a certified ratio: the bound dominates the image on
+/// any cover of the span, and they set only how close it comes (measured
+/// on `speed_rows`' poses). The image is periodic, so a span longer than
+/// a period reads `[0, τ]`'s pieces, and any other span at most a
+/// period's: the work is bounded whatever the span and wherever it
+/// lies. A span of no width is its one point's piece.
+fn spiric_breaks((t0, t1): (f64, f64)) -> Vec<f64> {
+    use core::f64::consts::{PI, TAU};
+    if t1 - t0 > TAU {
+        return spiric_breaks((0.0, TAU));
+    }
+    let step = TAU / f64::from(SPIRIC_PIECES);
+    let mut breaks = vec![t0, t1];
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let pieces = ((t1 - t0) / step).ceil() as u32;
+    breaks.extend((1..pieces).map(|j| f64::from(j).mul_add(step, t0)));
+    let m = ((t0 - PI) / TAU).floor();
+    for centre in [m.mul_add(TAU, PI), (m + 1.0).mul_add(TAU, PI)] {
+        breaks.push(centre);
+        for g in 1..=SPIRIC_GRADE {
+            let reach = step * core::f64::consts::FRAC_1_SQRT_2.powi(g);
+            breaks.extend([centre - reach, centre + reach]);
+        }
+    }
+    breaks.retain(|&b| b >= t0 && b <= t1);
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup();
+    if breaks.len() < 2 {
+        return vec![t0, t1];
+    }
+    breaks
+}
+
 /// The per-axis bounds of a **spiric** image (`R`, `r`, `d` the
-/// carrier's; `f(t) = √(ρ² − d²)`, `ρ = R + r·cos t`), over the whole
-/// period, in the two-oval regime `|d| < R − r` where
-/// `f_min = √((R − r)² − d²) > 0`.
+/// carrier's; `f(t) = √(ρ² − d²)`, `ρ = R + r·cos t`) over the span, on a
+/// ring torus in the two-oval regime `0 < r < R`, `|d| < R − r`.
 ///
 /// With `f′ = −r·sin t·ρ/f`:
 ///
 /// - **Wall** `u = u0 + σμ·atan2(f, d)`, `v = v0 + σ·t`:
 ///   `u′ = σμ·d·f′/(f² + d²) = −σμ·d·r·sin t/(ρ·f)` (since
-///   `f² + d² = ρ²`), bounded with `sin t` and `f` paired
-///   ([`wall_azimuth_rate`]); `|v′| = |σ|`, exact.
+///   `f² + d² = ρ²`); `|v′| = |σ|`, exact.
 /// - **Cap** `P = p0 + pm·f + pa·sin t`: `P′ = pm·f′ + pa·cos t`, so per
-///   axis `|pm|·sup|f′| + |pa|` ([`radial_rate`]); the two terms peak
-///   apart, so it is not attained.
+///   axis `|pm|·sup|f′| + |pa|`; the two terms peak apart, so it is not
+///   attained.
+///
+/// `sup|f′|` and `sup|atan2(f, d)′|` are `props::spiric`'s window rates
+/// over the pieces [`spiric_breaks`] cuts (`image_rates`), which read
+/// `sin t` and `f` together near a tangent cut and apart elsewhere, in
+/// certified arithmetic.
 pub(super) fn spiric_speeds(
     (major, minor, offset): (f64, f64, f64),
     image: &SpiricImage<f64>,
+    span: (f64, f64),
 ) -> Result<(f64, f64), NoSpeedBound> {
-    let (f_min, _) = geom::spiric_f_range(major, minor, offset);
-    if f_min.is_nan() || f_min <= 0.0 {
+    let ring = minor > 0.0 && major > minor && offset.abs() < major - minor;
+    if !ring {
         return Err(NoSpeedBound::OffRegime);
     }
+    let (df, du) = crate::props::spiric::image_rates((major, minor, offset), &spiric_breaks(span))
+        .ok_or(NoSpeedBound::OffRegime)?;
+    let i = Interval::point;
     Ok(match *image {
         SpiricImage::Wall { sense, torus, .. } => (
-            (sense * torus.mu::<f64>()).abs() * wall_azimuth_rate((major, minor, offset)),
+            (i((sense * torus.mu::<f64>()).abs()) * i(du)).hi(),
             sense.abs(),
         ),
-        SpiricImage::Cap { pm, pa, .. } => {
-            let s = radial_rate((major, minor, offset));
-            (pm.x.abs() * s + pa.x.abs(), pm.y.abs() * s + pa.y.abs())
-        }
+        SpiricImage::Cap { pm, pa, .. } => (
+            (i(pm.x.abs()) * i(df) + i(pa.x.abs())).hi(),
+            (i(pm.y.abs()) * i(df) + i(pa.y.abs())).hi(),
+        ),
     })
-}
-
-/// The pieces of `x = 1 + cos t ∈ [0, 2]` [`paired_sup`] reads.
-const WALL_PIECES: u32 = 32;
-
-/// **`sup sin²t/f² · w(ρ)` over a period, `sin t` and `f` paired**, for a
-/// weight `w` positive and monotone in `ρ = R + r·cos t`, `f² = ρ² − d²`.
-///
-/// With `x = 1 + cos t`, `sin²t = x·(2 − x)` and
-/// `f² = (ρ − |d|)(ρ + |d|)` with `ρ − |d| = δ + r·x`,
-/// `δ = R − r − |d| > 0` in the two-oval regime, so
-///
-/// ```text
-/// sin²t/f² = (2 − x)·φ(x) / (ρ + |d|),   φ(x) = x/(δ + r·x)
-/// ```
-///
-/// and `φ` is increasing. On each of [`WALL_PIECES`] equal pieces
-/// `[x_a, x_b]` the bound is `(2 − x_a)·φ(x_b)/(ρ_a + |d|)` times `w`'s
-/// sup over `[ρ_a, ρ_b]` (`ρ_a = R − r + r·x_a` the piece's least `ρ`).
-/// Pairing `sin t` with `f` is what holds near a tangent cut, where both
-/// vanish at `t = π` (`props::spiric`'s `piece_speed` reads the
-/// carrier's speed the same way); read apart, the bound grows without
-/// limit there.
-fn paired_sup((major, minor, offset): (f64, f64, f64), w: impl Fn(f64, f64) -> f64) -> f64 {
-    let d = offset.abs();
-    let delta = major - minor - d;
-    let step = 2.0 / f64::from(WALL_PIECES);
-    (0..WALL_PIECES)
-        .map(|k| {
-            let (xa, xb) = (f64::from(k) * step, f64::from(k + 1) * step);
-            let phi = xb / minor.mul_add(xb, delta);
-            let (rho_a, rho_b) = (
-                minor.mul_add(xa, major - minor),
-                minor.mul_add(xb, major - minor),
-            );
-            (2.0 - xa) * phi / (rho_a + d) * w(rho_a, rho_b)
-        })
-        .fold(0.0, f64::max)
-}
-
-/// **`sup|atan2(f, d)′|` over a period**: `|d|·f′/ρ²` with
-/// `f′ = −r·sin t·ρ/f`, so `r·|d|·√(sup sin²t/(f²·ρ²))` ([`paired_sup`]
-/// with `w = 1/ρ_a²`).
-fn wall_azimuth_rate(spiric: (f64, f64, f64)) -> f64 {
-    let (_, minor, offset) = spiric;
-    minor * offset.abs() * paired_sup(spiric, |rho_a, _| 1.0 / rho_a.powi(2)).sqrt()
-}
-
-/// **`sup|f′|` over a period**: `r·√(sup sin²t·ρ²/f²)` ([`paired_sup`]
-/// with `w = ρ_b²`).
-fn radial_rate(spiric: (f64, f64, f64)) -> f64 {
-    let (_, minor, _) = spiric;
-    minor * paired_sup(spiric, |_, rho_b| rho_b.powi(2)).sqrt()
 }
 
 /// The per-axis bounds of a **focal section** image (variant docs on
@@ -273,10 +295,12 @@ pub(super) fn focal_section_speeds(image: &FocalImage<f64>) -> Result<(f64, f64)
     if beta.is_nan() || beta >= 1.0 {
         return Err(NoSpeedBound::OffRegime);
     }
-    Ok((
-        image.sense.abs() * (1.0 + beta) / (1.0 - beta),
-        image.va.hypot(image.vb) + image.vl.abs(),
-    ))
+    let i = Interval::point;
+    let (u, v) = (
+        i(image.sense.abs()) * (i(1.0) + i(beta)) / (i(1.0) - i(beta)),
+        hyp(i(image.va), i(image.vb)) + i(image.vl.abs()),
+    );
+    Ok((finite(u.hi())?, finite(v.hi())?))
 }
 
 /// The per-axis bounds of a **projected** image `P = ψ(C(t))` over
@@ -309,11 +333,17 @@ pub(super) fn projected_speeds(
     params: (f64, f64),
 ) -> Result<(f64, f64), NoSpeedBound> {
     let carrier = image.carrier();
+    if let FramedCarrier::Net(net) = carrier {
+        let (d0, d1) = net.domain();
+        if !(params.0 >= d0 && params.1 <= d1) {
+            return Err(NoSpeedBound::OutsideDomain);
+        }
+    }
     let speed = carrier_speed(carrier)?;
     let levers = Levers::of(carrier, params);
     let over = |lever: f64| {
         if lever > 0.0 {
-            Ok(speed / lever)
+            Ok((Interval::point(speed) / Interval::point(lever)).hi())
         } else {
             Err(NoSpeedBound::ThroughSingularSet)
         }
@@ -333,15 +363,11 @@ pub(super) fn projected_speeds(
 fn carrier_speed(carrier: &FramedCarrier<f64>) -> Result<f64, NoSpeedBound> {
     match carrier {
         FramedCarrier::Conic { a, b, .. } => {
-            let (aa, bb, ab) = (a.dot(*a), b.dot(*b), a.dot(*b));
-            let speed_sq = 0.5 * (aa + bb) + (0.5 * (aa - bb)).hypot(ab);
-            if speed_sq.is_finite() {
-                Ok(speed_sq.sqrt())
-            } else {
-                Err(NoSpeedBound::NetUnbounded)
-            }
+            let (aa, bb, ab) = (dot(*a, *a), dot(*b, *b), dot(*a, *b));
+            let half = Interval::point(0.5);
+            finite((half * (aa + bb) + hyp(half * (aa - bb), ab)).sqrt().hi())
         }
-        FramedCarrier::Line { dir, .. } => Ok(dir.norm()),
+        FramedCarrier::Line { dir, .. } => finite(dot(*dir, *dir).sqrt().hi()),
         FramedCarrier::Net(net) => {
             let bound = net.map_scalar(Interval::point).speed_upper_bound().get();
             if bound.is_certified() && bound.hi().is_finite() {
@@ -354,9 +380,9 @@ fn carrier_speed(carrier: &FramedCarrier<f64>) -> Result<f64, NoSpeedBound> {
 }
 
 /// Lower bounds over a span on a framed carrier's distance from the
-/// chart axis (`rho`) and from the chart origin (`norm`), with the range
-/// of its height `z` and an upper bound on `ρ`. A bound that fails
-/// (a NaN) reads as `0`, never as a lever.
+/// chart axis (`rho`) and from the chart origin (`norm`), with an
+/// enclosure of its height `z` and an upper bound on `ρ`, each holding in
+/// floats. A bound that fails (a NaN) reads as `0`, never as a lever.
 #[derive(Clone, Copy, Debug)]
 struct Levers {
     rho: f64,
@@ -379,9 +405,16 @@ impl Levers {
     /// A lower bound on the distance from a torus's core circle
     /// (radius `major` in the plane `z = 0`): the distance from `(R, 0)`
     /// to the box `[ρ_lo, ρ_hi] × [z_lo, z_hi]` of the meridian half-plane.
+    /// Rounded down, in interval arithmetic.
     fn tube(self, major: f64) -> f64 {
-        let gap = |lo: f64, hi: f64, x: f64| (lo - x).max(x - hi).max(0.0);
-        gap(self.rho, self.rho_hi, major).hypot(gap(self.z.0, self.z.1, 0.0))
+        let i = Interval::point;
+        let gap =
+            |lo: f64, hi: f64, x: f64| i((i(lo) - i(x)).lo().max((i(x) - i(hi)).lo()).max(0.0));
+        hyp(
+            gap(self.rho, self.rho_hi, major),
+            gap(self.z.0, self.z.1, 0.0),
+        )
+        .lo()
     }
 }
 
@@ -390,58 +423,80 @@ impl Levers {
 /// with `K = |c|² + ½(|a|² + |b|²)`, bounded by `K` less (or plus) its two
 /// harmonics' amplitudes; `ρ²` is the same form on the `(x, y)` parts, and
 /// also `|p|² − z²` with `z`'s range over the span in closed form
-/// ([`harmonic_range`]). The larger of the two lower bounds on `ρ²` is
-/// read: the second is exact on a circle of a sphere, the first on a
-/// circle of a cylinder.
+/// ([`harmonic_enclosure`]). The larger of the two
+/// lower bounds on `ρ²` is read: the second is exact on a circle of a
+/// sphere, the first on a circle of a cylinder. Near a sphere's pole the
+/// second is a difference of two near-equal squares, so every term is
+/// read in outward-rounded interval arithmetic, whose lower end holds
+/// where an `f64` difference does not.
 fn conic_levers(c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>, params: (f64, f64)) -> Levers {
+    let i = Interval::point;
     let quadratic = |c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>| {
-        let (aa, bb, ab) = (a.dot(a), b.dot(b), a.dot(b));
-        let k = 0.5f64.mul_add(aa + bb, c.dot(c));
-        let (first, second) = (c.dot(a).hypot(c.dot(b)), (0.5 * (aa - bb)).hypot(ab));
-        (k - 2.0 * first - second, k + 2.0 * first + second)
+        let (aa, bb, ab) = (dot(a, a), dot(b, b), dot(a, b));
+        let k = i(0.5) * (aa + bb) + dot(c, c);
+        let swing = i(2.0) * hyp(dot(c, a), dot(c, b)) + hyp(i(0.5) * (aa - bb), ab);
+        (k - swing, k + swing)
     };
     let flat = |v: Vec3<f64>| Vec3::new(v.x, v.y, 0.0);
     let (p_sq_min, p_sq_max) = quadratic(c, a, b);
     let (xy_sq_min, xy_sq_max) = quadratic(flat(c), flat(a), flat(b));
-    let z = harmonic_range(c.z, a.z, b.z, params);
-    let rho_sq = (p_sq_min - z.0.abs().max(z.1.abs()).powi(2)).max(xy_sq_min);
+    let z = harmonic_enclosure(c.z, a.z, b.z, params);
+    let z_sq = i(z.0.abs().max(z.1.abs())).sqr();
+    let rho_sq = (p_sq_min - z_sq).lo().max(xy_sq_min.lo());
     Levers {
-        rho: root(rho_sq),
-        rho_hi: xy_sq_max.min(p_sq_max).max(0.0).sqrt(),
-        norm: root(p_sq_min),
+        rho: root_down(rho_sq),
+        rho_hi: root_up(xy_sq_max.hi().min(p_sq_max.hi())),
+        norm: root_down(p_sq_min.lo()),
         z,
     }
 }
 
-/// A line `point + dir·t`'s levers over `[t0, t1]`: each squared
-/// distance is a convex quadratic in `t`, least at its vertex clamped to
-/// the span, and `ρ` largest at an end.
+/// A line `point + dir·t`'s levers over `[t0, t1]`, in interval
+/// arithmetic. A distance is least at the vertex of its convex quadratic
+/// in `t`, where it is the line's distance from the axis or the origin,
+/// `|p × d|/|d|` (a form that does not cancel); with the vertex outside
+/// the span, at the nearer end. `ρ` is largest at an end.
 fn line_levers(point: Vec3<f64>, dir: Vec3<f64>, (t0, t1): (f64, f64)) -> Levers {
+    let i = Interval::point;
     let flat = |v: Vec3<f64>| Vec3::new(v.x, v.y, 0.0);
-    let least = |p: Vec3<f64>, d: Vec3<f64>| {
-        let dd = d.dot(d);
-        let t = if dd > 0.0 {
-            (-p.dot(d) / dd).clamp(t0, t1)
-        } else {
-            t0
-        };
-        (p + d * t).norm()
+    let at = |p: Vec3<f64>, d: Vec3<f64>, t: f64| {
+        let q = |x: f64, dx: f64| i(x) + i(dx) * i(t);
+        (q(p.x, d.x).sqr() + q(p.y, d.y).sqr() + q(p.z, d.z).sqr()).sqrt()
     };
-    let (z0, z1) = (point.z + dir.z * t0, point.z + dir.z * t1);
+    let least = |p: Vec3<f64>, d: Vec3<f64>| {
+        let ends = at(p, d, t0).lo().min(at(p, d, t1).lo());
+        let dd = d.dot(d);
+        let vertex = -p.dot(d) / dd;
+        if dd > 0.0 && vertex > t0 && vertex < t1 {
+            let cross = |x: f64, y: f64, dx: f64, dy: f64| i(x) * i(dy) - i(y) * i(dx);
+            let pxd = (cross(p.y, p.z, d.y, d.z).sqr()
+                + cross(p.z, p.x, d.z, d.x).sqr()
+                + cross(p.x, p.y, d.x, d.y).sqr())
+            .sqrt();
+            (pxd / dot(d, d).sqrt()).lo().min(ends)
+        } else {
+            ends
+        }
+    };
+    let z = |t: f64| i(point.z) + i(dir.z) * i(t);
+    let (z0, z1) = (z(t0), z(t1));
     Levers {
-        rho: least(flat(point), flat(dir)),
-        rho_hi: flat(point + dir * t0)
-            .norm()
-            .max(flat(point + dir * t1).norm()),
-        norm: least(point, dir),
-        z: (z0.min(z1), z0.max(z1)),
+        rho: least(flat(point), flat(dir)).max(0.0),
+        rho_hi: at(flat(point), flat(dir), t0)
+            .hi()
+            .max(at(flat(point), flat(dir), t1).hi()),
+        norm: least(point, dir).max(0.0),
+        z: (z0.lo().min(z1.lo()), z0.hi().max(z1.hi())),
     }
 }
 
 /// A net's levers from its control points' box: a NURBS curve with
 /// positive weights lies in its control hull, so in the hull's box, whose
 /// nearest point to the axis or the origin bounds the curve's from below.
-/// Over the whole domain, so over any span of it.
+/// The box is the whole domain's, so the lever is too, whatever span is
+/// asked: a net that runs near the axis anywhere reads that lever
+/// everywhere, and a box reaching the axis refuses
+/// ([`NoSpeedBound::ThroughSingularSet`]) though the curve may not.
 fn net_levers(control: &[geom_core::Point3<f64>]) -> Levers {
     let range = |f: fn(&geom_core::Point3<f64>) -> f64| {
         control
@@ -452,37 +507,169 @@ fn net_levers(control: &[geom_core::Point3<f64>]) -> Levers {
             })
     };
     let (x, y, z) = (range(|p| p.x), range(|p| p.y), range(|p| p.z));
-    let gap = |(lo, hi): (f64, f64)| lo.max(-hi).max(0.0);
-    let far = |(lo, hi): (f64, f64)| lo.abs().max(hi.abs());
-    let rho = gap(x).hypot(gap(y));
+    let i = Interval::point;
+    let gap = |(lo, hi): (f64, f64)| i(lo.max(-hi).max(0.0));
+    let far = |(lo, hi): (f64, f64)| i(lo.abs().max(hi.abs()));
+    let rho = hyp(gap(x), gap(y)).lo();
     Levers {
         rho,
-        rho_hi: far(x).hypot(far(y)),
-        norm: rho.hypot(gap(z)),
+        rho_hi: hyp(far(x), far(y)).hi(),
+        norm: hyp(i(rho), gap(z)).lo(),
         z,
     }
 }
 
-/// `√x` of a lower bound on a square, `0` where the bound is not positive.
-fn root(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt() } else { 0.0 }
+/// `u·v`, in interval arithmetic.
+fn dot(u: Vec3<f64>, v: Vec3<f64>) -> Interval {
+    let i = Interval::point;
+    i(u.x) * i(v.x) + i(u.y) * i(v.y) + i(u.z) * i(v.z)
+}
+
+/// `√(x² + y²)`, in interval arithmetic.
+fn hyp(x: Interval, y: Interval) -> Interval {
+    (x.sqr() + y.sqr()).sqrt()
+}
+
+/// A finite bound, or [`NoSpeedBound::NonFinite`].
+fn finite(x: f64) -> Result<f64, NoSpeedBound> {
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err(NoSpeedBound::NonFinite)
+    }
+}
+
+/// `√x` rounded down, of a lower bound on a square; `0` where the bound
+/// is not positive.
+fn root_down(x: f64) -> f64 {
+    if x > 0.0 {
+        Interval::point(x).sqrt().lo()
+    } else {
+        0.0
+    }
+}
+
+/// `√x` rounded up, of an upper bound on a square.
+fn root_up(x: f64) -> f64 {
+    Interval::point(x.max(0.0)).sqrt().hi()
 }
 
 /// The range of `c + a·cos t + b·sin t` over `[t0, t1]`: the ends, and
 /// `c ± √(a² + b²)` where the interval may hold the phase of either
-/// extremum ([`geom::periodic_window_may_hold`]).
+/// extremum ([`harmonic_extremes`]).
 #[must_use]
 pub fn harmonic_range(c: f64, a: f64, b: f64, (t0, t1): (f64, f64)) -> (f64, f64) {
-    use core::f64::consts::{PI, TAU};
     let at = |t: f64| c + a * t.cos() + b * t.sin();
     let (e0, e1) = (at(t0), at(t1));
     let (mut lo, mut hi) = (e0.min(e1), e0.max(e1));
-    let (m, tau) = (a.hypot(b), b.atan2(a));
-    if geom::periodic_window_may_hold((tau, tau), (t0, t1), TAU) {
+    let m = a.hypot(b);
+    let (max, min) = harmonic_extremes(a, b, (t0, t1));
+    if max {
         hi = c + m;
     }
-    if geom::periodic_window_may_hold((tau + PI, tau + PI), (t0, t1), TAU) {
+    if min {
         lo = c - m;
     }
     (lo, hi)
+}
+
+/// [`harmonic_range`]'s reading in interval arithmetic: each end's value
+/// enclosed through `props`' transcendental-free `(cos t, sin t)`, each
+/// extremum's as `c ± √(a² + b²)`, so the answer encloses the range in
+/// floats. Which extrema the span holds is [`harmonic_extremes`]' decision,
+/// at `f64`.
+fn harmonic_enclosure(c: f64, a: f64, b: f64, (t0, t1): (f64, f64)) -> (f64, f64) {
+    let i = Interval::point;
+    let at = |t: f64| {
+        let (cos, sin) = crate::props::taylor::trig_range(t, t);
+        i(c) + i(a) * cos + i(b) * sin
+    };
+    let (e0, e1) = (at(t0), at(t1));
+    let (mut lo, mut hi) = (e0.lo().min(e1.lo()), e0.hi().max(e1.hi()));
+    let m = hyp(i(a), i(b));
+    let (max, min) = harmonic_extremes(a, b, (t0, t1));
+    if max {
+        hi = (i(c) + m).hi();
+    }
+    if min {
+        lo = (i(c) - m).lo();
+    }
+    (lo, hi)
+}
+
+/// Whether `[t0, t1]` may hold the phase of `a·cos t + b·sin t`'s maximum,
+/// and of its minimum ([`geom::periodic_window_may_hold`]).
+fn harmonic_extremes(a: f64, b: f64, (t0, t1): (f64, f64)) -> (bool, bool) {
+    use core::f64::consts::{PI, TAU};
+    let tau = b.atan2(a);
+    (
+        geom::periodic_window_may_hold((tau, tau), (t0, t1), TAU),
+        geom::periodic_window_may_hold((tau + PI, tau + PI), (t0, t1), TAU),
+    )
+}
+
+/// Whether every coefficient an image's bound reads is finite. A
+/// non-finite one would answer a NaN bound, or a lever read as `0`, so
+/// [`Pcurve::speed_bound`](super::Pcurve::speed_bound) refuses it first.
+/// A spline image's weights are held positive and finite by its
+/// constructor.
+pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
+    use super::Pcurve;
+    let all = |xs: &[f64]| xs.iter().all(|x| x.is_finite());
+    let net2 = |c: &geom::NurbsCurve2<f64>| c.control().iter().all(|p| all(&[p.x, p.y]));
+    match image {
+        Pcurve::Harmonic { u, v } => {
+            let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
+            all(&[p0.x, p0.y, pa.x, pa.y, pb.x, pb.y, pl.x, pl.y])
+        }
+        Pcurve::IsoLine { p0, pl } => all(&[p0.x, p0.y, pl.x, pl.y]),
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            ends,
+            ..
+        } => all(&[p0.x, p0.y, pd.x, pd.y, *t0, *angle]) && all(ends),
+        Pcurve::General(c) | Pcurve::Fitted(c) => net2(c),
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image,
+        } => {
+            all(&[*major, *minor, *offset])
+                && match *image {
+                    SpiricImage::Cap { p0, pm, pa } => all(&[p0.x, p0.y, pm.x, pm.y, pa.x, pa.y]),
+                    SpiricImage::Wall { u0, v0, sense, .. } => all(&[u0, v0, sense]),
+                }
+        }
+        Pcurve::FocalSection(i) => all(&[i.u0, i.t0, i.v0, i.va, i.vb, i.vl, i.beta, i.sense]),
+        Pcurve::Projected(p) => {
+            let (u_off, v_off, v_sign) = p.deck();
+            let chart = match *p.chart() {
+                ProjectedChart::Cone { sin, cos, .. } => all(&[sin, cos]),
+                ProjectedChart::Torus { major } => major.is_finite(),
+                ProjectedChart::Plane | ProjectedChart::Cylinder | ProjectedChart::Sphere => true,
+            };
+            let v3 = |v: Vec3<f64>| all(&[v.x, v.y, v.z]);
+            let carrier = match p.carrier() {
+                FramedCarrier::Conic {
+                    centre,
+                    a,
+                    b,
+                    origin,
+                    span,
+                } => v3(*centre) && v3(*a) && v3(*b) && all(&[*origin, *span]),
+                FramedCarrier::Line {
+                    point,
+                    dir,
+                    origin,
+                    span,
+                } => v3(*point) && v3(*dir) && all(&[*origin, *span]),
+                FramedCarrier::Net(n) => n.control().iter().all(|q| all(&[q.x, q.y, q.z])),
+            };
+            chart && carrier && all(&[u_off, v_off, v_sign])
+        }
+    }
 }

@@ -22,6 +22,10 @@ crates/geom 212
 # geom-brep 221 -> 220: the arc-rim certificate reads its column's held
 # weights for the pattern's constancy (PCERT, the arc rim at unequal end
 # weights).
+# geom-brep 220 -> 221, mesh 37 -> 29: a general chart image's speed bound
+# moves from mesh::chords to geom_brep (pcurve_cache::speed), its one
+# reader with it; mesh's rows of it move too and read the held values
+# (TESSLANE, the one chord rule).
 crates/geom-brep 221
 crates/geom-core 18
 crates/mesh 29

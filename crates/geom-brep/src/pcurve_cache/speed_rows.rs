@@ -46,7 +46,8 @@ fn sampled(image: &Pcurve<f64>, (t0, t1): (f64, f64), n: u32, angles: (bool, boo
 
 /// `sampled ≤ bound` on both axes, at a relative rounding allowance far
 /// below any chord count's `ceil`. Answers the two ratios
-/// `sampled/bound`.
+/// `sampled/bound`, `0` for a zero bound, so a collapsed bound never
+/// reads as attained.
 fn dominates(what: &str, sampled: (f64, f64), bound: (f64, f64)) -> (f64, f64) {
     for (axis, s, b) in [("u", sampled.0, bound.0), ("v", sampled.1, bound.1)] {
         assert!(
@@ -55,7 +56,7 @@ fn dominates(what: &str, sampled: (f64, f64), bound: (f64, f64)) -> (f64, f64) {
              chord schedule sized from it would under-count"
         );
     }
-    let ratio = |s: f64, b: f64| if b > 0.0 { s / b } else { 1.0 };
+    let ratio = |s: f64, b: f64| if b > 0.0 { s / b } else { 0.0 };
     (ratio(sampled.0, bound.0), ratio(sampled.1, bound.1))
 }
 
@@ -234,7 +235,7 @@ fn the_general_bounds_refusals_and_admissions() {
     );
     assert_eq!(
         general_speeds(&base, (d0, d1 + 0.25)),
-        Err(NoSpeedBound::OutsideGeneralDomain)
+        Err(NoSpeedBound::OutsideDomain)
     );
     assert_eq!(
         general_speeds(&base, (d0, d1 * 0.5)),
@@ -257,14 +258,121 @@ fn the_general_bounds_refusals_and_admissions() {
     let (su, sv) = general_speeds(&kink, (0.0, 1.0)).expect("a C⁰ kink is Lipschitz");
     let (wu, wv) = sampled_net_speeds(&kink, 4096);
     assert!(wu > 0.0 && wv > 0.0 && wu <= su && wv <= sv);
+    // What the bound does not guard because the knot vector refuses it:
+    // degree 0, and an interior multiplicity above the degree.
+    assert!(KnotVector::clamped(vec![0.0, 1.0], 0).is_err(), "degree 0");
+    assert!(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0], 2).is_err(),
+        "interior multiplicity p + 1"
+    );
+}
+
+/// **A harmonic image's bound is the sup it reaches, and an iso line's
+/// is its velocity.** `√(pa² + pb²) + |pl|` per axis is attained where the
+/// sinusoid's derivative peaks with the linear term's sign, which it does
+/// once a period; so the row pins it from below at 0.999 on both axes, on
+/// channels with and without a linear term.
+#[test]
+fn a_harmonic_images_bound_is_its_sup_and_an_iso_lines_is_its_velocity() {
+    for (pa, pb, pl) in [
+        (
+            Vec2::new(0.7, -0.2),
+            Vec2::new(0.3, 1.1),
+            Vec2::new(0.0, 0.0),
+        ),
+        (
+            Vec2::new(0.7, -0.2),
+            Vec2::new(0.3, 1.1),
+            Vec2::new(0.5, -0.9),
+        ),
+        (
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, -2.0),
+        ),
+    ] {
+        let image = Pcurve::free_harmonic(Point2::new(0.1, 0.2), pa, pb, pl);
+        let what = format!("harmonic pa {pa:?} pb {pb:?} pl {pl:?}");
+        let bound = image.speed_bound(0.0, TAU).unwrap();
+        let (ru, rv) = dominates(
+            &what,
+            sampled(&image, (0.0, TAU), 16_000, (false, false)),
+            bound,
+        );
+        assert!(
+            ru > 0.999 && rv > 0.999,
+            "{what}: attained, not ({ru}, {rv})"
+        );
+    }
+    let line = Pcurve::IsoLine {
+        p0: Point2::new(0.0, 1.0),
+        pl: Vec2::new(-0.25, 3.0),
+    };
+    assert_eq!(
+        line.speed_bound(0.0, 2.0),
+        Ok((0.25, 3.0)),
+        "an iso line moves at |pl|"
+    );
+}
+
+/// **A span is read forward, and a net is read inside its domain.** A
+/// reversed or non-finite span refuses on every form (a projected line
+/// reads its lever at the span's clamped vertex, and a reversed projected
+/// circle reads its height's range backwards); a projected net read past
+/// its knot domain refuses as a general image does.
+#[test]
+fn a_span_that_is_not_one_and_a_net_past_its_domain_refuse() {
+    let circle = projected(
+        ProjectedChart::Sphere,
+        FramedCarrier::Conic {
+            centre: Vec3::new(0.0, 0.0, 0.6),
+            a: Vec3::new(0.8, 0.0, 0.0),
+            b: Vec3::new(0.0, 0.8, 0.0),
+            origin: 0.0,
+            span: TAU,
+        },
+        0.0,
+        1.0,
+    );
+    let line = projected(
+        ProjectedChart::Cylinder,
+        FramedCarrier::Line {
+            point: Vec3::new(1.0, -2.0, 0.3),
+            dir: Vec3::new(0.0, 1.0, 0.2),
+            origin: 0.0,
+            span: 4.0,
+        },
+        0.0,
+        1.0,
+    );
+    for (t0, t1) in [(2.2, 1.0), (f64::NAN, 1.0), (0.0, f64::INFINITY)] {
+        assert_eq!(circle.speed_bound(t0, t1), Err(NoSpeedBound::NotASpan));
+        assert_eq!(line.speed_bound(t0, t1), Err(NoSpeedBound::NotASpan));
+    }
+    let net = degree_one_net();
+    let (d0, d1) = net.domain();
+    let image = projected(ProjectedChart::Cylinder, FramedCarrier::Net(net), d0, d1);
+    assert_eq!(
+        image.speed_bound(d0 - 2.0, d1 + 2.0),
+        Err(NoSpeedBound::OutsideDomain)
+    );
+    assert!(image.speed_bound(d0, d1).is_ok());
 }
 
 /// The two-oval spiric poses the wall and cap rows sweep: `(R, r, d)`
-/// from a fat tube to a thin one, the cut from the equator to near the
-/// tube's inner edge, both signs.
+/// from a thin tube to one whose hole is `10⁻⁵ R`, the cut from the
+/// equator to near the tube's inner edge, both signs.
 fn spiric_poses() -> Vec<(f64, f64, f64)> {
     let mut poses = Vec::new();
-    for (major, minor) in [(3.0, 1.0), (2.0, 1.5), (5.0, 0.4), (1.0, 0.1)] {
+    for (major, minor) in [
+        (3.0, 1.0),
+        (2.0, 1.5),
+        (5.0, 0.4),
+        (1.0, 0.1),
+        (1.0, 0.9),
+        (1.0, 0.999),
+        (1.0, 0.99999),
+    ] {
         for frac in [0.0, 0.1, 0.5, 0.9, 0.99] {
             for sign in [1.0, -1.0] {
                 poses.push((major, minor, sign * frac * (major - minor)));
@@ -276,17 +384,22 @@ fn spiric_poses() -> Vec<(f64, f64, f64)> {
 
 /// **A spiric wall image's bound dominates it, at every pose and on
 /// both tori.** The tube angle's bound `|σ|` is its exact speed. The
-/// azimuth's piecewise bound (`speed::wall_azimuth_rate`) is a sup over
-/// pieces, so not attained: measured, the sampled speed reaches at least
-/// 0.79 of it on every pose here, the near-tangent cuts included, and
-/// the row pins 0.75 so a padded or unpaired rewrite reds (the one-piece
-/// `r·|d|/((R − r)·f_min)` reads 0.07 on the fat tube).
+/// azimuth's bound is a sup over graded pieces (`speed::spiric_breaks`),
+/// so not attained, and how close it comes is the pieces' schedule's, not
+/// a certified ratio: measured on this row's poses (the near-tangent cuts
+/// and the tube whose hole is `10⁻⁵ R` included), the sampled speed
+/// reaches at least 0.77 of it, and the row pins 0.75 so a padded,
+/// unpaired or ungraded rewrite reds (the one-piece
+/// `r·|d|/((R − r)·f_min)` reads 0.07 on a tube of hole `R/4`, and 64
+/// equal pieces 0.34 on the finest hole). Off these poses it can sit
+/// lower (reviewers measured 0.44 on one). The two tori and two senses
+/// differ only in sign, so the row reads one of each.
 #[test]
 fn a_spiric_wall_images_bound_dominates_it() {
     let mut fewest = f64::INFINITY;
     for (major, minor, offset) in spiric_poses() {
-        for torus in [WallTorus::Own, WallTorus::Mirror] {
-            for sense in [1.0, -1.0] {
+        for (torus, sense) in [(WallTorus::Own, 1.0), (WallTorus::Mirror, -1.0)] {
+            {
                 let image = Pcurve::Spiric {
                     major,
                     minor,
@@ -300,11 +413,14 @@ fn a_spiric_wall_images_bound_dominates_it() {
                 };
                 let what = format!("wall R {major} r {minor} d {offset} {torus:?} σ {sense}");
                 let bound = image.speed_bound(0.0, TAU).expect("two-oval regime");
-                let (ru, rv) = dominates(
-                    &what,
+                // The azimuth turns fastest within `√(2(R − r)/r)` of
+                // `t = π`, which on a fat tube a schedule over the period
+                // steps over: the window about it is read finely too.
+                let (wide, near) = (
                     sampled(&image, (0.0, TAU), 6_000, (false, false)),
-                    bound,
+                    sampled(&image, (PI - 0.03, PI + 0.03), 6_000, (false, false)),
                 );
+                let (ru, rv) = dominates(&what, (wide.0.max(near.0), wide.1.max(near.1)), bound);
                 assert!(
                     rv > 1.0 - 1e-9,
                     "{what}: the tube angle moves at exactly |σ|"
@@ -312,7 +428,11 @@ fn a_spiric_wall_images_bound_dominates_it() {
                 if offset != 0.0 {
                     fewest = fewest.min(ru);
                 } else {
-                    assert_eq!(bound.0, 0.0, "{what}: an equatorial cut's azimuth is fixed");
+                    assert!(
+                        bound.0 < 1e-8,
+                        "{what}: an equatorial cut's azimuth is fixed, read {}",
+                        bound.0
+                    );
                 }
             }
         }
@@ -326,9 +446,11 @@ fn a_spiric_wall_images_bound_dominates_it() {
 
 /// **A spiric cap image's bound dominates it.** Per axis
 /// `|pm|·sup|f′| + |pa|`; the two terms peak apart, so it is not
-/// attained: measured, the sampled speed reaches at least 0.69 of it on
-/// every axis of every pose, and the row pins 0.65 (the carrier's speed
-/// sup in place of `sup|f′|` reads 0.15 near a tangent cut).
+/// attained, and how close it comes is the pieces' schedule's: measured
+/// on this row's poses (the tube whose hole is `10⁻⁵ R` included), the
+/// sampled speed reaches at least 0.71 of it on every axis, and the row
+/// pins 0.65 (the carrier's speed sup in place of `sup|f′|` reads 0.15
+/// near a tangent cut).
 #[test]
 fn a_spiric_cap_images_bound_dominates_it() {
     let mut fewest = f64::INFINITY;
@@ -362,17 +484,26 @@ fn a_spiric_cap_images_bound_dominates_it() {
         "the cap bound has grown looser than measured: the sampled speed reaches only \
          {fewest} of it on some pose"
     );
-    let off = Pcurve::Spiric {
-        major: 3.0,
-        minor: 1.0,
-        offset: 2.0,
-        image: SpiricImage::Cap {
-            p0: Point2::new(0.0, 0.0),
-            pm: Vec2::new(1.0, 0.0),
-            pa: Vec2::new(0.0, 1.0),
-        },
-    };
-    assert_eq!(off.speed_bound(0.0, TAU), Err(NoSpeedBound::OffRegime));
+    // Off a ring torus's two-oval regime: a cut past the tube's inner
+    // edge, and a spindle (`r > R`), whose `f` is real on part of the
+    // period only.
+    for (major, minor, offset) in [(3.0, 1.0, 2.0), (1.0, 2.0, 0.5)] {
+        let off = Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: SpiricImage::Cap {
+                p0: Point2::new(0.0, 0.0),
+                pm: Vec2::new(1.0, 0.0),
+                pa: Vec2::new(0.0, 1.0),
+            },
+        };
+        assert_eq!(
+            off.speed_bound(0.0, TAU),
+            Err(NoSpeedBound::OffRegime),
+            "R {major} r {minor} d {offset}"
+        );
+    }
 }
 
 /// **A focal section image's bound dominates it and is attained.** The
@@ -507,14 +638,18 @@ fn projected_conics() -> Vec<(Vec3<f64>, Vec3<f64>, Vec3<f64>)> {
 }
 
 /// **A projected image's bound dominates it on every chart**, for
-/// conics over whole and partial turns, lines, and a net. Each channel's
+/// conics over whole and partial turns, lines, and nets. Each channel's
 /// bound is a Lipschitz one, the whole `|C′|` over the channel's least
-/// lever arm, attained only where the carrier moves along the channel's
-/// gradient at that lever: measured over this sweep, the sampled azimuth
-/// speed reaches between 0.35 and 1 of its bound, and a channel the
-/// carrier moves across (a flat circle's height on a cylinder) reads 0
-/// against a positive bound. On a circle of a sphere, the trimmed sphere
-/// arm's shape, both are reached
+/// lever arm, attained where the carrier moves along the channel's
+/// gradient at that lever, and only there. Three legs are built to: a
+/// circle round the axis, a line at its nearest approach to the axis and
+/// a degree-1 net through its control box's nearest point, each moving
+/// across the axis at its least lever; on every chart with an azimuth the
+/// row pins their azimuth bound from below at 0.99, so a loosened bound
+/// or a lever read above the curve's reds. Elsewhere the bound is not
+/// attained and the row pins only domination: a channel the carrier moves
+/// across (a flat circle's height on a cylinder) reads 0 against a
+/// positive bound. On a circle of a sphere both channels are reached
 /// (`a_projected_circle_of_a_sphere_reaches_its_bound`).
 #[test]
 fn a_projected_images_bound_dominates_it_on_every_chart() {
@@ -534,7 +669,11 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
                 let what = format!("{name} conic {k} over [{t0}, {t1}]");
                 match image.speed_bound(t0, t1) {
                     Ok(bound) => {
-                        dominates(&what, sampled(&image, (t0, t1), 6_000, angles), bound);
+                        let (ru, _) =
+                            dominates(&what, sampled(&image, (t0, t1), 6_000, angles), bound);
+                        if k == ROUND && angles.0 {
+                            assert!(ru > 0.99, "{what}: attained, not {ru}");
+                        }
                         answered += 1;
                     }
                     Err(NoSpeedBound::ThroughSingularSet) => refused += 1,
@@ -560,7 +699,11 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
             let what = format!("{name} line {k}");
             match image.speed_bound(0.0, 4.0) {
                 Ok(bound) => {
-                    dominates(&what, sampled(&image, (0.0, 4.0), 6_000, angles), bound);
+                    let (ru, _) =
+                        dominates(&what, sampled(&image, (0.0, 4.0), 6_000, angles), bound);
+                    if k == 2 && angles.0 {
+                        assert!(ru > 0.99, "{what}: attained at t = 0, not {ru}");
+                    }
                     answered += 1;
                 }
                 Err(NoSpeedBound::ThroughSingularSet) => refused += 1,
@@ -584,12 +727,68 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
             sampled(&image, (d0, d1), 6_000, angles),
             bound,
         );
-        answered += 1;
+        let net = degree_one_net();
+        let (d0, d1) = net.domain();
+        let image = projected(chart, FramedCarrier::Net(net), d0, d1);
+        let bound = image.speed_bound(d0, d1).expect("clear of every axis");
+        let what = format!("{name} degree-1 net");
+        let (ru, _) = dominates(&what, sampled(&image, (d0, d1), 6_000, angles), bound);
+        if angles.0 {
+            assert!(
+                ru > 0.99,
+                "{what}: attained at its box's nearest point, not {ru}"
+            );
+        }
+        answered += 2;
     }
     assert!(
         answered >= 100 && refused >= 1,
         "the sweep answers {answered} poses and refuses {refused} through the singular set"
     );
+}
+
+/// The index in [`projected_conics`] of the circle round the axis.
+const ROUND: usize = 2;
+
+/// A degree-1 net, the segment `x = 2`, `z = 0.3` from `y = −1` to `1`:
+/// its control box's nearest point to the axis is the curve's, at `y = 0`,
+/// where it moves across the axis, so its azimuth bound is attained.
+fn degree_one_net() -> Arc<geom::NurbsCurve3<f64>> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let pts = vec![Point3::new(2.0, -1.0, 0.3), Point3::new(2.0, 1.0, 0.3)];
+    Arc::new(geom::NurbsCurve3::new(kv, pts, vec![1.0; 2]).unwrap())
+}
+
+/// **Near a sphere's pole the projected bound dominates in floats.** A
+/// circle of the unit sphere whose highest point stands `10⁻⁷` from the
+/// axis: there `ρ² = |p|² − z²` is a difference of two squares near 1,
+/// which an `f64` difference reads a few percent low (and the azimuth
+/// bound with it). Read over a span about the highest point, where the
+/// azimuth turns fastest.
+#[test]
+fn a_circle_passing_a_pole_closely_is_bounded_in_floats() {
+    for gap in [1e-7, 1e-5, 1e-3] {
+        let (sr, cr) = 0.6f64.sin_cos();
+        let (sl, cl) = (core::f64::consts::FRAC_PI_2 - 0.6 - gap).sin_cos();
+        let d = Vec3::new(cl, 0.0, sl);
+        let e1 = Vec3::new(0.0, 1.0, 0.0);
+        let carrier = FramedCarrier::Conic {
+            centre: d * cr,
+            a: e1 * sr,
+            b: d.cross(e1) * sr,
+            origin: 0.0,
+            span: TAU,
+        };
+        let image = projected(ProjectedChart::Sphere, carrier, 0.0, 1.0);
+        let reach = 20.0 * gap;
+        let span = (FRAC_PI_2 - reach, FRAC_PI_2 + reach);
+        let what = format!("a circle {gap} from the pole");
+        let bound = image
+            .speed_bound(span.0, span.1)
+            .expect("clear of the pole");
+        let (ru, _) = dominates(&what, sampled(&image, span, 16_000, (true, false)), bound);
+        assert!(ru > 0.9, "{what}: the azimuth bound is reached, not {ru}");
+    }
 }
 
 /// **On a circle of a sphere the projected bound is the sup**: the
@@ -705,4 +904,210 @@ fn a_circle_through_the_pole_has_no_azimuth_bound() {
         .speed_bound(0.0, TAU)
         .expect("a circle clear of the pole is bounded");
     assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
+}
+
+/// A spiric wall image of `(R, r, d)`.
+fn wall(major: f64, minor: f64, offset: f64) -> Pcurve<f64> {
+    Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image: SpiricImage::Wall {
+            u0: 0.3,
+            v0: -0.2,
+            sense: 1.0,
+            torus: WallTorus::Own,
+        },
+    }
+}
+
+/// **A spiric's work is bounded whatever its span.** The image is
+/// periodic, so a span of a period or more reads one period's pieces:
+/// a span of `10⁶` and one of ten radians at `10¹⁵` answer the whole
+/// period's bound exactly, and a radian at `10¹⁵`, past where a parameter
+/// step of one piece still advances in `f64` from its start's multiple,
+/// answers at all. A span of no width reads the piece of its one point,
+/// so it bounds the image's speed there.
+#[test]
+fn a_spirics_bound_reads_at_most_a_period_and_a_point_reads_its_piece() {
+    let image = wall(3.0, 1.0, 0.8);
+    let period = image.speed_bound(0.0, TAU).unwrap();
+    assert_eq!(image.speed_bound(0.0, 1e6), Ok(period), "a long span");
+    assert_eq!(
+        image.speed_bound(1e15, 1e15 + 10.0),
+        Ok(period),
+        "a period far out"
+    );
+    let far = image
+        .speed_bound(1e15, 1e15 + 1.0)
+        .expect("a radian far out answers");
+    assert!(far.0.is_finite() && far.0 > 0.0, "{far:?}");
+    for t in [1.0, 2.5, 4.0] {
+        let point = image.speed_bound(t, t).unwrap();
+        let (du, _) = sampled(&image, (t - 1e-6, t + 1e-6), 2, (false, false));
+        assert!(
+            du > 0.0 && point.0 >= du * (1.0 - 1e-6),
+            "at t = {t}: a point's bound {point:?} against the image's speed {du} there"
+        );
+    }
+}
+
+/// **The cap's `sup|f′|` reads `inf cos²t` on each piece.** At `d = 0`,
+/// `f = ρ` and `f′ = −r·sin t` exactly, so a cap whose first axis is `f`
+/// alone moves at `r·|sin t|`, and its bound is reached over a period
+/// and over spans that stop short of `t = π/2`: pinned at 0.999, which a
+/// bound reading `sup cos²t` falls under on the short spans.
+#[test]
+fn an_equatorial_caps_radial_rate_is_reached() {
+    for (major, minor) in [(3.0, 1.0), (1.0, 0.999)] {
+        let image = Pcurve::Spiric {
+            major,
+            minor,
+            offset: 0.0,
+            image: SpiricImage::Cap {
+                p0: Point2::new(0.0, 0.0),
+                pm: Vec2::new(1.0, 0.0),
+                pa: Vec2::new(0.0, minor),
+            },
+        };
+        // Over a period the piece holding `t = π/2` holds `cos t = 0`; a
+        // span ending short of it reads `sup|f′|` at a piece whose
+        // `cos t` is not zero, where `inf cos²t` is what the bound needs.
+        for span in [(0.0, TAU), (0.3, 1.0), (2.2, 2.9)] {
+            let what = format!("equatorial cap R {major} r {minor} over {span:?}");
+            let bound = image.speed_bound(span.0, span.1).unwrap();
+            let (ru, _) = dominates(&what, sampled(&image, span, 16_000, (false, false)), bound);
+            assert!(ru > 0.999, "{what}: reached, not {ru}");
+        }
+    }
+}
+
+/// **A projected image's second channel is reached off the sphere.** A
+/// line along the cylinder's axis, along a cone's generator on either
+/// nappe, and radially through the point above a torus's core circle each
+/// move along their second channel's gradient at its least lever, so the
+/// `v` bound is the sup: pinned at 0.99.
+#[test]
+fn a_projected_images_second_channel_is_reached_off_the_sphere() {
+    let (sin, cos) = 0.4f64.sin_cos();
+    for (name, chart, point, dir, angles) in [
+        (
+            "cylinder",
+            ProjectedChart::Cylinder,
+            Vec3::new(1.0, 0.2, 0.0),
+            Vec3::new(0.0, 0.0, 1.3),
+            (true, false),
+        ),
+        (
+            "cone",
+            ProjectedChart::Cone {
+                sin,
+                cos,
+                nappe: Nappe::Opening,
+            },
+            Vec3::new(sin, 0.0, cos),
+            Vec3::new(sin, 0.0, cos),
+            (true, false),
+        ),
+        (
+            "mirror cone",
+            ProjectedChart::Cone {
+                sin,
+                cos,
+                nappe: Nappe::Mirror,
+            },
+            Vec3::new(sin, 0.0, -cos),
+            Vec3::new(sin, 0.0, -cos),
+            (true, false),
+        ),
+        (
+            "torus",
+            ProjectedChart::Torus { major: 2.0 },
+            Vec3::new(1.5, 0.0, 0.5),
+            Vec3::new(1.0, 0.0, 0.0),
+            (true, true),
+        ),
+    ] {
+        let carrier = FramedCarrier::Line {
+            point,
+            dir,
+            origin: 0.0,
+            span: 1.0,
+        };
+        let image = projected(chart, carrier, 0.0, 1.0);
+        let bound = image
+            .speed_bound(0.0, 1.0)
+            .expect("clear of the singular set");
+        let (_, rv) = dominates(name, sampled(&image, (0.0, 1.0), 6_000, angles), bound);
+        assert!(rv > 0.99, "{name}: the second channel is reached, not {rv}");
+    }
+}
+
+/// **A non-finite coefficient refuses on every form**, rather than
+/// answering a NaN bound or a lever read as `0`.
+#[test]
+fn a_non_finite_coefficient_refuses_on_every_form() {
+    let nan = f64::NAN;
+    let breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let images = [
+        Pcurve::free_harmonic(
+            Point2::new(0.0, 0.0),
+            Vec2::new(nan, 0.0),
+            Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, 0.0),
+        ),
+        Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(nan, 1.0),
+        },
+        Pcurve::IsoArc {
+            p0: Point2::new(0.0, 0.0),
+            pd: Vec2::new(nan, 0.0),
+            t0: 0.0,
+            angle: FRAC_PI_2,
+            breaks,
+            ends: Vec::new().into(),
+        },
+        wall(3.0, nan, 0.5),
+        Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0: 0.0,
+            v0: 0.0,
+            va: nan,
+            vb: 0.0,
+            vl: 1.0,
+            beta: 0.2,
+            sense: 1.0,
+        }),
+        projected(
+            ProjectedChart::Torus { major: nan },
+            FramedCarrier::Line {
+                point: Vec3::new(1.5, 0.0, 0.5),
+                dir: Vec3::new(1.0, 0.0, 0.0),
+                origin: 0.0,
+                span: 1.0,
+            },
+            0.0,
+            1.0,
+        ),
+        projected(
+            ProjectedChart::Sphere,
+            FramedCarrier::Conic {
+                centre: Vec3::new(0.0, 0.0, nan),
+                a: Vec3::new(1.0, 0.0, 0.0),
+                b: Vec3::new(0.0, 1.0, 0.0),
+                origin: 0.0,
+                span: TAU,
+            },
+            0.0,
+            1.0,
+        ),
+    ];
+    for image in images {
+        assert_eq!(
+            image.speed_bound(0.0, 1.0),
+            Err(NoSpeedBound::NonFinite),
+            "{image:?}"
+        );
+    }
 }
