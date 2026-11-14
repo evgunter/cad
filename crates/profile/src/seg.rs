@@ -777,36 +777,42 @@ fn check_direction<T: Decide>(
 /// otherwise `quotient`, `w` over its length. Both are the direction
 /// wherever the component is zero; the axis carries no width the
 /// geometry lacks, which a quotient of two values that share a parameter
-/// does. Each component's exact sign is read once, whatever the outcome,
-/// so the readings a mint makes do not depend on what they answer: at
-/// the least band and outside the log (`segment_direction_axis`, audit
-/// row F43), a choice between two sound spellings, never a refusal.
+/// does. The two components' signs are read once each, whatever they
+/// answer, at the least band and outside the log ([`component_signs`]
+/// under audit row F43): a choice between two sound spellings, never a
+/// refusal, whose readings do not depend on their answers.
 fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
-    let read = |c: T| check_unlogged(Gate::SegmentDirectionAxis, c, Band::least(), "F43").ok();
     let unit = |s: Sign| match s {
         Sign::Positive => Some(T::one()),
         Sign::Negative => Some(-T::one()),
         Sign::Zero => None,
     };
-    match (read(w.x), read(w.y)) {
-        (Some(Sign::Zero), Some(s)) => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), s)),
-        (Some(s), Some(Sign::Zero)) => unit(s).map_or(quotient, |s| Vec2::new(s, T::zero())),
+    match geom_core::k_stats::unlogged("F43", || component_signs(w, Band::least())) {
+        [Some(Sign::Zero), Some(s)] => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), s)),
+        [Some(s), Some(Sign::Zero)] => unit(s).map_or(quotient, |s| Vec2::new(s, T::zero())),
         _ => quotient,
     }
 }
 
-/// **`x`'s sign as the literal ±1**, where it reads exactly: `x`
-/// definitely positive or definitely negative at the least band, outside
-/// the log (`segment_direction_sign`, audit row F43), one reading per
-/// call; `None` otherwise,
-/// for the caller's other spelling. A literal rather than a `copysign`
-/// of one, so the symbolic tier reads a constant where the sign is
-/// known, not an opaque atom.
+/// The sign of each of `w`'s components against `band`
+/// (`segment_direction_axis`), `None` where it escalates: the reader
+/// [`axis_or`] runs at the least band.
+fn component_signs<T: Decide>(w: Vec2<T>, band: Band) -> [Option<Sign>; 2] {
+    [w.x, w.y].map(|c| decide(Gate::SegmentDirectionAxis, Margin::of(c), band).ok())
+}
+
+/// **`x`'s sign as the literal ±1**, where it reads definite: a choice
+/// between sound spellings ([`geom_core::k_stats::choose`],
+/// `segment_direction_sign`, audit row F43), one reading per call;
+/// `None` at a tie, for the caller's other spelling. A literal rather
+/// than a `copysign` of one, so the symbolic tier reads a constant where
+/// the sign is known, not an opaque atom.
 pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
-    match check_unlogged(Gate::SegmentDirectionSign, x, Band::least(), "F43") {
-        Ok(Sign::Positive) => Some(T::one()),
-        Ok(Sign::Negative) => Some(-T::one()),
-        Ok(Sign::Zero) | Err(_) => None,
+    use geom_core::k_stats::{Pick, choose};
+    match choose(Gate::SegmentDirectionSign.predicate(), Margin::of(x), "F43") {
+        Pick::Positive => Some(T::one()),
+        Pick::Negative => Some(-T::one()),
+        Pick::Tie => None,
     }
 }
 

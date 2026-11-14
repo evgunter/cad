@@ -1890,9 +1890,12 @@ Flagged, NOT fixed here (dispositions):
   values that share a parameter carries, and the literal keeps an
   opaque `copysign` atom out of the symbolic tier. A mint's readings
   do not depend on their answers, so a lane that answers differently
-  reads the same population. Read through
-  `k_stats::check_unlogged(.., "F43")`; the K samples reach the sink
-  under the two names. Not `decide_flagged` sites;
+  reads the same population. The first is the compound form: a reader
+  deciding both components against the band it is passed
+  (`component_signs`), run inside `k_stats::unlogged("F43", ..)` at
+  `Band::least()`; the second is `k_stats::choose(.., "F43")`, its tie
+  the other spelling. The K samples reach the sink under the two
+  names. Not `decide_flagged` sites;
   `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
