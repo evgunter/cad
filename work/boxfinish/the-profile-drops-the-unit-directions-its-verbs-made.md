@@ -2,13 +2,12 @@
 id: the-profile-drops-the-unit-directions-its-verbs-made
 kind: issue
 title: The profile drops the unit directions its verbs made, so a door recovers an arc's start direction by dividing two boxed points' difference by its own length
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
-design: true
 refs: [6936]
-blocked_on: [6936]
+branch: boxfinish/profile-directions
 ---
 
 
@@ -52,3 +51,21 @@ findings on the holes' rim circles (their `u_ref` is the same mint,
 `swept::placed_segment_spec`); and whether the same refusal is live on
 main today through a taker (a plate with its holes subtracted, over a
 macroscopic box).
+
+## Ev answered (PR 6936, 2026-11-14): "makes sense"
+
+The profile format records each segment's unit directions. Un-parked.
+
+**The unit.** In `profile`: a validated segment records the unit
+directions its construction made (a line's director, an arc's radial at
+its ends); each verb feeds what it already holds exactly; a
+table-authored profile's are decided once at validate; the lift carries
+them across scalars verbatim; each is certified against the vertices
+like the form's other redundancies, and none is decided twice. Then, on
+the tree that has `boxfinish/sweep-frames`, the sweep doors read them
+where they derive a 2-D direction from a segment today. Branch
+`boxfinish/profile-directions`.
+
+**Letter M; review tier: dual (sequential).** It changes the stored
+form of every profile, which every sweep door, the lift and the
+symbolic tier's replay read, and which is hard to change again later.

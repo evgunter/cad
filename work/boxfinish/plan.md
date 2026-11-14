@@ -13,7 +13,7 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
 - **P0:**
   - `the-side-reader-cannot-read-a-solids-orientation-over-a-box`: an aimed ray keeps, across the box, what it is by construction. Dispatched on `boxfinish/aimed-ray`.
   - `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: the sweep doors keep the frames they are handed. Holds the slab and the derived-frame cube. Weighed (fork 268); dispatched on `boxfinish/sweep-frames`.
-  - `the-profile-drops-the-unit-directions-its-verbs-made`: holds the tour's stop. Parked on `[ev]` PR 6936, which asks to change the ratified profile format.
+  - `the-profile-drops-the-unit-directions-its-verbs-made`: holds the tour's stop. Ev approved the profile format's recorded directions on PR 6936. Dispatched on `boxfinish/profile-directions`; its doors half waits for `boxfinish/sweep-frames` to merge.
   - `tier-3-at-every-box-replay-leaf-multiplies-the-decisions`: parked on the two rows above. The multiple is mostly the bisection their refusals force, so it is measured again on the tree that has them.
 - **P1:**
   - `check-1-reads-a-turning-frames-length-off-its-bracket`: a design question, measured before it goes to Ev.
