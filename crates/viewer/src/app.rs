@@ -1256,9 +1256,11 @@ impl ViewerApp {
     fn placement_preview(&self) -> Option<crate::display::PreviewedPlacement> {
         let session = &self.session;
         let held = self.tools.mate().map(|tool| {
-            tool.draft_standing(session.busy(), session.landed_pair(), session.tol(), |op| {
-                session.bundle_judgement(op)
-            })
+            tool.draft_standing(
+                session.busy(),
+                |tool| session.mate_proposal(tool).map(|landed| landed.proposed),
+                |op| session.bundle_judgement(op),
+            )
         });
         let stood = match held {
             Some(crate::matetool::HeldDraft::Waits(stood)) => stood,
@@ -4589,6 +4591,49 @@ mod properties_pane_tests {
                     && v.by.literal_value() == Some(0.005)
             }),
             "the typed value lands live on the slide along x: {written:?}"
+        );
+    }
+
+    /// **The placement editor derives one draft state's bundle once**:
+    /// frames drawn over one draft, a value typed into a field and not
+    /// yet committed among them, leave the session's one proposal of it
+    /// standing, which a re-derivation in any frame would replace.
+    #[test]
+    fn frames_over_one_placement_draft_derive_one_proposal() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let tool = crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+            .expect("the startup copy is a placement");
+        driven.app.tools.open_mate(tool);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        let painted = driven.quiet();
+        let proposed = |driven: &Driven| {
+            let tool = driven.app.tools.mate().expect("the editor is open");
+            driven
+                .app
+                .session
+                .mate_proposal(tool)
+                .expect("a run has landed")
+                .proposed
+        };
+        let first = proposed(&driven);
+        let slide_x = painted
+            .windows(2)
+            .find(|pair| {
+                pair[0].0 == <pncad::document::Coord>::slide(pncad::document::TargetAxis::X).name()
+            })
+            .map(|pair| pair[1].1.center())
+            .expect("the slide along x is drawn");
+        driven.click_at(slide_x);
+        for typed in ["5", " ", "m", "m"] {
+            driven.frame(vec![egui::Event::Text(typed.to_owned())]);
+        }
+        for _ in 0..4 {
+            driven.frame(vec![egui::Event::PointerMoved(slide_x)]);
+        }
+        assert!(
+            std::sync::Arc::ptr_eq(&first, &proposed(&driven)),
+            "ten frames over one draft, typing included, derive no second proposal"
         );
     }
 
