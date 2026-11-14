@@ -147,6 +147,56 @@ use crate::geometry::CurveKey;
 use crate::live::{FaceView, OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
 
+/// **Which of the two exclusive encodings carries a face's reversal**
+/// (module docs), by its surface's kind.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reversal {
+    /// The surface carries it: its chart is reversed, the face's sense
+    /// stays.
+    Chart,
+    /// The face carries it on its `sense`: the chart stays.
+    Sense,
+}
+
+impl Reversal {
+    fn of<T: Real>(surface: &Surface<T>) -> Self {
+        match surface {
+            Surface::Plane { .. } => Self::Chart,
+            Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => Self::Sense,
+        }
+    }
+
+    /// Reverses the chart of a surface that carries its own reversal:
+    /// a plane's normal negated.
+    fn reverse_chart<T: Real>(surface: &mut Surface<T>) {
+        let Surface::Plane { normal, .. } = surface else {
+            unreachable!(
+                "revert: a surface that carries its own reversal has no reversed chart \
+                 written; only a plane's is"
+            )
+        };
+        *normal = -*normal;
+    }
+}
+
+/// **The sense a face of sense `sense` on `surface` has once its body
+/// is reverted** ([`Body::revert`]), on the record the reverted body
+/// holds for it: unchanged where the surface carries the reversal,
+/// flipped where the face does. The one statement of that split outside
+/// the map itself.
+pub(crate) fn reverted_sense<T: Real>(surface: &Surface<T>, sense: bool) -> bool {
+    match Reversal::of(surface) {
+        Reversal::Chart => sense,
+        Reversal::Sense => !sense,
+    }
+}
+
 impl<T: Real> Body<T> {
     /// The orientation-reversed body value (module docs: the per-entity
     /// map, the two exclusive orientation-reversal encodings, the
@@ -184,25 +234,20 @@ impl<T: Real> Body<T> {
     #[track_caller]
     pub(crate) fn reverted(&self) -> Self {
         // ---- The plan (read-only). ----
-        // Which faces' surfaces carry their own reversal (`Plane`: the
-        // normal is negated in the surface — the M3 encoding) and which
-        // push it onto the face's `sense` bit (every other class — module
-        // docs); which chart images and stored rows are stated in a
-        // plane's chart. Read from the SOURCE: revert is key-for-key, so
-        // the classification is valid for the result too. A row whose
-        // half-edge no longer resolves is on no face, so it is on no
-        // plane face and travels as found — the dead-key exception
-        // `crate::pcurves`'s posture docs state for this door.
-        let is_plane = |surface: &Surface<T>| {
-            crate::transform::OrientationClass::of(surface)
-                == crate::transform::OrientationClass::Plane
-        };
-        let plane_faces: BTreeSet<FaceKey> = self
+        // Which chart images and stored rows are stated in a chart that
+        // carries its own reversal ([`Reversal::Chart`]). Read from the
+        // SOURCE: revert is key-for-key, so the classification is valid
+        // for the result too. A row whose half-edge no longer resolves
+        // is on no face, so it is on no such chart and travels as found
+        // — the dead-key exception `crate::pcurves`'s posture docs state
+        // for this door.
+        let turns_chart = |surface: &Surface<T>| Reversal::of(surface) == Reversal::Chart;
+        let turned_faces: BTreeSet<FaceKey> = self
             .face_views()
-            .filter(|face| is_plane(face.surface()))
+            .filter(|face| turns_chart(face.surface()))
             .map(FaceView::key)
             .collect();
-        let plane_images: BTreeSet<CurveKey> = self
+        let turned_images: BTreeSet<CurveKey> = self
             .curves
             .iter()
             .filter(|&(key, geom)| {
@@ -210,7 +255,7 @@ impl<T: Real> Body<T> {
                     return false;
                 };
                 curve.description().chart().is_some_and(|chart| {
-                    is_plane(self.get_surface(chart.surface).unwrap_or_else(|| {
+                    turns_chart(self.get_surface(chart.surface).unwrap_or_else(|| {
                         dangling_link(
                             GeomRef::Curve(key),
                             "chart image's surface",
@@ -221,11 +266,11 @@ impl<T: Real> Body<T> {
             })
             .map(|(key, _)| key)
             .collect();
-        let plane_rows: BTreeSet<HalfEdgeKey> = self
+        let turned_rows: BTreeSet<HalfEdgeKey> = self
             .pcurves
             .keys()
             .filter(|&he| {
-                self.half_edges.contains_key(he) && plane_faces.contains(&self.face_of_linked(he))
+                self.half_edges.contains_key(he) && turned_faces.contains(&self.face_of_linked(he))
             })
             .collect();
         // Resolve every half-edge's new start and every vertex's new
@@ -311,11 +356,12 @@ impl<T: Real> Body<T> {
             out.write_joint(he_key, element);
         }
         for (_, surface) in out.surfaces.iter_mut() {
-            if let Surface::Plane { normal, .. } = surface {
-                *normal = -*normal;
+            match Reversal::of(surface) {
+                Reversal::Chart => Reversal::reverse_chart(surface),
+                Reversal::Sense => {}
             }
         }
-        // The plane charts' images and rows go with their frames
+        // The reversed charts' images and rows go with their frames
         // (module docs): every datum stated in a plane's chart
         // coordinates, re-stated under the reflection the negation
         // above is. Chart images are walked by CURVE, so a carrier
@@ -324,7 +370,7 @@ impl<T: Real> Body<T> {
             let CurveGeom::Certified(curve) = geom else {
                 continue;
             };
-            let on_plane = plane_images.contains(&key);
+            let on_plane = turned_images.contains(&key);
             // `None` is the one image with no reflected locus — a
             // spiric WALL image, which lives on a torus chart by
             // construction and therefore cannot be on a plane face.
@@ -337,21 +383,23 @@ impl<T: Real> Body<T> {
             }
         }
         for (he_key, row) in out.pcurves.iter_mut() {
-            if plane_rows.contains(&he_key)
+            if turned_rows.contains(&he_key)
                 && let Some(mirrored) = row.mirrored_v()
             {
                 *row = mirrored;
             }
         }
-        // The curved arm (M5 S12): the reversal a non-plane chart
-        // cannot express goes on the FACE. Exclusive with the plane
-        // negation above — a face is flipped in exactly one encoding —
-        // and it is a `bool` negation, so it is exact structure at every
-        // backend and a bitwise involution.
-        for (key, face) in out.faces.iter_mut() {
-            if !plane_faces.contains(&key) {
-                face.sense = !face.sense;
-            }
+        // The reversal a chart does not carry goes on the FACE:
+        // exclusive with the chart reversal above, so a face is flipped
+        // in exactly one encoding, and a `bool` negation, so exact
+        // structure at every backend and a bitwise involution. Each
+        // face's surface is read from the SOURCE, where its kind is the
+        // result's.
+        for face in self.face_views() {
+            let Some(reverted) = out.faces.get_mut(face.key()) else {
+                unreachable!("revert: `face` was iterated out of the arena `out` clones")
+            };
+            reverted.sense = reverted_sense(face.surface(), reverted.sense);
         }
 
         #[cfg(debug_assertions)]
@@ -476,6 +524,67 @@ mod tests {
 
         let plane = lone_plane_face();
         assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
+    }
+
+    /// **A reverted face's sense is the door's answer for its source**
+    /// ([`super::reverted_sense`]), for a plane, a cylinder and a NURBS
+    /// face at either sense: the plane keeps its sense, since its chart
+    /// carries the reversal, and the other two flip theirs.
+    #[test]
+    fn a_reverted_faces_sense_is_the_doors_answer_for_its_source() {
+        let plane = geom::Surface::Plane {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            normal: geom_core::Vec3::unit_z(),
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let cylinder = geom::Surface::Cylinder {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            axis: geom_core::Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let cube = declined_cube::<f64>(Tol::witness()).body;
+        let rows = [
+            ("a plane", lone_face(plane.clone(), true), false),
+            ("a plane", lone_face(plane, false), false),
+            ("a cylinder", lone_face(cylinder.clone(), true), true),
+            ("a cylinder", lone_face(cylinder, false), true),
+            ("a NURBS net", cube.revert().unwrap(), true),
+            ("a NURBS net", cube, true),
+        ];
+        for (kind, body, flips) in rows {
+            let reverted = body.revert().unwrap();
+            assert!(body.faces().count() > 0, "{kind}: a face to read");
+            for face in body.face_views() {
+                let sense = body.get_face(face.key()).unwrap().sense;
+                let door = super::reverted_sense(face.surface(), sense);
+                assert_eq!(
+                    door,
+                    sense != flips,
+                    "{kind} at sense {sense}: the door's answer"
+                );
+                assert_eq!(
+                    reverted.get_face(face.key()).unwrap().sense,
+                    door,
+                    "{kind} at sense {sense}: the reverted face's sense is the door's"
+                );
+            }
+        }
+    }
+
+    /// One face on `surface` at `sense` about a lone vertex, built
+    /// through the Euler door alone.
+    fn lone_face(surface: geom::Surface<f64>, sense: bool) -> crate::Body<f64> {
+        let mut body = crate::Body::<f64>::new();
+        let seed = body
+            .mvfs(geom_core::Point3::new(1.0, 0.0, 0.0), true)
+            .unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::construction::FaceSurface::New { surface, sense },
+        )
+        .unwrap();
+        body
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge

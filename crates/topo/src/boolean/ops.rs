@@ -5571,8 +5571,10 @@ impl OneRecordTokens {
     /// The record's relation says whether the two operand faces'
     /// material sides agree, and each face's sense turns its material
     /// side to its chart's normal, so the two glued faces' own senses
-    /// say how the two operands' charts face; `op` turns B's chart where
-    /// it subtracts and B's surface carries its own reversal.
+    /// say how the two operands' charts face. ∖ reads B reverted: its
+    /// material side is the other one, and its face's sense on the
+    /// record the result holds is the one revert leaves it
+    /// ([`crate::revert::reverted_sense`]).
     ///
     /// # Errors
     ///
@@ -5589,6 +5591,7 @@ impl OneRecordTokens {
     ) -> Result<Self, BooleanError> {
         let views = [KeyView::Direct, KeyView::Graft(graft)];
         let decided = decls.one_carrier_faces();
+        let worn: BTreeSet<SurfaceKey> = result.faces().map(|(_, f)| f.surface).collect();
         let tokens: Vec<Option<crate::one_record::OneRecord>> = decls
             .pairs
             .iter()
@@ -5600,27 +5603,21 @@ impl OneRecordTokens {
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
                     let kb = graft.surfaces.get(fb.surface).copied()?;
-                    (ka != kb
-                        && result.get_surface(ka).is_some()
-                        && result.get_surface(kb).is_some())
-                    .then_some(())?;
+                    (ka != kb && worn.contains(&ka) && worn.contains(&kb)).then_some(())?;
                     let census = pair.census(a, b, &decided);
                     let (kept, other) = match census.kept {
                         Operand::A => (ka, kb),
                         Operand::B => (kb, ka),
                     };
-                    // ∖ reads B reverted, and a reverted plane turns its
-                    // chart where every other kind turns its faces' senses:
-                    // B's face then faces its result chart as its sense
-                    // turned does.
-                    let turned = op == BooleanOp::Subtract
-                        && b.get_surface(fb.surface).is_some_and(|s| {
-                            crate::transform::OrientationClass::of(s)
-                                == crate::transform::OrientationClass::Plane
-                        });
+                    let subtracts = op == BooleanOp::Subtract;
+                    let b_sense = if subtracts {
+                        crate::revert::reverted_sense(b.get_surface(fb.surface)?, fb.sense)
+                    } else {
+                        fb.sense
+                    };
                     let charts_agree = crate::one_record::charts_agree(
-                        relation == geom_brep::CarrierRelation::SameOriented,
-                        [fa.sense, fb.sense != turned],
+                        (relation == geom_brep::CarrierRelation::SameOriented) != subtracts,
+                        [fa.sense, b_sense],
                     );
                     let side = census.moving();
                     let view = &views[usize::from(side == Operand::B)];
