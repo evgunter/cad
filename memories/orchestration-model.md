@@ -33,6 +33,17 @@ Ev's standing instructions for implementation work:
   runs a phase comes from the experiments** ([[experiments]]); where
   none specifies it, use the default, or whatever you would normally
   choose (Ev, 2026-11-10).
+- **Prioritize latency: parallelize whenever possible** (Ev,
+  2026-11-14). Wall-clock time to done is the cost to minimize. Work
+  that does not depend on other work — lanes, reviews, designers,
+  explorations, independent tool calls — is dispatched at once, not
+  one after another. Serialize only on a real dependency (one piece
+  needs another's output) or a measured resource limit (the cargo
+  mutex in [[agent-lane-operations]], runners per "Runners are a
+  budget" below); when this container is the limit, take the next
+  lane to its own cloud session rather than queue it. An orchestrator
+  waiting on one lane while a dispatchable row sits idle is paying
+  latency for nothing.
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
