@@ -90,9 +90,13 @@
 //! spread far apart, so the NURBS schedule also raises a band's rows
 //! when its columns stay too narrow over `k`
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
-//! narrow-column bands**). The map is affine, so constraint segments
-//! stay straight; and exact, so every coincidence in UV is one in the
-//! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
+//! narrow-column bands**). The map is applied after the crate's
+//! coordinate floor (`crate::cdt`), which merges the band
+//! `(0, 2⁻¹⁴²)` into `0.0` and is neither affine nor injective there;
+//! the metric itself scales the axis that grows by a power of two, so
+//! it is affine (constraint segments stay straight) and exact, and two
+//! points are one CDT vertex exactly when they are one location after
+//! the floor. Only the CDT sees it: `meta`, the creases, the polygon's
 //! orientation and every certificate read UV.
 //!
 //! # C⁰ creases
@@ -168,9 +172,7 @@ use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
-use spade::{
-    ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation, mitigate_underflow,
-};
+use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
@@ -793,8 +795,8 @@ struct TrimmedFace<'a> {
     /// The face's orientation sense: its outward normal is the
     /// surface's when true ([`Self::outward`]).
     sense: bool,
-    /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
-    /// scaling the axis that shrinks ([`Self::cdt_point`]).
+    /// The lattice metric `k`: points enter the CDT at `(u/k, v)` up to
+    /// a uniform scale, scaling the axis that grows ([`Self::cdt_point`]).
     metric: f64,
     surface: &'a Surface<f64>,
     lane: &'a Lane,
@@ -839,25 +841,23 @@ struct Emitted {
 }
 
 impl TrimmedFace<'_> {
-    /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
-    /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
-    /// by `1/k` when `k > 1`, `v` by `k` when `k < 1`, so the
-    /// coordinates stay within the chart's own magnitude. `k` is a power
-    /// of two, so the product is exact and every coincidence in UV is
-    /// one in the CDT. Only the CDT sees these: `meta`, the creases,
-    /// the polygon's orientation and every certificate read UV.
-    ///
-    /// The point then meets spade's coordinate floor as `planar`'s
-    /// insert feed does (its module docs, "The floor under it"): a
-    /// coordinate in `(0, MIN_ALLOWED_VALUE)`, which the bulk loader
-    /// refuses outright, is the residue of an exact zero and enters as
-    /// `0.0`; every other value passes bit-identical.
+    /// `(u, v)` as the CDT sees it: floored ([`crate::cdt::spade_point`]),
+    /// then in the lattice metric, `(u/k, v)` up to a uniform scale that
+    /// Delaunay ignores. The axis that GROWS is scaled, `v` by `k` when
+    /// `k > 1` and `u` by `1/k` when `k < 1`: a power of two of at least
+    /// one, which rounds nothing and cannot carry a value spade accepts
+    /// into the floor's band, so the scale is injective on floored points
+    /// and two chart points are one CDT vertex exactly when
+    /// [`crate::cdt::ids_at_two_uvs`] reads them as one location. Only
+    /// the CDT sees these: `meta`, the creases, the polygon's orientation
+    /// and every certificate read UV.
     fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
-        mitigate_underflow(if self.metric > 1.0 {
-            SpadePoint::new(u / self.metric, v)
+        let p = crate::cdt::spade_point(u, v);
+        if self.metric > 1.0 {
+            SpadePoint::new(p.x, p.y * self.metric)
         } else {
-            SpadePoint::new(u, v * self.metric)
-        })
+            SpadePoint::new(p.x / self.metric, p.y)
+        }
     }
 
     /// The face's outward normal at the foot of `p` on its carrier, on
@@ -989,7 +989,7 @@ impl TrimmedFace<'_> {
         #[cfg(debug_assertions)]
         {
             let identified =
-                crate::walk::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
+                crate::cdt::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
             // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
             // copies the whole patch, and this block runs in every
             // build with debug assertions on — the shipped release
@@ -1527,11 +1527,11 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
 /// is a single interior column between them).
 ///
 /// The rule for "different" is spade's and is stated once, at
-/// [`crate::walk::ids_at_two_uvs`], which both lanes call. This
+/// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
 /// function is that set's emptiness, named for the question the
 /// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// **The sphere arm's poles.** A pole the loop passes through is a
@@ -1589,7 +1589,7 @@ fn sphere_polygon_shape(
     }) {
         return refuse(i, SphereTrimCause::PoleInside);
     }
-    let apart = crate::walk::ids_at_two_uvs(polygon.iter().copied());
+    let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
         .iter()
         .position(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
@@ -2675,7 +2675,7 @@ mod tests {
     /// which pairs are one vertex: an ulp apart at seam magnitude is
     /// two spade vertices and must read APART, and `-0.0` against
     /// `0.0` is one spade vertex and must not — the case a `to_bits`
-    /// spelling gets backwards, and the reason this compares `f64`s.
+    /// spelling gets backwards.
     #[test]
     fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
         let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
@@ -2684,9 +2684,8 @@ mod tests {
         let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
         assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
 
-        // An ulp at SEAM magnitude (2π), not at zero: an ulp of 0.0 is
-        // 5e-324, a subnormal no chart coordinate reaches, and pinning
-        // there would pin the wrong scale.
+        // An ulp at SEAM magnitude (2π), not at zero: near zero the
+        // floor merges everything below 2⁻¹⁴² (`crate::cdt`'s rows).
         let seam = std::f64::consts::TAU;
         let ulp = [
             (0.0, 0.0, 7u32),

@@ -157,9 +157,7 @@ use std::collections::HashMap;
 
 use geom::Surface;
 use geom_core::{Band, Point3};
-use spade::{
-    ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation, mitigate_underflow,
-};
+use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
@@ -318,16 +316,10 @@ pub(crate) fn tessellate_curved(
                   id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
-        // Spade's coordinate floor, as `planar`'s insert feed meets it
-        // (its module docs, "The floor under it"): a coordinate in
-        // `(0, MIN_ALLOWED_VALUE)` is one `insert` refuses outright, and
-        // in a chart it is the float residue of an exact zero — a
-        // column whose dot with `v_ref` cancels, as on a turned ball's
-        // seam meridian. It enters as `0.0`; every other value, NaN and
-        // infinity included, passes bit-identical. `meta` keeps the
-        // chart's own `(u, v)`, which is all the emit pass reads.
+        // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
+        // floored point.
         let h = cdt
-            .insert(mitigate_underflow(SpadePoint::new(u, v)))
+            .insert(crate::cdt::spade_point(u, v))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
@@ -1016,12 +1008,12 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// superset of the pole-incident one it replaces, so no coverage
 /// moves with this definition.
 ///
-/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
-/// the spade-equality rule lives for both lanes; this function is that
-/// set unioned with the pole flags.
+/// The repeat half is [`crate::cdt::ids_at_two_uvs`], where the
+/// spade-equality rule lives for every lane; this function is that set
+/// unioned with the pole flags.
 #[cfg(debug_assertions)]
 fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
-    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    let mut identified = crate::cdt::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
     identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
     identified
 }

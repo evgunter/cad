@@ -729,9 +729,11 @@ pub(crate) struct BandSchedule {
 /// many columns wide, and a sliver across them; in `(u/k, v)` the same
 /// lattice is near square and the circle a column or two.
 ///
-/// A POWER OF TWO so the map is exact in f64: `u/k` rounds nothing, so
-/// two points coincide in the scaled plane exactly when they coincide
-/// in UV, and every exact-coincidence rule the lane relies on (the
+/// A POWER OF TWO so the map is exact in f64: the trimmed lane applies
+/// it as a scale of at least one on the axis that grows (`trimmed`'s
+/// `cdt_point`), which rounds nothing, so two points coincide in the
+/// scaled plane exactly when they coincide in UV after the crate's
+/// coordinate floor, and every exact-coincidence rule the lane relies on (the
 /// grid-on-constraint drop, crease snapping, [`crate::planar::Pinches`],
 /// the handle merge) behaves as before. `1` when no band has a finite
 /// positive aspect.

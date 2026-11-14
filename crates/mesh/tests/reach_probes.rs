@@ -548,11 +548,9 @@ fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
 /// with `cos(π/2) = 6.1e−17` in floats. The seam meridian's column is
 /// `atan2(p · v_ref, p · u_ref)` at the meridian's mid point, and
 /// `p · v_ref` is the residue of an exact zero. At `r = 1` and `0.3`
-/// it rounds to `0.0`; at `r = √2` it is `−6.8e−49`, a nonzero below
-/// spade's coordinate floor, so the column `u = −4.8e−49` reached
-/// `insert` and the face refused, as at `r = 0.1` and at roughly a
-/// third of the radii in `[0.1, 10]`. The curved lane's CDT feed meets
-/// that floor as `planar`'s does.
+/// it rounds to `0.0`; at `r = √2` and `0.1` it is a nonzero below
+/// spade's coordinate floor (`u = −4.8e−49` at `√2`), which the crate's
+/// CDT feed (`cdt::spade_point`) enters as `0.0`.
 #[test]
 fn a_z_poled_ball_of_radius_root_two() {
     let deltas = [2e-2, 5e-3];
@@ -564,6 +562,110 @@ fn a_z_poled_ball_of_radius_root_two() {
             &Got::Meshed,
         );
     }
+}
+
+/// `body` meshes at `delta`, passes `check_mesh`, and its signed volume.
+fn meshed_volume(what: &str, body: &Body<f64>, delta: f64) -> f64 {
+    let m = mesh::tessellate(body, delta, tol())
+        .unwrap_or_else(|e| panic!("{what}: meshes at δ = {delta:e}, got {e:?}"));
+    mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{what}: check_mesh: {e:?}"));
+    mesh::validate::signed_volume(&m)
+}
+
+/// **A ball, turned and placed every way a user turns one, meshes and
+/// encloses the ball**, at about forty radii over `[0.07, 40]`. Every
+/// mesh vertex lies on the sphere, so the mesh is an inscribed
+/// polyhedron: its volume is at most `4/3·π·r³` and short of it by at
+/// most the sphere's area times δ. `check_mesh` alone cannot see a
+/// wrong region; the bracket can.
+#[test]
+fn a_turned_ball_meshes_its_whole_volume_at_every_radius() {
+    use core::f64::consts::{FRAC_PI_3, PI};
+    let n = 40;
+    let rot =
+        |axis: Vec3<f64>, angle: f64| Affine3::rotation_about_axis(Point3::origin(), axis, angle);
+    let diagonal = Vec3::new(1.0, 1.0, 0.0) * (1.0 / SQRT_2);
+    for k in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let r = 0.07 * (40.0f64 / 0.07).powf(k as f64 / (n - 1) as f64);
+        let delta = r / 50.0;
+        let z = ball_poled_z(r, Vec3::zero(), tol());
+        let poses: [(&str, Body<f64>); 8] = [
+            ("poled z", z.clone()),
+            (
+                "poled x",
+                sweep::test_support::ball_poled(r, Vec3::zero(), Vec3::unit_x(), tol()),
+            ),
+            (
+                "then ¼ turn about y",
+                (*posed("y", z.clone(), rot(Vec3::unit_y(), FRAC_PI_2))).clone(),
+            ),
+            (
+                "then ¼ turn about x",
+                (*posed("x", z.clone(), rot(Vec3::unit_x(), FRAC_PI_2))).clone(),
+            ),
+            (
+                "then π/3 about z",
+                (*posed("π/3", z.clone(), rot(Vec3::unit_z(), FRAC_PI_3))).clone(),
+            ),
+            (
+                "then 3π/2 about z",
+                (*posed("3π/2", z.clone(), rot(Vec3::unit_z(), 1.5 * PI))).clone(),
+            ),
+            (
+                "then ¼ turn about (1,1,0)/√2",
+                (*posed("diag", z.clone(), rot(diagonal, FRAC_PI_2))).clone(),
+            ),
+            (
+                "off the origin",
+                ball_poled_z(r, Vec3::new(0.3, -1.7, 2.9), tol()),
+            ),
+        ];
+        let ball = 4.0 / 3.0 * PI * r.powi(3);
+        let slack = 4.0 * PI * r * r * delta;
+        for (pose, body) in &poses {
+            let what = format!("ball r = {r}, {pose}");
+            let v = meshed_volume(&what, body, delta);
+            assert!(
+                v <= ball && v >= ball - slack,
+                "{what}: volume {v} outside [{}, {ball}]",
+                ball - slack
+            );
+        }
+    }
+}
+
+/// **A slab cut by a ball whose chart axis is an ulp off the cut's
+/// normal** (`ball_poled_z`'s pole is `(0, 6.1e−17, 1)` against the
+/// slab's `z` face) meshes, and its volume is the slab's less the cap,
+/// `π·h²·(3r − h)/3`, within the cap's area times δ: every vertex of
+/// the cavity lies on the sphere or on the cut circle, so the cavity
+/// mesh is inscribed in the cap.
+#[test]
+fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
+    use core::f64::consts::PI;
+    let slab = finished(
+        "the slab",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let (r, h, delta) = (0.09, 0.05, 1e-3);
+    let ball = finished(
+        "the ball",
+        ball_poled_z(r, Vec3::new(0.5, 0.5, 1.0 + r - h), tol()),
+        tol(),
+    );
+    let cut = topo::subtract(&slab, &ball, tol()).expect("the cut builds");
+    let body = &cut.body().expect("a body").body;
+    let v = meshed_volume("the slab less the cap", body, delta);
+    let cap = PI * h * h * (3.0 * r - h) / 3.0;
+    let slack = 2.0 * PI * r * h * delta;
+    assert!(
+        v >= 1.0 - cap && v <= 1.0 - cap + slack,
+        "volume {v} outside [{}, {}]",
+        1.0 - cap,
+        1.0 - cap + slack
+    );
 }
 
 /// **A bar through a pipe's wall**, the three bars of
