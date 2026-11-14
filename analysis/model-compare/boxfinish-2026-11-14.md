@@ -23,3 +23,4 @@ Protocol: e1c428efbb2. One /dev/urandom byte per draw: even = Opus, odd = Fable.
   - Fix pass sent to the implementer's session 17:50 UTC.
 - **PR 6958 first reviewer:** session_013QoYWYeCGZKMSfN9EDto8K, configured claude-fable-5-2, dispatched 17:40 UTC on frozen head e51e52c99f6a.
 - **PR 6959, chart-ends.** Implementer: session_013QoYWXij6KKuw3nYzZoJd8, configured claude-opus-5-5. Dispatched 03:50 UTC; INTERRUPTED 06:38–16:33 UTC by the outage (one item body lost and rewritten, per its report); PR opened 17:19; report delivered 18:04 on head ccd684b1. Hosted CI on that head: lint, test (app), mesh, corrupt input green; test (kernel) red on the fast-set timing bar (three existing rows at 1.03–1.04 s) and on the three inherited ε rows. Reviewer (drawn): Opus, dispatched after this note.
+- **PR 6959 reviewer:** session_013QoYWVKJsVHFidApXt3V47, configured claude-opus-5-5, dispatched 18:06 UTC on frozen head ccd684b1a50c.
