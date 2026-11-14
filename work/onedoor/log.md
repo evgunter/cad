@@ -529,3 +529,9 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The fix pass took every item and folded census's `spiric_cap` twin.
   - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
   - (ONEDOOR orchestrator)
+- 2026-11-14 — **PR [#6939](https://github.com/evgunter/cad/pull/6939) (the `pcurves.rs` split) accepted.**
+  - One reviewer (Opus): MERGEABLE, proven a pure move by an item-multiset comparison.
+  - The style pass took the guard's census, the walk in one file, the file map and the README pointers.
+  - Filed: `chart-facts-are-a-sixth-concern-inside-pcurves-mint` (P4).
+  - Model-compare row `docs/model-compare-log/rows/PR-6939.md`.
+  - (ONEDOOR orchestrator)
