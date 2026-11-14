@@ -340,3 +340,27 @@ path = "junit.xml"
 [[profile.default.overrides]]
 filter = 'binary_id(topo) & test(/injective::presentation_rows::a_curve_that_(rises_back_across_the_rim|curls_back_across_the_ruling|comes_back_into_the_rectangle)/)'
 slow-timeout = { period = "10s", terminate-after = 3 }
+
+# The tests that run longest at eps 1e-12 start first, so no nightly leg
+# ends waiting on one of them started last: each took 500 s or more at 1e-12
+# in the nightly's junit reports. A name missing here costs a leg time,
+# never a test; scripts/check-slow-set-names.py holds these names to the
+# listing as it does the slow set's, in the same `(binary_id & (test | ...))`
+# shape. Editing this list (as any edit here outside the slow-set filter)
+# sends that PR's gate to tier `all`.
+[[profile.ci.overrides]]
+filter = '''(binary_id(sweep::all) & (
+  test(=a_ringed_wall_divided_by_a_carried_chord::a_wall_holding_one_balls_ring_is_divided_by_the_others_chord) |
+  test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops) |
+  test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops_turned) |
+  test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_turned_chart) |
+  test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall) |
+  test(=germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs) |
+  test(=germ_torus_components::a_drum_against_a_moved_donut_passes_the_germ_mint) |
+  test(=germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint) |
+  test(=spline_subtract_intersect_census::every_op_of_a_spline_operand_refuses_typed_or_builds_right) |
+  test(=verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly) |
+  test(=verbs_germarms2::a_rod_through_a_drum_wall_builds_at_its_sliced_volume) |
+  test(=verbs_germarms2::the_fenced_poses_keep_their_own_outcomes)
+))'''
+priority = 100
