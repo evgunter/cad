@@ -395,6 +395,8 @@ mod onb_seam_class_interval;
 mod onb_wall_normal_census;
 #[path = "onehome_switch_parity_interval.rs"]
 mod onehome_switch_parity_interval;
+#[path = "review_6958_drive_probe.rs"]
+mod review_6958_drive_probe;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 

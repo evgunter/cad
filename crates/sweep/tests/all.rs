@@ -372,6 +372,8 @@ mod review_4996_blend_cap;
 mod review_5956_r1_probes;
 #[path = "review_5956_r2_probes.rs"]
 mod review_5956_r2_probes;
+#[path = "review_6958_aimed_ray_probes.rs"]
+mod review_6958_aimed_ray_probes;
 #[path = "review_arm_vs_reach_probes.rs"]
 mod review_arm_vs_reach_probes;
 #[path = "review_r2_vv_probes.rs"]
