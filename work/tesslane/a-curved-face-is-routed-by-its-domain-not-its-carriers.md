@@ -14,7 +14,7 @@ Unit 4 of the chart lane (`work/tesslane/plan.md`, The chart lane). Follows unit
 
 ## What it is
 
-`tessellate::lane_of` routes a curved face on its domain: a face with no ring whose outer loop is an iso-rectangle of its chart goes to the rectangle lane (`curved.rs`); every other curved face goes to the chart lane. The carrier-kind predicates (`has_trim_carrier`, `has_tilted_circle`, `takes_sphere_arm`, `sizes_at_headroom`) go, and `props`' rectangle predicate is read as a route where `curved::require_iso_rectangle_face` reads it as a refusal. The chord pass reads the same route, from the same door, so the two cannot disagree.
+`tessellate::lane_of` routes a curved face on its domain: a face with no ring whose outer loop is an iso-rectangle of its chart goes to the rectangle lane (`curved.rs`); every other curved face goes to the chart lane. The carrier-kind predicates (`has_trim_carrier`, `has_tilted_circle`, `takes_sphere_arm`, `face_target`) go, and `props`' rectangle predicate is read as a route where `curved::require_iso_rectangle_face` reads it as a refusal. The chord pass reads the same route, from the same door, so the two cannot disagree.
 
 A boundary run on a chart iso line gets a lattice line through it, so a notched wall has every boundary point on the lattice and sizes at δ with no headroom, as a rectangle does.
 

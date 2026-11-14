@@ -1638,6 +1638,9 @@ impl Pcurve<f64> {
     /// certify, an arc rim with no sub-arc, a closed form outside its
     /// regime, a projected image through its chart's singular set.
     pub fn speed_bound(&self, t0: f64, t1: f64) -> Result<(f64, f64), NoSpeedBound> {
+        if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
+            return Err(NoSpeedBound::NotASpan);
+        }
         match self {
             Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
             Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
@@ -1655,7 +1658,7 @@ impl Pcurve<f64> {
                 minor,
                 offset,
                 image,
-            } => speed::spiric_speeds((*major, *minor, *offset), image),
+            } => speed::spiric_speeds((*major, *minor, *offset), image, (t0, t1)),
             Pcurve::FocalSection(image) => speed::focal_section_speeds(image),
             Pcurve::Projected(image) => speed::projected_speeds(image, (t0, t1)),
         }

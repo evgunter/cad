@@ -26,3 +26,7 @@ It goes to Ev as an `[ev]` PR with one measurement in hand: rectangle faces thro
 ## On this unit's path (2026-11-14, from the lift measurement)
 
 Five of `crates/mesh/tests/common/`'s hand-built witnesses (keyway, oblique lens, slit, pole-crossing half cap, apex-crossing bowtie) store no pcurves: `Body::loop_lift` answers `LiftGap` on all ten of their loops, and `topo::mint_pcurves` accepts all five. A lane that reads stored lifts refuses them as built, so the rows that use them mint first or move with this unit (`lift_probes::the_unminted_witnesses_store_no_lift_and_mint_one`).
+
+## The curved side of the chord rule reads the classifier, not the row (2026-11-14, from the one chord rule's review)
+
+`mesh::chords::tighten` reads, on a curved-lane face, the iso classifier's image of a circle (`FaceLattice::speeds`, `Reads::Iso`): a rim moves at `(1, 0)` and a meridian at `(0, 1)`, written down rather than read off the stored row. Measured by a reviewer over the mesh suite: 39 059 reads where row and classifier agree; 15 on a sphere face whose row is `Projected`, with speeds `(1.76, 0.71)` or `(0.77, 0.71)`, where the classifier answers a meridian (a tilted circle sized as an iso curve, harmless while that face refuses whole); 544 reads with no row, none of them on a spindle. This unit retires the curved lane, and with it that reader: every face's boundary then reads its stored row's `Pcurve::speed_bound`, and a face with no row is the unminted-witness case above.
