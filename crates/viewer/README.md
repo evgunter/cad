@@ -2410,7 +2410,29 @@ unpinned, two spaces, a side off the copy, a pick its kind cannot read
 stays open through every change (`ToolKind::commits` closes it on
 none). A copy that would not stand (a fault, or a read that does not
 evaluate) is not written: `SessionOp::SetBundle` refuses it
-(`Refusal::PlacementFails`), and the editor holds the draft. **A placement's target is its own property, and no mate changes it**
+(`Refusal::PlacementFails`), and the editor holds the draft. The
+door's judgement is kept per generation and op
+(`DocSession::bundle_judgement`), so a change is solved once however
+often the panel, the picture and its own landing ask. Where the draft
+stands with the document is one value (`MateTool::draft_standing`,
+`matetool::HeldDraft`), asked with the session's busy state, that the
+panel's line and the picture's drawing of the draft both read. A draft
+that waits for the picture, not yet offered, is judged by the door
+and drawn as the judgement stands it: every copy the scratch solve
+stands elsewhere — the edited one and every copy mated to it — is
+drawn there, under the display frame of the space it stands in
+(`display::PreviewedPlacement`), as the profile editor draws its draft
+in place of the committed loops; the line says it waits and is drawn.
+A waiting draft the door would refuse says the refusal; one that
+derives no bundle yet (a seat empty) says that it waits and draws
+nothing; a draft the picture has answered is offered, not drawn. Where
+the draft draws nothing, the picture draws the document, from its
+second source: the last change committed through the door
+(`DocSession::bundle_landing`) is drawn where its solve stands the
+copies until its run lands or an undo takes it out, whatever else
+changes meanwhile and whether or not the editor stays open. A copy
+placed from a previewed copy is drawn where it stands now.
+**A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's
 target: a live change like any other, judged by the same door and

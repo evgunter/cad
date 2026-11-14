@@ -405,6 +405,15 @@ curve pairs.
   the certificate is derived and carried at `T` (`SsiCertificate<T>`,
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
+- **What a lane scalar takes from `f64` is a choice, never a claim,
+  and the same across the box.** A choice is a discrete selection
+  (a structure, a branch, an order), checked at the lane scalar to
+  stay the same over the box, or a continuous value that depends on
+  none of the document's variables. A claim (a frame, which asserts
+  that it is a rotation; a certificate; a verdict) is built at the
+  lane scalar, from its own inputs and those choices. A continuous
+  value that varies over the box is no choice: chosen at the nominal
+  values, it is wrong everywhere else, so the lane builds it.
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
