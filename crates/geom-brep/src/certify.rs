@@ -7087,8 +7087,11 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: still identical at this fixture's numbers.
-    const D2_A1: i64 = 0;
+    /// Anchor 1.7 m: the description states its ends
+    /// (`EdgeDescriptionSpec::iso`), and check 3 reads the stated `v1` at
+    /// `t1` where the legacy reads the map there: 7.8e-16 m against
+    /// 4.4e-16 m.
+    const D2_A1: i64 = 3_377_699_720_527_872;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;
     /// Anchor 1e6 m: they disagree by 3.85 %, the other way.
