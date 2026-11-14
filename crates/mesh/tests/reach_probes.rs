@@ -809,8 +809,10 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
             Ok(body) => body,
             Err(e) => {
                 assert!(
-                    tol().eps() < geom_core::tolerance::DEFAULT_EPS,
-                    "{name}: the revolve refuses at the default ε: {e}"
+                    tol().eps() < geom_core::tolerance::DEFAULT_EPS && e.contains("KernelLimit"),
+                    "{name}: the revolve refuses at ε {:e} other than at the cone \
+                     certificate's kernel limit below the default ε: {e}",
+                    tol().eps()
                 );
                 eprintln!(
                     "{name}: the revolve refuses at ε {:e}, skipped: {e}",
