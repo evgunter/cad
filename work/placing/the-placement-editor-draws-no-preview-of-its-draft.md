@@ -2,10 +2,11 @@
 id: the-placement-editor-draws-no-preview-of-its-draft
 kind: issue
 title: The placement editor draws no held draft; the profile editor draws its held draft in place of the committed shape
-status: review
+status: closed
 opened: 2026-11-02
 branch: placing/editor-preview
 pr: 6916
+closed: 2026-11-14
 ---
 
 
