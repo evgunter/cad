@@ -9,11 +9,11 @@
 //! function that constructs it.
 //!
 //! The rows these pin:
-//! `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`,
-//! `work/tess/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
-//! `work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`,
-//! `work/tess/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`,
-//! `work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`,
+//! `work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`,
+//! `work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
+//! `work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`,
+//! `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`,
+//! `work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`,
 //! and the trimmed NURBS arm's one-column bands
 //! (`trimmed::per_cell_candidates` under
 //! `nurbs_cert::NurbsCellGrid::band_schedule`).
@@ -570,7 +570,7 @@ fn a_z_poled_ball_of_radius_root_two() {
 }
 
 /// **A bar through a pipe's wall**, the three bars of
-/// `work/tess/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`
+/// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`
 /// and the brick turned 0.3 rad about `x` (`sweep`'s `verbs_germarms`).
 /// The notched walls refuse at the curved lane's shape door
 /// (`require_iso_rectangle_face`, on `props_rim_level`); the holed
