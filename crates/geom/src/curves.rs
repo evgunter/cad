@@ -885,19 +885,29 @@ impl<T: Real> Line<T> {
     }
 }
 
-/// **A half-line**: [`Ray::line`] read forward from its origin, the point
-/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
-/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
-/// a length only where the caller's `dir` is unit, which nothing here
-/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// **A half-line**: [`Ray::line`] read forward from its start, the point
+/// `origin + dir·t` ahead at an advance `t` past the start's and behind
+/// before it. The start is the line's origin (advance `0`) unless the
+/// ray is built [starting](Ray::starting) elsewhere on its line: a ray
+/// built through a point it is aimed at keeps that point as its origin,
+/// so every reading on its line is taken from there and not from a
+/// start derived from it. An advance is in units of `|dir|`, as
+/// [`Line::param`]'s parameter is: a length only where the caller's
+/// `dir` is unit, which nothing here makes it
+/// (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
 /// A root's forward reading is [`Ray::ahead`], decided under the
 /// reader's own row. The touch analysis decides its own ahead readings
 /// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
 /// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
-    /// The line the ray runs along, from its origin.
-    pub line: Line<T>,
+    /// The line the ray runs along.
+    line: Line<T>,
+    /// The advance the ray starts at on its line; `None` at the line's
+    /// origin, which [`Ray::new`] builds so that its forward test reads
+    /// the advance itself, as it did before a ray could start elsewhere
+    /// (the same bits, and at the symbolic scalar the same expression).
+    start: Option<T>,
 }
 
 impl<T: Real> Ray<T> {
@@ -907,18 +917,55 @@ impl<T: Real> Ray<T> {
     pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
         Self {
             line: Line { origin, dir },
+            start: None,
         }
+    }
+
+    /// The ray along `dir` on the line through `origin` that starts at
+    /// advance `start`, the point `origin + dir·start`: `origin` is a
+    /// point of its line, ahead of the start where `start` is negative.
+    #[must_use]
+    pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
+        Self {
+            line: Line { origin, dir },
+            start: Some(start),
+        }
+    }
+
+    /// **The line the ray runs along**, for readings taken on the whole
+    /// line (a carrier's roots, an edge's closest approach), each an
+    /// advance from the line's origin. That origin is a point of the
+    /// line and not where the ray begins: the ray begins at
+    /// [`Ray::start`], the point [`Ray::start_point`].
+    #[must_use]
+    pub fn line(&self) -> Line<T> {
+        self.line
+    }
+
+    /// The advance the ray starts at: `0` at its line's origin.
+    #[must_use]
+    pub fn start(&self) -> T {
+        self.start.unwrap_or(T::zero())
+    }
+
+    /// The point the ray starts at: its line's origin, or the line's
+    /// point at the start's advance.
+    #[must_use]
+    pub fn start_point(&self) -> Point3<T> {
+        self.start
+            .map_or(self.line.origin, |start| self.line.at(start))
     }
 }
 
 impl<T: Decide> Ray<T> {
-    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// **Whether advance `at` lies ahead of the ray's start**, decided
     /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
-    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// `Zero` at the start. Each reader keeps its own policy for `Zero`
     /// and for an undecided reading.
     ///
     /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
-    /// the margin decided is `at` itself, in units of `|dir|` (the type's
+    /// the margin decided is `at` less the start's advance (`at` itself
+    /// for a ray from its line's origin), in units of `|dir|` (the type's
     /// doc). The method takes the parameter, not a point, because every
     /// reader holds only a parameter computed on [`Ray::line`]: a root
     /// against a carrier (`line_*_roots`), or the closest-approach span of
@@ -932,9 +979,10 @@ impl<T: Decide> Ray<T> {
     ///
     /// # Errors
     ///
-    /// [`Indeterminate`] where `at` is in band.
+    /// [`Indeterminate`] where the margin is in band.
     pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
-        geom_core::k_stats::decide(site, Margin::of(at), band)
+        let past = self.start.map_or(at, |start| at - start);
+        geom_core::k_stats::decide(site, Margin::of(past), band)
     }
 }
 
@@ -1849,6 +1897,27 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A ray is read forward from its start, not from its line's
+    /// origin**: a ray started `2` before its origin has an advance of
+    /// `−1` ahead and `−3` behind, where the ray from the origin itself
+    /// has `−1` behind. Red against a forward test that reads the advance
+    /// alone.
+    #[test]
+    fn a_ray_started_before_its_origin_is_read_from_its_start() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (origin, dir) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
+        let ahead = |ray: Ray<f64>, at: f64| ray.ahead(at, "ray_start_row", band).unwrap();
+        let started = Ray::starting(origin, dir, -2.0);
+        assert_eq!(started.start(), -2.0);
+        assert_eq!(ahead(started, -1.0), Sign::Positive);
+        assert_eq!(ahead(started, -3.0), Sign::Negative);
+        assert_eq!(ahead(started, -2.0), Sign::Zero);
+        let plain = Ray::new(origin, dir);
+        assert_eq!(plain.start(), 0.0);
+        assert_eq!(ahead(plain, -1.0), Sign::Negative);
+        assert_eq!(ahead(plain, 1.0), Sign::Positive);
+    }
 
     /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
     /// oval repeat every turn, at `τ` exactly; a line and a spline do not.

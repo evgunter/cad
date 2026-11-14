@@ -266,10 +266,13 @@ pub(crate) fn apart_as<T: Decide>(
     }
 }
 
-/// **One ray's crossings ahead of `q`, read to the closest** — the fold
-/// the closest-crossing readers share. Each crossing is offered with its
-/// distance along the ray in metres, already decided ahead of `q`
-/// ([`advance_as`]), and whether its material side cannot be read there.
+/// **One ray's crossings ahead of its start, read to the closest** — the
+/// fold the closest-crossing readers share. Each crossing is offered with
+/// its advance along the ray's line in metres, already decided ahead of
+/// the ray's start ([`advance_as`], [`geom::Ray::ahead`]), and whether
+/// its material side cannot be read there. An advance is read from the
+/// line's origin, so one ahead of a start behind that origin may be
+/// negative; only differences of advances are compared here.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
     /// Each crossing's span along the ray, `[from, to]`: the point `at`
@@ -287,7 +290,7 @@ impl<T: Decide, H> Crossings<T, H> {
         }
     }
 
-    /// A crossing `at` metres ahead of `q`. `sideless` for one whose
+    /// A crossing at advance `at`, in metres. `sideless` for one whose
     /// material side cannot be read where the ray meets it: it lands on
     /// a boundary of what it crosses (a trim's edge, an arc's end), or
     /// meets it at a tangential incidence.
@@ -295,7 +298,7 @@ impl<T: Decide, H> Crossings<T, H> {
         self.push_span(at, (at, at), hit, sideless);
     }
 
-    /// A crossing `at` metres ahead of `q` that lies somewhere in
+    /// A crossing at advance `at`, in metres, that lies somewhere in
     /// `[from, to]` along the ray, as [`Self::push`] offers one:
     /// [`Self::first_count_as`] orders it against another only where the
     /// whole span lies definitely before or after it.

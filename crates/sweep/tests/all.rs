@@ -1392,6 +1392,10 @@ mod a_revolved_wall_arc_join_reads_its_reach;
 mod a_seam_inside_a_face_is_no_boundary_of_it;
 #[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
 mod an_aimed_ray_from_far_reads_a_split_side_right;
+#[path = "an_aimed_ray_keeps_its_line_over_a_box.rs"]
+mod an_aimed_ray_keeps_its_line_over_a_box;
+#[path = "an_aimed_ray_over_boxed_door_bodies.rs"]
+mod an_aimed_ray_over_boxed_door_bodies;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]

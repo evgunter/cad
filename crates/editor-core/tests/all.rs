@@ -295,6 +295,8 @@ mod takeover_door;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
+mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]

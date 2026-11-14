@@ -638,9 +638,21 @@ enum Aimed {
     SetAside(SetAsideWhy),
 }
 
-/// **One aimed ray**: from twice the selection's reach off `aim` on
-/// `face`, at [`AIM_INCIDENCE`] to `normal`, turned off the coordinate
-/// planes ([`aim_turn`]), read off the sign of its count.
+/// **One aimed ray**: the line through `aim` on `face` at
+/// [`AIM_INCIDENCE`] to `normal`, turned off the coordinate planes
+/// ([`aim_turn`]), read from twice the selection's reach before `aim`
+/// off the sign of its count.
+///
+/// The ray is its line through `aim` along `−out` and the advance it
+/// starts at, never a start point and a direction read back off it: the
+/// crossing walk reads every crossing from `aim`
+/// ([`geom::Ray::starting`]), so a crossing is as wide as `aim`, `out`
+/// and the face crossed make it, and the start's width, which is the
+/// reach's, enters only the forward tests ([`geom::Ray::ahead`]), where
+/// a crossing of a face lies at least the reach past the start. `out` is
+/// unit as `normal` is, so an advance along it is a length; that a
+/// face's stored normal is unit is the body's to hold, and nothing here
+/// checks it.
 #[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
@@ -663,14 +675,12 @@ fn aimed_ray<T: Decide>(
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let reach_from = |p| selection_reach(body, faces, p, band);
-    let from = aim + out * (reach_from(aim)?.length() * T::from_f64(2.0));
-    let d = (aim - from).normalize();
-    let reach = reach_from(from)?;
+    let reach = selection_reach(body, faces, aim, band)?;
+    let start = reach.length() * T::from_f64(-2.0);
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::new(from, d),
+        &geom::Ray::starting(aim, -out, start),
         reach,
         band,
         AIMED_ROWS,
@@ -963,8 +973,8 @@ pub(crate) fn ray_counts(
     }
     let n = geos.len().max(1);
     geos.rotate_left(turn % n);
-    let reach =
-        selection_reach(body, sel.faces(), ray.line.origin, band).map_err(|e| format!("{e:?}"))?;
+    let reach = selection_reach(body, sel.faces(), ray.line().origin, band)
+        .map_err(|e| format!("{e:?}"))?;
     let crossings =
         ray_crossings(body, &geos, ray, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
     Ok(crossings
@@ -972,6 +982,74 @@ pub(crate) fn ray_counts(
         .into_iter()
         .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
         .collect())
+}
+
+#[cfg(test)]
+mod aimed_ray_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::test_support_fixtures::brick;
+    use geom_core::Tol;
+
+    /// **A ray that starts before its line's origin reads what lies
+    /// between them**: the crossings and marks of a ray from its start
+    /// are those of the same half-line given through a point `k` further
+    /// along it, each advance `k` less. One line crosses two faces of a
+    /// brick clear of its edges; the other runs through two opposite
+    /// corners, where only its marks are compared (a crossing read at a
+    /// corner is rounding's, and the mark there is what the count
+    /// reads). Red against a walk that drops what lies behind the origin,
+    /// or holds a vertex's distance from the ray at the origin and not at
+    /// the start.
+    #[test]
+    fn a_ray_started_before_its_origin_reads_what_lies_between() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().expect("a brick has faces").0;
+        let counts = |ray: &geom::Ray<f64>, marks_only: bool| {
+            let mut hits = ray_counts(&body, face, ray, band, (0, false)).expect("the ray reads");
+            hits.retain(|hit| hit.3 || !marks_only);
+            hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+            hits
+        };
+        let through_faces = (Point3::new(-1.0, 0.4, 0.3), Vec3::new(1.0, 0.0, 0.0));
+        let third = 1.0 / 3.0_f64.sqrt();
+        let through_corners = (
+            Point3::new(-1.0, -1.0, -1.0),
+            Vec3::new(third, third, third),
+        );
+        for (what, (start, d), hits, marks_only) in [
+            ("through two faces", through_faces, 2, false),
+            ("through two corners", through_corners, 2, true),
+        ] {
+            let from_start = counts(&geom::Ray::new(start, d), marks_only);
+            assert!(
+                from_start.len() >= hits,
+                "{what}: the ray from its start reads the brick: {from_start:?}"
+            );
+            for k in [0.5, 3.0, 7.0] {
+                let given = counts(&geom::Ray::starting(start + d * k, d, -k), marks_only);
+                assert_eq!(
+                    given.len(),
+                    from_start.len(),
+                    "{what}, origin {k} along: {given:?} against {from_start:?}"
+                );
+                for (a, b) in from_start.iter().zip(&given) {
+                    assert!(
+                        (a.0 - k - b.0).abs() < 1e-9
+                            && (a.1 - k - b.1).abs() < 1e-9
+                            && (a.2, a.3) == (b.2, b.3),
+                        "{what}, origin {k} along: {b:?} is not {a:?} less {k}"
+                    );
+                }
+            }
+            // The same origin with no start before it reads nothing
+            // behind itself.
+            let past = counts(&geom::Ray::new(start + d * 7.0, d), marks_only);
+            assert!(past.is_empty(), "{what}: past the brick: {past:?}");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1187,3 +1265,7 @@ mod pre_filter_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "side_reader_boxed_brick_rows.rs"]
+mod boxed_brick_rows;

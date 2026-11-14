@@ -35,3 +35,27 @@ at the band's edge. Each is a lost read, never a wrong one.
 by whether an edge of that face was read clear at a crossing, then
 decide each class: a seed for the edge reading, or a region reading that
 defers to it.
+
+## The pin's aims on the band's edge now land in this class (2026-11-14, BOXFINISH's aimed-ray unit)
+
+`rays_in_band_of_a_curved_edge_read_it_once` aims at `0.3Kε` and at
+exactly `Kε` from each curved edge's middle. An aimed ray is now read
+from its aim (`side_reader::aimed_ray`, `geom::Ray::starting`), so its
+crossing of the aimed face is the aim to an ulp, where it was
+`from + d·t` and landed a few ulps off. At `Kε` exactly, on the cone
+frustum, the edge reading passes the edge clear and the face's own
+trim reads the same distance just under the band's edge:
+
+- ε 1e-9: three rays, `curve_carrier_gap` at `9.99999982734255e-9`
+  (twice) and `bool_ruled_region_edge` at `9.999999999999997e-9`,
+  against an escalate of `1e-8`;
+- ε 1e-6: one, `curve_carrier_gap` at `9.999999999777484e-6`;
+- ε 1e-12: one, `curve_carrier_gap` at `9.999824259158329e-12`.
+
+With the ray as it was built before, the same twelve cone-frustum aims
+at `Kε` read `Out` eight times and grazed four at 1e-9, read `Out` six
+times and grazed six at 1e-6, and read `Out` twelve times at 1e-12:
+which side of the band's edge they landed was rounding's then too. The
+pin now asserts "none set aside on a crossing" at `0.3Kε` only and
+counts the `Kε` aims against its floor. The other bodies of the pin
+did not move.

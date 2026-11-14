@@ -179,7 +179,7 @@ fn sign_as(
 }
 
 /// **The crossings of `ray` with `surface`**, nearest first, each ahead of
-/// its origin ([`geom::Ray::ahead`]). Its `dir` is unit; `reach` is a length the
+/// its start ([`geom::Ray::ahead`]). Its `dir` is unit; `reach` is a length the
 /// size of the scene the piece runs through, the lever its lead and
 /// its senses are read over. `sense` is the face's orientation sense.
 ///
@@ -194,12 +194,12 @@ pub fn ray_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     use super::reduce::SpanVerdict;
-    let geom::Line { origin, dir } = ray.line;
+    let geom::Line { origin, dir } = ray.line();
     // Unsourced lever: the ray's length, a scene size the caller hands
     // rather than geometry the extent home reads.
     let arm = geom_core::Lever::unsourced(reach);
     let on_carrier = || -> Result<Vec<Crossing<T>>, TraceFault> {
-        let residual = geom_brep::implicit_residual(surface, origin);
+        let residual = geom_brep::implicit_residual(surface, ray.start_point());
         match sign_as(TRACE_ON_CARRIER, Margin::of(residual), band)? {
             Sign::Zero => Err(TraceFault::OnCarrier),
             Sign::Positive | Sign::Negative => Ok(Vec::new()),
@@ -222,9 +222,8 @@ pub fn ray_crossings<T: Decide>(
             });
         }
         _ => {
-            match super::reduce::line_wall_roots_of(ray.line, (T::zero(), reach), surface, band)
-                .map_err(door)?
-            {
+            let run = (ray.start(), ray.start() + reach);
+            match super::reduce::line_wall_roots_of(ray.line(), run, surface, band).map_err(door)? {
                 None => {
                     return Err(TraceFault::Unsupported {
                         carrier: surface.kind(),
