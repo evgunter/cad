@@ -413,11 +413,15 @@ struct Racing {
 /// reviewer's, whose twelve leaves certify one; and a wider drive that
 /// certifies four.
 ///
-/// The last two run at a budget of 8 terms and degree 5 (they were
+/// The last two ran at a budget of 8 terms and degree 5 (they were
 /// 16/6 and 512/32): under INTENT stage 3 D's placement solve
 /// nothing on the slab freezes above 8/5 (measured: 10/4, 12/5, 12/6, 16/5, 16/6 and 512/32 freeze
 /// nothing), and a drive that freezes nothing has no column to race.
-/// At 8/5 they certify the same one and four leaves.
+/// At 8/5 they certified the same one and four leaves. They run at 8/3
+/// since the sweeps stopped fitting planes to their corners: the slab
+/// freezes nothing at 8/5, and at 8/4 (and 6/4, 10/4, 16/4) every leaf
+/// needs the same 36; at 8/3 they certify the same one and four leaves
+/// and the certified leaves need 95 where the refused need 79.
 const RACING: [Racing; 3] = [
     Racing {
         label: "race",
@@ -431,7 +435,7 @@ const RACING: [Racing; 3] = [
         label: "race (the second reviewer's)",
         leaves: 12,
         terms: 8,
-        degree: 5,
+        degree: 3,
         certifies: true,
         min_distinct: 2,
     },
@@ -439,7 +443,7 @@ const RACING: [Racing; 3] = [
         label: "certifying",
         leaves: 64,
         terms: 8,
-        degree: 5,
+        degree: 3,
         certifies: true,
         min_distinct: 2,
     },

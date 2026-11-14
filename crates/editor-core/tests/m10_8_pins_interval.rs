@@ -147,6 +147,13 @@ fn a0_alone() -> SymRules {
 /// witness: plain 2898/1612 → 2835/2803, shipped 2954/1556 →
 /// 2891/2747. The symbolic count falls by the witness reads the tier
 /// proved, which no station's read reproduces; A0's yield holds at 56.
+///
+/// Then the extrude keeps its sketch frame: its caps are the frame and
+/// its walls the frame turning their segments, so the tilted face's
+/// normal is exact over the box, limb 2 reads its net, and the root box
+/// certifies in ONE leaf again, fitting no plane on the way: plain
+/// 2835/2803 → 456/500, shipped 2891/2747 → 464/492. A0's yield is 8,
+/// one replay's.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -177,14 +184,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2835 numeric=2803 frozen=0",
+        "decisions symbolic=456 numeric=500 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2891 numeric=2747 frozen=0",
-        "56 of the 2803 numeric refusals are comparisons of two rational CONSTANTS, which \
-         A0 decides exactly"
+        "decisions symbolic=464 numeric=492 frozen=0",
+        "8 of the 500 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
+         decides exactly"
     );
     assert_eq!(
         shipped,

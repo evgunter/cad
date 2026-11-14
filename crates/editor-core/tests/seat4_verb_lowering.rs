@@ -780,9 +780,11 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
         // Re-measured when the placement came to mint its source
-        // (VARIABLES VR4): the ids after it moved.
+        // (VARIABLES VR4): the ids after it moved. Re-measured when the
+        // extrudes' caps and walls became their sketch frames: the
+        // bodies' stored planes moved.
         got,
-        0x1940_9a5c_6c12_d622,
+        0x89b0_7e61_0a79_a664,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

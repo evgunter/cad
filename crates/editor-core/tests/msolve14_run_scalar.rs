@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x529f_14cb_0a8f_1ab3),
-    (1e-6, 0xafcd_8634_c272_d78d),
-    (1e-12, 0xea59_9b09_734b_d9fd),
+    (1e-9, 0x41a4_2228_ea0a_8547),
+    (1e-6, 0x5bc5_a281_e968_efec),
+    (1e-12, 0x0ea1_9270_f32e_4998),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -876,6 +876,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// themselves are main's bits: every one is composed as motions, and
 /// `m10_p_fence`'s geometry and evaluation fences hold at all three ε
 /// rows, so no point moved.
+///
+/// RE-PINNED when the sweeps' caps and walls became their sketch
+/// frames: the evaluated bodies' stored planes moved (a cap's origin is
+/// its station's frame origin, not its corners' centroid). Every solved
+/// pose and placement the digest feeds is main's bits at 1e-9, compared
+/// line by line against the base.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

@@ -903,10 +903,15 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // writes at its 7 interior stations, where it read the class at one
     // witness): [1392, 1346, 34] -> [1384, 1830, 32], the witness reads the
     // tier proved, two of them through the ladder, and the stations'
-    // numeric reads.
+    // numeric reads. Then the sweeps keep their sketch frames and fit no
+    // plane: [1384, 1830, 32] -> [1400, 1762, 0], the planes' residuals
+    // gone from the numeric column and no decision on this leaf left for
+    // the ladder to retry; the bracket's recovery
+    // (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) is
+    // what carries the ladder now.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1384, 1830, 32],
+        [1400, 1762, 0],
         "the shipped ladder's leaf receipt"
     );
     assert!(

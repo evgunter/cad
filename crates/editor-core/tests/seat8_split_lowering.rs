@@ -619,8 +619,10 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
+    // Re-measured when the cube's caps and walls became its sketch
+    // frame: the body's stored planes moved.
     assert_eq!(
-        got, 0x026a_685b_ca8d_45ce,
+        got, 0xca4e_29b3_f68e_444e,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

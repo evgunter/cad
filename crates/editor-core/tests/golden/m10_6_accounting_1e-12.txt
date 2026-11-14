@@ -1,8 +1,8 @@
 == planted_flip
 basis priced
 certified 3fdf3def40000000
-refused budget 3e9fffffffdcaaaa
-refused flip_crossing 3fe0610760000000
+refused budget 3e9bffffffe75555
+refused flip_crossing 3fe0610780000000
 tail 0000000000000000
 unresolved 3fe061085fffffff
 containment true
