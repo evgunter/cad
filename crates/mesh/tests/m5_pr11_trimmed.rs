@@ -232,10 +232,10 @@ fn missing_pcurve_caches_refuse_typed() {
         .collect();
     assert!(!gaps.is_empty(), "a stripped face's loop has no lift");
     match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
-        Err(mesh::TessellateError::DomainUnread {
-            cause: topo::pcurves::RingPlacementError::Gap(gap),
-            ..
-        }) => {
+        Err(mesh::TessellateError::DomainUnread { cause, .. }) => {
+            let topo::pcurves::RingPlacementError::Gap(gap) = *cause else {
+                panic!("expected the door's lift gap, got {cause:?}")
+            };
             let edge = stripped
                 .get_half_edge(gap.half_edge)
                 .expect("a half-edge")

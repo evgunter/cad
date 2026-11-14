@@ -171,7 +171,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // it may name are keys.
         T::DomainUnread { cause, .. } => {
             use pncad::topo::pcurves::RingPlacementError as R;
-            let word = match cause {
+            let word = match **cause {
                 R::Gap(_) => "gap",
                 R::OuterOpen { .. } => "outer_open",
                 R::RingOpen { .. } => "ring_open",

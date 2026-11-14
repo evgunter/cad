@@ -195,7 +195,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::DomainUnread {
                 face,
-                cause: topo::pcurves::RingPlacementError::OuterOpen {
+                cause: Box::new(topo::pcurves::RingPlacementError::OuterOpen {
                     winding: topo::joint::Winding {
                         deck: topo::Deck {
                             u: 1,
@@ -203,7 +203,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                             twin: false,
                         },
                     },
-                },
+                }),
             },
             vec![
                 "one sheet of its chart",

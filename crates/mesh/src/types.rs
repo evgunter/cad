@@ -159,8 +159,10 @@ pub enum TessellateError {
     DomainUnread {
         /// The offending face.
         face: FaceKey,
-        /// Why the door placed no domain.
-        cause: topo::pcurves::RingPlacementError,
+        /// Why the door placed no domain. Boxed: the cause is several
+        /// times the size of every other arm's payload, and every caller
+        /// that holds a `TessellateError` by value pays its largest arm.
+        cause: Box<topo::pcurves::RingPlacementError>,
     },
     /// A face has an empty loop (a tier-1 scaffolding state; closed
     /// tier-2 bodies never carry one at rest).
@@ -705,7 +707,7 @@ impl TessellateError {
             ),
             Self::DomainUnread { cause, .. } => {
                 use topo::pcurves::RingPlacementError as R;
-                let why = match cause {
+                let why = match **cause {
                     R::Gap(_) => {
                         "a loop of it stores no chart image or joint for one of its \
                          edges, so it has no lift to read — a finished body stores \

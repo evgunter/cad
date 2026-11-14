@@ -422,7 +422,10 @@ pub(crate) fn tessellate_trimmed(
     // is the lane's one refusal of it.
     let lift = body
         .face_lift(fk, tol.band)
-        .map_err(|cause| TessellateError::DomainUnread { face: fk, cause })?;
+        .map_err(|cause| TessellateError::DomainUnread {
+            face: fk,
+            cause: Box::new(cause),
+        })?;
     let loops = domain_loops(&lift);
     // The face's chart row (`crate::chart_table`). A spline face's is the
     // cell table under this FACE's key, which the chord pass assembled
