@@ -2,12 +2,13 @@
 id: nightly-reds-the-1e-12-rows
 kind: unit
 title: Nightly reds: the rows red at ε 1e-12
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/eps-1e-12
 pr: 6967
+closed: 2026-11-14
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
@@ -55,3 +56,7 @@ Rows filed:
 - `nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`
 - `sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`
 - `onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
+
+## Closed (2026-11-14, PR 6967)
+
+The sixteen are green at ε 1e-12 on the lane's and the reviewer's local runs; no PR run executes a slow test at 1e-12, so the next nightly is the hosted record. Four re-blessed: two offset-fit rows whose floor PR 6820 tightened, and two rows that asserted a refusal where the Interval union now builds and is checked against a closed form or the f64 body (the cylinder–cylinder tee after PR 6516; the coaxial rounded mouth, whose 1e-12 clause was never true). Twelve pinned on typed refusals or escalations, none a wrong answer, with rows on NEARPOINT, BOXFINISH, GERM, SECTARMS, ONEHOME, PCERT and SHELL. BOXFINISH's row now carries a plain, rigidly turned rod that does not finish at 1e-12 in the f64 lane; its band is its owner's, and turns on whether 1e-12 counts as a normal setting.
