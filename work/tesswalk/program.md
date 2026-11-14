@@ -14,6 +14,6 @@ keep_out: [opened 2026-10-28 by TESS's semantic-seam split when TESS measured 14
 
 The rows where a decision in the mesh rests on the wrong thing. Some are structural premises (the branch premise's cone arm, the rim-side unanimity premise, a half-edge read as its edge's minus half, two coincident edges read as two columns) that no body reaches or that a door upstream now makes. The rest decide off numbers that are not decided: the pole-junction unwrap's branch, the planar chart's `u_ref` rejection, a quad diagonal chosen on last-bit UV noise, a certificate rounded to nearest, a zero arm that `next_up` makes dead.
 
-Cut out of TESS (`work/tess/`) by its 2026-10-28 semantic-seam split.
-TESS's review posture applies (`work/tess/plan.md`, Process). Slate:
+Cut out of TESS (`work/tesslane/`) by its 2026-10-28 semantic-seam split.
+TESS's review posture applies (`work/tesslane/plan.md`, Process). Slate:
 `work/tesswalk/plan.md`; narrative in `work/tesswalk/log.md`.

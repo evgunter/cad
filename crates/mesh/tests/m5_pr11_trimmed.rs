@@ -126,7 +126,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
 }
 
 /// **A wide trimmed cylinder triangulates in the lattice metric**
-/// (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+/// (`work/tesslane/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
 /// The lane's lattice is square in 3-D, `hu` radians by `r·hu`, so in
 /// (θ, z) it is a strip of aspect ~1/r; triangulated there, an
 /// ellipse trim point between two rows fanned a sliver across many
