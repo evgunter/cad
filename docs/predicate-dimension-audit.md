@@ -91,8 +91,8 @@ comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
-enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1, F22 ×1 —
-4 shipped sites, tracked as issue #214 and pinned by
+enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1, F22 ×1,
+F42 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -309,10 +309,6 @@ should know why. They live only in an `Indeterminate.predicate`:
     `bool_sphere_region_arc_straddle` and
     `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
     two bounds are one, so neither is raised);
-  - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
-    declared-tangency path read in the rulings' lane over a wall face's
-    reach measured over each edge's span and in the conic lane over it
-    measured round each edge's whole turn (`chord_join::agreed_section`);
   - `pm_census_ee_span_straddle` and `pm_census_ee_gap_straddle`, the
     lower and upper bound of a reach or of the lines' gap that the
     census's crossing lane reads off the closed form's rounding
@@ -1864,6 +1860,18 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F41", ..)`**, at the head of each
   entry point. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
   not move.
+
+- **F42** (added by ONEHOME's skin-turn unit, PR 6949)
+  `sweep/src/skin.rs` `still`, under `sweep_station_still`: each
+  component of `tᵢ − tᵢ₋₁`, for `tᵢ` and `tᵢ₋₁` two stations' path
+  tangents read at the lane scalar, direction witnesses on one span the
+  `f64` carry found straight by its data. Dimensionless (a defect of
+  the pair, zero exactly when the two directions are one), decided
+  against the metre band, which is the clause-(i) debt this row
+  records; like F22's it has no lever arm of its own. Zero lets the
+  station reuse its predecessor's rotation, one expression; a sign or
+  an escalation re-mints it, the conservative branch, so the decision
+  never admits a frame. One site, `LEDGER_FLAGGED_SITES` 4 → 5.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

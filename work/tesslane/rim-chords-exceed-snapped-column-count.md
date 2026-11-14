@@ -19,7 +19,7 @@ Filed from the TESS-SPLIT unit as the concretely scheduled followup for a disclo
 
 ## The gap
 
-`band_schedule`'s malign-band snap aligns every near-malign band and the chord pass on ONE column family: near-malign bands take `patch_nuc` exactly, and a full-width iso rim's chord count reproduces `patch_nuc` because both derive from the same whole-patch `split_steps`. That alignment has one hole, and it predates TESS-SPLIT: `chords::nurbs_tighten` takes the MAX of the face-driven count and the edge curve's own 3-D chord bound, so a rim whose curve bound demands more chords than `patch_nuc` puts off-lattice u-points on the rim. Beside a malign (high realized `s_u/s_v`) first or last band, such a point admits the `(aspect²+1)/8·δ_s` Delaunay sliver.
+`band_schedule`'s malign-band snap aligns every near-malign band and the chord pass on ONE column family: near-malign bands take `patch_nuc` exactly, and a full-width iso rim's chord count reproduces `patch_nuc` because both derive from the same whole-patch `split_steps`. That alignment has one hole, and it predates TESS-SPLIT: `chords::tighten` takes the MAX of the face-driven count and the edge curve's own 3-D chord bound, so a rim whose curve bound demands more chords than `patch_nuc` puts off-lattice u-points on the rim. Beside a malign (high realized `s_u/s_v`) first or last band, such a point admits the `(aspect²+1)/8·δ_s` Delaunay sliver.
 
 Under TESS-SPAN the realized aspects in that configuration were bounded near `SAFE_ASPECT`, so the sliver certified within the measured margin. Under TESS-SPLIT's aspect-capped selection, snapped bands legitimately run to realized parameter aspects in the hundreds (protected by alignment), so a rim whose curve bound exceeds `patch_nuc` beside such a band would certify far above delta and the face would refuse typed (`CertificateExceeded`) — fail-loud, never a wrong mesh.
 
@@ -33,7 +33,7 @@ Either teach the rim chord count to snap UP to the least multiple of `patch_nuc`
 
 ## Home
 
-`band_schedule` and `chords::nurbs_tighten` are `crates/mesh/*`, S-MESH's territory, and sizing intent versus budget is its charter.
+`band_schedule` and `chords::tighten` are `crates/mesh/*`, S-MESH's territory, and sizing intent versus budget is its charter.
 
 ## Re-homed at S-MESH's exit (2026-09-16)
 
@@ -58,7 +58,7 @@ metric, so the residual, not the raw-UV aspect, is what matters.
   falsifier armed, every face meshes under δ or refuses typed, the same
   with the snap and without it. The worst ratio without it is 0.4996.
 - **No adversary rim had a curve bound over the face count.** Of 4000 rim
-  chord decisions on those faces (`chords::nurbs_tighten`, the curve's own
+  chord decisions on those faces (`chords::tighten`, the curve's own
   count against the face-driven one), none exceeded it. This item's exact
   configuration was not reached, as this item measured on the tour and the
   wild corpus.

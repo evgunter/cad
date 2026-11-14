@@ -136,6 +136,7 @@ pub(crate) mod boxes;
 pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
+pub(crate) mod chain_parity;
 pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
@@ -237,6 +238,7 @@ pub(crate) mod seqgen;
 pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
+pub(crate) mod spline_trim;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -536,9 +538,14 @@ pub mod test_support {
     }
 
     /// How far each solid's aimed rays start from `aim`, over two
-    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
-    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
-        crate::side_reader::beyond_report(body, aim)
+    /// (`boolean::solid_contain`'s `selection_reach`): the reach's pins
+    /// read its scale.
+    pub fn aim_reach(
+        body: &Body<f64>,
+        aim: geom_core::Point3<f64>,
+        band: geom_core::Band,
+    ) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim, band)
     }
 
     /// What each solid's aimed rays read before the volume, as text
@@ -1389,7 +1396,7 @@ pub mod transform;
 mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
-pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
+pub use edge_wedge::{edge_wedge, edge_wedge_as, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;

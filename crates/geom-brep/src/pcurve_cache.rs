@@ -1624,6 +1624,50 @@ impl<T: SpanLocate> Pcurve<T> {
     }
 }
 
+impl Pcurve<f64> {
+    /// **The image's speed along each chart axis** over the carrier span
+    /// `[t₀, t₁]`: `(s_u, s_v)` with `|u′(t)| ≤ s_u` and `|v′(t)| ≤ s_v`
+    /// there, in chart units per unit of the carrier's parameter. The
+    /// third fact beside [`Pcurve::eval`] and [`Pcurve::chart_box`];
+    /// each form's derivation is `speed`'s module docs.
+    ///
+    /// # Errors
+    ///
+    /// [`NoSpeedBound`]: a fitted image (none is wired), a rational or
+    /// out-of-domain general image, a net whose derivative bound does not
+    /// certify, an arc rim with no sub-arc, a closed form outside its
+    /// regime, a projected image through its chart's singular set.
+    pub fn speed_bound(&self, t0: f64, t1: f64) -> Result<(f64, f64), NoSpeedBound> {
+        if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
+            return Err(NoSpeedBound::NotASpan);
+        }
+        if !speed::finite_input(self) {
+            return Err(NoSpeedBound::NonFinite);
+        }
+        match self {
+            Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
+            Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
+            Pcurve::IsoArc {
+                pd,
+                angle,
+                breaks,
+                ends,
+                ..
+            } => speed::iso_arc_speeds(*pd, *angle, breaks, ends),
+            Pcurve::General(image) => speed::general_speeds(image, (t0, t1)),
+            Pcurve::Fitted(_) => Err(NoSpeedBound::Fitted),
+            Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image,
+            } => speed::spiric_speeds((*major, *minor, *offset), image, (t0, t1)),
+            Pcurve::FocalSection(image) => speed::focal_section_speeds(image),
+            Pcurve::Projected(image) => speed::projected_speeds(image, (t0, t1)),
+        }
+    }
+}
+
 /// A chart-space axis-aligned box: the conservative enclosure of a
 /// row's image over a span ([`Pcurve::chart_box`]).
 #[derive(Clone, Copy, Debug)]
@@ -5654,7 +5698,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// window's largest `|v|` (`cos` decreases in `|v|` up to `π`, and the
 /// sheet's apexes read zero). Never negative: a window on a pole or an
 /// apex reads zero.
-fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+///
+/// # Panics
+///
+/// On a chart with no azimuth: a plane or a spline chart.
+pub fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
     let arm = match *surface {
         Surface::Cylinder { radius, .. } => radius,
         Surface::Sphere { radius, .. } => {
@@ -7698,7 +7746,7 @@ fn run_spiric_checks_as<T: Decide>(
                 ..
             },
         ) => {
-            let arm = crate::ExtentBall::of_torus(s_center, s_major, s_minor).lever();
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
             // vectors, levered over the chart torus's ball. Which
@@ -7845,7 +7893,6 @@ fn run_spiric_checks_as<T: Decide>(
         }
         SpiricImage::Wall { .. } => {
             let Surface::Torus {
-                major_radius: chart_major,
                 minor_radius: chart_minor,
                 ..
             } = *surface
@@ -7880,7 +7927,11 @@ fn run_spiric_checks_as<T: Decide>(
                 .sqrt()
                 .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
-            let arm = chart_major + chart_minor;
+            // The chart torus's ball: the farthest a point of it stands
+            // from its centre, the arm an angular drift moves it over.
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok())
+                .lever()
+                .length();
             arm * d_theta
                 + chart_minor * sense_drift * reach
                 + arm * sense_drift * T::pi()
@@ -13396,10 +13447,12 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 mod closed_bound;
 pub(crate) mod patch;
 pub mod projected;
+mod speed;
 mod spline_incidence;
 mod stated;
 mod trig;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub use speed::{NoSpeedBound, harmonic_range};
 pub(crate) use stated::{EdgeSpan, StatedDoor};
 
 #[cfg(test)]
@@ -13470,6 +13523,9 @@ mod radial_pair_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod speed_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod spline_door_rows;
