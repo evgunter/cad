@@ -7,7 +7,7 @@ opened: 2026-10-21
 priority: P0
 cost: M
 refs: [5567]
-blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
+blocked_on: [a-curved-faces-domain-is-read-from-every-loop]
 ---
 
 

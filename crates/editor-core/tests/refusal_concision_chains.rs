@@ -870,7 +870,7 @@ mod kernel {
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
-            ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
+            ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
@@ -3789,11 +3789,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge(never opens)",
-            E::KnifeEdge {
+            "WedgeUnsettled(lamina)",
+            E::WedgeUnsettled {
                 edge,
-                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
-                refusal: KnifeRefusal::NeverOpens,
+                wedge: sweep::blend::UnsettledWedge::Lamina,
             },
         ),
         (

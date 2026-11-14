@@ -845,6 +845,10 @@ impl TrimmedFace<'_> {
                 );
                 let k = apex.iter().position(|&a| !a).unwrap_or(0);
                 let turn = nappe * sin_alpha;
+                // `Azimuth::of` takes `(y, x)`, atan2's order, and the
+                // development puts a point at `r·(sin θ, cos θ)`: its first
+                // coordinate is the angle's sine, so it goes first, and the
+                // angle read is `θ` itself.
                 let direction = geom::Azimuth::of(g.x, g.y);
                 let theta = direction.near(turn * uv[k][0]);
                 (theta / turn, nappe * direction.length())
@@ -2042,8 +2046,9 @@ fn trim_polygon(
             return Err(TessellateError::UnsupportedCurve {
                 edge,
                 note: "trimmed face's loop has no lift in its chart (`topo::Body::loop_lift`): \
-                       this half-edge stores no image, no element on the joint into it, or an \
-                       image its lift does not apply to",
+                       this half-edge carries no stored pcurve cache image, no element on the \
+                       joint into it, or an image its lift does not apply to — caches mint in \
+                       the split/boolean pipelines",
             });
         }
     };
@@ -3927,6 +3932,13 @@ pub(super) mod tests {
         ///   first attempt (`developed_merge`), where the face refuses typed
         ///   rather than merge two mesh vertices the chart keeps apart;
         /// - a grid candidate landing there is dropped: it is no mesh vertex.
+        ///
+        /// **The exactness cut is pinned here alone.** `developed` returning
+        /// the plain `r·sin θ, r·cos θ` reds this row and no mesh row: the
+        /// rounding it would leave makes three points of a ruling a sliver
+        /// of about `1e-16` only where the triangulation is forced to join
+        /// them (a ruling side chorded into several chords, a grid point on
+        /// a ruling side), and no fixture here makes one.
         #[test]
         fn the_development_keeps_apex_copies_one_and_mesh_vertices_apart() {
             let surface = cone(0.3);

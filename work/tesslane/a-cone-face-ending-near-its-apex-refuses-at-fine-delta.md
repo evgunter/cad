@@ -2,9 +2,10 @@
 id: a-cone-face-ending-near-its-apex-refuses-at-fine-delta
 kind: issue
 title: A cone face ending near its apex refuses CertificateExceeded at fine δ: the development triangulates, the chart certifies
-status: open
+status: parked
 opened: 2026-11-14
 priority: P1
+blocked_on: [the-cone-arm-certifies-the-triangle-its-development-makes]
 ---
 
 ## Finding
