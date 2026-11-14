@@ -745,8 +745,8 @@ struct TrimmedFace<'a> {
 /// One attempt's triangulation, between inserting its points and
 /// emitting its triangles.
 struct Cdt {
-    /// The triangulation, in the lattice metric
-    /// ([`TrimmedFace::cdt_point`]).
+    /// The triangulation, in the plane the face's CDT runs in
+    /// ([`cdt_point`]).
     cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
     /// The first entry's slot at each handle; [`Pinches`] overrides
     /// a boundary slot per triangle at a pinch handle.

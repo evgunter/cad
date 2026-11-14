@@ -222,7 +222,10 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
             }
             let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
             let shape = normal.norm() / (longest * longest);
-            if !(shape >= MIN_SHAPE) {
+            if shape
+                .partial_cmp(&MIN_SHAPE)
+                .is_none_or(core::cmp::Ordering::is_lt)
+            {
                 return Err(format!(
                     "a {kind:?} face's triangle {t:?} has 2·area/L² {shape:e}, under {MIN_SHAPE:e}"
                 ));
@@ -233,7 +236,10 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
                 .flat_map(|i| (0..=N - i).map(move |j| (i as f64 / N as f64, j as f64 / N as f64)))
                 .map(|(x, y)| distance(surface, at(x, y)).expect("an analytic face"))
                 .fold(0.0f64, |w, d| if d.is_nan() { d } else { w.max(d) });
-            if !(worst <= delta * (1.0 + 1e-9)) {
+            if worst
+                .partial_cmp(&(delta * (1.0 + 1e-9)))
+                .is_none_or(core::cmp::Ordering::is_gt)
+            {
                 return Err(format!(
                     "a {kind:?} face's triangle {t:?} lies {worst:e} off its surface, past δ {delta:e}"
                 ));
@@ -735,54 +741,55 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     );
     let far = Affine3::translation(Vec3::new(700.3, -577.7, 123.4));
     let unit = |k: f64| revolved(&[(0.0, 0.0), (k, k), (0.0, k)]);
-    let cases: Vec<(String, AtRestBody<f64>, Point3<f64>, Vec3<f64>, Vec<f64>)> =
-        [1e-2, 1e2, 3e2, 1e3]
-            .into_iter()
-            .map(|k| {
-                (
-                    format!("the funnel ×{k:e}"),
-                    finished("the funnel", unit(k), tol()),
-                    Point3::new(0.0, 0.5 * k, 0.0),
-                    n,
-                    vec![5e-3 * k, 1e-3 * k, 2e-4 * k],
-                )
-            })
-            .chain(
-                [("translated", far), ("turned and translated", far * turn)].map(|(name, pose)| {
-                    (
-                        format!("the funnel, {name}"),
-                        posed("the funnel", unit(1.0), pose),
-                        pose.transform_point(Point3::new(0.0, 0.5, 0.0)),
-                        pose.transform_vec(n),
-                        vec![5e-3, 1e-3, 2e-4],
-                    )
-                }),
+    // (name, body, a point of the cut, its normal, the δ it meshes at)
+    type Case = (String, AtRestBody<f64>, Point3<f64>, Vec3<f64>, Vec<f64>);
+    let cases: Vec<Case> = [1e-2, 1e2, 3e2, 1e3]
+        .into_iter()
+        .map(|k| {
+            (
+                format!("the funnel ×{k:e}"),
+                finished("the funnel", unit(k), tol()),
+                Point3::new(0.0, 0.5 * k, 0.0),
+                n,
+                vec![5e-3 * k, 1e-3 * k, 2e-4 * k],
             )
-            .chain([
+        })
+        .chain(
+            [("translated", far), ("turned and translated", far * turn)].map(|(name, pose)| {
                 (
-                    "the needle funnel".to_string(),
-                    finished(
-                        "the needle",
-                        revolved(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]),
-                        tol(),
-                    ),
-                    Point3::new(0.0, 0.5, 0.0),
-                    n,
-                    vec![1e-3, 2e-4],
+                    format!("the funnel, {name}"),
+                    posed("the funnel", unit(1.0), pose),
+                    pose.transform_point(Point3::new(0.0, 0.5, 0.0)),
+                    pose.transform_vec(n),
+                    vec![5e-3, 1e-3, 2e-4],
+                )
+            }),
+        )
+        .chain([
+            (
+                "the needle funnel".to_string(),
+                finished(
+                    "the needle",
+                    revolved(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]),
+                    tol(),
                 ),
-                (
-                    "the shifted funnel".to_string(),
-                    finished(
-                        "the shifted funnel",
-                        revolved(&[(0.0, 133.3), (612.3, 911.1), (0.0, 911.1)]),
-                        tol(),
-                    ),
-                    Point3::new(0.0, 533.0, 0.0),
-                    n,
-                    vec![0.18],
+                Point3::new(0.0, 0.5, 0.0),
+                n,
+                vec![1e-3, 2e-4],
+            ),
+            (
+                "the shifted funnel".to_string(),
+                finished(
+                    "the shifted funnel",
+                    revolved(&[(0.0, 133.3), (612.3, 911.1), (0.0, 911.1)]),
+                    tol(),
                 ),
-            ])
-            .collect();
+                Point3::new(0.0, 533.0, 0.0),
+                n,
+                vec![0.18],
+            ),
+        ])
+        .collect();
     for (name, body, at, normal, deltas) in cases {
         let plane = topo::test_support::split_plane(at, normal, tol());
         let split = topo::splitting::split(&body, &plane, tol())
