@@ -54,9 +54,11 @@ mod rounded_mate {
         );
     }
 
-    /// The one planar face of `body` at height `z` whose outward normal
-    /// points up (`up`) or down — a POSITIONAL pick, by stored plane
-    /// parameters, and it stays one.
+    /// The one horizontal planar face of `body` at height `z` whose
+    /// outward normal points up (`up`) or down — a POSITIONAL pick, by
+    /// stored plane parameters, and it stays one. A horizontal plane's
+    /// height is any of its points' `z`, its origin's included; a
+    /// vertical plane has no height, so it is not one of these.
     ///
     /// Same finding as [`cylinders`]: nothing on the plain body API says
     /// "the mating face" — a document would say it with a `GeoSelect` — so
@@ -66,7 +68,8 @@ mod rounded_mate {
             .faces()
             .filter(|(fk, _)| match body.face_surface(*fk) {
                 Some(pncad::geom::Surface::Plane { origin, normal, .. }) => {
-                    (origin.z.f() - z).abs() < 1e-12 && (normal.z.f() > 0.5) == up
+                    let facing = normal.z.f();
+                    facing.abs() > 0.5 && (facing > 0.0) == up && (origin.z.f() - z).abs() < 1e-12
                 }
                 _ => false,
             })

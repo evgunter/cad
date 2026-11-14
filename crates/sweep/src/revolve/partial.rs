@@ -14,7 +14,8 @@
 //! phase builds the loops with their runs collapsed ([`Collapsed`]), so
 //! a station inside a run has no entity.
 
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point2, Point3, Real, Sign};
+use profile::SegmentKind;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MevSite};
 use topo::{Body, EdgeKey, FaceKey};
@@ -116,6 +117,9 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         },
         true,
     )?;
+    // The joint centre `revolved_caps` reports: the outer section's
+    // centre, in the sketch.
+    let joint = section_centre(outer);
     // Start cap plane: derived from the sketch data alone — it reads no
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
@@ -330,6 +334,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             end_meridians: end_mer,
             coplanar_caps,
         },
+        joints: Some([frame.world(joint), far.point(joint)]),
         scalar: core::marker::PhantomData,
     })
 }
@@ -578,4 +583,26 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     }
 
     Ok(LoopSwept { faces, rims, tops })
+}
+
+/// The sketch centre of a section: a circle's centre, else the mean of
+/// its vertices and arc apexes.
+fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
+    if let [seg] = segs
+        && let SegmentKind::Arc { arc, .. } = seg.kind.get()
+    {
+        return arc.centre;
+    }
+    let mut points = Vec::with_capacity(segs.len() * 2);
+    for s in segs {
+        points.push(s.a);
+        if let SegmentKind::Arc { arc, .. } = s.kind.get() {
+            points.push(arc.apex(s.a, s.b));
+        }
+    }
+    let n = T::from_f64(points.len() as f64);
+    let (x, y) = points
+        .iter()
+        .fold((T::zero(), T::zero()), |(x, y), p| (x + p.x, y + p.y));
+    Point2::new(x / n, y / n)
 }

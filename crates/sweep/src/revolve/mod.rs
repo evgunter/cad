@@ -147,7 +147,9 @@ use core::fmt;
 
 use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
-use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Point3, Real, Sign, Tol, Vec2,
+};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
@@ -246,6 +248,9 @@ pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> 
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
+    /// A partial revolve's joint centres, start then end: its outer
+    /// section's centre at each station ([`revolved_caps`]).
+    pub(crate) joints: Option<[Point3<T>; 2]>,
     /// The scalar the body is at.
     pub(crate) scalar: core::marker::PhantomData<fn() -> T>,
 }
@@ -263,6 +268,7 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             rims,
             poles,
             kind,
+            joints,
             scalar,
         } = self;
         Ok(Revolved {
@@ -274,6 +280,7 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             rims,
             poles,
             kind,
+            joints,
             scalar,
         })
     }
@@ -439,9 +446,11 @@ pub enum RevolvedKind {
 /// own vocabulary.
 #[derive(Clone, Copy, Debug)]
 pub struct WedgeFrames<T: Real> {
-    /// The start cap's carrier frame (the sketch plane).
+    /// The start joint: the section's centre on the sketch plane, the
+    /// start cap's normal.
     pub start: Pose<T>,
-    /// The end cap's carrier frame (the sketch plane rotated by θ).
+    /// The end joint: the section's centre turned by θ, the end cap's
+    /// normal.
     pub end: Pose<T>,
 }
 
@@ -463,9 +472,13 @@ impl From<ReadbackError> for WedgeCapsError {
 }
 
 /// **Where did the partial revolve's wedge caps land?** — the joint
-/// frames of a tube: each cap plane's origin and normal, which is
-/// exactly the tube's end tangent there when the profile is a
-/// cross-section.
+/// frames of a tube: at each end, the outer section's centre carried
+/// to that station (a circle's centre; else the mean of its vertices
+/// and arc apexes), stated from the construction, with the cap's normal,
+/// which is exactly the tube's end tangent there when the profile is a
+/// cross-section, and its reference direction and sense. The centre is
+/// not the cap plane's chart origin, which is its station frame's
+/// origin and need not lie in the face.
 ///
 /// The op-specific half of the read: the cap faces live inside
 /// [`RevolvedKind::Partial`], so the case analysis is the door's
@@ -516,9 +529,18 @@ pub fn revolved_caps<T: topo::AtRestPolicy, B: core::ops::Deref<Target = Body<T>
     else {
         return Err(WedgeCapsError::NoCaps);
     };
+    let [start, end] = r.joints.unwrap_or_else(|| {
+        unreachable!("a partial revolve records its joint centres where it mints its caps")
+    });
+    let at = |face, origin| -> Result<Pose<T>, WedgeCapsError> {
+        Ok(Pose {
+            origin,
+            ..face_pose(&r.body, face)?
+        })
+    };
     Ok(WedgeFrames {
-        start: face_pose(&r.body, start_cap)?,
-        end: face_pose(&r.body, end_cap)?,
+        start: at(start_cap, start)?,
+        end: at(end_cap, end)?,
     })
 }
 

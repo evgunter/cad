@@ -602,6 +602,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        joints: None,
         scalar: core::marker::PhantomData,
     })
 }
@@ -701,6 +702,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        joints: None,
         scalar: core::marker::PhantomData,
     })
 }
@@ -1141,6 +1143,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             pi_meridians: pi_mer,
             pi_rims,
         },
+        joints: None,
         scalar: core::marker::PhantomData,
     })
 }
