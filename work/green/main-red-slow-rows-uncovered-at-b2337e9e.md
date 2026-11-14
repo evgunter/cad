@@ -35,3 +35,11 @@ Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route eac
 - `sweep` `a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge`: red with main's `pose.rs` restored, so not caused by PR 6492. Reported by its lane; no row found.
 - `r1_dm1_probe` ×2, `tier_gate::every_corpus_import`: red on main at the parent of PR 6482's merge (72d09443-era). Reported by the angle-reads lane; no row found.
 - step-import `r1_dm1_probe::dm1_no_longer_refuses_at_the_instancing_gate`, and topo `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle` at seed 0xe7fad745443d741c (a varying-seed fuzz): both red on main, reported by the PR 6495 lane at its merge base.
+
+## Corrected (2026-11-14, `green/censuses`)
+
+Two of the rows above are greened by the `nightly-reds-the-source-censuses` unit, read at nightly 43371638371 and on main `b363f5fa13`:
+- `node_standing::every_node_result_reader…`: `viewer/src/session.rs` lost its 3 reads with `frame_off`, removed by PR 6431's merge (`3819ae968d`, `forms/split-pattern`); its `READERS` entry is struck. `eval/mod.rs` 33 → 35 and `eval/parts.rs` 1 → 2 are PR 6735's (`1ed46561d6`), as `work/doors/node-standing-census-goes-red-on-main-between-nightlies` says; re-blessed with reasons.
+- `certified_endpoint_census`: the geom-brep drift this row lists was re-pinned by PR 6738 (`d43220b275`), and none of those files moves the census today. Today's red is topo only, `clearance.rs` 53 → 56 (PR 6885) and `injective.rs` 121/40 → 137/52 (PRs 6892, 6894, 6905); re-blessed with the new sites' dispositions.
+
+The other rows here are outside that unit and are not re-checked.

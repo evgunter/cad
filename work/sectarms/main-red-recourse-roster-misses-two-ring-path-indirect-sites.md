@@ -2,10 +2,12 @@
 id: main-red-recourse-roster-misses-two-ring-path-indirect-sites
 kind: issue
 title: Main red: recourse_roster finds two unlisted indirect decide sites, ring_path.rs spline_crossings and ring_path/spline_wall.rs paths (since PR 6891)
-status: open
+status: closed
 opened: 2026-11-13
 priority: P1
 cost: E
+closed: 2026-11-14
+branch: green/censuses
 ---
 
 Found by ONEHOME's `onehome/star-cut` lane (PR 6871) running the topo suite on its merge with main.
@@ -26,3 +28,7 @@ an indirect site not listed: ring_path/spline_wall.rs: paths:
 Register the two sites in the roster's `INDIRECT` list with what each forwards, or give the names they decide a carrier the census reads. Then run the row.
 
 On main at `5e5fec6d0a` a third site joins them: `an indirect site not listed: ring_path/spline_wall.rs: reach:`.
+
+## Closed
+
+Greened by GREEN (`green/censuses`, unit `nightly-reds-the-source-censuses`), which did what Owed asks. All three sites are `IsoPiece::travel()` (`ring_path/spline_wall.rs`), the piece's chord and direction of travel: a call with no argument that shares the declared `travel` carrier's token (`boolean/join.rs`'s forwarder) and carries no name. They are in `INDIRECT` under `SAME_NAMED_TRAVEL`, the shape `census.rs`'s `bounded` already has. A correction to the last paragraph: on main's first parent, `reach` does not join later. All three `.travel()` calls arrive together at PR 6891's merge (`af389cfc0a`), and the two files at its first parent have none.
