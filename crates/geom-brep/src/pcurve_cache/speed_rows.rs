@@ -307,6 +307,7 @@ fn a_harmonic_images_bound_is_its_sup_and_an_iso_lines_is_its_velocity() {
     let line = Pcurve::IsoLine {
         p0: Point2::new(0.0, 1.0),
         pl: Vec2::new(-0.25, 3.0),
+        ends: None,
     };
     assert_eq!(
         line.speed_bound(0.0, 2.0),
@@ -1059,6 +1060,7 @@ fn a_non_finite_coefficient_refuses_on_every_form() {
         Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(nan, 1.0),
+            ends: None,
         },
         Pcurve::IsoArc {
             p0: Point2::new(0.0, 0.0),

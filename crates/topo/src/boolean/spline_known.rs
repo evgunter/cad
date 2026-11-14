@@ -23,7 +23,7 @@
 use geom::Surface;
 use geom_brep::KnownPair;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::{Band, Decide, Margin, Point2};
+use geom_core::{Band, Decide, Margin};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey};
@@ -125,11 +125,10 @@ fn corners<T: Decide + AtRestPolicy>(
     };
     let mut out: Vec<(ChartCorner, geom_core::Point3<T>)> = Vec::new();
     for (he, image) in rows {
-        let Ok((_, t0, t1)) = crate::pcurves::half_edge_carrier(body, *he) else {
+        let Ok(curve) = crate::pcurves::half_edge_curve(body, *he) else {
             continue;
         };
-        for t in [t0, t1] {
-            let p: Point2<T> = image.pcurve().eval(t);
+        for p in image.pcurve().span_ends(curve.edge_span()) {
             let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
                 continue;
             };

@@ -187,6 +187,7 @@ fn shared_rim() -> KnownPair<f64> {
     let image = geom_brep::Pcurve::IsoLine {
         p0: Point2::new(0.0, 0.0),
         pl: Vec2::new(1.0, 0.0),
+        ends: None,
     };
     KnownPair {
         rows: vec![geom_brep::KnownRow {

@@ -433,6 +433,7 @@ mod tests {
         let image = Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.5),
             pl: Vec2::new(0.0, 1.0),
+            ends: None,
         };
         let moved_in = |deck: Deck, s: &Surface<f64>, periods: ChartPeriods<f64>| {
             deck.apply(&image, s, periods).map(|p| {

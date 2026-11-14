@@ -166,6 +166,8 @@ pub fn rational_edge_q_split(
     extra: &[f64],
 ) -> Result<RationalEdgeQ, PropsError> {
     let exact = super::bracket::exact_point;
+    // The 3-D carrier's own parameters, not a chart image's ends: a stated
+    // chart end (`Pcurve::span_ends`) does not make these exact.
     let (Some(t0), Some(t1)) = (exact(t0), exact(t1)) else {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational rim edge whose carrier interval ends are not exact parameters",

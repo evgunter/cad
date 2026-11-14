@@ -342,7 +342,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 1,
                 "the NURBS wall charts the seam; the plane derives on demand: {stored:?}"
             );
-            let topo::Pcurve::IsoLine { p0, pl } = stored[0] else {
+            let topo::Pcurve::IsoLine { p0, pl, .. } = stored[0] else {
                 panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
             };
             assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
@@ -476,7 +476,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
                 .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
                 .filter_map(|p| match p {
-                    topo::Pcurve::IsoLine { p0, pl } if pl.x == 0.0 => Some(p0),
+                    topo::Pcurve::IsoLine { p0, pl, .. } if pl.x == 0.0 => Some(p0),
                     _ => None,
                 })
                 .collect();

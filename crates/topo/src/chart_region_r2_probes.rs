@@ -35,13 +35,25 @@ fn probe_every_almost_zero_channel_refuses() {
                 _ => pb.1 = t,
             }
             assert!(
-                pcurve_entry(&harmonic(pa, pb), 0.0, 1.0, true).is_err(),
+                pcurve_entry(
+                    &harmonic(pa, pb),
+                    geom_brep::StoredSpan::for_tests(0.0, 1.0),
+                    true
+                )
+                .is_err(),
                 "channel {slot} = {t:e} must REFUSE (no scalar zero-test)"
             );
         }
     }
     // Signed structural zeros are still structural zeros.
-    assert!(pcurve_entry(&harmonic((0.0, -0.0), (-0.0, 0.0)), 0.0, 1.0, true).is_ok());
+    assert!(
+        pcurve_entry(
+            &harmonic((0.0, -0.0), (-0.0, 0.0)),
+            geom_brep::StoredSpan::for_tests(0.0, 1.0),
+            true
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -57,7 +69,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
         Vec2::new(0.0, 0.0),
         Vec2::new(0.0, 0.0),
     );
-    assert!(pcurve_entry(&p, 0.0, 1.0, true).is_err());
+    assert!(pcurve_entry(&p, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err());
     // A genuinely curved image (u sinusoid, v linear) also refuses.
     let q = Pcurve::free_harmonic(
         Point2::new(0.0, 0.0),
@@ -65,7 +77,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
         Vec2::new(0.0, 0.0),
         Vec2::new(0.0, 1.0),
     );
-    assert!(pcurve_entry(&q, 0.0, 1.0, true).is_err());
+    assert!(pcurve_entry(&q, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err());
 }
 
 // ---------------------------------------------------------------

@@ -118,17 +118,13 @@ fn a_slab_placed_then_unioned_certifies_in_one_leaf() {
     }
 }
 
-/// **A placement that does not finish is its own output's finding, and
-/// the walk goes on** (M2). At `Interval` a loft over NURBS walls is a
-/// tier-2 leaf, and the shell door's take runs tier 3 on it, where check
-/// 7's quadrature refuses a wall whose pcurve ends are not exact
-/// (`work/boxfinish/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`):
-/// `NotAtRest`, at each of the two placements of it, so the walk did not
-/// stop at the first. (The slab's orientation leaf cannot carry this
-/// row: plain `Interval` does not build the slab over a box at all, and
-/// the checks have no `Sym` lane.)
+/// **A boxed loft's placements finish at the connectedness walk's take.**
+/// At `Interval` a loft over NURBS walls is a tier-2 leaf, and the shell
+/// door's take runs tier 3 on it. Its wall rims read their chart ends as
+/// their mints placed them, so check 7's rectangle certificate takes every
+/// wall and neither placement is a `NotAtRest` finding.
 #[test]
-fn a_placement_that_does_not_finish_is_its_outputs_finding() {
+fn a_boxed_lofts_placements_finish_at_the_walks_take() {
     use editor_core::analysis::BoxAxis;
     let (doc, loft) = crate::eval10_section_reads_the_nominal::square_loft_doc(0.5);
     let (doc, first) = crate::fixture::place(doc, loft);
@@ -166,7 +162,7 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
         &editor_core::Stop::default(),
         Tol::witness(),
     )
-    .expect("the walk does not abort on a placement that does not finish");
+    .expect("the walk runs");
     for placement in [first, second] {
         let findings: Vec<_> = report
             .findings
@@ -177,10 +173,10 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
             .map(|f| &f.evidence)
             .collect();
         assert!(
-            findings
+            !findings
                 .iter()
-                .any(|e| matches!(e, CheckEvidence::NotAtRest { errors } if !errors.is_empty())),
-            "each placement of the loft is its own NotAtRest finding: {findings:?}"
+                .any(|e| matches!(e, CheckEvidence::NotAtRest { .. })),
+            "no placement of the loft is a NotAtRest finding: {findings:?}"
         );
     }
 }
@@ -216,13 +212,11 @@ fn review_probe_6371_union_after_a_box_extrude() {
     }
 }
 
-/// **A refusing take names the member that does not finish** (PR 6371
-/// review r2, MAJ-1). A union of a placed block and a placed loft at
-/// `Interval`: the block finishes, the loft's walls do not (check 7, as
-/// above), and the union's refusal names the loft's placement as its
-/// input, in words that say nothing of how the body was made.
+/// **A union of a placed block and a placed boxed loft evaluates** at
+/// `Interval`: the union takes each member, and both finish, the loft's
+/// walls reading their rims' chart ends as their mints placed them.
 #[test]
-fn a_union_whose_one_member_does_not_finish_names_it() {
+fn a_union_of_a_block_and_a_boxed_loft_evaluates() {
     use editor_core::analysis::BoxAxis;
     let (doc, loft) = crate::eval10_section_reads_the_nominal::square_loft_doc(0.5);
     let (doc, block) = crate::fixture::on_frame(
@@ -263,18 +257,9 @@ fn a_union_whose_one_member_does_not_finish_names_it() {
         "the block's copy builds"
     );
     assert!(ev.node_error(loft_copy).is_none(), "the loft's copy builds");
-    let refusal = ev.node_error(union).expect("the union refuses");
-    let editor_core::NodeErrorKind::UnfinishedLeaf { input, findings } = &refusal.kind else {
-        panic!(
-            "the union refuses its unfinished member: {:?}",
-            refusal.kind
-        );
-    };
-    assert_eq!(*input, loft_copy, "the refusal names the loft's copy");
-    assert!(!findings.as_slice().is_empty());
-    let text = refusal.kind.to_string();
     assert!(
-        text.contains("does not finish") && !text.contains("swept"),
-        "the text names the input, not how it was made: {text}"
+        ev.node_error(union).is_none(),
+        "the union evaluates: {:?}",
+        ev.node_error(union)
     );
 }

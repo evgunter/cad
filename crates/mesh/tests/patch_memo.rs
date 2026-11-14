@@ -569,9 +569,10 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
         // whole period, so it is a translation rather than a branch shift.
         let shifted = match cache.pcurve().clone() {
             image @ Pcurve::Harmonic { .. } => image.translate(nudge, 0.0),
-            Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+            Pcurve::IsoLine { p0, pl, .. } => Pcurve::IsoLine {
                 p0: Point2::new(p0.x + nudge, p0.y),
                 pl,
+                ends: None,
             },
             Pcurve::IsoArc {
                 p0,

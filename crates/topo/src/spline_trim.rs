@@ -836,9 +836,8 @@ impl TrimChart {
             {
                 return Err(SplineTrimGap::Moved);
             }
-            let (t0, t1) = row.params;
             let mut run =
-                image_pieces(&row.pcurve, t0, t1, self.scale).ok_or(SplineTrimGap::NoPieces)?;
+                image_pieces(&row.pcurve, row.params, self.scale).ok_or(SplineTrimGap::NoPieces)?;
             if !walks_forward(body, row.half_edge) {
                 run = run.into_iter().rev().map(Piece::reversed).collect();
             }
@@ -1229,17 +1228,18 @@ fn walks_forward<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> bool {
 
 /// **An image's pieces over its edge's span `[t0, t1]`**, forward: an
 /// iso line or an iso arc is the segment between its two ends (its image
-/// is that segment, whatever its parameterization), a fitted or general
+/// is that segment, whatever its parameterization; its ends as
+/// [`Pcurve::span_ends`] reads them), a fitted or general
 /// image its Bézier pieces over the span. `None` for any other kind, or
 /// where the decomposition does not run. An end is held at its
 /// bracket's middle, off by the bracket's half-width and, at `f64`, by a
 /// short chain's rounding at `scale` past it (`p0 + d·g`).
 pub(crate) fn image_pieces<T: Decide>(
     pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
+    span: geom_brep::StoredSpan<T>,
     scale: f64,
 ) -> Option<Vec<Piece>> {
+    let (t0, t1) = span.ends();
     let end = |p: geom_core::Point2<T>| {
         let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
             let m = middle(c);
@@ -1252,10 +1252,10 @@ pub(crate) fn image_pieces<T: Decide>(
         Piece::vertex([x, y], [ex, ey])
     };
     match pcurve {
-        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => Some(vec![Piece::segment(
-            end(pcurve.eval(t0)),
-            end(pcurve.eval(t1)),
-        )]),
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            let [a, b] = pcurve.span_ends(span);
+            Some(vec![Piece::segment(end(a), end(b))])
+        }
         Pcurve::Fitted(image) | Pcurve::General(image) => {
             let mut run = bezier_pieces(image, t0.value_channel(), t1.value_channel())?;
             if !tracks::<T>() {

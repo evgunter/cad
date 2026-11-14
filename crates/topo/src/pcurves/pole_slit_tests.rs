@@ -579,6 +579,7 @@ pub(crate) fn prism_patch_across_the_seam() -> Result<(Body<f64>, FaceKey), supe
             geom_brep::Pcurve::IsoLine {
                 p0: geom_core::Point2::new(0.0, v),
                 pl: geom_core::Vec2::new(1.0, 0.0),
+                ends: None,
             },
         ),
         carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -603,6 +604,7 @@ pub(crate) fn prism_patch_across_the_seam() -> Result<(Body<f64>, FaceKey), supe
                 geom_brep::Pcurve::IsoLine {
                     p0: geom_core::Point2::new(u, v0),
                     pl: geom_core::Vec2::new(0.0, v1 - v0),
+                    ends: None,
                 },
             ),
             carrier: Curve3::line(p, q - p),
@@ -739,6 +741,7 @@ pub(crate) fn prism_patch_across_the_v_seam() -> Result<(Body<f64>, FaceKey), su
             geom_brep::Pcurve::IsoLine {
                 p0: geom_core::Point2::new(u, 0.0),
                 pl: geom_core::Vec2::new(0.0, 1.0),
+                ends: None,
             },
         ),
         carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -761,6 +764,7 @@ pub(crate) fn prism_patch_across_the_v_seam() -> Result<(Body<f64>, FaceKey), su
                 geom_brep::Pcurve::IsoLine {
                     p0: geom_core::Point2::new(u0, v),
                     pl: geom_core::Vec2::new(u1 - u0, 0.0),
+                    ends: None,
                 },
             ),
             carrier: Curve3::line(p, q - p),
@@ -893,6 +897,7 @@ fn only_a_net_closed_in_v_decides_a_v_element() {
     let image = geom_brep::Pcurve::IsoLine {
         p0: geom_core::Point2::new(0.5, 0.0),
         pl: geom_core::Vec2::new(0.0, 0.3),
+        ends: None,
     };
     let joint = |s: &Surface<f64>| {
         super::decide_plain_joint(

@@ -112,6 +112,7 @@ fn certify_column<T: Decide>(
         Pcurve::IsoLine {
             p0: Point2::new(f(u_star), f(v0)),
             pl: Vec2::new(T::zero(), f(v1 - v0)),
+            ends: None,
         },
         T::zero(),
         T::one(),

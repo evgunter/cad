@@ -285,6 +285,7 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
     let iso = Pcurve::IsoLine {
         p0: Point2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 1.0),
+        ends: None,
     };
     let got = PcurveCache::certify(
         iso,
@@ -314,6 +315,7 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
     let iso = Pcurve::IsoLine {
         p0: Point2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 1.0),
+        ends: None,
     };
     let got = PcurveCache::certify(
         iso,
@@ -416,6 +418,7 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
         let iso = Pcurve::IsoLine {
             p0: Point2::new(Probe(0.0), Probe(0.0)),
             pl: Vec2::new(Probe(0.0), Probe(1.0)),
+            ends: None,
         };
         k_stats::start_recording();
         // The certification may fail past check 2 (the carrier is not

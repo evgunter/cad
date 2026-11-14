@@ -3106,6 +3106,12 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
+    /// [`Self::params`] as the span [`crate::Pcurve::span_ends`] reads
+    /// this edge's chart images over.
+    pub fn edge_span(&self) -> crate::StoredSpan<T> {
+        crate::StoredSpan::new(self.param_start, self.param_end)
+    }
+
     /// What the scalar's door gave this edge to carry
     /// ([`Real::Carries`]): the attachment-time certification record at
     /// a certifying scalar, nothing at a tangent-transport one.
@@ -3333,7 +3339,11 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let (t0, t1) = (self.param_start, self.param_end);
         let span = t1 - t0;
         let a = (t - t0) / span;
-        let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
+        let images = match self.description {
+            EdgeDescription::Chart(ref c) => Some(c.pcurve.split_at(t)),
+            _ => None,
+        };
+        let child = |s0: T, s1: T, ta: T, tb: T, second: bool| -> EdgeCurveSpec<T> {
             let description = match self.description {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
@@ -3360,16 +3370,22 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
-                // the parent's image, verbatim. Stating it exactly is
+                // the parent's map, verbatim, with a stated end kept
+                // only on the child that keeps that end
+                // ([`crate::Pcurve::split_at`]). Stating it exactly is
                 // what keeps the sub-arc's description the restriction
                 // of its parent's rather than a re-derivation that can
                 // land a few ulps away from it.
-                EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
-                    surface: c.surface,
-                    image: Some(c.pcurve.clone()),
-                    wrap: c.wrap,
-                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
-                },
+                EdgeDescription::Chart(ref c) => {
+                    EdgeDescriptionSpec::Chart {
+                        surface: c.surface,
+                        image: images.as_ref().map(|(first, rest)| {
+                            if second { rest.clone() } else { first.clone() }
+                        }),
+                        wrap: c.wrap,
+                        declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
+                    }
+                }
             };
             EdgeCurveSpec {
                 description,
@@ -3378,7 +3394,10 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
+        (
+            child(T::zero(), a, t0, t, false),
+            child(a, T::one(), t, t1, true),
+        )
     }
 
     /// This carrier's spec view (for re-certification).
@@ -7010,7 +7029,7 @@ mod tests {
             .iter()
             .map(|&(anchor, _, _)| {
                 let (chart, _) = d2_iso_chart(anchor);
-                let Pcurve::IsoLine { p0, pl } = chart.pcurve else {
+                let Pcurve::IsoLine { p0, pl, .. } = chart.pcurve else {
                     panic!("the iso arm mints an IsoLine chart image");
                 };
                 (anchor, p0.y.to_bits(), pl.y.to_bits())
@@ -7068,8 +7087,11 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: still identical at this fixture's numbers.
-    const D2_A1: i64 = 0;
+    /// Anchor 1.7 m: the description states its ends
+    /// (`EdgeDescriptionSpec::iso`), and check 3 reads the stated `v1` at
+    /// `t1` where the legacy reads the map there: 7.8e-16 m against
+    /// 4.4e-16 m.
+    const D2_A1: i64 = 3_377_699_720_527_872;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;
     /// Anchor 1e6 m: they disagree by 3.85 %, the other way.

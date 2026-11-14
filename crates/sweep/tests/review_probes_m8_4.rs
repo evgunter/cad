@@ -229,7 +229,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         other => panic!("the bowed wall is a described chart: {other:?}"),
     };
     let out = topo::pcurve_of(&body, he, band());
-    let Ok(Pcurve::IsoLine { p0, pl }) = out else {
+    let Ok(Pcurve::IsoLine { p0, pl, .. }) = out else {
         panic!("the boundary seam on the reversed chart mints: {out:?}");
     };
     assert_eq!(pl.x, 0.0, "u stays banded-constant: {pl:?}");
@@ -264,7 +264,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         (c.carrier().clone(), a, b)
     };
     let verdict = geom_brep::PcurveCache::certify(
-        Pcurve::IsoLine { p0, pl },
+        Pcurve::IsoLine { p0, pl, ends: None },
         t0,
         t1,
         &carrier,

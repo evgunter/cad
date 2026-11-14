@@ -93,6 +93,7 @@ fn sheet(cfg: Cfg) -> (Body<f64>, FaceKey) {
                 geom_brep::Pcurve::IsoLine {
                     p0: cfg.chart(a),
                     pl: (cfg.chart(b) - cfg.chart(a)) / len,
+                    ends: None,
                 },
             ),
             ..line

@@ -64,6 +64,7 @@ fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
         Pcurve::IsoLine {
             p0: Point2::new(u, 0.0),
             pl: Vec2::new(0.0, 1.0),
+            ends: None,
         },
         0.0,
         1.0,
@@ -154,6 +155,7 @@ fn probe_d_diagonal_image_refuses_typed() {
         Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 1.0),
+            ends: None,
         },
         0.0,
         1.0,
