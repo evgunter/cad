@@ -40,3 +40,5 @@ Reproduce with:
 ## Pinned meanwhile (GREEN, 2026-11-14)
 
 Still red on main `b363f5fa13`, from nightly 43371638371. Bisected on main's first parent: the `-TAU } else { TAU }` line is absent at `eb319b9df5` and present at PR 6823's merge `38d647a540` (`tesswalk/one-face-ball`), confirming the row. GREEN (`green/censuses`) put `("crates/mesh/src/walk.rs", "TAU")` on the guard's `pinned` list, beside `trimmed.rs`'s, citing this row, so the suite is green and the repair reds the guard until the entry is struck. The choice between the sense door and `sanctioned` stays this row's; taking either strikes the pin.
+
+TESSLANE's PR 6930 (`tesslane/sense-door`), open at this writing, takes the second repair: it sanctions the period as a chart displacement and removes `pinned`. If it lands after PR 6921, it strikes this pin as part of that. If it lands first, PR 6921 drops the pin when it merges main.

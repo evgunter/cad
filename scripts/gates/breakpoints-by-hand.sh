@@ -215,6 +215,8 @@ plant_fixture() {
 # fixture that exercises something else, is a self-test failure.
 fixtures_cover() {
   local kind name e code ok
+  local -a copy_names
+  mapfile -t copy_names < <(names_of "${COPY_FORMS[@]}")
   local -A arrays=(
     [refused]="${REFUSED_ADAPTERS[*]}" [passed]="${PASSED_ADAPTERS[*]}"
     [source]="${COPY_SOURCES[*]}" [dedup]="${DEDUPS[*]}"
@@ -238,7 +240,7 @@ fixtures_cover() {
   for e in "${FIXTURES[@]}"; do
     kind=${e%%~~*}; name=${e#*~~}; name=${name%%~~*}
     if [ "$kind" = copy ]; then
-      case $'\n'"$(names_of "${COPY_FORMS[@]}")"$'\n' in *$'\n'"$name"$'\n'*) true ;; *) false ;; esac
+      gate_contains "$name" "${copy_names[@]}"
     else
       case " ${arrays[$kind]} " in *" $name "*) true ;; *) false ;; esac
     fi || { printf 'SELFTEST FAILED: %s: the %s fixture names `%s`, which its array lacks\n' "$(gate_name)" "$kind" "$name" >&2; exit 1; }

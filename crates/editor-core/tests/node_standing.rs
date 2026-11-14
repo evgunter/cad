@@ -514,8 +514,9 @@ const READERS: [(&str, usize, &str); 15] = [
          map to the per-member schedule (`eval/members.rs`) and writes the family's refusal it \
          returns; a profile lane hands its result map whole as the nominal document's \
          (`ProfileLane::nominal_results`); an evaluation bound to its build of record \
-         (`RecordBinding`) reads which nodes the record FAILED, a standing and not a value, and \
-         writes the `RecordRefused` failure at each node the record built no value at",
+         (`RecordBinding`) walks the record's stored result map, which has no evaluation to \
+         ask `usable` of, for the nodes that themselves FAILED, not the ones poisoned through \
+         them, and writes `RecordRefused` at each node the record built no value at",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
@@ -588,8 +589,9 @@ const READERS: [(&str, usize, &str); 15] = [
         "crates/editor-core/src/eval/parts.rs",
         2,
         "moves the failure behind a failed or poisoned piece of the part's product out of the part's \
-         evaluation, which the standing does not carry; and records which nodes of a part's build \
-         FAILED, a standing and not a value, as the refusals its record carries",
+         evaluation, which the standing does not carry; and walks the part build's whole result \
+         map for the nodes that themselves FAILED, the refusals its record carries, where \
+         `usable` answers only a node it is asked about",
     ),
 ];
 

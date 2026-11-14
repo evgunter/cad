@@ -40,6 +40,6 @@ Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route eac
 
 Two of the rows above are greened by the `nightly-reds-the-source-censuses` unit, read at nightly 43371638371 and on main `b363f5fa13`:
 - `node_standing::every_node_result_reader…`: `viewer/src/session.rs` lost its 3 reads with `frame_off`, removed by PR 6431's merge (`3819ae968d`, `forms/split-pattern`); its `READERS` entry is struck. `eval/mod.rs` 33 → 35 and `eval/parts.rs` 1 → 2 are PR 6735's (`1ed46561d6`), as `work/doors/node-standing-census-goes-red-on-main-between-nightlies` says; re-blessed with reasons.
-- `certified_endpoint_census`: the geom-brep drift this row lists was re-pinned by PR 6738 (`d43220b275`), and none of those files moves the census today. Today's red is topo only, `clearance.rs` 53 → 56 (PR 6885) and `injective.rs` 121/40 → 137/52 (PRs 6892, 6894, 6905); re-blessed with the new sites' dispositions.
+- `certified_endpoint_census`: the geom-brep drift this row lists was re-pinned by PR 6738 (`d43220b275`), and none of those files moves the census today. Today's red is topo only, `clearance.rs` 53 → 56 (PR 6885) and `injective.rs` 121/40 → 137/52 (PRs 6892, 6894, 6905) and → 144/59 (PR 6907); re-blessed with the new sites' dispositions.
 
 The other rows here are outside that unit and are not re-checked.

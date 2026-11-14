@@ -691,24 +691,31 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        137,
-        52,
-        "the 52 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
-         `present_plane` (8), `present_plane_corner` (7) and the two `psi`s (3). `present_chart` asks each clip line where \
-         it is placed, so its touch, reach, merge, rectangle-side and apex reads see only \
-         certified lines; `present_plane` asks its one-edge `y`, and its other reads are behind \
-         the SPAN and CORNER funnels; `Curved::psi`'s shift reads finite parameters. Of the \
-         other 85, the seeds and selections (`mid`, `graph_read`'s `inside` and lever, \
-         `planes_through`'s point of a line edge, any point of which is exact), \
-         `Curved::nearest`'s hull of the parameters shifted by whole turns, read outward so \
-         `within`'s containment is conservative, the read \
-         behind `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, \
-         `narrowed`, `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the \
-         placement asks, are sound. The rest read the window's carrier and the face's boundary, \
-         which `clearance`'s `window_of` admits only where every lifted value certifies; \
-         `present_wall`'s wall-image reads and `speeds`' jet bound also read an enclosure \
-         computed from them that may clamp, which is \
-         `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+        144,
+        59,
+        "the 59 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+         `present_plane` (8), `present_plane_corner` (7), `present_plane_vertex` (7) and \
+         `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
+         reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
+         lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
+         to the ask, so they count as asking only because the census reads a whole function, \
+         and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
+         and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
+         and `present_plane_vertex` each read the cell's 4 ends behind their `cell` ask; \
+         each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
+         (1), neither of which the ask covers: the span is a parameter read like those below, \
+         and the speed is the jet bound `speeds` reads. `Trig::psi`'s 3 are its `over` \
+         closure, read behind `is_certified()`. Of the other 85, the seeds and selections \
+         (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
+         any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
+         whole turns, read outward so `within`'s containment is conservative, the read behind \
+         `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
+         `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the placement \
+         asks, are sound. The rest read the window's carrier and the face's boundary, which \
+         `clearance`'s `window_of` admits only where every lifted value certifies; \
+         `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
+         presentations' speed bounds also read an enclosure computed from them that may clamp, \
+         which is `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
     ),
     (
         "crates/topo/src/props.rs",
