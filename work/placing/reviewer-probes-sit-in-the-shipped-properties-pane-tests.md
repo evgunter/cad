@@ -2,12 +2,13 @@
 id: reviewer-probes-sit-in-the-shipped-properties-pane-tests
 kind: issue
 title: Reviewer probes from old PRs sit in the shipped properties_pane_tests, some ignored and asserting nothing
-status: review
+status: closed
 pr: 6938
 branch: placing/p3p4-cleanup
 opened: 2026-11-14
 priority: P4
 cost: E
+closed: 2026-11-14
 ---
 
 

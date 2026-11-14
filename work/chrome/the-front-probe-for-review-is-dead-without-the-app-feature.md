@@ -2,12 +2,13 @@
 id: the-front-probe-for-review-is-dead-without-the-app-feature
 kind: issue
 title: PickIndex::front_at_for_review is dead code in a test build without the app feature
-status: review
+status: closed
 pr: 6938
 branch: placing/p3p4-cleanup
 opened: 2026-11-14
 priority: P4
 cost: E
+closed: 2026-11-14
 ---
 
 

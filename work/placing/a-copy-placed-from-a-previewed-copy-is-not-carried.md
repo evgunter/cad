@@ -2,12 +2,13 @@
 id: a-copy-placed-from-a-previewed-copy-is-not-carried
 kind: issue
 title: The placement editor's preview does not carry a copy placed from a copy it moves
-status: review
+status: closed
 pr: 6938
 branch: placing/p3p4-cleanup
 opened: 2026-11-14
 priority: P3
 cost: M
+closed: 2026-11-14
 ---
 
 
