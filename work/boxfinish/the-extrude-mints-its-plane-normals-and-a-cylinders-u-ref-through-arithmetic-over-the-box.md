@@ -2,12 +2,12 @@
 id: the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box
 kind: issue
 title: The extrude mints its plane normals and a cylinder's u_ref through arithmetic over the box, so tier 3 reads a tilt and a length the geometry does not have
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: H
-design: true
 refs: [6371]
+branch: boxfinish/sweep-frames
 ---
 
 
@@ -76,3 +76,50 @@ through `(1/span)·t1`.
 With the switch's box arm off, the slab row certifies in one leaf, both
 derived-frame rows pass at 5e-2, and the tour certifies its share, each
 with its main-era assertion.
+
+## Weighed (fork 268), and re-scoped to the doors
+
+Two designers weighed it and, after one round, agree. The extrude is
+handed `profile.plane()`, a rigid frame, drops it in its first
+statements, and rebuilds every direction from points placed with it. It
+is one act and more than one door:
+
+- `swept::cap_plane` fits a Newell plane to placed corners: the
+  extrude's two caps, the loft's two, the partial revolve's two;
+- `extrude::side_surface` fits one for each line wall and mints an arc
+  wall's `u_ref` as `rim.normalize()`;
+- `swept::placed_segment_spec` mints each rim circle's `u_ref` the same
+  way and each line rim's director as `(q_to − q_from).normalize()`;
+  `strut_carrier` normalizes `w`;
+- the revolve's surfaces read one frame (`AxisFrame`), but its latitude
+  circles (`revolve/surfaces.rs`, `full.rs`, `turn.rs`) mint
+  `rim.normalize()`.
+
+**The unit: the sweep doors keep the frames they are handed.** A cap is
+its station's frame (normal ± the frame's normal, signed by the
+profile's winding; origin the frame's origin moved by the sweep;
+reference direction the frame's first axis). A wall, a rim and a strut
+take the frame turning a 2-D direction decided once in the sketch, from
+the segment as the profile stores it today. A depth extrusion sweeps
+along ± the sketch normal; a vector extrusion's direction is decided
+once from the vector. `newell_plane` and the cap-orientation decision
+lose their sweep callers. Branch `boxfinish/sweep-frames`.
+
+**What it closes, and what it does not.** The slab and both
+derived-frame rows, with the aimed-ray row. Not the tour's stop: an arc
+whose centre and endpoints carry the box still gets a quotient for its
+`u_ref` until the profile records the direction
+(`the-profile-drops-the-unit-directions-its-verbs-made`, waiting on PR
+6936). A frame that truly turns over the box is
+`check-1-reads-a-turning-frames-length-off-its-bracket`.
+
+**No ruling is needed to build it:** it is `[scalars]`' "a claim … is
+built at the lane scalar, from its own inputs" applied to stored
+surfaces, and both designers were sure of it. The rule's text is PR
+6936's.
+
+**Letter H; review tier: dual (concurrent pair).** It changes what
+every extrude, loft cap and partial-revolve cap stores at every scalar
+(a cap's origin moves from Newell's centroid to the frame's, so cap
+chart coordinates and their pcurve rows move), and it removes a
+decision and two refusals.
