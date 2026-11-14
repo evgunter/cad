@@ -509,13 +509,15 @@ pub enum SplitReduceError {
         /// The vertex with no verdict.
         vertex: VertexKey,
     },
-    /// A face whose outer loop is a lone vertex: it has no outer
-    /// boundary, so no finite lever arm meters a predicate across it.
-    UnboundedFace {
+    /// A face with no cover (`topo::face_cover`), so no finite lever arm
+    /// meters a predicate across it: a ruled face whose outer loop is a
+    /// lone vertex, a carrier with no region, or a boundary edge with no
+    /// cover (a gap of null scaffolding among them).
+    UncoveredFace {
         /// The face.
         face: FaceKey,
-        /// Its outer loop's lone vertex.
-        vertex: VertexKey,
+        /// Why it has no cover.
+        why: crate::cover::FaceUncovered,
     },
     /// `split_edge` refused while inserting the crossing vertex on an
     /// edge whose endpoints straddle the plane — typically the
@@ -794,10 +796,9 @@ impl SplitReduceError {
                 "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
                  reaches"
             ),
-            Self::UnboundedFace { face, vertex } => write!(
+            Self::UncoveredFace { face, why } => write!(
                 f,
-                "face {face:?}'s outer loop is the lone vertex {vertex:?}, so the face has no \
-                 extent to meter a predicate across"
+                "face {face:?} has no cover ({why}), so no extent to meter a predicate across"
             ),
             Self::CrossingInsertion {
                 edge,

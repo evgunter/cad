@@ -493,6 +493,12 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - (ONEDOOR orchestrator)
 - **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
 - **22:25 — wedge stage 3 reported** (head `bb433c4d`, $18.23). The blend reads `topo::edge_wedge`, and the blend's own composition plus `classify_edge_wedge`/`EdgeWedge`/`PositiveArm` and the second `Convexity` are retired. **Guard by the compiler:** `Corner::convexity` and `Tangency::pairing` are crate-private to geom-brep, read only inside the fold. Refusals change: `NeverOpens` becomes `Lamina`, and a Mixed edge now refuses. No STOP; all reds are main's by text. PR [#6913](https://github.com/evgunter/cad/pull/6913) is opened with its head **frozen at `bb433c4d`**. First reviewer byte 236 (Opus), dispatched 22:58 (M, sequential).
+- 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6939 splits `crates/topo/src/pcurves.rs` while a BOXFINISH lane on `boxfinish/chart-ends` is changing how `side_image_of` (and `sweep::loft::describe_section_rim`) mint an `IsoLine`'s ends, so that a chart end that is an exact 0 or 1 is stored as one and read through `span_ends`. The two are coupled only by where the function lives: whichever lands second merges main and re-applies its edit at the new home. The lane is told. (BOXFINISH orchestrator)
+- 2026-11-14 — **PR [#6927](https://github.com/evgunter/cad/pull/6927) (`SectionError::Corrupt` panics, D2) accepted.**
+  - One reviewer (Opus): MERGEABLE-AFTER-MINORS, and the reachability argument holds. The fix pass took every item.
+  - Two main reds have no row: `shell_role_reader` needle cavity and `recourse_roster` ring_path. They go to the sitting report.
+  - Model-compare row `docs/model-compare-log/rows/PR-6927.md`.
+  - (ONEDOOR orchestrator)
 - 2026-11-14 — **PR [#6913](https://github.com/evgunter/cad/pull/6913) (wedge fold stage 3) accepted; the wedge row closes.**
   - R1 (Opus) raised a MAJOR: the blend's sign was folded under `dihedral_sign`, so `first_cause` passed over it. Ruled by stage 2's DOCTAIL precedent.
   - Fix 1 gave the fold's sign its reader's name (`_as`). R2 (Fable) said mergeable after minors and found the knife end in the same class.
@@ -500,4 +506,25 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - Cost is about 1.8× on the blend battery.
   - Filed: `select-gs-q2-ground-no-longer-holds` (P3, design, Ev's).
   - Model-compare row `docs/model-compare-log/rows/PR-6913.md`.
+  - (ONEDOOR orchestrator)
+- 2026-11-14 — **#6913 merged** (`58b0f3d880`). Its CI was red only on main's three kernel rows, identical in failure text to the earlier heads. The wedge row is closed.
+- 2026-11-14 — **Banded the 13 unbanded rows and dispatched four lanes in parallel:**
+  - the section-branch move: PR 6929;
+  - the `pcurves.rs` split;
+  - `SectionError::Corrupt` panics per D2: PR 6927;
+  - the revert door: PR 6935, from two converged designers.
+
+  Every lane stopped on the weekly usage limit at about 04:50 and resumed after the reset.
+  - Filed: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4), `a-branch-picks-its-loop-in-two-matches` (P2).
+  - (ONEDOOR orchestrator)
+- 2026-11-14 — **PR [#6935](https://github.com/evgunter/cad/pull/6935) (revert owns how a face reverses) accepted.**
+  - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, and its mutations prove the curved ∖ row.
+  - The fix pass took every item. The `worn` change was reverted toward the doc, since no row reaches that case.
+  - CI's only reds were timing rows at the 1.0 s bar, off the PR's path and filed with green.
+  - Model-compare row `docs/model-compare-log/rows/PR-6935.md`.
+  - (ONEDOOR orchestrator)
+- 2026-11-14 — **PR [#6929](https://github.com/evgunter/cad/pull/6929) (the section branch to geom-brep as `SectionPick`) accepted.**
+  - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, so no R2.
+  - The fix pass took every item and folded census's `spiric_cap` twin.
+  - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
   - (ONEDOOR orchestrator)
