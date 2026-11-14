@@ -21,6 +21,6 @@ Decide whether the union's new outcome is right: a join that no longer reads the
 
 ## Pinned (GREEN, 2026-11-14)
 
-Still red on main `b363f5fa1` with the same message, `T ∪ P: the tie escalates the ranking: None`: the union returns `Ok`. `T ∪ P` is the first of the row's six ops, so the other five are unread. The nightly agrees with the bisect above: it passed on 11-10 (main `50cfcf49`) and failed on 11-11 (main `b2916558`).
+Still red on main `b363f5fa1` with the same message, `T ∪ P: the tie escalates the ranking: None`: the union returns `Ok`. `T ∪ P` is the first of the row's six ops, so the other five are unread. The bisect above was re-run at its boundary and holds: green at `eeb308be6`, red at `cc58938c0`. The nightly agrees: it passed on 11-10 (main `50cfcf49`) and failed on 11-11 (main `b2916558`).
 
 The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`). Take the pin off with the fix.
