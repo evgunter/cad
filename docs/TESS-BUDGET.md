@@ -744,7 +744,7 @@ square. That is what keeps slivers out on ruled walls.
 
 Bands are not aligned to a shared column count: each keeps its own
 (`NurbsCellGrid::band_schedule`; the measurement that alignment keeps
-no face sound over the metric is `work/tess/the-lower-malign-arm-is-unwitnessed`).
+no face sound over the metric is `work/tesslane/the-lower-malign-arm-is-unwitnessed`).
 A band whose residual over the metric is large still slivers; such a
 face refuses typed (`CertificateExceeded`). The one aspect bound is
 `mesh::nurbs_cert::ASPECT_CAP`, on 3-D cell shape.

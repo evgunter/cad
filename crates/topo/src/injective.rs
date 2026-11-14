@@ -1995,7 +1995,7 @@ fn zero_of(
 /// injectivity by kind is [`by_kind`]'s, decided for the face's own
 /// pairs. Its premise — the face's domain covers its carrier at most
 /// once — is the face validation's, and is not yet checked
-/// (`work/clear/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
+/// (`work/embed/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
 fn partial_zero(
     surface: &Surface<Interval>,
     b: &Boundary,
@@ -4956,13 +4956,6 @@ impl On {
 /// carrier (`on` `None`, the carrier arm) is read over the side
 /// (`SELF_INTERSECTION_ON_SHARED`).
 ///
-/// **One band reading stays under a plane: a side at a corner** that
-/// the plane does not list is read over the side, as the carrier arm
-/// reads one. A sphere's two seam meridians lie in two stored planes a
-/// rounding apart (a half turn's sine), so at its pole one face's corner
-/// is on one meridian and the other face's on the other, and no plane
-/// built from either lists both.
-///
 /// **A side that runs past the shared cell** ([`Zero::Past`]) is read
 /// as a side only `against` another presentation whose zero set is on
 /// the shared cell (never in the carrier arm, where `against` is `None`
@@ -5024,8 +5017,7 @@ fn sign_on(
         }
         Zero::Corner((s, a), (t, b)) => {
             let n = psi.linear()?;
-            let zero = |s: Side, a: &Along| zero_on(s, a, true) || read(s);
-            if !(zero(*s, a) && zero(*t, b)) {
+            if !(zero_on(*s, a, true) && zero_on(*t, b, true)) {
                 return None;
             }
             let g = n.dot(fxy)
@@ -5228,9 +5220,9 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 ///
 /// - where every shared edge is a planar conic, each one's own plane in
 ///   turn: `n` its stored axis, `q` its stored centre. It lists that
-///   conic and its ends. (A sphere's two seam meridians are arcs of one
-///   great circle, but two stored frames need not hold one plane, so
-///   neither plane lists the other's edge.);
+///   conic, every other whose stored plane is the same value
+///   ([`one_plane`]), and their ends; a plane already listed is not
+///   built twice;
 /// - through one line edge: `n` a chosen direction bisecting the faces'
 ///   headings about the line, less its part along the line's stored
 ///   direction, `q` a point of the line. It lists the edge and its ends;
@@ -5277,19 +5269,27 @@ fn planes_through(
                 ..
             }),
             _,
-        ) => Some((
-            Psi::Linear {
-                n: *axis,
-                q: *origin,
-            },
-            through(&[r]),
-        )),
+        ) => Some((*origin, *axis)),
         _ => None,
     };
     if !rims.is_empty()
-        && let Some(planes) = rims.iter().map(|r| conic(r)).collect::<Option<Vec<_>>>()
+        && let Some(frames) = rims.iter().map(|r| conic(r)).collect::<Option<Vec<_>>>()
     {
-        return planes;
+        return frames
+            .iter()
+            .enumerate()
+            .filter(|&(i, &f)| !frames[..i].iter().any(|&g| one_plane(g, f)))
+            .map(|(i, &(q, n))| {
+                let held: Vec<&Rim> = rims
+                    .iter()
+                    .zip(&frames)
+                    .enumerate()
+                    .filter(|&(j, (_, &g))| j == i || one_plane((q, n), g))
+                    .map(|(_, (r, _))| *r)
+                    .collect();
+                (Psi::Linear { n, q }, through(&held))
+            })
+            .collect();
     }
     let lines: Option<Vec<(Point3<Interval>, Vec3<Interval>)>> = rims
         .iter()
@@ -5341,6 +5341,26 @@ fn planes_through(
         }
     };
     plane().into_iter().collect()
+}
+
+/// **Whether two planar conics' stored frames hold one plane, as one
+/// value**: every component of the first's centre and axis is a point,
+/// and the second's are the same points, its axis the first's or its
+/// negation. A point is the one value every member has, so the plane
+/// holds both conics for every member. Two brackets alike are not one
+/// value: two members may take different values in them.
+fn one_plane(
+    (q, n): (Point3<Interval>, Vec3<Interval>),
+    (p, m): (Point3<Interval>, Vec3<Interval>),
+) -> bool {
+    let point = |x: Interval| x.lo() == x.hi();
+    let is = |x: Interval, y: Interval| point(x) && y.lo() == x.lo() && y.hi() == x.hi();
+    let flipped = |x: Interval, y: Interval| point(x) && y.lo() == -x.lo() && y.hi() == -x.hi();
+    let [qs, ps] = [q, p].map(|a| [a.x, a.y, a.z]);
+    let [ns, ms] = [n, m].map(|a| [a.x, a.y, a.z]);
+    qs.iter().zip(&ps).all(|(&x, &y)| is(x, y))
+        && (ns.iter().zip(&ms).all(|(&x, &y)| is(x, y))
+            || ns.iter().zip(&ms).all(|(&x, &y)| flipped(x, y)))
 }
 
 /// The piece of the shared edge whose points can lie in the two
@@ -8350,6 +8370,28 @@ mod presentation_rows {
             matches!((a, b), (Some(a), Some(b)) if a == flip(b)),
             "the plane separates the floor from the wall: {a:?} {b:?}"
         );
+    }
+
+    /// **Two conics' stored frames hold one plane only as one value**
+    /// ([`one_plane`]): a sphere's two seam meridians, centred alike with
+    /// their axes turned over, hold one plane; the pair with one axis a
+    /// half turn's rounding off does not, nor with a centre an ulp off,
+    /// nor a pair stored in the same brackets. Red if the frames are
+    /// compared within the band, or a bracket is read as one value.
+    #[test]
+    fn two_conics_hold_one_plane_only_as_one_value() {
+        let o = Point3::new(iv0(0.0), iv0(1.4), iv0(0.0));
+        let down = Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0));
+        let up = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        assert!(one_plane((o, down), (o, up)), "turned over");
+        assert!(one_plane((o, down), (o, down)), "alike");
+        let off = Vec3::new(iv0(-1.224_646_799_147_353_2e-16), iv0(0.0), iv0(1.0));
+        assert!(!one_plane((o, down), (o, off)), "an axis a rounding off");
+        let moved = Point3::new(iv0(0.0), iv0(1.4_f64.next_up()), iv0(0.0));
+        assert!(!one_plane((o, down), (moved, up)), "a centre an ulp off");
+        let w = Interval::from_bounds(-1e-9, 1e-9);
+        let wide = Vec3::new(w, iv0(0.0), iv0(-1.0));
+        assert!(!one_plane((o, wide), (o, wide)), "one bracket twice");
     }
 
     /// **A plane through a line edge answers nothing at a shared vertex

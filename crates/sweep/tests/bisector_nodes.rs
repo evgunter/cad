@@ -424,7 +424,7 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 // A cap `δ` off the station leaves its disc two
                                 // lunes `δ²/2` wide beside the partner wall, which
                                 // the mesh does not triangulate at any chord tried
-                                // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`):
+                                // (`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`):
                                 // its volume is held to the certified bracket alone.
                                 if capped {
                                     let m = topo::mass_properties(
@@ -869,7 +869,7 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
             panic!("capped {dz:e} off, {op}: builds, got {r:?}");
         };
         // Its cap's lunes are the mesh's
-        // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
+        // (`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
         let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap();
         assert!(

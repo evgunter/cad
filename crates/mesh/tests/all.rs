@@ -157,6 +157,8 @@ mod r2_mesh2_probes;
 mod r2_mesh6_probes;
 #[path = "r2_split_door.rs"]
 mod r2_split_door;
+#[path = "reach_probes.rs"]
+mod reach_probes;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]

@@ -76,7 +76,7 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 /// (`geom-brep`), on a hand-built bow whose rims do not contradict;
 /// this body no longer reaches the branch door through `tessellate`,
 /// and the row for a body that does is
-/// `work/tess/apex-crossing-branch-premise-has-no-body-level-witness.md`.
+/// `work/tesslane/apex-crossing-branch-premise-has-no-body-level-witness.md`.
 #[test]
 fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
