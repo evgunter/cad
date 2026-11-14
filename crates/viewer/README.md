@@ -2419,8 +2419,10 @@ stands with the document is one value (`MateTool::draft_standing`,
 panel's line and the picture's drawing of the draft both read. A draft
 that waits for the picture, not yet offered, is judged by the door
 and drawn as the judgement stands it: every copy the scratch solve
-stands elsewhere — the edited one and every copy mated to it — is
-drawn there, under the display frame of the space it stands in
+stands elsewhere — the edited one, every copy mated to it, and every
+copy placed from one of those, each read by its body's frame in its
+space (`pickindex::preview_copies`) — is drawn there if it is a copy
+of one body, under the display frame of the space it stands in
 (`display::PreviewedPlacement`), as the profile editor draws its draft
 in place of the committed loops; the line says it waits and is drawn.
 A waiting draft the door would refuse says the refusal; one that
@@ -2430,8 +2432,7 @@ the draft draws nothing, the picture draws the document, from its
 second source: the last change committed through the door
 (`DocSession::bundle_landing`) is drawn where its solve stands the
 copies until its run lands or an undo takes it out, whatever else
-changes meanwhile and whether or not the editor stays open. A copy
-placed from a previewed copy is drawn where it stands now.
+changes meanwhile and whether or not the editor stays open.
 **A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's

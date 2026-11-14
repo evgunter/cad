@@ -729,12 +729,18 @@ pub(crate) struct BandSchedule {
 /// many columns wide, and a sliver across them; in `(u/k, v)` the same
 /// lattice is near square and the circle a column or two.
 ///
-/// A POWER OF TWO so the map is exact in f64: `u/k` rounds nothing, so
-/// two points coincide in the scaled plane exactly when they coincide
-/// in UV, and every exact-coincidence rule the lane relies on (the
+/// A POWER OF TWO so the map is exact in f64: the trimmed lane applies
+/// it as a scale of at least one on the axis that grows (`trimmed`'s
+/// `cdt_point`), which rounds nothing, so two points coincide in the
+/// scaled plane exactly when they coincide in UV after the crate's
+/// coordinate floor, and every exact-coincidence rule the lane relies on (the
 /// grid-on-constraint drop, crease snapping, [`crate::planar::Pinches`],
-/// the handle merge) behaves as before. `1` when no band has a finite
-/// positive aspect.
+/// the handle merge) behaves as before. The scaled plane is `(u/k, v)`
+/// times a uniform power of two; spade's predicates are exact under
+/// that scale, but its bulk loader's hull walk is not scale-invariant
+/// (an absolute `f64::EPSILON`), and nothing relies on the
+/// triangulation being the same across scales. `1` when no band has a
+/// finite positive aspect.
 pub(crate) fn lattice_metric(aspects: impl Iterator<Item = f64>) -> f64 {
     let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
     for a in aspects.filter(|a| a.is_finite() && *a > 0.0) {
