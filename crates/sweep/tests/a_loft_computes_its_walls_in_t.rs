@@ -674,6 +674,45 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     assert_eq!(wall_bits(&enclosed), wall_bits(&nominal));
 }
 
+/// PROBE (boxfinish/probe-switch-off): the boxed loft of
+/// `a_loft_over_a_wide_section_encloses_its_family_at_interval`, read
+/// through the door and not its construction twin.
+#[test]
+fn probe_a_boxed_interval_loft_through_the_door() {
+    use geom_core::Interval;
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    let wide = Interval::from_bounds(lo, hi);
+    let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
+    let got = loft_body::<Interval>(
+        &[quad(ends), quad(wide), quad(ends)],
+        &places,
+        2,
+        Tol::witness(),
+    );
+    eprintln!("[bf-loft] box lo={lo:e} hi={hi:e}");
+    if let Err(e) = got {
+        panic!("[bf-loft] the door refuses: {e:?}");
+    }
+}
+
+/// PROBE: the same loft with no box at all (every section a point).
+#[test]
+fn probe_a_point_interval_loft_through_the_door() {
+    use geom_core::Interval;
+    let ends = Interval::from_f64(1.2);
+    let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
+    let got = loft_body::<Interval>(
+        &[quad(ends), quad(ends), quad(ends)],
+        &places,
+        2,
+        Tol::witness(),
+    );
+    if let Err(e) = got {
+        panic!("[bf-loft] the door refuses: {e:?}");
+    }
+}
+
 /// Every value of every wall a loft built, in face order: poles,
 /// weights, then the v knots, each read through `f`.
 fn wall_values<

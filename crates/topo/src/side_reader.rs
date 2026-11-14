@@ -282,6 +282,11 @@ fn aim_at<T: Decide>(
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     if let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face) {
+        let normal = if probe_plane_mid() {
+            probe_mid_vec(normal)
+        } else {
+            normal
+        };
         if let Some(aim) = loop_aim(body, face, normal) {
             return Ok(Some((aim, normal)));
         }
@@ -549,8 +554,15 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             match &rays {
                 Rays::Side(side) => format!("Side({side:?})"),
                 Rays::InBand(pair) => format!("InBand({pair:?})"),
-                Rays::Unread { aimed, set_aside } =>
-                    format!("Unread aimed={aimed} set_aside={}", set_aside.len()),
+                Rays::Unread { aimed, set_aside } => format!(
+                    "Unread aimed={aimed} set_aside={}{}",
+                    set_aside.len(),
+                    if *aimed == 0 {
+                        format!(" {set_aside:?}")
+                    } else {
+                        String::new()
+                    }
+                ),
             }
         );
     }
@@ -654,6 +666,16 @@ fn cast_aims<T: Decide>(
                         why: SetAsideWhy::Limit(e),
                     }],
                 });
+            }
+        }
+    }
+    // PROBE: `BOXFINISH_PLANE=mid` collapses each planar face's stored
+    // normal to its enclosure's midpoint, a constant, so the rays read
+    // the planes with only their origins' width.
+    if probe_plane_mid() {
+        for (_, geo) in &mut geos {
+            if let FaceGeo::Plane(desc) = geo {
+                desc.normal = probe_mid_vec(desc.normal);
             }
         }
     }
@@ -767,6 +789,17 @@ pub(crate) fn probe_w<T: core::fmt::Debug>(x: &T) -> String {
 /// PROBE: the midpoint of a scalar's enclosure, as a constant.
 fn probe_mid<T: Decide>(x: T) -> T {
     probe_bounds(&x).map_or(x, |(lo, hi)| T::from_f64(0.5 * (lo + hi)))
+}
+
+/// PROBE: whether `BOXFINISH_PLANE=mid` is set.
+fn probe_plane_mid() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("BOXFINISH_PLANE").is_ok_and(|v| v == "mid"))
+}
+
+/// PROBE: a vector collapsed to its enclosure's midpoint and made unit.
+fn probe_mid_vec<T: Decide>(v: Vec3<T>) -> Vec3<T> {
+    Vec3::new(probe_mid(v.x), probe_mid(v.y), probe_mid(v.z)).normalize()
 }
 
 /// PROBE: the local aim experiment, `BOXFINISH_AIM`: `dir` (the

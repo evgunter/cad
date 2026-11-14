@@ -364,6 +364,13 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     }
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        // PROBE: marks the finish that follows as a moved leaf's re-finish.
+        if geom_core::k_stats::probe_tally::on() {
+            eprintln!(
+                "[bf-move] a moved leaf is finished again, scalar={}",
+                core::any::type_name::<T>()
+            );
+        }
         T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
             .map_err(MoveError::NotFinished)
     }

@@ -1368,6 +1368,9 @@ mod sphere_face_flips_are_refused;
 
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
+// PROBE (boxfinish/probe-switch-off): gated out, it names `topo::Replay<Interval>`
+// as the sweep leaf and does not compile with the switch's box arm off.
+#[cfg(any())]
 #[path = "a_boxed_motion_moves_a_finished_body.rs"]
 mod a_boxed_motion_moves_a_finished_body;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
