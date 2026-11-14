@@ -1462,9 +1462,11 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
         .map(|delta| match mesh::tessellate(body, delta, tol()) {
             Ok(_) => "meshed".to_owned(),
             Err(mesh::TessellateError::DomainUnread { face, cause }) => {
-                let text = format!("{cause:?}");
-                let name = text.split([' ', '{', '(']).next().unwrap_or("");
-                format!("DomainUnread {name} on a {:?}", kind_of(body, face))
+                format!(
+                    "DomainUnread {} on a {:?}",
+                    cause.name(),
+                    kind_of(body, face)
+                )
             }
             Err(e) => format!("{e:?}"),
         })
@@ -1577,7 +1579,7 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
         .iter()
         .map(|(name, body)| (name.as_str(), verdict(body)))
         .collect();
-    let ring = |chart: &str| vec![format!("DomainUnread OuterOpen on a {chart}"); 2];
+    let ring = |chart: &str| vec![format!("DomainUnread outer_open on a {chart}"); 2];
     let want = vec![
         (
             "the seamless pipe",

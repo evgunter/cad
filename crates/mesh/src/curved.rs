@@ -186,6 +186,15 @@ pub(crate) fn tessellate_curved(
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    // This lane reads the outer loop alone, so a ring reaching it would be
+    // meshed as face. A ringed face is the trimmed lane's
+    // (`tessellate::lane_of`), and one here is the router's defect.
+    if !face.rings.is_empty() {
+        return Err(TessellateError::MissingEntity {
+            what: "a ringed face reached the curved lane, which reads the outer loop only \
+                   (router defect)",
+        });
+    }
     // THE SHAPE DOOR AND THE BRANCH DOOR, before the walk (module
     // docs, questions 1 and 2). Props' rim-structure predicate decides
     // whether this face's domain is an iso-rectangle at all, and
@@ -1152,6 +1161,61 @@ mod tests {
             origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         }
+    }
+
+    /// **A ringed face handed to this lane refuses as the router's
+    /// defect.** The pipe of radius 1 united with a bar through one side
+    /// of its wall keeps the bar's section as a ring of the wall, which
+    /// `tessellate::lane_of` sends to the trimmed lane; called here
+    /// anyway, the lane refuses rather than mesh the ring's hole as face.
+    #[test]
+    fn a_ringed_face_here_refuses_as_a_routing_defect() {
+        let disc = validated(vec![bulge_loop(vec![
+            (Point2::new(-1.0, 0.0), 1.0),
+            (Point2::new(1.0, 0.0), 1.0),
+        ])]);
+        let pipe = extrude(
+            &disc,
+            Extrusion::Distance {
+                depth: 4.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let bar = topo::test_support::finished(
+            "the bar",
+            sweep::test_support::brick::<f64>((-1.1, 1.1), (0.15, 0.7), (1.6, 2.1), Tol::witness()),
+            Tol::witness(),
+        );
+        let body = topo::union(&pipe, &bar, Tol::witness())
+            .unwrap()
+            .body()
+            .expect("a body")
+            .body
+            .clone();
+        let (fk, surface) = body
+            .faces()
+            .find(|(_, f)| !f.rings.is_empty())
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .expect("the wall holds a ring");
+        assert!(
+            matches!(surface, Surface::Cylinder { .. }),
+            "the ringed face is the wall"
+        );
+        let tol = SizingTols {
+            delta: 1e-2,
+            eps: crate::sizing::Eps::at(Tol::witness()),
+            band: geom_core::Band::linear(Tol::witness()).unwrap(),
+        };
+        assert!(
+            matches!(
+                tessellate_curved(&body, fk, surface, &HashMap::new(), &[], &tol),
+                Err(TessellateError::MissingEntity { what }) if what.contains("router defect")
+            ),
+            "a ringed face refuses at the curved lane's door"
+        );
     }
 
     /// The UV bounding box of a walk polygon — the same `(u0, u1, v0,

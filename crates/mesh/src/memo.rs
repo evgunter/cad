@@ -724,9 +724,10 @@ pub(crate) struct FaceInputs {
 }
 
 impl FaceInputs {
-    /// Read the face's inputs off the body and the chord pass. Refuses
-    /// exactly where the lanes refuse on the same reads (a missing
-    /// entity, an empty loop, a null-scaffold edge).
+    /// Read the face's inputs off the body, the chord pass and, on the
+    /// trimmed lane, the face's `domain` (`trimmed::face_domain`, `None` on
+    /// the other lanes). Refuses exactly where the lanes refuse on the same
+    /// reads (a missing entity, an empty loop, a null-scaffold edge).
     ///
     /// This clones every carrier, pcurve and chord position list of
     /// the face, hit or miss, once per picture: the memo's whole cost
@@ -743,6 +744,7 @@ impl FaceInputs {
         positions: &[Point3<f64>],
         chordal: f64,
         tol: Tol,
+        domain: Option<&topo::pcurves::FaceLift<f64>>,
     ) -> Result<Self, TessellateError> {
         let face = body
             .face(fk)
@@ -752,26 +754,20 @@ impl FaceInputs {
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
         // Each half-edge's image where the trimmed lane reads it: the
-        // face's domain as the door places it (`topo::Body::face_lift`),
-        // every loop. A moved ring's image is read afresh from its stored
-        // row in the new gauge, so it is not a function of the ring's own
-        // lift bit for bit, and the key folds the image the lane reads.
-        // None where the door places nothing, which the lane refuses, and
-        // on the other lanes, which read no image.
-        let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = match lane {
-            Lane::Trimmed => geom_core::Band::linear(tol)
-                .ok()
-                .and_then(|band| body.face_lift(fk, band).ok())
-                .map(|lift| {
-                    crate::trimmed::domain_loops(&lift)
-                        .into_iter()
-                        .flat_map(|l| l.rows().iter())
-                        .map(|row| (row.half_edge, row.pcurve.clone()))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            Lane::Planar | Lane::Curved => HashMap::new(),
-        };
+        // face's domain (`trimmed::face_domain`), the one value the lane
+        // reads, every loop. A moved ring's image is read afresh from its
+        // stored row in the new gauge, so it is not a function of the
+        // ring's own lift bit for bit, and the key folds the image the lane
+        // reads. The other lanes read no image, so there is none.
+        let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = domain
+            .map(|lift| {
+                crate::trimmed::domain_loops(lift)
+                    .into_iter()
+                    .flat_map(|l| l.rows().iter())
+                    .map(|row| (row.half_edge, row.pcurve.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         for (lk, _, _) in face.loops() {
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());

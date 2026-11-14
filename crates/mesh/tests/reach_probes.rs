@@ -58,8 +58,8 @@ enum Got {
     ConicImageOnly(CurveKind),
     /// `DomainUnread` on a face of this chart, from
     /// `trimmed::tessellate_trimmed`'s read of `topo::Body::face_lift`,
-    /// with the door's cause by its variant name.
-    Unread(SurfaceKind, String),
+    /// with the door's cause by its name (`RingPlacementError::name`).
+    Unread(SurfaceKind, &'static str),
     /// `UnsupportedCurvedShape { NotIsoRectangle { "props_rim_level" } }`
     /// from `curved::require_iso_rectangle_face`, its source raised by
     /// `geom_brep::props`' `require_rims_at_extremes`.
@@ -146,11 +146,7 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         {
             Got::ConicImageOnly(carrier_of(body, edge))
         }
-        Err(E::DomainUnread { face, cause }) => {
-            let text = format!("{cause:?}");
-            let name = text.split([' ', '{', '(']).next().unwrap_or("").to_owned();
-            Got::Unread(kind_of(body, face), name)
-        }
+        Err(E::DomainUnread { face, cause }) => Got::Unread(kind_of(body, face), cause.name()),
         Err(E::UnsupportedCurvedShape {
             face,
             source:

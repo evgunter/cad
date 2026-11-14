@@ -170,17 +170,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // The door's cause, as a sortable word; the face and the ring
         // it may name are keys.
         T::DomainUnread { cause, .. } => {
-            use pncad::topo::pcurves::RingPlacementError as R;
-            let word = match **cause {
-                R::Gap(_) => "gap",
-                R::OuterOpen { .. } => "outer_open",
-                R::RingOpen { .. } => "ring_open",
-                R::NoShift { .. } => "no_shift",
-                R::Shifts { .. } => "shifts",
-                R::Copies { .. } => "copies",
-                R::Undecided { .. } => "undecided",
-                R::SplineTrimUnread { .. } => "spline_trim_unread",
-            };
+            let word = cause.name();
             fields[4] = ("note", PyString::new(py, word).unbind().into_any());
             Ok(())
         }

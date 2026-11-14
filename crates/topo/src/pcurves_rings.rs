@@ -148,6 +148,13 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
+    /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
+    /// no lift and no place in the chart, and it bounds no region of the
+    /// face. Tier 2 admits one at rest, as a lone vertex inside a face.
+    RingEmpty {
+        /// The ring.
+        ring: LoopKey,
+    },
     /// No whole-period shift puts the ring's first point in the outer
     /// loop's region.
     NoShift {
@@ -187,6 +194,24 @@ pub enum RingPlacementError {
         /// Why.
         cause: SplineTrimGap,
     },
+}
+
+impl RingPlacementError {
+    /// The cause as a sortable word.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Gap(_) => "gap",
+            Self::OuterOpen { .. } => "outer_open",
+            Self::RingOpen { .. } => "ring_open",
+            Self::RingEmpty { .. } => "ring_empty",
+            Self::NoShift { .. } => "no_shift",
+            Self::Shifts { .. } => "shifts",
+            Self::Copies { .. } => "copies",
+            Self::Undecided { .. } => "undecided",
+            Self::SplineTrimUnread { .. } => "spline_trim_unread",
+        }
+    }
 }
 
 /// Why a spline face's trim is not read
@@ -354,6 +379,9 @@ pub(crate) fn face_lift<T: Decide>(
     let mut read = Vec::with_capacity(rings.len());
     for &ring in &rings {
         let lift = Lift::read(body, ring).map_err(RingPlacementError::Gap)?;
+        if lift.is_empty() {
+            return Err(RingPlacementError::RingEmpty { ring });
+        }
         let winding = lift
             .winding()
             .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));

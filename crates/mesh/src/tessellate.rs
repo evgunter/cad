@@ -456,6 +456,17 @@ fn tessellate_impl(
                             Ok(lane) => lane,
                             Err(error) => return (None, Err(error)),
                         };
+                        // The trimmed lane's domain, read from the door once,
+                        // here, and handed to the memo key and the lane
+                        // alike (`trimmed::face_domain`); its miss is the
+                        // lane's refusal.
+                        let domain = match lane {
+                            Lane::Trimmed => match crate::trimmed::face_domain(body, fk, &tol) {
+                                Ok(lift) => Some(lift),
+                                Err(error) => return (None, Err(error)),
+                            },
+                            Lane::Planar | Lane::Curved => None,
+                        };
                         // The lanes, each over `shared` — the whole of what
                         // a face reads from outside itself.
                         //
@@ -465,12 +476,15 @@ fn tessellate_impl(
                         // passed: imported axes carry translator noise that
                         // projects valid boundaries below spade's
                         // coordinate domain.
-                        let run = || match lane {
-                            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
-                                body, fk, surface, &chords, shared, &tol, &bounds,
+                        let run = || match (lane, &domain) {
+                            (Lane::Trimmed, Some(lift)) => crate::trimmed::tessellate_trimmed(
+                                body, fk, surface, &chords, shared, &tol, &bounds, lift,
                             ),
-                            Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Lane::Curved => {
+                            (Lane::Trimmed, None) => {
+                                unreachable!("the trimmed lane's domain is read above")
+                            }
+                            (Lane::Planar, _) => tessellate_planar(body, fk, &chords.ids, shared),
+                            (Lane::Curved, _) => {
                                 tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
                             }
                         };
@@ -478,7 +492,15 @@ fn tessellate_impl(
                             return (None, run().map(Placement::Lane));
                         };
                         let inputs = match FaceInputs::gather(
-                            body, fk, lane, surface, &chords, shared, chordal, ambient,
+                            body,
+                            fk,
+                            lane,
+                            surface,
+                            &chords,
+                            shared,
+                            chordal,
+                            ambient,
+                            domain.as_ref(),
                         ) {
                             Ok(inputs) => inputs,
                             Err(error) => return (None, Err(error)),

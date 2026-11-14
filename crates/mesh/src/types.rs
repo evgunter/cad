@@ -548,8 +548,8 @@ pub enum TessellateError {
         /// The band construction failure.
         error: geom_core::BandError,
     },
-    /// A trimmed face's boundary polygon on an analytic chart (cylinder
-    /// or sphere) is oriented against the orientation its face's `sense` promises
+    /// A trimmed face's outer polygon on an analytic chart is oriented
+    /// against the orientation its face's `sense` promises
     /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
     /// complement; or, on any chart, a ring is wound with its outer
     /// loop, against the rule that a ring bounds its face from inside and
@@ -612,7 +612,7 @@ pub enum TessellateError {
 ///
 /// **The falsifier is a caller that acts on the cause by itself**: a
 /// driver that turns the sphere's chart when it reads `ThroughPole` but
-/// splits the face when it reads `SeamTwice`. Then carry it and delete
+/// asks a coarser δ when it reads `ChordBudget`. Then carry it and delete
 /// this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SphereTrimCause {
@@ -709,25 +709,45 @@ impl TessellateError {
                 use topo::pcurves::RingPlacementError as R;
                 let why = match **cause {
                     R::Gap(_) => {
-                        "a loop of it stores no chart image or joint for one of its \
-                         edges, so it has no lift to read — a finished body stores \
-                         every one, so this is a kernel defect"
+                        "a loop of it has no lift in the face's chart: an edge of it \
+                         stores no chart image, or no element on the joint into it, or \
+                         an image its lift does not apply to — the boolean, split and \
+                         sweep doors mint them, and `topo::mint_pcurves` mints them on \
+                         a body built through the Euler doors"
                     }
-                    R::OuterOpen { .. } | R::RingOpen { .. } => {
-                        "a loop of it does not close in the face's chart: it winds the \
-                         chart's period, as a seamless band's rims do and as a loop \
-                         round a pole or apex inside the face does, and the trimmed \
-                         lane meshes a region the chart holds whole; seam the face so \
-                         each loop closes"
+                    R::OuterOpen { .. } => {
+                        "its outer loop does not close in the face's chart: it winds the \
+                         chart's period, as a seamless band's rim does and as a loop \
+                         round a pole or apex inside the face does, and the trimmed lane \
+                         meshes a region the chart holds whole; seam the face so the \
+                         loop closes"
                     }
-                    R::NoShift { .. } | R::Shifts { .. } | R::Copies { .. } => {
-                        "a ring of it has no one place inside its outer loop in the \
-                         face's chart"
+                    R::RingOpen { .. } => {
+                        "a ring of it does not close in the face's chart: it winds the \
+                         chart's period"
+                    }
+                    R::RingEmpty { .. } => {
+                        "a ring of it is one vertex with no edge, which bounds no region \
+                         and has no place in the chart; remove the lone vertex"
+                    }
+                    R::NoShift { .. } => {
+                        "no whole number of the chart's periods moves a ring of it inside \
+                         its outer loop"
+                    }
+                    R::Shifts { .. } => {
+                        "more than one whole number of the chart's periods moves a ring \
+                         of it inside its outer loop"
+                    }
+                    R::Copies { .. } => {
+                        "its outer loop spans more of the chart's periods than the ring \
+                         placement tries"
                     }
                     R::Undecided { .. } => {
-                        "a ring of it lies within the tolerance band of its outer loop \
-                         along the chart, or past what the placement reads, so its \
-                         side is undecided"
+                        "where a ring of it lies against its outer loop is undecided: a \
+                         point of the ring is within the tolerance band of the outer \
+                         loop along the chart, or the reading of the outer loop ran past \
+                         its work bounds (a boundary image whose box does not tighten), \
+                         or no window round the point has lever arms"
                     }
                     R::SplineTrimUnread { .. } => {
                         "it is a spline face with a ring, and its trim is not read in \
@@ -892,10 +912,12 @@ impl TessellateError {
                  the run, not a statement about the body",
             ),
             Self::TrimLoopOrientation { .. } => f.write_str(
-                "tessellate: a trimmed face's boundary polygon in its chart winds \
-                 against the face's orientation, so it bounds the face's complement \
-                 — refused rather than meshed inside out; a tier-valid body does not \
-                 reach this, so it is a kernel defect",
+                "tessellate: a trimmed face's loops in its chart contradict the \
+                 face — its outer loop winds against the face's orientation, so it \
+                 would bound the face's complement, or a ring winds the same way as \
+                 its outer loop, where a ring bounds the face from inside and winds \
+                 the other way; a body whose loops agree with their faces does not \
+                 reach this, so it is a defect of the body's loops",
             ),
             Self::FoldedTriangle { .. } => f.write_str(
                 "tessellate: a trimmed face's triangle folds over the chord beside \
