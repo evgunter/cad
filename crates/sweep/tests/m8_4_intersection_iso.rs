@@ -268,7 +268,7 @@ fn posture(
     chart: &NurbsSurface<f64>,
 ) -> MintPosture {
     match out {
-        Ok(p @ Pcurve::IsoLine { p0, pl }) => {
+        Ok(p @ Pcurve::IsoLine { p0, pl, .. }) => {
             assert_eq!(pl.x, 0.0, "{row}: a seam image holds u constant: {pl:?}");
             let (du0, du1) = chart.knots_u_f64_interim().domain();
             assert!(
@@ -321,7 +321,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     let MintPosture::Certified(image) = posture("boundary column", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl } = image else {
+    let Pcurve::IsoLine { p0, pl, .. } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     // The moving channel is the chart's own `v`, traversed with the
@@ -340,7 +340,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         .expect("the seam's own half-edge stores its certified image");
     assert_eq!(
         format!("{:?}", stored.pcurve()),
-        format!("{:?}", Pcurve::IsoLine { p0, pl }),
+        format!("{:?}", Pcurve::IsoLine { p0, pl, ends: None }),
         "the stored cache is the derived image"
     );
     println!(
@@ -598,7 +598,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         }
         chart_seams += 1;
         let cache = body.pcurve(*h).unwrap();
-        let Pcurve::IsoLine { p0, pl } = cache.pcurve() else {
+        let Pcurve::IsoLine { p0, pl, .. } = cache.pcurve() else {
             panic!(
                 "the Chart-described seam takes the exact class: {:?}",
                 cache.pcurve()
@@ -780,7 +780,7 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     let MintPosture::Certified(image) = posture("imported chart", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl } = image else {
+    let Pcurve::IsoLine { p0, pl, .. } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     assert!(
@@ -1226,7 +1226,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         });
         body.detach_pcurve(he);
         let image = match topo::pcurve_of(&body, he, band()) {
-            Ok(image @ Pcurve::IsoLine { p0, pl }) => {
+            Ok(image @ Pcurve::IsoLine { p0, pl, .. }) => {
                 assert_eq!(pl.y, 0.0, "{what}: a row holds v constant: {pl:?}");
                 assert_eq!(p0.y, 1.0, "{what}: on the v = 1 row: {p0:?}");
                 assert!(pl.x < 0.0, "{what}: run back, u falling: {pl:?}");

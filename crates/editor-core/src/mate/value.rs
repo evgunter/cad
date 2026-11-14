@@ -887,7 +887,7 @@ pub fn read_back<R>(
     // the placement's evaluation decides the band about it.
     let read = Chart::<f64>::sides(charted.on, charted.to).and_then(|(d, copy_d, seat)| {
         let n = charted.orient.apply(copy_d.get());
-        if super::turn::LeastTurn::between(n, d.get()).at_pole() {
+        if super::turn::at_pole(&super::turn::LeastTurn::between(n, d.get())) {
             return None;
         }
         let arm = Arm::of(0.0, 0.0).ok()?;
