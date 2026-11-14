@@ -1239,21 +1239,24 @@ impl ViewerApp {
         }
     }
 
-    /// **The copies the placement editor draws where its draft stands
+    /// **The copies the picture draws where a placement change stands
     /// them** (`crates/viewer/README.md`, *The placement editor commits a
-    /// placement's whole bundle*): where the draft is not yet offered and
-    /// its bundle solves ([`crate::matetool::HeldDraft::Waits`], the value
-    /// the panel's line reads, asked of a picture that has not answered
-    /// it — so the frame in which the picture answers and the panel
-    /// offers it draws it too), or else where the change it was offered
-    /// as, committed and not yet landed, stands them
-    /// ([`DocSession::bundle_landing`]). Each copy the solve stands
-    /// elsewhere than the landed evaluation does is carried there; `None`
-    /// draws every copy where it is.
+    /// placement's whole bundle*), from one of two sources:
+    /// - the placement editor's draft, where it waits for the picture and
+    ///   its bundle solves ([`crate::matetool::HeldDraft::Waits`] — the
+    ///   value the panel's line reads, asked with the session's own busy
+    ///   state as the panel asks it);
+    /// - otherwise the last committed `SetBundle` whose run has not
+    ///   landed ([`DocSession::bundle_landing`]), the committed
+    ///   document's pose, with or without an editor open.
+    ///
+    /// Each copy the source stands elsewhere than the landed evaluation
+    /// does is carried there ([`crate::session::Stood::moved_from`]);
+    /// `None` draws every copy where it is.
     fn placement_preview(&self) -> Option<crate::display::PreviewedPlacement> {
         let session = &self.session;
         let held = self.tools.mate().map(|tool| {
-            tool.draft_standing(true, session.landed_pair(), session.tol(), |op| {
+            tool.draft_standing(session.busy(), session.landed_pair(), session.tol(), |op| {
                 session.bundle_judgement(op)
             })
         });
@@ -1262,21 +1265,17 @@ impl ViewerApp {
             _ => session.bundle_landing()?,
         };
         let (landed, ev) = session.landed_pair()?;
-        let drawn = pncad::document::SolvedPoses::of(landed, ev);
         let copies: BTreeMap<_, _> = stood
-            .copies
-            .iter()
-            .filter_map(|(&copy, &(space, stands))| {
-                let at = drawn.relative(copy)?;
-                let moves = drawn.space(copy) != Some(space) || !at.bit_eq(&stands);
-                moves.then_some((
+            .moved_from(&pncad::document::SolvedPoses::of(landed, ev))
+            .map(|(copy, space, drawn, stands)| {
+                (
                     copy,
                     crate::display::PreviewedCopy {
                         space,
-                        drawn: at,
+                        drawn,
                         stands,
                     },
-                ))
+                )
             })
             .collect();
         (!copies.is_empty()).then_some(crate::display::PreviewedPlacement { copies })
@@ -9021,19 +9020,18 @@ mod properties_pane_tests {
         );
     }
 
-    /// **An offered draft stays drawn where it stands until its own run
-    /// lands**: the rename's run lands, the panel offers the waiting
-    /// slide in that frame and it commits, and its run is held. Every
-    /// frame until it lands draws the copy 5 mm along x, as the landing
-    /// then does; none draws it back where the document before it stood
-    /// it.
-    #[test]
-    fn an_offered_placement_draft_is_drawn_where_it_stands_until_its_run_lands() {
-        let (mut driven, open) = gated();
+    /// **The startup copy's 5 mm slide offered and committed, its run
+    /// held**: typed while the picture is held behind a rename, then the
+    /// rename's run lands, the panel offers the slide in that frame, and
+    /// the gate closes behind it. Answers the copy's committed box.
+    fn offered_behind_a_held_run(
+        driven: &mut Driven,
+        open: &std::sync::atomic::AtomicBool,
+    ) -> bvh::Aabb {
         driven.settle();
-        let committed = drawn_box(&driven, placement());
+        let committed = drawn_box(driven, placement());
         let steps = driven.app.session.history().len();
-        waiting_behind_a_rename(&mut driven, &open, |tool| slide_x(tool, 0.005));
+        waiting_behind_a_rename(driven, open, |tool| slide_x(tool, 0.005));
         open.store(true, std::sync::atomic::Ordering::SeqCst);
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         open.store(false, std::sync::atomic::Ordering::SeqCst);
@@ -9043,25 +9041,134 @@ mod properties_pane_tests {
             "the rename and the slide are committed"
         );
         assert!(driven.app.session.busy(), "the slide's run is held");
+        committed
+    }
+
+    /// Three frames, each drawing the startup copy moved by `by` from
+    /// `committed`, said as `when`.
+    fn drawn_moved_for_three_frames(
+        driven: &mut Driven,
+        committed: &bvh::Aabb,
+        by: [f64; 3],
+        when: &str,
+    ) {
         for frame in 0..3 {
             driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-            let drawn = drawn_box(&driven, placement());
+            let drawn = drawn_box(driven, placement());
             assert!(
-                moved_by(&committed, &drawn, [0.005, 0.0, 0.0]),
-                "frame {frame} before the run lands draws the copy where the slide stands it: {committed:?} -> {drawn:?}"
+                moved_by(committed, &drawn, by),
+                "{when}, frame {frame} draws the copy moved {by:?}: {committed:?} -> {drawn:?}"
             );
         }
+    }
+
+    /// The held run let land: the picture is the document's, the copy
+    /// moved by `by`.
+    fn landed_moved(
+        driven: &mut Driven,
+        open: &std::sync::atomic::AtomicBool,
+        committed: &bvh::Aabb,
+        by: [f64; 3],
+    ) {
         open.store(true, std::sync::atomic::Ordering::SeqCst);
         driven.settle();
-        assert!(!driven.app.session.busy(), "the slide's run landed");
+        assert!(!driven.app.session.busy(), "the run landed");
         assert!(
             driven.app.placement_preview().is_none(),
             "the landed picture is the document's"
         );
-        let landed = drawn_box(&driven, placement());
+        let landed = drawn_box(driven, placement());
         assert!(
-            moved_by(&committed, &landed, [0.005, 0.0, 0.0]),
-            "the landed copy stands where the slide put it: {committed:?} -> {landed:?}"
+            moved_by(committed, &landed, by),
+            "the landed copy is moved {by:?}: {committed:?} -> {landed:?}"
+        );
+    }
+
+    /// **An offered draft stays drawn where it stands until its own run
+    /// lands**: every frame while the slide's run is held draws the copy
+    /// 5 mm along x, as the landing then does; none draws it back where
+    /// the document before it stood it.
+    #[test]
+    fn an_offered_placement_draft_is_drawn_where_it_stands_until_its_run_lands() {
+        let (mut driven, open) = gated();
+        let committed = offered_behind_a_held_run(&mut driven, &open);
+        drawn_moved_for_three_frames(&mut driven, &committed, [0.005, 0.0, 0.0], "held");
+        landed_moved(&mut driven, &open, &committed, [0.005, 0.0, 0.0]);
+    }
+
+    /// **A second change while the offered one lands keeps it drawn**: a
+    /// rename of the plate moves the generation on while the slide's run
+    /// is held, and the copy stays drawn where the slide stands it.
+    #[test]
+    fn an_unrelated_change_while_a_placement_change_lands_keeps_it_drawn() {
+        let (mut driven, open) = gated();
+        let committed = offered_behind_a_held_run(&mut driven, &open);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("renamed while landing"),
+        }]);
+        drawn_moved_for_three_frames(
+            &mut driven,
+            &committed,
+            [0.005, 0.0, 0.0],
+            "after a rename while landing",
+        );
+        landed_moved(&mut driven, &open, &committed, [0.005, 0.0, 0.0]);
+    }
+
+    /// **Undo while the offered change lands draws the copy where the
+    /// document then stands it, and Redo draws it moved again**: the
+    /// undone slide is no longer the document's, and the redone one is,
+    /// its run still not landed.
+    #[test]
+    fn undo_and_redo_while_a_placement_change_lands_draw_the_document() {
+        let (mut driven, open) = gated();
+        let committed = offered_behind_a_held_run(&mut driven, &open);
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        drawn_moved_for_three_frames(&mut driven, &committed, [0.0; 3], "after the undo");
+        driven.app.perform_batch(vec![SessionOp::Redo]);
+        drawn_moved_for_three_frames(&mut driven, &committed, [0.005, 0.0, 0.0], "after the redo");
+        landed_moved(&mut driven, &open, &committed, [0.005, 0.0, 0.0]);
+    }
+
+    /// **A draft the panel never offered is not drawn while the picture
+    /// is idle**: a slide typed while the picture is behind a rename,
+    /// then the Assemble section folded, so the panel never offers it;
+    /// once the rename lands the picture answers the document, and the
+    /// copy is drawn where the document stands it.
+    #[test]
+    fn a_draft_never_offered_is_not_drawn_while_the_picture_is_idle() {
+        let (mut driven, open) = gated();
+        driven.settle();
+        let committed = drawn_box(&driven, placement());
+        let steps = driven.app.session.history().len();
+        waiting_behind_a_rename(&mut driven, &open, |tool| slide_x(tool, 0.005));
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        open.store(true, std::sync::atomic::Ordering::SeqCst);
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(
+            driven.app.session.history().len(),
+            steps + 1,
+            "the premise: only the rename is committed"
+        );
+        assert!(
+            !driven.app.session.busy()
+                && driven
+                    .app
+                    .tools
+                    .mate()
+                    .is_some_and(crate::matetool::MateTool::differs_from_base),
+            "the premise: the picture is idle and the draft unoffered"
+        );
+        assert!(
+            driven.app.placement_preview().is_none(),
+            "nothing is previewed"
+        );
+        let drawn = drawn_box(&driven, placement());
+        assert!(
+            moved_by(&committed, &drawn, [0.0; 3]),
+            "the copy is drawn where the document stands it: {committed:?} -> {drawn:?}"
         );
     }
 

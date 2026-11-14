@@ -201,6 +201,36 @@ impl Step {
     }
 }
 
+/// **Why the door refuses a `SetBundle`** (`DocSession::bundle_door`):
+/// the three refusals its judgement answers, each a [`Refusal`] arm's
+/// payload. Kept beside the judgement, and owned again as that arm
+/// wherever it is said or an op lands with it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BundleRefusal {
+    /// [`Refusal::BundleStale`].
+    Stale {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// [`Refusal::Edit`]: the bundle's edit refused, respoken.
+    Edit(Box<EditError>),
+    /// [`Refusal::PlacementFails`].
+    Fails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
+}
+
+impl From<BundleRefusal> for Refusal {
+    fn from(refusal: BundleRefusal) -> Self {
+        match refusal {
+            BundleRefusal::Stale { node } => Self::BundleStale { node },
+            BundleRefusal::Edit(error) => Self::Edit(error),
+            BundleRefusal::Fails { fault } => Self::PlacementFails { fault },
+        }
+    }
+}
+
 /// Why an operation did not happen. Every arm is a value the chrome
 /// renders; none is a message this layer composed about someone else's
 /// failure.

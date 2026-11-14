@@ -902,8 +902,9 @@ impl ViewerBehavior<'_> {
                 })
             })
         };
-        // The viewport draws the copies off the same value
-        // (`ViewerApp::placement_preview`).
+        // The viewport draws the draft off the same value; where the
+        // draft draws nothing it draws the document, a committed change
+        // still landing included (`ViewerApp::placement_preview`).
         let held =
             edited.draft_standing(busy, self.session.landed_pair(), self.session.tol(), |op| {
                 self.session.bundle_judgement(op)

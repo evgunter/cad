@@ -816,20 +816,22 @@ pub enum Reading {
 }
 
 /// **Where the placement editor's draft stands with the document**
-/// ([`MateTool::draft_standing`]): what the panel says of it and what the picture
-/// draws of it.
+/// ([`MateTool::draft_standing`]): what the panel says of it, and what
+/// the picture draws of the draft. Where the draft draws nothing, the
+/// picture draws the document, which may be a committed change still
+/// landing (`DocSession::bundle_landing`).
 #[derive(Debug, Clone)]
 pub enum HeldDraft {
-    /// Nothing held: the draft is its bundle, writes what it holds, or
-    /// is offered as it is made.
+    /// Nothing to say: the draft is its bundle; or the picture answers
+    /// the document, so the panel offers the draft as it is made; or it
+    /// waits and writes what the placement holds already.
     Quiet,
-    /// The door refuses the draft: its last offer was refused, or, while
-    /// it waits, the door's judgement of it. The copy is drawn where the
-    /// document stands it.
+    /// The door refuses the draft — its last offer, or, while it waits,
+    /// the door's judgement of it — said as one refusal. The draft
+    /// draws nothing.
     Refused(Arc<Refusal>),
     /// It waits for the picture and derives no bundle yet (a seat
-    /// empty, said as it is derived): the copy is drawn where the
-    /// document stands it.
+    /// empty, said as it is derived). The draft draws nothing.
     WaitsUnwritten,
     /// It waits for the picture, and the door's scratch solve stands
     /// every copy as this says: the picture draws them there.
@@ -2456,12 +2458,12 @@ impl MateTool {
     /// draft that writes no bundle yet, or that the door refuses, is held
     /// with its reason ([`Self::pending`]); one that writes nothing
     /// (`crate::session::bundle_writes_nothing`) answers nothing.
-    pub fn offer<R: Into<Arc<Refusal>>>(
+    pub fn offer(
         &mut self,
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
         tol: Tol,
-        door: impl FnOnce(&SessionOp) -> Result<(), R>,
+        door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
         if !self
             .draft
@@ -2473,7 +2475,7 @@ impl MateTool {
         let proposed = self.proposal(doc, ev, tol);
         let placement = self.door().map(|door| door.placement);
         let formed = proposed
-            .map_err(|error| Arc::new(Refusal::Draft(Box::new(error))))
+            .map_err(|error| Refusal::Draft(Box::new(error)))
             .map(|proposal| {
                 let Some(draft) = self.draft.as_ref() else {
                     unreachable!("an unsettled draft is open")
@@ -2490,7 +2492,7 @@ impl MateTool {
                 (!nothing).then(|| proposal.op())
             })
             .and_then(|op| match op {
-                Some(op) => door(&op).map(|()| Some(op)).map_err(Into::into),
+                Some(op) => door(&op).map(|()| Some(op)),
                 None => Ok(None),
             });
         // A target change of its own that does not land puts back what it
@@ -2521,7 +2523,7 @@ impl MateTool {
                 None
             }
             Err(refusal) => {
-                draft.offer = Offer::Pending(Held(refusal));
+                draft.offer = Offer::Pending(Held(Arc::new(refusal)));
                 None
             }
         }
@@ -2539,7 +2541,8 @@ impl MateTool {
     }
 
     /// **Where the draft stands with the document** — the one value the
-    /// panel's line and the picture both read, so they cannot disagree.
+    /// panel's line and the picture's drawing of the draft both read,
+    /// asked with the session's busy state, so they cannot disagree.
     /// A refusal of its last offer holds it, said (a draft that writes
     /// no bundle yet is said as it is derived, not here). Otherwise a
     /// draft that differs from its bundle while the picture is `busy`
@@ -2571,7 +2574,7 @@ impl MateTool {
         match judge(&proposal.op()) {
             Ok(Some(stood)) => HeldDraft::Waits(stood),
             Ok(None) => HeldDraft::Quiet,
-            Err(refusal) => HeldDraft::Refused(refusal),
+            Err(refusal) => HeldDraft::Refused(Arc::new(refusal.into())),
         }
     }
 
