@@ -2,10 +2,11 @@
 id: cylinder-and-torus-edge-misses-are-read-back-about-the-axis
 kind: issue
 title: The cylinder's and torus's per-edge whole-turn misses are read back about the axis, so their Interval width is charged as disagreement on a far generic-pose body
-status: open
+status: spec
 opened: 2026-10-19
-priority: P2
-cost: E
+priority: P1
+cost: M
+branch: boxfinish/edge-turns
 ---
 
 
@@ -71,3 +72,38 @@ still carries refusal arms for a major-1300 tube (`hollow`, `measured`,
 the Interval arm, and doc text), which `CASES` no longer holds: 1300 m
 is past the session box, and the door answers `OutsideSessionBox` there.
 The arms are unreachable; the tilted tube above is an in-box witness.
+
+## The unit (2026-11-14)
+
+**It is red on main.** LATHE's
+`a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12` (P1,
+`full_turn_wall::both_doors_answer_the_bead_by_its_height_window` at
+ε = 1e-12) measures as this row's mechanism on the bead's bore cylinder,
+so that row is claimed beside this one with this row as its `parent`,
+and this row is P1.
+
+**Sizing, measured with a local, unreviewed mirror of the cone's
+constructors** (cylinder: rulings exact, rims carried; torus: parallels
+carried in azimuth and exact in the tube coordinate, meridians exact in
+azimuth, the meridian's tube turn left as it is):
+
+- the bead passes at 1e-12;
+- the CARVE reconstruction's tier-3 refusals go from 6 to 0;
+- the tilted tube builds at major 300 and 600, and still refuses at 990
+  and 1100 (`[0, 1.36e-12]`, `[0, 1.88e-12]`): what is left sits on the
+  two carried parallels, about ±2.2e-15 rad each at a 990 m lever, which
+  passes the slack for two rims past about 900 m.
+
+**Scope.** `cylinder_windings` and `torus_chart_loop` build their edge
+turns the way the cone's path does (`EdgeTurn::exact`,
+`EdgeTurn::carried`); the bead row goes green at 1e-12; the CARVE
+reconstruction and the tilted tube become rows; a row shows that a loop
+which genuinely does not close still refuses through each constructor.
+What stays refused past about 900 m is measured and filed. The
+unreachable major-1300 arms in `verbs_tubewall_r1_probes.rs` go.
+
+**Letter M; review tier: single, FULL.** An `exact` turn asserts a zero
+by construction and a `carried` one moves where the miss is read, so a
+wrong one passes a loop tier 3 should refuse: the review carries that
+claim, not only style. It is a port of the cone's landed constructors
+to two sibling carriers, which is why it is not a dual.
