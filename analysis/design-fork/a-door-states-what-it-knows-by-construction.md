@@ -29,3 +29,5 @@ A's figures: 356,437 tokens, 1064 s (harness).
 ## Round 1 (2026-11-14)
 
 Each designer resumed and handed the other's first report whole, asked what moved it, whether its own arguments are answered, and the one question beneath the remaining difference.
+
+- **B, round 1** (harness figure after the round: 213,556 tokens; the round took 142 s). **Moved.** Withdrew "off by about δ²/2, cured by bisection" (the bracket norm's deviation is first order off the axes), withdrew "the revolve and tube already follow the rule", dropped the tight unit map. Now recommends two changes in order: the first buildable now with the profile carrying directions; the second (check 1 stops reading a frame's length back) as its own `[ev]` question, leaning to the stored witness. Remaining difference as B states it: whether the tour's stop needs the second change once the first is built. Verbatim: `….B-round1.md`.
