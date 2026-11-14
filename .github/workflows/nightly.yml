@@ -555,17 +555,24 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
   full-suite:
-    name: full suite (eps ${{ matrix.eps }}, slow set included)
+    name: full suite (eps ${{ matrix.eps }}${{ matrix.part && format(', shard {0}', matrix.part) || '' }}, slow set included)
     runs-on: ubuntu-latest
     needs: full-suite-build
     # Not `success()`: a red step after the upload says nothing about the
     # archive, and the rows still run from it.
     if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'''
     timeout-minutes: 120
+    # The 1e-12 row is about six hours of test time, so it runs as three
+    # `--partition hash:k/3` shards. `full-suite-coverage` lists the legs too.
     strategy:
       fail-fast: false
       matrix:
-        eps: [default, 1e-6, 1e-12]
+        include:
+          - eps: default
+          - eps: 1e-6
+          - {eps: 1e-12, partition: 'hash:1/3', part: 1of3}
+          - {eps: 1e-12, partition: 'hash:2/3', part: 2of3}
+          - {eps: 1e-12, partition: 'hash:3/3', part: 3of3}
     steps:
       # The archive holds the test binaries only; `--workspace-remap` points
       # them at this checkout for `.config/nextest.toml`, each test's cwd and
@@ -587,30 +594,65 @@ jobs:
         with:
           name: full-suite-archive
           path: ${{ runner.temp }}/archive
+      # BUDGET_MIN sits below the job's limit, so a leg that runs long is
+      # interrupted by nextest itself: it records the tests it was running as
+      # failed and writes its junit report for the steps below. A leg the job
+      # limit kills reports nothing.
       - name: the whole suite at this eps (the ci profile with its slow-set filter ignored)
         env:
           EPS: ${{ matrix.eps }}
+          PARTITION: ${{ matrix.partition }}
+          LABEL: eps ${{ matrix.eps }}${{ matrix.part && format(' {0}', matrix.part) || '' }}
+          BUDGET_MIN: 105
         run: |
           [ "$EPS" = default ] || export CAD_TOLERANCE_EPS="$EPS"
           rc=0
-          cargo nextest run --archive-file "$RUNNER_TEMP/archive/full-suite.tar.zst" \
+          timeout --signal=INT "${BUDGET_MIN}m" \
+            cargo nextest run --archive-file "$RUNNER_TEMP/archive/full-suite.tar.zst" \
             --workspace-remap "$GITHUB_WORKSPACE" \
-            --profile ci --ignore-default-filter --no-fail-fast || rc=$?
+            --profile ci --ignore-default-filter --no-fail-fast \
+            ${PARTITION:+--partition "$PARTITION"} || rc=$?
           # Before nextest-failures.py, which deletes the junit report.
           cp target/nextest/ci/junit.xml "$RUNNER_TEMP/junit.xml" 2>/dev/null || true
-          scripts/nextest-failures.py "eps $EPS" "$rc"
+          scripts/nextest-failures.py "$LABEL" "$rc"
+          if [ "$rc" -eq 124 ]; then
+            msg="$LABEL stopped at its ${BUDGET_MIN}-minute budget: the tests it was running are reported failed, and those it had not started are in no report (full suite coverage names them)"
+            echo "::error title=$LABEL ran out of time::$msg"
+            echo "FAIL [$LABEL] $msg" >> "$RUNNER_TEMP/nextest-failures.txt"
+          fi
           exit $rc
       - name: upload this row's junit report (per-test times)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-suite-junit-${{ matrix.eps }}
+          name: full-suite-junit-${{ matrix.eps }}${{ matrix.part && format('-{0}', matrix.part) || '' }}
           path: ${{ runner.temp }}/junit.xml
           if-no-files-found: warn
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed)
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
+  full-suite-coverage:
+    # Every leg runs the same archive under the same filter, so each eps row
+    # must report the same tests: this names what a leg that ran out of time
+    # or died never reported, and checks that the shards add up.
+    name: full suite coverage (every row reported every test)
+    runs-on: ubuntu-latest
+    needs: [full-suite-build, full-suite]
+    if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'''
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: full-suite-junit-*
+          path: ${{ runner.temp }}/junit
+      - name: every eps row reported every test
+        run: |
+          scripts/full-suite-coverage.py "$RUNNER_TEMP/junit" \
+            default 1E-06 1E-12-1of3 1E-12-2of3 1E-12-3of3
   all-features:
     # The suite with every workspace feature on at once: the probe-gated
     # suites, the test-only meters and payload features, which no other
