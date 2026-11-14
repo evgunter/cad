@@ -2,12 +2,13 @@
 id: nightly-reds-the-1e-6-rows
 kind: unit
 title: Nightly reds: the rows red at ε 1e-6
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/eps-1e-6
 pr: 6934
+closed: 2026-11-14
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
@@ -47,3 +48,7 @@ All fifteen reproduced red on main `b363f5fa1` at ε 1e-6, and the two this unit
 - **The round keel's witness never held at 1e-6**: it arrived red in PR 6365; the child row's "green at PR 6336" was the test absent.
 - **`revalue_boss_union`'s merge is PR 6482** (`onecopy/angle-reads`); its fix row is on onecopy and the GREEN child is closed onto it.
 - **The per-PR gate runs a slow test only at the default ε**, so this PR's gate checks the thirteen slow rows' pins only as "runs as written at 1e-9"; their 1e-6 pins were run locally and are the next nightly's to confirm.
+
+## Closed (2026-11-14, PR 6934)
+
+The fifteen are green at ε 1e-6 on the lane's and the reviewer's local runs; no PR run executes a slow test at 1e-6, so the next nightly is the hosted record. Two re-blessed (the lens wall's stop after PR 6891, the lofted concave pad after PR 6092). Thirteen pinned, each on a row on the program that owns the code. The one that matters: four rows build bodies whose volume lies outside the kernel's own enclosure at 1e-6 since PR 6505, pinned and filed P0 on ONEDOOR (`main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`). `full_turn_wall`'s bead at 1e-12, red on this PR's gate, is the 1e-12 unit's.
