@@ -375,29 +375,26 @@ fn two_wedges(near: &str, spin: impl Fn(&ProfileDoc) -> Formula) -> Vec<Seat> {
     side_seats(&doc, &members).0
 }
 
-/// **What the door does not reach, pinned as a limit: a seat between
-/// two CONSTRUCTIONS.** A face at angle `a` spun by `b` against a face
-/// written at `a + b` in another body is left unproven, and so is the
-/// control with no angle sum in it at all — the same face at `a`
-/// written in two bodies, neither turned — so what stands is the door's
-/// verdict between two constructions of one carrier (the residual's
-/// words: "two constructions, placed or reflected apart"), not rule H:
-/// with rule H shut both rows freeze on the budget, with it on both
-/// come back not shown zero. A ring's seats are between two copies of
-/// one construction and prove. Red when the door reaches either.
+/// **A seat between two CONSTRUCTIONS of one carrier proves.** A face
+/// at angle `a` spun by `b` against a face written at `a + b` in another
+/// body, and the control with no angle sum in it at all — the same face
+/// at `a` written in two bodies, neither turned. Each wedge's cap is its
+/// sketch frame turned, so the two constructions' planes are forms of
+/// the same variables and the residual between them reduces to zero. Red
+/// if the door stops reaching either.
 #[test]
-fn a_seat_between_two_constructions_of_one_carrier_is_unproven() {
+fn a_seat_between_two_constructions_of_one_carrier_proves() {
     let spun = two_wedges("a + b", |doc| {
         Formula::var(doc.var_named("b").unwrap(), Dimension::Angle)
     });
     let control = two_wedges("a", |_| Formula::zero(Dimension::Angle));
-    let unproven = [Seat {
+    let proven = [Seat {
         members: (0, 1),
-        proven: false,
+        proven: true,
     }];
     assert_eq!(
         (spun.as_slice(), control.as_slice()),
-        (&unproven[..], &unproven[..])
+        (&proven[..], &proven[..])
     );
 }
 

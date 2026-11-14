@@ -2032,14 +2032,14 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. Both
-/// of `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. They proved one and 14 until
-/// the angle reductions read `geom_core::period::Period::at_or_above`
-/// (PR 6710, commit `4445b9cb`). The reduction it replaced,
-/// `lo + (t − lo).reduce_periodic(τ)`, names the same copy of the angle,
-/// but spells a margin the symbolic replay did not cancel within its
-/// budget (`Unproven`, recourse `Budget`). The margins are the same
-/// functions, so the new theorems are true ones the door now reaches.
+/// of `die_composed`'s two and 28 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven. The angle reductions read
+/// `geom_core::period::Period::at_or_above`, and the extruded pips' caps
+/// and rims are their sketch frames turned, so the margins are forms the
+/// symbolic replay cancels within its budget; a reduction spelled
+/// `lo + (t − lo).reduce_periodic(τ)`, or a cap fitted to its corners,
+/// names the same functions in forms it does not (`Unproven`, recourse
+/// `Budget`).
 /// The tour's pips are copies
 /// placed against the die's faces; a copy placed by a frame turned off
 /// the die's own axes reaches its rim through that turn's sine and
@@ -2049,11 +2049,11 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// an edge, published as a `Meet` of the cells it lies in and left
 /// unproven, a coincidence of values as far as the door can tell.
 #[test]
-fn the_door_proves_half_the_composed_dies_joints() {
+fn the_door_proves_two_thirds_of_the_composed_dies_joints() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 21, 84, 42)]
+    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 28, 84, 42)]
     {
         let cd = crate::corpus::documents()
             .into_iter()
@@ -2404,8 +2404,8 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `Meet` row, its cells the two blocks' edges as the union names them
 /// and the plate's top, whose carriers share the point each pierce was
-/// minted at (the two edges alone share a line), its margin the gap. The door leaves it unproven, its form outgrowing the door's
-/// budget, and the check reports it: the blocks are copies placed
+/// minted at (the two edges alone share a line), its margin the gap. The door leaves it unproven, its residual read whole and not
+/// shown zero, and the check reports it: the blocks are copies placed
 /// against the plate, and no mate states their edges one. Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
@@ -2490,8 +2490,8 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
     assert_eq!(
         recourses(&proofs(&doc, common, &fused)),
-        vec![Some(coincide::Recourse::Budget)],
-        "unproven, its form outgrowing the door's budget"
+        vec![Some(coincide::Recourse::OneConstruction)],
+        "unproven, its residual read whole and not shown zero"
     );
     let reported: Vec<_> = unproven(&doc, &ev)
         .into_iter()
@@ -3256,30 +3256,32 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
 /// bases' equivalence (`[coincidence.structural]`), so the union's flush
 /// pair of bases is proven by the first rung. Its tops and side walls
 /// flush, and its abutting walls opposed, are flush through the cubes'
-/// heights and the slides' values, no mate's statement, and are left
-/// over the budget. The world's `⊔` records the union's base, which the
-/// union mints from the two, on the floor's top at rest, unproven alike.
+/// heights and the slides' values, no mate's statement: the door reads
+/// each residual whole, a function of the variables it does not show
+/// zero, and names one construction as the recourse. The world's `⊔`
+/// records the union's base, which the union mints from the two, on the
+/// floor's top at rest, and the carrier verdict proves it: the base and
+/// the floor's top are one plane by their stored carriers.
 ///
 /// Red if the scene's rows change in kind, site or proof.
 #[test]
 fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
     let cd = crate::corpus::blocks_on_one_floor::document();
     let (_, lines) = door_lines(&cd);
-    let flush = "SameOriented PlaneLadder unproven/Numeric/Budget";
+    let flush = "SameOriented PlaneLadder unproven/Numeric/OneConstruction";
     let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
-    let on_budget = "OnCarrier VertexFusion unproven/Numeric/Budget";
     assert_eq!(
         lines,
         [
             flush,
             "SameOriented PlaneLadder SameConstruction",
             flush,
-            "SameOpposite PlaneLadder unproven/Numeric/Budget",
+            "SameOpposite PlaneLadder unproven/Numeric/OneConstruction",
             flush,
             on,
             on,
-            on_budget,
-            on_budget,
+            on,
+            on,
         ]
     );
     let ev = run(&cd.doc);
@@ -3296,7 +3298,7 @@ fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
         .collect();
     assert_eq!(
         at_rest,
-        ["SameOpposite CensusAtRest unproven/Numeric/Budget"],
+        ["SameOpposite CensusAtRest CarrierVerdict"],
         "the union rests on the floor"
     );
 }
