@@ -294,7 +294,10 @@ and a fixed reference direction would read the world axes.
   station on one span, straight by its data, with its predecessor is
   still where its tangent is checked at the lane scalar to be its
   predecessor's: it reuses its predecessor's rotation, one expression,
-  and every other station is minted alone. A path held at a lane
+  and every other station is minted alone. A station's tangent is the
+  path's derivative read through its hodograph, at `f64` and at every
+  lane alike, so a frame minted at a point path is about 3.3e-14 wide,
+  75–150 ulps of its order-1 coordinates. A path held at a lane
   scalar has a roll that depends on the variables, and the selection no
   longer stands
   (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).

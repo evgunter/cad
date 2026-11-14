@@ -105,6 +105,7 @@ crates/geom/src/frame.rs	prod	4	re-pose
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle
 crates/geom/tests/curves/arc_window_adversarial.rs	test	6	oracle
 crates/geom/tests/curves/curve3_r1_probes.rs	test	1	oracle
+crates/geom/tests/curves/derivative_at_is_ders1s.rs	test	3	oracle
 crates/geom/tests/curves/directional_extent.rs	test	3	oracle
 crates/geom/tests/curves/hull_circle_rehearsal.rs	test	4	oracle
 crates/geom/tests/curves/review_m5_pr2_e2e.rs	test	2	oracle
