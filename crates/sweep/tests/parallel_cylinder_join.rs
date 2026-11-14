@@ -4,12 +4,14 @@
 //! (`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031).
 //!
 //! Every pose runs ∪, ∩ and both differences in both operand orders,
-//! and every run builds a body that is SOUND by
+//! and every run is held to a body that is SOUND by
 //! `common::differential::outcome` (tiers 2 and 3′, the certificate, a
 //! legal operand, the volume). The volumes are closed form: the solids
 //! meet over the lens of their two discs, and a slab's height over it is
 //! constant or linear, whose integral is the lens's area and first
-//! moment ([`lens`]).
+//! moment ([`lens`]). At ε 1e-6 ten runs tipped inside the zero band
+//! build a body that misses that volume, and their two rows are pinned
+//! there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -662,8 +664,35 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// stops at the work wall, every run at 1e-12, under
 /// [`TURNED_WALL_GUARD`]), and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
+///
+/// At ε 1e-6 that is the row's claim and not what is built: six of the
+/// runs tipped `1.5·zero / 3.2` miss the closed form, and the row is
+/// pinned there.
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
+    // Pinned red at 1e-6: six of the runs tipped `1.5·zero / 3.2` build a
+    // body 2.0e-7 to 2.8e-7 under the closed form, where the row wants every
+    // one SOUND
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the seams on the walls tipped 1.5·zero / 3.2",
+        &[
+            "6 of the runs are not SOUND",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981355 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+        ],
+        seams_lying_on_the_walls_read_the_axes_across_the_region_row,
+    );
+}
+
+/// The row [`seams_lying_on_the_walls_read_the_axes_across_the_region`] runs, under its pin.
+fn seams_lying_on_the_walls_read_the_axes_across_the_region_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
@@ -671,7 +700,12 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 1.5 * zero / 3.2)));
     let bad = unsound(&building);
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} of the runs are not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
     // Pinned exactly at the witness band. At 1e-6 the turned pose about
     // `x` escalates the join's end pairing first, and at 1e-12 the tipped
     // pose about `y` the corners' overlap: each row there escalates or
@@ -820,13 +854,42 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
 /// which levers it by `0.6 + √1.25 ≈ 1.72`), the tip reads `1.03·zero`,
 /// in the band, and every op escalates `cc_axes_parallel` as the axes'
 /// own decision, its lever a turn.
+///
+/// At ε 1e-6 that is the row's claim and not what is built: four of the
+/// runs tipped `0.2·zero` miss the closed form, and the row is pinned
+/// there.
 #[test]
 fn one_face_walls_read_their_axes_as_an_angle() {
+    // Pinned red at 1e-6: four of the runs tipped `0.2·zero` build a body
+    // 1.2e-7 under the closed form, where the row wants every one SOUND
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the one-face walls tipped 0.2·zero",
+        &[
+            "4 of the runs are not SOUND",
+            "one-face walls, seams at 0, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ab | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ba | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+        ],
+        one_face_walls_read_their_axes_as_an_angle_row,
+    );
+}
+
+/// The row [`one_face_walls_read_their_axes_as_an_angle`] runs, under its pin.
+fn one_face_walls_read_their_axes_as_an_angle_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let seams = [0.0, PI];
     let bad = unsound(&seams.map(|az| one_face_walls(az, 0.2 * zero)));
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} of the runs are not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
     for az in seams {
         let tipped = one_face_walls(az, 0.6 * zero);
         for (op, r, _) in tipped.runs() {

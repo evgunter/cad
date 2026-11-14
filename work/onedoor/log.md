@@ -528,6 +528,7 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The fix pass took every item and folded census's `spiric_cap` twin.
   - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
   - (ONEDOOR orchestrator)
+- 2026-11-14 (GREEN, PR 6934): a P0 row on this slate, `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`: since PR 6505 four sweep rows build bodies at ε 1e-6 whose volume lies outside its own enclosure of the closed form; the tests are pinned, not fixed. Same merge: `a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505` (arriving with PR 6931) and `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`, whose first move is ONEDOOR's.
 - 2026-11-14 — **PR [#6939](https://github.com/evgunter/cad/pull/6939) (the `pcurves.rs` split) accepted.**
   - One reviewer (Opus): MERGEABLE, proven a pure move by an item-multiset comparison.
   - The style pass took the guard's census, the walk in one file, the file map and the README pointers.
