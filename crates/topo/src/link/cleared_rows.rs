@@ -61,7 +61,7 @@ fn cap(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Cap {
 impl Cap {
     /// The cap's sectors at `p`, held as `holds` say.
     fn cleared(&self, p: Point3<f64>, holds: &[Hold]) -> Result<Vec<FaceSector<f64>>, TouchUnread> {
-        FaceSector::cleared(&self.body, self.face, self.outward, p, holds)
+        FaceSector::cleared(&self.body, self.face, self.outward, p, holds, band())
     }
 
     /// The hold inside the cap's chord.
@@ -195,7 +195,8 @@ fn a_ring_nearer_than_the_outer_loop_bounds_the_disc() {
         .unwrap()
         .vec();
     let q = p(1.0, 1.6, 1.0);
-    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
+    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside], band())
+        .expect("the top's disc");
     assert_eq!(s.len(), 1, "one sector inside the face");
     let r = s[0].face.clear.expect("a cleared radius");
     assert!(
@@ -438,8 +439,15 @@ fn a_lone_vertex_bounds_the_cleared_disc() {
     let outward = crate::face_normal::face_outward_normal(&body, top)
         .expect("a planar face's outward normal")
         .vec();
-    let sectors = FaceSector::cleared(&body, top, outward, p(0.5, 0.6, 1.0), &[Hold::Inside])
-        .expect("the face reads as a cleared disc");
+    let sectors = FaceSector::cleared(
+        &body,
+        top,
+        outward,
+        p(0.5, 0.6, 1.0),
+        &[Hold::Inside],
+        band(),
+    )
+    .expect("the face reads as a cleared disc");
     for s in &sectors {
         let clear = s.face.clear.expect("a cleared sector states its radius");
         assert!(
