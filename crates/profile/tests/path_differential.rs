@@ -401,11 +401,49 @@ fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f6
     let vh = Profile::new(SketchPlane::xy(), vec![hand.clone()])
         .validate(Tol::witness())
         .expect("hand-built loop validates");
+    // The algebra's segments record the directions their verbs drew
+    // them along and the hand table's are decided at validate from its
+    // points, so the two agree to rounding there and bit for bit in
+    // everything else.
+    let without_directions = |vp: &profile::ValidatedProfile<f64>| {
+        vp.loops()
+            .iter()
+            .map(|lp| {
+                let segs: Vec<_> = lp
+                    .segments()
+                    .iter()
+                    .map(|s| (s.start, s.end, s.kind))
+                    .collect();
+                format!(
+                    "{:?} {:?} {:?} {:?} {:?}",
+                    lp.role(),
+                    lp.vertices(),
+                    segs,
+                    lp.tangent_joints(),
+                    lp.cusp_joints()
+                )
+            })
+            .collect::<Vec<_>>()
+    };
     assert_eq!(
-        format!("{:?}", va.loops()),
-        format!("{:?}", vh.loops()),
+        without_directions(&va),
+        without_directions(&vh),
         "canonical validated forms"
     );
+    let units = |d: profile::SegmentDirections<f64>| match d {
+        profile::SegmentDirections::Line(d) => vec![d],
+        profile::SegmentDirections::Arc { start, end } => vec![start, end],
+    };
+    for (la, lh) in va.loops().iter().zip(vh.loops()) {
+        for (k, (sa, sh)) in la.segments().iter().zip(lh.segments()).enumerate() {
+            for (a, h) in units(sa.directions).into_iter().zip(units(sh.directions)) {
+                assert!(
+                    (a - h).norm() < 1e-12,
+                    "segment {k}'s directions: {a:?} vs {h:?}"
+                );
+            }
+        }
+    }
 }
 
 /// D1 — sharp polygon: lines only, closed with `line_to(Start)`.

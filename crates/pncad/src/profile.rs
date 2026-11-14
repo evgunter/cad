@@ -105,8 +105,9 @@ pub use ::profile::{
 // types a caller must be able to name.
 pub use ::profile::{
     ArcCheck, BlendArc, ContactKind, DecidedJoint, EscalationSite, FilletLeg, FilletLegCarrier,
-    JointCarriers, LoopRole, NoCornerReason, OverrunLegs, ProfileError, SegmentKind, SegmentRef,
-    ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
+    JointCarriers, LoopRole, NoCornerReason, OverrunLegs, ProfileError, RecordedDirection,
+    SegmentDirections, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    ValueNotAPoint,
 };
 // The gate an escalation carries (`ProfileError::Escalated`,
 // `PathError::Escalated`, a guided refusal's; its ending kind is

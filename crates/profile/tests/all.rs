@@ -144,6 +144,8 @@ mod r2_bool11_review_probes;
 mod r2_bool9_review_probes;
 #[path = "raw_door_census.rs"]
 mod raw_door_census;
+#[path = "recorded_directions.rs"]
+mod recorded_directions;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
 #[path = "review_fillet_recourse_arm_r2_probes.rs"]

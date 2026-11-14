@@ -480,6 +480,18 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::PathSeamArrivalSide, NO_FIXTURE),
     (Gate::RayAdvance, NO_FIXTURE),
     (Gate::RaySide, NO_FIXTURE),
+    (Gate::SegmentDirection, NO_FIXTURE),
+    (
+        Gate::SegmentDirectionAxis,
+        "read outside the log at the least band, a choice between two sound spellings: \
+         it never refuses (audit row F43)",
+    ),
+    (
+        Gate::SegmentDirectionSign,
+        "read outside the log at the least band, a choice between two sound spellings: \
+         it never refuses (audit row F43)",
+    ),
+    (Gate::SegmentDirectionResolution, NO_FIXTURE),
     (Gate::SegmentGap, NO_FIXTURE),
 ];
 

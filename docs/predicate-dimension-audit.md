@@ -1873,6 +1873,31 @@ Flagged, NOT fixed here (dispositions):
   an escalation re-mints it, the conservative branch, so the decision
   never admits a frame. One site, `LEDGER_FLAGGED_SITES` 4 → 5.
 
+- **F43** (added by BOXFINISH's profile-directions unit)
+  `profile/src/seg.rs` `axis_or` and `literal_sign`, under
+  `segment_direction_axis` and `segment_direction_sign`. The first:
+  each component of the vector a validated segment's direction is
+  minted from (a line's chord, an arc's centre-to-vertex), its sign
+  read once at the least band whatever it answers. One component
+  exactly zero (a theorem of the parameters at `Sym`, an exact zero at
+  `f64`) with the other definite mints the axis, signed by the other as
+  a literal ±1; anything else, an escalation included, mints the
+  quotient by its length. The second: a bulge's sign, read once per
+  bulge leg into the literal ±1 that signs its lowering's radials; an
+  indefinite sign leaves them to validation's mint. **Both outcomes of
+  each are the direction**, so no reader rests on the pick and neither
+  is ever a refusal: the axis only drops the width a quotient of two
+  values that share a parameter carries, and the literal keeps an
+  opaque `copysign` atom out of the symbolic tier. A mint's readings
+  do not depend on their answers, so a lane that answers differently
+  reads the same population. The first is the compound form: a reader
+  deciding both components against the band it is passed
+  (`component_signs`), run inside `k_stats::unlogged("F43", ..)` at
+  `Band::least()`; the second is `k_stats::choose(.., "F43")`, its tie
+  the other spelling. The K samples reach the sink under the two
+  names. Not `decide_flagged` sites;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

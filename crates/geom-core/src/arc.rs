@@ -51,6 +51,26 @@ impl<T: Real> Arc2<T> {
     /// own rule to have kept out.
     #[must_use]
     pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
+        Self::from_chord_radials(a, b, x, T::one()).0
+    }
+
+    /// [`Arc2::from_chord`], with the unit radials at its two ends that
+    /// the lowering holds: with `û` the chord's unit direction, `n̂` its
+    /// left normal and `s` the literal ±1 of `x`'s sign, which the caller
+    /// reads (the radials are those of `sign · |…|`, so a wrong `sign`
+    /// negates both),
+    ///
+    /// - at `a`: `s·(−2x·û − (1 − x²)·n̂)/(1 + x²)`,
+    /// - at `b`: `s·( 2x·û − (1 − x²)·n̂)/(1 + x²)`.
+    ///
+    /// **Why they are the radials.** `a − centre = −(L/2)·û −
+    /// n̂·L(1 − x²)/(4x)` and the radius is `L(1 + x²)/(4|x|)`, so
+    /// `(a − centre)/radius` is the first; `b` is the second by the
+    /// chord's reflection `û ↦ −û`. Each is unit over the reals:
+    /// `4x² + (1 − x²)² = (1 + x²)²`. Both are rational in `x` and the
+    /// chord's own unit, so no further length is read.
+    #[must_use]
+    pub fn from_chord_radials(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> (Self, [Vec2<T>; 2]) {
         let len = a.distance(b);
         let unit = (b - a) / len;
         let mid = a.mid(b);
@@ -59,11 +79,23 @@ impl<T: Real> Arc2<T> {
         let four_x = T::from_f64(4.0) * x;
         let apothem = len * (T::one() - x2) / four_x;
         let signed_radius = len * (T::one() + x2) / four_x;
-        Self {
+        let arc = Self {
             centre: mid + normal * apothem,
             radius: signed_radius.abs(),
             sweep: T::from_f64(4.0) * x.atan(),
-        }
+        };
+        let scale = sign / (T::one() + x2);
+        let along = unit * (x + x);
+        let across = normal * (T::one() - x2);
+        let radials = [(-along - across) * scale, (along - across) * scale];
+        (arc, radials)
+    }
+
+    /// **The carrier point along the unit `radial`**: `centre +
+    /// radial·radius`, the one spelling of "the centre plus the radius
+    /// along a direction" ([`Arc2::register_radials`]).
+    pub fn on_radial(self, radial: Vec2<T>) -> Point2<T> {
+        self.centre + radial * self.radius
     }
 
     /// The same arc read at another scalar: `f` applied to the centre's
@@ -317,6 +349,35 @@ impl<T: Real> Arc2<T> {
             ),
         ]
     }
+
+    /// **Registers the radial facts** of this arc between `a` and `b`
+    /// ([`Real::register_equal`]), per component: the carrier point
+    /// along the start radial is `a` and along the end radial is `b`
+    /// ([`Arc2::on_radial`]). The fact states the radial's direction
+    /// and its length at once, since the radius is the rim at each end.
+    ///
+    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
+    /// sound only where the CALLER built both radials so that this holds
+    /// over the reals wherever its construction's decisions hold (a
+    /// radius decided positive is `|r|`), and its doc comment carries
+    /// that proof.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_radials(
+        self,
+        a: Point2<T>,
+        b: Point2<T>,
+        [start, end]: [Vec2<T>; 2],
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 4] {
+        let (from, to) = (self.on_radial(start), self.on_radial(end));
+        [
+            ("the start radial's x", from.x.register_equal(a.x, tol)),
+            ("the start radial's y", from.y.register_equal(a.y, tol)),
+            ("the end radial's x", to.x.register_equal(b.x, tol)),
+            ("the end radial's y", to.y.register_equal(b.y, tol)),
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -473,6 +534,65 @@ mod tests {
             [got[2], got[5], got[6], got[9]],
             [SymRegistration::Contradicted; 4],
             "a sweep that turns the wrong end onto the other: {got:?}"
+        );
+    }
+
+    /// **The chord lowering's radials are its arc's**: at every bulge
+    /// sign and size, each is `(end − centre)/radius` of the arc it
+    /// lowers to, within rounding, and unit; and the arc half is
+    /// [`Arc2::from_chord`] bit for bit.
+    #[test]
+    fn from_chord_radials_are_the_centre_to_vertex_units() {
+        let (a, b) = (Point2::new(0.3, -0.7), Point2::new(1.9, 0.4));
+        for x in [1e-3, 0.2, 0.5, 1.0, 3.0, -1e-3, -0.4, -1.0, -2.5] {
+            let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x, x.signum());
+            let plain = Arc2::from_chord(a, b, x);
+            assert_eq!(
+                [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
+                [plain.centre.x, plain.centre.y, plain.radius, plain.sweep].map(f64::to_bits),
+                "x = {x}: the arc is from_chord's"
+            );
+            for (end, radial, what) in [(a, ra, "start"), (b, rb, "end")] {
+                let want = (end - arc.centre) / arc.radius;
+                assert!(
+                    (radial - want).norm() < 1e-12,
+                    "x = {x}: the {what} radial {radial:?} against {want:?}"
+                );
+                assert!(
+                    (radial.norm() - 1.0).abs() < 1e-15,
+                    "x = {x}: the {what} radial is unit"
+                );
+                assert!(
+                    arc.on_radial(radial).distance(end) < 1e-12,
+                    "x = {x}: on_radial lands on the {what}"
+                );
+            }
+        }
+    }
+
+    /// **The radial facts, and a planted lie, at the exact witness.**
+    /// The quarter circle's radials (1, 0) and (0, 1) meet; swapped,
+    /// each is refused in both components.
+    #[test]
+    fn register_radials_refuses_a_planted_lie_at_the_exact_witness() {
+        let (arc, a, b) = quarter_circle::<Interval>();
+        let (x, y) = (
+            Vec2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
+            Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        );
+        let answers = |radials| {
+            arc.register_radials(a, b, radials, Tol::witness())
+                .map(|(_, r)| r)
+        };
+        assert_eq!(
+            answers([x, y]),
+            [SymRegistration::Witnessed; 4],
+            "the true radials"
+        );
+        assert_eq!(
+            answers([y, x]),
+            [SymRegistration::Contradicted; 4],
+            "the radials swapped"
         );
     }
 

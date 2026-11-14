@@ -881,7 +881,8 @@ mod kernel {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
             Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
-            NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
+            NearFullArc, InconsistentArc, ArcBelowSceneResolution, InconsistentDirection,
+            DirectionBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
             RayCastingExhausted, Escalated, Structure,
@@ -4105,6 +4106,22 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             E::InconsistentArc {
                 at: a,
                 check: profile::ArcCheck::OnCarrier,
+            },
+        ),
+        (
+            "InconsistentDirection",
+            E::InconsistentDirection {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::Director,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
             },
         ),
         ("NearFullArc", E::NearFullArc(a)),

@@ -60,7 +60,10 @@
 #     `Arc2::register_tangent_at`, the centre as the radius along a
 #     side normal from a tangent foot, which the line×line fillet calls
 #     at its incoming foot (`profile/src/path.rs`,
-#     `register_incoming_tangency`, whose doc carries the proof). Each
+#     `register_incoming_tangency`, whose doc carries the proof), and
+#     `Arc2::register_radials`, the carrier point along each recorded
+#     radial is its vertex, which `profile::BuiltArc::register` calls for
+#     an arc whose construction made its radials. Each
 #     spells its identity here, so a registrant of another identity is
 #     a new function in this file.
 #   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,

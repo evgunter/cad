@@ -240,9 +240,10 @@ pub use ::profile::{
 //   whose subject and ending the refusal states, and `EscalatedAt` the
 //   path door's site for one. `ArcRead` is which read of a constructed
 //   arc missed, in `PathError`'s two read-back arms.
-// - `SegmentRef` is the rung under that one, and under six arms
-//   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
-//   `ArcBelowSceneResolution` carry one, `NonSimple` and
+// - `SegmentRef` is the rung under that one, and under eight arms
+//   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc`,
+//   `ArcBelowSceneResolution`, `InconsistentDirection` and
+//   `DirectionBelowSceneResolution` carry one, `NonSimple` and
 //   `TangentialContact` two apiece. It is where in
 //   the INPUT profile a refusal points — a loop index and a segment
 //   index, in the input's own ordering — so a caller that cannot name
@@ -253,6 +254,10 @@ pub use ::profile::{
 //   off its end, or its sweep out of range — or which one read a
 //   difference the scene could not resolve. Three conditions, and those
 //   arms are the only place the profile says which.
+// - `RecordedDirection` is `InconsistentDirection`'s and
+//   `DirectionBelowSceneResolution`'s: which of a segment's recorded
+//   directions disagreed with its vertices, or that they were the
+//   other kind's.
 // - `FilletLeg` is which side of a corner a fillet did not fit,
 //   incoming or outgoing: `CornerReason` names it in two arms and
 //   `PathError` in a third, and it is the one thing a caller
@@ -298,7 +303,7 @@ pub use ::profile::{
 // re-derives.
 pub use ::profile::{
     ArcCheck, ArcRead, ContactKind, EscalatedAt, EscalationSite, FilletLeg, FilletLegCarrier, Gate,
-    NoCornerReason, SegmentRef, TurnLever,
+    NoCornerReason, RecordedDirection, SegmentRef, TurnLever,
 };
 
 // --- 3. The four body operations ------------------------------
