@@ -92,7 +92,7 @@ does not, a PR with a diverged log shows as conflicting and is brought
 up to date by a local base merge, which the attribute does cover.
 
 **GitHub's merge, settled (2026-09-23).** With `.gitattributes` on
-both sides, PR 3109 appended one line to the end of `work/tess/log.md`
+both sides, PR 3109 appended one line to the end of `work/tesslane/log.md`
 from `1f04912c` while main had appended 29 lines there since (#3107).
 GitHub reported the PR `dirty`, and a local `git merge-tree` of the
 same pair was clean. GitHub's merge ignores `merge=union`, so the

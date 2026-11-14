@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-04
 priority: P1
 cost: M
+parent: nightly-reds-editor-core-digests-and-goldens
 ---
 
 

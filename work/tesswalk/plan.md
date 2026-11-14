@@ -23,4 +23,4 @@ Opened 2026-10-28 by TESS's semantic-seam split (`work/README.md`, Track size). 
 
 ## Process
 
-TESS's review tiers (`work/tess/plan.md`, Process), per `memories/orchestration-model.md`.
+TESS's review tiers (`work/tesslane/plan.md`, Process), per `memories/orchestration-model.md`.
