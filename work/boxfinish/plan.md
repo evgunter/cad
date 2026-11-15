@@ -20,7 +20,6 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
   - `an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`: a design question the chart-ends review raised; weighed before `IsoArc` gets stored ends. `an-iso-arc-rims-end-reads-through-its-map-at-interval` is parked on it.
   - `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`: a split `Interval` loft still refuses check 7. The certificate reads the lines its loop holds; in review on `boxfinish/rectangle-runs` (PR 6982).
   - `fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`: parked on the doors' unit, whose closing tests say whether the tour's certified stop is held by it (then P0).
-  - `the-axis-mint-asks-for-proof-only-where-the-value-reads-zero` (design): what PR 6990 leaves. Weighed (fork 272); with Ev on `[ev]` PR 6993.
   - Landed: the chart ends (PR 6959), the edge turns (PR 6946), the profile's recorded directions (PR 6963) and the aimed ray (PR 6958).
 - **P2:** `check-7s-volume-reading-is-loose-over-a-box`; `no-interval-fixture-exercises-a-leaf-that-does-not-finish-at-its-take`; `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`; `the-census-reads-an-edges-direction-off-its-two-ends`; `an-undecided-same-side-overlap-records-nothing-in-the-aligned-face-pair-arm`; `loft-struts-and-the-hole-bridge-divide-a-placed-difference-by-its-length` (design).
 - **Parked:** `delete-the-box-scalar-sweep-leaf-switch`, `blocked_on` the extrude-mint, curved-twin, doors-read and cost rows.
