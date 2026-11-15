@@ -1296,10 +1296,7 @@ fn a_radial_takes_one_branch_at_every_valuation() {
             (0.0, 0.0),
             "{kind:?}: the nominal start radial's quotient"
         );
-        assert!(
-            s1[0].0 < 0.0 || s1[0].0 > 0.0,
-            "{kind:?}: moved, it leans: {s1:?}"
-        );
+        assert!(s1[0].0 != 0.0, "{kind:?}: moved, it leans: {s1:?}");
         for e in [e0, e1] {
             assert_eq!(
                 e,
