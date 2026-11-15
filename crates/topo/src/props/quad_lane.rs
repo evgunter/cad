@@ -1118,7 +1118,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         .and_then(|h| crate::pcurves::Lift::read(body, h.parent_loop).ok())
         .filter(|lift| {
             lift.rows().len() == hes.len()
-                && lift.iter().all(|row| envelopes.contains_key(&row.half_edge))
+                && lift
+                    .iter()
+                    .all(|row| envelopes.contains_key(&row.half_edge))
         })
         .ok_or_else(no_cache)?;
     let TrimRectangle {
@@ -1336,12 +1338,16 @@ fn joint_defect<T: Decide + Bounds + CertifiedEnclosure>(
         let before = (i + n - 1) % n;
         let m = lift.joint_point(i);
         let off = |x: T| Interval::point(iv(x).mag());
-        let reach = |p: Point2<T>| Interval::point((su * off(p.x - m.x) + sv * off(p.y - m.y)).mag());
+        let reach =
+            |p: Point2<T>| Interval::point((su * off(p.x - m.x) + sv * off(p.y - m.y)).mag());
         let (a, b) = (
             reach(lift.rows()[before].entry_exit_points().1),
             reach(lift.rows()[i].entry_exit_points().0),
         );
-        let (e0, e1) = (Interval::point(envelopes[before]), Interval::point(envelopes[i]));
+        let (e0, e1) = (
+            Interval::point(envelopes[before]),
+            Interval::point(envelopes[i]),
+        );
         let two = Interval::point(2.0);
         defect = defect + a * (a + two * e0) + b * (b + two * e1);
     }
@@ -2301,6 +2307,395 @@ mod tests {
                     (bits(volume), bits(area), true),
                     "tight {tight}: the re-derivation is every face's closed form"
                 );
+            }
+        }
+    }
+
+    /// **The rectangle certificate reads a loop's held lines**
+    /// ([`super::super::trim_rectangle`]): loops of the unit square and
+    /// their misshapen kin, stated row by row at `f64` and at `Interval`,
+    /// each read as the rectangle its lines state or refused.
+    #[allow(clippy::float_cmp, clippy::unwrap_used, clippy::panic)]
+    mod trim_rectangle_rows {
+        use super::super::{TrimRectangle, joint_defect, trim_rectangle};
+        use crate::entity::HalfEdgeKey;
+        use crate::joint::Deck;
+        use crate::pcurves::{Lift, LiftedRow};
+        use geom_brep::props::PropsError;
+        use geom_brep::{Pcurve, StoredSpan};
+        use geom_core::{Bounds, CertifiedEnclosure, Decide, Interval, Point2, Real, Vec2};
+
+        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
+        fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
+            LiftedRow {
+                half_edge: HalfEdgeKey::default(),
+                lift: Deck::IDENTITY,
+                pcurve: Pcurve::IsoLine {
+                    p0: Point2::new(p0.0, p0.1),
+                    pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
+                    ends: None,
+                },
+                params: StoredSpan::for_tests(T::zero(), T::one()),
+                plus: true,
+            }
+        }
+
+        /// The piece from `a` to `b`, along one chart line.
+        fn from_to<T: Real>(a: (f64, f64), b: (f64, f64)) -> LiftedRow<T> {
+            let f = T::from_f64;
+            piece((f(a.0), f(a.1)), (b.0 - a.0, b.1 - a.1))
+        }
+
+        /// The loop through `corners`, one piece per side.
+        fn polygon<T: Real>(corners: &[(f64, f64)]) -> Vec<LiftedRow<T>> {
+            (0..corners.len())
+                .map(|i| from_to(corners[i], corners[(i + 1) % corners.len()]))
+                .collect()
+        }
+
+        const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+
+        fn read<T: Decide + Bounds + CertifiedEnclosure>(
+            rows: Vec<LiftedRow<T>>,
+        ) -> Result<TrimRectangle, PropsError> {
+            trim_rectangle(&Lift::stated_for_tests(rows, true))
+        }
+
+        fn refused<T: Decide + Bounds + CertifiedEnclosure>(rows: Vec<LiftedRow<T>>, says: &str) {
+            match read(rows) {
+                Err(PropsError::QuadratureUnsupported { what }) if what.contains(says) => {}
+                other => panic!("{}: refused, saying {says:?}: {other:?}", T::NAME),
+            }
+        }
+
+        fn both(check: impl Fn(&dyn Fn(Vec<(f64, f64)>) -> Result<TrimRectangle, PropsError>)) {
+            check(&|c| read::<f64>(polygon(&c)));
+            check(&|c| read::<Interval>(polygon(&c)));
+        }
+
+        /// The square once round reads `[0, 1]²` and its way: forward
+        /// counter-clockwise, and reversed, or traversed backward, clockwise.
+        #[test]
+        fn the_square_once_round_reads_its_rectangle_and_its_way() {
+            both(|read| {
+                let ccw = TrimRectangle {
+                    rect: (0.0, 1.0, 0.0, 1.0),
+                    winding: 1.0,
+                };
+                assert_eq!(read(SQUARE.to_vec()).unwrap(), ccw);
+                let cw: Vec<_> = SQUARE.iter().rev().copied().collect();
+                assert_eq!(read(cw).unwrap().winding, -1.0, "clockwise");
+                let mut started = SQUARE.to_vec();
+                started.rotate_left(2);
+                assert_eq!(read(started).unwrap(), ccw, "the start is gauge");
+            });
+            let mut backward = polygon::<f64>(&SQUARE);
+            for row in &mut backward {
+                let (entry, exit) = row.entry_exit_points();
+                *row = from_to((exit.x, exit.y), (entry.x, entry.y));
+                row.plus = false;
+            }
+            assert_eq!(
+                read(backward).unwrap().winding,
+                1.0,
+                "each traversed backward"
+            );
+        }
+
+        /// A sub-rectangle bounded by lines at values no chart edge has,
+        /// `1/9` among them, reads as those lines: the certificate takes
+        /// the rectangle the lines state, never the chart's domain.
+        #[test]
+        fn a_sub_rectangle_reads_its_own_lines() {
+            let (a, b) = (1.0 / 9.0, 0.7);
+            both(|read| {
+                let r = read(vec![(a, 0.25), (b, 0.25), (b, 1.0 - a), (a, 1.0 - a)]).unwrap();
+                assert_eq!(r.rect, (a, b, 0.25, 1.0 - a));
+            });
+        }
+
+        /// **A cut is never asked to be exact.** The bottom side in two
+        /// pieces meeting at a cut whose chart value is an enclosure: the
+        /// square reads as before, and the joint's gap is padded.
+        #[test]
+        fn a_side_cut_at_an_inexact_value_reads_its_rectangle() {
+            let cut = Interval::from_bounds(1.0 / 3.0 - 1e-16, 1.0 / 3.0 + 1e-16);
+            let mut rows = polygon::<Interval>(&SQUARE);
+            let (zero, one) = (Interval::zero(), Interval::one());
+            let first = piece((zero, zero), (1.0, 0.0));
+            let mut first_short = first.clone();
+            first_short.params = StoredSpan::for_tests(zero, cut);
+            let mut second = first;
+            second.params = StoredSpan::for_tests(cut, one);
+            rows.splice(0..1, [first_short, second]);
+            let lift = Lift::stated_for_tests(rows, true);
+            assert_eq!(
+                trim_rectangle(&lift).unwrap(),
+                TrimRectangle {
+                    rect: (0.0, 1.0, 0.0, 1.0),
+                    winding: 1.0
+                }
+            );
+            let pad = joint_defect(&lift, (2.0, 2.0), &[0.0; 5]);
+            assert!(
+                pad > 0.0 && pad < 1e-29,
+                "the cut's gap is its enclosure's width, squared: {pad:e}"
+            );
+        }
+
+        /// A corner whose image ends read as its meet adds nothing to the
+        /// pad, and one an end stops short of adds its gap's reach.
+        #[test]
+        fn a_corner_adds_its_gap_to_the_pad() {
+            let lift = Lift::stated_for_tests(polygon::<f64>(&SQUARE), true);
+            assert_eq!(joint_defect(&lift, (2.0, 3.0), &[1e-3; 4]), 0.0);
+            let mut short = polygon::<f64>(&SQUARE);
+            short[0] = from_to((0.0, 0.0), (0.75, 0.0));
+            let lift = Lift::stated_for_tests(short, true);
+            assert_eq!(trim_rectangle(&lift).unwrap().rect, (0.0, 1.0, 0.0, 1.0));
+            // The bottom's end stands 0.25 short of `(1, 0)`: a reach of
+            // 0.5 at `sup |S_u| = 2`, swept against its envelope.
+            let pad = joint_defect(&lift, (2.0, 3.0), &[1e-3; 4]);
+            assert!((pad - 0.5 * (0.5 + 2e-3)).abs() < 1e-12, "{pad}");
+        }
+
+        /// A side that runs out and back along its line refuses.
+        #[test]
+        fn a_back_and_forth_side_refuses() {
+            let spur = |read: &dyn Fn(Vec<LiftedRow<f64>>, &str)| {
+                let mut rows = polygon::<f64>(&SQUARE);
+                rows.splice(
+                    0..1,
+                    [
+                        from_to((0.0, 0.0), (1.0, 0.0)),
+                        from_to((1.0, 0.0), (0.5, 0.0)),
+                        from_to((0.5, 0.0), (1.0, 0.0)),
+                    ],
+                );
+                read(rows, "runs back");
+            };
+            spur(&|rows, says| refused::<f64>(rows, says));
+            let mut rows = polygon::<Interval>(&SQUARE);
+            rows.splice(
+                0..1,
+                [
+                    from_to((0.0, 0.0), (1.0, 0.0)),
+                    from_to((1.0, 0.0), (0.5, 0.0)),
+                    from_to((0.5, 0.0), (1.0, 0.0)),
+                ],
+            );
+            refused::<Interval>(rows, "runs back");
+        }
+
+        /// Three sides, five, and a notch refuse: none is four sides on
+        /// four lines.
+        #[test]
+        fn three_five_and_notched_sides_refuse() {
+            fn each<T: Decide + Bounds + CertifiedEnclosure>() {
+                // Three: the bottom, the right side and the top, the top's
+                // row joined to the bottom's.
+                let three = vec![
+                    from_to((0.0, 0.0), (1.0, 0.0)),
+                    from_to((1.0, 0.0), (1.0, 1.0)),
+                    from_to((1.0, 1.0), (0.0, 1.0)),
+                ];
+                refused::<T>(three, "not four sides");
+                // Five: the square with its left side stopped half way
+                // and a row at `v = 1/2` back to the start's column.
+                let five = vec![
+                    from_to((0.0, 0.0), (1.0, 0.0)),
+                    from_to((1.0, 0.0), (1.0, 1.0)),
+                    from_to((1.0, 1.0), (0.0, 1.0)),
+                    from_to((0.0, 1.0), (0.0, 0.5)),
+                    from_to((0.0, 0.5), (0.5, 0.5)),
+                ];
+                refused::<T>(five, "different chart lines");
+                // A notch: the bottom steps up a tenth half way along.
+                let notch = polygon::<T>(&[
+                    (0.0, 0.0),
+                    (0.5, 0.0),
+                    (0.5, 0.1),
+                    (1.0, 0.1),
+                    (1.0, 1.0),
+                    (0.0, 1.0),
+                ]);
+                refused::<T>(notch, "not four sides");
+                // A step with no riser: the bottom's two pieces on two rows.
+                let mut stepped = polygon::<T>(&SQUARE);
+                stepped.splice(
+                    0..1,
+                    [
+                        from_to((0.0, 0.0), (0.5, 0.0)),
+                        from_to((0.5, 0.1), (1.0, 0.1)),
+                    ],
+                );
+                refused::<T>(stepped, "different chart lines");
+            }
+            each::<f64>();
+            each::<Interval>();
+        }
+
+        /// A side carrying an image on no held line refuses: a diagonal
+        /// iso map, and a harmonic image.
+        #[test]
+        fn a_side_on_no_held_line_refuses() {
+            fn each<T: Decide + Bounds + CertifiedEnclosure>() {
+                let mut diagonal = polygon::<T>(&SQUARE);
+                diagonal[1] = piece((T::one(), T::zero()), (1e-3, 1.0));
+                refused::<T>(diagonal, "not axis-aligned");
+                let mut harmonic = polygon::<T>(&SQUARE);
+                let f = T::from_f64;
+                harmonic[1].pcurve = Pcurve::free_harmonic(
+                    Point2::new(f(1.0), f(0.0)),
+                    Vec2::new(f(0.0), f(0.0)),
+                    Vec2::new(f(1e-3), f(0.0)),
+                    Vec2::new(f(0.0), f(1.0)),
+                );
+                refused::<T>(harmonic, "not axis-aligned");
+            }
+            each::<f64>();
+            each::<Interval>();
+        }
+
+        /// **A held value that is not a point refuses**: a column placed
+        /// at a measured foot, its value an enclosure some ulps wide.
+        #[test]
+        fn a_held_value_that_is_not_a_point_refuses() {
+            let foot = Interval::from_bounds(0.75 - 1e-16, 0.75 + 1e-16);
+            let zero = Interval::zero();
+            let mut rows = polygon::<Interval>(&[(0.0, 0.0), (0.75, 0.0), (0.75, 1.0), (0.0, 1.0)]);
+            rows[1] = piece((foot, zero), (0.0, 1.0));
+            refused::<Interval>(rows.clone(), "not exact structure");
+            // The same column at its point reads.
+            rows[1] = piece((Interval::from_f64(0.75), zero), (0.0, 1.0));
+            assert_eq!(read(rows).unwrap().rect, (0.0, 0.75, 0.0, 1.0));
+        }
+
+        /// A side whose way along its line is undecided refuses: its rate
+        /// an enclosure of zero.
+        #[test]
+        fn a_side_whose_way_is_undecided_refuses() {
+            let mut rows = polygon::<Interval>(&SQUARE);
+            let LiftedRow { pcurve, .. } = &mut rows[0];
+            *pcurve = Pcurve::IsoLine {
+                p0: Point2::new(Interval::zero(), Interval::zero()),
+                pl: Vec2::new(Interval::from_bounds(-1e-300, 1.0), Interval::zero()),
+                ends: None,
+            };
+            refused::<Interval>(rows, "not decided");
+        }
+
+        /// A loop that winds a period of its chart bounds no rectangle of
+        /// it, and an open run is no loop.
+        #[test]
+        fn a_loop_that_does_not_close_in_its_chart_refuses() {
+            let open = Lift::stated_for_tests(polygon::<f64>(&SQUARE), false);
+            match trim_rectangle(&open) {
+                Err(PropsError::QuadratureUnsupported { what }) if what.contains("winds") => {}
+                other => panic!("an open run refuses: {other:?}"),
+            }
+        }
+
+        /// **A wall trimmed short of its chart's edge certifies the lines
+        /// it holds**: a flat patch at `z = 1` over `[0, 2] × [0, 3]`, its
+        /// trim's left column one ulp, and then a tenth of the band, in
+        /// from the chart's `u = 0`. The rectangle is the column's value,
+        /// never the chart's domain, and the flux the patch lane certifies
+        /// over it holds the trimmed wall's own, `z·area = 6·(1 − δ)`; over
+        /// the domain it would be `6`, which the tenth of the band puts
+        /// outside the bracket.
+        #[test]
+        fn a_wall_trimmed_short_of_its_chart_certifies_the_lines_it_holds() {
+            use geom_brep::props::quad::{self, FaceCutBounds, LaneStop, PatchNet};
+            use geom_core::spline::KnotVector;
+            use geom_core::{Band, Tol};
+            let tol = Tol::witness();
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let p = |x: f64, y: f64| [x, y, 1.0].map(Interval::from_f64);
+            let control = vec![p(0.0, 0.0), p(0.0, 3.0), p(2.0, 0.0), p(2.0, 3.0)];
+            let net = PatchNet::new(&kv, &kv, &control, &[1.0; 4]).unwrap();
+            // `δ` in chart units: the chart's `u` runs 2 m.
+            for delta in [f64::EPSILON / 2.0, tol.eps() / 20.0] {
+                fn rect<T: Decide + Bounds + CertifiedEnclosure>(delta: f64) -> TrimRectangle {
+                    read::<T>(polygon(&[
+                        (delta, 0.0),
+                        (1.0, 0.0),
+                        (1.0, 1.0),
+                        (delta, 1.0),
+                    ]))
+                    .unwrap()
+                }
+                for (scalar, r) in [
+                    ("f64", rect::<f64>(delta)),
+                    ("Interval", rect::<Interval>(delta)),
+                ] {
+                    assert_eq!(
+                        r.rect,
+                        (delta, 1.0, 0.0, 1.0),
+                        "{scalar}: the column's own value"
+                    );
+                    let run = quad::nurbs_patch_face::<f64>(
+                        &net,
+                        r.rect,
+                        10.0,
+                        0.0,
+                        Band::linear(tol).unwrap(),
+                        &mut |_: &FaceCutBounds, _: LaneStop| Ok(true),
+                    )
+                    .unwrap();
+                    let flux = run.bounds.flux;
+                    let trimmed =
+                        Interval::from_f64(6.0) * (Interval::one() - Interval::from_f64(delta));
+                    assert!(
+                        flux.lo() <= trimmed.lo() && trimmed.hi() <= flux.hi(),
+                        "{scalar}, δ = {delta:e}: the certified flux {flux:?} holds the trimmed \
+                         wall's {trimmed:?}"
+                    );
+                    if delta > 1e-12 {
+                        assert!(
+                            flux.hi() < 6.0,
+                            "{scalar}: the domain's flux 6 is outside {flux:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        /// **A ring is never offered as a side.** The certificate reads one
+        /// loop; a spline face with a ring refuses at the lane, before any
+        /// loop is read (the face walk refuses it earlier still,
+        /// `MassPropsError::RingOnCurvedFace`).
+        #[test]
+        fn a_ring_on_a_spline_face_refuses_at_the_lane() {
+            use geom::{NurbsSurface, Surface};
+            use geom_core::spline::{KnotVector, Knots};
+            use geom_core::{Band, Point3, Tol};
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+            let surface = Surface::Nurbs(std::sync::Arc::new(
+                NurbsSurface::new(
+                    Knots::from(kv.clone()).lift(Real::from_f64),
+                    Knots::from(kv).lift(Real::from_f64),
+                    vec![p(0.0, 0.0), p(0.0, 1.0), p(1.0, 0.0), p(1.0, 1.0)],
+                    vec![1.0; 4],
+                )
+                .unwrap(),
+            ));
+            let tol = Tol::witness();
+            let rows = super::super::cut_face_rounds(
+                &crate::Body::<f64>::new(),
+                &surface,
+                true,
+                &[(Vec::new(), Vec::new()), (Vec::new(), Vec::new())],
+                Band::linear(tol).unwrap(),
+                tol,
+                geom_brep::props::quad::RoundWindow::SCHEDULE,
+                None,
+                None,
+            );
+            match rows {
+                Err(PropsError::QuadratureUnsupported { what }) if what.contains("a ring") => {}
+                other => panic!("a ring refuses: {other:?}"),
             }
         }
     }
