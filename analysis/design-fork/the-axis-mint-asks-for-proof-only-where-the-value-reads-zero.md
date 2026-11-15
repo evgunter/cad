@@ -992,3 +992,7 @@ It counts no decision, queues nothing, and writes no log row. Its one licence is
 - **Readers checked:** I found no body reader for whom a budget difference is more than width. The doors' unit reads the director at the leaf only, and the witness is `f64`, so it never takes the arm. I found no content key or digest over stored directions, though I did not search exhaustively.
 - **The one reader beyond width** is the lint at the coincidence replay (`Sym<f64>`, const `BUDGET`). A director stored as the quotient there and as the axis at the leaf can change which downstream margins prove: findings, not bodies.
 - **The case for it:** a hop identity is a tiny form that no realistic budget freezes, so fixing the rules costs almost nothing and buys the cleaner statement, "a function of the document". If Ev would rather not add the memo, I would not fight for it.
+
+## Round 4 (dispatched 16:14 UTC)
+
+Each designer was pointed at the three round-3 replies by label (`probe/fork-identity/round3/{A,B,C}.md`). The message was identical but for the label: what all three agree after round 3; the three small differences left (whether the mint calls the one door or a separate query; the `Dual` clause, with the question whether it is the same choice as the first; the query's budget), each with a question meant to show whether anything real separates the sides; and the ask (say whether you move; if all agree, write the agreed recommendation with no choice section; state a surviving difference as one choice for Ev).
