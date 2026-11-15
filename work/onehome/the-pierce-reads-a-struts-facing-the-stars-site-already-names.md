@@ -7,6 +7,7 @@ opened: 2026-11-02
 priority: P1
 cost: M
 closed: 2026-11-15
+pr: 7008
 branch: onehome/pierce-strut-facing
 ---
 
