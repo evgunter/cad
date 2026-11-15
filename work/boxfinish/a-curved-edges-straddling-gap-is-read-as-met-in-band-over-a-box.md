@@ -4,7 +4,7 @@ kind: issue
 title: A curved edge whose carrier reading straddles the band is read as met in band; over a box that reading may hold members that pass it clear
 status: open
 opened: 2026-11-14
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -51,3 +51,27 @@ band only where the bracket's upper end is within a stated multiple of
 the band, the ray set aside past it), with the `f64` pin kept and a
 boxed curved row beside it; or the pin's rule re-argued for an
 enclosure of any width.
+
+## Raised to P0, and it blocks the doors' unit (2026-11-15)
+
+PR 6958's second review confirmed this is not reachable today: the sweep
+doors refuse every curved body it tried over every box, down to ± 1e-6
+(a filleted prism, a disc, two cylinders, a frustum). It did not check
+the box driver or a taker.
+
+The doors' unit
+(`the-sweep-doors-read-the-profiles-recorded-directions`) is what lets a
+cut plate's cylinders finish over a box, so this is fixed before or with
+it: that row is parked on this one, and so is the switch's deletion.
+
+**What the fix owes beyond this arm** (the second review's style finding):
+"an undecided reading never decides" is held arm by arm, in three
+spellings (`edge_meets` threads a `Result` and applies it after the span
+test; `represents` writes its own match; `curved_edges::passes` keeps
+the opposite rule). A type or one door should hold it.
+
+**The `f64` pin.** `straddle_rows::a_straddle_is_in_band_and_past_the_span_is_clear`
+pins the present reading at `f64` as FLUSH's ruled behaviour. Whether an
+`f64` carrier straddle and a box-wide one are the same thing to this
+reader is the question to settle first; if the answer changes what FLUSH
+ruled, it is a design fork.
