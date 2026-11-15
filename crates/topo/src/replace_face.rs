@@ -5412,17 +5412,21 @@ mod pose_reach_rows {
         }
     }
 
-    /// **A NURBS ruling's pose is read at its least-lever pivot.** Row
-    /// A's two cylinders and ruling, the edge a degree-1 NURBS carrier
-    /// on `(1, 0, z)` with UNEVEN control points: `z = (−1, 0.8, 1)`
-    /// (knots `[0, 0, 0.9, 1, 1]`) and `z = (−1, 0.9, 0.95, 1)`. Its lever
-    /// is the farthest control point, least at the axis point midway
-    /// along the net (`√2`, the stored origin's too). Read at the foot of
-    /// the control points' mean it was 1.6–1.8, and `cc_axes_parallel`
-    /// read a tilt the least lever leaves in the band as definite, and
-    /// served the meeting axes' ellipse pair (from `k = 8` or `9`).
+    /// **A NURBS ruling's pose is one verdict across its
+    /// parametrisations.** Row A's two cylinders and ruling, the edge
+    /// `(1, 0, z)`, `z ∈ [−1, 1]`, carried by three degree-1 NURBS nets
+    /// with uneven control points and knots: `z = (−1, 0.8, 1)` (knots
+    /// `[0, 0, 0.9, 1, 1]`), `z = (−1, 0.9, 0.95, 1)`, and a net clustered
+    /// at one end on uniform knots. Each is the same region, so it is
+    /// read at the same pivot, the middle of its window (`z = 0`), at
+    /// the same lever, `√2`, and every one escalates an in-band tilt in
+    /// both orders. Red against a pivot that moves with the
+    /// parametrisation: the control points' mean levered 1.6–1.8 and the
+    /// mid-parameter point 2.2, and `cc_axes_parallel` read the tilt as
+    /// definite and served the meeting axes' ellipse pair (from `k = 8`
+    /// or `9`).
     #[test]
-    fn a_nurbs_rulings_pose_is_read_at_its_least_lever_pivot() {
+    fn a_nurbs_rulings_pose_is_one_verdict_across_its_parametrisations() {
         let eps = band().zero();
         let c1 = Surface::Cylinder {
             origin: Point3::origin(),
@@ -5455,7 +5459,7 @@ mod pose_reach_rows {
             ),
             // Clustered at one end with uniform knots: the curve's
             // mid-parameter point stands at `z = 0.98`, whose lever to
-            // `z = −1` is 2.2 against the least lever's √2.
+            // `z = −1` is 2.2 against the window's middle's √2.
             (
                 "nurbs5",
                 ruling(
