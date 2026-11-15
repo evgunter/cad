@@ -404,3 +404,169 @@ Other chart maps never reach these images. Reflection leaves a spline chart alon
 - **Sequencing (A's, which I endorse):** change the certificate first, then the chart-line type, then the arc.
 ````
 
+- **Round 2, results (all three in by 02:26 UTC). All three agree.**
+  - **C: changed back, to the value**, with the period identity held by the lift's shift (a domain end moved one period IS the other end, by definition). It corrected its own round-1 example (`[0.1, 0.7]` round-trips at `f64` in that direction; the miss is at `Interval`, through the period's width, off a domain starting at 0). Ran: Python arithmetic only.
+  - **B: unchanged on the value;** adds that the period is held as the chart's two domain ends, so the one operation that moves held values knows where the sides are. Ran: an `f64` experiment (200 000 random domains: `a + (b − a) = b` always; `b − (b − a) = a` fails about 5%, `[0.1, 0.7]` among them).
+  - **A: unchanged on the value;** the same re-posed shift, named as `[simple.conditioned]` applied once. Ran: `f64` arithmetic (two-decimal domains, `lo + (hi − lo) ≠ hi` in about 22%). It notes the `Interval` refusal on a shifted held line exists under PR 6959's stored ends too, so it is a defect independent of the fork.
+  - **Agreed recommendation:** no image stores ends; an iso image holds the chart line it keeps fixed, as one value (exact where a mint placed it), and one map along it; a corner is the meet of two held lines, read from the loop's lift; the rectangle certificate reads four alternating runs, their meets and one sign per run, and refuses a meet that is not a point; a closed spline chart's period is held as its two domain ends, and moving a domain end one period returns the other end exactly; the certificate change is needed in any design and lands first. Left to the implementer by all three: whether line and arc are one variant or two sharing the held-line type.
+  - **What would change it (all three):** a door that re-parameterises a spline chart's domain while keeping its stored images. None found.
+  - Reconciliation ends: agreed. Two rounds; no further designer.
+
+### A, round 2, verbatim
+
+````markdown
+Report A, reconciliation round 2: the period-shift case is real in arithmetic; keep the held line an exact value and put the period identity in the one place that shifts.
+
+## For Ev
+
+**Recommendation (likely).** The line a boundary image holds fixed is one kind of thing: a value, exact where a mint placed it on a chart line. No name for a knot line, and no second "measured" kind. The case that was said to need a name is answered where it arises: the shift of an image by a chart's period.
+
+Terms. An *image* is an edge's curve in a face's 2-D chart. Its *held line* is the chart coordinate it keeps fixed (a row holds `v`, a column holds `u`). A spline chart *closed* in a direction joins its far side to its near side, and the loop's *lift* (`topo::pcurves::Lift`) may move an image by a whole *period*, the length of the chart's domain in that direction, so that consecutive images meet. A *corner* is the meet of a row's and a column's held values.
+
+**1. Is the period-shift case real? Yes, on a non-dyadic domain; and it bites harder than was said.**
+- *Where.* `Deck::apply` (`topo/src/joint.rs`) moves an image by `periods.u()` / `periods.v()`; for a spline chart the period is the knot domain's length, a computed `hi − lo` (`ChartPeriods`, `geom_core::Period { length }`). A held `u = lo` moved one period becomes `lo + (hi − lo)`. The tree's own fixtures build closed nets on arbitrary domains `[a, a + s]` (`pcurves/net_period_rows.rs`). Read, sure.
+- *The arithmetic.* I ran it: over 100,000 random two-decimal domains, `lo + (hi − lo) ≠ hi` in `f64` for about 22%. (The example `[0.1, 0.7]` happens to round correctly.) On the kernel's own `[0, 1]` charts it is exact. Sure.
+- *Who compares the shifted value, and with what.* Three readers, read at their sites:
+  - The rectangle certificate uses the shifted column's value at both of its corners, so the two meets agree with each other whatever the sum rounds to; nothing compares it with the chart's far side. At `f64` the certificate passes, over a rectangle one rounding step off the chart's edge. **At `Interval` the sum of two exact numbers that does not round exactly is an enclosure with width, so the held line is no longer a single number and the certificate refuses the face.** That is the same failure this whole item is about, entering by another door.
+  - `boolean::spline_known` compares a corner with the chart's domain end exactly; an inexact sum misses. It only loses a shortcut.
+  - Checks 3 and 4 certify the stored image, not the lifted one, so they never see the shift.
+- *Not run:* I did not drive a body through this. No kernel-built wall has a non-dyadic domain, so it needs an imported wall closed in one direction, with a seam whose two uses the lift places a period apart. Likely reachable; unmeasured.
+
+**2. A form with the name's identity and the value's single kind: yes.**
+The identity "the near side moved one period is the far side" is a fact about the shift on that chart, not about the image. State it there. A spline chart's period is held as its two domain ends, not as their difference; moving a value by one period returns the far end when the value is exactly the near end (and the reverse), and `value ± k·(hi − lo)` otherwise. Final state:
+- an image's held line: `at`, a value; exact where placed;
+- a closed spline chart's period: `(lo, hi)`, the one thing the lift shifts by;
+- the certificate: every held line a single number, as agreed.
+This is `[simple.conditioned]` applied once: a formula that loses the exact answer where a decision reads it is re-posed, in the one place that computes it. As real numbers `lo + (hi − lo)` is `hi`; the re-posed shift returns that. Every reader of a lifted image gets it, with no reader changed.
+
+Why not the name:
+- No mint knows a knot index; each has the domain end as a value (the importer's row, `nurbs_iso_derive`'s boundary candidates, the loft's section rim). Sure.
+- A name needs the same identity written anyway (the round-1 report proposing it says so), plus a second kind for every line that is not a knot line, and a rule in the certificate for each kind. The value needs the identity and nothing else.
+- "A stored value copies what the knot vector states": a name is also a statement of which line, an index instead of a number. Neither is kept in step by hand unless the chart's domain is re-parameterised under its stored images, which I found no door doing.
+
+Worked: an imported wall closed in `u`, domain `[0.13, 4.71]`, its seam stored at `u = 0.13` on both uses. The lift moves the second use one period. Today's shift gives `0.13 + 4.58`, which may not be `4.71`: at `Interval` a width, and the face refuses. Re-posed, it gives `4.71`; the corners are `(0.13, v0)`, `(4.71, v0)`, `(4.71, v1)`, `(0.13, v1)`, exact at every scalar.
+
+**On one variant or two.** Whether the straight and arc images are one variant or two variants sharing the held-line type is not a design difference: either states the line once. The implementer's call.
+
+**3. Confidence, and what would change it.** Recommendation: likely. The arithmetic and the sites: sure. That the re-posed shift covers every place a held line is moved by a period: likely; I read `Deck::apply`, `shift_v_branch` and `shift_branch`, and all go through the chart's periods. What would change it: a door that re-parameterises a chart's domain while keeping its stored images (then a first/last name survives and a value does not), or a held line other than a domain end that must stay exact across a shift. I found neither.
+
+## For the orchestrator
+
+- **Ran:** only the `f64` arithmetic sample above (python, random two-decimal `lo < hi`, 21,765 misses in 100,000). No kernel test this round.
+- **Read:** `Deck::apply`; `shift_v_branch` (`translate(0, period.times(k))`); `ChartPeriods`/`VPeriod::Net(Period)`; `geom_core::Period { length }`; `net_period_rows.rs` fixtures (closed nets on `[a, a + s]`, though the shifted channel there is the moving one, a row wrapping the closed direction, not a held column); `nurbs_patch_face_rounds` takes the rectangle's corners straight into `knot_aligned_cuts`, with no visible test that the rectangle lies in the knot domain (not traced further).
+- **This is a defect independent of the fork:** the `Interval` refusal on a shifted held line exists under PR 6959's stored ends too (a lifted column's ends are `lo + (hi − lo)` there as well). It deserves its own row if no imported closed spline wall is in the suites; the re-posed period is its fix under any of the three forms.
+- **Scope note:** the re-posed shift touches `Period`/`ChartPeriods` for nets only; the angle period `τ` is unaffected (an analytic chart has no domain end to land on).
+- **Not checked:** whether the mint ever stores a seam's two uses on opposite columns (then no shift occurs and the case is unreachable for seams); whether any door re-parameterises a net's domain in place.
+````
+
+### B, round 2, verbatim
+
+````markdown
+Reconciliation round 2 — report B
+
+## For Ev
+
+**Recommendation (likely): the held line is an exact value, one kind; the chart's period, not a name, carries the identity "the start of a closed chart, moved one period, is its end."**
+- **The image.** An iso image (a boundary edge's curve in a face's chart, along a row or column) holds the chart coordinate it keeps fixed, as a scalar `at`, plus one map along it. It stores no ends.
+- **Corners.** A corner of the loop is the *meet* of two held lines, read from the loop's lift (the one place for a loop's position in its chart).
+- **The period.** On a chart that closes on itself, the lift moves an image by whole periods. The period becomes the chart's two domain ends `(lo, hi)`, not their difference. Moving a value by `k` periods returns `hi` exactly for `lo` moved `+1`, `lo` exactly for `hi` moved `−1`, and `x + k·(hi − lo)` otherwise.
+- **Result.** Every held value is one kind: a scalar that is a point or is not. The one operation that moves held values knows where the chart's sides are.
+
+### The period-shift case is real (likely)
+What I read:
+- The lift moves an image by `Deck::apply` (`topo::joint`), which calls `shift_v_branch` and `Pcurve::shift_branch`.
+- On a spline chart closed in `u`, the period is `Period::new(u1 − u0)`, the knot domain's length (`chart_u_period`, `topo::pcurves::mint`). So a moved held value is `at + k·(u1 − u0)`, computed.
+
+What I ran: an `f64` experiment over 200 000 random domains `[a, b]`.
+- `a + (b − a) == b` held every time.
+- `b − (b − a) == a` failed 11 285 times (about 5 %). One failing domain is `[0.1, 0.7]`: `0.7 − 0.6 ≠ 0.1`.
+- So a closed chart's seam column, stored at its far side and moved back one period, misses the near side even at `f64`. At `Interval` it is an enclosure with width.
+
+The neighbours do not cancel the miss:
+- A `u` move shifts the rows' moving maps, not their held `v`. The moved column's value meets the rows' held `v`, and is compared with nothing that was moved by the same sum.
+- It reaches the reader that matters, the rectangle certificate (tier 3's cheapest volume proof on a NURBS wall). Its rectangle's `u` extent is that moved value.
+  - At `Interval` the extent is not a point, and the certificate refuses a wall it should certify.
+  - At `f64` the rectangle is a rounding off the chart's domain, and its integral is unaccounted by the same amount.
+- Today's certificate has the same exposure through `lifted_images`.
+- Every shipped loft chart has domain `[0, 1]`, where all of this is exact. So the case belongs to imported closed charts (a non-dyadic domain is enough to hit it) and to future constructions, not to today's suites.
+
+### Why not the name (sure on the sites, likely on the weighing)
+A name (`Knot(k)` for a knot line of the chart, `Measured(T)` for any other line) does fix this case. But:
+- **It adds a second kind of line.** A measured interior column has no knot to name, so `Measured(T)` is needed.
+- **Interior knot indices go stale.** Knot insertion renumbers them. Only "first knot" and "last knot" survive.
+- **No mint has an index to give.** The importer (`step-import` `adopt.rs`), the mint's boundary rows (`cv0`/`cv1`) and the loft's section rim all pass the domain end values. So the name would be recovered by comparing those values with the knot vector anyway.
+
+The period form gives the name's one useful identity, without the second kind. It puts the identity where it belongs: in the chart's own statement of how it closes, read by the one operation that moves values by it.
+
+### The final state
+- **Images.** `Pcurve::Iso { held, at: T, moving }`, the line and arc images merged into one variant. `at` is copied from the chart's domain end where the image lies on a side.
+- **The copy is a constant, never edited on its own.** Knot insertion never moves a domain end. The only things that move a held value are the chart's affine maps and the period, and both act on it as on the chart.
+- **The period.** `Period` on a closed chart is built from `(lo, hi)`. Its `shift(x, k)` maps `lo` and `hi` onto each other exactly at `k = ±1`, and computes otherwise. An analytic angle's `τ` uses the same rule over its window.
+- **The certificate** reads four alternating runs and their meets, and refuses a meet that is not a point. A moved seam column is now a point, the far side.
+
+**What would change it:** a door that re-parameterises a chart's domain (moves `lo` or `hi`) while keeping its images. Every copied `at` would then go stale, and a name would not. I found none: `shift_chart_v` acts only on analytic charts.
+
+**Confidence:**
+- Recommendation: **likely**.
+- "The miss is real at `f64` and at `Interval`": **likely** (the arithmetic was run; no imported closed wall was run through the certificate).
+- "No mint knows a knot index": **sure** (read).
+
+## For the orchestrator
+
+- **What I ran:** only the Python `f64` experiment described above. No crate test, and nothing left in the tree.
+- **Not checked:**
+  - Whether `Period::times` is used for anything beyond shifts, in places that want plain multiplication; the ends-aware `shift` should be a new method, leaving `times` as it is.
+  - Whether the whole loop is ever moved by `k ≠ 0` (both sides shifted). I read the lift as anchoring its first image unmoved, so the far side only ever needs `k = ±1`. If a reader moves a whole lift by `k`, `lo + 2P` and `hi + P` disagree in about 0.15 % of random domains. The rule would then be "shift in domain coordinates": a side stays `lo` or `hi` plus an integer count, and is read to a value only at the end.
+- **Remaining difference with C:** where the period identity lives: a name on the line (C) or the period's ends (this report). The two differ only if a door moves a chart's domain ends; the unit should confirm none does.
+````
+
+### C, round 2, verbatim
+
+````markdown
+## For Ev
+
+**Recommendation (changed back; likely).** Make the held line a single exact value, `at: T`, of one kind. The fixed coordinate a boundary image keeps (`v` for a row, `u` for a column) is that value, so there is no second "measured" kind. The period arithmetic belongs to the lift, which already owns it. On a chart closed in one direction, the lift shifts a line by whole periods, and the act of shifting states one identity as structure: a line that is exactly one end of the chart's domain, shifted by one period across the seam, *is* the other end. The lift does not compute it by addition. This is exact, not a snap: the period is defined as the domain's length, so the identity holds by definition. Every other shift adds `k·period` as today. With that, corners are the meets of two held lines, read at the lift. The rectangle certificate then reads four alternating runs, and nothing stores an image's ends. All three answers already agree on that part.
+
+**Is the period-shift case real?** Yes, but narrower than I said in round 1.
+- **Where it happens.**
+  - A spline chart's period is `u1 − u0`, computed in the run's scalar (`topo::pcurves::mint::chart_u_period`, `chart_v_period`).
+  - The lift moves a seam image by whole periods through `translate` (`shift_v_branch` and its `u` twin).
+  - A wall stated as one closed patch, with its seam used twice, is what translators write and what the kernel's band re-mint makes (the #327 note in `mint.rs`). Its loop is rim, seam, rim, seam reversed. One use of the seam is lifted by a period.
+- **Who compares, and with what.**
+  - The two neighbouring images never disagree, because both read the same shifted sum.
+  - The rectangle certificate's point test (`quad_lane::nurbs_face`, the `exact` closure) reads the shifted value.
+  - The quadrature then cuts the rectangle at the chart's knots (`props/quad/net.rs`, `range_spans`), so the rectangle's far side meets the chart's last knot there.
+- **What I ran** (Python arithmetic only, not the kernel):
+  - At `Interval`, `0.7 − 0.1` is not representable, so the period is an enclosure with width. The shifted seam is then not a point, and the certificate refuses. Any domain whose length is inexact does this, unless the domain starts at `0`: `0 + (u1 − 0)` is always exact.
+  - At `f64`, `a + (b − a) = b` held over a million random domains. It fails only for a domain straddling zero with a far end much smaller than its start: `[−1, 2⁻⁶⁰]` misses. There, the far side lies one ulp past or short of the last knot, a sliver at the knot walk.
+  - So my round-1 example, `[0.1, 0.7]` at `f64`, was wrong. The real case is `Interval`, on a closed spline patch whose domain does not start at `0`. Kernel-built charts are `[0, 1]`, and the imported cylinder I found is `[0, 3√3]`; neither is affected.
+- **What each form does.**
+  - A copied value: the certificate refuses at `Interval`.
+  - A knot name: survives, but only if the name carries the same identity.
+  - A value with the identity held at the shift (recommended): survives, with one kind of line.
+
+**Why not the name.**
+- No mint knows a knot index: every mint passes the chart's domain-end values.
+- Inserting a knot renumbers an index; it moves no value.
+- A measured column still needs the second kind, `Measured`.
+- The copy objection does not bite. No operation re-parameterises a spline chart while keeping its images:
+  - reflection is the identity on a spline chart (`topo::transform`, the `Net` class);
+  - `mirror_v` runs on planes only;
+  - the offset's `v` shift runs on cones only.
+  So a held value cannot drift from the knot vector it was read from.
+
+**The rest stands as agreed.** I no longer argue for keeping the line and arc images as separate variants. Merging them or sharing one field type is a naming choice. I lean to the merged variant, because the held line is the whole of what they share.
+
+**What would change this:** an operation that re-parameterises a spline chart's domain while keeping its boundary images. A stored value would then go stale where a name would not.
+
+**Confidence.** Recommendation: likely. "The miss reaches a reader only through the shifted far side, at `Interval`, off a domain starting at `0`": likely. I read the code and ran the arithmetic; I did not run a body.
+
+## For the orchestrator
+
+- **Correct my round-1 claim** in anything forwarded to Ev: `[0.1, 0.7]` round-trips at `f64`. The miss is at `Interval`, through the width of the period `u1 − u0`.
+- **Where the identity should live:** put it in one function on the lift's shift of a held line, so that `shift(line, k)` maps the domain end to the other domain end exactly when `k = ±1`, and adds `k·P` otherwise. `translate` stays for every other image kind.
+- **Unchecked:**
+  - Whether any closed spline patch with a domain not starting at `0` reaches check 7 at `Interval` today. Imports are probably `f64`-only.
+  - Whether the quadrature tolerates `hi` one ulp past the last knot, since `range_spans` would emit a sliver span outside the domain. The identity at the shift removes that case either way.
+````
+
