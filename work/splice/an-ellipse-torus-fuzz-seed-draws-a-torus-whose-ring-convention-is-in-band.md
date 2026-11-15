@@ -64,6 +64,7 @@ A fourth, from BOXFINISH's edge-turns lane (2026-11-14), on a branch
 whose diff does not touch `curve_face`: seed `0xda3ffbd3eaed595f`
 (`CAD_FUZZ_SEED=0xda3ffbd3eaed595f`), margin `9.914e-6`.
 
-Two more, from BOXFINISH's slow-set measurement (`boxfinish/chart-ends-slow-rows`, 2026-11-15), on trees whose diff does not touch `curve_face`. Both replay red on `origin/main` `dbb21b4a`, with the same `ring_torus_convention` `Undecided` payload at ε 1e-6:
+Three more, from BOXFINISH's slow-set measurement (`boxfinish/chart-ends-slow-rows`, 2026-11-15), on trees whose diff does not touch `curve_face`, each with the same `ring_torus_convention` `Undecided` payload at ε 1e-6. The first two were replayed red on `origin/main` `dbb21b4a`:
 - seed `0x31f1331db90e9f43`, from the slow set at `dbb21b4a`;
-- seed `0xa00da6f2a06eefcb`, from the slow set at `bdb498df`, before PR 6959.
+- seed `0xa00da6f2a06eefcb`, from the slow set at `bdb498df`, before PR 6959;
+- seed `0x18c721b4cca50dfa`, from the slow set on `boxfinish/chart-ends-slow-rows` (main `dbb21b4a` merged forward, with test-only edits).
