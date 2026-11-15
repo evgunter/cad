@@ -127,3 +127,8 @@
   - **The mint row was broken by the lane's own mechanical edit** (it wrote `ends: None` into a hand-rebuilt expected image), not by the design. It goes back to its first contract.
   - **Six `editor-core` rows are red after PR 6963 and green before it** (bisected over main's first-parent merges): the five `revalue_corpus` rows on `segment_direction_axis`, and `sym11`'s receipts. That lane has them.
   - **One red is nobody's merge:** a seeded torus fuzz row, already SPLICE's.
+- 2026-11-15 — **Rectangle-runs is in review (PR 6982).** The lane measured first and corrected the row again: the split `Interval` loft refuses at the cut on both the split and the re-minted body, so restoring a kept corner closes nothing. The certificate now reads the lines its loop holds and pads by the joints' measured gaps.
+  - **Three groups of walls main refused now certify**, the lane reports: the split rims, the shelled vase's moved cap at `f64` (SHELL's row `a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle`), and a one-segment loft at `Interval`.
+  - **The gate ran none of the slow rows this diff reaches**, the same gap as the main-red row. The lane was asked for a head-against-merge-base slow-set differential, `editor-core` included, before any merge; the reviewer is asked for it independently.
+  - **Filed by the lane, both P3:** `clearances-free-form-domain-test-reads-image-ends-with-a-hand-ulp-slack`, `a-seam-column-moved-a-period-reads-lo-plus-the-period`.
+  - **Seen on the switch-off tree, not this unit's:** the far-placement washer refuses `OutsideSessionBox` at `Sym<Interval>` with `d = 1e6`, where its table says built. It goes to the cost row's re-measurement.
