@@ -111,8 +111,6 @@ enum Seat<T: geom_core::Real> {
     Free,
 }
 
-use super::turn::zero;
-
 /// **Whether `pose` reads the opposite sense of its own direction**: an
 /// odd count of flips along the poses it keeps, read plainly or through
 /// a role that keeps a sense (a plane's normal, an axis's direction).
@@ -370,12 +368,9 @@ impl<T: SolveScalar> Chart<T> {
             .signed_permutation(orient.signed_permutation())
             .unwrap_or_else(|| unreachable!("an orientation is a permutation of the axes"));
         let n = from.get();
-        let dv = d.get();
-        // Where `n` is `d` exactly the least turn is the identity, and the
-        // carried axes are the target's own, exactly, at every scalar.
-        let turn = if [n.x - dv.x, n.y - dv.y, n.z - dv.z].into_iter().all(zero) {
-            RigidMotion::world()
-        } else {
+        // The least turn, whose mint takes a pair that is one direction
+        // exactly to the identity, exactly, at every scalar.
+        let turn = {
             // The pole verdict and the conditioning, over the lever: the
             // one decided least-turn mint (`[placement.values]`).
             let least = RigidMotion::least_turn(

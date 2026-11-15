@@ -126,8 +126,9 @@
 //!   the axis is RAW: the axis is decided first and kept as `w`, the
 //!   reference yields to it.
 //! - [`RigidMotion::least_turn`] — the least turn carrying one
-//!   direction witness onto another, as the matrix of the quaternion
-//!   `(1 + a·b, a × b)` with no normalized axis and no angle, decided
+//!   direction witness onto another, with no normalized axis and no
+//!   angle (the quaternion matrix near the pole, the Rodrigues form away
+//!   from it, chosen by width, W1), decided
 //!   over the arm it is consumed over: its pole verdict (the chord from
 //!   the pole, levered) and its conditioning (its lever against the
 //!   run's rounding reach). The one least-turn mint (fork 270).
@@ -1365,20 +1366,32 @@ impl<T: Decide> RigidMotion<T> {
 
     /// **The least turn carrying `a` onto `b`, about the axis through
     /// `about`, decided over the `arm` it is consumed over**: the one
-    /// least-turn mint (fork 270, `[placement.values]`). Its rotation is
-    /// the matrix of the unit quaternion along `(1 + a·b, a × b)`, in its
-    /// homogeneous form (every entry over the quaternion's squared norm):
-    /// no normalized axis and no angle. The matrix is orthogonal to
-    /// rounding at every angle, because each entry is a quadratic in the
-    /// quaternion over its own squared norm, and it is the identity, with
-    /// no rounding, on a pair that is bitwise one direction (`a × (a + a)`
-    /// is exactly zero).
+    /// least-turn mint (fork 270, `[placement.values]`).
     ///
-    /// The quaternion's two parts are evaluated through `h = a + b`, as
-    /// `1 + a·b = |h|²/2` and `a × b = a × h`. Near opposed `h` is short
-    /// and its components carry no cancellation, so both parts hold to a
-    /// few ulps RELATIVE to their own size, and `a` lands on `b` to a few
-    /// ulps at every angle the decisions admit.
+    /// **Its arithmetic: two spellings of one turn, chosen by the pair**
+    /// (geom-core README W1, by what each one's width scales with), through
+    /// the one branch `reads_negative` of
+    /// `c = a·b`: a choice, not a claim, sound wherever an enclosure of `c`
+    /// straddles zero, since both are the same turn over the reals.
+    ///
+    /// - Where `c` reads negative, near the pole: the matrix of the unit
+    ///   quaternion along `(1 + a·b, a × b)`, in its homogeneous form
+    ///   (every entry over the quaternion's squared norm), its parts
+    ///   evaluated through `h = a + b` as `1 + a·b = |h|²/2` and
+    ///   `a × b = a × h`. Near opposed `h` is short and its components carry
+    ///   no cancellation, so both parts hold to a few ulps relative to
+    ///   their own size, and `a` lands on `b` to a few ulps.
+    /// - Where `c` reads non-negative: the Rodrigues form
+    ///   `S·v = c·v + k × v + k (k·v)/(1 + c)`, `k = a × b`.
+    ///
+    /// Over 400 drawn pairs a class, at `Interval` over boxes of `±1e-15`
+    /// to `±1e-9` on every input, the quaternion's widest entry is about
+    /// `0.6×` the Rodrigues form's near opposed (narrower on 365–400 of
+    /// 400 pairs at `δ` from `1e-1` to `1e-7`), and the Rodrigues form is
+    /// narrower on the majority of generic pairs; the choice is wider than
+    /// the narrower of the two on 35 of 400 generic pairs and matches the
+    /// quaternion near opposed (`least_turn_spelling_probe`). A pair that
+    /// is one direction exactly turns by the identity, exactly.
     ///
     /// **Its two decisions**, both about the one pole `a = −b`, where
     /// every axis perpendicular to the pair is a least turn and none is
@@ -1400,10 +1413,9 @@ impl<T: Decide> RigidMotion<T> {
     /// consumed extent, a curvature arm, or the session box where no
     /// geometry is in hand.
     ///
-    /// Evaluation order (fixed, D9): `h = a + b`, `d = (h·h)/2`,
-    /// `k = a × h`, the two decisions on `|h|`,
-    /// `n² = d² + kx² + ky² + kz²`, the columns of the quaternion matrix
-    /// of `(d, k)` over `n²`, then the translation `q − R·q` for
+    /// Evaluation order (fixed, D9): the exact-identity read, `h = a + b`,
+    /// `d = (h·h)/2`, `k = a × h`, the two decisions on `|h|`, the spelling
+    /// `c` chooses, then the translation `q − R·q` for
     /// `q = about − Point3::origin()`.
     ///
     /// # Errors
@@ -1423,6 +1435,22 @@ impl<T: Decide> RigidMotion<T> {
         band: Band,
     ) -> Result<Self, TurnError> {
         let (a, b) = (a.get(), b.get());
+        let anchored = |r: Mat3<T>| {
+            let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
+            let q = finite(about, MotionPart::Anchor).map_err(anchor)? - Point3::origin();
+            let origin = finite(at(q - r * q), MotionPart::Anchor).map_err(anchor)?;
+            Ok(Self::from_linear(r, origin))
+        };
+        // A pair that is one direction exactly turns by the identity,
+        // exactly (the exact value, W1): its chord is 2, so no pole verdict
+        // is owed, and neither spelling below reads it bit for bit at every
+        // scalar.
+        if [a.x - b.x, a.y - b.y, a.z - b.z]
+            .into_iter()
+            .all(crate::real::is_exact_zero)
+        {
+            return anchored(Mat3::identity());
+        }
         let two = T::one() + T::one();
         let h = a + b;
         let d = h.dot(h) / two;
@@ -1451,11 +1479,17 @@ impl<T: Decide> RigidMotion<T> {
             }
             Err(source) => return Err(TurnError::ConditioningUndecided(source)),
         }
-        let r = least_turn_linear(d, k);
-        let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
-        let q = finite(about, MotionPart::Anchor).map_err(anchor)? - Point3::origin();
-        let origin = finite(at(q - r * q), MotionPart::Anchor).map_err(anchor)?;
-        Ok(Self::from_linear(r, origin))
+        // The spelling, chosen by the pair (W1: by what its width scales
+        // with): a choice, not a claim, read off `c`'s midpoint by
+        // `reads_negative`, the one branch. Both are
+        // the same turn over the reals, so either is sound where an
+        // enclosure of `c` straddles zero.
+        let r = if reads_negative(a.dot(b)) {
+            least_turn_linear(d, k)
+        } else {
+            least_turn_rodrigues(a, b)
+        };
+        anchored(r)
     }
 
     /// **This frame turned onto `direction` by the least turn**: the
@@ -1524,6 +1558,23 @@ fn least_turn_linear<T: Real>(d: T, k: Vec3<T>) -> Mat3<T> {
             two * (y * z - d * x),
             dd - xx - yy + zz,
         ) / n2,
+    )
+}
+
+/// **The least turn's rotation in the Rodrigues form**, for `a·b`
+/// reading non-negative: `S·v = c·v + k × v + k (k·v)/(1 + c)` with
+/// `c = a·b` and `k = a × b`, the rational form with its angle
+/// eliminated ([`RigidMotion::least_turn`]'s spelling away from the pole,
+/// where it is the narrower of the two over a box).
+fn least_turn_rodrigues<T: Real>(a: Vec3<T>, b: Vec3<T>) -> Mat3<T> {
+    let c = a.dot(b);
+    let k = a.cross(b);
+    let one_plus_c = T::one() + c;
+    let apply = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / one_plus_c);
+    Mat3::from_cols(
+        apply(Vec3::unit_x()),
+        apply(Vec3::unit_y()),
+        apply(Vec3::unit_z()),
     )
 }
 
@@ -3393,8 +3444,9 @@ mod construction_mint_rows {
     /// few ulps from agreeing and a few ulps from opposed (`c → ±1`); a
     /// least turn spun, its axes signed and permuted, and products and
     /// inverses of all of them. The door admits every one with its bits
-    /// kept. A pair exactly opposed has no least turn, and its arithmetic
-    /// refuses typed — never a turn off rigid. (The decided mint refuses
+    /// kept. A pair exactly opposed, or a few ulps from it with `|a + b|²`
+    /// underflowing, has no least turn, and its arithmetic refuses typed —
+    /// never a turn off rigid. (The decided mint refuses
     /// far sooner, at its pole verdict and its conditioning; these rows
     /// read the arithmetic past them.)
     ///
@@ -3431,10 +3483,11 @@ mod construction_mint_rows {
                 let what = format!("{what} at direction {i}");
                 let turn = match least(a, to) {
                     Ok(turn) => turn,
-                    // Exactly opposed, `a + b` is zero: no turn, refused
+                    // Opposed, or ulps from it, `|a + b|²` underflows:
+                    // the quaternion's norm is zero, no turn, refused
                     // typed, never a non-rigid one.
                     Err(RigidMotionError::NonFinite(MotionPart::Linear))
-                        if a.get().equals_exactly(-to.get()) =>
+                        if (a.get() + to.get()).norm_squared() < f64::MIN_POSITIVE =>
                     {
                         refused += 1;
                         continue;
@@ -3472,5 +3525,191 @@ mod construction_mint_rows {
             ),
             "an exactly opposed pair has no least turn, and refuses typed"
         );
+    }
+}
+
+/// **The least turn's two spellings, measured** (fork 270's Decision 3,
+/// by W1): the quaternion matrix over `n²` ([`least_turn_linear`]) and
+/// the Rodrigues form `S·v = c·v + k × v + k(k·v)/(1 + c)` with
+/// `k = a × (a + b)` and `1 + c = |k|²/(1 − c)` where `c` reads negative.
+/// Prints, per pair class and box width, each form's widest entry at
+/// `Interval` and the `f64` landing and rigidity defects. A measurement,
+/// not a guard.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::cast_precision_loss
+)]
+mod least_turn_spelling_probe {
+    use super::*;
+    use crate::interval::Interval;
+    use crate::real::Bounds;
+
+    fn rodrigues<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> Mat3<T> {
+        let c = a.dot(b);
+        let one = T::one();
+        let k = if reads_negative(c) {
+            a.cross(a + b)
+        } else {
+            a.cross(b)
+        };
+        let opc = if reads_negative(c) {
+            k.dot(k) / (one - c)
+        } else {
+            one + c
+        };
+        let ap = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / opc);
+        Mat3::from_cols(ap(Vec3::unit_x()), ap(Vec3::unit_y()), ap(Vec3::unit_z()))
+    }
+
+    fn hybrid<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> Mat3<T> {
+        if reads_negative(a.dot(b)) {
+            quaternion(a, b)
+        } else {
+            rodrigues(a, b)
+        }
+    }
+
+    fn quaternion<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> Mat3<T> {
+        let h = a + b;
+        least_turn_linear(h.dot(h) / (T::one() + T::one()), a.cross(h))
+    }
+
+    struct Draw(u64);
+    impl Draw {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (self.0 >> 11) as f64 / (1u64 << 52) as f64 - 1.0
+        }
+        fn dir(&mut self) -> Vec3<f64> {
+            loop {
+                let v = Vec3::new(self.next(), self.next(), self.next());
+                if v.norm() > 0.1 {
+                    return v / v.norm();
+                }
+            }
+        }
+    }
+
+    fn entries<T: Real>(m: Mat3<T>) -> [T; 9] {
+        [
+            m.c0.x, m.c0.y, m.c0.z, m.c1.x, m.c1.y, m.c1.z, m.c2.x, m.c2.y, m.c2.z,
+        ]
+    }
+
+    fn boxed(v: Vec3<f64>, w: f64) -> Vec3<Interval> {
+        let b = |x: f64| {
+            if w == 0.0 {
+                Interval::from_f64(x)
+            } else {
+                Interval::from_bounds(x - w, x + w)
+            }
+        };
+        Vec3::new(b(v.x), b(v.y), b(v.z))
+    }
+
+    fn widest(m: Mat3<Interval>) -> f64 {
+        entries(m)
+            .iter()
+            .map(|e| e.hi() - e.lo())
+            .fold(0.0, f64::max)
+    }
+
+    fn defects(m: Mat3<f64>, a: Vec3<f64>, b: Vec3<f64>) -> (f64, f64) {
+        let land = (m * a - b).norm();
+        let (c0, c1, c2) = (m.c0, m.c1, m.c2);
+        let rig = [
+            c0.dot(c0) - 1.0,
+            c1.dot(c1) - 1.0,
+            c2.dot(c2) - 1.0,
+            c0.dot(c1),
+            c1.dot(c2),
+            c0.dot(c2),
+        ]
+        .into_iter()
+        .fold(0.0_f64, |m, x| m.max(x.abs()));
+        (land, rig)
+    }
+
+    #[test]
+    fn the_two_spellings_measured() {
+        let u = f64::EPSILON;
+        let mut d = Draw(0x51_7cc1_b727_220a);
+        let classes: [(&str, Option<f64>); 7] = [
+            ("generic", None),
+            ("delta 1e-1", Some(1e-1)),
+            ("delta 1e-2", Some(1e-2)),
+            ("delta 1e-3", Some(1e-3)),
+            ("delta 1e-4", Some(1e-4)),
+            ("delta 1e-6", Some(1e-6)),
+            ("delta 1e-7", Some(1e-7)),
+        ];
+        for (label, delta) in classes {
+            let pairs: Vec<(Vec3<f64>, Vec3<f64>)> = (0..400)
+                .map(|_| {
+                    let a = d.dir();
+                    let b = match delta {
+                        None => d.dir(),
+                        Some(delta) => {
+                            let across = loop {
+                                let p = d.dir();
+                                let r = p - a * a.dot(p);
+                                if r.norm() > 0.1 {
+                                    break r / r.norm();
+                                }
+                            };
+                            let b = -a * delta.cos() + across * delta.sin();
+                            b / b.norm()
+                        }
+                    };
+                    (a, b)
+                })
+                .collect();
+            let (mut lq, mut lr, mut rq, mut rr) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+            for &(a, b) in &pairs {
+                let (l, r) = defects(quaternion(a, b), a, b);
+                lq = lq.max(l);
+                rq = rq.max(r);
+                let (l, r) = defects(rodrigues(a, b), a, b);
+                lr = lr.max(l);
+                rr = rr.max(r);
+            }
+            eprintln!(
+                "{label:11} f64: landing quat {:.2}u rod {:.2}u; rigidity quat {:.2}u rod {:.2}u",
+                lq / u,
+                lr / u,
+                rq / u,
+                rr / u
+            );
+            for w in [0.0, 1e-15, 1e-12, 1e-9] {
+                let (mut wq, mut wr, mut q_wider, mut r_wider) = (0.0_f64, 0.0_f64, 0, 0);
+                let (mut wh, mut h_worse) = (0.0_f64, 0);
+                for &(a, b) in &pairs {
+                    let (ai, bi) = (boxed(a, w), boxed(b, w));
+                    let (x, y) = (widest(quaternion(ai, bi)), widest(rodrigues(ai, bi)));
+                    let z = widest(hybrid(ai, bi));
+                    wh = wh.max(z);
+                    if z > x.min(y) * 1.01 {
+                        h_worse += 1;
+                    }
+                    wq = wq.max(x);
+                    wr = wr.max(y);
+                    if x > y * 1.01 {
+                        q_wider += 1;
+                    } else if y > x * 1.01 {
+                        r_wider += 1;
+                    }
+                }
+                eprintln!(
+                    "{label:11} box ±{w:e}: widest entry quat {wq:.3e} rod {wr:.3e}; quat wider on {q_wider}, rod wider on {r_wider} of {}; hybrid {wh:.3e}, wider than the narrower on {h_worse}",
+                    pairs.len()
+                );
+            }
+        }
     }
 }

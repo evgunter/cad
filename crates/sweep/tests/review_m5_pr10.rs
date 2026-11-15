@@ -728,8 +728,10 @@ fn each_path_decision_has_an_in_band_twin() {
         Some((PathDecision::FoldBack, 1)),
         "the fold-back"
     );
+    // Past the step's conditioning edge too (`2·box/reach`, under about
+    // 0.39 at every ε row): a tilt of one, a chord of about 1.17.
     assert!(
-        sweep::sweep_places(plane, &fold(1e3 * delta), 2, tol).is_ok(),
+        sweep::sweep_places(plane, &fold(1.0), 2, tol).is_ok(),
         "a tilt well past the band carries"
     );
 }
