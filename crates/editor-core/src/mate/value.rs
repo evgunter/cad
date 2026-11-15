@@ -370,6 +370,10 @@ impl<T: SolveScalar> Chart<T> {
         let n = from.get();
         // The least turn, whose mint takes a pair that is one direction
         // exactly to the identity, exactly, at every scalar.
+        let dv = d.get();
+        let identity = [n.x - dv.x, n.y - dv.y, n.z - dv.z]
+            .into_iter()
+            .all(geom_core::real::is_exact_zero);
         let turn = {
             // The pole verdict and the conditioning, over the lever: the
             // one decided least-turn mint (`[placement.values]`).
@@ -385,14 +389,20 @@ impl<T: SolveScalar> Chart<T> {
                 geom_core::TurnError::NonFinite(_) => degenerate(),
                 _ => ChartRefusal::Pole,
             })?;
-            // Each carried axis is a turn of a unit vector, so unit over
-            // the reals at every point a box spans: a frame lane keeps each
-            // as it is, which a normalization would widen by its own norm's
-            // width, and decides each direction as the value lane does.
-            let minted = least
-                .renormalized(topo::query::POSE_UNIT_NORM, band)
-                .map_err(|_| degenerate())?;
-            if T::spins_by_frames() { least } else { minted }
+            // The identity's axes are the target's own, exactly: nothing
+            // to normalize, so no check is spent on them.
+            if identity || T::spins_by_frames() {
+                least
+            } else {
+                // Each carried axis is a turn of a unit vector, so unit over
+                // the reals at every point a box spans: a frame lane keeps
+                // each as it is, which a normalization would widen by its own
+                // norm's width, and decides each direction as the value lane
+                // does.
+                least
+                    .renormalized(topo::query::POSE_UNIT_NORM, band)
+                    .map_err(|_| degenerate())?
+            }
         };
         let aligned = super::turn::aligned(n);
         let across = match aligned {
