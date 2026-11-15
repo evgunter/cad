@@ -22,7 +22,9 @@
 //! orientation written backwards; inside the band about it the chart
 //! refuses ([`super::MateFault::Backwards`]), naming the orientation to
 //! write. Short of the pole `S` is smooth in `d`, so a tilt of the
-//! target by a sliver moves a copy by a sliver.
+//! target by a sliver moves a copy by a sliver; its rounding grows as
+//! `2u/|n + d|` toward the pole, which the band's conditioning edge
+//! holds within ε at `f64`.
 //!
 //! [`settle`] places a folded bundle's copy at its values: the spin
 //! turns the copy about `a` inside the bundle's residual, then the copy
@@ -1664,38 +1666,85 @@ mod tests {
         (lo, hi)
     }
 
+    /// The least turn's image of `v` read off the chart's carried axes,
+    /// with `v` lifted into the chart's scalar.
+    fn turned<T: crate::mate::SolveScalar>(chart: &Chart<T>, v: Vec3<f64>) -> Vec3<T> {
+        let s = chart.least();
+        let lift = |x: f64| T::from_computed(x);
+        s.u().get() * lift(v.x) + s.v().get() * lift(v.y) + s.w().get() * lift(v.z)
+    }
+
+    /// **At `f64` the chart's least turn lands within ε at its band's
+    /// edge, at the `2u/chord` rate**: an oblique target and a copy
+    /// direction tilted off its pole about an oblique axis, the tilt
+    /// bisected to where the refusal ends. Just past it, `S` carries `n`
+    /// onto `d` and keeps the turn's axis `w` fixed (the two facts that
+    /// make a rotation the least turn), each within ε and within
+    /// `2u/|n + d|`, the rate the module doc states. *Breaks if* the
+    /// conditioning admits a chord whose turn rounds past ε, or the
+    /// spelling near the pole is one whose error does not scale as the
+    /// chord does.
     #[test]
-    fn band_edge_probe() {
+    fn the_f64_charts_least_turn_lands_within_eps_at_its_band_edge() {
         let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let eps = geom_core::Tol::witness().get().eps;
         let (lo, hi) = band_edge::<f64>(band);
-        println!("f64 edge: refuses {lo:e} builds {hi:e}");
-        for f in [1.0, 1.2, 2.0, 10.0, 1e3] {
-            let tau = hi * f;
-            let (c, [n, d, w]) = band_edge_chart::<f64>(tau, band);
-            let c = c.expect("builds");
-            let s = c.least();
-            let app = |v: Vec3<f64>| s.u().get() * v.x + s.v().get() * v.y + s.w().get() * v.z;
+        assert!(band_edge_chart::<f64>(lo, band).0.is_none(), "inside the band it refuses");
+        for tau in [hi, hi * 1.2, hi * 10.0, hi * 1e3] {
+            let (chart, [n, d, w]) = band_edge_chart::<f64>(tau, band);
+            let chart = chart.expect("past the band it charts");
             let chord = (n + d).norm();
-            println!(
-                "f64 tau {tau:e} chord {chord:e} |Sn-d| {:e} |Sw-w| {:e} 2u/chord {:e}",
-                (app(n) - d).norm(),
-                (app(w) - w).norm(),
-                2.0 * f64::EPSILON / 2.0 / chord
-            );
+            let rate = f64::EPSILON / chord;
+            let onto = (turned(&chart, n) - d).norm();
+            let axis = (turned(&chart, w) - w).norm();
+            for (what, defect) in [("S·n − d", onto), ("S·w − w", axis)] {
+                assert!(
+                    defect <= eps && defect <= rate,
+                    "at tilt {tau:e} (chord {chord:e}) |{what}| = {defect:e}: past ε {eps:e} or the rate {rate:e}"
+                );
+            }
         }
-        let (lo, hi) = band_edge::<geom_core::Interval>(band);
-        println!("Interval edge: refuses {lo:e} builds {hi:e}");
+    }
+
+    /// **At `Interval` the chart's least turn encloses the exact image at
+    /// its band's edge, and is wider than ε there**: the fixture of
+    /// [`the_f64_charts_least_turn_lands_within_eps_at_its_band_edge`].
+    /// `S·n` contains `d` at every tilt past the edge, and its widest
+    /// component stays within `32u/|n + d|`. At the edge itself that
+    /// width is about 12ε, wider than ε, which
+    /// `work/onehome/the-interval-charts-least-turn-is-wider-than-eps-at-its-band-edge.md`
+    /// records; this row pins both until that row moves the edge.
+    /// *Breaks if* the enclosure loses `d` (unsound), widens past the
+    /// rate, or narrows to within ε at the edge (close the row).
+    #[test]
+    fn the_interval_charts_least_turn_encloses_its_image_at_its_band_edge() {
         use geom_core::Bounds;
-        for f in [1.0, 1.2, 2.0, 10.0, 1e3] {
-            let tau = hi * f;
-            let (c, [n, d, _w]) = band_edge_chart::<geom_core::Interval>(tau, band);
-            let c = c.expect("builds");
-            let s = c.least();
-            let lift = |x: f64| <geom_core::Interval as geom_core::Real>::from_computed(x);
-            let app = s.u().get() * lift(n.x) + s.v().get() * lift(n.y) + s.w().get() * lift(n.z);
-            let wid = [app.x, app.y, app.z].map(|x| x.hi() - x.lo());
-            let has = [(app.x, d.x), (app.y, d.y), (app.z, d.z)].map(|(x, v)| x.lo() <= v && v <= x.hi());
-            println!("Interval tau {tau:e} chord {:e} width {wid:?} contains {has:?}", (n + d).norm());
+        let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let eps = geom_core::Tol::witness().get().eps;
+        let (lo, hi) = band_edge::<geom_core::Interval>(band);
+        assert!(
+            band_edge_chart::<geom_core::Interval>(lo, band).0.is_none(),
+            "inside the band it refuses"
+        );
+        let width = |tau: f64| {
+            let (chart, [n, d, _]) = band_edge_chart::<geom_core::Interval>(tau, band);
+            let image = turned(&chart.expect("past the band it charts"), n);
+            let chord = (n + d).norm();
+            for (c, v) in [(image.x, d.x), (image.y, d.y), (image.z, d.z)] {
+                assert!(c.lo() <= v && v <= c.hi(), "at tilt {tau:e} {c:?} loses {v}");
+            }
+            let wide = [image.x, image.y, image.z].map(|c| c.hi() - c.lo()).into_iter().fold(0.0, f64::max);
+            let rate = 32.0 * f64::EPSILON / 2.0 / chord;
+            assert!(wide <= rate, "at tilt {tau:e} the width {wide:e} passes the rate {rate:e}");
+            wide
+        };
+        for tau in [hi * 1.2, hi * 10.0, hi * 1e3] {
+            width(tau);
         }
+        let at_edge = width(hi);
+        assert!(
+            at_edge > eps,
+            "the width at the edge, {at_edge:e}, is within ε {eps:e}: close the row this pins"
+        );
     }
 }

@@ -1444,12 +1444,15 @@ impl<T: Decide> RigidMotion<T> {
         // A pair that is one direction exactly turns by the identity,
         // exactly (the exact value, W1): its chord is 2, so no pole verdict
         // is owed, and neither spelling below reads it bit for bit at every
-        // scalar.
+        // scalar. The identity fixes every point, so it is the world motion
+        // whatever `about` is, and no anchor arithmetic is spent on it; the
+        // anchor is still checked finite.
         if [a.x - b.x, a.y - b.y, a.z - b.z]
             .into_iter()
             .all(crate::real::is_exact_zero)
         {
-            return anchored(Mat3::identity());
+            finite(about, MotionPart::Anchor).map_err(|_| TurnError::NonFinite(MotionPart::Anchor))?;
+            return Ok(Self::world());
         }
         let two = T::one() + T::one();
         let h = a + b;
