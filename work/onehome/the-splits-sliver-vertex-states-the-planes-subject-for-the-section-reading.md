@@ -7,6 +7,7 @@ priority: P1
 cost: E
 opened: 2026-11-02
 closed: 2026-11-15
+pr: 7009
 branch: onehome/split-sliver-vertex
 ---
 
