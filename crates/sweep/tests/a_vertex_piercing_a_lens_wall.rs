@@ -8,7 +8,9 @@
 //! little way along the blade, so two of the apex's edges dip into the
 //! blade and two rise out of it: the apex pierces the wall. The
 //! vertex-on-face pass mints the pierce's ring in the complete wall
-//! (`Body::ring_vertex`), and the union goes on to the join.
+//! (`Body::ring_vertex`), and the union goes on to the join;
+//! `a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`
+//! holds where it stops at each ε.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
@@ -65,8 +67,9 @@ fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
 /// certificate of a chord the join cuts from it, where the plane × NURBS
 /// lane's own image of the chord misses it
 /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`),
-/// or, at `ε = 1e-6`, at the ring the chords close on the wall
-/// (`work/sectarms/a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding.md`).
+/// or, at `ε = 1e-6`, past the ring the chords close on the wall, which
+/// the join winds, at the inside/outside test of a body holding the
+/// wall (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
 /// A ring struck by a chord `mev` into the wall refused
 /// `Euler(PcurveMint { face: wall, refusal: SplineChart })` here, as on
 /// the lily.
@@ -89,25 +92,22 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
     let pose = topo::test_support::meeting::Pose::rest();
     let pyr =
         topo::test_support::meeting::posed_pyramid_at::<f64>(&base, [p.x, p.y, p.z], &pose, tol);
-    // At `ε = 1e-6` the run meets the wall's ring lane first; at every
-    // other row, the chord's at-rest certificate.
-    let at_ring = tol.eps() == 1e-6;
-    for (what, x, y, wall_operand) in [
-        ("pyr ∪ blade", &pyr, &b, topo::Operand::B),
-        ("blade ∪ pyr", &b, &pyr, topo::Operand::A),
-    ] {
+    // At `ε = 1e-6` the run passes the join and meets the wall at the
+    // inside/outside test; at every other row it stops before, at the
+    // chord's at-rest certificate.
+    let past_the_join = test_utils::kernel_limit::at_row(tol.eps(), &[1e-6]);
+    for (what, x, y) in [("pyr ∪ blade", &pyr, &b), ("blade ∪ pyr", &b, &pyr)] {
         let got = topo::union(x, y, tol).map(|_| ());
-        if at_ring {
+        if past_the_join {
             assert!(
                 matches!(
                     &got,
-                    Err(BooleanError::CurvedBooleanUnsupported {
-                        operand,
+                    Err(BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
                         face,
                         kind: geom::SurfaceKind::Nurbs,
-                    }) if *face == wall && *operand == wall_operand
+                    })) if *face == wall
                 ),
-                "{what}: {got:?}, not the ring lane of the wall {wall:?}"
+                "{what}: {got:?}, not the inside/outside test's refusal of the wall {wall:?}"
             );
         } else {
             assert!(

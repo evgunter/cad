@@ -2,10 +2,11 @@
 id: cylinder-and-torus-edge-misses-are-read-back-about-the-axis
 kind: issue
 title: The cylinder's and torus's per-edge whole-turn misses are read back about the axis, so their Interval width is charged as disagreement on a far generic-pose body
-status: dispatched
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
+closed: 2026-11-14
 branch: boxfinish/edge-turns
 ---
 
@@ -107,3 +108,19 @@ by construction and a `carried` one moves where the miss is read, so a
 wrong one passes a loop tier 3 should refuse: the review carries that
 claim, not only style. It is a port of the cone's landed constructors
 to two sibling carriers, which is why it is not a dual.
+
+## Closed (2026-11-14, PR 6946)
+
+The cylinder and the torus state each edge's miss where it is exact:
+rulings and short turns `EdgeTurn::exact`, rims and parallels
+`EdgeTurn::carried`, with one home for the carried recipe
+(`crates/geom-brep/src/props/closure.rs`). CARVE's far arc walls, the
+bead, and the tilted tube at major radius 300 and 600 build at ε 1e-12;
+no `f64` decision moved (a differential over geom-brep and sweep).
+
+What it did not cure has its own files, on NEARPOINT's slate:
+- `work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`
+  (the tube from major radius 800; the cone's three unreachable
+  mutants);
+- `work/nearpoint/a-far-walls-junctions-and-ruling-incidence-escalate-at-the-interval-scalar.md`;
+- `work/nearpoint/a-legal-far-wall-of-many-arcs-refuses-its-whole-turn-at-f64-on-summed-rounding.md`.

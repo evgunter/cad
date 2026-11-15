@@ -82,6 +82,18 @@ use geom_core::Tol;
 /// and in plan the arc's nearest point to the wall's corner `(0, 1)`
 /// is `√5 − 2 ≈ 0.2361` away, along `(2, 1)/√5`, the direction that
 /// clears the pair with the same gap at every ε.
+///
+/// **PINNED at what main reads at every ε row, and NOT judged**
+/// ([`the_at_rest_census_verdicts_are_goldened_bit_exact`] reads it). Six
+/// solid-pair findings across the corpus changed their sentence at
+/// PR 6757 (the backstop abort): from "another finding left their
+/// boundaries unchecked" to "they touch at a curved face or edge, and
+/// the check cannot yet tell which side each is on", the pairs and
+/// `MayOverlap` unchanged. No one has said the new verdict is the right
+/// one; the wanted answer is that judgment, on
+/// `work/onecopy/main-red-the-perf12-at-rest-census-golden-moved-with-the-backstop-abort.md`.
+/// The coincidence rows below them moved with the mint ids alone
+/// (PR 6856, a placement mints its source).
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

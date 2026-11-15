@@ -29,3 +29,12 @@ recomputed from points that carry the box). BOXFINISH's
 `the-profile-drops-the-unit-directions-its-verbs-made` records each
 segment's direction at validate and may reach it; this row is the
 measurement that says whether it does.
+
+## Evidence (2026-11-14, BOXFINISH's profile-directions lane)
+
+Recording each segment's direction at validate does not change this
+row, by construction: `line_span` and the pair readings read the
+segments' chords, never a recorded direction. Seen independently at
+`Sym<Interval>`: a boxed rectangle and a pen-drawn one refuse
+`LineSpan` at `SegmentPair(0, 1)` over a ±1e-6 box and pass at ±1e-11.
+So "over any box" above means any box wider than about 1e-11 here.

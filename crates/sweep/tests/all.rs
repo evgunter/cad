@@ -92,6 +92,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_groove_at_a_shafts_root_continues_its_wall.rs"]
+mod a_groove_at_a_shafts_root_continues_its_wall;
 #[path = "a_keel_on_a_bores_ruling.rs"]
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
@@ -102,6 +104,8 @@ mod a_keel_tree_in_the_plane;
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
 mod a_lofted_lens_blade_certifies_its_sign;
+#[path = "a_lofts_chart_ends_read_as_placed.rs"]
+mod a_lofts_chart_ends_read_as_placed;
 #[path = "a_long_bound_beside_a_short_arm.rs"]
 mod a_long_bound_beside_a_short_arm;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
@@ -983,6 +987,8 @@ mod a_boolean_on_a_pole_touching_octant;
 mod a_ringed_wall_divided_by_a_carried_chord;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
+#[path = "far_walls_read_their_whole_turns.rs"]
+mod far_walls_read_their_whole_turns;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
