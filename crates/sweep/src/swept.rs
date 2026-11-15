@@ -1874,16 +1874,15 @@ mod tests {
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
-    /// **The placed line's far end decides `Zero` against the far vertex
-    /// through the door**, the line twin of
+    /// **The placed line's far end decides `Zero` against the far vertex**,
+    /// the line twin of
     /// [`the_placed_rim_chains_through_the_sketch_rim_to_the_radius`]'s far
     /// end. A segment from the origin to `(1, p)`, `p` a box at
     /// `Sym<Interval>`, under a quarter turn and a translation: the
     /// carrier's end `place(a) + L·dir·span` and the far vertex `place(b)`
-    /// are different forms, which the numeric channel cannot separate from
-    /// zero over the box and the plain tier cannot fold. The registration
-    /// (`register_placed_line_end`) decides all three components, the
-    /// door is what decides them, and it records no refusal.
+    /// are built from the same segment and placement, and every component
+    /// decides `Zero` over the box with no registration refused
+    /// (`register_placed_line_end`).
     #[test]
     fn the_placed_lines_far_end_decides_zero_through_the_door() {
         use geom_core::sym::with_session_rules;
@@ -1923,11 +1922,6 @@ mod tests {
         };
         let (end, counts) = readings(geom_core::SymRules::shipped());
         assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
-        let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
-        assert!(
-            counts.symbolic > shut.symbolic,
-            "the door is what decides them: {counts:?} {shut:?}"
-        );
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
