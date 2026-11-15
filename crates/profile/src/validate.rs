@@ -116,8 +116,7 @@
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
 //! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
-//! | `segment_direction_length` | a table's recorded direction's length less one at its lever, (\|d\| − 1)·ℓ (ℓ the chord or radius): check 1's `Length` measure, `geom::convention::frame_margins` | direct |
-//! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex) | direct |
+//! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex), which bounds (\|d\| − 1)·ℓ, check 1's unit measure at arm ℓ | direct |
 //! | `segment_direction_resolution` | K·ε/(8·2⁻⁵²) less the reading's magnitude | direct |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
@@ -341,16 +340,6 @@ impl RecordedDirection {
         match self {
             Self::Director | Self::Kind => DIRECTOR_SCENE_RESOLUTION_RECOURSE,
             Self::StartRadial | Self::EndRadial => RADIAL_SCENE_RESOLUTION_RECOURSE,
-        }
-    }
-
-    /// The direction as a noun.
-    fn noun(self) -> &'static str {
-        match self {
-            Self::Director => "director",
-            Self::StartRadial => "start radial",
-            Self::EndRadial => "end radial",
-            Self::Kind => "pair of directions of the other kind",
         }
     }
 }
@@ -604,17 +593,6 @@ pub enum ProfileError {
         /// Which direction.
         which: RecordedDirection,
     },
-    /// A segment's recorded direction is not a unit
-    /// (`segment_direction_length`: (|d| − 1)·ℓ definitely off at the
-    /// band, ℓ its chord or radius): the format's directions are units,
-    /// and a table's is checked to be one before it is read against its
-    /// vertices.
-    DirectionNotUnit {
-        /// The offending segment.
-        at: SegmentRef,
-        /// Which direction.
-        which: RecordedDirection,
-    },
     /// `segment_direction` read a recorded direction off its vertex at a
     /// magnitude where `f64` rounding alone is past the band
     /// (`segment_direction_resolution`), so the direction is refused as
@@ -795,13 +773,6 @@ impl fmt::Display for ProfileError {
                  {margin} (headroom {headroom}). Recourse: {}",
                 which.scene_resolution_recourse()
             ),
-            Self::DirectionNotUnit { at, which } => write!(
-                f,
-                "{at} records a {} that is not a unit. Recourse: author the segment through the \
-                 path lattice, which records the unit directions its verbs drew it along, or \
-                 record none and let validation decide them from its vertices",
-                which.noun()
-            ),
             Self::InconsistentArc { at, check } => write!(
                 f,
                 "{at} stores an arc that disagrees with its vertices: {check} — author the \
@@ -968,18 +939,18 @@ pub struct ValidatedSegment<T: Real> {
     /// construction made, carried verbatim, or for a segment that
     /// recorded none (or an arc read as a line) decided once, here, from
     /// its vertices ([`SegmentDirections`]). A consumer that needs a
-    /// direction reads it here. A table's is checked as two readings at
-    /// the band: `(|d| − 1)·ℓ` Zero (a unit, by check 1's own `Length`
-    /// measure for a stored unit datum) and `‖o + ℓ·d − p‖` Zero (`o`
-    /// the start or centre, `p` the vertex, `ℓ` the chord or radius). So
-    /// its length and its angle each keep the band's slack, `ε/ℓ`; an
-    /// accepted one is stored as written, never normalised or re-minted.
-    /// At `Sym` the tier holds `|d| = 1` for a verb's direction over a
-    /// box; at plain `Interval` a direction with width reads its length
-    /// Zero while the box is narrower than the band at its lever, and
-    /// escalates past it (`work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md`
-    /// is that question for a turning frame). By inspection, no shipped
-    /// path validates a direction with width as a table at `Interval`.
+    /// direction reads it here. A table's is checked by one reading at the band, the miss
+    /// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
+    /// chord or radius), and that is what "unit" means here: the miss
+    /// bounds both the direction's turn and its stretch, since
+    /// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
+    /// check 1's measure for a unit datum at arm ℓ
+    /// (`geom::convention::frame_margins`). So a radial accepted here is
+    /// one check 1 accepts as a `u_ref` at that radius. What it does not
+    /// promise: check 1 length-reads no plane or line, so a director
+    /// stored as a plane's normal is a unit only at its chord's lever.
+    /// An accepted direction is stored as written, never normalised or
+    /// re-minted.
     pub directions: SegmentDirections<T>,
 }
 
@@ -2150,7 +2121,6 @@ fn seg_refusal<T: Real>(
         SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
         SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
         SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
-        SegIssue::DirectionNotUnit { which } => ProfileError::DirectionNotUnit { at, which },
         SegIssue::DirectionInconsistent { which } => {
             ProfileError::InconsistentDirection { at, which }
         }

@@ -170,12 +170,6 @@ pub(crate) enum SegIssue<T: Real> {
         /// ([`resolves`]'s margin).
         headroom: MarginDiag,
     },
-    /// A recorded direction is not a unit
-    /// (`segment_direction_length` classified (|d| − 1)·ℓ definitely off).
-    DirectionNotUnit {
-        /// Which direction.
-        which: RecordedDirection,
-    },
     /// A recorded direction disagrees with the vertices it points at
     /// (`segment_direction` classified the miss definitely off), or is
     /// the other kind's ([`RecordedDirection::Kind`]).
@@ -215,7 +209,6 @@ impl<T: Real> SegIssue<T> {
             Self::Shape(issue) => issue.predicate(),
             Self::Inconsistent { check } => check.predicate(),
             Self::BelowSceneResolution { .. } => Gate::ArcCarrierResolution.predicate(),
-            Self::DirectionNotUnit { .. } => Gate::SegmentDirectionLength.predicate(),
             Self::DirectionInconsistent { .. } => Gate::SegmentDirection.predicate(),
             Self::DirectionBelowSceneResolution { .. } => {
                 Gate::SegmentDirectionResolution.predicate()
@@ -749,24 +742,10 @@ fn check_direction<T: Decide>(
     which: RecordedDirection,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
-    // The direction is a unit, the kernel's word: |d| − 1 at its lever
-    // ℓ is Zero at the band, the measure and lever check 1 reads a
-    // stored unit datum's `Length` by (`geom::convention::frame_margins`,
-    // `ε ∓ (‖u_ref‖ − 1)·arm` with the arm a circle's or cylinder's
-    // radius, which is ℓ for a radial; a line's or plane's direction has
-    // no `Length` margin there). Read first and typed: the miss below is
-    // at least |ℓ·|d| − ℓ| by the triangle inequality, so this reading
-    // refuses nothing the miss would accept; it names a stretch as one.
-    match decide(
-        Gate::SegmentDirectionLength,
-        Margin::of((d.norm() - T::one()) * len),
-        band,
-    )
-    .map_err(SegIssue::escalated)?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return Err(SegIssue::DirectionNotUnit { which }),
-    }
+    // The one reading, and what "unit" means here: a miss within the
+    // band bounds both the turn and the stretch, (|d| − 1)·ℓ ≤ miss by
+    // the triangle inequality, which is check 1's `Length` measure for a
+    // unit datum at arm ℓ (`geom::convention::frame_margins`).
     let miss = (o + d * len).distance(p);
     let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
         .map_err(SegIssue::escalated)?;

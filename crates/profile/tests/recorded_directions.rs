@@ -352,7 +352,7 @@ fn a_tables_recorded_direction_is_checked_and_refused_typed() {
     assert!(
         matches!(
             refuse(square_with_directors(1.5)),
-            ProfileError::DirectionNotUnit {
+            ProfileError::InconsistentDirection {
                 which: RecordedDirection::Director,
                 ..
             }
@@ -467,86 +467,91 @@ fn square_of_side(l: f64, d: Vec2<f64>) -> ProfileLoop<f64> {
     ])
 }
 
-/// **A recorded direction is a unit in the kernel's sense: its length
-/// and its angle each keep the band's slack.** Both readings are at the
-/// run's band: the length as `(|d| − 1)·ℓ`, check 1's own measure for a
-/// stored unit datum, and the miss `‖o + ℓ·d − p‖`. On a side of length
-/// ℓ a director may sit `ε/ℓ` off its chord in angle or in length and is
-/// stored as written; stretched past the band it is refused
-/// `DirectionNotUnit`, the length read first (the miss, never less than
-/// the stretch, would refuse it too), and between the band's two ends
-/// the length reading escalates rather than guess.
+/// **What "unit" means for a table's direction, at each ε**: the one
+/// reading is the miss `‖o + ℓ·d − p‖` at the band, which bounds both the
+/// turn and the stretch, `(|d| − 1)·ℓ` by the triangle inequality, check
+/// 1's measure for a unit datum at arm ℓ. So on a side of length ℓ a
+/// director turned or stretched by `ε/(2ℓ)`, as the review's slack probe
+/// found, is ACCEPTED and stored as written; one turned or stretched by
+/// `20ε/ℓ`, past the band's far end at that lever, refuses
+/// `InconsistentDirection`; and one by `2ε/ℓ`, between the band's ends,
+/// escalates `segment_direction`.
 #[test]
-fn a_recorded_directions_length_and_angle_each_keep_the_bands_slack() {
+fn a_tables_direction_is_a_unit_by_check_ones_measure_at_its_lever() {
     let eps = tol().eps();
+    let turned = |a: f64| {
+        let (s, c) = Real::sin_cos(a);
+        Vec2::new(c, s)
+    };
     for l in [(100.0 * eps).sqrt(), 1.0] {
         let off = 0.5 * eps / l;
-        let (s, c) = Real::sin_cos(off);
         for (d, what) in [
-            (Vec2::new(c, s), "turned"),
+            (turned(off), "turned"),
             (Vec2::new(1.0 + off, 0.0), "stretched"),
             (Vec2::new(1.0 - off, 0.0), "shrunk"),
         ] {
             let ok = table(square_of_side(l, d)).unwrap_or_else(|e| {
                 panic!("side {l:e}: a director {what} by {off:e} validates: {e:?}")
             });
+            let stored = director(ok.loops()[0].segments()[0].directions);
             assert_eq!(
-                bits(director(ok.loops()[0].segments()[0].directions)),
+                bits(stored),
                 bits(d),
                 "side {l:e}, {what}: stored as written"
             );
+            // Within the band at the lever: the turn and the stretch.
+            assert!(
+                stored.y.atan2(stored.x).abs() * l <= eps,
+                "side {l:e}, {what}: the turn"
+            );
+            assert!(
+                (stored.norm() - 1.0).abs() * l <= eps,
+                "side {l:e}, {what}: the stretch"
+            );
         }
-        for stretch in [1.0 + 20.0 * eps / l, 1.0 - 20.0 * eps / l] {
-            let err = table(square_of_side(l, Vec2::new(stretch, 0.0)))
-                .expect_err("a director stretched past the band refuses");
+        let far = 20.0 * eps / l;
+        for (d, what) in [
+            (turned(far), "turned"),
+            (Vec2::new(1.0 + far, 0.0), "stretched"),
+            (Vec2::new(1.0 - far, 0.0), "shrunk"),
+        ] {
+            let err = table(square_of_side(l, d)).expect_err("past the band's far end");
             assert!(
                 matches!(
                     err,
-                    ProfileError::DirectionNotUnit {
+                    ProfileError::InconsistentDirection {
                         which: RecordedDirection::Director,
                         ..
                     }
                 ),
-                "side {l:e}, length {stretch}: {err:?}"
+                "side {l:e}, {what} by {far:e}: {err:?}"
             );
         }
-        let err = table(square_of_side(l, Vec2::new(1.0 + 2.0 * eps / l, 0.0)))
-            .expect_err("a stretch between the band's ends escalates");
-        assert!(
-            matches!(
-                err,
-                ProfileError::Escalated {
-                    gate: Gate::SegmentDirectionLength,
-                    ..
-                }
-            ),
-            "side {l:e}, between the ends: {err:?}"
-        );
+        let between = 2.0 * eps / l;
+        for (d, what) in [
+            (turned(between), "turned"),
+            (Vec2::new(1.0 + between, 0.0), "stretched"),
+        ] {
+            let err = table(square_of_side(l, d)).expect_err("between the band's ends");
+            assert!(
+                matches!(
+                    err,
+                    ProfileError::Escalated {
+                        gate: Gate::SegmentDirection,
+                        ..
+                    }
+                ),
+                "side {l:e}, {what} by {between:e}: {err:?}"
+            );
+        }
     }
 }
 
-/// Whether a table refusal, if any, came from the length reading.
-fn read_the_length<T: Real>(r: &Result<ValidatedProfile<T>, ProfileError>) -> bool {
-    matches!(
-        r,
-        Err(ProfileError::DirectionNotUnit { .. }
-            | ProfileError::Escalated {
-                gate: Gate::SegmentDirectionLength,
-                ..
-            })
-    )
-}
-
-/// **Every verb's own directions pass the length reading**, read back as
-/// a table (`into_loop`): at `f64` the whole table validates; at
-/// `Sym<Interval>` over a box the tier holds `|d| = 1`; at plain
-/// `Interval` a split circle over a boxed phase reads its radials' length
-/// Zero while the box is narrower than the band at the radius, and only
-/// past that does the length escalate (pinned as the escalation it is,
-/// not a refusal): the turning-frame question,
-/// `work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md`.
+/// **Every verb's own directions pass the check a table gets**: each
+/// verb's loop read back as a table (`into_loop`) validates whole, at
+/// `f64` and at `Sym<Interval>` over a box.
 #[test]
-fn every_verbs_directions_pass_the_length_reading_read_back_as_a_table() {
+fn every_verbs_directions_pass_the_check_a_table_gets() {
     let t = tol();
     let p = |x: f64, y: f64| Point2::new(x, y);
     let f64_loops: Vec<(&str, ProfileLoop<f64>)> = vec![
@@ -665,79 +670,54 @@ fn every_verbs_directions_pass_the_length_reading_read_back_as_a_table() {
         }
     }
     in_session(|| {
-        for h in [small(), 1e-6, 1e-3] {
-            let centre = Point2::new(param("cx", 1.0, h), param("cy", 0.5, h));
-            let split =
-                profile::circle_split(centre, param("r", 0.4, h), 3, param("ph", 0.25, h), t)
-                    .unwrap()
-                    .loop_
-                    .into_loop();
-            let (z, four) = (Lane::from_f64(0.0), Lane::from_f64(4.0));
-            let bulge = Open
-                .at(Point2::new(z, z))
-                .line_to(Point2::new(four, z), t)
-                .unwrap()
-                .arc_to(
-                    profile::Bulge {
-                        p: Point2::new(four, four),
-                        b: param("b", 0.4, h),
-                    },
-                    t,
-                )
-                .unwrap()
-                .line_to(Point2::new(z, four), t)
-                .unwrap()
-                .line_to(Start, t)
-                .unwrap()
-                .loop_
-                .into_loop();
-            let tangent = Open
-                .at(Point2::new(z, z))
-                .line_to(Point2::new(param("L", 2.0, h), z), t)
-                .unwrap()
-                .tangent()
-                .tangent_arc_to(Point2::new(Lane::from_f64(3.0), param("Y", 1.0, h)), t)
-                .unwrap()
-                .line_to(Point2::new(z, Lane::from_f64(2.0)), t)
-                .unwrap()
-                .line_to(Start, t)
-                .unwrap()
-                .loop_
-                .into_loop();
-            for (what, lp) in [
-                ("split circle", split),
-                ("bulge", bulge),
-                ("tangent arc", tangent),
-            ] {
-                let r = Profile::new(SketchPlane::xy(), vec![lp]).validate(t);
-                assert!(
-                    !read_the_length(&r),
-                    "{what} over ±{h:e} at Sym: {:?}",
-                    r.err()
-                );
-            }
-        }
-    });
-    let split_at = |h: f64| {
-        let b = |c: f64| Interval::from_bounds(c - h, c + h);
-        let lp = profile::circle_split(Point2::new(b(1.0), b(0.5)), b(0.4), 3, b(0.25), t)
+        let h = small();
+        let centre = Point2::new(param("cx", 1.0, h), param("cy", 0.5, h));
+        let split = profile::circle_split(centre, param("r", 0.4, h), 3, param("ph", 0.25, h), t)
             .unwrap()
             .loop_
             .into_loop();
-        Profile::new(SketchPlane::xy(), vec![lp]).validate(t)
-    };
-    let narrow = split_at(t.eps() / 64.0);
-    assert!(
-        !read_the_length(&narrow),
-        "a narrow box: {:?}",
-        narrow.err()
-    );
-    let wide = split_at(t.eps());
-    assert!(
-        !matches!(wide, Err(ProfileError::DirectionNotUnit { .. })),
-        "never a refusal: {:?}",
-        wide.err()
-    );
+        let (z, four) = (Lane::from_f64(0.0), Lane::from_f64(4.0));
+        let bulge = Open
+            .at(Point2::new(z, z))
+            .line_to(Point2::new(four, z), t)
+            .unwrap()
+            .arc_to(
+                profile::Bulge {
+                    p: Point2::new(four, four),
+                    b: param("b", 0.4, h),
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(Point2::new(z, four), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+            .into_loop();
+        let tangent = Open
+            .at(Point2::new(z, z))
+            .line_to(Point2::new(param("L", 2.0, h), z), t)
+            .unwrap()
+            .tangent()
+            .tangent_arc_to(Point2::new(Lane::from_f64(3.0), param("Y", 1.0, h)), t)
+            .unwrap()
+            .line_to(Point2::new(z, Lane::from_f64(2.0)), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+            .into_loop();
+        for (what, lp) in [
+            ("split circle", split),
+            ("bulge", bulge),
+            ("tangent arc", tangent),
+        ] {
+            if let Err(e) = Profile::new(SketchPlane::xy(), vec![lp]).validate(t) {
+                panic!("{what} over ±{h:e} at Sym, read back as a table: {e:?}");
+            }
+        }
+    });
 }
 
 /// **The lift carries a recorded direction verbatim.** A table director

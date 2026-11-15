@@ -245,12 +245,14 @@ pub enum Segment<T: Real> {
 /// Redundant with the vertices and the carrier, and never trusted:
 /// [`Profile::validate`] checks one a table carries against its vertices,
 /// and one a construction made holds by that construction. The check is
-/// two readings at the run's band: the length `(|d| − 1)·ℓ` (check 1's
-/// `Length` measure for a stored unit datum) and the miss
-/// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
-/// chord or radius), each Zero. A unit in this kernel's sense, then: the
-/// length and the angle each keep the band's slack, `ε/ℓ`, and the
-/// direction is stored as written. A table that
+/// one reading at the run's band, the miss `‖o + ℓ·d − p‖` (`o` the
+/// start or centre, `p` the vertex, `ℓ` the chord or radius), and it is
+/// what "unit" means: `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle
+/// inequality, so an accepted direction is a unit by check 1's measure
+/// at arm ℓ (`geom::convention::frame_margins`) and turns by at most
+/// `ε/ℓ`; it is stored as written. Check 1 length-reads no plane or
+/// line, so a director stored as a plane's normal is a unit only at its
+/// chord's lever. A table that
 /// carries none has them decided once, at validate, from its vertices
 /// ([`ValidatedSegment::directions`]).
 #[derive(Clone, Copy, Debug)]

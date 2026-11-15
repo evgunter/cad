@@ -896,7 +896,7 @@ mod kernel {
         pub(super) const PROFILE_ERROR: ProfileError = [
             Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
             NearFullArc, InconsistentArc, ArcBelowSceneResolution, InconsistentDirection,
-            DirectionNotUnit, DirectionBelowSceneResolution, NonSimple,
+            DirectionBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
             RayCastingExhausted, Escalated, Structure,
@@ -4127,13 +4127,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             E::InconsistentDirection {
                 at: a,
                 which: profile::RecordedDirection::StartRadial,
-            },
-        ),
-        (
-            "DirectionNotUnit",
-            E::DirectionNotUnit {
-                at: a,
-                which: profile::RecordedDirection::Director,
             },
         ),
         (
