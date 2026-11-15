@@ -26,4 +26,4 @@ nightly draws a new seed each night. The finding now sits on the slate
 of the program that owns the cone door, with this seed and the one
 nightly 43680833019 drew (`0x5a2a16bda0f5438c`, case 281, the same
 shape: an ellipse root 1.39e-6 along the arc from the oracle's):
-`work/germ/the-cone-rows-certified-ellipse-roots-lie-past-the-band-along-the-arc-at-1e-12.md`.
+`work/germ/the-conic-quadric-door-certifies-first-harmonic-roots-past-the-zero-band.md`.

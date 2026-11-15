@@ -1,7 +1,7 @@
 ---
 id: the-ring-promotion-posture-row-reads-euler-kill-rs-by-hand
 kind: issue
-title: staleness_posture.rs's ring-promotion posture row reads euler_kill.rs as raw lines with a hand-rolled comment skip, outside the shared lexer
+title: Two pcurves test files read Rust source as raw lines with a hand-rolled comment skip - staleness_posture.rs over euler_kill.rs, lift_agreement_rows.rs's maker census
 status: open
 opened: 2026-11-15
 priority: P4
@@ -24,18 +24,24 @@ class `test_utils::source` exists to close
 
 The row was written in `pcurves.rs` (PR 6900) and moved to its own file
 by PR 6939 (`onedoor/pcurves-split`, merge `2627b5737`), where the
-reader census first names it. The ledger now lists it `Unconverted`,
-citing this row, and `UNCONVERTED_TODAY` stays at 4 only because
-`crates/topo/src/boxes.rs` stopped reading source in the same two days
-(PR 6957). So the count did not fall when it should have.
+reader census first names it.
 
-**Owed.** Read `euler_kill.rs` through `test_utils::source::code_only`
-(or `fn_items`, which the sibling `lift_agreement_rows.rs` already uses),
-change the ledger line to `Shared`, and lower `UNCONVERTED_TODAY` to 3.
+**A second one beside it** (found by PR 6985's review):
+`crates/topo/src/pcurves/lift_agreement_rows.rs`, the maker census,
+counts `JointElement(` over
+`text.lines().filter(|l| !l.trim_start().starts_with("//"))`, the same
+prefix skip, in the same test that reads `pcurves.rs` and
+`pcurves/decision.rs` through `test_utils::source::code_only` and
+`fn_items`. It also walks the kernel crates with its own `read_dir`
+recursion where `test_utils::source::rust_sources` is the shared walk.
 
-Beside it, not the same defect: `lift_agreement_rows.rs` walks the
-kernel crates with its own `read_dir` recursion where
-`test_utils::source::rust_sources` is the shared walk. It lexes through
-the shared reader, so its ledger line is `Shared`.
+The ledger lists both files `Unconverted`, citing this row, and
+`UNCONVERTED_TODAY` is 5: `crates/topo/src/boxes.rs` stopped reading
+source (PR 6957) and these two arrived. This row is what licenses the
+count going up.
+
+**Owed.** Read `euler_kill.rs` and count the makers through
+`test_utils::source::code_only` (or `fn_items`), change both ledger lines
+to `Shared`, and lower `UNCONVERTED_TODAY` to 3.
 
 Reproduce: `cargo nextest run -p test-utils -E 'test(/reader_census/)'`.

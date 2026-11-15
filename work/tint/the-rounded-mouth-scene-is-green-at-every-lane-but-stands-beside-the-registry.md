@@ -35,3 +35,13 @@ matches the `f64` body (`matches_f64`), in a build at the nightly's
 `opt-level = 2` and at the default dev profile alike, as it does at 1e-6
 and 1e-9. The coaxial row asserts it for both scenes at every ε. So the
 question this row asks covers both `shaft_and_bearing` scenes.
+
+**Verified, and the cause is not named.** The build is right on its
+merits: PR 6985's review checked the ball's `Interval` volume against
+the closed form (5.836839596566823 lies inside it; faces, edges and
+vertices 13/23/16 at all three ε), and
+`coincidence_door::the_balls_interval_union_encloses_its_closed_form_under_a_bounded_pad`
+holds it. Which merge made it build is not known. At `opt-level = 2` on
+one box the ball still escalates at `33828f00ed` (PR 6967's merge) and
+at `967cca218`, the first-parent commit before PR 6963, and builds on
+main; the candidates are PRs 6963, 6974, 6958 and 6953.
