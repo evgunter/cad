@@ -153,9 +153,10 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
     /// its holes subtracted, evaluated over the whole study box at
     /// `Sym<Interval>`: the blank, both hole extrudes and their placed
     /// copies build, and the first node that refuses is the first
-    /// `Subtract`, taking a hole that does not finish: a cylinder's
-    /// `u_ref`, whose length tier 3 cannot read. The extrude stores an
-    /// arc wall's `u_ref` as the start radial over its own length, the
+    /// `Subtract`, taking a hole that does not finish: its bore walls'
+    /// and rim circles' `u_ref`s, whose lengths tier 3 cannot read. The
+    /// extrude stores an arc wall's and rim's `u_ref` as the start radial
+    /// over its own length, the
     /// verb's vertex `c + r·x` read against the stored radius `|r|`, which
     /// is as wide as the radius box relative to the radius
     /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`
@@ -181,35 +182,63 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             max_terms: 4096,
             max_degree: 128,
         };
-        let first = pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
-            let ev: Evaluation<Sym<Interval>> =
-                evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
-            ev.order.iter().find_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some((*id, e.kind.clone())),
-                _ => None,
+        // What the first refusing node is and refuses, read inside the
+        // session that built it.
+        let (subtract, all_uref, what) =
+            pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+                let ev: Evaluation<Sym<Interval>> =
+                    evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
+                let (node, e) = ev
+                    .order
+                    .iter()
+                    .find_map(|id| match ev.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some((*id, e)),
+                        _ => None,
+                    })
+                    .expect("the cut plate refuses over the study box");
+                // Each finding a bore wall's (`Cylinder`) or a rim's
+                // (`Circle`) `u_ref` length, both kinds among them.
+                let all_uref = match &e.kind {
+                    NodeErrorKind::UnfinishedLeaf { findings, .. } => {
+                        use pncad::topo::ValidationError::{
+                            CurveDatumUndecided, SurfaceDatumUndecided,
+                        };
+                        let length = pncad::geom::ConventionMeasure::Length;
+                        let (mut walls, mut rims, mut other) = (0, 0, 0);
+                        for f in findings.as_slice() {
+                            match f {
+                                SurfaceDatumUndecided {
+                                    kind: pncad::geom::SurfaceKind::Cylinder,
+                                    datum: pncad::geom::SurfaceDatum::URef,
+                                    measure,
+                                    ..
+                                } if *measure == length => walls += 1,
+                                CurveDatumUndecided {
+                                    kind: pncad::geom::CurveKind::Circle,
+                                    datum: pncad::geom::CurveDatum::URef,
+                                    measure,
+                                    ..
+                                } if *measure == length => rims += 1,
+                                _ => other += 1,
+                            }
+                        }
+                        Some((walls > 0, rims > 0, other))
+                    }
+                    _ => None,
+                };
+                (
+                    matches!(p.doc.node(node), Some(Node::Subtract { .. })),
+                    all_uref,
+                    format!("node {node:?}: {:?}", e.kind),
+                )
             })
-        })
-        .0
-        .expect("the cut plate refuses over the study box");
-        let (node, kind) = first;
-        assert!(
-            matches!(p.doc.node(node), Some(Node::Subtract { .. })),
-            "the first refusal is a Subtract's: node {node:?}, {kind:?}"
-        );
-        let NodeErrorKind::UnfinishedLeaf { findings, .. } = &kind else {
-            panic!("the Subtract refuses an operand that does not finish: {kind:?}");
-        };
-        assert!(
-            findings.as_slice().iter().all(|f| matches!(
-                f,
-                pncad::topo::ValidationError::SurfaceDatumUndecided {
-                    kind: pncad::geom::SurfaceKind::Cylinder,
-                    datum: pncad::geom::SurfaceDatum::URef,
-                    measure: pncad::geom::ConventionMeasure::Length,
-                    ..
-                }
-            )),
-            "every finding is a bore's u_ref length, undecided: {findings:?}"
+            .0;
+        assert!(subtract, "the first refusal is a Subtract's: {what}");
+        assert_eq!(
+            all_uref,
+            Some((true, true, 0)),
+            "the Subtract refuses an operand that does not finish, its findings the bore \
+             walls' and rims' u_ref lengths, undecided, and nothing else: {what}"
         );
     }
 }
