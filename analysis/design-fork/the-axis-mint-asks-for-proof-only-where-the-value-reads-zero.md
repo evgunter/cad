@@ -243,3 +243,7 @@ Reversible: yes. The query is additive, and removing it reverts the mint to alwa
 - **`is_exact_zero` on a difference:** `topo/boolean/spline_known.rs:118`, `geom-brep/description.rs:466`, `pcurve_cache.rs:8655`, `8676`, `9184`, `patch.rs:86`. Also `profile/lib.rs:310`, `330` and `529` on a bulge that may be computed. Candidates for one issue: "is_exact_zero compares computed values".
 - **Assumed:** the DAG is a function of the document plus the decisions taken, so a value-free walk is valuation-independent. Float literals are keyed by their bits; I did not audit for any value-keyed node minting.
 - **Budget freezing and SymRetry:** both depend only on form size and ring guards, which are fixed by the DAG. Unverified beyond reading the docs.
+
+## Round 1 (dispatched 16:05 UTC)
+
+Each designer, in its own session, was told its label and pointed at the three first reports by label on a scratch branch (`boxfinish/fork-identity-reports`, `probe/fork-identity/round0/{A,B,C}.md`, the `For Ev` and `For the orchestrator` sections with the sessions' one-paragraph preambles cut). The message was identical for all three but for the label: the agreed final state as the orchestrator reads it, the four splits, and the ask (what moved, whether its own argument is answered, its position now; check against the tree where that settles it). No model is named in the files or the messages.
