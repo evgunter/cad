@@ -283,8 +283,10 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent(self.reach_from(pivot) * T::from_f64(2.0))
     }
 
-    /// The point of `axis` nearest the ball's centre: where a datum on
-    /// that line is read so that the tilt's lever from it is least.
+    /// **The ball's pivot on `axis`**: the point of the axis nearest its
+    /// centre, which is the middle of the ball's window along the axis
+    /// and where a tilt's lever from the axis is least. [`Reach::foot_on`]
+    /// reads a ball here.
     #[must_use]
     pub fn foot_on(self, axis: Line<T>) -> Point3<T> {
         axis.foot(self.center)
@@ -315,21 +317,6 @@ impl<T: Real> ExtentBall<T> {
     #[must_use]
     pub fn box_diagonal(lo: Point3<T>, hi: Point3<T>) -> Lever<T> {
         Lever::of_consumed_extent((hi - lo).norm())
-    }
-
-    /// **The ball about `at` holding an arc of `carrier` over
-    /// `[t0, t1]`**: out to its cover's far distance from `at`
-    /// ([`Cover::distance_range`]), never short of the arc's reach from
-    /// `at`. For a reader with a carrier and a span but
-    /// no edge record, as topo's rest locus reads an edge being
-    /// described; a reader of an edge reads its edge's cover through
-    /// [`Self::of_cover_from`].
-    #[must_use]
-    pub fn of_edge_from(carrier: &Curve3<T>, (t0, t1): (T, T), at: Point3<T>) -> Self
-    where
-        T: SpanLocate,
-    {
-        Self::new(at, cover_far(carrier, (t0, t1), at))
     }
 
     /// **The ball about `at` holding a region**: out to `cover`'s far
@@ -1062,15 +1049,19 @@ impl<T: Real> Reach<T> {
     ///
     /// - [`Self::Face`]: the foot of its own `at`, which its measures are
     ///   read from.
-    /// - Every other reach: the middle of its window along the axis
-    ///   ([`Self::range_along`]). For a ball that is the foot of its
-    ///   centre, and for a measured length the foot of `at`. Its lever
-    ///   from there is at most `√2` times the least over the axis.
+    /// - [`Self::Ball`]: the foot of its centre ([`ExtentBall::foot_on`]),
+    ///   the middle of its window along the axis.
+    /// - [`Self::Measured`] and [`Self::Region`]: the middle of the
+    ///   window along the axis ([`Self::range_along`]); for a measured
+    ///   length that is the foot of `at` in exact arithmetic. A region's
+    ///   lever from there is at most `√2` times its cover's least far
+    ///   distance from any point of the axis.
     #[must_use]
     pub fn foot_on(&self, axis: Line<T>) -> Point3<T> {
         match self {
             Self::Face { at, .. } => axis.foot(*at),
-            Self::Ball(_) | Self::Measured { .. } | Self::Region(_) => {
+            Self::Ball(ball) => ball.foot_on(axis),
+            Self::Measured { .. } | Self::Region(_) => {
                 let (lo, hi) = self.range_along(axis.origin, axis.dir);
                 axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.norm_squared())
             }

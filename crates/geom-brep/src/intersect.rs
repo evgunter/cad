@@ -499,8 +499,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// `reach` is what the consumer needs the pose read over: an edge over
 /// its span ([`Reach::Region`]), the one variant its callers hand it,
 /// levered by its cover's far distance from a pivot
-/// ([`Reach::lever_from`]: exact on a segment and a circle arc, within
-/// 3.2% of the arc's own on a conic). The arms that take a scalar extent read
+/// ([`Reach::lever_from`]: exact on a segment and a circle arc; on an
+/// ellipse arc over `Δt` no more than `(1 − cos(min(Δt, τ)/8))·a` past
+/// the arc's own, `a` the larger semi-axis, as `span_reach_hunt`
+/// guards). The arms that take a scalar extent read
 /// their pose at an ANCHOR (a cone's apex, a sphere's or torus's
 /// centre) and get its lever from there (a tilt `θ` displaces the locus
 /// by `θ·extent` there); the plane×cone arm takes the reach and levers
@@ -1145,8 +1147,8 @@ pub(crate) fn ruled_section<T: Decide>(
     }))
 }
 
-/// The axis-in-plane lane's frame: the foot of `reach`'s point on the
-/// axis, the axis' normal component `c`, the foot's signed height over
+/// The axis-in-plane lane's frame: `reach`'s pivot on the axis
+/// ([`Reach::foot_on`]), the axis' normal component `c`, the foot's signed height over
 /// the plane, and the lever the tilt is read at.
 pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
@@ -1735,7 +1737,8 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
 }
 
 /// **How far two near-parallel axes' distance moves across the reach**
-/// from the `d` the parallel lane's rows read between the feet: the
+/// from the `d` the parallel lane's rows read at the feet
+/// ([`ParallelAxes`]): the
 /// `swing` [`decide_across`] carries beside each of them.
 ///
 /// From the foot `p` of one line (`p + s·a`, the consumed stations

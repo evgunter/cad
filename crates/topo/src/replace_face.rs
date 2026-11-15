@@ -425,10 +425,13 @@ pub enum ReplaceFaceError<T: Real> {
     /// **An edge with no region to read its pose over.** The C5 gate and
     /// the section arms lever the moved pair's pose over the edge's
     /// cover ([`crate::cover::edge_cover`], or the moved carrier's over
-    /// its span), and the edge has none, as a face with no cover is at
-    /// the chart-region gate.
+    /// its span, [`crate::cover::arc_cover`]), and the edge has none: on
+    /// these paths a control net carrying poison, a datum or an end
+    /// vertex that is not a finite number.
     ///
-    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
+    /// Standing ([`Self::refusal`]): its cause's
+    /// ([`crate::cover::EdgeUncovered::refusal`]), a stored-data fault
+    /// (row 4) on these paths: aborts.
     EdgeUncovered {
         /// The edge whose region was read.
         edge: EdgeKey,
@@ -862,7 +865,8 @@ impl<T: Real> ReplaceFaceError<T> {
     /// variant's `[failure.taxonomy]` row as its doc states it:
     /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin and
     /// [`ReanchorInconclusive`](Self::ReanchorInconclusive) as unsettled;
-    /// the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
+    /// [`EdgeUncovered`](Self::EdgeUncovered) by its cause
+    /// ([`crate::cover::EdgeUncovered::refusal`]); the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
     /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
     /// stored-data fault (4) and a payload that mixes classes (`Offset`,
     /// `Fit`, `IsoRow`, the sections, `Op`, `Pcurve`,
@@ -873,17 +877,15 @@ impl<T: Real> ReplaceFaceError<T> {
     ///
     /// [`geom_brep::ladder::Aborts`] for an invalid input, a kernel or
     /// stored-data fault and a payload that mixes classes.
-    pub(crate) const fn refusal(
-        &self,
-    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
             Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            Self::EdgeUncovered { source, .. } => source.refusal(),
             Self::DegenerateTorus { refusal, .. } => refusal.refusal(),
             Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
             Self::ApproxLaneUnsupported { .. }
             | Self::NeighborPairUnroutable { .. }
             | Self::NeighborPoseUnroutable { .. }
-            | Self::EdgeUncovered { .. }
             | Self::FittedBoundaryUnsupported { .. }
             | Self::CarrierLaneUnsupported { .. }
             | Self::NurbsLaneUnsupported { .. }
@@ -1041,7 +1043,12 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::EdgeUncovered { source, .. } => write!(
                 f,
                 "an edge of the offset face has no region the kernel can read its position \
-                 over ({source}), so it cannot follow the face. {NOT_YET_ENDING}"
+                 over ({source}), so it cannot follow the face. {}",
+                if source.refusal().is_ok() {
+                    NOT_YET_ENDING
+                } else {
+                    KERNEL_OR_FILE_DEFECT_ENDING
+                }
             ),
             Self::FittedBoundaryUnsupported { what, .. } => write!(
                 f,
@@ -2412,29 +2419,26 @@ fn pose_route<T: Decide>(
     geom_brep::intersect::route_pose(moved, other, reach, band)
 }
 
-/// **An edge's region as a reach**: its cover, or the refusal naming
-/// `edge` ([`ReplaceFaceError::EdgeUncovered`]).
+/// **An edge's region as a reach**: its cover ([`crate::cover::edge_cover`]
+/// of an edge with a certified curve, or [`crate::cover::arc_cover`] of
+/// a moved carrier over its span), or the refusal naming `edge`
+/// ([`ReplaceFaceError::EdgeUncovered`]).
+///
+/// # Panics
+///
+/// On [`crate::cover::EdgeUncovered::Scaffold`]: every caller reads a
+/// certified curve or a carrier, so scaffolding here is a kernel bug.
 pub(crate) fn region_reach<T: Real>(
     edge: EdgeKey,
     cover: Result<geom::cover::Cover<T>, crate::cover::EdgeUncovered>,
 ) -> Result<geom_brep::Reach<T>, ReplaceFaceError<T>> {
-    cover
-        .map(geom_brep::Reach::Region)
-        .map_err(|source| ReplaceFaceError::EdgeUncovered { edge, source })
-}
-
-/// **A carrier over a span as a reach**, for a carrier with no edge
-/// record yet (the moved edge's): its cover over the span, or the
-/// refusal naming `edge`.
-pub(crate) fn span_reach<T: geom_core::spline::SpanLocate>(
-    edge: EdgeKey,
-    carrier: &Curve3<T>,
-    span: (T, T),
-) -> Result<geom_brep::Reach<T>, ReplaceFaceError<T>> {
-    geom_brep::Reach::of_span(carrier, span).map_err(|why| ReplaceFaceError::EdgeUncovered {
-        edge,
-        source: crate::cover::EdgeUncovered::Carrier(why),
-    })
+    match cover {
+        Ok(cover) => Ok(geom_brep::Reach::Region(cover)),
+        Err(crate::cover::EdgeUncovered::Scaffold) => {
+            unreachable!("{edge:?}: a certified curve's cover refused as scaffolding")
+        }
+        Err(source) => Err(ReplaceFaceError::EdgeUncovered { edge, source }),
+    }
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -2937,7 +2941,7 @@ fn plan_edge<'s, T: Decide>(
         // The kind pair routes; the arm is asked whether it serves
         // THIS pose — the moved surface against the untouched one,
         // read over the edge's own reach.
-        let reach = span_reach(edge, &carrier, (t0, t1))?;
+        let reach = region_reach(edge, crate::cover::arc_cover(&carrier, (t0, t1)))?;
         let posed = pose_route(new_surface, other_surface, &reach, band).map_err(
             |e| match e {
                 geom_brep::SectionError::Escalated(source)
@@ -4962,10 +4966,12 @@ fn pair_over_its_span<T: Decide>(
     let Some((plane, cone)) = plan.apex_pair.take() else {
         return Ok(());
     };
-    let reach = span_reach(
+    let reach = region_reach(
         plan.edge,
-        &plan.spec.carrier,
-        (plan.spec.param_start, plan.spec.param_end),
+        crate::cover::arc_cover(
+            &plan.spec.carrier,
+            (plan.spec.param_start, plan.spec.param_end),
+        ),
     )?;
     let refused = |verdict| ReplaceFaceError::EdgeSection {
         edge: plan.edge,
@@ -6335,6 +6341,48 @@ mod refusal_rows {
         };
         assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
         assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
+    }
+
+    /// **An uncovered edge stands by its cause**: a poisoned net, a datum
+    /// that is not finite, a non-finite end and a carrier refusal mixing
+    /// classes abort as stored-data faults; only an unbounded locus is a
+    /// limit. Red against one standing for every cause.
+    #[test]
+    fn an_uncovered_edge_stands_by_its_cause() {
+        use geom::cover::{Covered, Entity, Lattice, Uncovered, Unknown};
+
+        use crate::cover::EdgeUncovered;
+        let curve = Entity::Curve(geom::CurveKind::Nurbs);
+        let carrier = |what: Unknown| EdgeUncovered::Carrier(Uncovered::new(curve, what));
+        let refused = |what: Unknown| -> Covered<f64> { Err(Uncovered::new(curve, what)) };
+        let Err(mixed) = refused(Unknown::Unbounded).meet(refused(Unknown::PoisonedNet)) else {
+            unreachable!("two refusals meet in a refusal")
+        };
+        for (what, source, want) in [
+            ("a poisoned net", carrier(Unknown::PoisonedNet), Err(Aborts)),
+            (
+                "a non-finite datum",
+                carrier(Unknown::NonFinite),
+                Err(Aborts),
+            ),
+            ("a non-finite end", EdgeUncovered::Ends, Err(Aborts)),
+            (
+                "a mixed refusal",
+                EdgeUncovered::Carrier(mixed),
+                Err(Aborts),
+            ),
+            (
+                "an unbounded locus",
+                carrier(Unknown::Unbounded),
+                Ok(Refusal::Limit),
+            ),
+        ] {
+            let error = ReplaceFaceError::<f64>::EdgeUncovered {
+                edge: crate::entity::EdgeKey::default(),
+                source,
+            };
+            assert_eq!(error.refusal(), want, "{what}");
+        }
     }
 }
 

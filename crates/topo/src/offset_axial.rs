@@ -2281,13 +2281,9 @@ fn mint_carrier<T: Decide>(
     // middle stands nearer, run the old way; beside the apex it is a
     // hyperbola, and the edge is its arc between the moved corners on
     // the branch the old edge's middle stands beside, minted exactly. ----
-    if cone_and_cap(ca, cb).is_some() {
-        let section = cone_section.cloned().unwrap_or_else(|| {
-            unreachable!(
-                "{edge:?}: the gate reads every moved cone/cap edge's section before a carrier \
-                 is minted"
-            )
-        });
+    // The gate read this section for every moved cone/cap edge, and
+    // hands it here; its presence is the arm's condition.
+    if let Some(section) = cone_section.cloned() {
         let (l1, l2) = match section {
             ConeCapSection::Generators(l1, l2) => (l1, l2),
             ConeCapSection::Conic(section) => {
