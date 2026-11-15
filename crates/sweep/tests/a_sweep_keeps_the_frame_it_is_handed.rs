@@ -575,6 +575,10 @@ fn assert_holds(what: &str, held: Vec3<S>, member: Vec3<f64>) {
 /// row calls it degraded, before any width the row names.
 const SLACK: f64 = 2.0;
 
+/// One component of a held vector: its name, its enclosure, and how a
+/// member's `f64` value reads it.
+type Component = (&'static str, S, fn(&Vec3<f64>) -> f64);
+
 /// **The enclosure is no wider than the truth needs, or than today's
 /// named width**: componentwise, the stored width is at most [`SLACK`]
 /// times the members' spread, plus `width_over_truth.1` half-widths of
@@ -596,7 +600,7 @@ const SLACK: f64 = 2.0;
 ///
 /// Each row's factor is that measurement rounded up by a few percent.
 fn assert_tight(what: &str, held: Vec3<S>, members: &[Vec3<f64>], width_over_truth: (f64, f64)) {
-    let comps: [(&str, S, fn(&Vec3<f64>) -> f64); 3] = [
+    let comps: [Component; 3] = [
         ("x", held.x, |v| v.x),
         ("y", held.y, |v| v.y),
         ("z", held.z, |v| v.z),
@@ -781,14 +785,14 @@ fn a_slab_over_a_two_parameter_box_holds_every_member() {
         );
         let held: Vec<[Vec3<S>; 2]> = faces(&b).into_iter().map(|f| datum(&b.body, f)).collect();
         for (i, h) in held.iter().enumerate() {
-            for k in 0..2 {
+            for (k, hk) in h.iter().enumerate() {
                 let ms: Vec<Vec3<f64>> = members
                     .iter()
                     .map(|m| datum(&m.body, faces(m)[i])[k])
                     .collect();
                 assert_encloses(
                     &format!("two-parameter face {i} datum {k}"),
-                    h[k],
+                    *hk,
                     &ms,
                     (0.01, 1.25),
                 );

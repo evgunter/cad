@@ -1040,10 +1040,12 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     // default row reads that still, and 1e-6 and 1e-12, where the box is
     // ε/64 wide, read the cells below. The verdict holds at each; which
     // stored value moves the cells near the box's edges is not traced.
-    let want = match eps() {
-        e if e == 1e-6 => (10, 1282, 1272, 572),
-        e if e == 1e-12 => (10, 1258, 1248, 526),
-        _ => (10, 1264, 1254, 532),
+    let want = if eps() == 1e-6 {
+        (10, 1282, 1272, 572)
+    } else if eps() == 1e-12 {
+        (10, 1258, 1248, 526)
+    } else {
+        (10, 1264, 1254, 532)
     };
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),

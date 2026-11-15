@@ -306,6 +306,7 @@ fn eps_row(eps: f64) -> usize {
 ///   4931 → 4854, calls unchanged. The second 3-space difference and its
 ///   normalization go too; the slab's placement is the identity's axes,
 ///   so the placed unit chord folds to its sketch components.
+///
 /// **Moved with the extrude keeping its sketch frame**: it fits no
 /// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
 /// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
