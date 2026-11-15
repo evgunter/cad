@@ -712,13 +712,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // plate +380, the annulus +152, the boss +190, the bracket +539 and
     // the link +280; symbolic the bracket −2 and the link −4, the witness
     // reads the tier proved, which no station's read reproduces. The
-    // ladder's recovery on the bracket holds at 6.
+    // ladder's recovery on the bracket holds at 6. Then validation's mint
+    // began reading each straight side's chord components exactly and
+    // outside the log (audit row F43), with the ladder or without it: the
+    // plate +4/+4, the boss +1/+2, the bracket +8/+8 and the link +1/+1;
+    // the annulus, two circles, reads none, and the recovery holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1015, 1050], [1015, 1050], 0),
+        ("two_hole_plate", [1019, 1054], [1019, 1054], 0),
         ("r1_annulus", [535, 553], [535, 553], 0),
-        ("r1_segment_boss", [506, 575], [506, 575], 0),
-        ("r2_filleted_bracket", [1409, 1540], [1415, 1534], 6),
-        ("r2_link", [813, 947], [813, 947], 0),
+        ("r1_segment_boss", [507, 577], [507, 577], 0),
+        ("r2_filleted_bracket", [1417, 1548], [1423, 1542], 6),
+        ("r2_link", [814, 948], [814, 948], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -897,10 +901,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // writes at its 7 interior stations, where it read the class at one
     // witness): [1392, 1346, 34] -> [1384, 1830, 32], the witness reads the
     // tier proved, two of them through the ladder, and the stations'
-    // numeric reads.
+    // numeric reads. Then validation's mint read each straight side's
+    // chord components exactly (audit row F43): [1384, 1830, 32] ->
+    // [1396, 1848, 32].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1384, 1830, 32],
+        [1396, 1848, 32],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -924,8 +930,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // placement's session-box ask, as the shipped receipt's:
     // [1358, 1379, 0] -> [1358, 1380, 0]. Then the constructors'
     // whole-wedge reads, as the shipped receipt's: [1358, 1380, 0] ->
-    // [1352, 1862, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1352, 1862, 0]);
+    // [1352, 1862, 0]. Then validation's mint, as the shipped receipt's:
+    // [1352, 1862, 0] -> [1364, 1880, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1364, 1880, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

@@ -58,6 +58,8 @@ mod a_blend_section_is_a_shared_row_of_its_bands;
 mod a_shared_row_is_certified_per_wall;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
 mod an_iso_family_reads_the_edges_span;
+#[path = "an_iso_lines_stated_ends.rs"]
+mod an_iso_lines_stated_ends;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -224,6 +226,8 @@ mod cert5_r2_probes;
 mod chart_incidence;
 #[path = "cone_incidence_fuzz.rs"]
 mod cone_incidence_fuzz;
+#[path = "far_walls_of_many_arcs.rs"]
+mod far_walls_of_many_arcs;
 #[path = "iso_parse_incidence.rs"]
 mod iso_parse_incidence;
 #[path = "offset_mint.rs"]

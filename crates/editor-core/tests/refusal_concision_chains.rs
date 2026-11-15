@@ -694,6 +694,20 @@ fn every_node_refusal_renders_within_the_budget() {
     // no declaration and a Boolean does, so the same arm offers
     // "declare" under the one and not under the other.
     for (name, text) in &rows {
+        // A direction the scene cannot read is a line's or an arc's, and
+        // only an arc's recourse is a smaller radius.
+        if name.ends_with("Profile/DirectionBelowSceneResolution") {
+            assert!(
+                !text.contains("radius") && text.contains("record no direction"),
+                "{name}: a line's director owes a line's recourse: {text}"
+            );
+        }
+        if name.ends_with("Profile/DirectionBelowSceneResolution(radial)") {
+            assert!(
+                text.contains("smaller radius") && text.contains("record no direction"),
+                "{name}: an arc's radial owes an arc's recourse: {text}"
+            );
+        }
         if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
             assert!(!text.contains("declare"), "{name}: {text}");
         }
@@ -881,7 +895,8 @@ mod kernel {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
             Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
-            NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
+            NearFullArc, InconsistentArc, ArcBelowSceneResolution, InconsistentDirection,
+            DirectionBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
             RayCastingExhausted, Escalated, Structure,
@@ -4105,6 +4120,31 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             E::InconsistentArc {
                 at: a,
                 check: profile::ArcCheck::OnCarrier,
+            },
+        ),
+        (
+            "InconsistentDirection",
+            E::InconsistentDirection {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::Director,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution(radial)",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
             },
         ),
         ("NearFullArc", E::NearFullArc(a)),

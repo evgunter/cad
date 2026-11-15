@@ -135,7 +135,7 @@ crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative
 crates/profile/src/sugar.rs	1	constant	0.5 * band.zero()	half the band's coincidence threshold: how far past its boundary a recourse's value still fits exactly
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto: its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
+crates/profile/src/validate.rs	5	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance

@@ -34,23 +34,27 @@
 //! ([`crate::classify_dihedral`]'s margin). No squared bands, no
 //! dimensionless margins.
 //!
-//! # The stored parameter interval — a certified cache, not an authority
+//! # The stored parameter interval — stated by its construction, certified against the vertices
 //!
-//! `geom`'s ratified curve convention stands: an edge's bounds are
-//! *derived from its vertices* — the authority is the vertex geometry.
-//! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
-//! as a certified derived cache in exactly the carrier's sense: the
-//! endpoint-pinning checks of every certification pin
-//! `carrier(t₀)`/`carrier(t₁)` to the endpoint points within ε, the
-//! span checks enforce the ratified forward direction (t₁ > t₀) and —
-//! for circle carriers — the at-most-one-period winding bound, and the
-//! Intersection mid-parameter pin ties the interval's interior to the
-//! stored witness; all at attachment and again at tier 3. Storing
-//! the certified interval is what keeps periodic carriers total
-//! (a full-period scaffolding edge's `(0, τ)` is not recoverable from
-//! its coincident endpoints) and keeps bound recovery evaluation-free
-//! (no atan2 branch selection). It can never disagree with the vertices
-//! by more than ε without failing loudly — a cache, never a peer.
+//! `geom`'s curve convention stands: a construction states an edge's
+//! bounds from the quantity that defines them (for example a segment's
+//! length, an arc's span, an extrusion distance, a knot domain, a split's
+//! certified parameter), and the vertices certify them: the vertices are
+//! the authority the bounds are certified against, not their source, and
+//! where they are the only definition their distance is the definition
+//! (the crate README, "Parameterization conventions"). The
+//! [`EdgeCurve`] **stores** the parameter interval, certified: the
+//! endpoint-pinning check (check 3) pins `carrier(t₀)`/`carrier(t₁)` to
+//! the endpoint points within ε, the span check (check 2) enforces the
+//! ratified forward direction (t₁ > t₀) and — for circle carriers — the
+//! at-most-one-period winding bound, and the Intersection mid-parameter
+//! pin ties the interval's interior to the stored witness; all at
+//! attachment and again at tier 3. Storing the certified interval is
+//! what keeps periodic carriers total (a full-period scaffolding edge's
+//! `(0, τ)` is not recoverable from its coincident endpoints) and keeps
+//! bound recovery evaluation-free (no atan2 branch selection). It can
+//! never disagree with the vertices by more than ε without failing
+//! loudly.
 
 use geom::Curve3;
 use geom::Surface;
@@ -1942,7 +1946,8 @@ pub struct EdgeCurveSpec<T: Real> {
     /// extrusion distance, a knot domain, a split's certified
     /// parameter), and the vertices certify them: endpoint pinning
     /// (check 3) reads the carrier at the bounds against the
-    /// `he_plus`-forward vertices. The vertices are the authority the
+    /// `he_plus`-forward vertices, and the interval-span check (check 2)
+    /// holds them forward, nonzero and within one period. The vertices are the authority the
     /// bounds are certified against, not their source; where the
     /// vertices are the only definition, their distance is the
     /// definition (crate README, "Parameterization conventions").
@@ -3116,6 +3121,12 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
+    /// [`Self::params`] as the span [`crate::Pcurve::span_ends`] reads
+    /// this edge's chart images over.
+    pub fn edge_span(&self) -> crate::StoredSpan<T> {
+        crate::StoredSpan::new(self.param_start, self.param_end)
+    }
+
     /// What the scalar's door gave this edge to carry
     /// ([`Real::Carries`]): the attachment-time certification record at
     /// a certifying scalar, nothing at a tangent-transport one.
@@ -3343,7 +3354,11 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let (t0, t1) = (self.param_start, self.param_end);
         let span = t1 - t0;
         let a = (t - t0) / span;
-        let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
+        let images = match self.description {
+            EdgeDescription::Chart(ref c) => Some(c.pcurve.split_at(t)),
+            _ => None,
+        };
+        let child = |s0: T, s1: T, ta: T, tb: T, second: bool| -> EdgeCurveSpec<T> {
             let description = match self.description {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
@@ -3370,16 +3385,22 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
-                // the parent's image, verbatim. Stating it exactly is
+                // the parent's map, verbatim, with a stated end kept
+                // only on the child that keeps that end
+                // ([`crate::Pcurve::split_at`]). Stating it exactly is
                 // what keeps the sub-arc's description the restriction
                 // of its parent's rather than a re-derivation that can
                 // land a few ulps away from it.
-                EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
-                    surface: c.surface,
-                    image: Some(c.pcurve.clone()),
-                    wrap: c.wrap,
-                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
-                },
+                EdgeDescription::Chart(ref c) => {
+                    EdgeDescriptionSpec::Chart {
+                        surface: c.surface,
+                        image: images.as_ref().map(|(first, rest)| {
+                            if second { rest.clone() } else { first.clone() }
+                        }),
+                        wrap: c.wrap,
+                        declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
+                    }
+                }
             };
             EdgeCurveSpec {
                 description,
@@ -3388,7 +3409,10 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
+        (
+            child(T::zero(), a, t0, t, false),
+            child(a, T::one(), t, t1, true),
+        )
     }
 
     /// This carrier's spec view (for re-certification).
@@ -7020,7 +7044,7 @@ mod tests {
             .iter()
             .map(|&(anchor, _, _)| {
                 let (chart, _) = d2_iso_chart(anchor);
-                let Pcurve::IsoLine { p0, pl } = chart.pcurve else {
+                let Pcurve::IsoLine { p0, pl, .. } = chart.pcurve else {
                     panic!("the iso arm mints an IsoLine chart image");
                 };
                 (anchor, p0.y.to_bits(), pl.y.to_bits())
@@ -7057,7 +7081,7 @@ mod tests {
     /// | `t0` (m) | legacy (m) | collapsed (m) | ULP | relative |
     /// |---|---|---|---|---|
     /// | 0     | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
-    /// | 1.7   | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
+    /// | 1.7   | 4.4409e-16 | 7.7716e-16 | 3.38e15 | +75 % |
     /// | 1e3   | 5.9064e-14 | 1.7053e-13 | 6.58e15 | **+189 %** |
     /// | 1e6   | 6.0536e-11 | 5.8208e-11 | 1.80e14 | **−3.85 %** |
     ///
@@ -7078,8 +7102,13 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: still identical at this fixture's numbers.
-    const D2_A1: i64 = 0;
+    /// Anchor 1.7 m: the two expressions agree, and the move is check 4's.
+    /// The description states its ends (`EdgeDescriptionSpec::iso`), the
+    /// map at `t1` stands one ulp from the stated `v1`, and the envelope
+    /// carries that ulp metred by the chart's `stretch_v = 3`, about
+    /// 3.4e-16 m; the certificate's residual is the larger of the
+    /// schedule's and the envelope, 7.8e-16 m against the legacy 4.4e-16 m.
+    const D2_A1: i64 = 3_377_699_720_527_872;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;
     /// Anchor 1e6 m: they disagree by 3.85 %, the other way.

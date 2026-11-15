@@ -1819,7 +1819,11 @@ mod tests {
 
     /// **The placed line's far end folds to the far vertex in the plain
     /// tier**, so the line arm registers nothing where the arc arm
-    /// registers its carrier end. A segment from `(0.3, 0.7)` to
+    /// registers its carrier end. This row records why no registration is
+    /// owed; it holds for a direction read off the placed vertices too,
+    /// so it guards no spelling (the span row,
+    /// `a_placed_lines_span_is_its_segments_length_and_it_ends_at_the_far_vertex`,
+    /// does). A segment from `(0.3, 0.7)` to
     /// `(2.9, p)`, `p` a box at `Sym<Interval>`, under a quarter turn and
     /// a translation: the carrier's end `q_from + L·dir·span` against the
     /// far vertex `place(b)` decides `Zero` on every component with no

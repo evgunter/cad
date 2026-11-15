@@ -88,3 +88,19 @@ on four fast-set tests over the 1 s backstop:
 
 The same step was green on the PR's previous head (run 43617218864, 52
 minutes earlier).
+
+## Instance (PR 6956, `green/goldens`, 2026-11-14)
+
+Run 43629119488 (head `728013904`, merged with main `a03a2471a`) failed `test (kernel)` on the fast-set bar alone, with every nextest row passing: five existing `sweep::all` rows between 1.001 and 1.097 s against the 1.0 s bar, in a diff that touches no kernel source.
+
+- `split_tangent_edge_curved::a_plane_off_a_hole_wall_reads_each_decision_across_the_band` 1.097 s
+- `ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order` 1.049 s
+- `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` 1.035 s
+- `parallel_cylinder_join::equal_wider_and_nested_rods_join_along_their_rulings` 1.005 s
+- `corner_patch_chart_poles::every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex` 1.001 s
+
+The run before it on the same branch (43618486824, head `0cbea1468`) passed the same step. Five rows over at once by up to 10% reads as one slow runner. The lane could not re-run the job (the integration gets a 403 on `rerun-failed-jobs`), so the next push carried the re-run.
+
+The push that carried the re-run (run 43632515561, head `cfacf073a`, main `988589f49`) failed the same step again, on two rows: `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` at 1.013 s and `snowman::a_tilted_slab_against_the_lens_builds_off_the_seam` at 1.010 s. That is `pis_arc_capped_poses` over the bar three times (1.015 s on PR 6931's branch, 1.035 s and 1.013 s here), which is the test standing at the bar. PR 6956 moves to the slow set the five rows these two runs read at 1 s or over that were not already there (`ring_carry_through_by_piece` was, by PR 6931): `split_tangent_edge_curved::a_plane_off_a_hole_wall_reads_each_decision_across_the_band`, `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth`, `parallel_cylinder_join::equal_wider_and_nested_rods_join_along_their_rulings`, `corner_patch_chart_poles::every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex` and `snowman::a_tilted_slab_against_the_lens_builds_off_the_seam`. Each costs twice the 0.5 s at which a test belongs there (`docs/prompts/implementer-discipline.md` §2). The other four were over once each, so for them this is the rule applied rather than a measured trend.
+
+A third run (43635079896, head `d40ac7071`) failed the step on a row none of the earlier runs flagged: `pis_arc_capped_poses::the_cut_cylinders_ellipse_face_takes_nothing_away` at 1.034 s. PR 6956 moves it too. Three runs in a row on one branch, each over the bar on different rows by 0.1% to 10%, with no kernel source in the diff: the kernel shard's fast set has a band of rows sitting just under 1 s on this runner, and moving them one at a time does not converge. That is this row's subject; the count of rows in the band wants re-measuring, and the per-PR bar is failing diffs that cannot have slowed anything.

@@ -64,11 +64,14 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
 /// narrower width, refuses at ε/6 — the floor between the two, at every
 /// ε row. The ladder is printed in full; the assertion is the floor.
 ///
-/// It was ε/10 certifying and ε/8 refusing until a line rim's span and
-/// direction were stated from its sketch segment (PR 6953): the top
-/// cap's line rims sit at the widened height, and a span read off their
-/// two placed vertices carried both vertices' width, where the sketch
-/// segment's length carries none.
+/// It was ε/10 certifying and ε/8 refusing until a line rim's direction
+/// was stated from its sketch segment (PR 6953). Two-variant mutation
+/// (PR 6953's second delta review): reverting only the span leaves ε/8
+/// certified, and reverting only the direction makes it refuse with
+/// main's `carrier_on_surface_2` residual, so the cause is the direction
+/// alone: read off the two placed vertices, the top cap's line rims took
+/// a z-slope as wide as the vertices' widths. At ε/6 the binding refusal
+/// is the top cap's `newell_plane_residual`, which main also has there.
 #[test]
 fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();

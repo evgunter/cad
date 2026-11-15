@@ -2052,8 +2052,8 @@ Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coi
   span, an extrusion distance, a knot domain, a split's certified
   parameter), and the vertices certify them: certification's endpoint
   pinning (check 3) reads the carrier at the stored bounds against the
-  `he_plus`-forward vertices, and enforces forward, nonzero, ≤
-  one-period spans. The vertices are the authority the bounds are
+  `he_plus`-forward vertices, and its interval-span check (check 2)
+  enforces forward, nonzero, ≤ one-period spans. The vertices are the authority the bounds are
   certified against, not their source; where the vertices are the only
   definition (a line between two computed points), their distance is
   the definition. Shared azimuthal frame for all revolution
