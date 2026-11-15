@@ -1362,8 +1362,9 @@ fn arc_rim_images<T: SpanLocate>(
             let ends = row_end_weights(chart, end);
             [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
                 arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
-                    p0: Point2::new(p0x, v),
-                    pd: geom_core::Vec2::new(sign, T::zero()),
+                    line: crate::ChartLine::row(v),
+                    g0: p0x,
+                    gd: sign,
                     t0,
                     angle,
                     breaks: breaks.clone(),

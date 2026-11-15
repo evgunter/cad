@@ -284,7 +284,7 @@ impl<T: Real> SharedRow<T> {
 /// It is [`Pcurve::held_line`] with an arc rim held to rows: an arc rim
 /// whose image holds `u` admits no crossing reading here.
 pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
-    let line = image.held_line().ok()?;
+    let line = image.held_line()?;
     let along_u = line.axis == crate::ssi::ChartAxis::V;
     (along_u || !matches!(image, Pcurve::IsoArc { .. })).then_some((along_u, line.value))
 }

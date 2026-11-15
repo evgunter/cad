@@ -250,11 +250,11 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
-    ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
+    ChartLine, ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
     FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal,
-    IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoHeldLine, NoSpeedBound,
+    IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoSpeedBound,
     OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
-    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, StoredSpan,
+    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage,
     WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve,
     chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
     chart_sup_arms_at, harmonic_form_of, harmonic_range, incidence_ended_unwitnessed, iso_arc_skew,

@@ -77,9 +77,9 @@ impl PatchClass {
         image: &'a Pcurve<T>,
     ) -> Option<(Self, PatchImage<'a, T>)> {
         match image {
-            Pcurve::IsoLine { p0, pl, .. } => {
-                Self::along(surface, || geom_core::is_exact_zero(pl.x))
-                    .map(|class| (class, PatchImage::Iso(*p0, *pl)))
+            Pcurve::IsoLine { line, at0, rate } => {
+                Self::along(surface, || line.axis == crate::ssi::ChartAxis::U)
+                    .map(|class| (class, PatchImage::Iso(line.point(*at0), line.vector(*rate))))
             }
             Pcurve::General(net) | Pcurve::Fitted(net) => Self::along(surface, || {
                 net.control().split_first().is_none_or(|(first, rest)| {

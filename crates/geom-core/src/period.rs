@@ -129,13 +129,42 @@ enum Closed {
 /// placement, which re-exports this type).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Period<T> {
-    length: T,
+    stated: Stated<T>,
+}
+
+/// How a period is stated: as its length, or as the two ends of the
+/// domain one turn of the channel spans.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Stated<T> {
+    /// The length of one turn.
+    Length(T),
+    /// The channel's domain `[lo, hi]`, whose two ends are one point of
+    /// the channel a turn apart.
+    Domain {
+        /// The domain's low end.
+        lo: T,
+        /// The domain's high end.
+        hi: T,
+    },
 }
 
 impl<T: Real> Period<T> {
     /// The channel's period, one whole turn of it.
     pub fn new(length: T) -> Self {
-        Self { length }
+        Self {
+            stated: Stated::Length(length),
+        }
+    }
+
+    /// **The period of a channel closed over the domain `[lo, hi]`**
+    /// (a spline chart closed in a direction, over that direction's knot
+    /// domain): its length is `hi − lo`, and its two ends are the same
+    /// point of the channel one turn apart, which [`Period::moved`]
+    /// reads as stated.
+    pub fn of_domain(lo: T, hi: T) -> Self {
+        Self {
+            stated: Stated::Domain { lo, hi },
+        }
     }
 
     /// **An angle's period, `τ`**: one turn, as a period. What a conic's,
@@ -150,19 +179,43 @@ impl<T: Real> Period<T> {
 
     /// The period as a length.
     pub fn length(self) -> T {
-        self.length
+        match self.stated {
+            Stated::Length(length) => length,
+            Stated::Domain { lo, hi } => hi - lo,
+        }
+    }
+
+    /// **`x` moved `k` whole periods.** A value that is exactly an end of
+    /// the domain the period is stated by ([`Period::of_domain`]), moved
+    /// the one period towards the other end, is that other end, by
+    /// definition: no sum is formed, so `lo` moved one period is `hi`
+    /// itself at every scalar, where `lo + (hi − lo)` rounds at `f64` and
+    /// has width at an enclosure scalar. Every other move adds
+    /// [`Period::times`]`(k)`. "Exactly an end" is structure
+    /// ([`crate::is_exact_zero`] of the difference): a value an ulp off an
+    /// end is moved by the sum.
+    pub fn moved(self, x: T, k: i32) -> T {
+        if let Stated::Domain { lo, hi } = self.stated {
+            if k == 1 && crate::is_exact_zero(x - lo) {
+                return hi;
+            }
+            if k == -1 && crate::is_exact_zero(x - hi) {
+                return lo;
+            }
+        }
+        x + self.times(k)
     }
 
     /// Half the period, as a length: how far an offset may sit from a
     /// whole number of periods and still be nearer it than the next.
     pub fn half(self) -> T {
-        self.length / (T::one() + T::one())
+        self.length() / (T::one() + T::one())
     }
 
     /// `k` whole periods, as a length: a deck element's shift, or the
     /// advance of a winding of `k`.
     pub fn times(self, k: i32) -> T {
-        T::from_f64(f64::from(k)) * self.length
+        T::from_f64(f64::from(k)) * self.length()
     }
 
     /// `k` windings of this channel as a rate per unit of a carrier's
@@ -198,7 +251,7 @@ impl<T: Real> Period<T> {
     /// takes the period from its carrier (`geom::Curve3::period`), never
     /// one of its own, and meters the margins itself.
     pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
-        let p = self.length;
+        let p = self.length();
         ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
     }
 }
@@ -270,7 +323,7 @@ impl<T: Decide> Period<T> {
             } else {
                 T::from_f64(f64::from(-i)) + (T::zero() - half)
             };
-            let sign = decide(name, meter(gap - at * self.length), band);
+            let sign = decide(name, meter(gap - at * self.length()), band);
             let cleared = matches!(
                 (&sign, up),
                 (Ok(Sign::Positive), true) | (Ok(Sign::Negative), false)
@@ -447,7 +500,7 @@ impl<T: Decide> Period<T> {
     pub fn run_from(self, from: T, to: T) -> T {
         use crate::k_stats::{Pick, choose};
         let n = self.near(to, from);
-        let (ahead, behind) = (n - from, n + self.length - from);
+        let (ahead, behind) = (n - from, n + self.length() - from);
         match choose("period_run_behind", Margin::of(n - from), "F31") {
             Pick::Positive => ahead,
             Pick::Negative => behind,
@@ -457,7 +510,7 @@ impl<T: Decide> Period<T> {
             // where every run lies: the whole span, as the fold into
             // `[0, τ)` gave.
             Pick::Tie if ahead.point_value().is_some() => ahead,
-            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length),
+            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length()),
         }
     }
 
@@ -479,8 +532,8 @@ impl<T: Decide> Period<T> {
         if !lift {
             return n;
         }
-        let lifted = n + self.length;
-        let open_end = a + self.length;
+        let lifted = n + self.length();
+        let open_end = a + self.length();
         // Only a point lands on the excluded end: an enclosure that ties
         // there still holds the lifted copy, so it keeps it.
         match closed {
@@ -511,7 +564,7 @@ impl<T: Decide> Period<T> {
         rate: R,
         band: Band,
     ) -> Result<Turn, TurnUndecided> {
-        rate.read(rows, Headroom(self.length - extent.0), band)
+        rate.read(rows, Headroom(self.length() - extent.0), band)
     }
 
     /// **"Not over"** (module docs): whether `extent` is not over one
