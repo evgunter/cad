@@ -24,3 +24,5 @@ Owed: a torn body reaching that walk refuses naming a row-four premise, as the f
 
 
 - 2026-11-15 — **a third seed, from BOXFINISH's PR 6958** (its diff touches no file under `pcurves/`): the same job drew `0xd172944dfec60af3` and panicked on `HalfEdgeKey(4v1)` at the same `unreachable!`, now at `crates/topo/src/pcurves/site.rs` (the joints' own-loop lookup, near :381) since the file split. Not replayed on main by that lane.
+
+- 2026-11-15 — **a fourth seed, from BOXES' PR 6976** (its diff touches no file under `pcurves/` or `splitting/`): the same job drew `0xd3ff1f8c5d8b60f6` and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main (`0807c130bf`'s successor `dc0fda30ba`) with the command above and that seed.

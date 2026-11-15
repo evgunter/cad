@@ -633,3 +633,39 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - the delta review's five escaping sums, planted in production code, now go red, as does a let-bound renamed torus sum;
   - a neutrally named alias arm returning `radius * 2` still passes, which is the documented neutral-vocabulary class.
   Pins: 363 arm, 38 ball, 28 whole; 96 reads of 26 doors registered. The unit closes, and its leftovers are filed as their own rows. The cover build's last unit is merged. Open: `[ev]` PR 6968 (the pivot fork), then its implementing unit.
+- 2026-11-15: Ev approved `[ev]` PR 6968, the `foot_on` pivot: the window's middle; "no need to try to find a point that's better than the midpoint right now". Merged as `0807c130bf`.
+  - Ev first asked how a point that is not a witness can be sound. Answer: the pivot is the origin of a tilt bound, so any point is sound provided the datum and its lever are read at it. That is now one README clause, added on Ev's "only if ambiguous", since the question itself showed it was ambiguous.
+  - Row 269 is filled in: Opus = A, Fable = B.
+  - Dispatched the implementing unit on `boxes/reach-region`.
+- 2026-11-15: the implementing unit opened PR 6976 (`boxes/reach-region`, head `152a4a9be9`, gate green). The changes:
+  - `Reach::Region(Cover)` via `of_span`;
+  - the midpoint `foot_on`;
+  - `reading_point`, `span_points` and `minimax_on_axis` deleted;
+  - a swap-invariant parallel `d`;
+  - topo's span sites read `edge_cover` or `of_span`, with a typed `EdgeUncovered`.
+
+  It reports that designer B's coaxial claim holds for every caller today, with one latent case: `transport_curve`. The first head's corrupt-input red (`review_d18` seed `0xd3ff1f8c5d8b60f6`) reproduces on main and is charttail's filed own-loop panic, so it is not this diff. Dispatched a single FULL review. (BOXES orchestrator)
+- 2026-11-15: PR 6976's FULL review returned APPROVE-WITH-FIXES with no MAJOR. Soundness, bit-for-bit `d` symmetry, the pins, the edge-cover lever measurement (≤1.85e-16 on a re-run slice) and the mutant kills all hold under execution. My rulings:
+  - **Taken:**
+    - `span_reach` is a second spelling of `cover::arc_cover`, so it routes there;
+    - the half-done stale-doc sweep (`parallel_swing`, `RuledFrame`, the `CcStance::Parallel` foot, `refusal()`'s row list) gets finished;
+    - the unguarded "3.2%" is replaced by the bound the hunt guards;
+    - the PR body's `carrier_eq` row, its "same pivot" claim and its undisclosed head commit are corrected;
+    - `foot_on`'s √2 is said to be relative to the cover's least.
+  - **`EdgeUncovered`'s standing:** take its standing from the cause rather than a blanket "limit". A poisoned or non-finite net is not a "not yet".
+  - **The drift between `ExtentBall::of_edge_from`/`cover_far` (poison) and `of_span` (typed), and the two ball-pivot spellings:** fix both in this pass if small, otherwise file with citations.
+
+  The fix pass is sent to the implementing lane. (BOXES orchestrator)
+- 2026-11-15: I verified PR 6976's fix pass myself rather than dispatch a delta review. Every MINOR was taken:
+  - `span_reach` is gone, and moved carriers read `arc_cover`;
+  - `EdgeUncovered::refusal` stands by its cause: data faults are row 4, scaffolding is a limit, and a mixed payload aborts;
+  - a ball has one pivot spelling, `Reach::Ball` reading `ExtentBall::foot_on`;
+  - `of_edge_from` is deleted;
+  - the 3.2% claim is replaced by the bound the hunt guards;
+  - `mint_carrier` reads the gate's section, so its `unreachable!` is gone.
+
+  No pinned verdict moved, and CI is green on `fb141e4945`. Merged as `47905426f9`; `a-reachs-pivot-is-chosen-per-kind` is closed. Filed in this pass:
+  - `face-uncovered-stands-as-a-limit-whatever-its-cause`;
+  - `edge-extent-sup-poisons-an-uncovered-span`.
+
+  BOXES's implementation queue is empty apart from the filed P2/P3 follow-ups. (BOXES orchestrator)
