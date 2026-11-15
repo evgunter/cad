@@ -26,3 +26,12 @@ Decide whether it moves into the registry, which runs it through the
 registry battery, or stays beside it for a reason the module doc then
 states. Its sibling `with_a_ball` still escalates at 1e-12 and stays
 beside.
+
+## The ball now meets the bar too (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+"Its sibling `with_a_ball` still escalates at 1e-12" no longer holds on
+main `3e7a8c93b`: the ball's `Interval` union builds at ε 1e-12 and
+matches the `f64` body (`matches_f64`), in a build at the nightly's
+`opt-level = 2` and at the default dev profile alike, as it does at 1e-6
+and 1e-9. The coaxial row asserts it for both scenes at every ε. So the
+question this row asks covers both `shaft_and_bearing` scenes.
