@@ -1,6 +1,6 @@
 # Design fork: how a construction asks whether a value is an identity (BOXFINISH)
 
-Protocol: 747202177c (`docs/DESIGN-FORK-PROTOCOL.md`). Item: `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md` (P1, design), with DECIDE's general form `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
+Protocol: ddd201f411 (`docs/DESIGN-FORK-PROTOCOL.md`; unchanged since: `git diff ddd201f411 origin/main -- docs/DESIGN-FORK-PROTOCOL.md` is empty. The hash first written here, 747202177c, was a shallow-clone graft, not a commit that touched the file). Item: `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md` (P1, design), with DECIDE's general form `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
 
 ## Draws (2026-11-15, 15:46 UTC, at dispatch)
 
