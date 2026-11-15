@@ -100,3 +100,18 @@ things to this unit, because each needs a door that reads a direction.
 **What this unit will not finish:** profiles whose directions are not
 recorded (`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
 Its closing tests say whether the tour's stop is among them.
+
+**Carried from PR 6979's review (2026-11-15): a row that goes red on a
+wrong side through the curved edge arm.** That PR sets a curved edge's
+straddle aside over a box, and no test in it has power over the class:
+with the rule's gates opened by mutation nothing reads a wrong side,
+because every curved body buildable over a box today closes each cap on
+a whole-turn circle that the loop walker refuses first
+(`work/inside/a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers.md`).
+This unit is the first to finish a curved body over a box through a
+sweep door, with two-arc caps. Its closing tests include one that reads
+a wrong side or a wrong containment answer under the old rule
+(`Ok(Err(_)) => Passes::Met(..)` in `curved_edges::passes`) and under
+`reaches_root_in_band` opened, on such a body. The searches PR 6979
+adopts from its review are the tripwires to run first.
+
