@@ -50,6 +50,14 @@ not give. A lane's local `--profile ci` run excludes the slow set too.
   6959 is being measured by BOXFINISH).
 - **PR 6958's** fix pass: three of its own slow rows ran at the default
   ε only (`a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them`).
+- **PR 6959, measured** (`boxfinish/chart-ends-slow-rows`): an edit INSIDE
+  a slow row's body does not run that row either. The step keys on test
+  names on added lines, and a body edit adds none:
+  - PR 6959's mechanical edits to the bodies of
+    `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`
+    and of the image `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
+    compares left both red on main at every ε;
+  - the gate ran neither.
 
 **What would close it.** One of, or both: the slow-set step selects by
 the crates a diff's changed SOURCE reaches (a `src` change to a crate
