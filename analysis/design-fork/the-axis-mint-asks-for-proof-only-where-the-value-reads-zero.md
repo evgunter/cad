@@ -739,3 +739,7 @@ Terms:
    - Query rules and budget fixed kernel-wide: yes (B). It needs a memo keyed by that fixed set, separate from the session's walks. Cost unmeasured.
 
 **A question none of us asked.** The C6 guided pass consumes the `f64` first pass's structure decisions in every lane and "none is remade". Is the mint's symbolic-only sign decision outside that record (fine under `unlogged`), or does the guide refuse a decision it has no entry for? Someone should read `profile::PINNED_UNDER_GUIDANCE` and the guide's consume path before building. I did not finish tracing it.
+
+## Round 3 (dispatched 16:11 UTC)
+
+Each designer was pointed at the three round-2 replies by label (`probe/fork-identity/round2/{A,B,C}.md`). The message was identical but for the label: what closed in round 2; the two things still open (one door or two, with each side's arguments by label, the disputed fact about a plain-`Interval` production lane, and a question to both sides about what protects `is_exact_zero`'s other callers under each shape; and whether the query's rules are fixed kernel-wide, with a question about whether any reader sees more than width); and the ask (say plainly whether you move; a remaining difference is stated as a choice for Ev with each side's argument in its strongest form).
