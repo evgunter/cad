@@ -306,22 +306,31 @@ fn eps_row(eps: f64) -> usize {
 ///   4931 → 4854, calls unchanged. The second 3-space difference and its
 ///   normalization go too; the slab's placement is the identity's axes,
 ///   so the placed unit chord folds to its sketch components.
+///
+/// **Moved with the extrude keeping its sketch frame**: it fits no
+/// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
+/// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
+/// 2572 forms, `Early` 4931 → 3001), and their digests. Then a line
+/// wall's origin is the wall's middle, from construction data (the placed
+/// start, half the segment's length along its direction, half the sweep):
+/// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
+/// that middle, and its digest; nothing else moves.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 984 forms 9559 frozen 0 digest cb0330eb6422ff0b3787f555a7c6bd20\n\
-     Plain/Assertion calls 996 forms 3375 frozen 0 digest 9d51ee8e5d27c08f84d2c19d6ada93a1\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 996 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 984 forms 9559 frozen 0 digest 1e76b0ed45fb1ecc9dbf35db192b2b8f\n\
-     Plain/Assertion calls 996 forms 3375 frozen 0 digest 2617924e0a82d92b5de4344b48457546\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 996 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
     "\
-     Plain/Decision calls 984 forms 9559 frozen 0 digest 2ea5e2fe9a0970fe0e4699410cb53451\n\
-     Plain/Assertion calls 996 forms 3375 frozen 0 digest 6e29316b4194cf0b9f3a5a71e3d022b4\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 996 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -431,7 +440,10 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
-const SLAB_MAX_TERMS: usize = 6;
+///
+/// **The slab's largest 6 → 4** when the extrude stopped fitting planes
+/// to its corners: the largest form it built was a Newell sum's.
+const SLAB_MAX_TERMS: usize = 4;
 const PLATE_MAX_TERMS: usize = 38;
 
 /// The plate's walk ledger at its nominal — one row, because the
@@ -525,12 +537,19 @@ const PLATE_MAX_TERMS: usize = 38;
 /// on the slab the placed unit chord folds to its sketch components,
 /// and on the plate the walks build more forms over it than they did over
 /// `q_to − q_from`.
+/// **Moved with the sweeps keeping their sketch frames**: the extrudes'
+/// caps and walls fit no plane, so the Newell sums and their residuals
+/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40813 → 39644
+/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13305 →
+/// 12913 forms, frozen 245 → 0; `Early` 14807 → 13378), `Door/Decision`
+/// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
+/// its calls, its forms 28205 → 28232 (+27, not traced).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1019 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
-     Plain/Assertion calls 1054 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
-     Early/Decision calls 308 forms 28205 frozen 0 digest 26327ae7eaa72dca689e4aa27ad071c4\n\
-     Early/Assertion calls 1054 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
-     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
+     Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
+     Plain/Assertion calls 1048 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
+     Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
+     Early/Assertion calls 1048 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\
+     Door/Decision calls 551 forms 13477 frozen 0 digest 894b22f3486d3ee0b1d118034b51814c";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

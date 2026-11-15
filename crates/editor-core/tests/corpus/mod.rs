@@ -409,8 +409,8 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// `shaft_and_bearing`, its one-radius variant and `boss_tangent_by_value`
 /// are green at `f64` and their unions escalate at `Interval`;
 /// `shaft_and_bearing::with_a_ball` is green at `f64` and certifies at
-/// `Interval` but at ε 1e-12, where it escalates;
-/// `shaft_and_bearing::rounded_mouth` is green at every lane and ε
+/// `Interval` at every ε; `shaft_and_bearing::rounded_mouth` is green at
+/// every lane and ε
 /// (`work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry.md`);
 /// the others' unions refuse at `f64`.
 /// The per-row door census reads them beside [`documents`], so the rows

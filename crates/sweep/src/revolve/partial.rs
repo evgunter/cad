@@ -6,7 +6,7 @@
 //! for the ratified case split.
 //!
 //! Phase order (fixed, D9): start lamina (outer chain + closing `mef`
-//! carrying the start cap's Newell plane), holes (bridge `mev` +
+//! carrying the start cap's plane, the sketch frame), holes (bridge `mev` +
 //! `kemr` + chain + closing `mef` + same-shell `kfmrh` — extrude's
 //! shape), per-loop sweep (struts at off-axis vertices, one wall per
 //! off-axis segment, latitude-join classification), end cap plane, then
@@ -14,7 +14,8 @@
 //! phase builds the loops with their runs collapsed ([`Collapsed`]), so
 //! a station inside a run has no entity.
 
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point2, Point3, Real, Sign};
+use profile::SegmentKind;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MevSite};
 use topo::{Body, EdgeKey, FaceKey};
@@ -26,9 +27,7 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{
-    CapEnd, Placing, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
-};
+use crate::swept::{CapEnd, Placing, cap_plane, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
@@ -47,7 +46,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     let place = frame.place;
     let far =
         Placing::turned(place, frame.origin3, frame.axis, theta).map_err(RevolveError::Turn)?;
-    let place_end = far.map();
     let Some(n_end) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
     };
@@ -119,19 +117,14 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         },
         true,
     )?;
+    // The joint centre `revolved_caps` reports: the outer section's
+    // centre, in the sketch.
+    let joint = section_centre(outer);
     // Start cap plane: derived from the sketch data alone — it reads no
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
-    let start_plane = cap_plane(
-        &cap_points(outer, qs, place),
-        place,
-        reverse,
-        CapEnd::Start,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let start_cap = FaceSurface::New {
-        surface: start_plane,
+        surface: cap_plane(place, reverse, CapEnd::Start),
         sense: true,
     };
     let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
@@ -241,7 +234,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                 li,
                 col,
                 hes,
-                &points[li],
                 &rpoints[li],
                 frame,
                 theta,
@@ -258,18 +250,10 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let end_plane = cap_plane(
-        &cap_points(loops[0], &rpoints[0], far),
-        place_end,
-        reverse,
-        CapEnd::End,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {
-            surface: end_plane,
+            surface: cap_plane(far, reverse, CapEnd::End),
             sense: true,
         },
     )?;
@@ -349,6 +333,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             start_meridians: start_mer,
             end_meridians: end_mer,
             coplanar_caps,
+            joints: [frame.world(joint), far.point(joint)],
         },
         scalar: core::marker::PhantomData,
     })
@@ -488,7 +473,6 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     loop_index: usize,
     col: &Collapsed<T>,
     hes: &[topo::HalfEdgeKey],
-    qs: &[Point3<T>],
     rq: &[Point3<T>],
     frame: &AxisFrame<T>,
     theta: T,
@@ -514,7 +498,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             rq[j],
-            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c, tol),
+            revolved_strut_spec(segs[j].a, cls.verts[j].r, frame, theta, axis_c),
             tol,
         )?;
         struts.push(Some(m));
@@ -553,8 +537,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     sense,
                 },
             };
-            let end = (j + 1) % n;
-            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], rq[end], tol);
+            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], tol);
             Ok::<_, RevolveError>(Some((far, surface)))
         },
         tol,
@@ -600,4 +583,38 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     }
 
     Ok(LoopSwept { faces, rims, tops })
+}
+
+/// The sketch centre a partial revolve reports for its outer section
+/// ([`super::revolved_caps`]): a one-segment circle's own centre, else
+/// the **unweighted mean of the collapsed runs' start vertices and arc
+/// apexes**, the value the cap's fitted origin used to read.
+///
+/// That mean is not intrinsic to the section: it depends on where the
+/// loop is cut. A circle authored as two unequal arcs reports the mean
+/// of its two cut points and two apexes, not its centre, and a polygon
+/// with one edge split in two moves it. Only a one-segment circle is
+/// read for what it is
+/// (`work/lathe/a-partial-revolves-joint-centre-is-contingent-on-the-loops-cuts.md`).
+pub(super) fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
+    if let [seg] = segs
+        && let SegmentKind::Arc { arc, .. } = seg.kind.get()
+    {
+        return arc.centre;
+    }
+    let mut points = Vec::with_capacity(segs.len() * 2);
+    for s in segs {
+        points.push(s.a);
+        if let SegmentKind::Arc { arc, .. } = s.kind.get() {
+            points.push(arc.apex(s.a, s.b));
+        }
+    }
+    // The count is summed in `T` beside the coordinates, one per point,
+    // so no computed value enters through `from_f64`.
+    let (x, y, n) = points
+        .iter()
+        .fold((T::zero(), T::zero(), T::zero()), |(x, y, n), p| {
+            (x + p.x, y + p.y, n + T::one())
+        });
+    Point2::new(x / n, y / n)
 }
