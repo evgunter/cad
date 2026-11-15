@@ -587,3 +587,7 @@ Cache reads are about 95% of each sum. B and C each restarted their worker befor
 Branch `boxfinish/ev-iso-image`; fork-log row 271 (three-designer table), recommendation half committed with the PR (labels only). Ev's decision, the mapping and the tokens go in the second commit, before merge.
 
 `[ev]` PR 6975 opened 02:33 UTC (2026-11-15), title "[ev] boxfinish: a row or column image stores the line it holds and one map, never its ends". Body: two decisions (what an image stores; the period by its ends), each with its rejected alternatives, then the three final (round 2) `For Ev` sections verbatim under A, B, C. The certificate change is dispatched without waiting (it touches no ratified text and all three say it is needed under any representation).
+
+## Ev's answer (21:37 UTC, 2026-11-15, PR 6975): approved
+
+"i'm not very sure about the considerations here, but i think this makes sense". Second commit on `boxfinish/ev-iso-image`: row 271's Ev / match / tokens / A/B/C (Fable 5.2 = A, Opus 5.5 = B and C; all three matched on the recommendation as sent, C's first report the nearest to it). Main merged; PR 6975 MERGED 21:48 UTC (merge commit 020becff).
