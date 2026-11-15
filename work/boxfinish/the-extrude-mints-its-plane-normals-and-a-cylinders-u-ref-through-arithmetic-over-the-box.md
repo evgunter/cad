@@ -144,3 +144,24 @@ case only. The frame gives this unit the caps and the fixed-direction
 walls; the moving wall's tilt comes from a line direction recomputed
 from boxed ends, which is
 `the-profile-drops-the-unit-directions-its-verbs-made`.
+
+## Measured (2026-11-14, the aimed-ray unit's fix pass, PR 6958): the edges' lines too
+
+The extrude door's slab over a depth of 1 ± 0.05, `Sym<Interval>`,
+switch on (the leaf as the door hands it on), each line edge's stored
+carrier:
+
+- the four bottom edges: direction exact, interval `[0, 1]`;
+- the four upright edges: direction `(0, 0, [0.9048, 1.1053])`,
+  interval `[0, [0.95, 1.05]]`;
+- the four top edges: direction `([0.995, 1], 0, [−0.1, 0.1])` (and its
+  three turns), interval `[0, [1, 1.005]]`.
+
+A top edge's true direction is the bottom edge's, exact at every
+depth; the stored one carries the depth's box in `z`. The side
+reader's edge pass now reads each edge off this line
+(`census::line_passes`), and sets a ray aside where its gap from an
+edge is undecided inside the edge's span, so this width is what stops
+most of the slab's rays: at ± 0.025 only the bottom cap's ray reads.
+The reader's residue is
+`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`.

@@ -153,6 +153,17 @@ fn a0_alone() -> SymRules {
 /// sign exactly and outside the log (audit row F43): plain 2835/2803 →
 /// 2863/2831, shipped 2891/2747 → 2919/2775, the same at every ε row;
 /// A0's yield holds at 56.
+///
+/// Then a line rim's span and direction are stated from its sketch
+/// segment (PR 6953): plain 2863/2831 → 2926/2894, shipped 2919/2775 →
+/// 2982/2838 (it moved 2835/2803 → 2898/2866 before F43, the same 63 on
+/// each channel: the two compose). Over the slab's box a replay's extrude no longer refuses
+/// at segment 0's rim corner (`dihedral_sign`); it reads one edge further
+/// (`carrier_endpoint_*` +1, `carrier_on_surface_*` +9, the wedge reads
+/// +7/+6/+7, `interval_span_forward` and `ssi_hull_sup` +1, over the
+/// whole box with no rule) before refusing for its own later reason, so
+/// each channel decides 63 more. Every leaf's verdict, and A0's yield of
+/// 56, hold.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -183,13 +194,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2863 numeric=2831 frozen=0",
+        "decisions symbolic=2926 numeric=2894 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2919 numeric=2775 frozen=0",
-        "56 of the 2831 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2982 numeric=2838 frozen=0",
+        "56 of the 2894 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(
