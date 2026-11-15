@@ -1433,7 +1433,7 @@ impl<T: Decide> RigidMotion<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
             Err(source) => return Err(TurnError::Undecided(source)),
         }
-        let reach = T::from_f64(band.rounding_reach());
+        let reach = T::from_computed(band.rounding_reach());
         let room = reach * chord - two * arm.length();
         match crate::k_stats::decide(
             LEAST_TURN_CONDITIONING,
@@ -3434,7 +3434,7 @@ mod construction_mint_rows {
                     // Exactly opposed, `a + b` is zero: no turn, refused
                     // typed, never a non-rigid one.
                     Err(RigidMotionError::NonFinite(MotionPart::Linear))
-                        if (a.get() + to.get()).norm() == 0.0 =>
+                        if a.get().equals_exactly(-to.get()) =>
                     {
                         refused += 1;
                         continue;
