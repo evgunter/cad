@@ -55,12 +55,23 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
 /// and
 /// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
+///
+/// **Moved, and accounted: the symbolic and numeric columns** when a
+/// validated segment began recording its directions (PR 6963): its mint
+/// reads each component of a direction it mints from two points
+/// (`profile::seg::axis_or`, audit row F43), and those readings count on
+/// both columns, the plate +4/+4, the link +1/+1, the bracket +8/+8 and
+/// the pad +16/+16. Measured as theirs: with the mint reading nothing,
+/// every one of the four is back on the old column exactly. The
+/// annulus, two circles whose radials the verb records, reads none. The frozen column is left as stored: `r2_link` 3576 → 3575
+/// and `r2_rounded_pad` 3989 → 4000 are PR 6953's move, unaccounted, so
+/// the row reds on those two for that alone (the onehome row above).
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1015, 1050, 299]),
+    ("two_hole_plate", [1019, 1054, 299]),
     ("r1_annulus", [535, 553, 278]),
-    ("r2_link", [813, 947, 3576]),
-    ("r2_filleted_bracket", [1425, 1545, 969]),
-    ("r2_rounded_pad", [1515, 1698, 3989]),
+    ("r2_link", [814, 948, 3576]),
+    ("r2_filleted_bracket", [1433, 1553, 969]),
+    ("r2_rounded_pad", [1531, 1714, 3989]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

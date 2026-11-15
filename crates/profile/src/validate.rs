@@ -1404,7 +1404,10 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     let directions = match (s.directions, kind) {
                         (SegmentDirections::Line(d), SegmentKind::Line) => {
                             let frame = seg::ChordFrame::of(start, end);
-                            SegmentDirections::Line(vec2(d, seg::mint_director(frame.unit)))
+                            SegmentDirections::Line(vec2(
+                                d,
+                                seg::mint_director(frame.chord, frame.unit),
+                            ))
                         }
                         (
                             SegmentDirections::Arc { start: rs, end: re },

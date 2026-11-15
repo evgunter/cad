@@ -287,11 +287,6 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Decision` 976 → 984 and both `Assertion` rows 988 → 996
 /// calls, with no form, frozen count or digest moving at any ε row.
 ///
-/// **And back when that mint stopped reading a chord's components for an
-/// axis** (a branch on a value a re-valuation sees flip; the
-/// profile-directions-revalue fix): `Plain/Decision` 984 → 976 and both
-/// `Assertion` rows 996 → 988 calls, nothing else moving.
-///
 /// **Moved with a line rim's span and direction stated from its sketch
 /// segment** (PR 6953): a placed line's span is `‖b − a‖` over the sketch
 /// and its direction the sketch chord's unit placed, where both were read
@@ -313,20 +308,20 @@ fn eps_row(eps: f64) -> usize {
 ///   so the placed unit chord folds to its sketch components.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9559 frozen 0 digest cb0330eb6422ff0b3787f555a7c6bd20\n\
-     Plain/Assertion calls 988 forms 3375 frozen 0 digest 9d51ee8e5d27c08f84d2c19d6ada93a1\n\
+     Plain/Decision calls 984 forms 9559 frozen 0 digest cb0330eb6422ff0b3787f555a7c6bd20\n\
+     Plain/Assertion calls 996 forms 3375 frozen 0 digest 9d51ee8e5d27c08f84d2c19d6ada93a1\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224",
+     Early/Assertion calls 996 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224",
     "\
-     Plain/Decision calls 976 forms 9559 frozen 0 digest 1e76b0ed45fb1ecc9dbf35db192b2b8f\n\
-     Plain/Assertion calls 988 forms 3375 frozen 0 digest 2617924e0a82d92b5de4344b48457546\n\
+     Plain/Decision calls 984 forms 9559 frozen 0 digest 1e76b0ed45fb1ecc9dbf35db192b2b8f\n\
+     Plain/Assertion calls 996 forms 3375 frozen 0 digest 2617924e0a82d92b5de4344b48457546\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600",
+     Early/Assertion calls 996 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600",
     "\
-     Plain/Decision calls 976 forms 9559 frozen 0 digest 2ea5e2fe9a0970fe0e4699410cb53451\n\
-     Plain/Assertion calls 988 forms 3375 frozen 0 digest 6e29316b4194cf0b9f3a5a71e3d022b4\n\
+     Plain/Decision calls 984 forms 9559 frozen 0 digest 2ea5e2fe9a0970fe0e4699410cb53451\n\
+     Plain/Assertion calls 996 forms 3375 frozen 0 digest 6e29316b4194cf0b9f3a5a71e3d022b4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79",
+     Early/Assertion calls 996 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -520,10 +515,6 @@ const PLATE_MAX_TERMS: usize = 38;
 /// and both `Assertion` rows 1050 → 1054 calls, no form, frozen count or
 /// digest moving, at every ε row.
 ///
-/// **And back when that mint stopped reading a chord's components for an
-/// axis** (the profile-directions-revalue fix): `Plain/Decision` 1019 →
-/// 1015 and both `Assertion` rows 1054 → 1050 calls, nothing else moving.
-///
 /// **Moved with a line rim's span and direction stated from its sketch
 /// segment** (PR 6953, [`SLAB_LEDGER`]'s note), calls unchanged and the
 /// `Door/Decision` walk main's: `Plain/Assertion` 13400 → 13305 (13293
@@ -535,10 +526,10 @@ const PLATE_MAX_TERMS: usize = 38;
 /// and on the plate the walks build more forms over it than they did over
 /// `q_to − q_from`.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1015 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
-     Plain/Assertion calls 1050 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
+     Plain/Decision calls 1019 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
+     Plain/Assertion calls 1054 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
      Early/Decision calls 308 forms 28205 frozen 0 digest 26327ae7eaa72dca689e4aa27ad071c4\n\
-     Early/Assertion calls 1050 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
+     Early/Assertion calls 1054 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
      Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

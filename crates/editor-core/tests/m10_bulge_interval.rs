@@ -307,7 +307,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
-    // The bulge's sign signs its lowering's radials (audit row F43).
+    // Validation's mint reads each component of its three straight
+    // sides' chords exactly (audit row F43): of the six, three are the
+    // zero a theorem proves, and the bulge's sign signs its radials.
+    ("segment_direction_axis", [3, 3]),
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
@@ -524,8 +527,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_line_chart_incident", [10, 4]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
-            // The bulge's sign signs its lowering's radials (audit row
-            // F43).
+            // Validation's mint reads its one straight side's chord
+            // exactly (audit row F43), and the bulge's sign signs its
+            // radials.
+            ("segment_direction_axis", [1, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
             // ONEHOME stage 2: the boss's placement asks the session box

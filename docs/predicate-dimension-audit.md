@@ -1874,34 +1874,44 @@ Flagged, NOT fixed here (dispositions):
   never admits a frame. One site, `LEDGER_FLAGGED_SITES` 4 → 5.
 
 - **F43** (added by BOXFINISH's profile-directions unit)
-  `profile/src/seg.rs` `literal_sign`, under `segment_direction_sign`:
-  a bulge's sign, read once per bulge leg into the literal ±1 that signs
-  its lowering's radials (`Arc2::from_chord_radials`); a tie leaves them
-  to validation's mint, which then reads nothing (the radials are the
-  quotients `(v − c)/rim`). **Both outcomes are the direction**, and
-  neither is ever a refusal: the literal keeps an opaque `copysign` atom
-  out of the symbolic tier. **What rests on the pick:** the radial
-  identities the bulge's construction registers (`Arc2::register_radials`)
-  are stated with that literal sign, so the symbolic tier believes them;
-  that is sound because `choose` reads at the least band over the whole
-  box, so a Positive or Negative there is the sign of every value the
-  box holds. **Why it cannot flip under a re-valuation:** a bulge whose
-  sign reads definite at one valuation keeps it under a move smaller
-  than its own size, and one that straddles escalates
-  `segment_straightness` before the leg is lowered. The form is
-  `k_stats::choose(.., "F43")`; the K samples reach the sink under the
-  one name. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not
-  move.
-  **Retired:** `axis_or` under `segment_direction_axis`, which read each
-  component of a minted direction's vector and stored the axis where one
-  read exactly zero. At `Sym` a component that is zero only because two
-  different parameters are equal at the point evaluated read Zero off
-  the value channel, so the mint stored a constant where the computation
-  is a function of the parameters, and two valuations of one document
-  took different branches: the five `revalue_corpus` rows went red on
-  the nightly after PR 6963. The axis wherever the zero is an identity
-  needs a reading of proof that is no sign decision, which the kernel
-  does not have (the design item the hop row names).
+  `profile/src/seg.rs` `axis_or` and `literal_sign`, under
+  `segment_direction_axis` and `segment_direction_sign`.
+  **The first:** each component of the vector a validated segment's
+  direction is minted from (a line's chord, an arc's centre-to-vertex),
+  read once at the least band whatever it answers. The axis is minted
+  only where one component's `Zero` is PROVEN (the margin's proof bit,
+  or, inside a deferring session, which proves nothing as it decides,
+  `sym::deferred::discharge` of that margin) and the other's sign is
+  definite, signed by it as a literal ±1; every other answer is dropped
+  and the quotient minted. So the branch depends on the DAG alone, the
+  same at every valuation of one document: a component zero only because
+  two different parameters agree at the point evaluated takes the
+  quotient (before this, it read `Zero` off the value channel and minted
+  the axis, a constant where the computation is a function of the
+  parameters, and the five `revalue_corpus` rows went red on the
+  nightly after PR 6963). At `f64` and plain `Interval` nothing is
+  proven, so the quotient, which at `f64` is the axis bit for bit. The
+  readings run inside `sym::aside`: kept where the axis is minted (a
+  proven zero, which cannot flip, and the other component's sign),
+  discarded otherwise, so the shape report and the re-valuation
+  recorder hold none the mint did not use; the session's receipt still
+  counts them (two per minted direction), and a discarded `Zero` inside
+  a deferring session leaves its entry on the list, which no reader is
+  obliged to discharge. The compound form runs inside
+  `k_stats::unlogged("F43", ..)`.
+  **The second:** a bulge's sign, read once per bulge leg into the
+  literal ±1 that signs its lowering's radials (`k_stats::choose(..,
+  "F43")`); a tie leaves them to validation's mint, which then reads
+  four axis readings more. The radial identities the bulge's
+  construction registers (`Arc2::register_radials`) rest on that pick,
+  soundly: `choose` reads at the least band over the whole box. A bulge
+  that straddles escalates `segment_straightness` before the leg is
+  lowered.
+  **Both outcomes of each are the direction**, and neither is ever a
+  refusal. That a construction can ask whether a value is an identity
+  only by taking a counted sign reading is
+  `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
+  Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
