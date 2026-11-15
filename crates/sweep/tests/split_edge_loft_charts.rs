@@ -113,23 +113,33 @@ fn edge_with_kind(body: &Body<f64>, want: &str) -> (EdgeKey, (f64, f64)) {
 
 /// **The carry is exact on a spline chart too.** Splitting a wall edge
 /// whose row is `IsoLine` or `IsoArc` leaves each child half-edge the
-/// PARENT's chart image — the same `Debug` bytes — with only the
-/// interval moved, and the body tier-3 valid with no caller mint.
+/// PARENT's chart map, with only the interval moved, and the body tier-3
+/// valid with no caller mint.
+///
+/// An `IsoArc` child is the parent's image, the same `Debug` bytes. An
+/// `IsoLine` states its ends ([`Pcurve::span_ends`]), and a child's span
+/// ends at the cut, so the child is the parent's map (`p0`, `pl`) bit for
+/// bit, the parent's stated end on the end it keeps, and at the cut the
+/// map's value there, bit for bit, which is never a chart corner. The
+/// bytes of a child and its parent differ by that cut end until the image
+/// stores no ends
+/// (`work/boxfinish/an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends.md`).
 ///
 /// Split near `t₀`, at mid-parameter, near `t₁`, and at fractions whose
 /// sub-intervals straddle the arc chart's interior `breaks` knots
 /// (1/3 and 2/3 — see the fixture).
 #[test]
 fn a_split_on_a_spline_chart_carries_the_parents_image() {
+    let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
     for which in ["IsoLine", "IsoArc"] {
         for frac in [0.02_f64, 0.3, 0.5, 0.7, 0.98] {
             let mut body = body_of(which);
             let (edge, (t0, t1)) = edge_with_kind(&body, which);
-            let parent: Vec<Option<String>> = {
+            let parent: Vec<Option<Pcurve<f64>>> = {
                 let e = body.get_edge(edge).unwrap();
                 [e.he_plus, e.he_minus]
                     .into_iter()
-                    .map(|he| body.pcurve(he).map(|c| format!("{:?}", c.pcurve())))
+                    .map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
                     .collect()
             };
             let t = t0 + (t1 - t0) * frac;
@@ -145,18 +155,59 @@ fn a_split_on_a_spline_chart_carries_the_parents_image() {
                     .into_iter()
                     .enumerate()
             {
-                for (he, want) in [(parent_half, (t0, t)), (new_half, (t, t1))] {
-                    let stored = body.pcurve(he).map(|c| format!("{:?}", c.pcurve()));
-                    assert_eq!(
-                        stored, parent[i],
-                        "{which} @{frac}: {he:?}'s image is not the parent's"
-                    );
+                for (he, want, keeps_start) in
+                    [(parent_half, (t0, t), true), (new_half, (t, t1), false)]
+                {
+                    let stored = body.pcurve(he).map(|c| c.pcurve().clone());
+                    let what = format!("{which} @{frac}: {he:?}");
+                    match (&parent[i], &stored) {
+                        (
+                            Some(
+                                whole @ Pcurve::IsoLine {
+                                    p0,
+                                    pl,
+                                    ends: Some([start, end]),
+                                },
+                            ),
+                            Some(Pcurve::IsoLine {
+                                p0: q0,
+                                pl: ql,
+                                ends: Some([a, b]),
+                            }),
+                        ) => {
+                            assert_eq!(
+                                (bits(*q0), (ql.x.to_bits(), ql.y.to_bits())),
+                                (bits(*p0), (pl.x.to_bits(), pl.y.to_bits())),
+                                "{what}: the child holds the parent's map"
+                            );
+                            let (kept, parents, cut) = if keeps_start {
+                                (a, start, b)
+                            } else {
+                                (b, end, a)
+                            };
+                            assert_eq!(
+                                bits(*kept),
+                                bits(*parents),
+                                "{what}: the child keeps the parent's stated end"
+                            );
+                            assert_eq!(
+                                bits(*cut),
+                                bits(whole.eval(t)),
+                                "{what}: the cut reads the map's value there"
+                            );
+                            assert!(
+                                bits(*cut) != bits(*start) && bits(*cut) != bits(*end),
+                                "{what}: the cut is no chart corner: {cut:?}"
+                            );
+                        }
+                        (parent, stored) => assert_eq!(
+                            stored.as_ref().map(|c| format!("{c:?}")),
+                            parent.as_ref().map(|c| format!("{c:?}")),
+                            "{what}: the image is the parent's"
+                        ),
+                    }
                     if parent[i].is_some() {
-                        assert_eq!(
-                            body.pcurve(he).unwrap().params(),
-                            want,
-                            "{which} @{frac}: {he:?}'s interval"
-                        );
+                        assert_eq!(body.pcurve(he).unwrap().params(), want, "{what}'s interval");
                     }
                 }
             }
