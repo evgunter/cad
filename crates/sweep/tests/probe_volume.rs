@@ -281,13 +281,15 @@ fn item3_far_reposings() {
     for shift in [10.0, 1000.0] {
         for w in [1e-4, 0.05] {
             println!("\n######## slab shifted {shift}, depth 1 ± {w}");
-            match slab::<Interval>(Interval::from_bounds(1.0 - w, 1.0 + w), shift, tol) {
-                Ok(leaf) => {
-                    report("Interval", &leaf, tol);
-                    reposings(&*leaf, [shift, shift, shift]);
+            geom_core::sym::with_session(budget(), || {
+                match slab::<SI>(sym_box("slab_depth", 1.0 - w, 1.0 + w), shift, tol) {
+                    Ok(leaf) => {
+                        report("Sym<Interval>", &leaf, tol);
+                        reposings(&*leaf, [shift, shift, shift]);
+                    }
+                    Err(e) => println!("== Sym<Interval>: {e}"),
                 }
-                Err(e) => println!("== Interval: {e}"),
-            }
+            });
         }
     }
 }
@@ -438,6 +440,67 @@ fn item5_cost() {
                 (taken.is_ok(), door_ms, take_ms, vol_ms)
             });
             println!("COST depth [{lo}, {hi}] rep {rep}: door {door_ms:.1} ms, volume-reading-alone {vol_ms:.2} ms, finish {take_ms:.1} ms, finished={built}, session totals symbolic={} numeric={} frozen={}", counts.symbolic, counts.numeric, counts.frozen);
+        }
+    }
+}
+
+/// Item 3: the half-width at which the slab's reading stops reading.
+#[test]
+fn item3_threshold() {
+    let tol = Tol::witness();
+    for w in [0.10, 0.14, 0.15, 0.155, 0.16, 0.17, 0.20, 0.215, 0.22] {
+        geom_core::sym::with_session(budget(), || {
+            let leaf = slab::<SI>(sym_box("slab_depth", 1.0 - w, 1.0 + w), 0.0, tol).expect("slab");
+            let lines = topo::props::probe_volume_reading(&*leaf, tol);
+            let rays = topo::test_support::aimed_rays(&*leaf, geom_core::Band::linear(tol).unwrap());
+            println!("THRESH half-width {w}: reading {:?} decided={} rays={:?}", topo::props::probe_last_reading(), lines[0].contains("role=Ok"), rays.iter().map(|r| r.chars().take(60).collect::<String>()).collect::<Vec<_>>());
+        });
+    }
+}
+
+fn arc_prism<T: Decide + topo::AtRestPolicy>(halves: bool, depth: T, tol: Tol) -> Result<T::Leaf, String> {
+    use geom_core::Arc2;
+    use profile::{RawLoop, Segment};
+    let c = T::from_f64;
+    let arc = |sweep: f64| Segment::Arc(Arc2 { centre: Point2::new(c(0.0), c(0.0)), radius: c(1.0), sweep: c(sweep) });
+    let rim = if halves {
+        RawLoop::new(vec![
+            (Point2::new(c(1.0), c(0.0)), arc(std::f64::consts::PI)),
+            (Point2::new(c(-1.0), c(0.0)), arc(std::f64::consts::PI)),
+        ])
+    } else {
+        RawLoop::new(vec![(Point2::new(c(1.0), c(0.0)), arc(std::f64::consts::TAU))])
+    };
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![rim])
+        .validate(tol)
+        .map_err(|e| format!("profile: {e:?}"))?;
+    extrude(&profile, Extrusion::Distance { depth, side: ExtrudeSide::Along }, tol)
+        .map(|e| e.body)
+        .map_err(|e| format!("extrude: {e:?}"))
+}
+
+/// Item 4a': a circle (one full arc, or two half arcs with recorded
+/// carriers) extruded over a box on its depth.
+#[test]
+fn item4_circle() {
+    let tol = Tol::witness();
+    for halves in [false, true] {
+        for (lo, hi) in [(0.75, 1.25), (0.95, 1.05), (0.99, 1.01), (0.9999, 1.0001), (1.0, 1.0)] {
+            println!("\n######## circle prism (two half arcs: {halves}), depth [{lo}, {hi}]");
+            geom_core::sym::with_session(budget(), || match arc_prism::<SI>(halves, sym_box("circle_depth", lo, hi), tol) {
+                Ok(leaf) => {
+                    report("Sym<Interval>", &leaf, tol);
+                    let rays = topo::test_support::aimed_rays(&*leaf, geom_core::Band::linear(tol).unwrap());
+                    println!("  RAYS {:?}", rays.iter().map(|r| r.chars().take(80).collect::<String>()).collect::<Vec<_>>());
+                }
+                Err(e) => println!("== Sym<Interval>: {}", e.chars().take(400).collect::<String>()),
+            });
+            for d in [lo, hi] {
+                match arc_prism::<f64>(halves, d, tol) {
+                    Ok(leaf) => report(&format!("f64 member depth {d}"), &leaf, tol),
+                    Err(e) => println!("== f64: {}", e.chars().take(400).collect::<String>()),
+                }
+            }
         }
     }
 }
