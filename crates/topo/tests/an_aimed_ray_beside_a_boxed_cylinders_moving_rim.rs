@@ -169,16 +169,16 @@ fn member_ray(top: f64, radius: f64, aim: [f64; 3], normal: [f64; 3]) -> String 
 /// places: the ray is set aside there, on the carrier's gap
 /// (`curve_carrier_gap`), and reads no side.
 ///
-/// **Red on each of the four rays under either of two mutants.** With
-/// the curved arm alone reading a carrier's escalation as the edge met
-/// (`curved_edges::passes` returning `Passes::Met` where it returns
+/// **Red under either of two mutants**, at ε 1e-9, 1e-6 and 1e-12.
+/// With the curved arm alone reading a carrier's escalation as the edge
+/// met (`curved_edges::passes` returning `Passes::Met` where it returns
 /// `Passes::Unread`), the rim stands in for its faces' crossings and
-/// the ray is set aside further on, where the wall's root is read
-/// against the passage (`side_at_infinity_met_edge_reaches`); none
-/// reads a wrong side. With `Gap::escalated` passing every escalation
-/// as in band (`solid_contain::edge_gap`, the door every arm reads
-/// through), each ray reads `Side(Out)`: the side every member has,
-/// read through a rim no reading placed.
+/// each of the four rays is set aside further on, where the wall's root
+/// is read against the passage (`side_at_infinity_met_edge_reaches`);
+/// none reads a wrong side. With `Gap::escalated` passing every
+/// escalation as in band (`solid_contain::edge_gap`, the door every arm
+/// reads through), the two rays over the boxed height read `Side(Out)`:
+/// the side every member has, read through a rim no reading placed.
 #[test]
 fn a_ray_beside_a_moving_rim_is_set_aside_at_the_rim() {
     let fixed = (1.0, 1.0);
