@@ -2,11 +2,13 @@
 id: the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again
 kind: unit
 title: Tier 3's wedge pass and the census each compose the dihedral class with the material pairing, the question geom_brep::classify_edge_wedge now answers in one door
-status: review
+status: closed
+closed: 2026-11-14
 opened: 2026-11-02
 priority: P1
 cost: H
 branch: onedoor/wedge-fold-3
+pr: 6913
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.
@@ -113,3 +115,20 @@ Still owed:
 - **What retires.** The blend's own class-and-sign composition, and the second `Convexity`, which folds into the one the fold reads. After this stage, no edge reader composes class and pairing outside the fold. The stage's sweep must show it, and a census row or source guard must keep it so.
 - **Behaviour.** A blend request on an edge the fold reads in band or mixed refuses typed, carrying the fold's escalation whole, as the split finish does. Every input a blend built before must still build, unless the PR body names it. A refusal on a valid input is a STOP, to report.
 - **Letter M, tier dual.** Stage 1 set the design and stage 3 repoints, as stage 2 did. It is dual because it moves the blend's wedge reading, which sweep, editor-core and `pncad` reach. Under the protocol, M means sequential reviews.
+
+## Stage 3 landed (PR 6913, 2026-11-14); the row closes
+
+The blend reads an edge's wedge through `topo::edge_wedge_as`. `classify_edge_wedge`, `EdgeWedge`, `EdgeWedgeEscalation`, `PositiveArm`, `battery::{wedge_at, knife_end, LinkWedge}`, `KnifeRefusal::NeverOpens` and sweep's own `Convexity` are retired. No edge reader outside the fold composes class with pairing. The PR's sweep shows it, and a source scan pins it for the blend (`the_blend_composes_no_wedge_of_its_own`).
+
+**A deviation from the Design's one name.** The fold's sign and end decisions are recorded under the reader's names, `geom_brep::FoldNames { sign, end }`:
+- the blend passes `{ fillet3_convexity_sign, fillet3_knife_end }`;
+- tier 3 and the constructors pass `FoldNames::SHAPE` (`dihedral_sign`, `material_cusp_side`).
+
+A blend convexity or knife flip decides which body is built, so it must stay visible to `editor_core::resolve::first_cause`, which passes over `dihedral_sign`. R1 found the MAJOR; the ruling follows stage 2's split-rule precedent. The class (`dihedral_wedge`) and pairing (`material_wedge_side`) stay on tier 3's shared names, and the DOCTAIL row records that neither may join the pass-over list.
+
+**Cost:** the blend battery is about 1.8× slower, roughly 16 µs per requested edge, because the fold reads every interior station.
+
+**What stays owed is filed elsewhere:**
+- `rules::edge_wedge`'s sign on `enters_material`, freed only when a decision is marked at its source (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`);
+- `edge_join`'s vertex read (`edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`);
+- whether `docs/SELECT-DESIGN.md`'s GS-Q2 should be reopened, now that its one-point ground is gone (`select-gs-q2-ground-no-longer-holds`).

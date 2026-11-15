@@ -120,7 +120,7 @@ became `…_lofts`: every case builds and is at rest, and the first
 meshes to its integrated volume. A line rim on such a creased wall does
 not mesh, which predates this change (`[0, 1, 0]` meets it with no
 refined row). It is filed as
-`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`, and
+`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`, and
 isotail's `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim`
 carries the note.
 

@@ -50,7 +50,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     "Split/Reduce/CrossingInsertion",
     "Split/Reduce/LineageRow",
     "Split/Join/LineageRow",
@@ -306,7 +306,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -694,6 +694,20 @@ fn every_node_refusal_renders_within_the_budget() {
     // no declaration and a Boolean does, so the same arm offers
     // "declare" under the one and not under the other.
     for (name, text) in &rows {
+        // A direction the scene cannot read is a line's or an arc's, and
+        // only an arc's recourse is a smaller radius.
+        if name.ends_with("Profile/DirectionBelowSceneResolution") {
+            assert!(
+                !text.contains("radius") && text.contains("record no direction"),
+                "{name}: a line's director owes a line's recourse: {text}"
+            );
+        }
+        if name.ends_with("Profile/DirectionBelowSceneResolution(radial)") {
+            assert!(
+                text.contains("smaller radius") && text.contains("record no direction"),
+                "{name}: an arc's radial owes an arc's recourse: {text}"
+            );
+        }
         if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
             assert!(!text.contains("declare"), "{name}: {text}");
         }
@@ -846,7 +860,8 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathRollAlongTangent, PathUndecided,
+            StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, ParametersInvalid, Fit, KnotAlgebra,
             Structure,
         ];
@@ -869,7 +884,7 @@ mod kernel {
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
-            ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
+            ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
@@ -880,7 +895,8 @@ mod kernel {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
             Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
-            NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
+            NearFullArc, InconsistentArc, ArcBelowSceneResolution, InconsistentDirection,
+            DirectionBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
             RayCastingExhausted, Escalated, Structure,
@@ -948,7 +964,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -999,7 +1015,8 @@ mod kernel {
             Band, StaleFace, Offset, Fit, ApproxLaneUnsupported, SharedSurfaceKey,
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
-            NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
+            NeighborPoseUnroutable, EdgeUncovered, FittedBoundaryUnsupported,
+            CarrierLaneUnsupported,
             IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
@@ -2473,7 +2490,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
-        ("UnboundedFace", R::UnboundedFace { face, vertex }),
+        (
+            "UncoveredFace",
+            R::UncoveredFace {
+                face,
+                why: topo::FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                )),
+            },
+        ),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
@@ -3520,6 +3546,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
         (
+            "PathRollAlongTangent",
+            E::PathRollAlongTangent { station: 4 },
+        ),
+        (
             "PathStationsCoincide",
             E::PathStationsCoincide { station: 4 },
         ),
@@ -3784,11 +3814,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge(never opens)",
-            E::KnifeEdge {
+            "WedgeUnsettled(lamina)",
+            E::WedgeUnsettled {
                 edge,
-                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
-                refusal: KnifeRefusal::NeverOpens,
+                wedge: sweep::blend::UnsettledWedge::Lamina,
             },
         ),
         (
@@ -4092,6 +4121,31 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             E::InconsistentArc {
                 at: a,
                 check: profile::ArcCheck::OnCarrier,
+            },
+        ),
+        (
+            "InconsistentDirection",
+            E::InconsistentDirection {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::Director,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution(radial)",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
             },
         ),
         ("NearFullArc", E::NearFullArc(a)),
@@ -6005,6 +6059,16 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     kind: Plane,
                     other_kind: Cone,
                     why: "the plane no longer passes through the cone's apex",
+                },
+            ),
+            (
+                "EdgeUncovered",
+                R::EdgeUncovered {
+                    edge,
+                    source: topo::EdgeUncovered::Carrier(geom::cover::Uncovered::new(
+                        geom::cover::Entity::Curve(geom::CurveKind::Nurbs),
+                        geom::cover::Unknown::PoisonedNet,
+                    )),
                 },
             ),
             (

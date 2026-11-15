@@ -56,6 +56,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("POSE_ROUND_SIDE"),
     NameCarrier::Const("TANGENT_GAP_ORIENTATION"),
     NameCarrier::Const("GRADIENT_ALIGNMENT_LEVER"),
+    NameCarrier::Const("DIHEDRAL_WEDGE"),
+    NameCarrier::Const("TANGENT_SECOND_ORDER"),
+    NameCarrier::Const("MATERIAL_CUSP_SIDE"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),
@@ -78,6 +81,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
+    NameCarrier::Call("convexity"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
@@ -215,6 +219,9 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
                             first argument";
 const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
                            (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
+const FOLD_NAMES: &str = "a `FoldNames` field, whose names are read at its literals: \
+                          `FoldNames::SHAPE`'s declared consts here, a building reader's in its \
+                          own crate";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
@@ -288,13 +295,13 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
-    ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
     ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
     ("dihedral.rs: normals_alignment: name", FORWARDS),
     (
         "carrier_pose.rs: directions_parallel: what.name()",
         CLOSED_TYPE,
     ),
+    ("dihedral.rs: convexity: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
     ("dihedral.rs: decide_magnitude: name", FORWARDS),
     ("dihedral.rs: decide_magnitude_reported: name", FORWARDS),
@@ -302,8 +309,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_nonzero_reported: name", FORWARDS),
     ("dihedral.rs: decide_positive: name", FORWARDS),
     ("dihedral.rs: decide_reported: name", FORWARDS),
-    ("dihedral.rs: gate: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
+    ("edge_wedge.rs: after_positive: self.end", FOLD_NAMES),
+    ("edge_wedge.rs: edge_wedge_over_as: names.sign", FOLD_NAMES),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
         "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: Interval::from_bounds(0.0, 0.0)",

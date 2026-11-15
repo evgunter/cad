@@ -34,3 +34,9 @@ So the arc now reaches the general lane and reads in band, where before it
 stopped at the lane's declared gap. Either the pairing should leave this arc
 on the gap, or the row's pin moves to the new typed refusal with a stated
 reason that the in-band reading is the right one. Deciding which is this row.
+
+## Confirmed and pinned (GREEN, 2026-11-14)
+
+Re-bisected, first-parent, at ε 1e-6: green at `c44f50da6` and `d02dacd2a3`, red at `9a25634807` (PR 6832) and at main `b363f5fa1`, with the message above. The nightly passed it on 11-11 and has failed since 11-12.
+
+The row is under `test_utils::pinned_red::row` at ε 1e-6 on the escalation (`green/eps-1e-6`). Take the pin off with the decision.

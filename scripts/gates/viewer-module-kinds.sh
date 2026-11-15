@@ -268,7 +268,7 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 # reads is that stage's own, and `gate_rust_code` and `gate_grep`
 # diagnose themselves in `lib.sh` rather than being spoken for here.
 #
-# WHAT IS NOT A READER, by the same rule. `contains`, `join_alt`,
+# WHAT IS NOT A READER, by the same rule. `gate_contains`, `join_alt`,
 # `module_path` and `module_head` are pure parameter expansion and
 # `printf`; `printf` is a bash BUILTIN reading the argument list its
 # caller already holds, so a `printf … | …` stage is not a reader even
@@ -356,22 +356,6 @@ vocab_exceptions_from_env() {
   [ -n "${GATE_ROOT:-}" ] || return 0
   [ -n "${GATE_SELFTEST_VOCAB_EXCEPTIONS+x}" ] || return 0
   read -r -a VOCAB_EXCEPTIONS <<< "$GATE_SELFTEST_VOCAB_EXCEPTIONS"
-}
-
-# LIST MEMBERSHIP IN BASH, not `printf … | grep -qxF`. `grep -q` as a
-# predicate is sanctioned by `lib.sh`, but only where exit 1 IS the
-# answer — and here a grep that could not run (exit 2) would read as
-# "not in the list", which is a FALSE RED on the roster checks and a
-# silently DROPPED exemption on the exception check. The lists are a
-# handful of short strings in memory; a search that cannot fail cannot
-# fail wrong.
-contains() {
-  local needle=$1 item
-  shift
-  for item in "$@"; do
-    [ "$item" = "$needle" ] && return 0
-  done
-  return 1
 }
 
 join_alt() {
@@ -739,7 +723,7 @@ gate() {
   for rel in "${modules[@]}"; do
     f=$SRC/$rel
     n=$(gate_grep -cE "$EXCEPTION_MARK" "$f")
-    if contains "$rel" ${exception_files[@]+"${exception_files[@]}"}; then
+    if gate_contains "$rel" ${exception_files[@]+"${exception_files[@]}"}; then
       if [ "$n" -eq 0 ]; then
         gate_error "$SRC/$rel is on this gate's exception list and its doc header does not say so. A module header that reads \"names no driver type\" nine lines above naming one is false, and rustdoc publishes it — state the exception in the \`Module kind:\` declaration and point at $README's \"${CITED_SECTION#\#\#\# }\""
         rc=1
@@ -754,7 +738,7 @@ gate() {
   # --- 3. THE DRIVER ROSTER, BOTH WAYS -------------------------------
   local d
   for rel in ${driver[@]+"${driver[@]}"}; do
-    if ! contains "$rel" "${driver_roster[@]}"; then
+    if ! gate_contains "$rel" "${driver_roster[@]}"; then
       gate_error "$SRC/$rel declares itself a DRIVER and $README's \"$DRIVER_TABLE\" table does not list it. That table IS the roster and not a summary of one — $README says so, and it lists ${#driver_roster[@]} modules — so a further driver is an amendment there and not a header edit, because a module that declares \`driver\` is exempt from every import check below"
       rc=1
     fi
@@ -763,7 +747,7 @@ gate() {
     if [ ! -f "$SRC/$d" ]; then
       gate_error "$README's \"$DRIVER_TABLE\" lists a module whose file $SRC/$d does not exist — the table outran the code"
       rc=1
-    elif ! contains "$d" ${driver[@]+"${driver[@]}"}; then
+    elif ! gate_contains "$d" ${driver[@]+"${driver[@]}"}; then
       gate_error "$README's \"$DRIVER_TABLE\" lists $d but $SRC/$d does not declare \`//! Module kind: **driver**\` — a module demoted in its own header while the README still calls it a driver is exempt from every import check and classified as a vocabulary by every reader"
       rc=1
     fi
@@ -775,7 +759,7 @@ gate() {
     if [ ! -f "$SRC/$path" ]; then
       gate_error "$README's vocabulary tables list \`$row\`, which is not a module in the tree ($SRC/$path does not exist) — the table outran the code"
       rc=1
-    elif ! contains "$path" ${vocab[@]+"${vocab[@]}"}; then
+    elif ! gate_contains "$path" ${vocab[@]+"${vocab[@]}"}; then
       gate_error "$README's vocabulary tables list \`$row\` as a vocabulary, but $SRC/$path declares itself a DRIVER — the README and the module disagree about what the module is, which is the drift a per-module declaration buys and this check pays for"
       rc=1
     fi
@@ -795,11 +779,11 @@ gate() {
   for row in "${vocab_rows[@]}"; do vocab_heads+=("$(module_head "$row")"); done
   for row in "${driver_rows[@]}"; do
     d=$(module_head "$row")
-    contains "$d" ${path_mods[@]+"${path_mods[@]}"} && continue
+    gate_contains "$d" ${path_mods[@]+"${path_mods[@]}"} && continue
     # A driver that HOSTS a vocabulary cannot be a forbidden path:
     # `crate::session::SessionOp` is the rule working. Read off the
     # vocabulary tables, never carved out by hand.
-    contains "$d" ${vocab_heads[@]+"${vocab_heads[@]}"} && continue
+    gate_contains "$d" ${vocab_heads[@]+"${vocab_heads[@]}"} && continue
     path_mods+=("$d")
   done
   # AN EMPTY SET IS NOT A NARROWER PATTERN, IT IS A DIFFERENT ONE. With
@@ -913,7 +897,7 @@ gate() {
       rc=1
       continue
     fi
-    if ! contains "$exfile" ${vocab[@]+"${vocab[@]}"}; then
+    if ! gate_contains "$exfile" ${vocab[@]+"${vocab[@]}"}; then
       gate_error "$(gate_name): the exception list names $exfile, which no longer declares \`//! Module kind: **vocabulary**\` — an exception to the vocabulary rule on a module that is not a vocabulary exempts nothing and hides the module from every check here"
       rc=1
       continue

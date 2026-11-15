@@ -4,6 +4,9 @@ kind: issue
 title: solid_contain's FaceGeo restates CarrierDesc's curved arms field by field
 status: open
 opened: 2026-11-13
+priority: P1
+cost: H
+design: true
 ---
 
 

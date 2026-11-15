@@ -3678,7 +3678,7 @@ mod curved_carrier_rows {
                 band(),
             )
         };
-        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let lever = geom_brep::ExtentBall::of_covered(torus.cover().as_ref().ok()).lever();
         let section = |offset: f64, tilt: f64| {
             let plane = geom::Surface::Plane {
                 origin: Point3::new(offset, 0.0, 0.0),

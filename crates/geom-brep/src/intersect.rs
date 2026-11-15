@@ -496,11 +496,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
-/// `reach` is what the consumer needs the pose read over: an edge's
-/// span ([`Reach::Span`]), the one variant its callers hand it, levered
-/// by its per-carrier farthest distance from a pivot ([`Reach::lever_from`]:
-/// exact at a line's endpoints and a NURBS net's control points, at
-/// most √2 over for a conic). The arms that take a scalar extent read
+/// `reach` is what the consumer needs the pose read over: an edge over
+/// its span ([`Reach::Region`]), the one variant its callers hand it,
+/// levered by its cover's far distance from a pivot
+/// ([`Reach::lever_from`]: exact on a segment and a circle arc; on an
+/// ellipse arc over `Δt` no more than `(1 − cos(min(Δt, τ)/8))·a` past
+/// the arc's own, `a` the larger semi-axis, as `span_reach_hunt`
+/// guards). The arms that take a scalar extent read
 /// their pose at an ANCHOR (a cone's apex, a sphere's or torus's
 /// centre) and get its lever from there (a tilt `θ` displaces the locus
 /// by `θ·extent` there); the plane×cone arm takes the reach and levers
@@ -1145,8 +1147,8 @@ pub(crate) fn ruled_section<T: Decide>(
     }))
 }
 
-/// The axis-in-plane lane's frame: the foot of `reach`'s point on the
-/// axis, the axis' normal component `c`, the foot's signed height over
+/// The axis-in-plane lane's frame: `reach`'s pivot on the axis
+/// ([`Reach::foot_on`]), the axis' normal component `c`, the foot's signed height over
 /// the plane, and the lever the tilt is read at.
 pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
@@ -1735,7 +1737,8 @@ pub fn cylinder_axes_parallel_reported<T: Decide>(
 }
 
 /// **How far two near-parallel axes' distance moves across the reach**
-/// from the `d` the parallel lane's rows read between the feet: the
+/// from the `d` the parallel lane's rows read at the feet
+/// ([`ParallelAxes`]): the
 /// `swing` [`decide_across`] carries beside each of them.
 ///
 /// From the foot `p` of one line (`p + s·a`, the consumed stations
@@ -1822,7 +1825,8 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
     line2: geom::Line<T>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    let (_, w) = axes_feet(reach, line1, line2);
+    let (foot1, foot2) = axes_feet(reach, line1, line2);
+    let w = foot2 - foot1;
     let cross = line1.dir.cross(line2.dir);
     decide_reported(
         "cc_axes_coplanar",
@@ -1831,37 +1835,31 @@ pub fn cylinder_axes_coplanar_reported<T: Decide>(
     )
 }
 
-/// The feet of `reach`'s point on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]):
-/// the first foot, and the offset from it to the second's. The one
-/// place the cylinder pair's rows read where its axes stand.
-fn axes_feet<T: geom_core::spline::SpanLocate>(
+/// The feet of `reach` on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]),
+/// each read on its own axis alone. The one place the cylinder pair's
+/// rows read where its axes stand.
+fn axes_feet<T: Real>(
     reach: &Reach<T>,
     line1: geom::Line<T>,
     line2: geom::Line<T>,
-) -> (Point3<T>, Vec3<T>) {
-    let foot1 = reach.foot_on(line1);
-    (foot1, reach.foot_on(line2) - foot1)
+) -> (Point3<T>, Point3<T>) {
+    (reach.foot_on(line1), reach.foot_on(line2))
 }
 
 /// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
-/// `d`, which is the same in either operand order; constructions read
-/// `d_vec`, which is ⊥ the first axis so a ruling laid across it lies on
-/// the first wall. They differ by the feet's axial offset, which the
-/// band's tilt allows.
-///
-/// A [`Reach::Span`] picks its pivot per axis, so the two feet are each
-/// axis's least-lever point rather than the feet of one point. "The same
-/// in either order" holds for the edges that reach this arm: an edge on
-/// two parallel walls of equal radius is a ruling, so it stands at one
-/// distance from both axes and its least-lever points are the feet of
-/// one axial station. Geometry that would split them (an edge on
-/// neither wall) does not come through a consumer.
+/// `d`, the greater of each foot's distance to the other line, which is
+/// the same in either operand order and holds no axial part however far
+/// apart along the axes the feet stand; constructions read `d_vec`, the
+/// second foot's offset ⊥ the first axis, so a ruling laid across it
+/// lies on the first wall. `|d_vec|` is the second foot's distance to
+/// the first line, so it differs from `d` only by what the band's tilt
+/// allows.
 pub struct ParallelAxes<T: Real> {
     /// The first axis's foot.
     pub foot1: Point3<T>,
-    /// The feet's offset ⊥ the first axis.
+    /// The second foot's offset ⊥ the first axis.
     pub d_vec: Vec3<T>,
-    /// The distance between the feet.
+    /// The greater of each foot's distance to the other line.
     pub d: T,
 }
 
@@ -1869,17 +1867,17 @@ pub struct ParallelAxes<T: Real> {
 /// Shared with the tangent-locus lane and topo's radical plane of a
 /// parallel cylinder pair.
 #[must_use]
-pub fn parallel_axes_at<T: geom_core::spline::SpanLocate>(
+pub fn parallel_axes_at<T: Real>(
     reach: &Reach<T>,
     line1: geom::Line<T>,
     line2: geom::Line<T>,
 ) -> ParallelAxes<T> {
-    let (foot1, w) = axes_feet(reach, line1, line2);
-    let a1 = line1.dir;
+    let (foot1, foot2) = axes_feet(reach, line1, line2);
+    let w = foot2 - foot1;
     ParallelAxes {
         foot1,
-        d_vec: w - a1 * w.dot(a1),
-        d: w.norm(),
+        d_vec: w - line1.dir * w.dot(line1.dir),
+        d: line2.distance(foot1).max(line1.distance(foot2)),
     }
 }
 
@@ -2401,9 +2399,16 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
-    let arm = ExtentBall::of_circle(apex + a * t, rim_r)
-        .lever()
-        .max(extent);
+    // A circle with no cover (the plane along the axis puts it at no
+    // finite point) is no candidate section, and adds no reach.
+    let arm = geom::cover::Cover::circle(geom::cover::Core {
+        axis: geom::Line {
+            origin: apex + a * t,
+            dir: a,
+        },
+        radius: rim_r,
+    })
+    .map_or(extent, |c| ExtentBall::of_cover(&c).lever().max(extent));
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
@@ -2824,8 +2829,10 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt =
-                Margin::levered(a.cross(n).norm(), ExtentBall::of_torus(c, big_r, r).lever());
+            let tilt = Margin::levered(
+                a.cross(n).norm(),
+                ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
+            );
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the

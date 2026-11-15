@@ -807,11 +807,14 @@ impl<'a, T: Decide> Sides<'a, T> {
         let bounding: Vec<usize> = (0..self.loops.len())
             .filter(|&l| crate::chart_image::bounds_area(self.loops[l]))
             .collect();
+        // The face is on the left of its loops, under the chart normal,
+        // where its polygon is counter-clockwise.
+        let face_is_left = crate::PolygonOrientation::of_face(sense).interior_is_left();
         // A loop whose side does not read (a side or a walk: `left_holds`
         // reads nothing else) is ranked as its reading states.
         let outside = climb(Answering::Any, bounding, |l| {
             match self.left_holds(l, singularity, x) {
-                Ok(left) if left != sense => Rung::Answers(()),
+                Ok(left) if left != face_is_left => Rung::Answers(()),
                 Ok(_) => Rung::Passes,
                 Err(why) => why.rung(),
             }

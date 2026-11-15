@@ -258,9 +258,19 @@ fn p6_reproduce_the_huge_offset_red_digit() {
         },
         Tol::witness(),
     );
+    // Past the session box, the body refuses: at the box gate, or first at
+    // an edge certificate's residual. At 1e8 m one ulp (1.49e-8) is past the
+    // ε band, so no two spellings of a point hold within ε, and which comes
+    // first rests on whether a residual rounds to zero. Main reached the box
+    // only because its line carrier rounded as the description does at the
+    // sample read (`work/oneround/a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling.md`).
     assert!(
-        matches!(&got, Err(e) if format!("{e:?}").contains("OutsideSessionBox")),
-        "the 1e8 m cube is past the session box: {got:?}"
+        matches!(&got, Err(e) if {
+            let e = format!("{e:?}");
+            e.contains("OutsideSessionBox")
+                || (e.contains("ResidualExceeded") && e.contains("MappedSource"))
+        }),
+        "the 1e8 m cube is past the session box, so the body refuses (at the box or at certification): {got:?}"
     );
 }
 

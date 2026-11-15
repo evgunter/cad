@@ -165,11 +165,9 @@ fn a_co_surface_seam_meridian_reads_smooth_at_exactly_zero() {
         "the seam meridian's endpoints span ~the ball's diameter"
     );
     let margin = sweep::test_support::smooth_reading(&ball, seam, 0.05, tol());
-    assert_eq!(margin.predicate, "fillet3_convexity_sign");
     assert_eq!(
-        margin.reading.diagnostic_f64_for_error_text().value(),
-        Some(0.0),
-        "a co-surface seam's sine is structurally zero"
+        margin, None,
+        "a co-surface seam is read by identity, no margin read"
     );
 }
 

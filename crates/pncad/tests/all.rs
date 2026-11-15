@@ -389,6 +389,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::MaterialSide => "material_side",
+        BlendDecision::LinkBend => "link_bend",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
         BlendDecision::BallRoom => "ball_room",

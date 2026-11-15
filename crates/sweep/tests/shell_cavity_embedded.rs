@@ -3,7 +3,7 @@
 //! moved clone is asked the verdict door's question
 //! (`topo::clearance::embedded`) before it is inserted. At `f64` the
 //! shell does not ask yet, and the rows that will pin it there wait on
-//! `work/clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
+//! `work/embed/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
 //!
 //! - a vessel holding a coaxial void whose dilation reaches past the
 //!   eroded wall refuses `CavityCrosses` at `Interval` and at
@@ -500,7 +500,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
 /// meeting along the full meridian, and the departure certificate does
 /// not discharge that pair, the refusal the operand itself has at both
 /// scalars. The row waits on
-/// `work/clear/one-face-torus-cut-refuses-across-its-meridian.md`; when
+/// `work/embed/one-face-torus-cut-refuses-across-its-meridian.md`; when
 /// that row is fixed this cavity certifies and the row moves to a body
 /// the engine still refuses.
 #[test]

@@ -144,7 +144,7 @@ fn a_tilted_tube_builds_at_its_closed_form() {
 /// sound at its closed form (`sphere-face-with-a-hole-has-no-closed-form`,
 /// closed by PR 4573), read without a mesh: the mesher has no lane for a
 /// curved face with a ring
-/// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
+/// (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();

@@ -53,7 +53,7 @@ use geom_brep::{
 };
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
-    RigidMotionError, Sign, Tol, UnitVec3, Vec3,
+    RigidMotionError, Sign, Tol, UnitVec3, Vec2, Vec3,
 };
 use profile::SegmentKind;
 use topo::construction::Construct;
@@ -140,6 +140,13 @@ impl<T: Real> Placing<T> {
             None => self.place,
             Some(turn) => turn.anchored.to_affine() * self.place,
         }
+    }
+
+    /// A sketch direction placed, then turned: the placement's linear
+    /// part, then the turn's.
+    pub(crate) fn vector(self, v: Vec2<T>) -> Vec3<T> {
+        let placed = self.place.transform_vec(Vec3::new(v.x, v.y, T::zero()));
+        self.turn_vec(placed).unwrap_or(placed)
     }
 
     /// A sketch point placed, then turned.
@@ -706,20 +713,50 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), q_from, q_to, tol)
+}
+
+/// [`placed_segment_spec`] with an arc's 3-space centre given by
+/// `centre` from its sketch centre, in place of `place`'s image of it:
+/// for a copy whose placement fixes the centre, which then takes the
+/// value the fixed copy has.
+pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
+    seg: &S,
+    place: Placing<T>,
+    normal: Vec3<T>,
+    centre: impl FnOnce(Point2<T>) -> Point3<T>,
+    q_from: Point3<T>,
+    // The far vertex, unread here: the certifier's check 3 (not this
+    // function) reads the spec's far end against it, and the spec is
+    // built from the segment and its placement.
+    _q_to: Point3<T>,
+    tol: Tol,
+) -> EdgeCurveSpec<T> {
     let description =
         EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
             segment: sketch_segment(seg),
             place: place.map(),
         }));
     match seg.kind().get() {
-        SegmentKind::Line => EdgeCurveSpec {
-            description,
-            carrier: Curve3::line(q_from, (q_to - q_from).normalize()),
-            param_start: T::zero(),
-            param_end: q_from.distance(q_to),
-        },
+        // The bounds from the quantity that defines them, the sketch
+        // segment's own length, and the direction from the same chord
+        // (geom-brep README, "Parameterization conventions"). Nothing is
+        // registered: the far end folds to `place(b)` as a form
+        // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
+        SegmentKind::Line => {
+            let (dir, span) = (seg.b() - seg.a()).direction_and_length();
+            EdgeCurveSpec {
+                description,
+                carrier: Curve3::Line(geom::Line {
+                    origin: q_from,
+                    dir: place.vector(dir),
+                }),
+                param_start: T::zero(),
+                param_end: span,
+            }
+        }
         SegmentKind::Arc { arc, turn } => {
-            let c_world = place.point(arc.centre);
+            let c_world = centre(arc.centre);
             let rim = q_from - c_world;
             // Rigidity, stated where it is guaranteed
             // (`register_rigidity` carries the proof). Bound out of the
@@ -1780,6 +1817,69 @@ mod tests {
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
+    /// **The placed line's far end folds to the far vertex in the plain
+    /// tier**, so the line arm registers nothing where the arc arm
+    /// registers its carrier end. This row records why no registration is
+    /// owed; it holds for a direction read off the placed vertices too,
+    /// so it guards no spelling (the span row,
+    /// `a_placed_lines_span_is_its_segments_length_and_it_ends_at_the_far_vertex`,
+    /// does). A segment from `(0.3, 0.7)` to
+    /// `(2.9, p)`, `p` a box at `Sym<Interval>`, under a quarter turn and
+    /// a translation: the carrier's end `q_from + L·dir·span` against the
+    /// far vertex `place(b)` decides `Zero` on every component with no
+    /// rule at all (`SymRules::none`), as many decisions as under the
+    /// shipped rules, and none of them numeric.
+    #[test]
+    fn the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier() {
+        use geom_core::sym::with_session_rules;
+        use geom_core::{ParamSymbol, Sym};
+        type S = Sym<Interval>;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let readings = |rules| {
+            with_session_rules(budget(), rules, || {
+                let lit = |x: f64| <S as Real>::from_f64(x);
+                let p = S::param(
+                    ParamSymbol::new(test_utils::symbol_id("p")),
+                    Interval::from_bounds(0.45, 0.55),
+                );
+                let seg = SweptSeg {
+                    a: Point2::new(lit(0.3), lit(0.7)),
+                    b: Point2::new(lit(2.9), p),
+                    kind: Traversed::forward(SegmentKind::Line),
+                    canonical_vertex: 0,
+                    canonical_segment: 0,
+                };
+                let place = quarter_turn_placement([2.0, 3.0, 5.0]);
+                let to3 = |q: Point2<S>| place.transform_point(Point3::new(q.x, q.y, lit(0.0)));
+                let (q_from, q_to) = (to3(seg.a), to3(seg.b));
+                let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+                let Curve3::Line(line) = spec.carrier else {
+                    panic!("a line places onto a line carrier");
+                };
+                let end = line.at(spec.param_end);
+                let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
+                [
+                    sign(end.x - q_to.x),
+                    sign(end.y - q_to.y),
+                    sign(end.z - q_to.z),
+                ]
+            })
+        };
+        let (end, plain) = readings(geom_core::SymRules::none());
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end, plain: {plain:?}");
+        assert_eq!(plain.numeric, 0, "no numeric decision: {plain:?}");
+        let (shipped_end, shipped) = readings(geom_core::SymRules::shipped());
+        assert_eq!(
+            shipped_end, end,
+            "the shipped rules read the same: {shipped:?}"
+        );
+        assert_eq!(
+            shipped.symbolic, plain.symbolic,
+            "no rule is needed: {shipped:?} {plain:?}"
+        );
+    }
+
     fn budget() -> SymBudget {
         SymBudget {
             max_terms: 4096,
@@ -1924,6 +2024,59 @@ mod tests {
                  must be proven: {rows:?} ({counts:?})"
             );
         }
+    }
+    /// **A placed line's span is its sketch segment's length, and its
+    /// carrier ends at the placed far vertex.** A segment from `(0.3, 0.7)`
+    /// to `(2.9, −1.4)` under a rigid placement that turns the sketch
+    /// plane about a tilted axis and moves it off the origin: `param_end`
+    /// is `‖b − a‖` bit for bit, the carrier's direction is unit within
+    /// rounding, and the carrier at `param_end` lies within a few ulps of
+    /// `q_to`, the placed far vertex. A span that disagrees with the
+    /// placed length (twice it, say) leaves the carrier's end that far
+    /// from `q_to`, so this row and the certifier's far-end check (check
+    /// 3) go red on it; a direction read off the placed vertices would
+    /// make that end `q_to` whatever the span.
+    #[test]
+    fn a_placed_lines_span_is_its_segments_length_and_it_ends_at_the_far_vertex() {
+        let tol = Tol::witness();
+        let (a, b) = (Point2::new(0.3, 0.7), Point2::new(2.9, -1.4));
+        let seg = SweptSeg {
+            a,
+            b,
+            kind: Traversed::forward(SegmentKind::Line),
+            canonical_vertex: 0,
+            canonical_segment: 0,
+        };
+        let axis = geom_core::UnitVec3::new(
+            Vec3::new(0.48, -0.6, 0.64),
+            "test_axis",
+            Band::linear(tol).expect("the witness band"),
+        )
+        .expect("a unit axis");
+        let place = Affine3::translation(Vec3::new(12.5, -3.25, 7.0))
+            * Affine3::rotation_about_axis(Point3::origin(), axis.get(), 0.83);
+        let to3 = |p: Point2<f64>| place.transform_point(Point3::new(p.x, p.y, 0.0));
+        let (q_from, q_to) = (to3(a), to3(b));
+        let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+        let Curve3::Line(line) = spec.carrier else {
+            panic!("a line places onto a line carrier");
+        };
+        assert_eq!(
+            spec.param_end.to_bits(),
+            a.distance(b).to_bits(),
+            "the span is the segment's own length"
+        );
+        let scale = q_to.x.abs().max(q_to.y.abs()).max(q_to.z.abs());
+        assert!(
+            (line.dir.norm() - 1.0).abs() <= 4.0 * f64::EPSILON,
+            "the direction is unit: {}",
+            line.dir.norm()
+        );
+        let miss = (line.at(spec.param_end) - q_to).norm();
+        assert!(
+            miss <= 8.0 * f64::EPSILON * scale,
+            "the carrier ends {miss:e} from the placed far vertex"
+        );
     }
 }
 

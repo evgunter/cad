@@ -218,17 +218,14 @@ impl ViewerBehavior<'_> {
     }
 
     /// **A named source's row** (VARIABLES VR4): `bracket = B`, and its
-    /// body field, set by picking — the button reads the body selected in
-    /// the tree or the picture, redefining the source
-    /// ([`SessionOp::RepointPlacements`]) so every placement reading it
-    /// copies that body, as the re-point offer does.
+    /// body field, set by picking — the button re-points the source onto
+    /// the body selected in the tree or the picture
+    /// ([`crate::session::DocSession::repoint_button`]), disabled with the
+    /// reason where the offer would withhold it.
     fn source_row_ui(&mut self, ui: &mut egui::Ui, row: &crate::props::SourceRow) {
-        let doc = self.session.committed_doc();
-        let selected = self
+        let button = self
             .session
-            .selection()
-            .node()
-            .filter(|&node| doc.read_of_node(node).is_some());
+            .repoint_button(row.var, self.session.selection().node());
         let plural = if row.copies == 1 { "y" } else { "ies" };
         ui.horizontal(|ui| {
             if crate::widgets::message_link(
@@ -240,20 +237,7 @@ impl ViewerBehavior<'_> {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
             }
-            if ui
-                .add_enabled(
-                    selected.is_some(),
-                    egui::Button::new("read the selected body").small(),
-                )
-                .on_hover_text("every placement reading this source copies the selected body")
-                .clicked()
-                && let Some(node) = selected
-            {
-                self.ops.push(SessionOp::RepointPlacements {
-                    source: row.var,
-                    onto: node.into(),
-                });
-            }
+            crate::widgets::repoint_button(ui, button, self.ops);
         });
     }
 
@@ -701,19 +685,16 @@ impl ViewerBehavior<'_> {
     /// **The copy the selection is on, and the steps it offers**
     /// ([`crate::frame::placement_offers`]): the way to the original
     /// body from a placed copy, and the re-point of a body's placements
-    /// onto a body built on it. Read off the committed document, once per
-    /// change ([`crate::session::DocSession::placement_offers`]).
+    /// onto a body built on it, each beside the fact it acts on. Read
+    /// off the committed document, once per change ([`crate::session::DocSession::placement_offers`]).
     fn placement_ui(&mut self, ui: &mut egui::Ui) {
         let Some(node) = self.session.selection().seat_node() else {
             return;
         };
-        let (said, offers) = self.session.placement_offers(node);
-        if let Some(said) = said {
-            crate::widgets::message(ui, said);
-        }
-        for (label, op) in offers {
-            if ui.button(label).clicked() {
-                self.ops.push(op);
+        for offer in self.session.placement_offers(node) {
+            crate::widgets::message(ui, offer.said);
+            if ui.button(offer.label).clicked() {
+                self.ops.push(offer.op);
             }
         }
     }

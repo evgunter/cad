@@ -126,7 +126,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
 }
 
 /// **A wide trimmed cylinder triangulates in the lattice metric**
-/// (`work/tess/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
+/// (`work/tesslane/trimmed-cylinder-lane-triangulates-in-raw-angle-by-height`).
 /// The lane's lattice is square in 3-D, `hu` radians by `r·hu`, so in
 /// (θ, z) it is a strip of aspect ~1/r; triangulated there, an
 /// ellipse trim point between two rows fanned a sliver across many
@@ -205,8 +205,12 @@ fn trimmed_lane_is_bit_deterministic() {
 }
 
 /// The honest door: a trimmed face whose stored pcurve caches are
-/// missing refuses TYPED, naming where caches mint — never a silently
-/// re-derived branch guess.
+/// missing refuses TYPED — never a silently re-derived branch guess.
+/// With every cache detached the face's loop has no lift in its chart
+/// (`topo::Body::loop_lift` answers a `LiftGap`), and that is the cause
+/// the lane refuses on: `UnsupportedCurve` at an edge whose half-edge is
+/// a gap the body's own lift names, read here from the body rather than
+/// from the refusal's sentence.
 #[test]
 fn missing_pcurve_caches_refuse_typed() {
     let (above, _) = halves();
@@ -215,11 +219,25 @@ fn missing_pcurve_caches_refuse_typed() {
     for he in hes {
         stripped.detach_pcurve(he);
     }
+    let gaps: Vec<topo::EdgeKey> = stripped
+        .faces()
+        .filter_map(|(_, face)| stripped.loop_lift(face.outer).err())
+        .map(|gap| {
+            stripped
+                .get_half_edge(gap.half_edge)
+                .expect("a half-edge")
+                .edge
+        })
+        .collect();
+    assert!(!gaps.is_empty(), "a stripped face's loop has no lift");
     match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
-        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
-            assert!(note.contains("pcurve cache"), "{note}");
+        Err(mesh::TessellateError::UnsupportedCurve { edge, .. }) => {
+            assert!(
+                gaps.contains(&edge),
+                "the refusal is at a gap of a loop's lift: {edge:?} not in {gaps:?}"
+            );
         }
-        other => panic!("expected the typed missing-cache refusal, got {other:?}"),
+        other => panic!("expected the typed missing-lift refusal, got {other:?}"),
     }
 }
 

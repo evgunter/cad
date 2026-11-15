@@ -5565,14 +5565,19 @@ impl OneRecordTokens {
     /// every result face the moved operand faces the glue read over
     /// ([`super::glue::GlueCensus`]) left that still wears the other
     /// record: their fragments, read through the faces the join merged
-    /// back. A pair one of whose records no result face wears licenses
-    /// nothing. A pair whose two faces share a record asks nothing.
+    /// back. A pair one of whose records the result does not hold
+    /// licenses nothing. A pair whose two faces share a record asks
+    /// nothing.
     ///
     /// The record's relation says whether the two operand faces'
     /// material sides agree, and each face's sense turns its material
     /// side to its chart's normal, so the two glued faces' own senses
-    /// say how the two operands' charts face; `op` turns B's chart where
-    /// it subtracts and B's surface carries its own reversal.
+    /// say how the two operands' charts face. ∖ reads B reverted: its
+    /// material side is the other one, and its face's sense on the
+    /// record the result holds is the one revert leaves it
+    /// ([`crate::revert::reverted_sense`]). `b` is therefore B as the
+    /// caller gave it, never the reverted copy the result was built
+    /// from, whose senses revert has already turned.
     ///
     /// # Errors
     ///
@@ -5595,11 +5600,11 @@ impl OneRecordTokens {
             .map(|pair| {
                 (|| {
                     let relation = pair.class().carrier_relation()?;
-                    let (fa, fb) = (a.get_face(pair.a)?, b.get_face(pair.b)?);
+                    let (fa, fb) = (a.get_face(pair.a)?, b.face(pair.b)?);
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
-                    let kb = graft.surfaces.get(fb.surface).copied()?;
+                    let kb = graft.surfaces.get(fb.record().surface).copied()?;
                     (ka != kb
                         && result.get_surface(ka).is_some()
                         && result.get_surface(kb).is_some())
@@ -5609,18 +5614,15 @@ impl OneRecordTokens {
                         Operand::A => (ka, kb),
                         Operand::B => (kb, ka),
                     };
-                    // ∖ reads B reverted, and a reverted plane turns its
-                    // chart where every other kind turns its faces' senses:
-                    // B's face then faces its result chart as its sense
-                    // turned does.
-                    let turned = op == BooleanOp::Subtract
-                        && b.get_surface(fb.surface).is_some_and(|s| {
-                            crate::transform::OrientationClass::of(s)
-                                == crate::transform::OrientationClass::Plane
-                        });
+                    let subtracts = op == BooleanOp::Subtract;
+                    let b_sense = if subtracts {
+                        crate::revert::reverted_sense(fb.surface(), fb.sense())
+                    } else {
+                        fb.sense()
+                    };
                     let charts_agree = crate::one_record::charts_agree(
-                        relation == geom_brep::CarrierRelation::SameOriented,
-                        [fa.sense, fb.sense != turned],
+                        (relation == geom_brep::CarrierRelation::SameOriented) != subtracts,
+                        [fa.sense, b_sense],
                     );
                     let side = census.moving();
                     let view = &views[usize::from(side == Operand::B)];

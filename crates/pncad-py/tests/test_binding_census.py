@@ -2789,8 +2789,11 @@ NOT_BOUND = {
     # `inconsistent_arc` with its check left behind. `Gate`,
     # `EscalatedAt` and `ArcRead` are the same footing: the escalation
     # arms' gate and site, and the read-back arms' read, crossing as
-    # the arm's word with the field left behind.
+    # the arm's word with the field left behind. `RecordedDirection`
+    # is `InconsistentDirection`'s and `DirectionBelowSceneResolution`'s,
+    # on `ArcCheck`'s footing.
     "ArcCheck": INTERIOR,
+    "RecordedDirection": INTERIOR,
     "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalatedAt": INTERIOR,
@@ -3026,6 +3029,9 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
+    # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
+    # (`wedge_unsettled`) already names at the Python seam.
+    "UnsettledWedge": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "

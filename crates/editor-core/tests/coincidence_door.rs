@@ -3186,28 +3186,42 @@ fn rounded_mouth_volume() -> f64 {
 /// circles as the closed forms they are (SECTARMS stage 3b-i). Each
 /// union builds at its exact volume: the ball's
 /// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
-/// ([`rounded_mouth_volume`]). At `Interval` each certifies at the
-/// default ε and at 1e-6, and escalates at 1e-12, so both stay beside the
-/// registry, which requires every lane green.
+/// ([`rounded_mouth_volume`]). At `Interval` both certify at every ε and
+/// build the `f64` body
+/// (`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
+/// holds each to it), so both meet the bar of the registry they stand
+/// beside, which requires every lane green (whether they join it:
+/// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
 /// coaxial rows change in number or kind, or if its `Interval` outcome
 /// moves at any row.
 #[test]
 fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
-    for (cd, row, count, want) in [
-        (
-            crate::corpus::shaft_and_bearing::with_a_ball(),
-            "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
-            4,
-            5.836_839_596_566_8,
-        ),
-        (
-            crate::corpus::shaft_and_bearing::rounded_mouth(),
-            "Coaxial CoaxialCylinderTorus SameConstruction",
-            2,
-            rounded_mouth_volume(),
-        ),
+    struct Scene {
+        cd: crate::corpus::CorpusDoc,
+        row: &'static str,
+        count: usize,
+        want: f64,
+    }
+    for Scene {
+        cd,
+        row,
+        count,
+        want,
+    } in [
+        Scene {
+            cd: crate::corpus::shaft_and_bearing::with_a_ball(),
+            row: "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
+            count: 4,
+            want: 5.836_839_596_566_8,
+        },
+        Scene {
+            cd: crate::corpus::shaft_and_bearing::rounded_mouth(),
+            row: "Coaxial CoaxialCylinderTorus SameConstruction",
+            count: 2,
+            want: rounded_mouth_volume(),
+        },
     ] {
         let name = cd.name;
         let union = cd.result.expect("a scene's head is its union");
@@ -3235,19 +3249,63 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
             "{name}: the door's coaxial rows: {lines:?}"
         );
         let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
-        // Certified at the default ε and at 1e-6; at 1e-12 an escalation
-        // at whichever door reads it first (the ball's crossing
-        // insertion, the rounded mouth's curved pierce).
-        let at_1e12 = Tol::witness().eps() == 1e-12;
         match ev.nodes.get(&union) {
-            Some(editor_core::NodeResult::Ok(v)) if !at_1e12 => matches_f64(&cd, v),
-            Some(editor_core::NodeResult::Failed(editor_core::NodeError {
-                kind: editor_core::NodeErrorKind::Boolean(e),
-                ..
-            })) if at_1e12 && format!("{e:?}").contains("Escalated") => {}
-            other => panic!("{name}: the union certifies at Interval off ε 1e-12: {other:?}"),
+            Some(editor_core::NodeResult::Ok(v)) => matches_f64(&cd, v),
+            other => panic!("{name}: the union certifies at Interval: {other:?}"),
         }
     }
+}
+
+/// **The ball's `Interval` union against its closed form** (a reviewer's
+/// measurement of `shaft_and_bearing_ball`, kept as a row): the housing
+/// ring `0.75π`, the shaft `0.875π` and the ball `0.5625π` (radius `3/4`),
+/// less the lens the coaxial shaft of radius `1/2` shares with the ball,
+/// `4π/3·(R³ − (R² − a²)^{3/2})`. [`matches_f64`] holds the `Interval`
+/// body to the `f64` one through an enclosure widened by its pad, and
+/// bounds the enclosure's width but not the pad's; this row holds the
+/// closed form inside the widened enclosure and the pad itself to
+/// `1e-6` of the volume, so a pad that grows cannot carry the row.
+#[test]
+fn the_balls_interval_union_encloses_its_closed_form_under_a_bounded_pad() {
+    use geom_core::Bounds;
+    use std::f64::consts::PI;
+    let tol = Tol::witness();
+    let cd = crate::corpus::shaft_and_bearing::with_a_ball();
+    let union = cd.result.expect("the scene's head is its union");
+    let (r, a) = (0.75_f64, 0.5_f64);
+    let lens = 4.0 * PI / 3.0 * (r.powi(3) - (r * r - a * a).powf(1.5));
+    let want = (0.75 + 0.875 + 0.5625) * PI - lens;
+    let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
+    let Some(editor_core::NodeResult::Ok(iv)) = ev.nodes.get(&union) else {
+        panic!(
+            "the ball's union builds at Interval: {:?}",
+            ev.nodes.get(&union)
+        );
+    };
+    let i = topo::test_support::finished(
+        cd.name,
+        iv.payload.output_body(0).expect("one body").body().clone(),
+        tol,
+    );
+    let m = topo::mass_properties(&i, tol, topo::test_support::pinned_resolution(tol))
+        .expect("interval props");
+    let (lo, hi, pad) = (
+        m.enclosure.volume.lo(),
+        m.enclosure.volume.hi(),
+        m.enclosure.volume_pad,
+    );
+    println!(
+        "ε {:e}: closed form {want}, Interval volume [{lo}, {hi}] (width {:e}), pad {pad:e}, \
+         f/e/v {:?}",
+        tol.eps(),
+        hi - lo,
+        (i.faces().count(), i.edges().count(), i.vertices().count()),
+    );
+    assert!(
+        lo - pad <= want && want <= hi + pad,
+        "the closed form {want} inside [{lo}, {hi}] ± {pad:e}"
+    );
+    assert!(pad <= 1e-6 * want, "the pad {pad:e} against 1e-6 of {want}");
 }
 
 /// **Two blocks resting on one floor are one plane at their bases**
