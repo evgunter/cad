@@ -9296,9 +9296,10 @@ fn side_of<T: Decide>(
 /// fidelity idiom transposed. Every slack is exactly zero on the
 /// minted path (the builder mints exact `0`/`1` chart values). A stated
 /// end ([`Pcurve::span_ends`]) adds its metred distance from the map's
-/// value at that end: the rectangle lane reads the stated end and pads
-/// by this envelope, so the pad covers the stated corner wherever the
-/// map leaves it.
+/// value at that end, so the envelope covers the image wherever either
+/// places that end: the readers of stated ends pad by it, and the
+/// rectangle lane, which reads the line the image holds and the map's
+/// end, pads by it beside the joint's gap.
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 fn run_iso_checks<T: Decide>(
     pcurve: &Pcurve<T>,
@@ -9539,7 +9540,7 @@ fn seam_envelope<T: Decide>(
     let span = t1 - t0;
     // The moving channel's reach for the domain gates below: the map's
     // value at both span ends and, where they are stated, the stated
-    // ends, which the rectangle lane reads in their place. The gate
+    // ends, which `span_ends`' readers read in their place. The gate
     // decides on that reach; the envelope folds only the map's own
     // excursion, since a stated end's distance from the map is already
     // in it (`run_iso_checks`).
