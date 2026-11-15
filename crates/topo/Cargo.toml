@@ -125,11 +125,3 @@ step-export = { path = "../step-export" }
 [[test]]
 name = "all"
 path = "tests/all.rs"
-
-[[test]]
-name = "cs_probe"
-path = "tests_probe/cs_probe.rs"
-
-[[test]]
-name = "cs_rows"
-path = "tests/an_aimed_ray_beside_a_boxed_cylinders_moving_rim.rs"

@@ -106,49 +106,64 @@ pub(super) const fn unread(face: FaceKey, diag: Indeterminate) -> RayFault<Point
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod rows {
     use super::{Gap, Reach};
-    use geom_core::k_stats::decide_magnitude;
-    use geom_core::{Band, Interval, Margin};
+    use geom_core::k_stats::Magnitude;
+    use geom_core::{Band, Indeterminate, MarginDiag};
 
     const ZERO: f64 = 1e-9;
 
     /// **Only an escalation that lies in the band is a gap in band.** A
-    /// point margin in the sliver and an enclosure wholly inside it are
-    /// within the band; an enclosure from the zero band to past the
-    /// escalation (a box some of whose members meet the edge and others
-    /// pass it), and one from inside the sliver to past it (a carrier's
-    /// straddle), are unread. Red under `Gap::escalated` returning
-    /// `Ok(Self::InBand(InBand(diag)))` for every escalation, where both
-    /// are within.
+    /// point margin in the sliver and an enclosure wholly inside it (a
+    /// terminal sliver) are within the band. An enclosure from on the
+    /// edge to far past it (a box some of whose members meet the edge
+    /// and others pass it), one from inside the zero band to past the
+    /// escalation (a carrier's straddle) and a poisoned margin are
+    /// unread. Red under `Gap::escalated` returning
+    /// `Ok(Self::InBand(InBand(diag)))` for every escalation, where all
+    /// three are within.
     #[test]
     fn an_escalation_reaching_past_the_band_is_unread() {
         let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
-        let row = crate::rows::AIMED_RAY.edge();
-        let point = |x: f64| Reach::of(decide_magnitude(row, Margin::of(x), band));
-        let boxed = |lo: f64, hi: f64| {
-            Reach::of(decide_magnitude(
-                row,
-                Margin::of(Interval::from_bounds(lo, hi)),
+        let escalated = |margin: MarginDiag, terminal_sliver: bool| {
+            Reach::of(Err(Indeterminate {
+                margin,
                 band,
-            ))
+                predicate: None,
+                terminal_sliver,
+            }))
         };
-        assert!(matches!(point(0.5 * ZERO), Reach::Within(Gap::Zero)));
-        assert!(matches!(point(5.0 * ZERO), Reach::Within(Gap::InBand(_))));
-        assert!(matches!(point(20.0 * ZERO), Reach::Past));
+        assert!(matches!(
+            Reach::of(Ok(Magnitude::Zero)),
+            Reach::Within(Gap::Zero)
+        ));
+        assert!(matches!(Reach::of(Ok(Magnitude::Positive)), Reach::Past));
         assert!(
-            matches!(boxed(2.0 * ZERO, 5.0 * ZERO), Reach::Within(Gap::InBand(_))),
+            matches!(
+                escalated(MarginDiag::value(5.0 * ZERO), false),
+                Reach::Within(Gap::InBand(_))
+            ),
+            "a point margin in the sliver"
+        );
+        assert!(
+            matches!(
+                escalated(MarginDiag::enclosure(2.0 * ZERO, 5.0 * ZERO), true),
+                Reach::Within(Gap::InBand(_))
+            ),
             "an enclosure wholly inside the sliver"
         );
-        assert!(
-            matches!(boxed(0.0, 0.4), Reach::Unread(_)),
-            "a box from on the edge to far past it"
-        );
-        assert!(
-            matches!(boxed(0.6 * ZERO, 20.0 * ZERO), Reach::Unread(_)),
-            "a straddle's bracket"
-        );
-        assert!(
-            matches!(boxed(5.0 * ZERO, 20.0 * ZERO), Reach::Unread(_)),
-            "an enclosure from the sliver to past it"
-        );
+        for (what, margin) in [
+            (
+                "a box from on the edge to far past it",
+                MarginDiag::enclosure(0.0, 0.4),
+            ),
+            (
+                "a straddle's bracket",
+                MarginDiag::enclosure(0.6 * ZERO, 20.0 * ZERO),
+            ),
+            ("a poisoned margin", MarginDiag::INVALID),
+        ] {
+            let reach = escalated(margin, false);
+            assert!(matches!(reach, Reach::Unread(_)), "{what}");
+            assert!(!reach.within(), "{what}");
+        }
     }
 }

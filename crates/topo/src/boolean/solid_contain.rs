@@ -3280,8 +3280,9 @@ enum RootSide {
 ///   charge ([`geom_core::rounding_charge`] over the lengths it is read
 ///   from), and the enclosure's lower end is decided, as an edge's gap
 ///   is.
-/// - **An edge** whose lines' gap is not definitely past the band and
-///   whose closest point lies definitely inside it is met. One whose
+/// - **An edge** whose lines' gap is within the band ([`edge_gap`]) and
+///   whose closest point lies definitely inside it is met; one whose
+///   gap nothing read sets the ray aside there. One whose
 ///   closest point lies definitely past an end is nearest the ray at
 ///   that end, which is read as its vertex. One whose closest point is
 ///   in band of an end is marked a graze there, which no reading here

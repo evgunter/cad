@@ -248,20 +248,29 @@ fn no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has() {
     for k in 0..boxes {
         let mid_h = rng.log_uniform(0.05, 3.0);
         let mid_r = rng.log_uniform(0.05, 3.0);
-        let half = |rng: &mut test_utils::fuzz::Rng, mid: f64| rng.log_uniform(20.0 * eps, 0.9) * mid;
-        let half_h = if k % 3 == 1 { 0.0 } else { half(&mut rng, mid_h) };
-        let half_r = if k % 3 == 0 { 0.0 } else { half(&mut rng, mid_r) };
+        let half =
+            |rng: &mut test_utils::fuzz::Rng, mid: f64| rng.log_uniform(20.0 * eps, 0.9) * mid;
+        let half_h = if k % 3 == 1 {
+            0.0
+        } else {
+            half(&mut rng, mid_h)
+        };
+        let half_r = if k % 3 == 0 {
+            0.0
+        } else {
+            half(&mut rng, mid_r)
+        };
         let top = (mid_h - half_h, mid_h + half_h);
         let radius = (mid_r - half_r, mid_r + half_r);
         let draws: Vec<([f64; 3], [f64; 3])> = (0..rays)
             .map(|_| {
-                let pick = |rng: &mut test_utils::fuzz::Rng, (lo, hi): (f64, f64)| match rng.below(4)
-                {
-                    0 => lo,
-                    1 => hi,
-                    2 => 0.5 * (lo + hi),
-                    _ => rng.range(lo, hi),
-                };
+                let pick =
+                    |rng: &mut test_utils::fuzz::Rng, (lo, hi): (f64, f64)| match rng.below(4) {
+                        0 => lo,
+                        1 => hi,
+                        2 => 0.5 * (lo + hi),
+                        _ => rng.range(lo, hi),
+                    };
                 let (h, r) = (pick(&mut rng, top), pick(&mut rng, radius));
                 let a = rng.range(0.0, core::f64::consts::TAU);
                 let off = match rng.below(5) {
