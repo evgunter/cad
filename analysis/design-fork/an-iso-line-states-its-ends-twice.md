@@ -194,3 +194,6 @@ Confidence: recommendation **likely**; "the certificate only needs sides" **like
 - No provenance search was run on the `[one-way.places]` lift row. Run `git log --all -S'A loop' -- docs/DESIGN.md` before treating it as Ev-ratified.
 ````
 
+## Reconciliation
+
+- **Round 1, dispatched 02:23 UTC.** Each of A, B and C was sent, in its own session, the other two first reports in full (by label, on the scratch branch `boxfinish/fork-iso-reports`, `probe/fork-iso/round0/`), the orchestrator's one-paragraph statement of where the three stand, and four questions: what moved it; whether its own argument is answered (each pointed at the sites to check); a worked case one design handles and another cannot; its recommendation now. B and C were also told A's measurement (the as-split `Interval` loft refuses at the cut before any re-mint). No further designer was dispatched.
