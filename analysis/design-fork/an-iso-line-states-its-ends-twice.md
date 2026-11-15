@@ -197,3 +197,210 @@ Confidence: recommendation **likely**; "the certificate only needs sides" **like
 ## Reconciliation
 
 - **Round 1, dispatched 02:21 UTC.** Each of A, B and C was sent, in its own session, the other two first reports in full (by label, on the scratch branch `boxfinish/fork-iso-reports`, `probe/fork-iso/round0/`), the orchestrator's one-paragraph statement of where the three stand, and four questions: what moved it; whether its own argument is answered (each pointed at the sites to check); a worked case one design handles and another cannot; its recommendation now. B and C were also told A's measurement (the as-split `Interval` loft refuses at the cut before any re-mint). No further designer was dispatched.
+- **Round 1, results (all three in by 02:23 UTC). Every position moved; the three crossed.**
+  - **A: changed, to C's first form.** No stored ends; the held line an exact value; one merged variant; corners as meets read from the lift. Moved by: a corner belongs to the pair; its own per-end kinds were a new thing kept in step. It checked its own objection at the three readers and found the meet serves them. It argues against the tag: a lifted column names no knot line, so the tag needs a second kind.
+  - **B: changed, to C's first form.** Drops its own tag: no mint knows a knot index; knot insertion renumbers; `Measured` was a second kind of line. Sure that a tag adds nothing over an exact value.
+  - **C: changed, to B's first form (the tag),** keeping two points of its own: a `Measured` line that is a point value still certifies, and it withdraws merging the two variants. Moved by: on an imported closed chart a period shift of a copied value need not land on the chart's far side even at `f64`, and a name carries that identity as structure; a stored value copies the knot vector.
+  - **What is agreed by all three after round 1:** no image stores ends; a corner is the meet of two held lines, read from the lift; the certificate reads four alternating runs, their meets and one sign per run; the certificate change is required in any design (A measured it) and can land first; no ratified text binds the stored ends; the lift's `[one-way.places]` row gains the joint's chart point.
+  - **What is left:** whether the held line is an exact value (A, B) or a name for a knot line with a measured case (C); and whether line and arc are one variant.
+- **Round 2, dispatched 02:25 UTC.** Each was sent the other two round-1 reports (scratch branch, `probe/fork-iso/round1/`), the one remaining difference with both sides' arguments stated, and three questions: is the period-shift case real, and what is the shifted value compared with (read and run); is there a form with the name's identity and the value's single kind; its recommendation now and what would change it. The same message to all three. No further designer was dispatched.
+
+### A, round 1, verbatim
+
+````markdown
+Report A, reconciliation round 1: I change my recommendation to C's shape (no stored ends, held line as an exact value, one merged iso variant, corners read from the lift as the meet of two held lines).
+
+## For Ev
+
+**Recommendation now (likely): changed.** A boundary image that is a straight row or column of its face's chart stores no ends. It stores the line it holds fixed (which chart coordinate, and its value, an exact number where a mint placed it on the chart's edge) and one map for the other coordinate along the edge's parameter. The straight image and the arc image are one variant differing only in that map. Where anything needs the chart point at a joint (the vertex where two consecutive images of a loop meet), it asks the loop's lift (`topo::pcurves::Lift`, the ratified one place for a loop's position in its chart): between a row and a column the point is the *meet* of the two held values, exact because both are data; between two images on one line (a split's cut) or anywhere else it is the map's value, an enclosure. Tier 3's rectangle certificate reads four held lines, four meets and the order they are visited, and no end.
+
+In the first round I recommended keeping the two ends as the stored description, with a per-end mark saying whether that end of the edge is the row's end or a cut. I withdraw that.
+
+**1. What moved me, and what did not.**
+- *Accepted: a corner belongs to the pair, not to either image.* My form removed the duplication inside one image but still stated each corner once per adjacent image, and it needed two bits per image kept in step with the span at every split, join and moved end. Under the meet a split, a moved end and a re-read span are the identity on the image; nothing is kept in step because nothing depends on the span. A cut is not marked; it is the joint between two images on one line. Derived beats recorded here. Sure.
+- *Accepted: the re-mint needs nothing new.* My form needed the mint to offer, per end, the chart's boundary value or a measured foot, which I had marked unsure. The mint already offers the boundary rows as the held line before the measured value (`nurbs_iso_derive`, the measured arm's `[cv0, cv1, f0.y]`), so a re-minted child gets an exact held line with no change. Sure of the code; likely that it certifies.
+- *Not accepted: the held line as a tag naming one of the chart's knot lines* (the other no-ends report). Answered in 3 below.
+- *Answerable:* one report rejects stored ends partly because "the measured re-mint has no exact corner to state". It has one (the chart's boundary value, offered as a candidate); that was not the weakness. The weakness is the bookkeeping.
+
+**2. Is my own argument answered? Yes, checked at each reader.**
+My case was that some readers match an end to the chart's edge exactly, and that the map alone cannot give that even at `f64` (a rim of length `L` has slope `1/L`, and `49·(1/49)` is not `1`).
+- `chart_region::loop_uv_polygon` (through `pcurve_entry`): it already walks the loop's lift and wants one chart point per joint, as a value, with no exactness test. A meet gives it, more exactly than an end did. Answered.
+- `boolean::spline_known::corners`: it wants "which corner of the chart's domain is this vertex at", by exact comparison. Today it reads each iso image's two ends singly. The meet of a row held at a domain end and a column held at a domain end is that corner, exactly, at every scalar. Answered, with one residue: a boundary row that ends at a chart corner where its neighbour is not an iso image (a cut passing exactly through the corner and removing the whole adjoining side) has no meet, and the corner goes unlisted. That reader only collects corners two faces are known to share, so the loss is a missed shortcut, not an unsound answer; and my form's exact end there was only as good as the mint's claim. I do not think the case earns stored ends. Likely.
+- `replace_face::iso_image_row`: it wants the image's held axis and value (structural under the merged variant) and the stretch of the row the edge covers, to extract that stretch from a new fit. It reads per edge today; the old face's loop is intact when it runs, so its lift is available. At a meet the stretch's end is exact, which is better than today's map reading for a rim. Answered; it is the one reader that must change from an edge read to a loop read.
+- The `f64` fragility: answered. It only bites where an end's computed value is compared with the chart's edge, and no reader does that any more.
+
+**3. Tag against value, worked.** A wall whose chart is periodic in `u`, its loop lifted one period over (the lift moves an image by a `Deck`, a whole number of periods). With the held line a *value*, the moved column is `at + period`, still an exact number when the period is, and the meet with a row is still exact. With the held line a *tag* naming a knot line of the chart, the moved column names no knot line; the tag has no spelling for it and needs its second case ("measured"), which is the `Option` back under another name, with the same question of what a certificate does with each case. A reflected chart (`map_affine`) has the same shape: a value maps through, a tag must be re-indexed by hand. The tree's convention is already that exactness is a value being a single number (`exact`, `exact_zero`), and knot values are `f64` at every scalar, so a placed value is exact without a tag. Likely.
+In the other direction, what row-with-ends could do that the meet cannot is only the corner-without-a-neighbour case in 2. I found no other.
+
+**4. What I hold to from the first round.**
+- The certificate change is required whatever is stored, and it is measured: a split `Interval` loft whose kept corners both read exactly `0` and `1` still refuses, at the cut (I ran it; the other two reports argued it from the code and are right).
+- One variant for line and arc, axis-alignment by type, so a diagonal "iso" has no spelling.
+- Pairing an image with another edge's span becomes unwritable because no reader asks an image for ends; the lift's row should hold its span privately.
+
+**Remaining differences with the report I now agree with** (small):
+- The certificate should require the pieces along one side to run one way, a decided sign, so a back-and-forth run is refused there. That report lists it as unchecked; I would make it part of the rule.
+- A held value that is not an exact number (an interior column taken from a measured foot) refuses the rectangle lane, as today. Agreed by all.
+
+**Ratified text.** One addition, which lands with the change as a re-wording of what the lift already is: the `[one-way.places]` row for a loop's position gains the joint's chart point and the trim's rectangle among the lift's methods. Nothing ratified mentions stored ends.
+
+**Confidence.** Recommendation: likely. Readers are served by the meet: likely (read at the three sites, not run). Value over tag: likely. The soundness of "an image's end is within the joint's gap of the meet" rests on the lift's existing joint decision on a spline chart (`spline_gap_closes`) and the envelope pad; likely, argued, not run.
+
+## For the orchestrator
+
+- **Measured fact for the record:** the probe the tag report asked for exists in my first report: `Interval`, as split, before `mint_pcurves`, refuses with "a NURBS-face pcurve endpoint is not exact structure"; `f64` finishes. Its fallback caveat ("if that body does finish…") does not apply.
+- **Checked this round:** `spline_gap_closes` exists (`pcurves/decision.rs`); `loop_uv_polygon` already takes `lifted_images`; `spline_known::images` takes `derived_pcurve_of` per half-edge, not the lift, so it changes source; `replace_face` calls `iso_image_row(&c.pcurve, curve.edge_span())` on the edge's description.
+- **Not checked:** whether a spline chart's `Deck` period is always an exact number on kernel-built walls (C flags an imported `3√3`; there the meet is wide and the lane refuses honestly). Whether check 3's end stations, back on the map alone, still certify every `Interval` loft that certifies today: PR 6959 moved those two stations onto stated ends, and before it the pcurve checks passed and only check 7 refused, so I expect yes; one run of the loft suites settles it.
+- **Minor, for the implementer:** the affine map stored as value-at-zero plus rate is `u0 − rate·t0`, which cancels for a span far from zero; anchoring it at a parameter in the span is the `[simple.conditioned]` form. Not a fork.
+- **On the reports' labels:** C's "alternative B" is my first-round form; its third bullet (arc needs its own copy) is right, its second is not, as said above. Neither changes the outcome.
+- **Rows:** the split row's body should be amended (the cut refuses, not only the kept corner) whichever way Ev rules; both parked/open sibling rows close with the unit, the arc one still unshown until an `Interval` arc loft builds.
+````
+
+### B, round 1, verbatim
+
+````markdown
+Reconciliation round 1 — report B
+
+## For Ev
+
+**Recommendation now (likely): changed. I now agree with C's form; B's tag (below) does not earn its place.** An iso image holds no ends. It holds the line it keeps fixed, as an exact value, and one map along that line. The straight and arc images become one variant, `Pcurve::Iso { held, at, moving }`:
+- `held` is the chart axis kept fixed: `v` for a row, `u` for a column.
+- `at` is its value, an ordinary scalar.
+- `moving` is the other coordinate as a function of the edge parameter: affine for a line, the rational-arc parameter for an arc.
+
+A loop's corner is read from the loop's lift (`topo::pcurves::Lift`, the one place for "a loop's position in its face's chart") as the **meet** of two held lines: `(column.at, row.at)`. It is exact wherever both held values are points. The volume certificate's rectangle test becomes three discrete checks:
+- the loop is iso images only;
+- grouped into runs on one held line, there are four runs, alternating row and column;
+- the four meets are the corners, and their order is the winding.
+
+A split's cut is a joint inside one run, and nothing reads it as a point.
+
+Terms:
+- *Image*: an edge's curve in a face's 2-D chart.
+- *Joint*: the vertex where two consecutive images of a loop meet.
+- *Run*: consecutive images on one held line (a split rim's pieces).
+
+### Where the three designs stood
+All three delete the stored `ends` and `StoredSpan` added by PR 6959, and all three make the certificate read lines and corners instead of eight end points. The split was over what an image holds:
+- **A:** the row by its two end values plus a per-end kind, `Row` (this edge end is the row's end) or `Inside` (a cut), with the map derived from them.
+- **B:** the held line as a tag naming one of the chart's knot lines.
+- **C:** the held line as an exact value, with line and arc merged.
+
+### Why B's tag goes (sure)
+Checked at each site that would mint or carry one:
+- **No mint knows a knot index.** The importer (`step-import` `adopt.rs`), the mint's boundary rows (`cv0`/`cv1` in `nurbs_iso_derive`) and the loft's section rim all read the chart's *domain end values* and pass them on. Those values are already exact `f64` copies, so an exact `at` is what they have.
+- **A knot index goes stale.** Knot insertion renumbers the knots, so an interior `Knot(k)` would need re-mapping at every re-knot. Only "first/last" would survive, and that is just "the domain end", which the exact value states.
+- **The chart moves leave both forms equal.**
+  - `shift_chart_v` moves `v` only on analytic charts, where a knot tag means nothing; on a spline chart the shift is zero.
+  - A `Deck` shift (the lift moving an image by whole periods of a closed chart) adds `k·period` to `at`. That is exact for a dyadic period, and an honest enclosure otherwise. A tag would have to carry the same `k` and read the same sum.
+- **`Measured(T)` was the giveaway.** B needed it for a column at a measured foot, so B had two kinds of held line, where C has one value that is a point or is not. "Is it a point" is the same structural read the certificate already makes today.
+
+So the tag makes nothing unrepresentable that C's exact value leaves open, and it adds a second kind.
+
+### What moved me in A, and what did not
+- **Accepted from A:**
+  - The measurement that the as-split `Interval` loft, with both kept corners exact, still refuses at the cut. That settles that the certificate has to change in any design.
+  - The `f64` point, `49·(1/49) ≠ 1`. Today an exact corner is luck even at `f64`. Under the meet it never depends on a map's end at any scalar.
+- **Answered:** A argues that "the ends are the description, since every mint builds a straight image from two end points and a span."
+  - Mints do pass two ends. But one of the two coordinates of each end is the held line, and the other coordinate, at a corner, is the *adjacent* image's held line.
+  - Storing ends therefore states each corner twice, once per image, and that is the duplication we are removing.
+  - A's per-end kinds then become a new thing kept in step by hand. A split marks the cut `Inside`, a join restores the kinds, and a re-anchor (moving an edge's end vertex) has to decide whether the moved end is still `Row`. The meet needs no such decision: a joint is a corner because its two images hold different axes.
+  - A's re-mint also needs a new per-end candidate schedule (boundary value or measured foot). Under the meet it needs nothing: the mint already offers the boundary rows first, so a re-minted child keeps an exact held line, and its measured free end is never read.
+- **Readers outside the certificate** (A's other argument) match an end to the chart's domain end exactly: `boolean::spline_known`'s chart corners, `chart_region::pcurve_entry` and `replace_face::iso_image_row`. They read the meet from the lift instead, which is an exact comparison of a held value against the chart's domain. That is better than today's comparison of a map's end.
+
+### Worked cases
+- **Split, then re-minted** (`Interval`). Bottom rim `v = 0`, split at a third.
+  - Under C, both children hold `v = 0`. The run is `v=0, v=0`, followed by `u=1`, `v=1`, `u=0`. The corners are `(0,0)` and `(1,0)`, read as meets.
+  - The re-mint replaces each child's map with a measured one but keeps `at = 0`, because the boundary row is offered first, so nothing changes for the certificate.
+  - Under A, the re-minted child needs the new per-end schedule to state its kept corner as `Row` at exactly `1`; without it, it refuses.
+- **Arc rim.** `IsoArc` today holds `p0`, `pd` with a held coordinate that `pick_arc_rim` mints exact. Under C it is `Iso { held: v, at: 0, moving: Arc{…} }`. Its corners are meets, and the width its end picks up through `tan` at `Interval` is never read. A needs the kinds on the arc as well.
+- **Sub-rectangle at an interior column measured at `Interval`.** `at` is an enclosure, the meet is not a point, and the certificate refuses honestly, as today (C, and A alike). At `f64` it is a point, and quadrature over that sub-rectangle is sound.
+- **What remains possible:** an `at` that the carrier does not follow. Checks 3 and 4 refuse it, as today.
+
+### Ratified text
+The `[one-way.places]` row for the lift would gain "every joint's chart point: the meet of two held lines between a row and a column, the map's value otherwise". Its provenance should be checked with `git log --all -S'A loop'` before it is treated as yours to sign. No ratified text binds the stored ends.
+
+**Confidence:**
+- Recommendation (C's form): **likely**.
+- "A tag adds nothing over an exact value": **sure** (sites read).
+- "Meets need no per-end schedule on re-mint": **likely** (read from the mint's candidate order, not run).
+- "The certificate must change in any design": **sure** (A measured it).
+
+## For the orchestrator
+
+- **Remaining difference with C:** none on substance.
+  - Small points for the unit: the run's pieces' rates should be decided as one sign (C's "not checked" item), so a back-and-forth run refuses in the certificate rather than in tier 3's simplicity check.
+  - `LiftedRow`'s span should come from its cache, behind private fields.
+- **Remaining difference with A:** whether corners are data per image (A) or a lift-level meet (B/C). If Ev prefers A, its kinds should at least be derived at the holder from the span, never stored beside it.
+- **Sequencing** (A's note, which I agree with): the certificate change can land first, independently, and makes the as-split `Interval` loft pass even with 6959's ends in place.
+- **Not checked:** `Sym<Interval>` keeping a domain-end constant as a point.
+- **Checked:** C's diagonal `IsoLine` (`chart_region.rs` ~4337) is a test fixture (`iso_line_and_iso_arc_entry_points_are_exact`), to be re-spelled axis-aligned with the change; no production spelling is lost.
+````
+
+### C, round 1, verbatim
+
+````markdown
+## For Ev
+
+**Recommendation (changed; likely).** No boundary image stores its ends. Each straight image (`IsoLine`) and each arc image (`IsoArc`) holds two things:
+- a **chart line**: the coordinate it keeps fixed, named as one of the chart's own knot lines (`Knot(k)`), or, where it was measured, as a value (`Measured(T)`);
+- one **moving map** along that line over the edge's parameter.
+
+The two variants stay separate. They share one `ChartLine` type and differ only in their moving map: affine for a line, the rational-arc parameter for an arc.
+
+A **corner** is never read off an image's end. The loop's lift reads it as the **meet** of two consecutive chart lines, `(column line, row line)`. The *lift* is `topo::pcurves::Lift`, the ratified one place for a loop's position in its chart. A *joint* between two images on one line, such as a split's cut, is not a corner, and nothing asks it to be exact.
+
+Tier 3's rectangle certificate is check 7's cheapest volume proof on a NURBS wall. It reads the loop as runs of images on one line and requires:
+- exactly four runs, alternating rows and columns;
+- every line a point value;
+- every piece in a run moving the same way, decided at the band.
+
+The four meets are the rectangle, and their cyclic order is the winding. Every other reader that wants a corner reads the same meet from the lift. Those readers are the chart-region entry, the spline trim, the boolean's chart corners and `replace_face`'s row read.
+
+*Terms.* An *image* (pcurve) is an edge's curve in a face's 2-D chart. A *knot line* is a line `u = k` or `v = k` at one of the surface's stored knots; the domain's sides are its first and last knots. An *edge's span* is its parameter interval `[t0, t1]`, where `t1` is a computed length.
+
+**Why a name and not a value (the change from my first answer).** I proposed storing the fixed coordinate as an exact value, `at: T`. A name is stronger, in two places I checked:
+- **It is stated once.** A knot line's value already lives in the surface's knot vector. Storing `at` copies it, which is the same duplication this fix removes, only moved.
+- **It survives a period shift.** On a chart closed in one direction, the lift moves an image by whole periods: `at + k·period` (`shift_v_branch` and the `u` twin both use `translate`).
+  - On a kernel-built `[0, 1]` chart this is exact.
+  - On an imported chart, for example a domain `[0.1, 0.7]`, `0.1 + (0.7 − 0.1)` need not round to `0.7`, even at `f64`. A copied value then misses the chart's own side, so the certificate would refuse or misread it.
+  - A name has an identity instead: on a closed direction, the first knot shifted by one period *is* the last knot. That is structure, not arithmetic.
+
+Other chart maps never reach these images. Reflection leaves a spline chart alone (`transform.rs`'s `Net` class). `mirror_v` runs on plane charts only, and the offset's `shift_chart_v` runs on cones only. So the period shift is the case that decides it (sure; read at the sites).
+
+**What I keep from my first answer.**
+- **Corners as meets, read once at the lift, for every reader** (likely).
+- **A `Measured` line still works where it is a point** (likely). A rectangle bounded by an interior column taken from a measured foot keeps working at `f64`, as it does today, and refuses at `Interval`, as it does today. So the certificate takes any point-valued line, not only knot lines. This is my remaining difference with the knot-tag proposal: it would refuse every `Measured` line outright, or keep them only as a fallback.
+- **Merging the two image kinds into one variant: I withdraw this.** A shared `ChartLine` type gives the same single statement. The moving maps really do differ, and readers match on them.
+
+**The other answer: each image stores its row by its two ends, with a kind per end, `Row` (the row's end) or `Inside` (a cut).**
+- **Accepted: a measurement.** A split `Interval` loft, finished before any re-mint with both kept corners exact, still refuses, and the refusal is at the cut. The certificate tests both ends of every image. So the certificate change is needed whatever is stored (sure, measured), and it can land first.
+- **Accepted: no rounding slack.** The certificate's hand `4·ε` end slack goes once cuts are not read. The extra term from a corner's joint gap is second order, and the lift already decides that gap at the band (likely).
+- **Answered: "the ends are the description, the map their derivative."** The mints do compute the map from two points and a span. But of those points, only the corners are exact facts, and a corner is a fact about two lines, which the chart's knots already state. The other ends, a cut or a measured foot, are measurements however they are stored. Storing them keeps the image tied to its span, and keeps the `Row`/`Inside` bits stored. Those bits must change at every split and join. The loop already says the same thing: a joint is a corner exactly where its two images' axes differ.
+- **Answered: `49·(1/49) ≠ 1` at `f64`.** True, but no reader of this design reads an end as a corner at any scalar, so it does not bite.
+- **Answered: "other readers match an end to the domain end exactly."** They read the meet from the lift, which compares a name or point values exactly.
+
+**A worked case: a split rim on an imported closed wall at `f64`, domain `u ∈ [0.1, 0.7]`.**
+- *Rows by their ends:* a kept end is `Row` with `to = 0.7`. Across the seam the lift shifts it to `0.1 + period`, which may not equal `0.7`, so the corner test misses.
+- *My first answer (`at: T`):* the same miss on the seam column.
+- *The knot tag:* `Knot(last)`, whose shift is `Knot(first)` by identity, so the corner is exact.
+- *All three:* the cut is not read.
+
+**Ratified text.** None binds the stored ends; they are documented only in code (sure). The `[one-way.places]` row for "a loop's position in its face's chart" would gain "every joint's chart point (a corner as the meet of two chart lines) and the rectangle with its winding". That is wording that lands with the change, not a new decision (likely).
+
+**Confidence.** Recommendation: likely. "A knot name survives a period shift where a copied value may not": sure for the arithmetic; I have not checked that a shipped body reaches an imported closed spline wall at rest. "The certificate change is needed for any split": sure, as measured in the other report.
+
+## For the orchestrator
+
+- **Now in agreement with B,** with one remaining difference: whether the certificate takes a `Measured` line that is a point value (I say yes, in one rule, not as a fallback; B leans to refusing it or keeping it only as a fallback). Whether any construction mints such a rectangle today is unchecked. The candidates are the measured arm's `f0.x` column and a cap rim that an offset moved inward.
+- **Required by the tag:** `ChartLine::Knot` must state the period identity, first knot + period = last knot, on a direction the chart decides closed. Otherwise B's tag reduces to my value through the lift's `translate`.
+- **Sites read this round:**
+  - `topo/src/transform.rs`: reflection is `OrientationClass::Net`, the identity on a spline chart.
+  - `geom-brep/src/certify.rs`, `with_chart_v_mirrored`: plane charts only.
+  - `topo/src/replace_face.rs`, `shift_chart_v`: the cone offset.
+  - `topo/src/pcurves/mint.rs`, `shift_v_branch`: `translate` by `period.times(k)`.
+- **Off the question:**
+  - Amend `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`: the cut refuses first (A's probe).
+  - `chart_region.rs`, around line 4339: a diagonal `IsoLine` fixture, which the new type would make unwritable.
+- **Sequencing (A's, which I endorse):** change the certificate first, then the chart-line type, then the arc.
+````
+
