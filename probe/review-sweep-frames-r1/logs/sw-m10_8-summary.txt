@@ -1,0 +1,50 @@
+[bf-leaf] box 1:e2382e0f27e19466=[-2.5e-1,2.5e-1] evals=1 finishes=1 dt_ms=236.2 sym=816 num=1043 verdict=BISECT
+[bf-leaf]   node 17:009af9ec8306579a FAILED Extrude(NotFinished { findings: NotFinished { findings: [OrientationUndecided { solid: SolidKey(1v1), reading: Volume { margin: Some(Indeterminate { margin: MarginDiag(Enclosure { lo: -0.9698533708520891, hi: 2.969853370852091, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 2.2250738585072014e-308, escalate: 4.450147717014403
+[bf-ray] aim at FaceKey(1v1) mode=""
+--
+[bf-leaf] box 1:e2382e0f27e19466=[-2.5e-1,0e0] evals=1 finishes=1 dt_ms=181.7 sym=816 num=1037 verdict=CERTIFIED
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([0.190983006, 0.320054239] w=1.291e-1, [0.618033989, 0.618033989] w=0.000e0, [1.000000000, 1.250000000] w=2.500e-1)
+--
+[bf-leaf] box 1:e2382e0f27e19466=[0e0,2.5e-1] evals=1 finishes=1 dt_ms=159.6 sym=816 num=1035 verdict=CERTIFIED
+[bf-drive] certified=2 refused=0 splits=1 decisions sym=2448 num=3115 frozen=108
+[bf-tally] drive build arc_apex_identity definite 2
+[bf-tally] drive build arc_apex_identity numeric 1
+--
+[bf-leaf] box 1:e2382e0f27e19466=[-2.5e-1,2.5e-1] evals=1 finishes=1 dt_ms=112.4 sym=808 num=1051 verdict=BISECT
+[bf-leaf]   node 17:009af9ec8306579a FAILED Extrude(NotFinished { findings: NotFinished { findings: [OrientationUndecided { solid: SolidKey(1v1), reading: Volume { margin: Some(Indeterminate { margin: MarginDiag(Enclosure { lo: -0.9698533708520891, hi: 2.969853370852091, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 2.2250738585072014e-308, escalate: 4.450147717014403
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984810112, -0.984805394] w=4.719e-6 t=[0.004249986, 0.004250017] w=3.035e-8 p=([-0.001776489, -0.001776480] w=9.366e-9, [-0.000582525, -0.000582515] w=1.045e-8, [0.000999970, 0.001000030] w=5.978e-8)
+--
+[bf-leaf] box 1:e2382e0f27e19466=[-2.5e-1,0e0] evals=1 finishes=1 dt_ms=69.6 sym=808 num=1045 verdict=CERTIFIED
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([0.190983006, 0.320054239] w=1.291e-1, [0.618033989, 0.618033989] w=0.000e0, [1.000000000, 1.250000000] w=2.500e-1)
+--
+[bf-leaf] box 1:e2382e0f27e19466=[0e0,2.5e-1] evals=1 finishes=1 dt_ms=63.8 sym=808 num=1043 verdict=CERTIFIED
+[bf-drive] certified=2 refused=0 splits=1 decisions sym=2424 num=3139 frozen=108
+[bf-tally] drive build canonical_order_x definite 9
+[bf-tally] drive build canonical_order_y definite 3
+--
+thread 'm10_8_pins_interval::m10_8_the_shipped_set_is_inert_on_straight_geometry' (334) panicked at crates/editor-core/tests/m10_8_pins_interval.rs:190:5:
+assertion `left == right` failed: the plain tier on straight geometry
+  left: "decisions symbolic=2424 numeric=3139 frozen=108"
+--
+test m10_8_pins_interval::m10_8_the_shipped_set_is_inert_on_straight_geometry ... FAILED
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_bool_point_in_solid_denom": 2, "side_at_infinity_bool_ray_cylinder_disc": 2, "side_at_infinity_bool_wall_turn_true": 16, "side_at_infinity_curve_carrier_clear": 20, "side_at_infinity_denom": 2, "side_at_infinity_order": 2, "side_at_infinity_pm_census_curved_speed_floor": 6, "side_at_infinity_pm_census_curved_speed_hi": 6, "side
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+--
+[bf-leaf] box 1:e2382e0f27e19466=[-5e-11,5e-11] 2:89dbd35508e1848a=[-2.999976992703383e-11,2.999976992703383e-11] 3:177e9277194fc0b7=[-2.999976992703383e-11,2.999976992703383e-11] evals=1 finishes=4 dt_ms=3044.1 sym=2065 num=2470 verdict=CERTIFIED
+[bf-drive] certified=1 refused=0 splits=0 decisions sym=2065 num=2470 frozen=1010
+[bf-tally] drive build arc_apex_identity definite 2
+[bf-tally] drive build arc_apex_identity numeric 1
+--
+[bf-leaf] box 1:e2382e0f27e19466=[-5e-11,5e-11] 2:89dbd35508e1848a=[-2.999976992703383e-11,2.999976992703383e-11] 3:177e9277194fc0b7=[-2.999976992703383e-11,2.999976992703383e-11] evals=1 finishes=4 dt_ms=3055.0 sym=2065 num=2470 verdict=CERTIFIED
+[bf-drive] certified=1 refused=0 splits=0 decisions sym=2065 num=2470 frozen=1010
+[bf-tally] drive build arc_apex_identity definite 4
+[bf-tally] drive build arc_apex_identity numeric 2
+--
+test m10_8_pins_interval::m10_8_the_a0_set_is_a0_alone ... ok
+
+failures:
+--
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 3132 filtered out; finished in 6.62s
+

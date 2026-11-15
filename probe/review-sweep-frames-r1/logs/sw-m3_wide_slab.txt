@@ -1,0 +1,409 @@
+
+running 1 test
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([0.190983006, 0.190983006] w=0.000e0, [0.618033989, 0.618033989] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=0.000e0 t=[2.854101966, 2.854101966] w=0.000e0 p=([0.190983006, 0.190983006] w=0.000e0, [0.618033989, 0.618033989] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=0.000e0 t=[3.869528578, 3.869528578] w=0.000e0 p=([0.321001034, 0.321001034] w=0.000e0, [0.498926825, 0.498926825] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=0.000e0 t=[8.123039096, 8.123039096] w=0.000e0 p=([0.865632268, 0.865632268] w=0.000e0, [-0.000000000, -0.000000000] w=0.000e0, [-4.188890135, -4.188890135] w=0.000e0)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=0.000e0 t=[9.172436420, 9.172436420] w=0.000e0 p=([1.000000000, 1.000000000] w=0.000e0, [-0.123091849, -0.123091849] w=0.000e0, [-5.222344756, -5.222344756] w=0.000e0)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=0.000e0 t=[-0.402280264, -0.402280264] w=0.000e0 p=([-0.225973169, -0.225973169] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0, [4.206910467, 4.206910467] w=0.000e0)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=0.000e0 t=[1.362545531, 1.362545531] w=0.000e0 p=([0.000000000, 0.000000000] w=0.000e0, [0.792990066, 0.792990066] w=0.000e0, [2.468896342, 2.468896342] w=0.000e0)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.495425023, 0.495425023] w=0.000e0 gap_hi=[0.495425023, 0.495425023] w=0.000e0 along=[[3.929027000, 3.929027000] w=0.000e0, [3.929027000, 3.929027000] w=0.000e0]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.673331587, 0.673331587] w=0.000e0 gap_hi=[0.673331587, 0.673331587] w=0.000e0 along=[[3.957682366, 3.957682366] w=0.000e0, [3.957682366, 3.957682366] w=0.000e0]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.497556309, 0.497556309] w=0.000e0 gap_hi=[0.497556309, 0.497556309] w=0.000e0 along=[[3.809774198, 3.809774198] w=0.000e0, [3.809774198, 3.809774198] w=0.000e0]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.318321744, 0.318321744] w=0.000e0 gap_hi=[0.318321744, 0.318321744] w=0.000e0 along=[[3.827853320, 3.827853320] w=0.000e0, [3.827853320, 3.827853320] w=0.000e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=0.000e0 gap_hi=[0.584726196, 0.584726196] w=0.000e0 along=[[4.447271788, 4.447271788] w=0.000e0, [4.447271788, 4.447271788] w=0.000e0]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=0.000e0 gap_hi=[0.090764099, 0.090764099] w=0.000e0 along=[[8.693609919, 8.693609919] w=0.000e0, [8.693609919, 8.693609919] w=0.000e0]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=0.000e0 gap_hi=[0.828132977, 0.828132977] w=0.000e0 along=[[4.803616350, 4.803616350] w=0.000e0, [4.803616350, 4.803616350] w=0.000e0]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=0.000e0 gap_hi=[0.152642683, 0.152642683] w=0.000e0 along=[[0.557278220, 0.557278220] w=0.000e0, [0.557278220, 0.557278220] w=0.000e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=0.000e0 gap_hi=[0.613696213, 0.613696213] w=0.000e0 along=[[2.927804251, 2.927804251] w=0.000e0, [2.927804251, 2.927804251] w=0.000e0]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=0.000e0 gap_hi=[0.802264398, 0.802264398] w=0.000e0 along=[[2.959135871, 2.959135871] w=0.000e0, [2.959135871, 2.959135871] w=0.000e0]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=0.000e0 gap_hi=[0.379285119, 0.379285119] w=0.000e0 along=[[2.808551449, 2.808551449] w=0.000e0, [2.808551449, 2.808551449] w=0.000e0]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=0.000e0 gap_hi=[0.189388934, 0.189388934] w=0.000e0 along=[[2.829306825, 2.829306825] w=0.000e0, [2.829306825, 2.829306825] w=0.000e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=f64 faces=6 rays=Side(Out)
+[bf-finish] scalar=f64 faces=6 verts=8 fp=3e3dba330ae97de7 dt_ms=2.47 outcome=ok
+[bf-tally] witness build canonical_order_x definite 6
+[bf-tally] witness build canonical_order_y definite 2
+[bf-tally] witness build carrier_endpoint_end definite 24
+[bf-tally] witness build carrier_endpoint_start definite 24
+[bf-tally] witness build carrier_matches_mapped_source definite 108
+[bf-tally] witness build carrier_on_surface_1 definite 108
+[bf-tally] witness build carrier_on_surface_2 definite 108
+[bf-tally] witness build chord_side definite 56
+[bf-tally] witness build contact_at_shared_vertex definite 16
+[bf-tally] witness build dihedral_arm definite 168
+[bf-tally] witness build dihedral_sign definite 84
+[bf-tally] witness build dihedral_wedge definite 168
+[bf-tally] witness build extrusion_normal_component definite 1
+[bf-tally] witness build interval_span_forward definite 24
+[bf-tally] witness build line_span definite 16
+[bf-tally] witness build loop_orientation definite 2
+[bf-tally] witness build path_junction_turn definite 22
+[bf-tally] witness build segment_direction_axis definite 16
+[bf-tally] witness build segment_gap definite 8
+[bf-tally] witness build segment_straightness definite 16
+[bf-tally] witness build side_planes_cosurface definite 4
+[bf-tally] witness build ssi_hull_sup definite 24
+[bf-tally] witness build vertex_separation definite 16
+[bf-tally] witness build witness_at_mid_parameter definite 12
+[bf-tally] witness build witness_on_surface_1 definite 12
+[bf-tally] witness build witness_on_surface_2 definite 12
+[bf-tally] witness finish bool_ring_run_winding definite 6
+[bf-tally] witness finish carrier_endpoint_end definite 12
+[bf-tally] witness finish carrier_endpoint_start definite 12
+[bf-tally] witness finish carrier_on_surface_1 definite 108
+[bf-tally] witness finish carrier_on_surface_2 definite 108
+[bf-tally] witness finish dihedral_arm definite 168
+[bf-tally] witness finish dihedral_sign definite 84
+[bf-tally] witness finish dihedral_wedge definite 168
+[bf-tally] witness finish interval_span_forward definite 12
+[bf-tally] witness finish pcurve_line_chart_incident definite 24
+[bf-tally] witness finish pcurve_point_chart_incident definite 24
+[bf-tally] witness finish positive_volume_exact definite 1
+[bf-tally] witness finish session_box_reach definite 1
+[bf-tally] witness finish side_at_infinity_advance definite 2
+[bf-tally] witness finish side_at_infinity_denom definite 6
+[bf-tally] witness finish side_at_infinity_edge definite 12
+[bf-tally] witness finish side_at_infinity_order definite 2
+[bf-tally] witness finish side_at_infinity_vertex definite 8
+[bf-tally] witness finish side_at_infinity_winding definite 6
+[bf-tally] witness finish ssi_hull_sup definite 24
+[bf-tally] witness finish witness_at_mid_parameter definite 12
+[bf-tally] witness finish witness_on_surface_1 definite 12
+[bf-tally] witness finish witness_on_surface_2 definite 12
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([0.190983006, 0.234555278] w=4.357e-2, [0.618033989, 0.618033989] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-1.092541742, -0.887676164] w=2.049e-1 t=[2.480924719, 3.381085523] w=9.002e-1 p=([0.051690020, 0.416051488] w=3.644e-1, [0.500896470, 0.713206722] w=2.123e-1, [0.016536747, 1.799051290] w=1.783e0)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.887676164, 1.092541742] w=2.049e-1 t=[3.396221555, 4.507622474] w=1.111e0 p=([0.144267041, 0.593944490] w=4.497e-1, [0.354300725, 0.616433677] w=2.621e-1, [-1.214251897, 0.986564105] w=2.201e0)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.095659201, 0.143827396] w=4.817e-2 t=[5.918680495, 11.271229476] w=5.353e0 p=([0.399399285, 1.661994986] w=1.263e0, [-0.525844401, 0.349737649] w=8.756e-1, [-8.603774876, -1.252562572] w=7.351e0)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.087629346, 0.170924332] w=8.329e-2 t=[5.645829613, 15.369194014] w=9.723e0 p=([0.371801984, 2.309110210] w=1.937e0, [-1.059110677, 0.378585788] w=1.438e0, [-13.080972193, -1.010359347] w=1.207e1)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.143827396, -0.095659201] w=4.817e-2 t=[-0.683133642, -0.154048234] w=5.291e-1 p=([-0.307115850, -0.133441478] w=1.737e-1, [0.957162905, 1.064407268] w=1.072e-1, [3.847258761, 4.747661047] w=9.004e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.157911377, -0.101144260] w=5.677e-2 t=[0.746370434, 1.969872288] w=1.224e0 p=([-0.123750190, 0.193204863] w=3.170e-1, [0.684537011, 0.896598702] w=2.121e-1, [1.558346113, 3.338773784] w=1.780e0)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.000000000, 2.089783733] w=2.090e0 gap_hi=[0.000000000, 2.041214898] w=2.041e0 along=[[0.845182035, 18.664912086] w=1.782e1, [0.845182035, 18.664912086] w=1.782e1]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.000000000, 3.126913064] w=3.127e0 gap_hi=[0.000000000, 2.332707579] w=2.333e0 along=[[1.186805042, 13.159136595] w=1.197e1, [1.141351842, 13.113683396] w=1.197e1]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.180902831, 2.658839836] w=2.478e0 gap_hi=[0.000000000, 1.361943434] w=1.362e0 along=[[0.788481660, 18.137568012] w=1.735e1, [0.788481660, 18.137568012] w=1.735e1]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.000000000, 2.284608406] w=2.285e0 gap_hi=[0.000000000, 1.121634459] w=1.122e0 along=[[1.218984517, 12.277893953] w=1.106e1, [1.218984517, 12.277893953] w=1.106e1]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.127190235, 2.216461812] w=2.089e0 gap_hi=[0.033855789, 1.810825699] w=1.777e0 along=[[1.150475369, 17.547757033] w=1.640e1, [1.150475369, 17.547757033] w=1.640e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 4.324352548] w=4.324e0 gap_hi=[0.000000000, 2.978586220] w=2.979e0 along=[[-29.389779984, 115.657400137] w=1.450e2, [-34.841479499, 110.205700622] w=1.450e2]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.078741881, 7.584827121] w=7.506e0 gap_hi=[0.000000000, 3.523316549] w=3.523e0 along=[[-31.427261443, 89.906386890] w=1.213e2, [-36.878960958, 84.454687374] w=1.213e2]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.041730222, 1.861779538] w=1.820e0 gap_hi=[0.000000000, 0.425953031] w=4.260e-1 along=[[-0.731425522, 3.535836866] w=4.267e0, [-0.731425522, 3.535836866] w=4.267e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.009940312, 2.392592216] w=2.383e0 gap_hi=[0.000683907, 2.159486089] w=2.159e0 along=[[0.624079457, 14.131842335] w=1.351e1, [0.624079457, 14.131842335] w=1.351e1]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.019100012, 3.463797161] w=3.445e0 gap_hi=[0.000000000, 2.414159128] w=2.414e0 along=[[0.873688992, 10.037377810] w=9.164e0, [0.828235792, 9.991924610] w=9.164e0]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.134708371, 2.540568645] w=2.406e0 gap_hi=[0.000000000, 1.059134951] w=1.059e0 along=[[0.567379083, 13.604498262] w=1.304e1, [0.567379083, 13.604498262] w=1.304e1]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.000000000, 2.178401991] w=2.178e0 gap_hi=[0.000000000, 0.812028721] w=8.120e-1 along=[[0.891573574, 9.231957315] w=8.340e0, [0.891573574, 9.231957315] w=8.340e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 4, "side_at_infinity_denom": 6, "side_at_infinity_edge": 7, "side_at_infinity_edge_span": 2, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.0897837331642037, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.1137781395591138, hi: 7.38460928751562, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -4.9273636419412625, hi: 3.557323697975569, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 3.126913064253367, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.0458973918663093, hi: 4.896569602388226, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.8104974041143334, hi: 4.2062552942047, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.284608405662003, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -0.7513764772684602, hi: 4.231369162645053, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.8731492881235368, hi: 3.679097175932026, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 4.324352547829264, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -32.115629741016846, hi: 112.93155037934339, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -132.0994916927438, hi: 83.45805607635262, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -139.67722326930092, hi: 38.11589981206478, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.17840199070289, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -0.7248462299385092, hi: 4.257899409975008, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.3558681367115697, hi: 4.196378327343997, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(1v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -10.988088321400516, hi: 36.797775283764516, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-ray] aim at FaceKey(2v1) mode=""
+[bf-ray]   aim(as built)=([0.190983006, 0.234555278] w=4.357e-2, [0.381966011, 0.381966011] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([-0.000000000, -0.000000000] w=0.000e0, [-0.000000000, -0.000000000] w=0.000e0, [-1.000000000, -1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Positive denom=[0.890196086, 1.089442748] w=1.992e-1 t=[3.405882341, 4.485299223] w=1.079e0 p=([-0.163073871, 0.278209317] w=4.413e-1, [0.122793242, 0.377308050] w=2.545e-1, [0.039107316, 2.175962894] w=2.137e0)
+[bf-ray]   plane FaceKey(2v1) outward=Negative denom=[-1.089442748, -0.890196086] w=1.992e-1 t=[2.487981880, 3.361951216] w=8.740e-1 p=([0.013862935, 0.371313234] w=3.575e-1, [0.268559369, 0.474631871] w=2.061e-1, [-0.778004082, 0.952139554] w=1.730e0)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.095930757, 0.143419429] w=4.749e-2 t=[4.446281038, 8.507791180] w=4.062e0 p=([-0.796650352, 0.172680234] w=9.693e-1, [-0.399167069, 0.266995896] w=6.662e-1, [0.965266164, 6.558237584] w=5.593e0)
+[bf-ray]   plane FaceKey(4v1) outward=Negative denom=[-0.170484496, -0.087951959] w=8.253e-2 t=[-6.599560541, -1.471482013] w=5.128e0 p=([0.692653128, 1.663159252] w=9.705e-1, [0.860826996, 1.594791287] w=7.340e-1, [-10.182639183, -4.020421344] w=6.162e0)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.143419429, -0.095930757] w=4.749e-2 t=[-3.401049540, -1.650118712] w=1.751e0 p=([0.710772496, 1.159366736] w=4.486e-1, [0.879767619, 1.179751105] w=3.000e-1, [-6.698044569, -4.179443035] w=2.519e0)
+[bf-ray]   plane FaceKey(6v1) outward=Positive denom=[0.101431387, 0.157508452] w=5.608e-2 t=[3.449965126, 6.148714963] w=2.699e0 p=([-0.425075909, 0.273737939] w=6.988e-1, [-0.093052310, 0.372634008] w=4.657e-1, [0.078349639, 3.988159109] w=3.910e0)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.000000000, 1.752439402] w=1.752e0 gap_hi=[0.000000000, 1.490148659] w=1.490e0 along=[[0.652266808, 13.228832152] w=1.258e1, [0.652266808, 13.228832152] w=1.258e1]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.236782583, 3.609633887] w=3.373e0 gap_hi=[0.000000000, 2.059635273] w=2.060e0 along=[[0.644251506, 8.874888762] w=8.231e0, [0.623391009, 8.854028265] w=8.231e0]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.234994708, 2.888653456] w=2.654e0 gap_hi=[0.000000000, 1.597944190] w=1.598e0 along=[[0.481696094, 12.843890396] w=1.236e1, [0.481696094, 12.843890396] w=1.236e1]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.000000000, 1.717677432] w=1.718e0 gap_hi=[0.000000000, 0.966458951] w=9.665e-1 along=[[0.956800808, 8.903507983] w=7.947e0, [0.956800808, 8.903507983] w=7.947e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.000000000, 1.083885627] w=1.084e0 gap_hi=[0.000000000, 0.985343402] w=9.853e-1 along=[[1.378832650, 20.656700049] w=1.928e1, [1.378832650, 20.656700049] w=1.928e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 5.219193314] w=5.219e0 gap_hi=[0.000000000, 4.771513004] w=4.772e0 along=[[-41.288264684, 44.104162980] w=8.539e1, [-46.458440526, 38.933987137] w=8.539e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.000000000, 6.030252009] w=6.030e0 gap_hi=[0.000000000, 1.876620960] w=1.877e0 along=[[-49.043319864, 25.508318703] w=7.455e1, [-54.213495707, 20.338142861] w=7.455e1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.240270871, 2.451063613] w=2.211e0 gap_hi=[0.000000000, 1.495416433] w=1.495e0 along=[[-3.454508362, 10.304422403] w=1.376e1, [-3.454508362, 10.304422403] w=1.376e1]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.000000000, 1.460373250] w=1.460e0 gap_hi=[0.000000000, 1.371877469] w=1.372e0 along=[[0.885680945, 17.522864620] w=1.664e1, [0.885680945, 17.522864620] w=1.664e1]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.276613411, 3.691712553] w=3.415e0 gap_hi=[0.000000000, 2.385131715] w=2.385e0 along=[[0.975026854, 11.831726055] w=1.086e1, [0.954166357, 11.810865558] w=1.086e1]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.282888223, 3.006924646] w=2.724e0 gap_hi=[0.000000000, 1.890010342] w=1.890e0 along=[[0.715110231, 17.137922864] w=1.642e1, [0.715110231, 17.137922864] w=1.642e1]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.000000000, 1.418470963] w=1.418e0 gap_hi=[0.000000000, 0.860504751] w=8.605e-1 along=[[1.302414009, 11.788982817] w=1.049e1, [1.302414009, 11.788982817] w=1.049e1]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 5, "side_at_infinity_denom": 6, "side_at_infinity_edge": 5, "side_at_infinity_edge_span": 2, "side_at_infinity_vertex": 7}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 2.4359615970302184, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.7524394016226976, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.3962731344123975, hi: 5.061181143907283, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -4.069580275211456, hi: 3.387874003108231, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.7176774319570207, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.3143260788020708, hi: 3.0399885492029988, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.3835009478132116, hi: 2.9708136801918608, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.0838856265377295, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -16.447531100547728, hi: 36.12359836487364, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -24.111670523552597, hi: 28.459458941868775, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 5.219193313507049, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -43.87335260504088, hi: 41.51907505821566, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -81.23833608022399, hi: 118.63790398540425, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -150.39862554247804, hi: 36.341165100901215, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 6.030252008808081, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -51.62840778561602, hi: 22.923230781970688, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -91.8712047945845, hi: 118.2808190234595, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -185.56617521125932, hi: 10.279008411360348, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.4603732500199038, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -3.2060635759512723, hi: 4.251390702368411, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -4.088622297114337, hi: 3.3688319812053527, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.4184709625852903, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.4120162972518047, hi: 2.942298330753272, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.795582502076396, hi: 2.5587321259286773, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(2v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-ray] aim at FaceKey(3v1) mode=""
+[bf-ray]   aim(as built)=([0.531214928, 0.717244708] w=1.860e-1, [0.000000000, 0.000000000] w=0.000e0, [0.536028903, 0.955520585] w=4.195e-1)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [-1.105263158, -0.904761905] w=2.005e-1, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   definite: {}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.117274583235261, hi: 0.45120623956100164, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_denom") }
+[bf-ray] => FaceKey(3v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -2.117274583235261, hi: 0.45120623956100164, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_denom") } })))
+[bf-ray] aim at FaceKey(4v1) mode=""
+[bf-ray]   aim(as built)=([0.887888353, 1.112111647] w=2.242e-1, [0.614966804, 0.621116472] w=6.150e-3, [0.759631595, 0.816166648] w=5.654e-2)
+[bf-ray]   normal(as built)=([0.995037190, 1.000000000] w=4.963e-3, [-0.100000000, 0.100000000] w=2.000e-1, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.186814580, -0.069669653] w=1.171e-1 t=[0.330269120, 2.833980299] w=2.504e0 p=([-0.692859368, 4.088691690] w=4.782e0, [-0.106058134, 1.433511533] w=1.540e0, [0.532270248, 1.174432690] w=6.422e-1)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.069669653, 0.186814580] w=1.171e-1 t=[5.683170385, 17.187431968] w=1.150e1 p=([-21.633762001, 0.550226104] w=2.218e1, [-0.001905073, 5.926552595] w=5.928e0, [-2.149163793, 0.801497915] w=2.951e0)
+[bf-ray]   plane FaceKey(3v1) outward=Negative denom=[-0.345978993, -0.017604233] w=3.284e-1 t=[-34.304807691, 7.062206735] w=4.137e1 p=([-6.861610979, 54.355853992] w=6.122e1, [-10.850870642, 2.757067388] w=1.361e1, [-0.257624096, 7.606080656] w=7.864e0)
+[bf-ray]   plane FaceKey(4v1) outward=Negative denom=[-1.490248285, -0.626453499] w=8.638e-1 t=[1.560313081, 5.445976836] w=3.886e0 p=([-4.503619764, 3.275587167] w=7.779e0, [-0.082124787, 2.251141185] w=2.333e0, [0.044311213, 1.088735953] w=1.044e0)
+[bf-ray]   plane FaceKey(5v1) outward=Positive denom=[0.017604233, 0.345978993] w=3.284e-1 t=[1.186213279, 69.846148936] w=6.866e1 p=([-98.459956162, 3.522880964] w=1.020e2, [-0.089403763, 22.410237711] w=2.250e1, [-11.986579871, 1.114799357] w=1.310e1)
+[bf-ray]   plane FaceKey(6v1) outward=Positive denom=[0.661036961, 1.458945424] w=7.979e-1 t=[2.359076059, 6.515538521] w=4.156e0 p=([-6.064051890, 2.747575316] w=8.812e0, [-0.066583008, 2.585944595] w=2.653e0, [-0.155498504, 1.033086414] w=1.189e0)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.000000000, 121.276475629] w=1.213e2 gap_hi=[0.000000000, 70.272851290] w=7.027e1 along=[[-1318.390945667, 1792.864667389] w=3.111e3, [-1318.390945666, 1792.864667390] w=3.111e3]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.000000000, 52.494494487] w=5.249e1 gap_hi=[0.000000000, 28.275226179] w=2.828e1 along=[[-7.972348964, 530.150467546] w=5.381e2, [-16.259599201, 521.863217309] w=5.381e2]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.000000000, 96.360710447] w=9.636e1 gap_hi=[0.000000000, 56.205406071] w=5.621e1 along=[[-378.935131432, 4205.784591590] w=4.585e3, [-378.935131432, 4205.784591590] w=4.585e3]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.000000000, 30.386846562] w=3.039e1 gap_hi=[0.000000000, 17.310288035] w=1.731e1 along=[[0.062525300, 256.899676409] w=2.568e2, [0.062525301, 256.899676409] w=2.568e2]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.000000000, 58.005496599] w=5.801e1 gap_hi=[0.000000000, 23.774551363] w=2.377e1 along=[[-7.759711157, 251.760529295] w=2.595e2, [-7.759711157, 251.760529295] w=2.595e2]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 74.528291146] w=7.453e1 gap_hi=[0.000000000, 25.511175924] w=2.551e1 along=[[-14.009630883, 319.608830719] w=3.336e2, [-23.129883460, 310.488578142] w=3.336e2]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.000000000, 71.645949079] w=7.165e1 gap_hi=[0.000000000, 22.991449710] w=2.299e1 along=[[-5.499374536, 342.011067321] w=3.475e2, [-14.619627113, 332.890814744] w=3.475e2]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.000000000, 52.900303495] w=5.290e1 gap_hi=[0.000000000, 18.669358259] w=1.867e1 along=[[-2.188873312, 266.068797365] w=2.683e2, [-2.188873312, 266.068797365] w=2.683e2]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.000000000, 100.129720144] w=1.001e2 gap_hi=[0.000000000, 22.956161740] w=2.296e1 along=[[-1318.405543288, 522.282409720] w=1.841e3, [-1318.405543287, 522.282409720] w=1.841e3]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.000000000, 42.055569170] w=4.206e1 gap_hi=[0.000000000, 10.205547205] w=1.021e1 along=[[-7.973593305, 511.430812352] w=5.194e2, [-16.260843542, 503.143562116] w=5.194e2]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.000000000, 106.210821556] w=1.062e2 gap_hi=[0.000000000, 29.037263152] w=2.904e1 along=[[-378.949729053, 2935.202333920] w=3.314e3, [-378.949729053, 2935.202333920] w=3.314e3]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.000000000, 25.476601823] w=2.548e1 gap_hi=[0.000000000, 8.165908012] w=8.166e0 along=[[0.060864547, 249.431395144] w=2.494e2, [0.060864547, 249.431395144] w=2.494e2]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 11.214456904037815, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 12.211685806581327, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 11.958445986976457, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 10.938164417298777, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 11.291172424499253, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 12.280187404042112, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 12.028919157950531, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 11.017371199605064, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_vertex") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 121.27647562851381, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1318.39094566632, hi: 1792.8646673896098, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -7336.399464345471, hi: 35410.62699306434, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -34483.78653886075, hi: 15636.306698644763, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 52.49449448696563, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -12.11597408265436, hi: 526.0068424276966, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -141.72015014636008, hi: 2242.0075800441105, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1607.4936262672745, hi: 794.2094356166259, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 96.36071044700205, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -378.93513143193417, hi: 4205.784591590115, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -9976.988240333956, hi: 41060.79306545288, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -27487.257752922655, hi: 15288.254412683691, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 30.38684656221037, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -238.36671076447558, hi: 784.1710942909119, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -647.6700521959502, hi: 278.9333026438359, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 58.00549659947244, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -7.759711157118221, hi: 251.76052929463623, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -124.05480643538573, hi: 485.4412955773933, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -173.6447601826729, hi: 281.6583567161005, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 74.52829114611359, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -18.569757171387877, hi: 315.0487044300963, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -163.8885107738087, hi: 862.0071308633774, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -324.6631813770212, hi: 452.97198504195256, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 71.64594907868849, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -10.059500824239587, hi: 337.4509410328586, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -179.8378794787922, hi: 842.8159550308635, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -314.7792757279665, hi: 453.48171967476475, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 52.900303495038514, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.1888733122924573, hi: 266.0687973649376, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -131.0457008040992, hi: 478.45040120867975, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -176.92687966773502, hi: 278.93649417291493, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 100.12972014422662, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1318.4055432874572, hi: 522.2824097196213, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -3006.6563407781323, hi: 39740.3701166315, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -31489.307837659155, hi: 15636.310807275673, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 42.05556916971112, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -12.117218423461209, hi: 507.28718723412936, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -132.3116362378517, hi: 2241.5932700724175, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1631.6717461589312, hi: 770.0313157249678, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 106.21082155635678, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -378.94972905307696, hi: 2935.202333920131, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_advance") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -9976.992348964588, hi: 38066.314364251295, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -31817.00087648981, hi: 10958.511289116072, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 25.476601822779422, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -231.4371379839507, hi: 791.1006670714366, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -644.5730903713646, hi: 277.95504714023883, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(4v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-ray] aim at FaceKey(5v1) mode=""
+[bf-ray]   aim(as built)=([0.232755292, 0.518785072] w=2.860e-1, [1.000000000, 1.000000000] w=0.000e0, [0.612902604, 0.922015769] w=3.091e-1)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.904761905, 1.105263158] w=2.005e-1, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   definite: {}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.8337152881684389, hi: 0.20307771331791202, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_denom") }
+[bf-ray] => FaceKey(5v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.8337152881684389, hi: 0.20307771331791202, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_denom") } })))
+[bf-ray] aim at FaceKey(6v1) mode=""
+[bf-ray]   aim(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.381966011, 0.381966011] w=0.000e0, [0.809016994, 0.809016994] w=2.220e-16)
+[bf-ray]   normal(as built)=([-1.000000000, -1.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.129580387, -0.106179191] w=2.340e-2 t=[1.047103587, 1.600038229] w=5.529e-1 p=([-2.096373973, -1.001900446] w=1.094e0, [0.512231131, 0.654532421] w=1.423e-1, [0.928350515, 1.058710153] w=1.304e-1)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.106179191, 0.129580387] w=2.340e-2 t=[8.764320856, 11.018079430] w=2.254e0 p=([4.783211284, 9.244279393] w=4.461e0, [-0.819956965, -0.239937687] w=5.800e-1, [-0.292042908, 0.239302263] w=5.313e-1)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.104867137, 0.156340198] w=5.147e-2 t=[4.274132816, 8.177692832] w=3.904e0 p=([0.780391308, 6.154134503] w=5.374e0, [-0.418182420, 0.280501072] w=6.987e-1, [0.076015486, 0.716066799] w=6.401e-1)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.872890111, 1.102076157] w=2.292e-1 t=[3.263582243, 4.762814871] w=1.499e0 p=([-0.120473419, 2.438982597] w=2.559e0, [0.064854304, 0.397629728] w=3.328e-1, [0.518516694, 0.823366242] w=3.048e-1)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.156340198, -0.104867137] w=5.147e-2 t=[-2.755512127, -1.296909897] w=1.459e0 p=([-6.027631539, -3.898774197] w=2.129e0, [0.888876944, 1.165666777] w=2.768e-1, [1.273388932, 1.526951093] w=2.536e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-1.087931091, -0.891459320] w=1.965e-1 t=[2.520960936, 3.398724044] w=8.778e-1 p=([-0.782490103, 0.954945776] w=1.737e0, [0.257805845, 0.483703831] w=2.259e-1, [0.695276111, 0.902217171] w=2.069e-1)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.027570892, 1.785801700] w=1.758e0 gap_hi=[0.000000000, 1.568846862] w=1.569e0 along=[[1.585673281, 37.375516721] w=3.579e1, [1.585673281, 37.375516721] w=3.579e1]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.141659076, 2.364715878] w=2.223e0 gap_hi=[0.011066359, 2.195344649] w=2.184e0 along=[[1.035597874, 14.868330866] w=1.383e1, [0.857560604, 14.690293595] w=1.383e1]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.373344648, 3.357871461] w=2.985e0 gap_hi=[0.282618887, 2.752417090] w=2.470e0 along=[[-4.361386002, 21.480065085] w=2.584e1, [-4.361386002, 21.480065085] w=2.584e1]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.207734481, 2.482736244] w=2.275e0 gap_hi=[0.161814125, 2.194185132] w=2.032e0 along=[[0.902625658, 10.129184819] w=9.227e0, [0.902625658, 10.129184819] w=9.227e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.000000000, 1.786471388] w=1.786e0 gap_hi=[0.000000000, 1.314515944] w=1.315e0 along=[[0.887937879, 9.979508333] w=9.092e0, [0.887937879, 9.979508333] w=9.092e0]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 1.601906482] w=1.602e0 gap_hi=[0.000000000, 1.257166100] w=1.257e0 along=[[1.058255159, 14.743347579] w=1.369e1, [0.715187433, 14.400279853] w=1.369e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.311988369, 3.032658050] w=2.721e0 gap_hi=[0.000000000, 1.767612257] w=1.768e0 along=[[0.913444842, 14.389290180] w=1.348e1, [0.570377116, 14.046222454] w=1.348e1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.265608059, 2.736427516] w=2.471e0 gap_hi=[0.000000000, 1.409013054] w=1.409e0 along=[[0.749546394, 9.648824437] w=8.899e0, [0.749546394, 9.648824437] w=8.899e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.063095469, 1.879887940] w=1.817e0 gap_hi=[0.000000000, 1.288050995] w=1.288e0 along=[[0.769114618, 18.844025191] w=1.807e1, [0.769114618, 18.844025191] w=1.807e1]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.026121323, 1.959545053] w=1.933e0 gap_hi=[0.000000000, 0.953808271] w=9.538e-1 along=[[1.000335760, 14.457358838] w=1.346e1, [0.822298489, 14.279321567] w=1.346e1]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.094932870, 2.213754265] w=2.119e0 gap_hi=[0.000000000, 0.799508110] w=7.995e-1 along=[[-5.177944666, 2.948573556] w=8.127e0, [-5.177944666, 2.948573556] w=8.127e0]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.000000000, 1.702440784] w=1.702e0 gap_hi=[0.000000000, 0.642163031] w=6.422e-1 along=[[0.865268840, 9.748498465] w=8.883e0, [0.865268840, 9.748498465] w=8.883e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 3, "side_at_infinity_denom": 6, "side_at_infinity_edge": 9, "side_at_infinity_edge_span": 2, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.7864713881016927, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -0.7278129201152292, hi: 4.645846885371958, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -3.67894672190308, hi: 1.694713083584106, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.6019064819447497, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -0.008633542036048132, hi: 5.873014027776887, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.3310915762620117, hi: 5.322836950692781, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.7024407841094908, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -1.6807883395713423, hi: 4.185127922450581, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -2.2941573848988335, hi: 3.571758877123091, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(6v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(3v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Unread aimed=6 set_aside=6
+[bf-side]   volume fallback -> Ok(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=7525a54e7bc17ca4 dt_ms=512.35 outcome=ok
+[bf-leaf] box 1:e2382e0f27e19466=[-5e-2,5e-2] evals=1 finishes=1 dt_ms=608.7 sym=816 num=1134 verdict=CERTIFIED
+[bf-drive] certified=1 refused=0 splits=0 decisions sym=816 num=1134 frozen=234
+[bf-tally] drive build canonical_order_x definite 3
+[bf-tally] drive build canonical_order_y definite 1
+[bf-tally] drive build carrier_endpoint_end definite 24
+[bf-tally] drive build carrier_endpoint_end symbolic 24
+[bf-tally] drive build carrier_endpoint_start definite 24
+[bf-tally] drive build carrier_endpoint_start symbolic 24
+[bf-tally] drive build carrier_matches_mapped_source definite 108
+[bf-tally] drive build carrier_matches_mapped_source symbolic 108
+[bf-tally] drive build carrier_on_surface_1 definite 108
+[bf-tally] drive build carrier_on_surface_1 symbolic 108
+[bf-tally] drive build carrier_on_surface_2 definite 108
+[bf-tally] drive build carrier_on_surface_2 symbolic 108
+[bf-tally] drive build chord_side definite 56
+[bf-tally] drive build chord_side numeric 20
+[bf-tally] drive build chord_side symbolic 8
+[bf-tally] drive build contact_at_shared_vertex definite 16
+[bf-tally] drive build contact_at_shared_vertex symbolic 8
+[bf-tally] drive build dihedral_arm definite 168
+[bf-tally] drive build dihedral_arm numeric 168
+[bf-tally] drive build dihedral_sign definite 84
+[bf-tally] drive build dihedral_sign numeric 84
+[bf-tally] drive build dihedral_wedge definite 168
+[bf-tally] drive build dihedral_wedge numeric 168
+[bf-tally] drive build extrusion_normal_component definite 1
+[bf-tally] drive build extrusion_normal_component numeric 1
+[bf-tally] drive build interval_span_forward definite 24
+[bf-tally] drive build interval_span_forward numeric 24
+[bf-tally] drive build line_span definite 16
+[bf-tally] drive build line_span symbolic 8
+[bf-tally] drive build loop_orientation definite 1
+[bf-tally] drive build path_junction_turn definite 22
+[bf-tally] drive build path_junction_turn numeric 11
+[bf-tally] drive build segment_direction_axis definite 16
+[bf-tally] drive build segment_direction_axis numeric 4
+[bf-tally] drive build segment_direction_axis symbolic 4
+[bf-tally] drive build segment_gap definite 8
+[bf-tally] drive build segment_gap numeric 4
+[bf-tally] drive build segment_straightness definite 16
+[bf-tally] drive build segment_straightness symbolic 8
+[bf-tally] drive build side_planes_cosurface definite 4
+[bf-tally] drive build side_planes_cosurface numeric 4
+[bf-tally] drive build ssi_hull_sup definite 24
+[bf-tally] drive build ssi_hull_sup symbolic 24
+[bf-tally] drive build vertex_separation definite 16
+[bf-tally] drive build vertex_separation numeric 8
+[bf-tally] drive build witness_at_mid_parameter definite 12
+[bf-tally] drive build witness_at_mid_parameter symbolic 12
+[bf-tally] drive build witness_on_surface_1 definite 12
+[bf-tally] drive build witness_on_surface_1 symbolic 12
+[bf-tally] drive build witness_on_surface_2 definite 12
+[bf-tally] drive build witness_on_surface_2 symbolic 12
+[bf-tally] drive finish bool_ring_run_winding definite 6
+[bf-tally] drive finish bool_ring_run_winding numeric 6
+[bf-tally] drive finish carrier_endpoint_end definite 12
+[bf-tally] drive finish carrier_endpoint_end symbolic 12
+[bf-tally] drive finish carrier_endpoint_start definite 12
+[bf-tally] drive finish carrier_endpoint_start symbolic 12
+[bf-tally] drive finish carrier_on_surface_1 definite 108
+[bf-tally] drive finish carrier_on_surface_1 symbolic 108
+[bf-tally] drive finish carrier_on_surface_2 definite 108
+[bf-tally] drive finish carrier_on_surface_2 symbolic 108
+[bf-tally] drive finish dihedral_arm definite 168
+[bf-tally] drive finish dihedral_arm numeric 168
+[bf-tally] drive finish dihedral_sign definite 84
+[bf-tally] drive finish dihedral_sign numeric 84
+[bf-tally] drive finish dihedral_wedge definite 168
+[bf-tally] drive finish dihedral_wedge numeric 168
+[bf-tally] drive finish interval_span_forward definite 12
+[bf-tally] drive finish interval_span_forward numeric 12
+[bf-tally] drive finish pcurve_line_chart_incident definite 24
+[bf-tally] drive finish pcurve_line_chart_incident symbolic 24
+[bf-tally] drive finish pcurve_point_chart_incident definite 24
+[bf-tally] drive finish pcurve_point_chart_incident symbolic 24
+[bf-tally] drive finish positive_volume_exact definite 1
+[bf-tally] drive finish session_box_reach definite 1
+[bf-tally] drive finish session_box_reach numeric 1
+[bf-tally] drive finish side_at_infinity_advance definite 14
+[bf-tally] drive finish side_at_infinity_advance escalated 13
+[bf-tally] drive finish side_at_infinity_advance numeric 27
+[bf-tally] drive finish side_at_infinity_denom definite 24
+[bf-tally] drive finish side_at_infinity_denom escalated 2
+[bf-tally] drive finish side_at_infinity_denom numeric 26
+[bf-tally] drive finish side_at_infinity_edge definite 21
+[bf-tally] drive finish side_at_infinity_edge escalated 27
+[bf-tally] drive finish side_at_infinity_edge numeric 48
+[bf-tally] drive finish side_at_infinity_edge_span definite 6
+[bf-tally] drive finish side_at_infinity_edge_span escalated 54
+[bf-tally] drive finish side_at_infinity_edge_span numeric 60
+[bf-tally] drive finish side_at_infinity_vertex definite 23
+[bf-tally] drive finish side_at_infinity_vertex escalated 9
+[bf-tally] drive finish side_at_infinity_vertex numeric 32
+[bf-tally] drive finish side_at_infinity_winding definite 2
+[bf-tally] drive finish side_at_infinity_winding escalated 4
+[bf-tally] drive finish side_at_infinity_winding numeric 6
+[bf-tally] drive finish ssi_hull_sup definite 24
+[bf-tally] drive finish ssi_hull_sup symbolic 24
+[bf-tally] drive finish witness_at_mid_parameter definite 12
+[bf-tally] drive finish witness_at_mid_parameter symbolic 12
+[bf-tally] drive finish witness_on_surface_1 definite 12
+[bf-tally] drive finish witness_on_surface_1 symbolic 12
+[bf-tally] drive finish witness_on_surface_2 definite 12
+[bf-tally] drive finish witness_on_surface_2 symbolic 12
+[m3] wide slab: max_leaves=32 receipt=Receipt { certified: 1, refused: 0, splits: 0 } decisions=SymCounts { symbolic: 816, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1017, checks_frozen: 8, numeric: 1134, retried: 0, frozen: 234 } dt_s=0.64
+[m3] wide slab: mass certified=Ok(1.0) refused={} unanalyzed=Ok(0.0)
+[m3] wide slab: refused classes {}
+test boxfinish_m3_probe::m3_wide_slab ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3133 filtered out; finished in 0.65s
+

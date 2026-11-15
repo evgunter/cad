@@ -1,0 +1,68 @@
+   Compiling sweep v0.0.0 (/home/user/rsf-r1-base/crates/sweep)
+    Finished `test` profile [optimized + debuginfo] target(s) in 5m 25s
+     Running tests/all.rs (/home/user/review-sweep-frames-r1-base-target/debug/deps/all-4aa1e06c97906f1b)
+
+running 2 tests
+test split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image ... FAILED
+test m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image ... FAILED
+
+failures:
+
+---- split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image stdout ----
+
+thread 'split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image' (15404) panicked at crates/sweep/tests/split_edge_loft_charts.rs:150:21:
+assertion `left == right` failed: IsoLine @0.02: HalfEdgeKey(1v1)'s image is not the parent's
+  left: Some("IsoLine { p0: Point2 { x: 0.0, y: 0.0 }, pl: Vec2 { x: 0.5, y: 0.0 }, ends: Some([Point2 { x: 0.0, y: 0.0 }, Point2 { x: 0.02, y: 0.0 }]) }")
+ right: Some("IsoLine { p0: Point2 { x: 0.0, y: 0.0 }, pl: Vec2 { x: 0.5, y: 0.0 }, ends: Some([Point2 { x: 0.0, y: 0.0 }, Point2 { x: 1.0, y: 0.0 }]) }")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<core::option::Option<alloc::string::String>, core::option::Option<alloc::string::String>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: a_split_on_a_spline_chart_carries_the_parents_image
+             at ./tests/split_edge_loft_charts.rs:150:21
+   5: {closure#0}
+             at ./tests/split_edge_loft_charts.rs:123:57
+   6: call_once<all::split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image::{closure_env#0}, ()>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image stdout ----
+
+thread 'm8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image' (15403) panicked at crates/sweep/tests/m8_4_intersection_iso.rs:341:5:
+assertion `left == right` failed: the stored cache is the derived image
+  left: "IsoLine { p0: Point2 { x: 1.0, y: 0.0 }, pl: Vec2 { x: 0.0, y: 1.0 }, ends: Some([Point2 { x: 1.0, y: 0.0 }, Point2 { x: 1.0, y: 1.0 }]) }"
+ right: "IsoLine { p0: Point2 { x: 1.0, y: 0.0 }, pl: Vec2 { x: 0.0, y: 1.0 }, ends: None }"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<alloc::string::String, alloc::string::String>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: a_boundary_column_intersection_mints_its_iso_image
+             at ./tests/m8_4_intersection_iso.rs:341:5
+   5: {closure#0}
+             at ./tests/m8_4_intersection_iso.rs:315:56
+   6: call_once<all::m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image::{closure_env#0}, ()>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image
+    split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 3763 filtered out; finished in 0.27s
+
+error: test failed, to rerun pass `-p sweep --test all`

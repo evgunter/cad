@@ -1,0 +1,6 @@
+        FAIL [   0.248s] (734/806) sweep::all split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image
+        FAIL [   1.046s] (489/806) sweep::all m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image
+        FAIL [   1.853s] ( 10/806) step-export::all export::committed_fixtures_are_byte_golden
+        FAIL [   2.312s] ( 11/806) step-export::all kernel_sidecars::kernel_sidecar_fields_match_live_kernel
+     Summary [1038.902s] 806 tests run: 802 passed (15 slow), 4 failed, 3120 skipped
+    Starting 806 tests across 3 binaries (3120 tests and 1 binary skipped)

@@ -1,0 +1,90 @@
+   Compiling wait-timeout v0.2.1
+   Compiling itertools v0.10.5
+   Compiling bit-vec v0.8.0
+   Compiling iana-time-zone v0.1.65
+   Compiling topo v0.0.0 (/home/user/rsf-r1-base/crates/topo)
+   Compiling quick-error v1.2.3
+   Compiling fnv v1.0.7
+   Compiling rusty-fork v0.3.1
+   Compiling chrono v0.4.45
+   Compiling bit-set v0.8.0
+   Compiling ruststep v0.4.0
+   Compiling truck-modeling v0.6.0
+   Compiling profile v0.0.0 (/home/user/rsf-r1-base/crates/profile)
+   Compiling rand v0.9.5
+   Compiling rand_chacha v0.9.0
+   Compiling rand_xorshift v0.4.0
+   Compiling unarray v0.1.4
+   Compiling proptest v1.11.0
+   Compiling truck-stepio v0.3.0
+   Compiling test-utils v0.0.0 (/home/user/rsf-r1-base/crates/test-utils)
+   Compiling step-export v0.0.0 (/home/user/rsf-r1-base/crates/step-export)
+   Compiling sweep v0.0.0 (/home/user/rsf-r1-base/crates/sweep)
+    Finished `test` profile [optimized + debuginfo] target(s) in 5m 00s
+     Running tests/all.rs (/home/user/review-sweep-frames-r1-base-target/debug/deps/all-d793739b58472ec2)
+
+running 61 tests
+test export::a_mid_surgery_body_cannot_reach_the_writer ... ok
+test every_suite_file_is_aggregated ... ok
+test export::boss_union_seam_vertices_are_exactly_on_the_plate_top ... ok
+test export::cube_reconstructs_6_12_8 ... ok
+test export::byte_identity_same_body_and_same_recipe ... ok
+test export::an_inside_out_body_refuses_at_the_gate_not_the_writer ... ok
+test export::cube_syntactic_parse_and_instance_pin ... ok
+test export::cube_vertex_coordinates_survive ... ok
+test export::empty_body_refuses_typed ... ok
+test export::die_reconstructs_matching_kernel_census ... ok
+test export::part21_basic_alphabet_bounds ... ok
+test export::preamble_conformance_pins ... ok
+test export::product_name_escaping ... ok
+test export::uncertainty_override_and_validation ... ok
+test export::voided_body_refuses_typed ... ok
+test export::kiss_assembly_exports_two_solids ... ok
+test m5_pr13_curved::an_inside_out_ball_cannot_reach_the_writer ... ok
+test export::curved_bodies_export_rather_than_refuse ... ok
+test m5_pr13_curved::emitted_conic_carriers_equal_the_kernel_carriers_bitwise ... ok
+test m5_pr13_curved::epsilon_reaches_only_the_uncertainty_record ... ok
+test m5_pr13_curved::hollow_ring_refuses_as_a_void ... ok
+test export::committed_fixtures_are_byte_golden ... ok
+test m5_pr13_curved::the_wireframe_splice_carries_the_writers_own_rational_record ... ok
+test m5_pr13_curved::two_curved_stubs_are_two_solids_and_export_at_both_tolerances ... ok
+test m5_pr13_curved::walk_order_diverges_from_arena_order_on_boolean_results ... ok
+test m5_s11_same_sense::a_flipped_face_bit_refuses_at_the_gate ... ok
+test m5_s11_same_sense::notched_body_exports_with_exactly_one_reversed_cylinder_wall ... ok
+test m6_6_sense_gate::a_one_face_conic_trimmed_wall_flip_refuses ... ok
+test m6_6_sense_gate::ball_half_flip_is_caught_at_the_shared_edge ... ok
+test m6_6_sense_gate::cone_lateral_flip_refuses ... ok
+test m6_6_sense_gate::countersink_cone_bore_both_directions ... ok
+test m6_6_sense_gate::cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both_planes ... ok
+test kernel_sidecars::kernel_sidecar_fields_match_live_kernel ... ok
+test m6_6_sense_gate::donut_torus_flips_refuse ... ok
+test m6_6_sense_gate::lily_lantern_zone_and_pucker_flips_refuse ... ok
+test m6_6_sense_gate::notched_walls_both_directions ... ok
+test m6_6_sense_gate::planar_control_unchanged ... ok
+test m6_6_sense_gate::washer_cylinder_walls_both_directions ... ok
+test m5_pr13_curved::the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws ... ok
+test m6_6_sense_gate::whole_body_inverted_ball_stays_negative_volume ... ok
+test m6_6_sense_gate::whole_body_inversions_refuse ... ok
+test m7_swept_elbow::the_nonuniform_loft_exports_non_rational_and_both_oracles_reconstruct_it ... ok
+test m7_swept_elbow::the_swept_elbow_exports_and_both_oracles_reconstruct_it ... ok
+test onb_wall_normal_census::axis_tie_census_over_the_fixture_corpus ... ignored, tie census instrument; run explicitly
+test m7_swept_elbow::the_swept_elbows_walls_go_out_non_rational ... ok
+test onb_wall_normal_census::the_direction_records_every_stored_frame_is_written_to ... ignored, frame-record instrument; run explicitly
+test orientation_oracle::a_uniformly_reversed_shell_stays_coherent_by_design ... ok
+test orientation_oracle::committed_fixtures_have_exact_positive_shell_volumes ... ok
+test orientation_oracle::every_fixture_shell_is_edge_use_coherent ... ok
+test orientation_oracle::known_blind_spot_same_sense_only_corruption_reads_green ... ok
+test orientation_oracle::negative_control_double_composed_face_is_incoherent ... ok
+test orientation_oracle::negative_control_flipped_winding_reads_negative ... ok
+test orientation_oracle::negative_control_one_inverted_curved_face_is_incoherent ... ok
+test r2_probes::r2_lamina_verdicts_versus_measured_volume ... ok
+test rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent ... ok
+test rev_probe::conic_trimmed_wall_flip_probe ... ok
+test rev_probe::nappe_adversaries ... ok
+test m6_6_sense_gate::die_pips_dimple_flip_refuses ... ok
+test onb_wall_normal_census::no_fixture_face_sits_on_the_frame_seam ... ok
+test review_k4_probe::k4_sidecar_volume_literals_round_trip_bit_exact ... ok
+test m5_pr13_curved::curved_exports_are_byte_deterministic ... ok
+
+test result: ok. 59 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 4.52s
+

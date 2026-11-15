@@ -1,0 +1,655 @@
+
+running 9 tests
+test m10_derived_frame_interval::sym10_phase1_the_derived_frame_rows_refusal_rendered ... ignored, evidence-only: SYM-10 Phase 1.2, the derived-frame row's refusal rendered
+test m10_derived_frame_interval::sym5_phase1_profile_the_derived_frame_freeze ... ignored, evidence-only: SYM-5 phase 1 — the freeze population and the normalisation chain
+test m10_derived_frame_interval::sym5_phase1_the_derived_frame_under_the_earlier_tier ... ignored, evidence-only: SYM-5 phase 1 — the same documents under M10-9's tier
+test m10_derived_frame_interval::sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone ... ignored, evidence-only: SYM-5 phase 1 — the budget never explained the height document's refusal
+test m10_derived_frame_interval::sym5_phase1_the_newell_refusal_at_5e_2 ... ignored, evidence-only: the height document's refusals at 5e-2 on both lanes, in full
+test m10_derived_frame_interval::sym5_phase1_the_normalisation_chain_under_the_plain_form ... ignored, evidence-only: SYM-5 phase 1 — the normalisation chain under the plain form alone; ~16 minutes, most of it rendering forms of 992 terms at degree 82
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=3.331e-16, [0.236067977, 0.236067977] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=2.887e-15 t=[4.536914385, 4.536914385] w=1.954e-14 p=([-0.618033989, -0.618033989] w=7.438e-15, [0.236067977, 0.236067977] w=4.996e-15, [1.000000000, 1.000000000] w=3.819e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=2.887e-15 t=[5.552340997, 5.552340997] w=2.220e-14 p=([-0.488015961, -0.488015961] w=8.549e-15, [0.116960813, 0.116960813] w=5.551e-15, [-0.000000000, 0.000000000] w=4.441e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=3.886e-16 t=[15.074788644, 15.074788644] w=6.395e-14 p=([0.731264536, 0.731264536] w=2.065e-14, [-1.000000000, -1.000000000] w=1.454e-14, [-9.377780270, -9.377780270] w=1.155e-13)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=6.939e-16 t=[17.173583293, 17.173583293] w=1.172e-13 p=([1.000000000, 1.000000000] w=2.953e-14, [-1.246183698, -1.246183698] w=2.265e-14, [-11.444689513, -11.444689513] w=1.776e-13)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=3.886e-16 t=[-1.975850076, -1.975850076] w=1.266e-14 p=([-1.451946338, -1.451946338] w=5.107e-15, [1.000000000, 1.000000000] w=3.331e-15, [7.413820935, 7.413820935] w=2.487e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=6.939e-16 t=[1.553801513, 1.553801513] w=2.109e-14 p=([-1.000000000, -1.000000000] w=5.662e-15, [0.585980133, 0.585980133] w=3.775e-15, [3.937792684, 3.937792684] w=3.064e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[1.109121236, 1.109121236] w=4.952e-14 gap_hi=[1.109121236, 1.109121236] w=4.952e-14 along=[[5.685541704, 5.685541704] w=2.318e-13, [5.685541704, 5.685541704] w=2.318e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.475595985, 1.475595985] w=6.350e-14 gap_hi=[1.475595985, 1.475595985] w=6.350e-14 along=[[5.745528690, 5.745528690] w=2.345e-13, [5.745528690, 5.745528690] w=2.345e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.876841428, 0.876841428] w=3.764e-14 gap_hi=[0.876841428, 0.876841428] w=3.719e-14 along=[[5.447036099, 5.447036099] w=2.247e-13, [5.447036099, 5.447036099] w=2.247e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.507710678, 0.507710678] w=3.730e-14 gap_hi=[0.507710678, 0.507710678] w=3.686e-14 along=[[5.485870597, 5.485870597] w=2.229e-13, [5.485870597, 5.485870597] w=2.229e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[1.169452391, 1.169452391] w=4.441e-14 gap_hi=[1.169452391, 1.169452391] w=4.441e-14 along=[[7.723254029, 7.723254029] w=3.535e-13, [7.723254029, 7.723254029] w=3.535e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.181528197, 0.181528197] w=4.685e-14 gap_hi=[0.181528197, 0.181528197] w=4.685e-14 along=[[16.215930290, 16.215930290] w=7.638e-13, [16.215930290, 16.215930290] w=7.638e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[1.656265954, 1.656265954] w=5.196e-14 gap_hi=[1.656265954, 1.656265954] w=5.196e-14 along=[[8.435943153, 8.435943153] w=4.974e-13, [8.435943153, 8.435943153] w=4.974e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.305285365, 0.305285365] w=1.110e-14 gap_hi=[0.305285365, 0.305285365] w=1.110e-14 along=[[-0.056733107, -0.056733107] w=8.817e-14, [-0.056733107, -0.056733107] w=8.817e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[1.227392427, 1.227392427] w=4.863e-14 gap_hi=[1.227392427, 1.227392427] w=4.863e-14 along=[[4.684318955, 4.684318955] w=1.927e-13, [4.684318955, 4.684318955] w=1.927e-13]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.604528796, 1.604528796] w=6.350e-14 gap_hi=[1.604528796, 1.604528796] w=6.350e-14 along=[[4.746982194, 4.746982194] w=1.954e-13, [4.746982194, 4.746982194] w=1.954e-13]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.758570237, 0.758570237] w=2.909e-14 gap_hi=[0.758570237, 0.758570237] w=2.864e-14 along=[[4.445813350, 4.445813350] w=1.856e-13, [4.445813350, 4.445813350] w=1.856e-13]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.378777868, 0.378777868] w=2.842e-14 gap_hi=[0.378777868, 0.378777868] w=2.787e-14 along=[[4.487324102, 4.487324102] w=1.839e-13, [4.487324102, 4.487324102] w=1.839e-13]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::interval::Interval faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::interval::Interval faces=6 verts=8 fp=0bf29e7464a00294 dt_ms=4.49 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::interval::Interval faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::interval::Interval faces=6 verts=8 fp=3ebced1ceb5ad15a dt_ms=3.45 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.605129250] w=1.290e-2, [0.236067977, 0.236067977] w=0.000e0, [0.950000000, 1.050000000] w=1.000e-1)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-1.054217967, -0.919941722] w=1.343e-1 t=[4.085672858, 5.013651817] w=9.280e-1 p=([-0.715942128, -0.491046676] w=2.249e-1, [0.145106322, 0.315443804] w=1.703e-1, [0.071707908, 1.803686562] w=1.732e0)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.919941722, 1.054217967] w=1.343e-1 t=[5.081671819, 6.046325928] w=9.647e-1 p=([-0.596791032, -0.349523692] w=2.473e-1, [0.018250052, 0.203776808] w=1.855e-1, [-1.016955694, 0.887425562] w=1.904e0)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.112115574, 0.122842501] w=1.073e-2 t=[14.335395642, 15.818599484] w=1.483e0 p=([0.510229541, 0.989719056] w=4.795e-1, [-1.182200469, -0.833709750] w=3.485e-1, [-11.319062058, -7.625461067] w=3.694e0)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.119629740, 0.137045155] w=1.742e-2 t=[15.893618145, 18.429448343] w=2.536e0 p=([0.696639293, 1.347523243] w=6.509e-1, [-1.502923672, -1.008410760] w=4.945e-1, [-14.071465836, -9.058934961] w=5.013e0)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.122842501, -0.112115574] w=1.073e-2 t=[-2.131765846, -1.843731911] w=2.880e-1 p=([-1.496858290, -1.398708537] w=9.815e-2, [0.967706910, 1.035382809] w=6.768e-2, [7.053315646, 7.809613344] w=7.563e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.137045155, -0.119629740] w=1.742e-2 t=[1.299888111, 1.711197478] w=4.113e-1 p=([-1.049204832, -0.943632044] w=1.056e-1, [0.550788071, 0.627773660] w=7.699e-2, [3.553214609, 4.366446179] w=8.132e-1)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.605079019, 1.980802398] w=1.376e0 gap_hi=[0.529501560, 1.961571897] w=1.432e0 along=[[3.049714314, 10.565894193] w=7.516e0, [3.049714314, 10.565894193] w=7.516e0]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.788860080, 2.630844359] w=1.842e0 gap_hi=[0.725965861, 2.581764369] w=1.856e0 along=[[3.075500925, 10.696339775] w=7.621e0, [3.075500925, 10.696339775] w=7.621e0]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.587645336, 1.954092975] w=1.366e0 gap_hi=[0.153518207, 1.310986132] w=1.157e0 along=[[2.880537406, 10.174819852] w=7.294e0, [2.880537406, 10.174819852] w=7.294e0]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.258547722, 1.557516962] w=1.299e0 gap_hi=[0.000000000, 0.896616246] w=8.966e-1 along=[[2.933679609, 10.220890483] w=7.287e0, [2.933679609, 10.220890483] w=7.287e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.583672026, 2.365615739] w=1.782e0 gap_hi=[0.573144223, 2.232522701] w=1.659e0 along=[[2.942642144, 20.071251620] w=1.713e1, [2.942642144, 20.071251620] w=1.713e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 1.325740027] w=1.326e0 gap_hi=[0.000000000, 0.730561286] w=7.306e-1 along=[[6.134425561, 42.586679629] w=3.645e1, [6.134425561, 42.586679629] w=3.645e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.934670643, 3.249266326] w=2.315e0 gap_hi=[0.827408872, 2.922430654] w=2.095e0 along=[[1.081784931, 24.478095658] w=2.340e1, [1.081784931, 24.478095658] w=2.340e1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.161443448, 1.499970591] w=1.339e0 gap_hi=[0.000000000, 0.559243549] w=5.592e-1 along=[[-2.109998486, 1.962667648] w=4.073e0, [-2.109998486, 1.962667648] w=4.073e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.671635490, 2.182864607] w=1.511e0 gap_hi=[0.609250726, 2.151849407] w=1.543e0 along=[[2.395275969, 9.284652136] w=6.889e0, [2.206825340, 9.096201507] w=6.889e0]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.859339468, 2.885217725] w=2.026e0 gap_hi=[0.818032752, 2.766101857] w=1.948e0 along=[[2.425411319, 9.353896949] w=6.928e0, [2.281489321, 9.209974951] w=6.928e0]
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=3.331e-16, [0.236067977, 0.236067977] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.495476411, 1.889843221] w=1.394e0 gap_hi=[0.012457932, 1.164402986] w=1.152e0 along=[[2.227067814, 8.884626803] w=6.658e0, [2.038617185, 8.696176174] w=6.658e0]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.163971173, 1.480755261] w=1.317e0 gap_hi=[0.000000000, 0.724434740] w=7.244e-1 along=[[2.286069554, 8.867816523] w=6.582e0, [2.142147555, 8.723894525] w=6.582e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 1, "side_at_infinity_denom": 6, "side_at_infinity_edge": 11, "side_at_infinity_edge_span": 1, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.3257400274427409, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -36.16851099878376, hi: 10.44203975790297, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(1v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -0.30230547807608377, hi: 33.451744170561135, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-ray] aim at FaceKey(2v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=3.331e-16, [-0.236067977, -0.236067977] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([-0.000000000, -0.000000000] w=0.000e0, [-0.000000000, -0.000000000] w=0.000e0, [-1.000000000, -1.000000000] w=0.000e0)
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=3.331e-16, [0.236067977, 0.236067977] w=0.000e0, [1.000000000, 1.000000000] w=2.500e-10)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=2.887e-15 t=[4.536914385, 4.536914385] w=1.954e-14 p=([-0.618033989, -0.618033989] w=7.438e-15, [0.236067977, 0.236067977] w=4.996e-15, [1.000000000, 1.000000000] w=3.819e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=2.887e-15 t=[5.552340997, 5.552340997] w=2.220e-14 p=([-0.488015961, -0.488015961] w=8.549e-15, [0.116960813, 0.116960813] w=5.551e-15, [-0.000000000, 0.000000000] w=4.441e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=3.886e-16 t=[15.074788644, 15.074788644] w=6.395e-14 p=([0.731264536, 0.731264536] w=2.065e-14, [-1.000000000, -1.000000000] w=1.454e-14, [-9.377780270, -9.377780270] w=1.155e-13)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=6.939e-16 t=[17.173583293, 17.173583293] w=1.172e-13 p=([1.000000000, 1.000000000] w=2.953e-14, [-1.246183698, -1.246183698] w=2.265e-14, [-11.444689513, -11.444689513] w=1.776e-13)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=3.886e-16 t=[-1.975850076, -1.975850076] w=1.266e-14 p=([-1.451946338, -1.451946338] w=5.107e-15, [1.000000000, 1.000000000] w=3.331e-15, [7.413820935, 7.413820935] w=2.487e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=6.939e-16 t=[1.553801513, 1.553801513] w=2.109e-14 p=([-1.000000000, -1.000000000] w=5.662e-15, [0.585980133, 0.585980133] w=3.775e-15, [3.937792684, 3.937792684] w=3.064e-14)
+[bf-ray]   plane FaceKey(1v1) outward=Positive denom=[0.965861536, 1.004125616] w=3.826e-2 t=[5.353372301, 5.758866337] w=4.055e-1 p=([-0.794490159, -0.703631215] w=9.086e-2, [-0.397716284, -0.314482049] w=8.323e-2, [0.658348908, 1.357166949] w=6.988e-1)
+[bf-ray]   plane FaceKey(2v1) outward=Negative denom=[-1.004125616, -0.965861536] w=3.826e-2 t=[4.407275533, 4.671753991] w=2.645e-1 p=([-0.652562824, -0.584820939] w=6.774e-2, [-0.267699219, -0.205642104] w=6.206e-2, [-0.255449570, 0.265569595] w=5.210e-1)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.115041028, 0.119598555] w=4.558e-3 t=[10.794744223, 11.312272010] w=5.175e-1 p=([-1.519511885, -1.386955503] w=1.326e-1, [-1.061895575, -0.940463071] w=1.214e-1, [5.913960751, 6.933483844] w=1.020e0)
+[bf-ray]   plane FaceKey(4v1) outward=Negative denom=[-0.130554432, -0.125579412] w=4.975e-3 t=[-8.302671708, -7.899830356] w=4.028e-1 p=([0.949411420, 1.052592724] w=1.032e-1, [1.199840415, 1.294362942] w=9.452e-2, [-12.849192834, -12.055600545] w=7.936e-1)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.119598555, -0.115041028] w=4.558e-3 t=[-6.162707371, -5.841413353] w=3.213e-1 p=([0.690916622, 0.773210895] w=8.229e-2, [0.963038006, 1.038426300] w=7.539e-2, [-10.700399825, -10.067454736] w=6.329e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Positive denom=[0.125579412, 0.130554432] w=4.975e-3 t=[7.332997809, 7.713383225] w=3.804e-1 p=([-1.049661002, -0.952231423] w=9.743e-2, [-0.631473679, -0.542220203] w=8.925e-2, [2.570393042, 3.319747423] w=7.494e-1)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[1.109121236, 1.109121236] w=4.952e-14 gap_hi=[1.109121236, 1.109121236] w=4.952e-14 along=[[5.685541704, 5.685541704] w=2.318e-13, [5.685541704, 5.685541704] w=2.318e-13]
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.544991904, 1.025945938] w=4.810e-1 gap_hi=[0.534773455, 1.012404779] w=4.776e-1 along=[[3.538611316, 6.054579471] w=2.516e0, [3.538611316, 6.054579471] w=2.516e0]
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.128e-10 t=[4.536914384, 4.536914386] w=2.169e-9 p=([-0.618033989, -0.618033989] w=4.255e-10, [0.236067977, 0.236067978] w=3.898e-10, [0.999999998, 1.000000002] w=4.022e-9)
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.340645348, 2.196913461] w=8.563e-1 gap_hi=[1.106091789, 1.920259811] w=8.142e-1 along=[[3.235255454, 5.734511214] w=2.499e0, [3.235255454, 5.734511214] w=2.499e0]
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.128e-10 t=[5.552340996, 5.552340998] w=2.238e-9 p=([-0.488015961, -0.488015961] w=4.610e-10, [0.116960813, 0.116960814] w=4.223e-10, [-0.000000002, 0.000000002] w=4.408e-9)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=2.413e-11 t=[15.074788642, 15.074788645] w=3.321e-9 p=([0.731264536, 0.731264537] w=8.506e-10, [-1.000000000, -1.000000000] w=7.792e-10, [-9.377780275, -9.377780266] w=8.453e-9)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=2.634e-11 t=[17.173583291, 17.173583294] w=3.753e-9 p=([1.000000000, 1.000000000] w=9.611e-10, [-1.246183699, -1.246183698] w=8.805e-10, [-11.444689517, -11.444689508] w=9.535e-9)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=2.413e-11 t=[-1.975850077, -1.975850076] w=6.269e-10 p=([-1.451946338, -1.451946338] w=1.605e-10, [1.000000000, 1.000000000] w=1.471e-10, [7.413820934, 7.413820936] w=1.702e-9)
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[1.024098656, 1.724715905] w=7.006e-1 gap_hi=[0.808940633, 1.470939101] w=6.620e-1 along=[[3.310241282, 5.789201237] w=2.479e0, [3.310241282, 5.789201237] w=2.479e0]
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=2.634e-11 t=[1.553801513, 1.553801514] w=5.401e-10 p=([-1.000000000, -1.000000000] w=1.383e-10, [0.585980133, 0.585980133] w=1.267e-10, [3.937792683, 3.937792685] w=1.485e-9)
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.475595985, 1.475595985] w=6.350e-14 gap_hi=[1.475595985, 1.475595985] w=6.350e-14 along=[[5.745528690, 5.745528690] w=2.345e-13, [5.745528690, 5.745528690] w=2.345e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.217023370, 0.668733699] w=4.517e-1 gap_hi=[0.134806804, 0.571020584] w=4.362e-1 along=[[3.506572954, 6.000795744] w=2.494e0, [3.506572954, 6.000795744] w=2.494e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.134259526, 0.746512047] w=6.123e-1 gap_hi=[0.001381060, 0.556077450] w=5.547e-1 along=[[4.699865294, 17.741238806] w=1.304e1, [4.699865294, 17.741238806] w=1.304e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[1.135537302, 2.517512919] w=1.382e0 gap_hi=[1.064776272, 2.415736389] w=1.351e0 along=[[-5.963223337, 7.523224554] w=1.349e1, [-5.963223337, 7.523224554] w=1.349e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.000000000, 1.040288753] w=1.040e0 gap_hi=[0.000000000, 0.507396050] w=5.074e-1 along=[[-13.893038407, -3.670542606] w=1.022e1, [-13.893038407, -3.670542606] w=1.022e1]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.876841428, 0.876841428] w=3.764e-14 gap_hi=[0.876841428, 0.876841428] w=3.719e-14 along=[[5.447036099, 5.447036099] w=2.247e-13, [5.447036099, 5.447036099] w=2.247e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.800234060, 1.946187509] w=1.146e0 gap_hi=[0.634459483, 1.708950964] w=1.074e0 along=[[-3.229949775, 6.547471646] w=9.777e0, [-3.229949775, 6.547471646] w=9.777e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.422969422, 0.926364982] w=5.034e-1 gap_hi=[0.402375298, 0.904413665] w=5.020e-1 along=[[4.111437482, 7.667510306] w=3.556e0, [4.106519507, 7.662592332] w=3.556e0]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.422880915, 2.386768937] w=9.639e-1 gap_hi=[1.191076636, 2.111233999] w=9.202e-1 along=[[3.829719615, 7.343995837] w=3.514e0, [3.790528387, 7.304804609] w=3.514e0]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[1.099933648, 1.900612150] w=8.007e-1 gap_hi=[0.885534932, 1.645364508] w=7.598e-1 along=[[3.882974331, 7.399172771] w=3.516e0, [3.878056356, 7.394254796] w=3.516e0]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.507710678, 0.507710678] w=3.730e-14 gap_hi=[0.507710678, 0.507710678] w=3.686e-14 along=[[5.485870597, 5.485870597] w=2.229e-13, [5.485870597, 5.485870597] w=2.229e-13]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.070011561, 0.547391389] w=4.774e-1 gap_hi=[0.003335203, 0.465449860] w=4.621e-1 along=[[4.102761766, 7.611640046] w=3.509e0, [4.063570538, 7.572448818] w=3.509e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[1.169452391, 1.169452391] w=4.441e-14 gap_hi=[1.169452391, 1.169452391] w=4.441e-14 along=[[7.723254029, 7.723254029] w=3.535e-13, [7.723254029, 7.723254029] w=3.535e-13]
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[1.109121235, 1.109121238] w=3.096e-9 gap_hi=[1.109121235, 1.109121238] w=3.096e-9 along=[[5.685541696, 5.685541712] w=1.620e-8, [5.685541696, 5.685541712] w=1.620e-8]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.181528197, 0.181528197] w=4.685e-14 gap_hi=[0.181528197, 0.181528197] w=4.685e-14 along=[[16.215930290, 16.215930290] w=7.638e-13, [16.215930290, 16.215930290] w=7.638e-13]
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 3, "side_at_infinity_denom": 6, "side_at_infinity_edge": 11, "side_at_infinity_order": 1, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.0402887527407116, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray] => FaceKey(2v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=fd51208da1ee2567 dt_ms=66.98 outcome=ok
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.475595983, 1.475595987] w=3.867e-9 gap_hi=[1.475595983, 1.475595987] w=3.867e-9 along=[[5.745528681, 5.745528698] w=1.635e-8, [5.745528681, 5.745528698] w=1.635e-8]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[1.656265954, 1.656265954] w=5.196e-14 gap_hi=[1.656265954, 1.656265954] w=5.196e-14 along=[[8.435943153, 8.435943153] w=4.974e-13, [8.435943153, 8.435943153] w=4.974e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.876841427, 0.876841430] w=2.796e-9 gap_hi=[0.876841426, 0.876841428] w=2.796e-9 along=[[5.447036091, 5.447036107] w=1.572e-8, [5.447036091, 5.447036107] w=1.572e-8]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.305285365, 0.305285365] w=1.110e-14 gap_hi=[0.305285365, 0.305285365] w=1.110e-14 along=[[-0.056733107, -0.056733107] w=8.817e-14, [-0.056733107, -0.056733107] w=8.817e-14]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.507710678, 0.507710680] w=2.402e-9 gap_hi=[0.507710677, 0.507710679] w=2.402e-9 along=[[5.485870589, 5.485870605] w=1.567e-8, [5.485870589, 5.485870605] w=1.567e-8]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[1.227392427, 1.227392427] w=4.863e-14 gap_hi=[1.227392427, 1.227392427] w=4.863e-14 along=[[4.684318955, 4.684318955] w=1.927e-13, [4.684318955, 4.684318955] w=1.927e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[1.169452389, 1.169452393] w=3.478e-9 gap_hi=[1.169452389, 1.169452393] w=3.478e-9 along=[[7.723254012, 7.723254046] w=3.356e-8, [7.723254012, 7.723254046] w=3.356e-8]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.604528796, 1.604528796] w=6.350e-14 gap_hi=[1.604528796, 1.604528796] w=6.350e-14 along=[[4.746982194, 4.746982194] w=1.954e-13, [4.746982194, 4.746982194] w=1.954e-13]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.758570237, 0.758570237] w=2.909e-14 gap_hi=[0.758570237, 0.758570237] w=2.864e-14 along=[[4.445813350, 4.445813350] w=1.856e-13, [4.445813350, 4.445813350] w=1.856e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.181528197, 0.181528199] w=2.757e-9 gap_hi=[0.181528195, 0.181528198] w=2.757e-9 along=[[16.215930255, 16.215930325] w=7.022e-8, [16.215930255, 16.215930325] w=7.022e-8]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.378777868, 0.378777868] w=2.842e-14 gap_hi=[0.378777868, 0.378777868] w=2.787e-14 along=[[4.487324102, 4.487324102] w=1.839e-13, [4.487324102, 4.487324102] w=1.839e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[1.656265951, 1.656265956] w=4.546e-9 gap_hi=[1.656265951, 1.656265956] w=4.546e-9 along=[[8.435943131, 8.435943175] w=4.442e-8, [8.435943131, 8.435943175] w=4.442e-8]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.305285365, 0.305285367] w=2.292e-9 gap_hi=[0.305285363, 0.305285365] w=2.292e-9 along=[[-0.056733111, -0.056733103] w=7.759e-9, [-0.056733111, -0.056733103] w=7.759e-9]
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[1.227392425, 1.227392428] w=3.349e-9 gap_hi=[1.227392425, 1.227392428] w=3.349e-9 along=[[4.684318948, 4.684318962] w=1.442e-8, [4.684318948, 4.684318962] w=1.442e-8]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.604528794, 1.604528798] w=4.140e-9 gap_hi=[1.604528794, 1.604528798] w=4.140e-9 along=[[4.746982187, 4.746982202] w=1.449e-8, [4.746982187, 4.746982201] w=1.449e-8]
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.758570236, 0.758570239] w=2.795e-9 gap_hi=[0.758570235, 0.758570238] w=2.795e-9 along=[[4.445813344, 4.445813357] w=1.393e-8, [4.445813343, 4.445813357] w=1.393e-8]
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.378777867, 0.378777869] w=2.380e-9 gap_hi=[0.378777866, 0.378777868] w=2.380e-9 along=[[4.487324095, 4.487324109] w=1.380e-8, [4.487324095, 4.487324109] w=1.380e-8]
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=68da47839f6bff29 dt_ms=76.67 outcome=ok
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=7af67a70d7c443e9 dt_ms=81.47 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=48.13 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+
+thread 'm10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze' (32757) panicked at crates/editor-core/tests/m10_derived_frame_interval.rs:572:5:
+assertion `left == right` failed: and freezes no form getting there: SymCounts { symbolic: 1616, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 1958, checks_frozen: 13, numeric: 1991, retried: 0, frozen: 210 }
+  left: 210
+ right: 0
+stack backtrace:
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=67.61 outcome=ok
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=97.41 outcome=ok
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<u64, u64>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: all::m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze
+             at ./tests/m10_derived_frame_interval.rs:572:5
+   5: all::m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze::{closure#0}
+             at ./tests/m10_derived_frame_interval.rs:559:52
+   6: <all::m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+C7 transform-lifted eps=1e-9 half=1.25e-10: plain []; sym []
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+test m10_derived_frame_interval::m10_the_transform_lifted_shape_with_an_extrude_above_it ... ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=62.11 outcome=ok
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze ... FAILED
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=5.236e-12, [0.236067977, 0.236067977] w=0.000e0, [0.999999000, 1.000001000] w=2.000e-6)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984809004, -0.984806502] w=2.502e-6 t=[4.536905709, 4.536923061] w=1.735e-5 p=([-0.618035691, -0.618032287] w=3.404e-6, [0.236066419, 0.236069536] w=3.118e-6, [0.999983911, 1.000016089] w=3.218e-5)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984806502, 0.984809004] w=2.502e-6 t=[5.552332046, 5.552349948] w=1.790e-5 p=([-0.488017805, -0.488014117] w=3.688e-6, [0.116959124, 0.116962503] w=3.378e-6, [-0.000017630, 0.000017630] w=3.526e-5)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297562, 0.117297755] w=1.930e-7 t=[15.074775359, 15.074801929] w=2.657e-5 p=([0.731261134, 0.731267939] w=6.804e-6, [-1.000003117, -0.999996883] w=6.233e-6, [-9.377814082, -9.377746459] w=6.762e-5)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042657, 0.128042867] w=2.107e-7 t=[17.173568280, 17.173598305] w=3.002e-5 p=([0.999996156, 1.000003844] w=7.689e-6, [-1.246187220, -1.246180177] w=7.044e-6, [-11.444727651, -11.444651374] w=7.628e-5)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297755, -0.117297562] w=1.930e-7 t=[-1.975852584, -1.975847569] w=5.015e-6 p=([-1.451946980, -1.451945696] w=1.284e-6, [0.999999412, 1.000000588] w=1.176e-6, [7.413814125, 7.413827744] w=1.362e-5)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042867, -0.128042657] w=2.107e-7 t=[1.553799353, 1.553803674] w=4.320e-6 p=([-1.000000553, -0.999999447] w=1.106e-6, [0.585979626, 0.585980640] w=1.014e-6, [3.937786744, 3.937798623] w=1.188e-5)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[1.109109387, 1.109134152] w=2.477e-5 gap_hi=[1.109108320, 1.109133086] w=2.477e-5 along=[[5.685476914, 5.685606494] w=1.296e-4, [5.685476914, 5.685606494] w=1.296e-4]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.475581100, 1.475612034] w=3.093e-5 gap_hi=[1.475579937, 1.475610871] w=3.093e-5 along=[[5.745463302, 5.745594078] w=1.308e-4, [5.745463302, 5.745594078] w=1.308e-4]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.876835017, 0.876857383] w=2.237e-5 gap_hi=[0.876825472, 0.876847839] w=2.237e-5 along=[[5.446973229, 5.447098970] w=1.257e-4, [5.446973229, 5.447098970] w=1.257e-4]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.507705544, 0.507724757] w=1.921e-5 gap_hi=[0.507696599, 0.507715813] w=1.921e-5 along=[[5.485807929, 5.485933267] w=1.253e-4, [5.485807929, 5.485933267] w=1.253e-4]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[1.169438969, 1.169466796] w=2.783e-5 gap_hi=[1.169437986, 1.169465814] w=2.783e-5 along=[[7.723119797, 7.723388264] w=2.685e-4, [7.723119797, 7.723388264] w=2.685e-4]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.181521410, 0.181543467] w=2.206e-5 gap_hi=[0.181512928, 0.181534985] w=2.206e-5 along=[[16.215649422, 16.216211163] w=5.617e-4, [16.215649422, 16.216211163] w=5.617e-4]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[1.656248944, 1.656285313] w=3.637e-5 gap_hi=[1.656246594, 1.656282963] w=3.637e-5 along=[[8.435765482, 8.436120826] w=3.553e-4, [8.435765482, 8.436120826] w=3.553e-4]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.305282105, 0.305300440] w=1.833e-5 gap_hi=[0.305270290, 0.305288625] w=1.833e-5 along=[[-0.056764142, -0.056702072] w=6.207e-5, [-0.056764142, -0.056702072] w=6.207e-5]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[1.227379384, 1.227406178] w=2.679e-5 gap_hi=[1.227378675, 1.227405469] w=2.679e-5 along=[[4.684262283, 4.684377630] w=1.153e-4, [4.684260280, 4.684375627] w=1.153e-4]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.604512604, 1.604545727] w=3.312e-5 gap_hi=[1.604511865, 1.604544988] w=3.312e-5 along=[[4.746925001, 4.747040922] w=1.159e-4, [4.746923467, 4.747039388] w=1.159e-4]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.758564359, 0.758586716] w=2.236e-5 gap_hi=[0.758553759, 0.758576115] w=2.236e-5 along=[[4.445758645, 4.445870059] w=1.114e-4, [4.445756642, 4.445868057] w=1.114e-4]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.378773380, 0.378792421] w=1.904e-5 gap_hi=[0.378763315, 0.378782355] w=1.904e-5 along=[[4.487269688, 4.487380050] w=1.104e-4, [4.487268154, 4.487378516] w=1.104e-4]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=613e9c78f002cd1e dt_ms=65.17 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=63.38 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=56.69 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618028753] w=5.236e-6, [0.236067977, 0.236067977] w=0.000e0, [0.999000000, 1.001000000] w=2.000e-3)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.986061426, -0.983555652] w=2.506e-3 t=[4.528230265, 4.545606610] w=1.738e-2 p=([-0.619741887, -0.616316490] w=3.425e-3, [0.234504214, 0.237627767] w=3.124e-3, [0.983865856, 1.016090603] w=3.222e-2)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.983555652, 0.986061426] w=2.506e-3 t=[5.543380005, 5.561309177] w=1.793e-2 p=([-0.489867596, -0.486154648] w=3.713e-3, [0.115266379, 0.118651206] w=3.385e-3, [-0.017679265, 0.017634339] w=3.531e-2)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117200997, 0.117394441] w=1.934e-4 t=[15.061472625, 15.088104300] w=2.663e-2 p=([0.727839982, 0.734700003] w=6.860e-3, [-1.003126411, -0.996878741] w=6.248e-3, [-9.411684447, -9.343939453] w=6.774e-2)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.127936092, 0.128149565] w=2.135e-4 t=[17.158341499, 17.188784887] w=3.044e-2 p=([0.996105192, 1.003901307] w=7.796e-3, [-1.249734634, -1.242633864] w=7.101e-3, [-11.483084541, -11.406326685] w=7.676e-2)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117394441, -0.117200997] w=1.934e-4 t=[-1.978369162, -1.973339859] w=5.029e-3 p=([-1.452593120, -1.451295391] w=1.298e-3, [0.999410561, 1.000590412] w=1.180e-3, [7.407002762, 7.420650589] w=1.365e-2)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128149565, -0.127936092] w=2.135e-4 t=[1.551577645, 1.555979776] w=4.402e-3 p=([-1.000563191, -0.999435869] w=1.127e-3, [0.585469785, 0.586494423] w=1.025e-3, [3.931821555, 3.943794110] w=1.197e-2)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[1.097306477, 1.122109511] w=2.480e-2 gap_hi=[1.096230122, 1.121050309] w=2.482e-2 along=[[5.621003516, 5.750813821] w=1.298e-1, [5.621003516, 5.750813821] w=1.298e-1]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.460721940, 1.491742975] w=3.102e-2 gap_hi=[1.459564339, 1.490604442] w=3.104e-2 along=[[5.680387687, 5.811409034] w=1.310e-1, [5.680387687, 5.811409034] w=1.310e-1]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.870441985, 0.892884907] w=2.244e-2 gap_hi=[0.860914864, 0.883288572] w=2.237e-2 along=[[5.384407196, 5.510371886] w=1.260e-1, [5.384407196, 5.510371886] w=1.260e-1]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.502575368, 0.521897636] w=1.932e-2 gap_hi=[0.493631980, 0.512887859] w=1.926e-2 along=[[5.423442462, 5.549009151] w=1.256e-1, [5.423442462, 5.549009151] w=1.256e-1]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[1.156057071, 1.183989160] w=2.793e-2 gap_hi=[1.155092272, 1.182988708] w=2.790e-2 along=[[7.589888403, 7.858925446] w=2.690e-1, [7.589888403, 7.858925446] w=2.690e-1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.174746855, 0.196913521] w=2.217e-2 gap_hi=[0.166295407, 0.188375565] w=2.208e-2 along=[[15.936805422, 16.499897335] w=5.631e-1, [15.936805422, 16.499897335] w=5.631e-1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[1.639305405, 1.675801041] w=3.650e-2 gap_hi=[1.636951267, 1.673398403] w=3.645e-2 along=[[8.259043609, 8.615336589] w=3.563e-1, [8.259043609, 8.615336589] w=3.563e-1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.302030953, 0.320486476] w=1.846e-2 gap_hi=[0.290235073, 0.308571188] w=1.834e-2 along=[[-0.087873410, -0.025635300] w=6.224e-2, [-0.087873410, -0.025635300] w=6.224e-2]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[1.214387611, 1.241223390] w=2.684e-2 gap_hi=[1.213667301, 1.240524581] w=2.686e-2 along=[[4.627877834, 4.743465608] w=1.156e-1, [4.625852236, 4.741440010] w=1.156e-1]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.588350146, 1.621564383] w=3.321e-2 gap_hi=[1.587617912, 1.620856233] w=3.324e-2 along=[[4.690013713, 4.806184534] w=1.162e-1, [4.688461790, 4.804632611] w=1.162e-1]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.752703892, 0.775143568] w=2.244e-2 gap_hi=[0.742122028, 0.764482965] w=2.236e-2 along=[[4.391328122, 4.502975283] w=1.116e-1, [4.389302525, 4.500949685] w=1.116e-1]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.374291420, 0.393446354] w=1.915e-2 gap_hi=[0.364224638, 0.383303591] w=1.908e-2 along=[[4.433129152, 4.543722228] w=1.106e-1, [4.431577229, 4.542170305] w=1.106e-1]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=e8144a0f769abc22 dt_ms=61.43 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=56.73 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=54.75 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.605129250] w=1.290e-2, [0.236067977, 0.236067977] w=0.000e0, [0.950000000, 1.050000000] w=1.000e-1)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-1.054217967, -0.919941722] w=1.343e-1 t=[4.085672858, 5.013651817] w=9.280e-1 p=([-0.715942128, -0.491046676] w=2.249e-1, [0.145106322, 0.315443804] w=1.703e-1, [0.071707908, 1.803686562] w=1.732e0)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.919941722, 1.054217967] w=1.343e-1 t=[5.081671819, 6.046325928] w=9.647e-1 p=([-0.596791032, -0.349523692] w=2.473e-1, [0.018250052, 0.203776808] w=1.855e-1, [-1.016955694, 0.887425562] w=1.904e0)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.112115574, 0.122842501] w=1.073e-2 t=[14.335395642, 15.818599484] w=1.483e0 p=([0.510229541, 0.989719056] w=4.795e-1, [-1.182200469, -0.833709750] w=3.485e-1, [-11.319062058, -7.625461067] w=3.694e0)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.119629740, 0.137045155] w=1.742e-2 t=[15.893618145, 18.429448343] w=2.536e0 p=([0.696639293, 1.347523243] w=6.509e-1, [-1.502923672, -1.008410760] w=4.945e-1, [-14.071465836, -9.058934961] w=5.013e0)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.122842501, -0.112115574] w=1.073e-2 t=[-2.131765846, -1.843731911] w=2.880e-1 p=([-1.496858290, -1.398708537] w=9.815e-2, [0.967706910, 1.035382809] w=6.768e-2, [7.053315646, 7.809613344] w=7.563e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.137045155, -0.119629740] w=1.742e-2 t=[1.299888111, 1.711197478] w=4.113e-1 p=([-1.049204832, -0.943632044] w=1.056e-1, [0.550788071, 0.627773660] w=7.699e-2, [3.553214609, 4.366446179] w=8.132e-1)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.605079019, 1.980802398] w=1.376e0 gap_hi=[0.529501560, 1.961571897] w=1.432e0 along=[[3.049714314, 10.565894193] w=7.516e0, [3.049714314, 10.565894193] w=7.516e0]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.788860080, 2.630844359] w=1.842e0 gap_hi=[0.725965861, 2.581764369] w=1.856e0 along=[[3.075500925, 10.696339775] w=7.621e0, [3.075500925, 10.696339775] w=7.621e0]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.587645336, 1.954092975] w=1.366e0 gap_hi=[0.153518207, 1.310986132] w=1.157e0 along=[[2.880537406, 10.174819852] w=7.294e0, [2.880537406, 10.174819852] w=7.294e0]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.258547722, 1.557516962] w=1.299e0 gap_hi=[0.000000000, 0.896616246] w=8.966e-1 along=[[2.933679609, 10.220890483] w=7.287e0, [2.933679609, 10.220890483] w=7.287e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.583672026, 2.365615739] w=1.782e0 gap_hi=[0.573144223, 2.232522701] w=1.659e0 along=[[2.942642144, 20.071251620] w=1.713e1, [2.942642144, 20.071251620] w=1.713e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.000000000, 1.325740027] w=1.326e0 gap_hi=[0.000000000, 0.730561286] w=7.306e-1 along=[[6.134425561, 42.586679629] w=3.645e1, [6.134425561, 42.586679629] w=3.645e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.934670643, 3.249266326] w=2.315e0 gap_hi=[0.827408872, 2.922430654] w=2.095e0 along=[[1.081784931, 24.478095658] w=2.340e1, [1.081784931, 24.478095658] w=2.340e1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.161443448, 1.499970591] w=1.339e0 gap_hi=[0.000000000, 0.559243549] w=5.592e-1 along=[[-2.109998486, 1.962667648] w=4.073e0, [-2.109998486, 1.962667648] w=4.073e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.671635490, 2.182864607] w=1.511e0 gap_hi=[0.609250726, 2.151849407] w=1.543e0 along=[[2.395275969, 9.284652136] w=6.889e0, [2.206825340, 9.096201507] w=6.889e0]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.859339468, 2.885217725] w=2.026e0 gap_hi=[0.818032752, 2.766101857] w=1.948e0 along=[[2.425411319, 9.353896949] w=6.928e0, [2.281489321, 9.209974951] w=6.928e0]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.495476411, 1.889843221] w=1.394e0 gap_hi=[0.012457932, 1.164402986] w=1.152e0 along=[[2.227067814, 8.884626803] w=6.658e0, [2.038617185, 8.696176174] w=6.658e0]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.163971173, 1.480755261] w=1.317e0 gap_hi=[0.000000000, 0.724434740] w=7.244e-1 along=[[2.286069554, 8.867816523] w=6.582e0, [2.142147555, 8.723894525] w=6.582e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> FAULT
+[bf-ray]   definite: {"side_at_infinity_advance": 1, "side_at_infinity_denom": 6, "side_at_infinity_edge": 11, "side_at_infinity_edge_span": 1, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.3257400274427409, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: -36.16851099878376, hi: 10.44203975790297, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge_span") }
+[bf-ray] => FaceKey(1v1) read Ok(SetAside(Crossing(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -0.30230547807608377, hi: 33.451744170561135, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_winding") } })))
+[bf-ray] aim at FaceKey(2v1) mode=""
+[bf-ray]   aim(as built)=([-0.618033989, -0.618033989] w=3.331e-16, [-0.236067977, -0.236067977] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0)
+[bf-ray]   normal(as built)=([-0.000000000, -0.000000000] w=0.000e0, [-0.000000000, -0.000000000] w=0.000e0, [-1.000000000, -1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Positive denom=[0.965861536, 1.004125616] w=3.826e-2 t=[5.353372301, 5.758866337] w=4.055e-1 p=([-0.794490159, -0.703631215] w=9.086e-2, [-0.397716284, -0.314482049] w=8.323e-2, [0.658348908, 1.357166949] w=6.988e-1)
+[bf-ray]   plane FaceKey(2v1) outward=Negative denom=[-1.004125616, -0.965861536] w=3.826e-2 t=[4.407275533, 4.671753991] w=2.645e-1 p=([-0.652562824, -0.584820939] w=6.774e-2, [-0.267699219, -0.205642104] w=6.206e-2, [-0.255449570, 0.265569595] w=5.210e-1)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.115041028, 0.119598555] w=4.558e-3 t=[10.794744223, 11.312272010] w=5.175e-1 p=([-1.519511885, -1.386955503] w=1.326e-1, [-1.061895575, -0.940463071] w=1.214e-1, [5.913960751, 6.933483844] w=1.020e0)
+[bf-ray]   plane FaceKey(4v1) outward=Negative denom=[-0.130554432, -0.125579412] w=4.975e-3 t=[-8.302671708, -7.899830356] w=4.028e-1 p=([0.949411420, 1.052592724] w=1.032e-1, [1.199840415, 1.294362942] w=9.452e-2, [-12.849192834, -12.055600545] w=7.936e-1)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.119598555, -0.115041028] w=4.558e-3 t=[-6.162707371, -5.841413353] w=3.213e-1 p=([0.690916622, 0.773210895] w=8.229e-2, [0.963038006, 1.038426300] w=7.539e-2, [-10.700399825, -10.067454736] w=6.329e-1)
+[bf-ray]   plane FaceKey(6v1) outward=Positive denom=[0.125579412, 0.130554432] w=4.975e-3 t=[7.332997809, 7.713383225] w=3.804e-1 p=([-1.049661002, -0.952231423] w=9.743e-2, [-0.631473679, -0.542220203] w=8.925e-2, [2.570393042, 3.319747423] w=7.494e-1)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.544991904, 1.025945938] w=4.810e-1 gap_hi=[0.534773455, 1.012404779] w=4.776e-1 along=[[3.538611316, 6.054579471] w=2.516e0, [3.538611316, 6.054579471] w=2.516e0]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[1.340645348, 2.196913461] w=8.563e-1 gap_hi=[1.106091789, 1.920259811] w=8.142e-1 along=[[3.235255454, 5.734511214] w=2.499e0, [3.235255454, 5.734511214] w=2.499e0]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[1.024098656, 1.724715905] w=7.006e-1 gap_hi=[0.808940633, 1.470939101] w=6.620e-1 along=[[3.310241282, 5.789201237] w=2.479e0, [3.310241282, 5.789201237] w=2.479e0]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.217023370, 0.668733699] w=4.517e-1 gap_hi=[0.134806804, 0.571020584] w=4.362e-1 along=[[3.506572954, 6.000795744] w=2.494e0, [3.506572954, 6.000795744] w=2.494e0]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.134259526, 0.746512047] w=6.123e-1 gap_hi=[0.001381060, 0.556077450] w=5.547e-1 along=[[4.699865294, 17.741238806] w=1.304e1, [4.699865294, 17.741238806] w=1.304e1]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[1.135537302, 2.517512919] w=1.382e0 gap_hi=[1.064776272, 2.415736389] w=1.351e0 along=[[-5.963223337, 7.523224554] w=1.349e1, [-5.963223337, 7.523224554] w=1.349e1]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.000000000, 1.040288753] w=1.040e0 gap_hi=[0.000000000, 0.507396050] w=5.074e-1 along=[[-13.893038407, -3.670542606] w=1.022e1, [-13.893038407, -3.670542606] w=1.022e1]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.800234060, 1.946187509] w=1.146e0 gap_hi=[0.634459483, 1.708950964] w=1.074e0 along=[[-3.229949775, 6.547471646] w=9.777e0, [-3.229949775, 6.547471646] w=9.777e0]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.422969422, 0.926364982] w=5.034e-1 gap_hi=[0.402375298, 0.904413665] w=5.020e-1 along=[[4.111437482, 7.667510306] w=3.556e0, [4.106519507, 7.662592332] w=3.556e0]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[1.422880915, 2.386768937] w=9.639e-1 gap_hi=[1.191076636, 2.111233999] w=9.202e-1 along=[[3.829719615, 7.343995837] w=3.514e0, [3.790528387, 7.304804609] w=3.514e0]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[1.099933648, 1.900612150] w=8.007e-1 gap_hi=[0.885534932, 1.645364508] w=7.598e-1 along=[[3.882974331, 7.399172771] w=3.516e0, [3.878056356, 7.394254796] w=3.516e0]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.070011561, 0.547391389] w=4.774e-1 gap_hi=[0.003335203, 0.465449860] w=4.621e-1 along=[[4.102761766, 7.611640046] w=3.509e0, [4.063570538, 7.572448818] w=3.509e0]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 3, "side_at_infinity_denom": 6, "side_at_infinity_edge": 11, "side_at_infinity_order": 1, "side_at_infinity_vertex": 8}
+[bf-ray]   ESCALATED Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.0402887527407116, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("side_at_infinity_edge") }
+[bf-ray] => FaceKey(2v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=fd51208da1ee2567 dt_ms=154.73 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=74.17 outcome=ok
+[bf-ray] aim at FaceKey(1v1) mode=""
+[bf-ray]   aim(as built)=([-0.309016994, -0.309016994] w=1.665e-16, [0.118033989, 0.118033989] w=0.000e0, [0.250000000, 0.250000000] w=0.000e0)
+[bf-ray]   normal(as built)=([0.000000000, 0.000000000] w=0.000e0, [0.000000000, 0.000000000] w=0.000e0, [1.000000000, 1.000000000] w=0.000e0)
+[bf-ray]   plane FaceKey(1v1) outward=Negative denom=[-0.984807753, -0.984807753] w=3.331e-15 t=[2.096639701, 2.096639701] w=1.021e-14 p=([-0.309016994, -0.309016994] w=3.608e-15, [0.118033989, 0.118033989] w=2.498e-15, [0.250000000, 0.250000000] w=1.998e-14)
+[bf-ray]   plane FaceKey(2v1) outward=Positive denom=[0.984807753, 0.984807753] w=3.331e-15 t=[2.350496353, 2.350496353] w=1.110e-14 p=([-0.276512487, -0.276512487] w=3.886e-15, [0.088257198, 0.088257198] w=2.776e-15, [-0.000000000, 0.000000000] w=2.176e-14)
+[bf-ray]   plane FaceKey(3v1) outward=Positive denom=[0.117297659, 0.117297659] w=4.302e-16 t=[7.365576830, 7.365576830] w=3.464e-14 p=([0.365632268, 0.365632268] w=1.066e-14, [-0.500000000, -0.500000000] w=7.938e-15, [-4.938890135, -4.938890135] w=6.395e-14)
+[bf-ray]   plane FaceKey(4v1) outward=Positive denom=[0.128042762, 0.128042762] w=7.216e-16 t=[8.414974154, 8.414974154] w=6.217e-14 p=([0.500000000, 0.500000000] w=1.510e-14, [-0.623091849, -0.623091849] w=1.177e-14, [-5.972344756, -5.972344756] w=9.504e-14)
+[bf-ray]   plane FaceKey(5v1) outward=Negative denom=[-0.117297659, -0.117297659] w=4.302e-16 t=[-1.159742530, -1.159742530] w=7.550e-15 p=([-0.725973169, -0.725973169] w=2.776e-15, [0.500000000, 0.500000000] w=1.776e-15, [3.456910467, 3.456910467] w=1.465e-14)
+[bf-ray]   plane FaceKey(6v1) outward=Negative denom=[-0.128042762, -0.128042762] w=7.216e-16 t=[0.605083265, 0.605083265] w=8.882e-15 p=([-0.500000000, -0.500000000] w=2.387e-15, [0.292990066, 0.292990066] w=1.776e-15, [1.718896342, 1.718896342] w=1.332e-14)
+[bf-ray]   edge EdgeKey(1v1) faces=(FaceKey(3v1),FaceKey(2v1)) gap_lo=[0.584128416, 0.584128416] w=2.565e-14 gap_hi=[0.584128416, 0.584128416] w=2.565e-14 along=[[2.420647673, 2.420647673] w=1.057e-13, [2.420647673, 2.420647673] w=1.057e-13]
+[bf-ray]   edge EdgeKey(2v1) faces=(FaceKey(4v1),FaceKey(2v1)) gap_lo=[0.770031195, 0.770031195] w=3.320e-14 gap_hi=[0.770031195, 0.770031195] w=3.320e-14 along=[[2.451310229, 2.451310229] w=1.084e-13, [2.451310229, 2.451310229] w=1.084e-13]
+[bf-ray]   edge EdgeKey(3v1) faces=(FaceKey(5v1),FaceKey(2v1)) gap_lo=[0.408852916, 0.408852916] w=1.815e-14 gap_hi=[0.408852916, 0.408852916] w=1.815e-14 along=[[2.301394871, 2.301394871] w=1.021e-13, [2.301394871, 2.301394871] w=1.021e-13]
+[bf-ray]   edge EdgeKey(4v1) faces=(FaceKey(6v1),FaceKey(2v1)) gap_lo=[0.221622136, 0.221622136] w=1.676e-14 gap_hi=[0.221622136, 0.221622136] w=1.676e-14 along=[[2.321481183, 2.321481183] w=1.026e-13, [2.321481183, 2.321481183] w=1.026e-13]
+[bf-ray]   edge EdgeKey(5v1) faces=(FaceKey(6v1),FaceKey(3v1)) gap_lo=[0.584726196, 0.584726196] w=2.287e-14 gap_hi=[0.584726196, 0.584726196] w=2.287e-14 along=[[3.689809523, 3.689809523] w=1.785e-13, [3.689809523, 3.689809523] w=1.785e-13]
+[bf-ray]   edge EdgeKey(6v1) faces=(FaceKey(3v1),FaceKey(4v1)) gap_lo=[0.090764099, 0.090764099] w=2.445e-14 gap_hi=[0.090764099, 0.090764099] w=2.445e-14 along=[[7.936147653, 7.936147653] w=3.944e-13, [7.936147653, 7.936147653] w=3.944e-13]
+[bf-ray]   edge EdgeKey(7v1) faces=(FaceKey(4v1),FaceKey(5v1)) gap_lo=[0.828132977, 0.828132977] w=2.742e-14 gap_hi=[0.828132977, 0.828132977] w=2.742e-14 along=[[4.046154085, 4.046154085] w=2.629e-13, [4.046154085, 4.046154085] w=2.629e-13]
+[bf-ray]   edge EdgeKey(8v1) faces=(FaceKey(5v1),FaceKey(6v1)) gap_lo=[0.152642683, 0.152642683] w=5.801e-15 gap_hi=[0.152642683, 0.152642683] w=5.801e-15 along=[[-0.200184046, -0.200184046] w=4.496e-14, [-0.200184046, -0.200184046] w=4.496e-14]
+[bf-ray]   edge EdgeKey(9v1) faces=(FaceKey(1v1),FaceKey(3v1)) gap_lo=[0.613696213, 0.613696213] w=2.554e-14 gap_hi=[0.613696213, 0.613696213] w=2.554e-14 along=[[2.170341986, 2.170341986] w=9.504e-14, [2.170341986, 2.170341986] w=9.504e-14]
+[bf-ray]   edge EdgeKey(10v1) faces=(FaceKey(1v1),FaceKey(4v1)) gap_lo=[0.802264398, 0.802264398] w=3.331e-14 gap_hi=[0.802264398, 0.802264398] w=3.331e-14 along=[[2.201673605, 2.201673605] w=9.770e-14, [2.201673605, 2.201673605] w=9.770e-14]
+[bf-ray]   edge EdgeKey(11v1) faces=(FaceKey(1v1),FaceKey(5v1)) gap_lo=[0.379285119, 0.379285119] w=1.593e-14 gap_hi=[0.379285119, 0.379285119] w=1.582e-14 along=[[2.051089183, 2.051089183] w=9.148e-14, [2.051089183, 2.051089183] w=9.148e-14]
+[bf-ray]   edge EdgeKey(12v1) faces=(FaceKey(1v1),FaceKey(6v1)) gap_lo=[0.189388934, 0.189388934] w=1.457e-14 gap_hi=[0.189388934, 0.189388934] w=1.457e-14 along=[[2.071844559, 2.071844559] w=9.193e-14, [2.071844559, 2.071844559] w=9.193e-14]
+[bf-ray]   crosses_by_turn FaceKey(1v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(2v1) -> Some(true)
+[bf-ray]   crosses_by_turn FaceKey(3v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(4v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(5v1) -> Some(false)
+[bf-ray]   crosses_by_turn FaceKey(6v1) -> Some(false)
+[bf-ray]   definite: {"side_at_infinity_advance": 2, "side_at_infinity_denom": 6, "side_at_infinity_edge": 12, "side_at_infinity_order": 2, "side_at_infinity_vertex": 8}
+[bf-ray] => FaceKey(1v1) read Ok(Side(Out))
+[bf-side] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 rays=Side(Out)
+[bf-finish] scalar=geom_core::sym::Sym<geom_core::interval::Interval> faces=6 verts=8 fp=677cd0533d89c6c8 dt_ms=61.41 outcome=ok
+test m10_derived_frame_interval::m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width ... ok
+
+failures:
+
+failures:
+    m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze
+
+test result: FAILED. 2 passed; 1 failed; 6 ignored; 0 measured; 3125 filtered out; finished in 1.36s
+
