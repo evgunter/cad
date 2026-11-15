@@ -10767,13 +10767,49 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         let probe = geom_core::k_stats::probe_tally::on();
         let started = std::time::Instant::now();
         let prev = geom_core::k_stats::probe_tally::phase("finish");
+        geom_core::k_stats::probe_tally::finish_begin();
         let certificate = validate_geometric_certificate(&body, tol);
         geom_core::k_stats::probe_tally::phase(prev);
+        geom_core::k_stats::probe_tally::finish_report(&format!(
+            "{} faces={}",
+            core::any::type_name::<T>().rsplit("::").next().unwrap_or(""),
+            body.faces().count()
+        ));
         if probe {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
             for (_, p) in body.vertex_points() {
                 format!("{p:?}").hash(&mut h);
+            }
+            // PROBE (M5): the whole stored geometry (vertices, surfaces,
+            // carriers), with its symbolic nodes and without them.
+            if geom_core::k_stats::probe_tally::deep()
+                || std::env::var("BOXFINISH_TRACE").is_ok_and(|v| v == "4")
+            {
+                let mut text = String::new();
+                for (_, p) in body.vertex_points() {
+                    text.push_str(&format!("{p:?}"));
+                }
+                for (f, _) in body.faces() {
+                    if let Some(s) = body.face_surface(f) {
+                        text.push_str(&format!("{s:?}"));
+                    }
+                }
+                for (_, edge) in body.edges.iter() {
+                    if let Some(c) = body.curves.get(edge.curve).and_then(CurveGeom::certified) {
+                        text.push_str(&format!("{:?}", c.carrier()));
+                    }
+                }
+                let mut full = std::collections::hash_map::DefaultHasher::new();
+                text.hash(&mut full);
+                let mut val = std::collections::hash_map::DefaultHasher::new();
+                geom_core::k_stats::probe_tally::strip_nodes(&text).hash(&mut val);
+                eprintln!(
+                    "[bf-body] faces={} geom_with_nodes={:016x} geom_values={:016x}",
+                    body.faces().count(),
+                    full.finish(),
+                    val.finish()
+                );
             }
             eprintln!(
                 "[bf-finish] scalar={} faces={} verts={} fp={:016x} dt_ms={:.2} outcome={}",

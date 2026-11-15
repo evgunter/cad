@@ -367,6 +367,113 @@ pub mod probe_tally {
         }
     }
 
+    /// PROBE (M5): the deep trace, `BOXFINISH_TRACE=3`.
+    pub fn deep() -> bool {
+        static DEEP: OnceLock<bool> = OnceLock::new();
+        *DEEP.get_or_init(|| std::env::var("BOXFINISH_TRACE").is_ok_and(|v| v == "3"))
+    }
+
+    /// PROBE (M5): `s` with every `node: SymId(..)` removed, so two
+    /// values compare by their enclosures alone.
+    pub fn strip_nodes(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut rest = s;
+        while let Some(i) = rest.find("node: SymId(") {
+            out.push_str(&rest[..i]);
+            let tail = &rest[i..];
+            let j = tail.find(')').map_or(tail.len(), |j| j + 1);
+            rest = &tail[j..];
+        }
+        out.push_str(rest);
+        out
+    }
+
+    fn hash_of(s: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        s.hash(&mut h);
+        h.finish()
+    }
+
+    #[derive(Default)]
+    struct Rec {
+        last: Option<std::time::Instant>,
+        // (phase, name) -> (count, ns before the decision since the last one, ns inside it)
+        time: BTreeMap<(&'static str, &'static str), (u64, u128, u128)>,
+        // (phase, name, hash) -> count; `full` keeps the nodes, `val` drops them
+        full: std::collections::HashMap<(&'static str, &'static str, u64), u32>,
+        val: std::collections::HashMap<(&'static str, &'static str, u64), u32>,
+    }
+    thread_local! {
+        static REC: std::cell::RefCell<Rec> = std::cell::RefCell::new(Rec::default());
+    }
+
+    /// PROBE (M5): one decision of `name`, its margin and band as text,
+    /// entered at `entered` (before the text was made), decided between
+    /// `t0` and `t1`.
+    pub fn decision(
+        name: &'static str,
+        text: &str,
+        entered: std::time::Instant,
+        t0: std::time::Instant,
+        t1: std::time::Instant,
+    ) {
+        let phase = PHASE.with(Cell::get);
+        REC.with(|r| {
+            let mut r = r.borrow_mut();
+            let gap = r.last.map_or(0, |l| entered.saturating_duration_since(l).as_nanos());
+            let e = r.time.entry((phase, name)).or_default();
+            e.0 += 1;
+            e.1 += gap;
+            e.2 += (t1 - t0).as_nanos();
+            *r.full.entry((phase, name, hash_of(text))).or_default() += 1;
+            *r.val.entry((phase, name, hash_of(&strip_nodes(text)))).or_default() += 1;
+            r.last = Some(std::time::Instant::now());
+        });
+    }
+
+    /// PROBE (M5): a finish begins on this thread.
+    pub fn finish_begin() {
+        if deep() {
+            REC.with(|r| r.borrow_mut().last = Some(std::time::Instant::now()));
+        }
+    }
+
+    /// PROBE (M5): a finish ended: per predicate its count, wall time
+    /// and how many of its decisions the build since the last finish
+    /// took with the same text; then everything is forgotten.
+    pub fn finish_report(label: &str) {
+        if !deep() {
+            return;
+        }
+        REC.with(|r| {
+            let mut r = r.borrow_mut();
+            let tail = r.last.map_or(0, |l| l.elapsed().as_nanos());
+            let matched = |m: &std::collections::HashMap<(&'static str, &'static str, u64), u32>,
+                           name: &'static str| {
+                m.iter()
+                    .filter(|((ph, n, _), _)| *ph == "finish" && *n == name)
+                    .map(|((_, n, h), c)| (*c).min(m.get(&("build", *n, *h)).copied().unwrap_or(0)))
+                    .sum::<u32>()
+            };
+            for ((phase, name), (n, gap, inside)) in &r.time {
+                if *phase != "finish" {
+                    continue;
+                }
+                let built = r.time.get(&("build", *name)).map_or(0, |e| e.0);
+                eprintln!(
+                    "[bf-deep] {label} {name} n={n} before_ms={:.2} inside_ms={:.2} build_n={built} same_node={} same_value={}",
+                    *gap as f64 / 1e6,
+                    *inside as f64 / 1e6,
+                    matched(&r.full, name),
+                    matched(&r.val, name),
+                );
+            }
+            eprintln!("[bf-deep] {label} (after the last decision) ms={:.2}", tail as f64 / 1e6);
+            *r = Rec::default();
+        });
+    }
+
     /// The tally so far, emptied.
     pub fn take() -> BTreeMap<Key, u64> {
         std::mem::take(&mut *TALLY.lock().unwrap())
@@ -408,7 +515,15 @@ fn classify<T: Decide>(
     // replay's first decisions to the previous replay's last predicate
     // until this was scoped (`assert_bound` read 9 decisions for 1).
     let prev = CURRENT.with(|c| c.replace(name));
+    let deep = probe_tally::deep().then(|| {
+        let entered = std::time::Instant::now();
+        (entered, format!("{margin:?} {band:?}"))
+    });
+    let t0 = std::time::Instant::now();
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Some((entered, text)) = deep {
+        probe_tally::decision(name, &text, entered, t0, std::time::Instant::now());
+    }
     probe_tally::add(if outcome.is_ok() {
         "definite"
     } else {

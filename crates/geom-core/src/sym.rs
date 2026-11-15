@@ -3952,6 +3952,9 @@ fn form_in(
             // function of the parameters is exactly an indeterminate.
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
+            if !early {
+                crate::k_stats::probe_tally::add("froze_unrecorded");
+            }
             let f = frozen(sess, id);
             // NOT published, and everything built from it is tainted:
             // `note`'s own comment says why.
@@ -4107,6 +4110,14 @@ fn form_in(
             if over && notes_causes {
                 sess.budget_frozen.insert(id, ());
             }
+            // PROBE (M5): why this node freezes on the plain walk.
+            if !early && crate::k_stats::probe_tally::deep() && (over || combined.is_none()) {
+                eprintln!(
+                    "[bf-froze-why] predicate={} op={:?} refusal={refusal:?} over_budget={over} budget={budget:?}",
+                    crate::k_stats::current_predicate(),
+                    node.op,
+                );
+            }
             let made = combined.filter(|f| within(budget, f));
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
@@ -4129,7 +4140,19 @@ fn form_in(
         let froze = made.is_none();
         let f = match made {
             Some(p) => p,
-            None => frozen(sess, id),
+            None => {
+                if !early {
+                    crate::k_stats::probe_tally::add("froze_made_none");
+                    if crate::k_stats::probe_tally::deep() {
+                        eprintln!(
+                            "[bf-froze] predicate={} op={:?}",
+                            crate::k_stats::current_predicate(),
+                            node.op
+                        );
+                    }
+                }
+                frozen(sess, id)
+            }
         };
         note(sess, id, froze, !taint);
         memo.insert(id, f);
