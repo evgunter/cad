@@ -251,6 +251,32 @@ fn gated_module_files(file: &Path, view: &str, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// The file form of the cut: a gated `mod rows;` at each visibility a
+/// module can be declared at resolves to the files a shipped build does
+/// not compile, and the ungated declaration beside it resolves to none.
+#[test]
+fn a_gated_file_module_of_any_visibility_is_resolved() {
+    for vis in [
+        "",
+        "pub ",
+        "pub(crate) ",
+        "pub(super) ",
+        "pub(in crate::a) ",
+    ] {
+        let view = format!("#[cfg(test)]\n{vis}mod rows;\n{vis}mod shipped;\n");
+        let mut out = Vec::new();
+        gated_module_files(Path::new("crates/x/src/lib.rs"), &view, &mut out);
+        assert_eq!(
+            out,
+            [
+                PathBuf::from("crates/x/src/rows.rs"),
+                PathBuf::from("crates/x/src/rows")
+            ],
+            "`{vis}mod rows;`"
+        );
+    }
+}
+
 /// Does this tree hold any `.rs` file at all? Asked before the shared
 /// walk, which treats an empty result as the caller's bug.
 fn has_rust(dir: &Path) -> bool {
