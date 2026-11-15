@@ -1269,8 +1269,8 @@ const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 /// are a CERTIFIED TIE between two FACES, and nothing breaks it: the
 /// door names both and chooses neither.
 ///
-/// This is the class `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
-/// names. It is not resolved by preferring the narrow claim any more —
+/// This is the class the ring's row above carries, on the other side of
+/// the line. It is not resolved by preferring the narrow claim any more —
 /// the width was a rule the user did not ask for — it is DISCLOSED:
 /// the aimed vertex is among the answers, and so is the edge-on face
 /// in front of it. A door comparing rounded `t` reds here (it answers

@@ -863,12 +863,11 @@ fn a_slab_along_a_boxed_vector_stores_exact_caps_and_wide_walls() {
 /// stored plane, over every planar face.
 fn worst_vertex_off_plane(body: &Body<f64>) -> f64 {
     let mut worst = 0.0_f64;
-    for (fk, face) in body.faces() {
+    for (fk, _) in body.faces() {
         let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             continue;
         };
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let (_, lp) = body.loops().find(|(k, _)| *k == lk).expect("a live loop");
+        for (_, lp, _) in body.face(fk).expect("a live face").loops() {
             if let topo::entity::LoopBoundary::Cycle { first } = lp.boundary {
                 for he in body.loop_cycle(first).expect("a cycle") {
                     let q = body.half_edge_start_point(he).expect("a placed vertex");
