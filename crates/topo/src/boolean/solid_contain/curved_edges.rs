@@ -480,9 +480,9 @@ mod straddle_rows {
     /// such seeds through a body, so the fold is read directly. Alone,
     /// the unplaced passage sets the ray aside ahead of the start and
     /// reads nothing behind it; beside a met passage in band of it,
-    /// ahead, it sets the ray aside. Red where an unplaced passage
-    /// behind the start is dropped before the fold (the first reads
-    /// `Meets`).
+    /// ahead, it sets the ray aside. Red where `fold` passes over an
+    /// unplaced passage behind the start before folding (the first two
+    /// read `Meets`).
     #[test]
     fn an_unplaced_passage_is_folded_as_a_met_one_is() {
         use super::{Folded, fold};
