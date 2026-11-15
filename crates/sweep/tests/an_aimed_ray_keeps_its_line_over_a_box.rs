@@ -105,9 +105,9 @@ fn a_boxed_slab_reads_its_side_by_its_rays_and_is_taken() {
 /// for crossings only some members make. Over a box a hundredth as wide,
 /// wholly below, every member leaves through the top cap clear of the
 /// edge and the ray reads `Out`. Red under
-/// `Err(undecided) => Ok(Gap::InBand(undecided))` in `topo`'s
-/// `solid_contain::edge_meets` (an undecided gap read as an edge met in
-/// band): the straddling ray is then not set aside at that edge.
+/// `.or(Ok(Magnitude::Zero))` on the gap's decision in `topo`'s
+/// `solid_contain::edge_meets` (an undecided gap handed to the door as
+/// decided, so read as an edge met): the straddling ray is then not set aside at that edge.
 #[test]
 fn a_ray_whose_exit_moves_across_an_edge_over_the_box_is_set_aside() {
     assert_eq!(
@@ -153,7 +153,7 @@ fn top_edge_ray(x_edge: f64, lo: f64, hi: f64) -> String {
 ///   for the member at depth 1, and the one drifting out has no
 ///   crossing that is every member's.
 ///
-/// Red under `Err(undecided) => Ok(Gap::InBand(undecided))` in `topo`'s
+/// Red under `.or(Ok(Magnitude::Zero))` on the gap's decision in `topo`'s
 /// `solid_contain::edge_meets`: over depths holding 1 a ray is then not
 /// set aside.
 #[test]

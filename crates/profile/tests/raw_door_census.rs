@@ -89,7 +89,7 @@
 
 use std::path::{Path, PathBuf};
 
-use test_utils::source::{code_and_literals, rust_sources};
+use test_utils::source::{after_visibility, code_and_literals, rust_sources};
 
 /// The repository root, from this crate's manifest directory.
 fn repo_root() -> PathBuf {
@@ -159,6 +159,38 @@ fn gates_on_test(attrs: &str) -> bool {
     positive.contains("cfg(") && positive.contains("test")
 }
 
+/// What follows `mod ` on a line that declares a module, at any
+/// visibility ([`after_visibility`]): the name, then `;` or the block.
+/// `no_production_source_writes_a_vertex_table` cuts every file by it.
+fn after_mod_keyword(trimmed: &str) -> Option<&str> {
+    after_visibility(trimmed).strip_prefix("mod ")
+}
+
+/// The `#[path = "…"]` among an attribute run, if it carries one.
+fn path_attribute(attrs: &str) -> Option<&str> {
+    let (_, rest) = attrs.split_once("#[path")?;
+    let (_, rest) = rest.trim_start().strip_prefix('=')?.split_once('"')?;
+    rest.split_once('"').map(|(target, _)| target)
+}
+
+/// The cut finds a gated test module at each visibility a module can be
+/// declared at, and does not take a gated item that is not a module.
+#[test]
+fn the_test_region_starts_at_a_gated_module_of_any_visibility() {
+    for vis in [
+        "",
+        "pub ",
+        "pub(crate) ",
+        "pub(super) ",
+        "pub(in crate::a) ",
+    ] {
+        let view = format!("fn shipped() {{}}\n#[cfg(test)]\n{vis}mod tests {{\n}}\n");
+        assert_eq!(test_module_starts_at(&view), 2, "`{vis}mod tests`");
+    }
+    let not_a_module = "#[cfg(test)]\npub(super) fn model() {}\n";
+    assert_eq!(test_module_starts_at(not_a_module), usize::MAX);
+}
+
 /// Where a file's in-file test region begins — the first `mod` BLOCK
 /// carrying a test cfg — or `usize::MAX` if it has none.
 ///
@@ -173,11 +205,10 @@ fn test_module_starts_at(view: &str) -> usize {
         .enumerate()
         .find_map(|(i, l)| {
             let t = l.trim_start();
-            let is_mod = t.starts_with("mod ")
-                || t.starts_with("pub mod ")
-                || t.starts_with("pub(crate) mod ");
-            (is_mod && !t.ends_with(';') && gates_on_test(&attributes_above(&lines, i)))
-                .then_some(i)
+            (after_mod_keyword(t).is_some()
+                && !t.ends_with(';')
+                && gates_on_test(&attributes_above(&lines, i)))
+            .then_some(i)
         })
         .unwrap_or(usize::MAX)
 }
@@ -188,7 +219,9 @@ fn test_module_starts_at(view: &str) -> usize {
 /// A file gated at its declaration is not production source at all, and
 /// the gate is one file away from the code it covers — which is why
 /// this is resolved rather than allow-listed. `sweep::test_support` is
-/// the live instance; the resolution is general.
+/// the live instance; the resolution is general. A `#[path]` on the
+/// declaration names the file instead, relative to the declaring file's
+/// directory.
 fn gated_module_files(file: &Path, view: &str, out: &mut Vec<PathBuf>) {
     let dir = match file.file_name().and_then(|n| n.to_str()) {
         Some("lib.rs" | "main.rs" | "mod.rs") => file.parent().map(Path::to_path_buf),
@@ -204,22 +237,93 @@ fn gated_module_files(file: &Path, view: &str, out: &mut Vec<PathBuf>) {
     let lines: Vec<&str> = view.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         let t = line.trim();
-        let Some(rest) = t
-            .strip_prefix("pub mod ")
-            .or_else(|| t.strip_prefix("pub(crate) mod "))
-            .or_else(|| t.strip_prefix("mod "))
-        else {
+        let Some(rest) = after_mod_keyword(t) else {
             continue;
         };
         let Some(name) = rest.strip_suffix(';') else {
             continue;
         };
-        if !gates_on_test(&attributes_above(&lines, i)) {
+        let attrs = attributes_above(&lines, i);
+        if !gates_on_test(&attrs) {
             continue;
         }
-        out.push(dir.join(format!("{name}.rs")));
-        out.push(dir.join(name));
+        match (path_attribute(&attrs), file.parent()) {
+            (Some(target), Some(beside)) => {
+                // Lexically, so a `..` in the target compares as the
+                // path the walk reports.
+                let mut mounted = PathBuf::new();
+                for part in beside.join(target).components() {
+                    match part {
+                        std::path::Component::ParentDir => {
+                            mounted.pop();
+                        }
+                        other => mounted.push(other),
+                    }
+                }
+                // The module's own directory: beside a `name.rs`, or the
+                // one a `mod.rs` sits in.
+                out.push(if mounted.ends_with("mod.rs") {
+                    mounted.parent().map(Path::to_path_buf).unwrap_or_default()
+                } else {
+                    mounted.with_extension("")
+                });
+                out.push(mounted);
+            }
+            _ => {
+                out.push(dir.join(format!("{name}.rs")));
+                out.push(dir.join(name));
+            }
+        }
     }
+}
+
+/// The file form of the cut: a gated `mod rows;` at each visibility a
+/// module can be declared at resolves to the files a shipped build does
+/// not compile, and the ungated declaration beside it resolves to none.
+#[test]
+fn a_gated_file_module_of_any_visibility_is_resolved() {
+    for vis in [
+        "",
+        "pub ",
+        "pub(crate) ",
+        "pub(super) ",
+        "pub(in crate::a) ",
+    ] {
+        let view = format!("#[cfg(test)]\n{vis}mod rows;\n{vis}mod shipped;\n");
+        let mut out = Vec::new();
+        gated_module_files(Path::new("crates/x/src/lib.rs"), &view, &mut out);
+        assert_eq!(
+            out,
+            [
+                PathBuf::from("crates/x/src/rows.rs"),
+                PathBuf::from("crates/x/src/rows")
+            ],
+            "`{vis}mod rows;`"
+        );
+    }
+}
+
+/// A gated `#[path]` mount resolves to the file it names, beside the
+/// declaring file, and not to a file of the module's own name.
+#[test]
+fn a_gated_path_mount_resolves_to_the_file_it_names() {
+    let view = "#[cfg(test)]\n#[path = \"in_plane_rows.rs\"]\npub(super) mod rows;\n";
+    let mut out = Vec::new();
+    gated_module_files(Path::new("crates/x/src/boolean/reduce.rs"), view, &mut out);
+    gated_module_files(
+        Path::new("crates/x/src/spline/compose.rs"),
+        "#[cfg(test)]\n#[path = \"../../tests/exact_q/mod.rs\"]\nmod exact_q;\n",
+        &mut out,
+    );
+    assert_eq!(
+        out,
+        [
+            PathBuf::from("crates/x/src/boolean/in_plane_rows"),
+            PathBuf::from("crates/x/src/boolean/in_plane_rows.rs"),
+            PathBuf::from("crates/x/tests/exact_q"),
+            PathBuf::from("crates/x/tests/exact_q/mod.rs"),
+        ]
+    );
 }
 
 /// Does this tree hold any `.rs` file at all? Asked before the shared

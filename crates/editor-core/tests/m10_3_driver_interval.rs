@@ -414,54 +414,22 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 /// the widening they caused is gone and the bracket has to be searched
 /// upward instead of downward.
 ///
-/// **What bounds it now, MEASURED — and it is not the flip.** An earlier
-/// version of this row said the ceiling was "the distance to the flip":
-/// the slab's extrusion distance is `1.0 ± half`, so at `half = 1.0` the
-/// far side of the box extrudes the other way, a genuine topology flip
-/// the driver refuses as `FlipCrossing` mass. That is true about
-/// `half = 1.0` and it is not what the ceiling is. Beyond the ceiling
-/// the box still CERTIFIES; it just stops certifying in ONE leaf. Three
-/// regimes, all measured through the doors this row uses:
-///
-/// | `half` | what happens, with bisection allowed |
-/// | --- | --- |
-/// | up to the ceiling | certifies WHOLE — one leaf, no split |
-/// | ceiling … under 1.0 | certifies AFTER bisection, nothing refused |
-/// | 1.0 | the flip: refused |
-///
-/// So the ceiling is a ONE-LEAF property, and the flip is a different
-/// question with a different answer three regimes away. What ends the
-/// one-leaf regime is a SINGLE-LEAF evaluation over the whole box
-/// failing, and what fails there is named:
-///
-/// | `half`, at one leaf | the predicate that stops it |
-/// | --- | --- |
-/// | just past the ceiling | `dihedral_wedge` — INDETERMINATE |
-/// | 0.5 and up | `newell_plane_residual` — INVALID |
-///
-/// `dihedral_wedge` straddles the corner/smooth decision over a box this
-/// wide (at the ceiling its enclosure is `[9.99e-12, 7.52e10]` against a
-/// band of `(1e-12, 1e-11)` at ε = 1e-12). Past 0.5 the side wall's
-/// Newell normal has an enclosure that REACHES ZERO, normalization drops
-/// the decoration to `Trv`, and the residual is invalid rather than
-/// in-band. Bisection escapes both, because a narrower sub-box has a
-/// narrower enclosure — which is exactly what says these are WIDENING
-/// and not geometry.
-///
-/// **Both are dependency widening in the numeric channel of margins that
-/// are NOT identities**, which is the thing E12 assumed away ("plain
-/// intervals suffice for the real margins"). The symbolic tier
-/// discharges the identities and hands the ceiling to the next mechanism
-/// along; naming it is the point of this row, and the class is tracked
-/// as `work/sym/real-margin-dependency-widening.md`.
-///
-/// **The ceiling is ε-DEPENDENT**, which is the second thing the earlier
-/// version got wrong by quoting one number. It rises as ε tightens —
-/// 0.4390 at 1e-6, 0.4883 at 1e-9, 0.4979 at 1e-12 — because what ends
-/// the first regime is a band-straddle, and a narrower band is escaped
-/// by a wider box. So the row asserts a BAND around the measurement at
-/// the ε it is running at, not a single constant and not a
-/// three-decade-wide floor.
+/// **What bounds it now, MEASURED: the flip.** The slab's extrusion
+/// distance is `1.0 ± half`, so at `half = 1.0` the far side of the box
+/// extrudes the other way, a genuine topology flip. Below it the box
+/// certifies WHOLE at every width the search tries: the slab's caps are
+/// its sketch frame carried by the depth, and its walls' normals the
+/// frame turning its segments' directions, so nothing the door stores
+/// widens with the box, and the search settles where the depth's low
+/// end, `1 − half`, meets the sliver band a depth must clear (`10ε`,
+/// measured to 1e-7 relative at ε = 1e-6, 1e-9 and 1e-12). Just past it a one-leaf replay
+/// refuses at the extrude (whether the extrusion leaves the sketch plane
+/// is undecided), and with bisection everything but the sliver's leaf
+/// certifies. Two mechanisms once ended the one-leaf regime well short of
+/// it — a wall's line carrier with no certified enclosure over the box
+/// (0.094756 at every ε row), and before that `dihedral_wedge` and a
+/// side wall's Newell normal whose enclosure reached zero — and both
+/// were the stored data's width, not the geometry's.
 #[test]
 fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     let e = eps();
@@ -485,7 +453,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
         !certifies_whole(hi),
         "a box reaching a zero extrusion distance must not certify whole"
     );
-    for _ in 0..24 {
+    for _ in 0..52 {
         let mid = 0.5 * (lo + hi);
         if certifies_whole(mid) {
             lo = mid
@@ -493,100 +461,74 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
             hi = mid
         }
     }
-
-    // (1) THE NUMBER, within a band around the measurement at this ε.
-    // Measured 2026-09-04 on this fixture; a move outside the band is
-    // the mechanism moving, which is what this row is here to notice.
-    let (want, tol_rel) = ceiling_at(e);
+    // (1) THE NUMBER, two-sided: the ceiling is the flip less the sliver
+    // band a depth must clear, `1 − lo = 10ε`, measured to 1e-7 relative
+    // at every ε row (the search resolves `2^-52`). A move either way is
+    // the mechanism moving.
+    let gap = 1.0 - lo;
     assert!(
-        (lo - want).abs() <= tol_rel * want,
-        "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}); this ε row \
-         measured {want} +/- {}%. A move DOWN says the tier stopped discharging an \
-         identity; a move UP says the numeric channel's widening changed. Either way the \
-         mechanism moved and the doc above needs re-reading, not the band widening.",
-        tol_rel * 100.0
+        (gap / (10.0 * e) - 1.0).abs() <= 1e-4,
+        "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}): 1 − lo = {gap:e}, \
+         {} × 10ε. Short of it, something the door stores widens with the box again; past it, \
+         the sliver band moved. Either way the account above needs re-reading, not a band",
+        gap / (10.0 * e)
     );
 
     // (2) IT IS NOT A FRACTION OF ε, which is the claim the row's name
     // makes. Before the tier this same search settled at ε/8.
     assert!(
         lo / e > 1.0e4,
-        "the ceiling is {} ε — that is the pre-tier regime, where a leaf went definite \
-         only once its own width was a fraction of the coincidence threshold",
+        "the ceiling is {} ε — that is the pre-tier regime",
         lo / e
     );
 
-    // (3) BEYOND IT THE BOX STILL CERTIFIES, after bisection: the
-    // ceiling is about certifying WHOLE, not about the driver failing.
-    // This is what makes "the flip" the wrong account of it.
-    let doc = slab(1.0, hi * 1.01);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // (3) WHAT ENDS THE ONE-LEAF REGIME IS NAMED: a one-leaf replay just
+    // past the ceiling refuses at the extrude, the depth's low end inside
+    // the sliver band, so whether the extrusion leaves the sketch plane
+    // is undecided.
+    let past = slab(1.0, hi);
+    let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    assert!(
+        why.len() == 1
+            && why[0].contains("whether the extrusion leaves the sketch plane is undecided"),
+        "just past the ceiling a ONE-LEAF replay must refuse on the depth's sliver band alone; \
+         a different predicate means the mechanism that sets the ceiling moved: {why:?}"
+    );
+
+    // (4) WITH BISECTION, the drive certifies everything but the sliver:
+    // the one leaf it cannot certify is the one touching the zero depth,
+    // refused at the depth budget, and nothing is refused for any other
+    // reason.
     let v = drive(
-        &doc,
-        &analyzed,
+        &past,
+        &analyzed_box(&past, &AnalysisPolicy::default()),
         &config(64),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
     assert!(
-        v.receipt().splits > 0 && v.refused().is_empty(),
-        "just past the ceiling the box must certify after bisection with nothing refused, \
-         which is what says the ceiling is a one-leaf property: {:?} refused={:?}",
+        v.receipt().certified > 0
+            && v.receipt().splits > 0
+            && v.refused().len() == 1
+            && v.refused()
+                .iter()
+                .all(|l| format!("{:?}", l.reason).starts_with("Budget(Depth")),
+        "past the ceiling the drive certifies after bisection and refuses only the sliver's \
+         leaf, at the depth budget: {:?} refused={:?}",
         v.receipt(),
         v.refused().iter().map(|l| &l.reason).collect::<Vec<_>>()
     );
 
-    // (4) AND WHAT ENDS THE ONE-LEAF REGIME IS NAMED. A single-leaf
-    // evaluation over a box past the ceiling fails on `dihedral_wedge`,
-    // and one over a box past 0.5 fails on `newell_plane_residual` —
-    // the two mechanisms the docs above describe. Naming them is what
-    // makes this row notice a change of mechanism rather than only a
-    // change of number.
-    // `hi` itself, not a multiple of it: the bisection leaves `hi`
-    // within a part in 10^10 of the ceiling, and the two mechanisms are
-    // only a few percent apart at the tightest ε — probing 1% past the
-    // ceiling at ε = 1e-12 lands in the SECOND regime and reads the
-    // other predicate.
-    let past = slab(1.0, hi);
-    let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
-    // Since PR 5728 the predicate past the ceiling is limb 2's, not
-    // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
-    // wall's line carrier has no certified enclosure over the box, and
-    // that arrives first. It is what moved the ceiling down
-    // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+    // (5) AND THE MECHANISMS THAT ONCE ENDED IT ARE GONE: at half 0.5,
+    // where a side wall's Newell normal reached zero, a one-leaf replay
+    // fails nowhere.
+    let half = slab(1.0, 0.5);
+    let why = node_failures(&half, &analyzed_box(&half, &AnalysisPolicy::default()));
     assert!(
-        why.iter()
-            .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
-        "just past the ceiling a ONE-LEAF replay must fail on limb 2's line-carrier \
-         enclosure; a different predicate means the mechanism that sets the ceiling \
-         moved, and the doc above is then wrong rather than the number: {why:?}"
+        why.is_empty(),
+        "at half = 0.5 a ONE-LEAF replay certifies whole: {why:?}"
     );
-    let wide = slab(1.0, 0.5);
-    let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
-    assert!(
-        why.iter().any(|f| f.contains("newell_plane_residual")),
-        "at half = 0.5 a ONE-LEAF replay must fail on `newell_plane_residual` — the \
-         wall normal's enclosure reaching zero: {why:?}"
-    );
-}
-
-/// The whole-certifying half-width measured on the slab, with the
-/// relative band this row admits.
-///
-/// **Pinned at what main measures since PR 5728** (limb 2 for every
-/// carrier): 0.094756 at every ε row. It was ε-dependent before (the
-/// row's docs say why): 0.438988 at 1e-6, 0.488315 at 1e-9, 0.497892
-/// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
-/// row's own reading, the tier no longer discharging an identity, and
-/// the mechanism is unread
-/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`):
-/// closing that row restores the per-ε ceilings or re-documents the
-/// account above. The band is 2%: wide enough to absorb the last bits
-/// of a bisection search, far too narrow to absorb a change of
-/// mechanism.
-fn ceiling_at(_eps: f64) -> (f64, f64) {
-    (0.094_756, 0.02)
 }
 
 /// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
@@ -774,36 +716,23 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.
 ///
-/// At ±0.1 on both parameters — a REAL study, two fifths of the radius.
-/// The fixture's whole-certifying half-width is a real margin at about
-/// 0.0596 (`evidence_two_param_plate_whole_certifying_half_width`; it
-/// was 0.022 until the circle stored its authored carrier), so an
-/// ε-scaled box does not split and a row about bisection has to be
-/// wider than that.
-///
-/// Pinned red at every ε row: since the cylinder rim's axial decision
-/// every leaf refuses (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
-/// The leaves are those the drive splits down to: the extrude reads each
-/// edge it writes by its whole wedge, and a corner's sign or wedge at a
-/// station escalates over the wider boxes, so they split to 18.
+/// At ±0.16 on both parameters — a REAL study, nearly two thirds of
+/// the radius. The fixture's whole-certifying half-width is a real margin
+/// at about 0.148 (`evidence_two_param_plate_whole_certifying_half_width`;
+/// it was 0.0596 while the extrude fitted its planes to the corners, and
+/// 0.022 before the circle stored its authored carrier), so an ε-scaled
+/// box does not split and a row about bisection has to be wider than
+/// that. Past it the leaves bisect toward the fixture's own limit
+/// without end, so the drive is held to 16 leaves: the row is about the
+/// split and the accounting, not the whole tree.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
-    test_utils::pinned_red::row(
-        eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the two-parameter drive",
-        &["the box should certify SOMETHING: Receipt { certified: 0, refused: 18, splits: 17 }"],
-        the_two_parameter_drive_rows,
-    );
-}
-
-fn the_two_parameter_drive_rows() {
-    let doc = two_param_plate(uniform(0.1), uniform(0.1));
+    let doc = two_param_plate(uniform(0.16), uniform(0.16));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(
         &doc,
         &analyzed,
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
@@ -1254,36 +1183,20 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// parameter varying, leaves certify and refuse exactly as they would
 /// otherwise, and the ACCOUNTING columns refuse typed, naming the band.
 ///
-/// At ±0.1, past the fixture's whole-certifying half-width (the row
+/// At ±0.16, past the fixture's whole-certifying half-width (the row
 /// above): a leaf that covers a band's WHOLE support prices as 1 by
 /// the band's own rule (`box_mass`), so the refusal this row is about
 /// needs a leaf that covers part of it, i.e. a drive that split.
-///
-/// Pinned red at every ε row, on the drive the row above pins
-/// (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
-    test_utils::pinned_red::row(
-        eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the banded two-parameter drive",
-        &[
-            "a band must not stop certification",
-            "Receipt { certified: 0, refused: 18, splits: 17 }",
-        ],
-        a_band_parameter_rows,
-    );
-}
-
-fn a_band_parameter_rows() {
-    let w = 0.1;
+    let w = 0.16;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());
     let v = drive(
         &banded,
         &analyzed,
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
@@ -1299,7 +1212,7 @@ fn a_band_parameter_rows() {
     let u = drive(
         &priced,
         &analyzed_box(&priced, &AnalysisPolicy::default()),
-        &config(256),
+        &config(16),
         &editor_core::Stop::default(),
         Tol::witness(),
     )

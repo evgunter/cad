@@ -50,7 +50,7 @@ The General pcurve's naive interval evaluation is filed separately: `work/pcert/
 
 **The refusal does not name the station frame.** Each refuses as the wall certificate's own text (`Pcurve(Escalated … pcurve_loop_continuity)`), not as a typed refusal naming the station whose frame is too wide for the band. That is the same ask as the variable-path row's (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`, "Must hold"): a typed refusal naming the station frame.
 
-**Pinned.** The two rows are pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins lift with its fix.
+**Pinned until the fix.** The two rows were pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins are lifted (Closed, below), and neither row is pinned on main or on BOXFINISH's `boxfinish/sweep-frames`.
 
 ## Closed
 

@@ -17,7 +17,7 @@
 //! reads the canonical turn, which is why that arm is here as
 //! [`centre_on_material_side`] and is called from both verbs rather
 //! than spelled twice. On LINE walls they diverge and no body is
-//! shared — extrude's are Newell-outward and always `true`, revolve's
+//! shared — extrude's face outward by construction and are always `true`, revolve's
 //! read a canonical Δz (cylinder, cone) or Δr (plane annulus), and
 //! loft is uniform `true`. The **strut carrier** is per-verb: a
 //! translation trajectory is a line, a rotation trajectory is a
@@ -47,10 +47,7 @@
 
 pub(crate) use crate::rows::CosurfaceNames;
 use geom::{Curve3, Surface};
-use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError, SketchSegment,
-    newell_plane,
-};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SketchSegment};
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
     RigidMotionError, Sign, Tol, UnitVec3, Vec2, Vec3,
@@ -142,11 +139,35 @@ impl<T: Real> Placing<T> {
         }
     }
 
-    /// A sketch direction placed, then turned: the placement's linear
-    /// part, then the turn's.
-    pub(crate) fn vector(self, v: Vec2<T>) -> Vec3<T> {
-        let placed = self.place.transform_vec(Vec3::new(v.x, v.y, T::zero()));
-        self.turn_vec(placed).unwrap_or(placed)
+    /// The station's origin: sketch (0, 0) placed, then turned.
+    pub(crate) fn origin(self) -> Point3<T> {
+        self.point(Point2::origin())
+    }
+
+    /// A sketch direction carried by the station's frame: `(d, 0)`
+    /// through the placement's linear part, then turned. The placement
+    /// and the turn are rigid, so a unit direction comes out unit, and
+    /// the result carries that as its type ([`Unit3`]); nothing is
+    /// re-derived from placed points.
+    pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
+        let Unit2(d) = d;
+        Unit3(self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())))
+    }
+
+    /// The station's normal: the placement's third axis, turned.
+    pub(crate) fn normal(self) -> Unit3<T> {
+        Unit3(self.carry(self.place.linear.c2))
+    }
+
+    /// The station's first axis (sketch `+x`), turned.
+    pub(crate) fn first_axis(self) -> Unit3<T> {
+        Unit3(self.carry(self.place.linear.c0))
+    }
+
+    /// A placed direction turned by the turn, or as it is when there is
+    /// none.
+    pub(crate) fn carry(self, v: Vec3<T>) -> Vec3<T> {
+        self.turn_vec(v).unwrap_or(v)
     }
 
     /// A sketch point placed, then turned.
@@ -533,6 +554,91 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     }
 }
 
+/// **A unit sketch direction**, minted only from a segment as the
+/// profile stores it ([`sketch_direction`], [`sketch_chord`]): the sweep's
+/// one place that divides a sketch difference by its own length. The
+/// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Unit2<T: Real>(Vec2<T>);
+
+impl<T: Real> Unit2<T> {
+    /// The right normal `(d.y, −d.x)`: a quarter turn of a unit
+    /// direction, unit with it. For a material-left loop it points out
+    /// of the region.
+    pub(crate) fn right(self) -> Self {
+        Self(Vec2::new(self.0.y, T::zero() - self.0.x))
+    }
+
+    /// The opposite direction.
+    pub(crate) fn reversed(self) -> Self {
+        Self(-self.0)
+    }
+}
+
+/// **A unit world direction the sweep holds by construction**: a
+/// [`Unit2`] or a station axis carried by a rigid frame
+/// ([`Placing::direction`], [`Placing::normal`],
+/// [`Placing::first_axis`]), a sketch plane's own normal
+/// ([`Unit3::from_frame`]), or, on the vector arm alone, the user's
+/// vector normalized once ([`Unit3::normalized`]). It is unwrapped where
+/// a [`Surface`] or [`Curve3`] stores it: those carriers take bare
+/// vectors, so the witness stops at the sweep doors' seam.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Unit3<T: Real>(Vec3<T>);
+
+impl<T: Real> Unit3<T> {
+    /// The direction, for a carrier that stores bare vectors.
+    pub(crate) fn get(self) -> Vec3<T> {
+        self.0
+    }
+
+    /// A frame's decided axis.
+    pub(crate) fn from_frame(u: UnitVec3<T>) -> Self {
+        Self(u.get())
+    }
+
+    /// **The vector arm's one normalization**: a vector the extrude was
+    /// handed (or a cross product of two unit directions that are not
+    /// perpendicular), divided by its length once. Unit to its rounding
+    /// at `f64`; over a box it carries the box's width
+    /// (`work/boxfinish/a-boxed-vector-extrusions-walls-carry-the-vectors-width.md`).
+    pub(crate) fn normalized(v: Vec3<T>) -> Self {
+        Self(v.normalize())
+    }
+
+    /// The opposite direction.
+    pub(crate) fn reversed(self) -> Self {
+        Self(-self.0)
+    }
+
+    /// `self × other`, normalized: the vector arm's wall normal.
+    pub(crate) fn cross_normalized(self, other: Self) -> Self {
+        Self::normalized(self.0.cross(other.0))
+    }
+}
+
+/// **The sketch direction a placed copy of the segment carries**, in
+/// swept order: a line's director `(b − a)/‖b − a‖`, an arc's radial
+/// at its swept start `(a − centre)/‖a − centre‖`. Decided once here,
+/// in the sketch, from the segment as the profile stores it; every
+/// placed copy is the station's frame turning it
+/// ([`Placing::direction`]), so no door divides a difference of placed
+/// points by its own length.
+pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
+    match seg.kind().get() {
+        SegmentKind::Line => sketch_chord(seg).0,
+        SegmentKind::Arc { arc, .. } => Unit2((seg.a() - arc.centre).normalize()),
+    }
+}
+
+/// A segment's chord `b − a` as its unit direction and its own length,
+/// read once (`Vec2::direction_and_length`): a line's director and the
+/// span its carrier runs.
+pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) {
+    let (d, length) = (seg.b() - seg.a()).direction_and_length();
+    (Unit2(d), length)
+}
+
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
 /// decided turn, read by [`turn_negates`] — a clockwise arc's span is
 /// its reversal's sweep ([`Arc2::reversed`]), as in [`turn_axis`].
@@ -573,42 +679,6 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
-/// **A latitude circle's rim identity, registered** (M10-9;
-/// ERROR-DESIGN E12's "kept in reserve — discharge by provenance",
-/// taken): the distance from the point a circle carrier was built
-/// through to its centre IS its radius, stated by the builder that
-/// guarantees it ([`geom_core::Real::register_equal`]). Its callers are
-/// the revolve's latitude carriers (`revolve::surfaces`,
-/// `revolve::full`), and the comment at each carries the theorem.
-///
-/// **Why the tier cannot prove it for itself, measured.** The squared
-/// identity is a plain-form theorem wherever the coefficient ring can
-/// afford the expansion, and the unsquared one needs the outer `sqrt`
-/// discharged against an `abs` — `sqrt(X) = R` where `X = R²`, which
-/// holds only under a sign of `R` over the box. That is not a decision
-/// the construction takes, so no shipped rule folds it (M10-8's rule C
-/// did, folded on no document at the shipped 256-bit ring, needed ~640
-/// bits and up at a leaf cost of minutes, and is retired:
-/// `geom_core::sym`'s module docs, M10's closed
-/// `plate-rim-residual-needs-the-wide-coefficient-ring`). This door is
-/// the recourse E12 named for exactly that case.
-///
-/// **What it touches: nothing.** `rim.norm()` is the node
-/// `rim.normalize()` already divides by (`Vec3::normalize` is
-/// `self / self.norm()` and node ids are content hashes), so the
-/// registrant builds no expression the carrier did not already build,
-/// and no value anywhere changes.
-///
-/// `tol` is the run's ε, which the door's inexact witnesses compare at
-/// ([`geom_core::Real::register_equal`]). It ARRIVES from the caller —
-/// every registrant on this path is reached from a builder that already
-/// holds one, and kernel library code may not mint a tolerance witness.
-pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
-    rim.norm()
-        .register_equal(radius, tol)
-        .handle("a latitude carrier's ‖q − c‖ from its radius");
-}
-
 /// **A placed profile arc's rim IS its sketch rim** — the one fact the
 /// sweep registers about a profile arc, rigidity, stated where it is
 /// guaranteed ([`geom_core::Real::register_equal`]).
@@ -632,9 +702,9 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// nothing beyond rigidity, which is the ruling's point: nothing about
 /// an arc's consistency is stored on it or claimed by a copy of it.
 ///
-/// **What it touches: nothing.** `rim.norm()` is the node
-/// `rim.normalize()` divides by and `arc.rim(start)` the node the
-/// construction registered, so no value changes anywhere.
+/// **What it touches: nothing.** `rim.norm()` is built over the
+/// carrier's own centre and the placed start, and `arc.rim(start)` is
+/// the node the construction registered, so no value changes anywhere.
 pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Point2<T>, tol: Tol) {
     rim.norm()
         .register_equal(arc.rim(start), tol)
@@ -646,23 +716,30 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// ([`geom_core::Real::register_equal`]), per component.
 ///
 /// **The proof.** The carrier is the circle about `place(centre)` with
-/// radius `radius`, reference direction `u_ref = rim/‖rim‖` for
-/// `rim = place(start) − place(centre)`, and axis the turn-signed plane
-/// normal, evaluated at the span `|Δθ|`. A rigid placement maps the
-/// sketch plane's rotation about `centre` by the signed sweep onto the
-/// 3-space rotation about that axis by `|Δθ|`, and the unit direction
-/// `(start − centre)/‖start − centre‖` onto `u_ref`, so the carrier at
+/// radius `radius`, reference direction `u_ref` the sketch direction
+/// `(start − centre)/‖start − centre‖` ([`sketch_direction`]) carried by
+/// the spec's `radial` placing, and axis the turn-signed plane normal,
+/// evaluated at the span `|Δθ|`. A rigid placement maps the sketch
+/// plane's rotation about `centre` by the signed sweep onto the 3-space
+/// rotation about that axis by `|Δθ|`, so the carrier at
 /// its span is `place` of the sketch carrier's own end,
 /// [`Arc2::carrier_end`] from `start`. Nothing in it reads whether
 /// `start` lies on the carrier, so it holds for every carrier, a copied
 /// or table one included. Where the placement is not rigid, the door's
 /// own witness refuses typed, as at [`register_rigidity`].
 ///
+/// `radial` is `place` everywhere but one site: a full revolve's sphere
+/// meridian whose start is pinned on the axis takes its `u_ref` from the
+/// unturned placement (`revolve::full`). That radial lies along the
+/// axis, which the half turn fixes, so the two placings carry it to the
+/// same direction over the reals and the identity registered here,
+/// against `place`, holds there too.
+///
 /// **What it chains through.** The construction registers the sketch
 /// carrier end against the arc's far vertex (`Arc2::register_endpoints`),
 /// which is the step that needs the start on the carrier; the tier's
 /// alias applies inside the early walk, so the placed carrier end's form
-/// is the placed far vertex's, and the carrier's far end reaches `q_to`
+/// is the placed far vertex's, and the carrier's far end reaches it
 /// without a registration of the whole point against it. A carrier the
 /// construction did not register claims nothing past rigidity, and its
 /// far end discharges numerically or escalates.
@@ -700,36 +777,36 @@ fn register_placed_carrier_end<T: Real>(
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated one for an extrude's swept copy, the turned
-/// [`Placing`] for a revolve's. `tol` is
-/// the run's ε, carried through to the rigidity the arc arm states
-/// ([`register_rigidity`], [`register_placed_carrier_end`]) and used for
-/// nothing else here.
+/// [`Placing`] for a revolve's. `q_from` is the placed start vertex,
+/// where the carrier starts; its direction is the placement turning
+/// [`sketch_direction`], and a line's span is the sketch chord's
+/// length, which a rigid placement keeps. `tol` is the run's ε, carried
+/// through to the rigidity the arc arm states ([`register_rigidity`],
+/// [`register_placed_carrier_end`]) and used for nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
     normal: Vec3<T>,
     q_from: Point3<T>,
-    q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let place = place.into();
-    placed_segment_spec_about(seg, place, normal, |c| place.point(c), q_from, q_to, tol)
+    placed_segment_spec_about(seg, place, normal, |c| place.point(c), place, q_from, tol)
 }
 
 /// [`placed_segment_spec`] with an arc's 3-space centre given by
-/// `centre` from its sketch centre, in place of `place`'s image of it:
-/// for a copy whose placement fixes the centre, which then takes the
-/// value the fixed copy has.
+/// `centre` from its sketch centre, in place of `place`'s image of it,
+/// and its start radial carried by `radial` in place of `place`: for a
+/// copy whose placement fixes the centre (and, where its start lies on
+/// the turn's axis, the radial along that axis), which then takes the
+/// values the fixed copy has.
 pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Placing<T>,
     normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
+    radial: Placing<T>,
     q_from: Point3<T>,
-    // The far vertex, unread here: the certifier's check 3 (not this
-    // function) reads the spec's far end against it, and the spec is
-    // built from the segment and its placement.
-    _q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let description =
@@ -740,17 +817,15 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     match seg.kind().get() {
         // The bounds from the quantity that defines them, the sketch
         // segment's own length, and the direction from the same chord
-        // (geom-brep README, "Parameterization conventions"). Nothing is
-        // registered: the far end folds to `place(b)` as a form
+        // (geom-brep README, "Parameterization conventions"), turned by
+        // the station's frame. Nothing is registered: the far end folds
+        // to `place(b)` as a form
         // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
         SegmentKind::Line => {
-            let (dir, span) = (seg.b() - seg.a()).direction_and_length();
+            let (dir, span) = sketch_chord(seg);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::Line(geom::Line {
-                    origin: q_from,
-                    dir: place.vector(dir),
-                }),
+                carrier: Curve3::line(q_from, place.direction(dir).get()),
                 param_start: T::zero(),
                 param_end: span,
             }
@@ -767,7 +842,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                 c_world,
                 turn_axis(turn, normal),
                 arc.radius,
-                rim.normalize(),
+                radial.direction(sketch_direction(seg)).get(),
             );
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
@@ -784,42 +859,6 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     }
 }
 
-/// The world points determining a cap plane, in forward swept order:
-/// every loop vertex, plus every arc segment's apex. The apexes keep
-/// 2-vertex loops plane-determining — Newell needs three points and a
-/// 2-vertex cap has only two vertices. A one-segment loop is a full
-/// turn at its one vertex (D1), whose chord has no apex: its carrier
-/// points a quarter of the way round, its antipode
-/// ([`geom_core::Arc2::antipode`]) and three quarters of the way round
-/// stand in, in the same order. The polygon is inscribed in the region,
-/// so its winding is not necessarily the region's: [`cap_plane`]
-/// orients its plane by the region's.
-///
-/// `qs` are the world vertices and `place` the matching [`Placing`], so
-/// a turned or translated cap passes the turned or translated pair.
-pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
-    segs: &[S],
-    qs: &[Point3<T>],
-    place: impl Into<Placing<T>>,
-) -> Vec<Point3<T>> {
-    let place = place.into();
-    let placed = |p: Point2<T>| place.point(p);
-    let mut pts = Vec::with_capacity(segs.len() * 2 + 2);
-    for (j, s) in segs.iter().enumerate() {
-        pts.push(qs[j]);
-        if let SegmentKind::Arc { arc, .. } = s.kind().get() {
-            if profile::is_full_turn(segs) {
-                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.25))));
-                pts.push(placed(arc.antipode(s.a())));
-                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.75))));
-            } else {
-                pts.push(placed(arc.apex(s.a(), s.b())));
-            }
-        }
-    }
-    pts
-}
-
 /// Which end of a sweep a cap closes. The start cap's loop runs the
 /// swept chain reversed (the closing `mef` of the start lamina), the end
 /// cap's runs it forward (the swept face that survives).
@@ -833,128 +872,37 @@ pub(crate) enum CapEnd {
     End,
 }
 
-/// Why a cap's plane could not be built (every verb's `CapPlane`
-/// payload). Unreachable from a validated profile; surfaced rather than
-/// trusted.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum CapPlaneError {
-    /// The cap's points failed Newell certification.
-    Newell(NewellError),
-    /// Whether Newell's normal points along the region's normal or
-    /// against it was too close to call.
-    Orientation(Indeterminate),
-    /// Newell's normal lies definitely in the sketch plane: the cap's
-    /// plane is edge-on to the region it closes.
-    EdgeOn,
-}
-
-impl core::fmt::Display for CapPlaneError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
-            Self::Orientation(cause) => write!(
-                f,
-                "{}",
-                cause.undecided(
-                    "whether a cap's plane faces along the profile's winding or against it",
-                    geom_core::KERNEL_DEFECT_ENDING,
-                )
-            ),
-            Self::EdgeOn => write!(
-                f,
-                "a cap's plane stands edge-on to the profile's own plane. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-        }
-    }
-}
-
-impl std::error::Error for CapPlaneError {}
-
-/// The certified plane of a sweep's cap.
+/// **A sweep's cap is its station's frame.** The plane's origin is the
+/// station's origin (sketch (0, 0) carried there), its `u_ref` the
+/// station's first axis, and its normal the station's normal, signed by
+/// the region's winding: a validated outer loop winds counterclockwise
+/// about its sketch normal (`profile` decides it at validation), so the
+/// swept chain's region normal is the station's normal, negated when
+/// the traversal `reversed` the canonical chain; the start cap faces
+/// opposite it, the end cap along it.
 ///
-/// The plane is Newell's over [`cap_points`] — origin, normal and
-/// residual certification — charted with the profile's own `x` axis
-/// lifted by `place` (`place.linear.c0`), so its `u_ref` is a function
-/// of the sweep's inputs and not of the computing axes, and oriented by
-/// the REGION's winding, not the polygon's. A validated outer loop
-/// winds counterclockwise about its sketch normal (`profile` decides it
-/// arc-exactly at validation), so the swept chain's region normal is
-/// `place`'s sketch normal, negated when the traversal `reversed` the
-/// canonical chain; the start cap faces opposite it, the end cap along
-/// it. The polygon is inscribed in the region and a large convex arc
-/// can make it wind the other way, so when Newell's normal opposes the
-/// region's the plane is flipped; its `u_ref` lies in the plane either
-/// way and is kept.
-///
-/// `forward` is `cap_points` of the swept chain at this cap's station.
-///
-/// `place` is a sketch plane's placement, or one a rigid motion carried
-/// (a revolve's end station), so its columns are a rigid, right-handed
-/// frame (`profile::SketchPlane` holds the witness) and
-/// "counterclockwise in the sketch" means "counterclockwise about
-/// `c2`".
-pub(crate) fn cap_plane<T: Decide>(
-    forward: &[Point3<T>],
-    place: Affine3<T>,
+/// `station` is a sketch plane's placement, or one a rigid motion
+/// carried (an extrude's translated copy, a revolve's turned one), so
+/// its axes are a rigid, right-handed frame and every cap vertex, being
+/// a sketch point placed by that frame, lies on the plane. Nothing is
+/// fitted to the vertices, so nothing is decided here.
+pub(crate) fn cap_plane<T: Real>(
+    station: impl Into<Placing<T>>,
     reversed: bool,
     end: CapEnd,
-    band: Band,
-) -> Result<Surface<T>, CapPlaneError> {
-    // The start cap's loop order: first point kept, the rest reversed —
-    // the order the minted face runs, so a residual refusal names its
-    // vertex in the face's own order.
-    let ordered: Vec<Point3<T>> = match end {
-        CapEnd::End => forward.to_vec(),
-        CapEnd::Start => forward
-            .first()
-            .into_iter()
-            .chain(forward.iter().skip(1).rev())
-            .copied()
-            .collect(),
-    };
-    let plane = newell_plane(&ordered, place.linear.c0, band).map_err(CapPlaneError::Newell)?;
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = plane
-    else {
-        unreachable!("newell_plane mints a plane")
-    };
-    let sketch_normal = place.linear.c2.normalize();
-    let expected_outward = if reversed == (end == CapEnd::Start) {
-        sketch_normal
+) -> Surface<T> {
+    let station = station.into();
+    let normal = station.normal();
+    let normal = if reversed == (end == CapEnd::Start) {
+        normal
     } else {
-        -sketch_normal
+        normal.reversed()
     };
-    // Margin: the cosine between the two normals, levered by the cap's
-    // half-perimeter (it bounds the cap's diameter, the arm a tilt of
-    // the normal moves a cap point through). Never near the band: every
-    // cap point lies in the sketch plane, and Newell certified them all
-    // within ε of its own plane, so for a region of mean width w ≫ ε
-    // the two planes meet at an angle of order ε/w and the cosine is
-    // ±1 to that order. Under the precondition above an escalation
-    // here is a kernel defect.
-    let agrees = decide(
-        "cap_plane_orientation",
-        Margin::levered(
-            normal.dot(expected_outward),
-            geom_brep::polygon_half_perimeter(&ordered),
-        ),
-        band,
-    )
-    .map_err(CapPlaneError::Orientation)?;
-    match agrees {
-        Sign::Positive => return Ok(plane),
-        Sign::Zero => return Err(CapPlaneError::EdgeOn),
-        Sign::Negative => {}
+    Surface::Plane {
+        origin: station.origin(),
+        normal: normal.get(),
+        u_ref: station.first_axis().get(),
     }
-    Ok(Surface::Plane {
-        origin,
-        normal: -normal,
-        u_ref,
-    })
 }
 
 /// What [`build_full_turn`] minted.
@@ -1514,23 +1462,6 @@ mod tests {
     use geom_core::sym::{session_counts, with_session_rules};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
-    /// **A cap's undecided orientation ends in the defect ending on every
-    /// reading**: a validated profile never reaches it.
-    #[test]
-    fn a_caps_undecided_orientation_ends_as_a_defect() {
-        let defect = "There is no way through: this is a kernel defect; report it";
-        let texts = undecided_fixtures::expected(
-            "whether a cap's plane faces along the profile's winding or against it",
-            [defect; 3],
-        );
-        for (cause, text) in undecided_fixtures::readings("cap_plane_orientation")
-            .into_iter()
-            .zip(texts)
-        {
-            assert_eq!(CapPlaneError::Orientation(cause).to_string(), text);
-        }
-    }
-
     /// **A must-carry escalation keeps which question escalated**: the
     /// first-order arm and wedge each at its rung, read off the rule.
     #[test]
@@ -1714,7 +1645,7 @@ mod tests {
             };
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-            let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+            let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
             let Curve3::Circle(
                 circle @ geom::Circle {
                     frame: geom::Frame { origin: center, .. },
@@ -1853,7 +1784,7 @@ mod tests {
                 let place = quarter_turn_placement([2.0, 3.0, 5.0]);
                 let to3 = |q: Point2<S>| place.transform_point(Point3::new(q.x, q.y, lit(0.0)));
                 let (q_from, q_to) = (to3(seg.a), to3(seg.b));
-                let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+                let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
                 let Curve3::Line(line) = spec.carrier else {
                     panic!("a line places onto a line carrier");
                 };
@@ -1930,7 +1861,6 @@ mod tests {
             Affine3::identity(),
             Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
             q(a),
-            q(b),
             Tol::witness(),
         )
     }
@@ -2057,7 +1987,7 @@ mod tests {
             * Affine3::rotation_about_axis(Point3::origin(), axis.get(), 0.83);
         let to3 = |p: Point2<f64>| place.transform_point(Point3::new(p.x, p.y, 0.0));
         let (q_from, q_to) = (to3(a), to3(b));
-        let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+        let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
         let Curve3::Line(line) = spec.carrier else {
             panic!("a line places onto a line carrier");
         };

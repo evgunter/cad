@@ -163,9 +163,10 @@ fn probe_c_needle_extent_ratio() {
 }
 
 /// (d) Huge ambient coordinates (1e8 m offset on all axes), tiny face
-/// (1e-3): the body lies past the 1 km session box, so the extrude's
-/// finished-body gate refuses it there, typed, and no mesh is made (D4
-/// ¶4). No door builds a body at that offset any more, so the fold's
+/// (1e-3): the body lies past the 1 km session box, so the extrude
+/// refuses it, typed, and no mesh is made (D4 ¶4): at the finished-body
+/// gate at ε = 1e-6, and at certification's residual first at 1e-9 and
+/// 1e-12 (the assertion below says why). No door builds a body at that offset any more, so the fold's
 /// cancellation there is not reached through one: the huge-offset row of
 /// `issue303_signed_volume_recentring.rs` meets the same refusal and
 /// stands down typed.
@@ -186,17 +187,22 @@ fn probe_d_huge_offset_tiny_face() {
     );
     // Past the session box, the body refuses: at the box gate, or first at
     // an edge certificate's residual. At 1e8 m one ulp (1.49e-8) is past the
-    // ε band, so no two spellings of a point hold within ε, and which comes
-    // first rests on whether a residual rounds to zero. Main reached the box
-    // only because its line carrier rounded as the description does at the
-    // sample read (`work/oneround/a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling.md`).
+    // ε band at 1e-9 and 1e-12, so no two spellings of a point hold within
+    // ε there and certification's `MappedSource` residual (sample 4,
+    // 1.49e-8) refuses first; at 1e-6 the ulp is inside the band and the
+    // box gate refuses (`work/oneround/a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling.md`).
+    let at_box = geom_core::Tol::witness().eps() == 1e-6;
     assert!(
         matches!(&got, Err(e) if {
             let e = format!("{e:?}");
-            e.contains("OutsideSessionBox")
-                || (e.contains("ResidualExceeded") && e.contains("MappedSource"))
+            if at_box {
+                e.contains("OutsideSessionBox")
+            } else {
+                e.contains("ResidualExceeded") && e.contains("MappedSource") && e.contains("sample: 4")
+            }
         }),
-        "huge-offset: past the session box, the body refuses (at the box or at certification): {got:?}"
+        "huge-offset: past the session box, the body refuses, at the box gate at 1e-6 and at \
+         certification's MappedSource residual at 1e-9 and 1e-12: {got:?}"
     );
 }
 
