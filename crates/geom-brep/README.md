@@ -2043,14 +2043,20 @@ intensional description largely *is* the provenance.
 
 ## Parameterization conventions
 
-Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
-  complete loci; an edge's bounds derive from its vertices via the
-  `he_plus`-forward contract (certification enforces forward, nonzero,
-  ≤ one-period spans, the stored interval a certified cache reconciled
-  against vertex authority). Shared azimuthal frame for all revolution
+  complete loci; a construction states an edge's bounds from the
+  quantity that defines them (for example a segment's length, an arc's
+  span, an extrusion distance, a knot domain, a split's certified
+  parameter), and the vertices certify them: certification's endpoint
+  pinning (check 3) reads the carrier at the stored bounds against the
+  `he_plus`-forward vertices, and its interval-span check (check 2)
+  enforces forward, nonzero, ≤ one-period spans. The vertices are the authority the bounds are
+  certified against, not their source; where the vertices are the only
+  definition (a line between two computed points), their distance is
+  the definition. Shared azimuthal frame for all revolution
   surfaces (axis = +a₃, v_ref = axis × u_ref, seam at u_ref — for
   revolved bodies u = 0 IS the profile half-plane); sphere uses
   latitude; cone v = slant length with the apex a true chart

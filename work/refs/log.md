@@ -295,3 +295,4 @@
 - 2026-11-12 — **`main-red-select-no-member-raise-composes-a-debug-rendering` dispatched** (one lane, `reads/no-member-prose`, tier single). (REFS orchestrator)
 - 2026-11-12 — `main-red-select-no-member-raise-composes-a-debug-rendering` closed (`reads/no-member-prose`): `NoMember`'s raise spells its index values joined, not through `Debug`; a Python pin on the text. The same lane struck the two `UNDECIDED` lines that `GlueRecordBroken`'s retirement had left stale. That was a second census red on main, and it closes contacthold's row. (REFS implementer)
 - 2026-11-12 — PR 6882 merged (`1ff097b67b`): the NoMember census red, its BIND duplicate and contacthold's stale-`UNDECIDED` red are closed. REFS has no open P0 or P1 row left. **Track handed back** (`ready`). (REFS orchestrator)
+- 2026-11-15 — (BOXFINISH orchestrator) Filed here from PR 6972's two reviews: see the new row of this date.

@@ -31,7 +31,7 @@ crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
 crates/geom-brep/src/curve_pair/pose.rs	prod	4	re-pose,far-centre
 crates/geom-brep/src/curve_pair/pose/window.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
-crates/geom-brep/src/extent.rs	test	4	oracle
+crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	test	1	oracle
 crates/geom-brep/src/implicit.rs	prod	68	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
@@ -149,7 +149,7 @@ crates/sweep/examples/conic_past_band_probe.rs	test	1	oracle
 crates/sweep/examples/near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/examples/split_near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/src/blend/reach.rs	test	4	oracle
-crates/sweep/src/swept.rs	test	1	oracle
+crates/sweep/src/swept.rs	test	3	oracle
 crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs	test	1	oracle
 crates/sweep/tests/a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
