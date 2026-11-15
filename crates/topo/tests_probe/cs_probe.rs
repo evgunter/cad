@@ -295,6 +295,8 @@ fn skim() {
 
 #[test]
 fn designed() {
+    let ftol = Tol::witness();
+    let fband = Band::linear(ftol).unwrap();
     for (top, radius) in [((0.9, 1.1), (1.0, 1.0)), ((1.0, 1.0 + 1e-6), (1.0, 1.0)), ((1.0, 1.0), (0.9, 1.1)), ((1.0, 1.0), (1.0, 1.0 + 1e-6))] {
         for (what, ride, off, dz, n) in [
             ("A ride on rim, n=z", true, 0.0, 0.0, [0.0, 0.0, 1.0]),
@@ -303,18 +305,21 @@ fn designed() {
             ("B ride 0.05 inside, n=z", true, -0.05, 0.0, [0.0, 0.0, 1.0]),
             ("C fixed 0.05 inside at mid, n=z", false, -0.05, 0.0, [0.0, 0.0, 1.0]),
             ("D fixed on rim at mid, n=diag", false, 0.0, 0.0, [0.6, 0.0, 0.8]),
+            ("E fixed 0.02 inside at hi, n=z", false, -0.02, 0.5 * (top.1 - top.0), [0.0, 0.0, 1.0]),
         ] {
-            let d = Draw { a: 0.7, off, dz, ride, h: 0.5 * (top.0 + top.1), r: 0.5 * (radius.0 + radius.1), n };
-            for fix in [false, true] {
-                mode(if fix { "unread" } else { "met" });
-                let r = over(top, radius, |t, r, band, tol| {
-                    let (body, faces) = cylinder::<Boxed>(r, t, false, tol);
-                    let iv = Boxed::from_f64;
-                    topo::test_support::ray_at(&body, faces[0], aim_of(&d, t, r), Vec3::new(iv(n[0]), iv(n[1]), iv(n[2])), band)
-                });
-                let pred = r.split("predicate: ").nth(1).unwrap_or("").chars().take(50).collect::<String>();
-                println!("top {top:?} r {radius:?} {what} fix {fix}: {} {}", r.chars().take(60).collect::<String>(), pred);
-            }
+            let d = Draw { a: 0.0, off, dz, ride, h: 0.5 * (top.0 + top.1), r: 0.5 * (radius.0 + radius.1), n };
+            let r = over(top, radius, |t, r, band, tol| {
+                let (body, faces) = cylinder::<Boxed>(r, t, false, tol);
+                let iv = Boxed::from_f64;
+                topo::test_support::ray_at(&body, faces[0], aim_of(&d, t, r), Vec3::new(iv(n[0]), iv(n[1]), iv(n[2])), band)
+            });
+            let members: Vec<&str> = [0.0, 0.5, 1.0].iter().map(|&u| {
+                let (t, r) = (top.0 + u * (top.1 - top.0), radius.0 + u * (radius.1 - radius.0));
+                let (body, faces) = cylinder::<f64>(r, t, false, ftol);
+                kind(&topo::test_support::ray_at(&body, faces[0], aim_of(&d, t, r), Vec3::new(n[0], n[1], n[2]), fband))
+            }).collect();
+            let pred = r.split("predicate: ").nth(1).unwrap_or("").chars().take(44).collect::<String>();
+            println!("top {top:?} r {radius:?} {what}: {} {} members {members:?}", kind(&r), pred);
         }
     }
 }
@@ -323,44 +328,35 @@ fn mode(m: &str) {
     std::fs::write(format!("/home/user/cs-logs/MODE.{}", std::process::id()), m).unwrap();
 }
 
-/// The needle of radius `r` about `z` from `z = 0` to the plane through `(0, 0, h0)` whose section is the
-/// ellipse of semi-major `a` (so `cos = r/a`), the tip (major vertex) at `+x`; the seam at `-x`.
-pub fn needle<T: Decide + topo::AtRestPolicy>(r: f64, a: f64, h0: f64, tol: Tol) -> (Body<T>, [FaceKey; 3], Curve3<T>) {
-    let f = T::from_f64;
-    let (zero, one) = (T::zero(), T::one());
-    let (x, z) = (Vec3::new(one, zero, zero), Vec3::new(zero, zero, one));
-    let c = r / a;
-    let s = (1.0 - c * c).sqrt();
-    let n = Vec3::new(f(-s), zero, f(c));
-    let major = Vec3::new(f(c), zero, f(s));
-    let ellipse = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(Point3::new(zero, zero, f(h0)), n, major), f(a), f(r)));
-    let mut body = Body::<T>::new();
-    let p0 = Point3::new(f(-r), zero, zero);
-    let p1 = ellipse.eval(T::pi());
-    let seed = body.mvfs(p0, true).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New { surface: Surface::Cylinder { origin: Point3::origin(), axis: z, radius: f(r), u_ref: x }, sense: true }).unwrap();
-    let wall_key = body.get_face(seed.face).unwrap().surface;
-    let bottom_c = Curve3::circle(Point3::origin(), z, f(r), x * -one);
-    let bottom = body.mef(MefSite::Lone { r#loop: seed.r#loop }, EdgeCurveSpec::arc_of_circle(bottom_c, zero, T::tau()).unwrap(),
-        FaceSurface::New { surface: Surface::Plane { origin: Point3::origin(), normal: z * -one, u_ref: x }, sense: true }, tol).unwrap();
-    let strut = body.mev_line(MevSite::Fan { he1: bottom.he_plus, he2: bottom.he_plus }, p1, tol).unwrap();
-    // the top rim runs against the bottom's sense, as the cylinder's cap does
-    let plane_key = body.add_surface(Surface::Plane { origin: Point3::new(zero, zero, f(h0)), normal: n, u_ref: major });
-    let rim = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(Point3::new(zero, zero, f(h0)), n * -one, major), f(a), f(r)));
-    let cap = body.mef(MefSite::Chords { he1: strut.he_minus, he2: strut.he_minus },
-        EdgeCurveSpec { description: geom_brep::EdgeDescriptionSpec::Intersection { pair: geom_brep::SurfacePair::new(wall_key, plane_key), selector: geom_brep::CurveSelector::Witness(rim.eval(zero)) }, carrier: rim.clone(), param_start: T::pi(), param_end: T::pi() + T::tau() },
-        FaceSurface::Shared { key: plane_key, sense: true }, tol);
-    let cap = cap.unwrap();
-    (body, [seed.face, bottom.face, cap.face], rim)
-}
 
 #[test]
-fn needle_sanity() {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
-    for (r, a) in [(0.5, 1.0), (1e-2, 1.0), ((tol.eps() / 100.0).sqrt(), 1.0)] {
-        let (body, faces, _) = needle::<f64>(r, a, 1.5, tol);
-        println!("needle r {r:e} a {a}: {:?}", faces);
-        for l in topo::test_support::each_aim(&body, band) { println!("   {}", l.chars().take(200).collect::<String>()); }
+fn family() {
+    let ftol = Tol::witness();
+    let fband = Band::linear(ftol).unwrap();
+    for (top, radius) in [((0.9, 1.1), (1.0, 1.0)), ((1.0, 1.0), (0.9, 1.1)), ((0.9, 1.1), (0.9, 1.1))] {
+        let mut rows = std::collections::BTreeMap::<String, usize>::new();
+        for a in [0.7, 1.9, 3.1, 4.3, 5.5] {
+            for off in [-0.01, -0.03, -0.06, -0.12] {
+                for (ride, dz) in [(false, 0.0), (false, 0.5 * (top.1 - top.0)), (true, 0.0)] {
+                    let n = [0.0, 0.0, 1.0];
+                    let d = Draw { a, off, dz, ride, h: 0.5 * (top.0 + top.1), r: 0.5 * (radius.0 + radius.1), n };
+                    let r = over(top, radius, |t, r, band, tol| {
+                        let (body, faces) = cylinder::<Boxed>(r, t, false, tol);
+                        let iv = Boxed::from_f64;
+                        topo::test_support::ray_at(&body, faces[0], aim_of(&d, t, r), Vec3::new(iv(n[0]), iv(n[1]), iv(n[2])), band)
+                    });
+                    let members: Vec<&str> = [0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|&u| {
+                        let (t, r) = (top.0 + u * (top.1 - top.0), radius.0 + u * (radius.1 - radius.0));
+                        let (body, faces) = cylinder::<f64>(r, t, false, ftol);
+                        kind(&topo::test_support::ray_at(&body, faces[0], aim_of(&d, t, r), Vec3::new(n[0], n[1], n[2]), fband))
+                    }).collect();
+                    let pred = r.split("predicate: Some(\"").nth(1).unwrap_or("").split('"').next().unwrap_or("").to_owned();
+                    let all_out = members.iter().all(|m| *m == "out");
+                    *rows.entry(format!("{} {pred} members_all_out={all_out}", kind(&r))).or_default() += 1;
+                    if all_out && pred == "curve_carrier_gap" { println!("  PICK top {top:?} r {radius:?} a {a} off {off} ride {ride} dz {dz}"); }
+                }
+            }
+        }
+        println!("top {top:?} r {radius:?}: {rows:?}");
     }
 }

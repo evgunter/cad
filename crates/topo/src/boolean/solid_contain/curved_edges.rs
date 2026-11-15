@@ -21,7 +21,10 @@
 //!   point-on-span reading ([`geom_brep::curve_pair::Span::read`]): on the
 //!   carrier (zero in the band, off only past it on a lower bound), and
 //!   where its foot sits against the span's ends. On the carrier, or in
-//!   the band's gap, inside the span, the ray meets the edge. In band of
+//!   the band's gap, inside the span, the ray meets the edge. Inside the
+//!   span where the carrier's reading escalates past the band's edge (a
+//!   box's enclosure, a straddle), nothing says whether it meets the
+//!   edge, and the ray is set aside ([`super::edge_gap`]). In band of
 //!   an end, or where the place refuses, it is marked a graze; past the
 //!   span its nearest point is that end, read as a vertex. Off the carrier from every crossing,
 //!   it passes clear, and each face reads its own crossing.
@@ -65,14 +68,15 @@ const FEET: usize = 8;
 enum Passes<T> {
     /// It meets the edge at advance `s`.
     Met(T, Gap),
+    /// It passes the edge inside its span at advance `s`, by a distance
+    /// no reading places against the band ([`super::edge_gap`]).
+    Unread(T, geom_core::Indeterminate),
     /// It passes within the band of an end of the edge at advance `s`.
     End(T),
     /// It passes clear of the edge there.
     Clear,
     /// No reading here decides it.
     Undecided,
-    /// TEMP
-    Unread(T, geom_core::Indeterminate),
 }
 
 /// **Decides every edge between two faces that read their own crossings
@@ -156,14 +160,18 @@ pub(super) fn read<T: Decide>(
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
-            let mut unread = None;
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
                 match passes(&span, ray, q + d * t, band) {
                     Passes::Met(s, gap) => found.push((s, gap)),
+                    // The edge may be met there, unless that lies behind
+                    // the ray's start, where the ray is nearest the edge
+                    // at its start, clear of both its faces.
                     Passes::Unread(s, diag) => {
-                        unread = Some(diag);
-                        found.push((s, Gap::InBand(diag)));
+                        if ray.ahead(s, rows.advance(), band) != Ok(Sign::Negative) {
+                            return Err(super::edge_gap::unread(face, diag));
+                        }
+                        clear = false;
                     }
                     Passes::End(s) => {
                         clear = false;
@@ -206,9 +214,6 @@ pub(super) fn read<T: Decide>(
             if ray.ahead(lo, rows.advance(), band) == Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
                 continue;
-            }
-            if let Some(diag) = unread {
-                return Err(RayFault::InBand(PointInSolidError::Escalated { face, diag }));
             }
             let gap = found
                 .iter()
@@ -334,32 +339,11 @@ fn passes<T: Decide>(
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
         Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
-        Err(SpanRefusal::Carrier(refused)) => {
-            if let Ok(path) = std::env::var("CS_HITS") {
-                use std::io::Write as _;
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                    let _ = writeln!(
-                        f,
-                        "ARM\t{}\t{}\t{:?}\t{:?}",
-                        std::thread::current().name().unwrap_or("?"),
-                        std::any::type_name::<T>(),
-                        refused.escalation().map(|d| crate::validate::in_band(&d)),
-                        refused
-                    );
-                }
-            }
-            match refused.escalation() {
-                Err(_) => Passes::Undecided,
-                Ok(diag) if !crate::validate::in_band(&diag) => {
-                    match std::fs::read_to_string(format!("/home/user/cs-logs/MODE.{}", std::process::id())).ok().as_deref() {
-                        Some("unread") => Passes::Unread(s, diag),
-                        Some("clear") => Passes::Clear,
-                        _ => Passes::Met(s, Gap::InBand(diag)),
-                    }
-                }
-                Ok(diag) => Passes::Met(s, Gap::InBand(diag)),
-            }
-        }
+        Err(SpanRefusal::Carrier(refused)) => match refused.escalation().map(Gap::escalated) {
+            Ok(Ok(gap)) => Passes::Met(s, gap),
+            Ok(Err(diag)) => Passes::Unread(s, diag),
+            Err(_) => Passes::Undecided,
+        },
     }
 }
 
@@ -393,23 +377,27 @@ fn nearest<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod straddle_rows {
-    use super::{Gap, Passes, passes};
+    use super::{Passes, passes};
     use crate::census::EdgeSpan;
     use geom_core::{Band, Point3, Vec3};
 
     const ZERO: f64 = 1e-9;
 
-    /// **A straddle is in band, and past the span it is clear.** An
-    /// ellipse bending tighter than the band (`b²/a = ε/100`) and a ray
-    /// across its major axis `20ε` beyond the vertex, where the gap is
-    /// past the band and the lower bound inside it (`geom`'s
-    /// `a_gap_past_the_band_with_the_bound_inside_it_straddles`). An arc
-    /// through the vertex meets the ray in band, a wedge's gap; an arc
-    /// whose span lies past the closest approach is clear of it, a
-    /// placement decided on the span's own ends. Red when a straddle
-    /// reads undecided, or its `Past` is read anything but clear.
+    /// **A straddle inside the span is unread, and past the span it is
+    /// clear.** An ellipse bending tighter than the band (`b²/a = ε/100`)
+    /// and a ray across its major axis `20ε` beyond the vertex, where
+    /// the gap is past the band and the lower bound inside it (`geom`'s
+    /// `a_gap_past_the_band_with_the_bound_inside_it_straddles`). The
+    /// two bounds bracket the ray's distance from the carrier across the
+    /// band's edge, so on an arc through the vertex no reading says the
+    /// ray meets the edge, and none that it passes clear: unread, which
+    /// sets the ray aside ([`super::super::edge_gap`]). An arc whose span
+    /// lies past the closest approach is clear of it, a placement
+    /// decided on the span's own ends. Red where a straddle reads as the
+    /// edge met (`Gap::escalated` passing every escalation), or its
+    /// `Past` is read anything but clear.
     #[test]
-    fn a_straddle_is_in_band_and_past_the_span_is_clear() {
+    fn a_straddle_inside_the_span_is_unread_and_past_the_span_is_clear() {
         let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
         let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -422,7 +410,7 @@ mod straddle_rows {
         assert!(
             matches!(
                 passes(&through, &geom::Ray::new(q, d), at, band),
-                Passes::Met(_, Gap::InBand(_))
+                Passes::Unread(_, diag) if diag.predicate == Some("curve_carrier_straddle")
             ),
             "an arc through the vertex"
         );

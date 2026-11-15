@@ -97,6 +97,8 @@ mod a_trace_reads_a_piece_against_its_carrier;
 mod a_verdict_moves_only_the_faces_it_read;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
 mod a_zero_vertex_pair_keeps_the_kept_sides_point;
+#[path = "an_aimed_ray_beside_a_boxed_cylinders_moving_rim.rs"]
+mod an_aimed_ray_beside_a_boxed_cylinders_moving_rim;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "an_operand_with_no_solid.rs"]

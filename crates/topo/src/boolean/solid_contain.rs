@@ -3224,26 +3224,6 @@ struct EdgeMeets<T> {
     vertices: Vec<crate::entity::VertexKey>,
 }
 
-/// How far the ray passes a met edge, as a wedge's mark reads it.
-#[derive(Clone, Copy)]
-enum Gap {
-    /// Decided Zero.
-    Zero,
-    /// In the band's gap.
-    InBand(Indeterminate),
-}
-
-impl Gap {
-    /// The mark two met edges of one face read: a wedge where either gap
-    /// is in band, else a graze.
-    const fn mark(self, other: Self) -> Mark {
-        match (self, other) {
-            (Self::InBand(gap), _) | (Self::Zero, Self::InBand(gap)) => Mark::Wedge(gap),
-            (Self::Zero, Self::Zero) => Mark::Graze,
-        }
-    }
-}
-
 /// **An edge the ray meets**, half a crossing for each of its faces: the
 /// edge, its faces, the advance where the ray passes it, the span its
 /// passage lies in along the ray, which carrier crossing of each face it
@@ -3353,18 +3333,14 @@ fn edge_meets<T: Decide>(
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         meets.clear.insert(pass.edge);
-        let gap = match geom_core::k_stats::decide_magnitude(
+        let gap = match Reach::of(geom_core::k_stats::decide_magnitude(
             rows.edge(),
             Margin::of(pass.gap[0]),
             band,
-        ) {
-            Ok(geom_core::k_stats::Magnitude::Positive) => continue,
-            Ok(geom_core::k_stats::Magnitude::Zero) => Ok(Gap::Zero),
-            Err(gap) if crate::validate::in_band(&gap) => Ok(Gap::InBand(gap)),
-            // Neither clear, zero nor in band: no reading of the lines'
-            // gap. Over a box, some members may pass the edge and others
-            // not.
-            Err(undecided) => Err(undecided),
+        )) {
+            Reach::Past => continue,
+            Reach::Within(gap) => Ok(gap),
+            Reach::Unread(diag) => Err(diag),
         };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
@@ -3394,15 +3370,7 @@ fn edge_meets<T: Decide>(
         if !inside {
             continue;
         }
-        // A met edge stands for its faces' crossings, so one met on a
-        // gap nothing read would count for every member what only some
-        // cross: the ray is set aside.
-        let gap = gap.map_err(|diag| {
-            RayFault::InBand(PointInSolidError::Escalated {
-                face: pass.faces.0,
-                diag,
-            })
-        })?;
+        let gap = gap.map_err(|diag| edge_gap::unread(pass.faces.0, diag))?;
         meets.meet(Met {
             edge: pass.edge,
             faces,
@@ -4455,18 +4423,15 @@ pub(crate) fn ray_crossings<T: Decide>(
             // carrier past that edge, outside the face.
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
-                // Near where the offset is zero or in band. One that is
-                // undecided is not near: the crossing then stands only
+                // Near where the offset is within the band. One that is
+                // unread is not near: the crossing then stands only
                 // where the face holds it, the reading that asks more.
-                let near = match geom_core::k_stats::decide_magnitude(
+                let near = Reach::of(geom_core::k_stats::decide_magnitude(
                     rows.represents(),
                     Margin::of(off),
                     band,
-                ) {
-                    Ok(geom_core::k_stats::Magnitude::Positive) => false,
-                    Ok(geom_core::k_stats::Magnitude::Zero) => true,
-                    Err(diag) => crate::validate::in_band(&diag),
-                };
+                ))
+                .within();
                 let held = match (c, plane) {
                     _ if near => Ok(Some(true)),
                     (Cross::Plane, Some(p)) => {
@@ -4504,14 +4469,6 @@ pub(crate) fn ray_crossings<T: Decide>(
                 offer(RayHit::marked([a, b], at, Mark::Graze), (at, at), true)?;
             }
             continue;
-        }
-        if let (Gap::InBand(diag), Ok(path)) = (m.gap, std::env::var("CS_HITS")) {
-            if !crate::validate::in_band(&diag) {
-                use std::io::Write as _;
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                    let _ = writeln!(f, "STANDS\t{}\t{}\tcount {}\t{:?}", std::thread::current().name().unwrap_or("?"), std::any::type_name::<T>(), (sa + sb) / 2, diag.margin);
-                }
-            }
         }
         // The ray crosses the edge's faces somewhere between where it
         // passes the edge and where it crosses their carriers, which on a
@@ -5462,6 +5419,8 @@ mod volume_read_key_rows {
 mod r1_probes;
 
 mod curved_edges;
+mod edge_gap;
+use edge_gap::{Gap, Reach};
 
 #[cfg(test)]
 mod r1_generic_poses;
