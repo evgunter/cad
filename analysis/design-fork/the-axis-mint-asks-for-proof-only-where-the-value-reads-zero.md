@@ -247,3 +247,246 @@ Reversible: yes. The query is additive, and removing it reverts the mint to alwa
 ## Round 1 (dispatched 16:00 UTC)
 
 Each designer, in its own session, was told its label and pointed at the three first reports by label on a scratch branch (`boxfinish/fork-identity-reports`, `probe/fork-identity/round0/{A,B,C}.md`, the `For Ev` and `For the orchestrator` sections with the sessions' one-paragraph preambles cut). The message was identical for all three but for the label: the agreed final state as the orchestrator reads it, the four splits, and the ask (what moved, whether its own argument is answered, its position now; check against the tree where that settles it). No model is named in the files or the messages.
+
+### Round 1 results (all three in by 16:04 UTC)
+
+Reply times (each session's second result event): C 16:02:56, A 16:03:18, B 16:04:07 UTC.
+
+**What moved.**
+- **Split 2 (box-certified reads): closed.** A moved to B and C: every rule that reads a value is off in the query (the certified read at `min`/`max`/`select`, and the registered-identity door). A's reason: with the read on, `Sym<Interval>` and `Sym<f64>` would take different decision sequences for one document, since the read is never asked at an inexact witness. C moved to B on the registry door (it had missed that registrations are witnessed against values) and withdrew "the `min`/`max` read is an unrecorded decision" (inside a decision the outcome is recorded).
+- **Split 3 (where the mint lives): closed.** A and C moved to B: one mint function, called by the `line_to` verb, which records the director its junctions also read; validation calls it only for tables. Both checked `path::chord_director` in the tree.
+- **Split 1 (the plain scalars, one door or two): crossed over.** A moved to B's and C's first position (the plain scalars answer "not shown"; `is_exact_zero` narrowed to stored literals), persuaded by B's alternative D. B moved to A's first position (one door, `is_exact_zero` redefined; `f64` yes at 0, `Interval` yes at `[0, 0]`), persuaded by A's "zero at every point the scalar stands for", and answers its own alternative D: nothing re-values a point lane and the two arms are the same bits. C held, and added an argument of its own: at `Dual` a value coincidence would store a constant axis whose sensitivity is zero while the real side tilts. So it stands A and C against B, each of A and B now holding the other's first position.
+- **Split 4 (the readers of "proven"): narrowed.** All three: the rendering and record readers stay; no `.proven()` read steers construction once the mint stops (B and C checked that the `geom-brep` reads are in test modules; C withdrew its off-question item). Open: whether the unproven-coincidence lint should run the value-free walk. B and C say yes (unsure, findings only); A says no: the lint's lane is `Sym<f64>` deferring where the read is already off, so the only change would be dropping the registered identities, by which a constructed arc's endpoint facts are proved.
+- **The sign's escalation:** A and C: it propagates, no fallback to the quotient. B: it cannot escalate (the length was already decided positive). A notes that at the verb the separation decision may not have been taken yet.
+
+**Questions raised in the round.**
+- A: the amended `[verdicts.consumers]` sentence covers every lane choice in the kernel; is it meant for all of them, with an audit to follow? A recommends yes.
+- B: the query's answer depends on the session's budget, rules and ladder, and the replay and the driver run different sessions; should the query's rules be fixed kernel-wide? B leans yes.
+- C: at a symbolic lane, is the mint's sign decision new, or does it repeat vertex separation's decision on the length ([one-way])?
+
+Tokens, cumulative at the round-1 reply: A 4,892,688 total (202,113 without cache reads), $5.40; B 6,245,024 (222,971), $3.78; C 3,717,708 (163,303), $2.53. C's process restarted between turns (its second result event has `result_index` 0; usage is cumulative).
+
+
+### A, round 1, verbatim
+
+## For Ev
+
+**Recommendation (likely).** Give the symbolic tier a second question that is not a decision: "is this value identically zero in the document's variables?" It is answered from the value's expression alone and never from its number. The profile's direction mint branches on that answer instead of on a sign reading.
+
+Terms:
+- **Symbolic scalar** (`Sym<T>`): a number (the value channel) carried beside its expression over the document's variables. **Plain scalars**: `f64` and `Interval`, which carry no expression.
+- **Decision**: a sign read against a band; it is counted, recorded, and in a deferring session (one that postpones proofs until a reader asks) queued.
+- **Valuation**: the parameter point or box a document is evaluated at.
+
+**The query.**
+- At a symbolic scalar it is the tier's normal-form test, run with every rule that reads a value switched off: the certified read at `min`/`max`/`select`, and the registered-identity door (whose entries are witnessed numerically). The rule set without the reads already exists (`SymRules::without_the_reads`). So the answer is a function of the expression graph alone, which is the same at every valuation. (likely)
+- At the plain scalars it answers "not shown". They hold no expression, so they take no branch. (likely)
+- It is not a decision: no count in a decision column, no queued entry, no record, and the same call in eager and deferring sessions. (sure)
+- It returns a proof token or nothing. There is no answer that means "differs", so it cannot drive a glue, a split or a refusal. Its one licence is to choose between two spellings of one real value. Callers are a short kept list with a gate, and a dial that makes it answer "not shown" everywhere must leave every body's real values unchanged. (likely)
+
+**The mint, one rule, one function.**
+- Where one component of the vector is identically zero, store the axis, signed by an ordinary, kept decision on the other component. Otherwise store the vector over its length and read nothing.
+- If that sign does not decide, the escalation propagates. There is no fallback to the quotient: with one component identically zero the length is the other component's size, so an undecided sign means the segment may be degenerate on the box.
+- The `line_to` verb calls it and records the director, and the junction decisions at that hop read the same value. Today the hop's heading and the stored director are computed separately, so over a box a following tangent reads the wide one while the segment stores the exact one. Validation calls the same function only for a table-authored profile. An arc's radial uses it on the vertex minus the centre.
+- `sym::aside`, the zero-width-band readings and the discarded answers leave the mint.
+
+**Worked example.**
+- Slab side `(W, 0) → (W, 1)`: `W − W` is zero as an expression. Symbolic lanes store `(0, 1)` at every valuation, point or box, eager or deferring. `f64` stores the quotient, which is `(0, 1)` to the bit.
+- Hop `(x, 0) → ((x + w) − w, 1)`: identically zero, so the axis at `(1, 1)` and at `(0.1, 0.3)` alike. `f64` stores `(2.8e-17, 1)`, the same real direction to rounding.
+- A rectangle side between two corner variables that agree at the nominal: `b − a` is not identically zero, so every valuation stores the quotient. The five corpus rows stay green.
+- `(max(a, b), 0) → (b, 1)`: not shown without the read, so the quotient at every valuation.
+
+**The other sites.**
+- **`literal_sign`** reads a bulge's sign. That is a fact about a value, the arc's sense rests on it, and a flip must be visible to re-valuation. It is a recorded decision, not a "choice no reader rests on". (likely)
+- **`is_exact_zero`** keeps one meaning: this stored value is the literal zero the kernel wrote. Its roughly two dozen callers are audited into three kinds: a read of a stored literal stays; a choice of spelling from a computed value moves to the query; a branch that changes what is built (a bulge of zero lowering to a line) becomes a margined decision. The bulge case is the same class as the five red rows, latent, and duplicates validation's straightness decision. (likely; the per-caller sorting is unsure, not done)
+- **"Was this Zero proven"** (`MarginDiag::proven`, `deferred::discharge`, read by the unproven-coincidence lint and by certificates) stays as it is. Those readers ask how a decision taken for its own sake was settled. The lint runs at `Sym<f64>`, where the tier never takes the certified read, so its answer already rests on the expression plus the registered identities; removing the registered identities would report every constructed arc's joints as unproven. A `.proven()` read that steers construction, if an audit finds one, moves to the query. (likely)
+
+**Ratified text this changes** (design choices, so yours):
+- **ERROR-DESIGN E12** gains a clause: a construction may ask the tier whether a value is identically zero, to choose between two spellings of one real; the answer is not a decision. E12's body was agent-written and approved with "lgtm" on #1712.
+- **DESIGN `[verdicts.consumers]`, "Zero takes the closed form"**: at a symbolic lane, a closed form that drops a dependence on the variables (a literal axis) is taken only on identically zero. A Zero read off the value holds at this valuation only. As written, the clause licenses exactly what PR 6963 did, and contradicts E12 there.
+- **`crates/profile/README.md`, the direction clause** (your "makes sense" on PR 6936): a hop's director is made by its verb from the two points, the axis where a component is identically zero; the sentence that nothing divides a vertex difference by its length should say this is the one place that does.
+
+**A question the three reports did not ask.** The `[verdicts.consumers]` sentence covers every lane choice in the kernel, not only the profile's. Any of them that, at a symbolic lane, takes a closed form on a value-read Zero and thereby stores a constant has the defect the five corpus rows caught. Is the amended rule meant for all of them, with an audit to follow? I recommend yes. (likely on the rule; unsure how many sites it touches)
+
+**Rejected as final states.** PR 6990's spelling (a decision reads the value first by design, so it cannot be valuation-independent, and it takes decisions to discard them). Taking the axis rule out (sound, but the slab's wall turns over the box). Making the value channel exact instead of branching (a normal form per stored value, and `h/|h|` still needs a sign). One door shared with `is_exact_zero` that answers from the number at plain scalars (the `f64` lane would then take a sign decision at one valuation and not at another, and differently from the symbolic lane replaying it).
+
+**Possible later, not now.** "The direction is identically constant" (the two components in a constant ratio) would also make a 45° side with a boxed size exact; today it stores about `[0.58, 0.86]` for `0.7071`. Allowing box-certified reads into the query is likewise additive. Measure on a real document first. (unsure)
+
+**Reversible.** The query is additive and its caller list says where it is used; removing it reverts the mint to the quotient.
+
+## For the orchestrator
+
+Your reading of the four splits is right. Where I stand now:
+
+1. **Plain scalars and one door: moved to B and C.** B's alternative D answers my argument. Under my shape the `f64` lane takes the axis arm, with its kept sign decision, when a component happens to read 0.0 and not at the next valuation; and it takes it where the `Sym<f64>` replay of the same build does not. That is a lane taking different decisions by a coincidence, which is what the fork is meant to end. What my shape bought, a plain-`Interval` `[0, 0]` component minting the axis, is given up: the certified lane is `Sym<Interval>`, and nothing shown needs plain `Interval` there. Checked: `is_exact_zero` at `Sym` is arithmetic on the value channel (`x·(1/x)` poison), so it cannot be the query; narrowed to stored literals with the three-kind audit.
+2. **Box-certified reads: moved to B and C.** Not because the `max` case is wrong (the axis is true on a box where `a < b` throughout) but by the same alignment argument: the read is never asked at an inexact witness (`combine`'s `read` is gated on `Witness::Exact`), so with it on, `Sym<Interval>` and `Sym<f64>` would take different decision sequences for one document. No document needs it, and widening later is additive under the licence. C's point that the read is an unrecorded decision when it settles a decision's Zero is DECIDE's, and I agree it should be recorded.
+3. **Where the mint lives: moved to B.** I had flagged the two spellings (`path::chord_director` at `line_to_point`/`line_to_start`, and validation's mint) as off-question; B makes it the design, and it is the README's own rule that the verb holds the direction. Also took B's "the sign's escalation propagates" over my "cannot escalate": at the verb the separation decision may not have been taken yet.
+4. **Proven readers: held, against B's change and C's.** Checked rather than argued: the lint's lane is `Sym<f64>` deferring, where the read is already off, so C's "discharge runs the value-free walk" changes nothing there except removing the registry door, and B's version removes it explicitly. Registered identities are what a constructed arc's endpoint facts are proved by; I expect dropping them to turn those joints into findings (inferred, not measured). If a deferring `Sym<Interval>` lane ever ships, revisit.
+
+Adopted from the others: C's proof-token return with no "differs" arm; B's `[verdicts.consumers]` amendment, which I missed and which is the ratified sentence PR 6963 was following.
+
+Still mine and unanswered by either: the query's walk runs under different rules from the session's early walk, so it needs its own memo (as each retry has); cost unmeasured. And the tier's budget and retry settings differ between sessions, so two sessions can answer differently for one document: width only, but a cross-lane comparison must expect it.
+
+Trait placement (`Real` in my report, `Decide` in C's) I do not hold: the mint is `T: Decide` either way.
+
+Not checked: whether the form walk with the reads off still proves the corpus's hop identities (polynomial, so it should); the per-caller audits of `is_exact_zero` and of `.proven()` in `geom-brep`.
+
+### B, round 1, verbatim
+
+## For Ev
+
+**Recommendation (likely).** The kernel gets one door for a structural question, as distinct from a sign decision: **"is this value zero at every point this scalar stands for?"** It reads no sign and has no band. It counts no decision, leaves nothing to discharge, and is the same call in an eager session and in a deferring one (a session that postpones proofs until a reader asks). That door *is* `is_exact_zero`, redefined. The profile's one direction mint branches on it.
+
+What each scalar stands for, and so what it answers:
+- **`f64`** stands for one point: yes where the number is 0.
+- **`Interval`** stands for its enclosure: yes only for `[0, 0]`.
+- **`Sym<T>`** (a value plus its expression over the document's variables; the scalar of the symbolic lanes) stands for **every valuation of the document**. It answers yes only where the symbolic tier proves the expression is the zero function, and it never reads its value channel. That means no rule that reads a value or depends on the valuation:
+  - The tier's certified read at `min`/`max`/`select` (`SymRules::decision_read`) is off.
+  - The registered-identity door is off: a registration is witnessed against values, and refused where they disagree.
+  - The normal form and the retry ladder (wider ring, fewer rules) stay. Both are fixed by the expression graph.
+
+**Premise check.**
+- **No sign reading can answer this.** A decision reads the value first, by E12's ratified order, and asks the tier only where the value does not already read a definite sign. So any mint built on decisions lets the number decide whether the expression is asked. PR 6990's three failures are that order (the 2.8e-17 never asked about; the escalation in a deferring session; the discarded readings). (sure)
+- **The axis-or-quotient choice is not a topology decision.** Both arms are the same real direction wherever the axis arm applies; the axis just carries no width. So it needs no verdict and no record. It must only never let a point value pick an arm in a lane that stands for more than that point. (sure)
+- **The invariant the item wants is this:** every branch is a function of what the scalar stands for. At `Sym` that means the expression alone, so one document takes one branch at every valuation, in eager and deferring sessions. At `f64` the valuation *is* what the scalar stands for, and nothing re-values it, so branching on an exact 0 there is harmless. The two arms are equal bit for bit, except the sign of a zero. (likely)
+
+**The final state.**
+1. **The door.** It is a method of the scalar trait (`Real`); `is_exact_zero` today reads the value channel at `Sym` through `is_poison`. Its contract: the answer may only choose between two spellings of one real value. It never refuses, never glues, never picks cells. A wrong "no" costs width; a "yes" is a theorem.
+   - Its callers are a short, hand-kept list, checked by a CI gate, as today.
+   - The receipt counts its questions in a column of their own, outside the symbolic and numeric decision columns.
+   - A session dial makes the door answer "no" everywhere. Every corpus document must then build the same body with the same real values; that differential is the check that no caller uses it as a decision. (unsure whether the dial earns its place, or whether the list and gate are enough)
+2. **The mint.** One function makes the unit direction of a vector, for a line's director and an arc's radial alike.
+   - Where one component is zero by the door, the direction is the axis, (0, ±1) or (±1, 0).
+   - Its sign comes from one sign decision on the other component, kept and recorded. That decision cannot escalate: the segment's length was already decided positive, and with one component zero the length is the other component's size.
+   - Otherwise the direction is the quotient, with no reading taken.
+   - `sym::aside`, the least-band readings and the discharge call leave the mint. (likely)
+3. **One mint, called where the direction is first made.** The `line_to` verb already normalises its hop for its junction decisions (`path::chord_director`), and validation mints the stored director again from the same two points. Two spellings of one direction mean that over a box the junction reads a wide heading while the segment stores an exact one. The hop's verb therefore calls the one mint, records the result and reads it at its junctions. Validation mints only for profiles authored as tables. (likely)
+4. **`literal_sign` differs.** A bulge's sign is a fact about a value (the arc's sense), and the radial identities its lowering registers rest on it. It is a decision, taken once and kept. Its "choice no reader rests on" spelling (`k_stats::choose`) is wrong and becomes an ordinary recorded decision. (likely)
+5. **Two kinds of `is_exact_zero` caller.**
+   - *Choices of spelling* stay on the door, and become independent of the valuation at `Sym`. Examples: a ray's start, a torus hub, an iso line's held slope.
+   - *Branches that change what is built* become margined, recorded decisions. They are the same class as the five red corpus rows, which is a value coincidence deciding structure. The clearest case is the bulge's line-or-arc lowering, which is also a second reading of validation's `segment_straightness`, so the two merge into that one decision. Other candidates: a value sitting exactly on a chart's end, and a zero chord standing in for `+x`.
+   - Sorting the roughly 24 callers needs a one-by-one audit. (likely on the rule; unsure on each caller)
+6. **The readers of "was this Zero proven."** In production these are three: the refusal texts in `predicate.rs`, the unproven-coincidence lint (`topo::coincidence::Discharge::of`, `editor-core`'s replay via `deferred::discharge`), and the re-valuation instrument. The `geom-brep` reads are all in test modules. None steers construction once the mint stops, so they stay. One change: the lint's question is [intent.structural]'s "zero as a polynomial in the document's variables", so it should be the door's walk, which reads no value, not the decision's walk. The decision's walk may fold a `max` by a fact about this box only. (unsure: this moves findings only, never a body, unmeasured)
+
+**Worked example.**
+- The hop `(x, 0) → ((x + w) − w, 1)` at `Sym<f64>`: x's expression is the zero polynomial, so the axis is stored at `(1, 1)` and at `(0.1, 0.3)` alike, with one sign decision on y. `f64` stores (2.8e-17, 1): the same real number to rounding ([simple.conditioned]).
+- Corners `a`, `b` that agree at the nominal: `b − a` is not the zero polynomial, so every valuation stores the quotient. The five corpus rows stay green.
+- `(max(a, b), 0) → (b, 1)`: the quotient at every valuation and in every symbolic lane.
+- The slab side `(W, 0) → (W, H)` over a box, eager or deferring: the axis (0, +1). Nothing escalates, because nothing was decided except H's sign.
+- At plain `Interval`, a component that is the literal 0 is `[0, 0]`, so the axis is stored rather than `H/√(H²)`, which would be as wide as the box.
+
+**Ratified text I would change (each yours).**
+- **ERROR-DESIGN E12**: a construction may ask whether a value vanishes at every valuation. The answer is not a decision and may only choose between spellings of one real value. The `sym.rs` claim that a `Sym<T>` run is bit-identical to a `T` run (code docs, never ratified, already false under PR 6990) becomes "except where a construction chose a closed spelling by structure". E12 is agent text approved with "lgtm" on #1712.
+- **DESIGN [verdicts.consumers]**, *lane choice*: in a symbolic lane, a closed form that drops a dependence on the variables (a literal axis) is taken only where the door says yes, never on a Zero read from the value.
+- **DESIGN [scalars]**: name this door as the scalar's one structural query.
+- **`crates/profile/README.md`** direction clause (your "makes sense", PR 6936): a direction no verb states is minted once from its points by the one mint. As written the clause forbids that division, and the mint performs it.
+
+**Rejected as final states.**
+- **PR 6990's spelling.** Value first, decisions taken in order to be discarded. (sure)
+- **Taking the axis rule out.** Sound, but the slab's wall turns over the box, which this program exists to stop. Easy to reverse.
+- **Asking the tier before the number at every decision.** It overrules the ratified order and pays the identity test on every decision.
+- **Making `Sym`'s value exact as it computes.** It pays a normal form per operation, and it still cannot turn `H/|H|` into ±1 without a sign.
+- **A tagged direction type.** Downstream doors would branch on the tag, where literal 0 and ±1 already compute exactly.
+
+**Reversible:** yes. The door's answer at `Sym` can be widened or narrowed rule by rule, and with it answering "no" the mint is the quotient everywhere.
+
+## For the orchestrator
+
+**1. One door, and what the plain scalars answer: I move to A.**
+- **What moved me:** A's definition, "zero at every point the scalar stands for". It makes the plain-scalar answers principled rather than a special case. It also makes one door ([one-way]) where I had two that answer identically at `Sym`.
+- **My alternative D argued** that `f64` would then branch on a coincidence and take a sign decision at one valuation and not another. That is answered: at a point lane nothing re-values, and the two arms are the same bits. What E12 guards is a constant entering a *symbolic* lane, which the door at `Sym` never does.
+- **A's plain-`Interval` case is real** (a literal-0 component over a box stores `H/√(H²)` otherwise). Unmeasured whether any production lane runs plain `Interval` over a box.
+- **Checked:** `is_exact_zero` at `Sym` reads the value channel (`Sym::is_poison` returns `self.value.is_poison()`, sym.rs ~5325). An `f64` mint stores (+0, ±1) under A's shape and (±0, ±1) under the quotient.
+- **C's split** (stored-literal reads versus comparisons of computed values) is right about the callers. Under one door it becomes my item 5's two kinds rather than two doors.
+
+**2. Box-certified reads: I hold, and A contradicts itself.** A defines `Sym` as standing for every valuation of the document, then lets `Sym<Interval>` fold `max` by a fact about one box. That stores a literal axis in the expression graph where the function varies across boxes. That is exactly the constant E12's re-valuation instrument exists to catch, latent only because the corpus re-values at `Sym<f64>`, where A turns the read off. C's "unrecorded decision" is the same point. For decisions the read stays: it is right for a decision about this box, and the decision's own sign is recorded. A, C and I all exclude the registered-identity door, or would until registrations are shown independent of the valuation.
+
+**3. Where the mint lives: I hold, and A supports it.** A files the two mints (`chord_director`, `mint_director`, plus `ChordFrame::unit`) as off-question and says a tangent arc after an axis hop would inherit the wide heading. That is my argument. The point is one function. Calling it at the verb is what makes the junction and the stored director the same value. C's "one mint at validation" leaves the junction on its own spelling.
+
+**4. Readers of "proven": settled from the tree.**
+- **Checked:** every `.proven()` in `geom-brep` (certify.rs ×3, dihedral.rs, pcurve_cache.rs) is inside a `#[cfg(test)]` module. The production readers are `predicate.rs` (rendering), `topo::coincidence::Discharge::of` (lint), `sym/revalue.rs` (instrument), plus `deferred::discharge*` in `editor-core`'s replay (lint).
+- So C's "move construction-steering `.proven()` reads to the query" covers an empty set once the mint moves, and A's "stay" is right for rendering.
+- The lint question remains. I now agree with C's concrete form (the lint's discharge runs the walk that reads no value), and extend it to `Discharge::of` in eager sessions. That needs the margin to carry whether its proof used a fact about this box. Still unsure; it moves findings only.
+
+**A question none of us asked.** The door's answer at `Sym` depends on the session's budget, rules and ladder (A noted this). The coincidence replay (`Sym<f64>`, deferring) and the driver (`Sym<Interval>`) run different sessions, so one document can store the axis in one and the quotient in the other. The two are equal as real values, so no body differs. But should the door's rules be fixed kernel-wide rather than per session, so that "a function of the document" holds across symbolic lanes too? I lean yes (a fixed rule set for the door, independent of the session's differential dials). Unsure about cost.
+
+**Kept from A and C, off-question:**
+- A direction with components in constant ratio (a 45° side) is the general form of the axis. Measure before building.
+- `deferred.rs`'s "the decisions are the same either way" is false at an exact witness over a box. DECIDE.
+
+### C, round 1, verbatim
+
+## For Ev
+
+**Recommendation (likely).** Stop asking "is this an identity?" through a sign reading. Give the symbolic tier one query that is not a decision: `identically_zero(x)`, meaning "is `x`'s expression the zero function of the document's variables?". It is answered from the expression and never from a number. Terms:
+- **Symbolic tier**: E12's polynomial normal-form test over the parameter symbols.
+- **Lane**: the scalar a run computes in: `f64`, `Interval` or `Dual` (the *point lanes*), or `Sym<f64>` and `Sym<Interval>` (the *symbolic lanes*, which carry an expression beside the number). Each runs in an eager session (the tier proves a Zero as it is taken) or a deferring one (proofs wait until someone asks).
+- **Valuation**: the parameter point or box a run is evaluated at.
+- **Decision**: a sign read against a band, counted, recorded for re-valuation, and queued in a deferring session.
+
+**The query.**
+- It answers *no* at every point lane, because those lanes hold no expression. At `Sym` it runs the normal form and the retry ladder, memoised per node.
+- Every rule that reads a value is switched off: the certified read at `min`/`max`/`select`, and the registered-identity door, whose entries are witnessed against values.
+- It is the same in eager and deferring sessions. It adds no decision count, no deferred entry and no re-valuation record.
+- Its answer is a function of the expression graph alone, and that graph is a function of the document and of the decisions already recorded. So re-valuing a document cannot change the answer without a recorded decision changing first.
+
+**Its licence.** It may only choose between two spellings of one real number: a closed form that equals the general form wherever the identity holds, which is everywhere. It never glues, splits or refuses. A caller list kept by hand, with a CI gate, holds this, as `is_exact_zero`'s list is held today.
+
+**The direction mint: one function, called once per segment.**
+- Where one component of the vector is identically zero, store the axis `(0, ±1)` or `(±1, 0)`. Its sign is a decision on the other component, taken at the run band, recorded and kept. If that sign escalates, the escalation propagates to the subdivision driver and there is no fallback: with one component identically zero, an undecided sign means the segment may be degenerate on the box.
+- Otherwise store the quotient (the vector over its length), and take no reading.
+- At the point lanes it is always the quotient. At `f64` that is already the axis bit for bit wherever a component is exactly 0.
+- The line director and the arc radial are this one question. A `line_to` hop's director is minted once, by the verb that drew it, and both its junction checks and the stored segment read it. Today the junction normalises the chord itself (`path::chord_director`) and validation mints it a second time, which is two spellings of one fact. Validation mints only for directions that no verb made (a table's segments).
+- The aside and the readings it threw away go.
+
+**Worked examples.**
+- **Slab side `(W, 0) → (W, 1)`.** The x component is `W − W`, identically zero. Every symbolic lane stores `(0, 1)` at every valuation, point or box, eager or deferring.
+- **Hop `(x, 0) → ((x + w) − w, 1)`.** The axis at `(1, 1)` and at `(0.1, 0.3)` alike. `f64` stores `(2.8e-17, 1)`, the same real number to rounding.
+- **Rectangle side between corner variables `a` and `b` that agree at the nominal.** `b − a` is not identically zero, so every valuation stores the quotient. That keeps the five corpus rows green.
+- **`(max(a, b), 0) → (b, 1)`.** Not identically zero once the value read is off, so the quotient at every valuation.
+
+**`literal_sign`** asks for a bulge's sign: a fact about a value that decides which way the arc turns. It stays a decision, recorded and kept, and a flip there is a real flip.
+
+**`is_exact_zero`** keeps one meaning: "this is a zero the kernel wrote as a literal" (an iso line's held slope, a stored start). A caller that applies it to a *difference of computed values* is reading a coincidence of values. Each such caller moves:
+- to `identically_zero`, if it only chooses a spelling;
+- to a margined decision, if it changes what is built. The bulge's line-or-arc lowering is one: it is a structural act, and it repeats validation's straightness check.
+
+**It is not this query, at the point lanes (likely).** The alternative is that `f64` answers *yes* on the value 0, so `is_exact_zero` becomes the door. At `Dual`, a side between `W₁` and `W₂` that agree at the nominal would then store a constant axis, whose sensitivity to `W₁` is zero while the real side tilts. And at `f64`, one valuation would take a sign decision that another does not.
+
+**"Was this Zero proven" readers** (`MarginDiag::proven`, `deferred::discharge`). After this change, none of them steers construction: the remaining reads are refusal texts, `topo`'s record of how a coincidence was discharged, and the coincidence replay. They stay. One refinement (unsure): the unproven-coincidence lint asks whether a coincidence is *structural*. [intent.structural] defines that as "zero as a polynomial in the document's variables", so the lint should run the value-free walk rather than the decision's stamp, which may rest on a value read that holds on this box only. This moves lint findings at most, never a body, and is unmeasured.
+
+**What the value read at `min`/`max` is (likely).** It is right inside a *decision*: the decision's outcome is recorded, so a flip at another valuation is seen. It is wrong only for a question about the whole function, which is why the query switches it off.
+
+**Ratified text this changes.**
+- **ERROR-DESIGN E12.** It gains: "a construction may ask the tier whether a value is identically zero, to choose a closed spelling of one real; the answer is not a decision." Agent-written text approved with "lgtm" on #1712.
+- **`[verdicts.consumers]`, the lane-choice rule "Zero takes the closed form".** At a symbolic lane, a closed form that drops a dependence on the variables is taken only on *identically zero*. A Zero read off the value is a coincidence at this valuation only.
+- **`crates/profile/README.md`, the direction clause.** A verb records the directions it makes, a `line_to` hop's included, and only a table's are minted at validation, by the one mint.
+- **The `sym.rs` claim (not ratified)** that a `Sym<T>` value channel is bit-identical to a plain `T` run. It becomes "except where a construction chose a closed spelling by structure".
+
+**Rejected.**
+- PR 6990's proof read off a decision: value-first by design.
+- Taking the axis rule out: the slab's wall turns over the box.
+- Tightening the value channel: it cannot make `h/|h|` into ±1 without a sign, and it costs a normal form per value.
+- A tagged direction: a downstream branch on the tag, which `f64` structure cannot supply.
+
+**Reversibility.** The query is additive and its caller list shows where it is used. Rolling back means taking the axis rule out.
+
+**Possible later (unsure).** A "constant ratio" form of the query, for a 45° chamfer between formula corners. Not built until a document needs it.
+
+## For the orchestrator
+
+1. **Point scalars: held B/C, with an argument of my own added.** A's shape (`f64` answers *yes* at 0, the door is `is_exact_zero`) stores a constant axis at `Dual` for a value coincidence, which gives a zero tangent where the side really tilts. This is likely; I did not run `Dual`. A's own case for the shape is plain `Interval` with `[0, 0]`, "wide by the box". That case only occurs at a point box, because `W − W` over a real box is not `[0, 0]`, so the width there is ulps. B's alternative D is the same argument at `f64`.
+2. **Value reads: held "every value-reading rule off".**
+   - **Moved by B:** the registered-identity door is also off. I had missed that registrations are witnessed against values (B, and A's own caveat).
+   - **Retracted:** my claim that the `min`/`max` read is an *unrecorded decision*. B is right that inside a decision the outcome is recorded and the flip is seen.
+   - **Not moved by A's "truth about each box":** the box changes with the valuation, so the stored form would change with no record. That is the defect class the brief names.
+3. **Where the mint lives: moved to B's placement, kept as one function.** The verb mints a `line_to` hop's director with the one mint function and its junctions read it, and validation mints only for tables. What moved me was B's and A's `chord_director` observation, which I checked in `path.rs`: the junction normalises the chord separately, so the two spellings would disagree over a box. The positions are compatible: one function, called by whoever makes the segment.
+4. **Proven readers: corrected myself against the tree.** The geom-brep `.proven()` reads I flagged (`certify.rs` ×3, `dihedral.rs`, `pcurve_cache.rs:~15869`) are all in tests or refusal rendering, and none steers construction. Withdraw that off-question item. Position now: keep them (A); the lint's structural question runs the value-free walk (B and me, unsure).
+
+**A question none of the three asked.** At a symbolic lane, is the mint's sign decision ever new, or does it repeat vertex separation's decision on the length? If it repeats it, the axis could take its sign from that decision rather than take a second reading. That is [one-way]'s "two ways of deciding one fact". I did not trace `vertex_separation`'s margin to check.
+
+**Agreed off-question rows, worth filing:**
+- the bulge lowering's bit-equality line-or-arc test (B), a structural act;
+- the `deferred.rs` "nothing else changes" claim, false at an exact witness (A, B);
+- the `literal_sign` ledger sentence contradicting audit row F43 (A);
+- the three-kind audit of `is_exact_zero`'s callers.
