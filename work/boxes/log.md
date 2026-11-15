@@ -633,3 +633,7 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - the delta review's five escaping sums, planted in production code, now go red, as does a let-bound renamed torus sum;
   - a neutrally named alias arm returning `radius * 2` still passes, which is the documented neutral-vocabulary class.
   Pins: 363 arm, 38 ball, 28 whole; 96 reads of 26 doors registered. The unit closes, and its leftovers are filed as their own rows. The cover build's last unit is merged. Open: `[ev]` PR 6968 (the pivot fork), then its implementing unit.
+- 2026-11-15: Ev approved `[ev]` PR 6968, the `foot_on` pivot: the window's middle; "no need to try to find a point that's better than the midpoint right now". Merged as `0807c130bf`.
+  - Ev first asked how a point that is not a witness can be sound. Answer: the pivot is the origin of a tilt bound, so any point is sound provided the datum and its lever are read at it. That is now one README clause, added on Ev's "only if ambiguous", since the question itself showed it was ambiguous.
+  - Row 269 is filled in: Opus = A, Fable = B.
+  - Dispatched the implementing unit on `boxes/reach-region`.
