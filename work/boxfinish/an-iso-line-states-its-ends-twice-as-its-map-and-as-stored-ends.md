@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-14
 priority: P1
 cost: M
-design: true
 refs: [6959]
 ---
 
@@ -135,3 +134,18 @@ in `u` only) and `replace_face::iso_image_row` (`IsoLine` only). PR
 the older two it cannot move without changing behaviour is this row's
 too.
 
+
+## Ratified (2026-11-15, `[ev]` PR 6975)
+
+Ev: "i'm not very sure about the considerations here, but i think this
+makes sense". The recommendation stands as written above: an image
+stores the line it holds fixed, one value, and its map along it, and no
+ends; a corner is the meet of two held lines, read from the lift; a
+closed chart's period is held as its domain's two ends. PR 6982 has
+since built the certificate's half (it reads four runs and their meets,
+`Pcurve::held_line`, `Lift::joint_point`). What is left is the
+representation: the image type itself, the period, and the readers
+PR 6982 named to move onto `Lift::joint_point`
+(`chart_region::pcurve_entry`, `spline_trim::image_pieces`,
+`boolean::spline_known`, `replace_face::iso_image_row`), then the arc
+image (`an-iso-arc-rims-end-reads-through-its-map-at-interval`).
