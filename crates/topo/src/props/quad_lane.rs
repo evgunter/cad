@@ -1371,11 +1371,23 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
              cut-loft unit's)",
         ));
     };
+    // Each piece's held value and rate, crossed into certification
+    // arithmetic, and whether the lift moved it by a period.
+    let pieces = |run: &crate::pcurves::HeldRun<T>| -> Vec<Piece> {
+        run.members
+            .iter()
+            .map(|&(i, line)| Piece {
+                value: Interval::from_certified(line.value),
+                rate: Interval::from_certified(line.rate),
+                moved: lift.rows()[i].lift != crate::joint::Deck::IDENTITY,
+            })
+            .collect()
+    };
     let sides = [
-        side(lift, r0)?,
-        side(lift, r1)?,
-        side(lift, r2)?,
-        side(lift, r3)?,
+        side(r0.axis, &pieces(r0))?,
+        side(r1.axis, &pieces(r1))?,
+        side(r2.axis, &pieces(r2))?,
+        side(r3.axis, &pieces(r3))?,
     ];
     TrimRectangle::walked(sides).ok_or(refuse(
         "the NURBS-face boundary does not traverse its UV rectangle exactly once — \
@@ -1384,18 +1396,23 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
     ))
 }
 
-/// **One run's side**: the one exact value every piece of `run` holds, and
-/// the one way every piece runs along it.
-fn side<T: Decide + Bounds + CertifiedEnclosure>(
-    lift: &crate::pcurves::Lift<T>,
-    run: &crate::pcurves::HeldRun<T>,
-) -> Result<Side, PropsError> {
+/// One piece of a run as [`side`] reads it: its line's held value and its
+/// rate in chain order, crossed into certification arithmetic, and
+/// whether the lift moved its image by a period.
+struct Piece {
+    value: Interval,
+    rate: Interval,
+    moved: bool,
+}
+
+/// **One run's side**: the one exact value every piece of a run holds,
+/// and the one way every piece runs along it.
+fn side(axis: geom_brep::ChartAxis, pieces: &[Piece]) -> Result<Side, PropsError> {
     let refuse = |what| PropsError::QuadratureUnsupported { what };
     let mut held: Option<(f64, Way)> = None;
-    for &(i, line) in &run.members {
-        let moved = lift.rows()[i].lift != crate::joint::Deck::IDENTITY;
-        let value = exact_value(Interval::from_certified(line.value), moved)?;
-        let way = way_along(Interval::from_certified(line.rate))?;
+    for piece in pieces {
+        let value = exact_value(piece.value, piece.moved)?;
+        let way = way_along(piece.rate)?;
         let &mut (v, w) = held.get_or_insert((value, way));
         if v != value {
             return Err(refuse(
@@ -1411,11 +1428,7 @@ fn side<T: Decide + Bounds + CertifiedEnclosure>(
         }
     }
     let (value, way) = held.ok_or(refuse("a NURBS-face run holds no piece"))?;
-    Ok(Side {
-        axis: run.axis,
-        value,
-        way,
-    })
+    Ok(Side { axis, value, way })
 }
 
 /// A held value as the exact number it is: a certified point bracket.
@@ -2905,12 +2918,11 @@ mod tests {
                 let f = T::from_f64;
                 let column = f(lo) + (f(hi) - f(lo));
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                rows[1] = piece((column, T::zero()), (0.0, 1.0));
-                rows[1].lift = Deck {
+                rows[1] = piece((column, T::zero()), (0.0, 1.0)).moved_for_tests(Deck {
                     u: 1,
                     v: 0,
                     twin: false,
-                };
+                });
                 (column, read(rows))
             }
             match moved::<Interval>((0.3, 1.7)).1 {

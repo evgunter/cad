@@ -226,6 +226,15 @@ impl<T: Real> LiftedRow<T> {
         }
     }
 
+    /// This row as the lift `deck` moved it, its image unmoved: a row a
+    /// suite states on a closed chart's lift (the image itself is the
+    /// suite's to state where the move would put it).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn moved_for_tests(self, deck: Deck) -> Self {
+        Self { lift: deck, ..self }
+    }
+
     /// The carrier parameters the chain enters and leaves the image at.
     #[must_use]
     pub fn entry_exit(&self) -> (T, T) {

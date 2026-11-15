@@ -26,7 +26,12 @@ fn tol() -> Tol {
 
 /// The quadrilateral at `h`, scaled by `s`.
 fn quad<T: Real>(h: f64, s: f64) -> Vec<ProfileLoop<T>> {
-    let c = |x: f64, y: f64| (Point2::new(T::from_f64(x * s), T::from_f64(y * s)), T::zero());
+    let c = |x: f64, y: f64| {
+        (
+            Point2::new(T::from_f64(x * s), T::from_f64(y * s)),
+            T::zero(),
+        )
+    };
     vec![bulge_loop(vec![
         c(-1.0, -1.0),
         c(1.0, -1.0),
@@ -52,7 +57,13 @@ fn loft<T: Decide + Bounds + topo::AtRestPolicy>((h, s, n, degree): Loft) -> Bod
     let sections: Vec<_> = (0..n).map(|i| quad::<T>(h + 0.1 * i as f64, s)).collect();
     #[allow(clippy::cast_precision_loss)]
     let places: Vec<_> = (0..n)
-        .map(|i| SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), T::from_f64(0.7 * i as f64))))
+        .map(|i| {
+            SketchPlane::xy_at(Point3::new(
+                T::zero(),
+                T::zero(),
+                T::from_f64(0.7 * i as f64),
+            ))
+        })
         .collect();
     sweep::test_support::loft_body_construction::<T>(&sections, &places, degree, tol())
         .expect("the loft builds")
@@ -60,7 +71,11 @@ fn loft<T: Decide + Bounds + topo::AtRestPolicy>((h, s, n, degree): Loft) -> Bod
 }
 
 /// Split up to `count` of the body's rim edges at `frac` of their span.
-fn split_rims<T: Decide + Bounds + topo::AtRestPolicy>(body: &mut Body<T>, frac: f64, count: usize) {
+fn split_rims<T: Decide + Bounds + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    frac: f64,
+    count: usize,
+) {
     let rims: Vec<_> = body
         .pcurves()
         .filter(|(_, c)| match c.pcurve() {
@@ -92,9 +107,13 @@ fn measured<T: Decide + Bounds + geom_core::CertifiedBounds + topo::AtRestPolicy
     what: &str,
 ) -> (f64, f64) {
     let finished = topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what} finishes: {e:?}"));
-    let m = topo::mass_properties(&finished, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap_or_else(|e| panic!("{what} measures: {e:?}"))
-        .enclosure;
+    let m = topo::mass_properties(
+        &finished,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap_or_else(|e| panic!("{what} measures: {e:?}"))
+    .enclosure;
     (m.volume.lo() - m.volume_pad, m.volume.hi() + m.volume_pad)
 }
 
@@ -136,7 +155,10 @@ fn split_lofts_hold_their_volumes_at_interval() {
             let want = volume(loft_at);
             let what = format!("{loft_at:?} split {count} at {frac}");
             let (lo, hi) = measured(body.clone(), &what);
-            assert!(lo <= want && want <= hi, "{what}: [{lo}, {hi}] holds {want}");
+            assert!(
+                lo <= want && want <= hi,
+                "{what}: [{lo}, {hi}] holds {want}"
+            );
             topo::mint_pcurves(&mut body, tol()).expect("the split loft mints again");
             let (lo, hi) = measured(body, &format!("{what}, minted again"));
             assert!(
