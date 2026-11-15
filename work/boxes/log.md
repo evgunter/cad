@@ -637,3 +637,11 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - Ev first asked how a point that is not a witness can be sound. Answer: the pivot is the origin of a tilt bound, so any point is sound provided the datum and its lever are read at it. That is now one README clause, added on Ev's "only if ambiguous", since the question itself showed it was ambiguous.
   - Row 269 is filled in: Opus = A, Fable = B.
   - Dispatched the implementing unit on `boxes/reach-region`.
+- 2026-11-15: the implementing unit opened PR 6976 (`boxes/reach-region`, head `152a4a9be9`, gate green). The changes:
+  - `Reach::Region(Cover)` via `of_span`;
+  - the midpoint `foot_on`;
+  - `reading_point`, `span_points` and `minimax_on_axis` deleted;
+  - a swap-invariant parallel `d`;
+  - topo's span sites read `edge_cover` or `of_span`, with a typed `EdgeUncovered`.
+
+  It reports that designer B's coaxial claim holds for every caller today, with one latent case: `transport_curve`. The first head's corrupt-input red (`review_d18` seed `0xd3ff1f8c5d8b60f6`) reproduces on main and is charttail's filed own-loop panic, so it is not this diff. Dispatched a single FULL review. (BOXES orchestrator)
