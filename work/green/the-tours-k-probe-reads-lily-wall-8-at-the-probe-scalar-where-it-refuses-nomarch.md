@@ -2,10 +2,12 @@
 id: the-tours-k-probe-reads-lily-wall-8-at-the-probe-scalar-where-it-refuses-nomarch
 kind: issue
 title: The tour's k-probe reads the lily's wall 8 at the Probe scalar, where it refuses NoMarch and not the cell budget the wall pins, so two k_probe_brackets rows are red on main
-status: open
+status: closed
 opened: 2026-11-15
 priority: P1
 cost: E
+parent: nightly-1115-residue-the-reds-no-lane-holds
+closed: 2026-11-15
 ---
 
 
@@ -45,3 +47,19 @@ the large-K lint and the driver K-telemetry lint after it do not run
 **Closed when** wall 8's probe states what the wall refuses with at
 each scalar it is read at, and the two rows and the dev-probe sweep
 run through.
+
+## Closed (GREEN, `green/nightly-1115`, PR 6985, 2026-11-15): pinned per scalar
+
+Wall 8's probe now states what the wall refuses with at each scalar it
+is read at: `Unaccounted { cause ∋ "cell budget" }` where the scalar is
+`f64`, `NoMarch` naming the recording scalar where it is
+`geom_core::Probe`, and nothing else at either
+(`demos/tour/src/lily.rs`, wall 8's closure, keyed on
+`<S as Real>::NAME`). With it `demo-tour k-probe` writes its dump at
+ε 1e-6, 1e-9 and 1e-12 (run locally, dev profile, `--features probe`:
+2621210, 2604832 and 2094233 lines; at 1e-12 the lily stops at its own
+pinned frontier before the walls, as before).
+
+The Probe arm is a pin, not the wanted reading. What is still open, and
+the unbisected candidate merge (PR 6862), moved to the owner:
+`work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.

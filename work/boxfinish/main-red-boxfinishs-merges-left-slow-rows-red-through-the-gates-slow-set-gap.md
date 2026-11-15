@@ -46,10 +46,22 @@ Not this PR's, measured: `demos/tour`
 `..._at_eps_1e_6` are red on the PR's first parent too. Filed on GREEN:
 `work/green/the-tours-k-probe-reads-lily-wall-8-at-the-probe-scalar-where-it-refuses-nomarch.md`.
 
-**PR 6946 (edge turns), to confirm.** `sweep::all`
-`mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_one_thread`,
-ε 1e-12 only. The unit changed what the whole-turn decision reads at
-that ε; other PRs moved that golden in the same window.
+**PR 6946 (edge turns).** Nothing attributed. Its lane bisected the
+thread-count golden below and ran the slow set of `geom-brep` and
+`sweep` on main: no red there is this unit's.
+
+**PR 6959 again: the thread-count golden.** `sweep::all`
+`mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_one_thread`
+and `..._at_four_threads`, ε 1e-12 only. Green at PR 6946's merge, red
+at PR 6959's. One line differs, `arc_loft_1e11eps`: both pads widened
+(`vpad` by 2.69e-7 relative, `apad` by 2.1e-14), with the values, the
+verdicts and the escalations unchanged. The cause is check 4's
+`off_map` term, which PR 6959 added to an iso image's envelope: two
+line rims of that fixture state an end one ulp off their map at that ε,
+and the rectangle certificate pads by it. With the term off the old
+line returns bit for bit. **Re-cut by PR 6987.** PR 6982 changes the
+same pad; its lane measured this golden on its head against its merge
+base at three ε and no line moves.
 
 **PR 6958 (the aimed ray).** Nothing attributed.
 
@@ -74,3 +86,28 @@ catch.
 its cause; and each unit's model-compare row carries the escape
 (`docs/MODEL-COMPARE-PROTOCOL.md` rule 10).
 
+
+## The thread-count line, pinned (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+The "PR 6946, to confirm" row above is one line of
+`crates/sweep/tests/thread-count-digest/eps-1e-12.txt`:
+`arc_loft_1e11eps`' pads. On main `3e7a8c93b` the one-thread and the
+four-thread walk read the same line, with the volume and area bits
+unmoved and both pads wider: `vpad` `3db30319374e81b6 -> 3db303198d26e97a`
+(1.7291407e-11 to 1.7291412e-11, 2.7 parts in 10⁷), `apad`
+`…d630 -> …d690` (2 parts in 10¹⁴). GREEN pinned the line at the serial
+reading and named this row in `expected`'s doc.
+
+**It is PR 6959's, not PR 6946's** (BOXFINISH's edge-turns lane, from
+its orchestrator's comment on PR 6985, 2026-11-15): bisected on main's
+first-parent line, green at `980a97ec` (PR 6946's merge) and red at
+`95892011` (PR 6959's merge). Cause, measured by PR 6959's lane
+(PR 6987): the `off_map` term check 4 adds to an iso image's envelope;
+on `arc_loft_1e11eps` at ε 1e-12 two line rims state an end one ulp off
+their map and the rectangle certificate pads by it. PR 6987 re-cuts the
+same line to the reading pinned here. GREEN's own check of the two
+commits did not complete and measured nothing.
+
+Reproduce:
+`CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -E 'test(the_walk_matches_the_serial_golden_at_one_thread)'`
+at those two commits; the assertion prints the line.
