@@ -51,29 +51,19 @@ use crate::m10_9_pins_interval::measured_studies;
 /// [`sym11_the_exact_channel_never_contradicts_past_the_ceiling`] reads
 /// this table, and it holds main's readings so the next move reds; no
 /// one has said which decisions its latest moves changed or that they
-/// are right. Two rows owe that account:
-/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
-/// and
-/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
-///
-/// **Moved, and accounted: the symbolic and numeric columns** when a
-/// validated segment began recording its directions (PR 6963): its mint
-/// reads each component of a direction it mints from two points
-/// (`profile::seg::axis_or`, audit row F43), and those readings count on
-/// both columns, the plate +4/+4, the link +1/+1, the bracket +8/+8 and
-/// the pad +16/+16. Measured as theirs: with the mint reading nothing,
-/// every one of the four is back on the old column exactly. The
-/// annulus, two circles whose radials the verb records, reads none.
-///
-/// The frozen column is left as stored. `r2_link` reads 3575 and
-/// `r2_rounded_pad` 4000 from PR 6953's merge on (bisected:
-/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`).
+/// are right. Three rows owe that account:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`,
+/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`
+/// and, for the readings
+/// `sym11_the_exact_channel_never_contradicts_past_the_ceiling` holds
+/// below against the ones the first two left,
+/// `work/boxfinish/sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin.md`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1019, 1054, 299]),
     ("r1_annulus", [535, 553, 278]),
-    ("r2_link", [814, 948, 3576]),
+    ("r2_link", [814, 948, 3575]),
     ("r2_filleted_bracket", [1433, 1553, 969]),
-    ("r2_rounded_pad", [1531, 1714, 3989]),
+    ("r2_rounded_pad", [1531, 1714, 4000]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
