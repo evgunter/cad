@@ -461,7 +461,11 @@ fn the_station_steps_conditioning_band_is_a_fold_back_refusal() {
         let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
         for _ in 0..200 {
             let mid = 0.5 * (lo + hi);
-            if chord_of(mid) < chord { lo = mid } else { hi = mid }
+            if chord_of(mid) < chord {
+                lo = mid
+            } else {
+                hi = mid
+            }
         }
         0.5 * (lo + hi)
     };

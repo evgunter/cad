@@ -870,7 +870,7 @@ where
                 refusal: Box::new(refusal),
             })
         })?;
-        let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+        let arm = crate::mate::solve::bundle_arm(reach, &mates, &values).map_err(|f| fault(*f))?;
         for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
             if let Some(found) =
                 crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
