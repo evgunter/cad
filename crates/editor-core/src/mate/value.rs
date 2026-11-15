@@ -1723,8 +1723,8 @@ mod tests {
     /// its band's edge, and is wider than ε there**: the fixture of
     /// [`the_f64_charts_least_turn_lands_within_eps_at_its_band_edge`].
     /// `S·n` contains `d` at every tilt past the edge, and its widest
-    /// component stays within `32u/|n + d|`. At the edge itself that
-    /// width is about 12ε, wider than ε, which
+    /// component stays within `32u/|n + d|`, at every ε. At the edge itself,
+    /// at the default ε, that width is about 12ε, wider than ε, which
     /// `work/onehome/the-interval-charts-least-turn-is-wider-than-eps-at-its-band-edge.md`
     /// records; this row pins both until that row moves the edge.
     /// *Breaks if* the enclosure loses `d` (unsound), widens past the
@@ -1764,9 +1764,13 @@ mod tests {
             width(tau);
         }
         let at_edge = width(hi);
-        assert!(
-            at_edge > eps,
-            "the width at the edge, {at_edge:e}, is within ε {eps:e}: close the row this pins"
-        );
+        // The row measured the edge at the default ε; elsewhere the edge
+        // sits where another verdict binds, and only the rate is pinned.
+        if eps == geom_core::tolerance::DEFAULT_EPS {
+            assert!(
+                at_edge > eps,
+                "the width at the edge, {at_edge:e}, is within ε {eps:e}: close the row this pins"
+            );
+        }
     }
 }

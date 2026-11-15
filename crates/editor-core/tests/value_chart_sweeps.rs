@@ -216,7 +216,8 @@ fn std_values_for(o: Orientation) -> Vec<(Coord<editor_core::Operand>, Formula)>
 /// continuously**: the plate's tilt from −(π−δ) to π−δ about `x`, `y`
 /// and an oblique chain, under five orientations; between steps the
 /// copy's frame moves by at most the lever times the step, and nothing
-/// refuses.
+/// refuses outside the pole band: a station that lands within δ of an
+/// orientation's pole refuses `Backwards`, as the band says it must.
 ///
 /// *Breaks if* the chart has a branch short of the pole (a jump), or
 /// refuses short of its band.
@@ -253,10 +254,21 @@ fn a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously() {
 }
 
 /// The plate sweep under `orients`, about each of `axes`, in `steps`
-/// steps from −(π−δ) to π−δ: no refusal, and no step moving the copy by
-/// more than the lever times the step.
+/// steps from −(π−δ) to π−δ: no refusal outside the pole band, and no
+/// step moving the copy by more than the lever times the step.
+///
+/// δ stays outside the pole band at the run's ε. The band refuses where
+/// the least turn's lever `2·arm/chord` passes the run's rounding reach
+/// (`RigidMotion::least_turn`), so its edge is at a chord of `2·arm/R`:
+/// about 1.3e-5 at the default ε, and about 0.013 at ε 1e-12, for this
+/// bundle's arm of about 33 (the lever of about 23 below, and its slide
+/// of 10). δ is 1e-3, or twice the edge for an arm of 50 where that is
+/// wider.
 fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
-    let delta = 1e-3;
+    let reach = geom_core::predicate::Band::linear(Tol::witness())
+        .expect("a band")
+        .rounding_reach();
+    let delta = f64::max(1e-3, 2.0 * (2.0 * 50.0 / reach));
     let mut report = Vec::new();
     for &o in orients {
         for &axis in axes {
@@ -283,6 +295,19 @@ fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
                             worst = worst.max(dist(&f, l) / h);
                         }
                         last = Some(f);
+                    }
+                    // A refusal in the pole band is the chart's answer: the
+                    // orientation written backwards, within δ of a pole. Each
+                    // orientation here puts its pole at a multiple of π/2, and
+                    // a coarse grid lands in the band only where the run's
+                    // band is wide (ε 1e-12: a station at 1.5666).
+                    Err(e)
+                        if e.contains("puts the copy's mated direction opposite")
+                            && (-2..=2).any(|k| {
+                                (t - f64::from(k) * std::f64::consts::FRAC_PI_2).abs() < delta
+                            }) =>
+                    {
+                        last = None;
                     }
                     Err(e) => {
                         refusals.push(format!("{t:.4}: {}", &e[..e.len().min(90)]));
