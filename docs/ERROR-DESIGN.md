@@ -536,9 +536,13 @@ the whole point of this machinery"). The E6 leaf protocol gains a
 SYMBOLIC tier ahead of the numeric one: beside every lane value the
 replay carries a handle into a hash-consed expression DAG over the
 document's continuous-parameter symbols, and a funnel margin whose
-expression is IDENTICALLY ZERO in the parameters decides `Zero`
-before any enclosure is consulted — for every parameter value, at
-any box width. Everything else decides numerically as today.
+expression is zero at every parameter value in the leaf's box at which
+the build takes the decisions this replay took decides `Zero` before
+any enclosure is consulted, at any box width. Those are the only
+values at which this body exists; a sign the construction never
+compared is not one of its decisions. Where the plain normal form is
+the zero polynomial, that is every parameter value. Everything else
+decides numerically as today.
 
 **The defect it closes** (measured by M10-3, pinned by
 `m10_3_driver_interval::a_macroscopic_box_refuses_all_of_its_mass_as_budget_today`).
@@ -577,10 +581,10 @@ mass has no valid build" — is not sayable about any macroscopic box.
   cancellation past that point is lost, soundness is not (an atom is
   an unknown function; the margin falls to the numeric path).
 - **The structural question.** A construction may ask the tier
-  whether a value is identically zero, to choose between two
-  spellings of one real value: the exact axis `(0, ±1)` for a hop
-  `(W, 0) → (W, H)` where the general form is the chord over its
-  length (`is_exact_zero`, DESIGN [scalars]). The answer is not a
+  whether a value is zero as a function of the document's variables,
+  to choose between two spellings of one real value: the exact axis
+  `(0, ±1)` for a hop `(W, 0) → (W, H)` where the general form is the
+  chord over its length (DESIGN [scalars]). The answer is not a
   decision: no count, no record, nothing deferred, and the same in an
   eager and in a deferring session. It is the normal form and the
   retry ladder with every rule that reads a value switched off (the
@@ -589,7 +593,9 @@ mass has no valid build" — is not sayable about any macroscopic box.
   values), under rules and a term budget that are kernel constants
   and not the session's, so it is a function of the expression DAG
   alone: one document gets one answer at every valuation and in every
-  symbolic lane. A sign reading cannot stand in for it: a decision
+  symbolic lane. A numeric scalar is never asked: it holds no
+  expression, and the general spelling is taken. A sign reading cannot
+  stand in for it: a decision
   reads the value first and asks the tier only where the value reads
   no definite sign, so `(x + w) − w − x` is asked about where it
   rounds to 0 and not where it rounds to `2.8e-17`. A `Sym<T>` run's
@@ -670,7 +676,12 @@ number.
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
   a session-level record that two DAG NODES denote one function of the
-  parameters, made by the site that guarantees it. A zero through it
+  parameters — equal at every parameter value, not only where a
+  decision of the registrant came out as it did — made by the site
+  that guarantees it. A fact that holds only past a decision is not
+  registered: the construction spells that decision as a literal sign
+  (`4·atan(σ·b)`, a radius `σ·ρ`), and the fact is then an identity of
+  the expressions it built. A zero through it
   is counted with every other symbolic zero (`SymCounts::symbolic`,
   the K token `symbolic`), and what the registry buys a document
   is the differential with the door shut (`SymRules::registered`).

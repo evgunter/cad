@@ -37,3 +37,21 @@ measured foot at the cut), judged by the same probe and certified
 by checks 3 and 4, without moving the `f64` split rows'
 re-minted maps; or whether `mint_pcurves` should keep a carried row
 that still certifies.
+
+## Corrected (2026-11-15, fork 271): the cut refuses first
+
+Measured by a designer's probe on
+`a_split_rims_cut_is_never_read_as_a_chart_end`: the as-split
+`Interval` body, finished BEFORE `mint_pcurves` re-mints anything, with
+both kept corners reading exactly 0 and 1, already refuses "a
+NURBS-face pcurve endpoint is not exact structure"; `f64` finishes. The
+rectangle certificate applies its exactness test to both ends of every
+image (`quad_lane::nurbs_face`, the `exact` closure), the cut included,
+and a cut's moving coordinate is the map read at a computed parameter.
+
+So this row's title names half the cause, and restoring the kept
+corner alone closes nothing. What closes it is the certificate reading
+runs and their meets, where a cut is a joint inside one run and is
+never read as a point (unit 1 of
+`an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`).
+

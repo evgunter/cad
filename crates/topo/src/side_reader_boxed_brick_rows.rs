@@ -330,9 +330,9 @@ fn beside(a: usize, c: usize, hi: f64, margin: f64) -> ([f64; 3], [f64; 3]) {
 /// (`side_at_infinity_edge`), and to read no wrong side.
 ///
 /// **Red, each of the twenty-four, under
-/// `Err(undecided) => Ok(Gap::InBand(undecided))` in
-/// `solid_contain::edge_meets`** (an undecided gap read as the edge met
-/// in band): the edge is then met and stands for its faces' crossings,
+/// `.or(Ok(Magnitude::Zero))` on the gap's decision in
+/// `solid_contain::edge_meets`** (an undecided gap handed to the door
+/// as decided, so read as the edge met): the edge is then met and stands for its faces' crossings,
 /// and the ray is set aside further on, on another row; none reads the
 /// wrong side under that change alone. With that and the edge read off
 /// its two vertices (`census::line_passes` without `on_its_line`), the

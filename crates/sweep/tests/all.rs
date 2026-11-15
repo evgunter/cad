@@ -130,6 +130,8 @@ mod a_plane_through_a_cones_apex;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside.rs"]
+mod a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
@@ -168,6 +170,8 @@ mod a_split_operand_does_not_finish;
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
+#[path = "a_sweep_keeps_the_frame_it_is_handed.rs"]
+mod a_sweep_keeps_the_frame_it_is_handed;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]

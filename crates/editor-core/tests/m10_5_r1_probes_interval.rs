@@ -367,7 +367,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 626, 625, 228),
+        (1, 644, 643, 244),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a region reading \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
@@ -386,7 +386,11 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
          reads the stored chart, which is now charted along the sketch's `x` axis or the \
          swept segment rather than off the axes, so the same window is cut along other \
          lines first; the sweep reaches the same verdict in 625 splits and proves 228 \
-         cells outside: {}",
+         cells outside. RE-BASELINED from (1, 626, 625, 228) when a sweep's cap became its \
+         station's frame: the stored cap's chart is anchored at the sketch origin carried \
+         by the sweep, not at its corners' centroid, so the window is cut from another \
+         origin; the sweep reaches the same verdict in 643 splits and proves 244 cells \
+         outside: {}",
         tight.serialize()
     );
 }
@@ -1030,9 +1034,22 @@ fn e2e_channel_slider_over_an_epsilon_box() {
          discharged at the funnel — not pruned away, and not all dropped: {}",
         whole.serialize()
     );
+    // Per ε row since the extrudes' caps and walls are their sketch
+    // frames (BOXFINISH's `boxfinish/sweep-frames`): on its merge base the
+    // receipt read (10, 1264, 1254, 532) at every row; on the branch the
+    // default row reads that still, and 1e-6 and 1e-12, where the box is
+    // ε/64 wide, read the cells below. The verdict holds at each; which
+    // stored value moves the cells near the box's edges is not traced.
+    let want = if eps() == 1e-6 {
+        (10, 1282, 1272, 572)
+    } else if eps() == 1e-12 {
+        (10, 1258, 1248, 526)
+    } else {
+        (10, 1264, 1254, 532)
+    };
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (10, 1264, 1254, 532),
+        want,
         "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
          rule that changes without changing a verdict. RE-BASELINED from \
          (10, 972, 962, 296) when cells came to be decided off the face's edges in model \

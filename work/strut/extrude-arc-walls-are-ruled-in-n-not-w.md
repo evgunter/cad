@@ -57,3 +57,5 @@ in `upgrade_rim` would then be unreachable at every K, and
 `fillet_h6_cap_rim::only_line_walls_carry_the_admitted_tilt` (whose
 tilted-plane count would drop to 0) and the crossover row would report
 it.
+
+- 2026-11-14 — **The line leg's spelling moved, not its geometry** (BOXFINISH `boxfinish/sweep-frames`): a line wall is no longer `newell_plane` over the quad but the plane through the segment's start vertex whose normal is `extrude::Course::wall_normal` — on the `Vector` arm `(d × ŵ)/‖d × ŵ‖`, `d` the frame turning the segment's sketch direction and `ŵ` the vector's direction decided once — so it is still ruled in `w`. The arc leg is untouched: `turn_axis(turn, normal)`.
