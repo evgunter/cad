@@ -79,7 +79,11 @@ is checked against what was meant.
   is a value they can name, share and vary ([variables]). What the
   kernel needs beyond that — a 3-D carrier, a pcurve, a profile's
   loop — is a derived cache of a description of what the thing *is*,
-  certified against it ([edges], [recipe.forms]). An imported file has
+  certified against it ([edges], [recipe.forms]). What a
+  cache holds never flows back toward the description: a face's
+  surface is stated from its construction (a swept cap's plane is the
+  sketch plane moved by the sweep), and the vertices placed with it are
+  certified against it, never it fitted to them. An imported file has
   no variables, so adoption recovers descriptions and never intent
   ([import]).
 - **Intent is stated one way per kind of statement.**
@@ -1574,8 +1578,12 @@ the axisless spin does. Where the mated direction is opposite to where the
 orientation puts it (the orientation written backwards) the least
 turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
-a construction refuses at its degenerate values; so no edit that keeps
-the face short of a half turn from where the orientation puts it
+a construction refuses at its degenerate values. The band is where the
+least turn's answer is not determined at ε: its chord from the pole,
+levered by the bundle's arm (written slides included), is within the
+run's band, or its lever on its own two directions, twice the arm over
+that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
+"Float rounding"). So no edit that keeps the face outside that band
 moves a held value's meaning, or the copy's place on the face. The
 orientation and a mate's `Flip` are two facts, the copy's attitude and
 the contact's sense; only the pole band refuses. Where no direction is

@@ -293,14 +293,14 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
         .into()
 }
 
-/// **Whether a blend read a requested edge as tangent**: the request
-/// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
-/// some requested edge resolves as a smooth seam, which the verbs leave
-/// silently, or as a knife (a cusp or slit), whose convexity is the
-/// end `fillet3_knife_end` read rather than the dihedral's sign, or
-/// refuses as one. Each is a dihedral that decided Zero, so a row that
-/// guards a transverse corner against a false zero asks this rather
-/// than for one of them.
+/// **Whether a blend read a requested edge as tangent**: the edge's
+/// wedge fold read some requested edge's faces meeting smoothly — a
+/// smooth seam the verbs leave silently, a knife (a cusp or slit) whose
+/// link's convexity is the end the fold read (`fillet3_knife_end`)
+/// rather than a corner's sign, or a lamina the blend refuses — or the
+/// request (`outcome`) refused at a knife's room or at a lamina. A row
+/// that guards a transverse corner against a false tangency asks this
+/// rather than for one of them.
 #[must_use]
 pub fn read_as_tangent(
     body: &Body<f64>,
@@ -309,18 +309,28 @@ pub fn read_as_tangent(
     outcome: &Result<Blended<f64>, crate::blend::BlendError>,
     tol: Tol,
 ) -> bool {
-    use crate::blend::{BlendDecision, BlendError};
-    if matches!(outcome, Err(BlendError::KnifeEdge { .. })) {
+    use crate::blend::{BlendDecision, BlendError, UnsettledWedge};
+    let tangent = |e: &BlendError| {
+        matches!(
+            e,
+            BlendError::KnifeEdge { .. }
+                | BlendError::WedgeUnsettled {
+                    wedge: UnsettledWedge::Lamina,
+                    ..
+                }
+        )
+    };
+    if outcome.as_ref().is_err_and(tangent) {
         return true;
     }
     let band = Band::linear(tol).expect("the run's band");
     edges.iter().any(
         |&edge| match resolve_link(body, edge, size, band, BlendKind::Fillet) {
-            Ok(Resolved::Smooth(..)) | Err(BlendError::KnifeEdge { .. }) => true,
+            Ok(Resolved::Smooth(..)) => true,
             Ok(Resolved::Link(link)) => {
                 link.convexity_margin.predicate == BlendDecision::KnifeEnd.predicate()
             }
-            Err(_) => false,
+            Err(e) => tangent(&e),
         },
     )
 }
@@ -414,8 +424,10 @@ pub fn assert_blends_as_without(
 /// **The margin a smooth seam was read at**: `edge` requested alone of
 /// the battery at `size`, which must leave it as a smooth seam, and of
 /// the fillet door, which must return `body` as it is, key for key (a
-/// silent no-op). The decided-Zero margin `fillet3_convexity_sign` read
-/// is handed back for the row to pin.
+/// silent no-op). The margin its class was decided smooth on
+/// (`dihedral_wedge`) is handed back for the row to pin: `None` where the
+/// fold read the seam by its faces' identity, as it reads a seam whose
+/// two sides are one surface.
 ///
 /// # Panics
 ///
@@ -427,7 +439,7 @@ pub fn smooth_reading(
     edge: EdgeKey,
     size: f64,
     tol: Tol,
-) -> crate::blend::ClassifiedMargin {
+) -> Option<crate::blend::ClassifiedMargin> {
     let band = Band::linear(tol).expect("the run's band");
     let req = BlendRequest {
         body,

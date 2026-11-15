@@ -389,6 +389,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::MaterialSide => "material_side",
+        BlendDecision::LinkBend => "link_bend",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
         BlendDecision::BallRoom => "ball_room",
@@ -1295,7 +1296,7 @@ fn a_revolve_result_is_matchable_through_the_prelude() {
 /// The case split, matched exhaustively with every field's type
 /// spelled from the prelude — the pin that a caller can read the
 /// handles out and not merely see which arm it got.
-fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+fn revolved_kind_is_matchable(kind: &RevolvedKind<f64>) -> &'static str {
     match kind {
         RevolvedKind::Partial {
             start_cap,

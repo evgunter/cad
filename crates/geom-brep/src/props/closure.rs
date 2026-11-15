@@ -34,7 +34,7 @@
 //! after this decision has passed it.
 
 use geom_core::interval::{Interval, certified_hi};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt, tau_bracket};
 use super::{PropsCheck, PropsError};
@@ -221,7 +221,7 @@ pub(super) struct EdgeTurn<T> {
     pub(super) lever: T,
 }
 
-impl<T: geom_core::Real> EdgeTurn<T> {
+impl<T: Real> EdgeTurn<T> {
     /// An edge that turns `sweep` from a start direction to an end
     /// direction whose dot and cross products about the turn's axis are
     /// `arms`: its miss is the principal angle from the start turned by
@@ -250,20 +250,65 @@ impl<T: geom_core::Real> EdgeTurn<T> {
         }
     }
 
-    /// An edge whose sweep about the axis is its own turn `own` about its
-    /// centre carried to the axis at each end: its miss is the carry's
-    /// complement, read in its own frame — the principal angle from its
-    /// start turned by `own` to its end, about its centre (`own_arms`) —
-    /// since the carry adds to the sweep exactly what it adds to the
-    /// ends' turn, and cancels. Read about the axis instead, it carries
-    /// the width of the centre's place against the axis's point, which
-    /// for a body far from the origin is many times the circle's own.
-    pub(super) fn carried(sweep: T, own: T, own_arms: (T, T), lever: T) -> Self {
+    /// The short turn about the unit `axis` from the offset `a` to the
+    /// offset `b` ([`turn_about`]): read off their very arms, it misses
+    /// them by nothing ([`EdgeTurn::exact`]).
+    pub(super) fn short(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>, lever: T) -> Self {
+        Self::exact(turn_about(axis, a, b), lever)
+    }
+
+    /// A circle's turn about the unit `axis` (through `origin`) between
+    /// its traversal ends `(a, b)`: `own`, its stored turn about its own
+    /// `centre` in the traversal's sense, carried to the axis at each
+    /// end ([`about_axis`]). Its miss is `own`'s against the ends about
+    /// the centre, since the carry adds to the sweep exactly what it adds
+    /// to the ends' turn and cancels. Read about the axis instead, the
+    /// miss carries the width of the ends' place against the axis's
+    /// point, which for a body far from the origin is many times the
+    /// circle's own.
+    pub(super) fn carried(
+        axis: Vec3<T>,
+        origin: Point3<T>,
+        centre: Point3<T>,
+        own: T,
+        (a, b): (Point3<T>, Point3<T>),
+        lever: T,
+    ) -> Self {
         Self {
-            sweep,
-            ..Self::new(own, own_arms, lever)
+            sweep: own + about_axis(axis, centre, origin, b) - about_axis(axis, centre, origin, a),
+            ..Self::new(own, turn_arms(axis, a - centre, b - centre), lever)
         }
     }
+}
+
+/// How much farther round the unit `axis` (through `origin`) the point
+/// `p` sits than round a circle's own centre `center`: the turn from
+/// `p − center` to `p − origin`. A stored turn about the circle's centre
+/// plus its value at the end less its value at the start is the turn
+/// about the axis. It is read clear of the branch cut while the axis
+/// passes inside the circle, less than a quarter turn from any point of
+/// it: decided for the face by [`require_axis_inside`].
+pub(super) fn about_axis<T: Real>(
+    axis: Vec3<T>,
+    center: Point3<T>,
+    origin: Point3<T>,
+    p: Point3<T>,
+) -> T {
+    turn_about(axis, p - center, p - origin)
+}
+
+/// The signed angle about the unit `axis` from the offset `a` to the
+/// offset `b`, both from a point of the axis, the short way round.
+pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let (dot, cross) = turn_arms(axis, a, b);
+    cross.atan2(dot)
+}
+
+/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
+/// the unit `axis` of the offsets `a` and `b` less their parts along it.
+pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
+    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    (a.dot(b), a.cross(b).dot(axis))
 }
 
 /// One closed-form loop: its edges' turns and its joints, in loop order.
@@ -279,7 +324,7 @@ pub(super) struct ChartLoop<T, const N: usize> {
 /// circle), so the axis then passes inside the circle: seen from any
 /// point of it, the circle's centre and the axis are less than a quarter
 /// turn apart, and the turn carrying the circle's stored turn to the
-/// axis (`curved::about_axis` and the tube's analogue) is read clear of
+/// axis ([`about_axis`] and the tube's analogue) is read clear of
 /// its branch cut. `Kε` is also the least radius the parse's axis class
 /// admits a rim at (`props_circle_axis_class`, `r_c·|n_c·â|` definite),
 /// so a call at a circle's own radius refuses nothing the parse admits:
@@ -335,7 +380,7 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 ///   then sit up to `≈ 2ε/R` farther or less far round the axis than
 ///   that turn says, arc by arc, and that does not cancel across
 ///   carriers. So the caller carries the stored turn to the axis at each
-///   end (`curved::about_axis`, and the tube's analogue);
+///   end ([`about_axis`], and the tube's analogue);
 /// - an edge that nominally turns nothing in a coordinate (a ruling, a
 ///   meridian's azimuth, a parallel's tube angle) is read as the short
 ///   turn between its ends: a ruling certified axial may still turn by
@@ -361,7 +406,8 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 ///
 /// **A miss is stated where it is exact.** An edge whose sweep agrees
 /// with its own ends by construction misses them by nothing, and says
-/// so ([`EdgeTurn::exact`]); a circle's turn carried to the axis misses
+/// so ([`EdgeTurn::exact`], [`EdgeTurn::short`]); a circle's turn
+/// carried to the axis misses
 /// its ends by what its own turn misses them about its centre
 /// ([`EdgeTurn::carried`]), the carry cancelling. Read back about the
 /// axis against the very ends it was read off, a sweep is charged the
@@ -474,7 +520,7 @@ fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> 
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use geom_core::{Interval, Tol};
+    use geom_core::{Bounds, Interval, Point3, Tol, Vec3};
 
     /// One loop of one closed junction and one edge whose sweep is
     /// `excess` metres (at a radius of `1`) off its ends, which turn by
@@ -565,5 +611,55 @@ mod tests {
             Err(PropsError::LoopsWindChart),
             "interval"
         );
+    }
+
+    /// **A short turn misses nothing; a carried turn misses by its own
+    /// turn's miss about its centre**, at `f64` and at the interval
+    /// scalar, on a unit arc whose centre sits `1e-3` off an axis through
+    /// `(480, −320, 1200)`. The short turn of two directions is their
+    /// principal angle, its miss exactly zero. The arc's own turn of
+    /// `1.2`, carried to the axis, sweeps the ends' turn about the axis
+    /// and misses nothing; an own turn `1e-3` long sweeps `1e-3` past it
+    /// and misses by `−1e-3`, each within the ends' own rounding
+    /// (`u·|p|`, a kilometre out). At the interval scalar each enclosure
+    /// is under `1e-12` wide.
+    #[test]
+    fn a_short_turn_misses_nothing_and_a_carried_turn_misses_by_its_own() {
+        fn rows<T: Decide>(read: impl Fn(T) -> (f64, f64), scalar: &str) {
+            let lit = T::from_f64;
+            let z = Vec3::new(T::zero(), T::zero(), T::one());
+            let short = EdgeTurn::short(
+                z,
+                Vec3::new(T::one(), T::zero(), lit(5.0)),
+                Vec3::new(lit(0.6), lit(0.8), lit(-2.0)),
+                T::one(),
+            );
+            let (lo, hi) = read(short.miss);
+            assert!(lo == 0.0 && hi == 0.0, "the short turn's miss at {scalar}");
+            let (lo, hi) = read(short.sweep);
+            let want = 0.8_f64.atan2(0.6);
+            assert!(lo <= want && want <= hi, "the short turn at {scalar}");
+            let axis = Vec3::new(T::zero(), T::zero(), T::one());
+            let origin = Point3::new(lit(480.0), lit(-320.0), lit(1200.0));
+            let centre = Point3::new(lit(480.001), lit(-320.0), lit(1200.0));
+            let at = |t: f64| centre + Vec3::new(lit(t.cos()), lit(t.sin()), T::zero());
+            let ends = (at(0.2), at(1.4));
+            let about = turn_about(axis, ends.0 - origin, ends.1 - origin);
+            for (off, what) in [(0.0, "its ends' turn"), (1e-3, "a turn 1e-3 long")] {
+                let turn = EdgeTurn::carried(axis, origin, centre, lit(1.2 + off), ends, T::one());
+                let (lo, hi) = read(turn.miss);
+                assert!(
+                    lo <= -off + 1e-13 && -off - 1e-13 <= hi && hi - lo < 1e-12,
+                    "the carried miss of {what} at {scalar}: [{lo}, {hi}]"
+                );
+                let (lo, hi) = read(turn.sweep - about);
+                assert!(
+                    lo <= off + 1e-13 && off - 1e-13 <= hi && hi - lo < 1e-12,
+                    "the carried sweep of {what} at {scalar}: [{lo}, {hi}]"
+                );
+            }
+        }
+        rows::<f64>(|x| (x, x), "f64");
+        rows::<Interval>(|x| (x.lo(), x.hi()), "the interval scalar");
     }
 }

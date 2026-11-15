@@ -324,7 +324,7 @@ oracle: the lofts differ between cells by up to 1.4 %.
 **The Klein scene** ships `circle`, 13 stations, v-degree 2, and is
 unchanged. The volume no longer constrains that setting. The mesher
 still does
-(`work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
+(`work/tesslane/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
 `STATIONS`' comment now says so. **The helix**
 (`projectbox` wall 1) was retired at every ε before this re-measure,
 and `standing_spring` asserts `Met` against its own oracle.

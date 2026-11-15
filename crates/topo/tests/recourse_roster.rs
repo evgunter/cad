@@ -128,6 +128,12 @@ const PCURVES: Door = Door {
     prefixes: &["pcurve_"],
     error: std::any::type_name::<topo::PcurveMintError>,
 };
+/// The ring door's reading of a point against an analytic face's outer
+/// loop (`pcurves`' ring rule, `Body::face_lift`).
+const RING_PLACE: Door = Door {
+    prefixes: &["ring_place_"],
+    error: std::any::type_name::<topo::pcurves::RingPlacementError>,
+};
 /// A unit test's own fixture, decided in `#[cfg(test)]` code under
 /// `src`; no door reports it.
 const UNIT_TEST: Door = Door {
@@ -150,6 +156,7 @@ const DOORS: &[&Door] = &[
     &CHART_REGION,
     &SHELL,
     &PCURVES,
+    &RING_PLACE,
     &UNIT_TEST,
 ];
 
@@ -176,6 +183,13 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("sector_apex_window", &BOOLEAN),
     ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
+    // A point against a spline face's trim (`spline_trim`). Two doors
+    // raise them: the boolean's spline arm (`BooleanError`, through
+    // `ContainError::Escalated`) and the ring door
+    // (`RingPlacementError::Undecided`). The entry holds one door, so it
+    // names the boolean's, the first to raise them.
+    ("spline_trim_arm", &BOOLEAN),
+    ("spline_trim_clear", &BOOLEAN),
     ("stands_across_meeting", &BOOLEAN),
     ("tangent_lump_senses", &BOOLEAN),
     ("vertex_section_clear", &BOOLEAN),
@@ -188,9 +202,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("tangent_sector_order2", &BOOLEAN),
     ("tangent_sector_witness", &BOOLEAN),
     ("tangent_sector_osculation", &SPLIT),
-    // The plane-cut section's straddle between its conic lane and its
-    // rulings' lane, which the split's chord join reads.
-    ("pc_axis_plane_parallel_straddle", &SPLIT_JOIN),
     ("germ_apex", &SPLIT_JOIN),
     ("section_pin_within", &SPLIT_JOIN),
     ("forward_window_row", &REPLACE_FACE),
@@ -360,9 +371,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
     NameCarrier::Const("SPHERE_SEAM"),
-    NameCarrier::Const("SPLINE_REGION_ARM"),
+    NameCarrier::Const("RING_PLACE_ARM"),
+    NameCarrier::Const("RING_PLACE_CLEAR"),
     NameCarrier::Const("SPLINE_REGION_CARRIER"),
-    NameCarrier::Const("SPLINE_REGION_TRIM"),
+    NameCarrier::Const("SPLINE_TRIM_ARM"),
+    NameCarrier::Const("SPLINE_TRIM_CLEAR"),
     NameCarrier::Const("SPLIT_GATE_BOX_SIDE"),
     NameCarrier::Const("TORUS_WITNESS"),
     NameCarrier::Const("TORUS_WITNESS_STRADDLE"),
@@ -414,6 +427,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("magnitude_door"),
     NameCarrier::Call("norm_gate"),
     NameCarrier::Call("on_as"),
+    NameCarrier::Call("ray_parity_as"),
     NameCarrier::Call("read_as"),
     NameCarrier::Call("relation_step"),
     NameCarrier::Call("settle_as"),
@@ -458,6 +472,9 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
+const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its chord and direction of \
+                                 travel, which shares the declared `travel` carrier's token and \
+                                 takes no name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
@@ -623,7 +640,7 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain/curved_edges.rs: read: rows.order()",
+        "boolean/solid_contain/curved_edges.rs: fold: rows.order()",
         ROW_FIELD,
     ),
     (
@@ -745,58 +762,59 @@ const INDIRECT: &[(&str, &str)] = &[
     ("offset_derive.rs: translates_along: name", CLOSURE_FORWARDS),
     ("offset_derive.rs: zero_as: name", FORWARDS),
     (
-        "pcurves.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count: chart(&cone)",
+        "pcurves/stretch_meter.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count: chart(&cone)",
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point: chart(surface)",
+        "pcurves/stretch_meter.rs: a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point: chart(surface)",
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
+        "pcurves/stretch_meter.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_whole_turn_decides_one_period_on_each_channel: chart",
+        "pcurves/villarceau_joint_tests.rs: a_whole_turn_decides_one_period_on_each_channel: chart",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: branches_astride_as: name", FORWARDS),
-    ("pcurves.rs: chart_u_period: payload", CARRIER_CALL),
-    ("pcurves.rs: chart_v_period: payload", CARRIER_CALL),
+    ("pcurves/decision.rs: branches_astride_as: name", FORWARDS),
+    ("pcurves/mint.rs: chart_u_period: payload", CARRIER_CALL),
+    ("pcurves/mint.rs: chart_v_period: payload", CARRIER_CALL),
     (
-        "pcurves.rs: joint: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s).unwrap()",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: lever_periods: name", FORWARDS),
+    ("pcurves/decision.rs: lever_periods: name", FORWARDS),
     (
-        "pcurves.rs: lift: DescribedChart::of(surface).unwrap()",
+        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface).unwrap()",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: net_closes_as: name", FORWARDS),
+    ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
+    ("chain_parity.rs: ray_parity_as: name", FORWARDS),
     (
-        "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: decide_plain_joint: chart", NOT_A_NAME),
-    ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
+    ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
+    ("pcurves/tier3.rs: pcurve_pass: chart", NOT_A_NAME),
     // The pass's closure over one joint of a cycle, by its index.
-    ("pcurves.rs: pcurve_pass: i", NOT_A_NAME),
-    ("pcurves.rs: pcurve_pass: slit", NOT_A_NAME),
+    ("pcurves/tier3.rs: pcurve_pass: i", NOT_A_NAME),
+    ("pcurves/tier3.rs: pcurve_pass: slit", NOT_A_NAME),
     // The split's boxed joint decisions, asked with the rest of the
     // loop or without it.
-    ("pcurves.rs: split_cache: None", NOT_A_NAME),
-    ("pcurves.rs: split_cache: Some(rest)", NOT_A_NAME),
-    ("pcurves.rs: split_cache: chart", NOT_A_NAME),
-    ("pcurves.rs: turn_element: chart", NOT_A_NAME),
+    ("pcurves/site.rs: split_cache: None", NOT_A_NAME),
+    ("pcurves/site.rs: split_cache: Some(rest)", NOT_A_NAME),
+    ("pcurves/site.rs: split_cache: chart", NOT_A_NAME),
+    ("pcurves/site.rs: turn_element: chart", NOT_A_NAME),
     (
-        "pcurves.rs: u_crossing: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s).unwrap()",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: walk_cycle: chart", NOT_A_NAME),
+    ("pcurves/decision.rs: walk_cycle: chart", NOT_A_NAME),
     (
         "props.rs: a_closed_form_face_refusing_about_its_reference_is_carried_from_the_origin: &faces",
         NOT_A_NAME,
@@ -844,6 +862,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ray_walk.rs: ray_crossings: rows.advance()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.side()", ROW_FIELD),
     ("ring_path.rs: path_parity: name", CLOSURE_FORWARDS),
+    ("ring_path.rs: spline_crossings: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: paths: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: reach: ", SAME_NAMED_TRAVEL),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),

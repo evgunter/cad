@@ -4,6 +4,8 @@ kind: issue
 title: editor-core's measure plane_of folds a planar face's outward normal by hand, beside face_normal's door
 status: open
 opened: 2026-11-13
+priority: P3
+cost: E
 ---
 
 
@@ -32,3 +34,7 @@ Found by S173's sweep for hand-built planar folds: a call to
 `from_chart(`, `chart_outward_normal(` or `plane_outward_normal(` in a
 file that also destructures `Surface::Plane { .. normal .. }`, over every
 crate's `src/`.
+
+## Triage (ONEDOOR, 2026-11-14)
+
+Not dispatched: it waits on `coincide/a-face-read-as-a-plane-has-no-stated-sense`, whose answer names the door `plane_of` should read.

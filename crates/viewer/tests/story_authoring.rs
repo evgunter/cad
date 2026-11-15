@@ -110,11 +110,15 @@ const TRANSFORM_EDITS: usize = 5;
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
+/// The naming edit riding in the cutter's second Place: the source the
+/// two placements share is named as the second one is made (VARIABLES
+/// VR4).
+const NAMING_EDITS: usize = 1;
 /// Edits on the session's FINAL path: the twenty-six carving actions'
-/// own edits (`CARVED_STATES` less the root), the world's edits among
-/// them, and the taller-drum edit — edits, where `CARVED_STATES`
-/// counts states.
-const PATH_EDITS: usize = (CARVED_STATES - 1) + PLACING_EDITS + 1;
+/// own edits (`CARVED_STATES` less the root), the world's and the
+/// naming edits among them, and the taller-drum edit — edits, where
+/// `CARVED_STATES` counts states.
+const PATH_EDITS: usize = (CARVED_STATES - 1) + PLACING_EDITS + NAMING_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -294,7 +298,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis: the cutter body placed a second
     //    time — the Transform tool on the body picked as itself is
-    //    Place, beside the copy the first cut consumed — then turned and
+    //    Place, beside the copy the first cut consumed, sharing its
+    //    source under the name the person types (VR4) — then turned and
     //    lifted in the editor ────────────────────────────────────────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z], u3);
@@ -321,7 +326,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .committed_doc()
         .node_space(cut1)
         .expect("the cut's space");
-    let op = common::transformed_into(&mut session, cutter, &values, home);
+    let op = common::transformed_into(&mut session, cutter, &values, home, Some("cutter"));
     let SessionOp::SetBundle {
         placement: cutter2, ..
     } = op

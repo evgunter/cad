@@ -2241,28 +2241,12 @@ impl PickIndex {
             .map_err(PickError::HitTest)
     }
 
-    /// Reviewer probe only: the front set's size, and the profile the
-    /// cursor walk answers with, if any.
-    #[cfg(test)]
-    pub(crate) fn front_at_for_review(
-        &self,
-        eval: &Evaluation<f64>,
-        camera: &Camera,
-        viewport: ViewportSize,
-        cursor: [f64; 2],
-        display: &DisplayView,
-    ) -> Result<(usize, Option<RecipeNodeId>), PickError> {
-        let front = self.seed(eval, camera, viewport, cursor, display)?;
-        let lines = Lines {
-            front: &front,
-            edges: true,
-            outlines: true,
-        };
-        let profile = match self.near(eval, camera, viewport, cursor, display, lines)? {
-            Some(Near::Profile(node)) => Some(node),
-            Some(Near::Edge(_)) | None => None,
-        };
-        Ok((front.len(), profile))
+    /// **The frame this index draws `node`'s one body at** in its
+    /// space; `None` where `node` draws no part or several.
+    fn one_body_frame(&self, node: RecipeNodeId) -> Option<Frame> {
+        let mut parts = self.parts.iter().filter(|part| part.node() == node);
+        let part = parts.next()?;
+        parts.next().is_none().then(|| as_frame(in_space_of(part)))
     }
 
     /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
@@ -3042,7 +3026,55 @@ fn display_mapped(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>
 /// The part's frame in its space, `None` where its body is in its
 /// space's coordinates already.
 fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
-    pncad::document::in_space(part).map(|map| map.to_affine())
+    composed_map(part)
+}
+
+/// **The one composing read of the picture's bodies**: a body's map
+/// into its space's coordinates ([`pncad::document::in_space`]), `None`
+/// where it is in them already. The parts drawn and the placement
+/// editor's preview of a copy both read a frame through it, so the
+/// carry between them compares like with like.
+fn composed_map<'a>(value: impl Into<pncad::document::Composing<'a, f64>>) -> Option<Affine3<f64>> {
+    pncad::document::in_space(value).map(|map| map.to_affine())
+}
+
+/// A composed map as a frame, the identity for none.
+fn as_frame(map: Option<Affine3<f64>>) -> Frame {
+    map.map_or(Frame::IDENTITY, Frame::from_affine)
+}
+
+/// **The copies the placement editor's draft stands elsewhere than the
+/// picture draws them** ([`crate::display::PreviewedPlacement`]): each
+/// copy `stood` stands in another space than `landed` puts it, or at
+/// another frame (bit for bit) than `index` draws its one body, with
+/// its frame as drawn and as `stood`'s scratch evaluation composes it.
+/// A frame is the copy's pose over its source's, so a copy placed from
+/// a moved copy is among them. A family is not: its members' frames
+/// move apart, and one carry per node cannot move them.
+pub fn preview_copies(
+    stood: &crate::session::Stood,
+    index: &PickIndex,
+    landed: &Doc<ProfileProgram>,
+) -> BTreeMap<RecipeNodeId, crate::display::PreviewedCopy> {
+    stood
+        .copies
+        .iter()
+        .filter_map(|(&copy, &(space, _))| {
+            let drawn = index.one_body_frame(copy)?;
+            let Some(Some(body)) = stood.evaluation.value(copy)?.payload.one_body() else {
+                return None;
+            };
+            let stands = as_frame(composed_map(body));
+            (landed.node_space(copy) != Some(space) || !drawn.bit_eq(&stands)).then_some((
+                copy,
+                crate::display::PreviewedCopy {
+                    space,
+                    drawn,
+                    stands,
+                },
+            ))
+        })
+        .collect()
 }
 
 /// **The one drawn edge's own nearest segment**, or `None` when no

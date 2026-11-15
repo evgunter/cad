@@ -2,8 +2,13 @@
 id: pcurves-rs-is-one-file-for-the-mint-the-lift-the-site-doors-and-tier-3
 kind: issue
 title: pcurves.rs is one eleven-thousand-line file for the mint, the lift, the site doors and tier 3
-status: open
+status: closed
 opened: 2026-11-13
+priority: P4
+cost: M
+closed: 2026-11-14
+pr: 6939
+branch: onedoor/pcurves-split
 ---
 
 Found by `onedoor/three-walks` (2026-11-13), in the fix pass for PR 6900.
@@ -33,3 +38,20 @@ as a file rather than as a function found by its header line
 A move with no design implication; not done in the unit that found it
 because its diff would bury that unit's review.
 
+
+## Closed (PR 6939, 2026-11-14)
+
+`crates/topo/src/pcurves.rs` is now a module directory with five files:
+- `mint.rs`;
+- `lift.rs`;
+- `site.rs`;
+- `tier3.rs`;
+- `decision.rs`, the joint decision with the whole walk. The row asked for it to stand on its own.
+
+The module doc's "The files" section maps them.
+
+**Proven a pure move.** The reviewer's item extractor maps 374 items onto 380; the extras are a new `OWN` const and the `mod` declarations. The 59 tests run unchanged in the same modules. `pub(crate)` stays at 134 and no `pub` was added. Every widening is `pub(super)`, and each is needed by code in another file.
+
+**Guards.** The MAKERS guard reads the module set through `test_utils::source` and matches `decide_joint` by name; a mutation test pins it. The path-keyed gates point at the new files. `pcurves_rings.rs` stays where it was, behind `#[path]`.
+
+Filed: `chart-facts-are-a-sixth-concern-inside-pcurves-mint` (P4). Model-compare row: `docs/model-compare-log/rows/PR-6939.md`.

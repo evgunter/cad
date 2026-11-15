@@ -1915,7 +1915,7 @@ fn coaxial_equal_cylinders_build_every_op() {
 /// meridians, and turned besides. The ball keeps of the tube the cap
 /// above the rim's plane. Read without a mesh: a sphere face bounded by
 /// a circle off its chart's latitudes has no tessellation lane
-/// (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+/// (`work/tesslane/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
 #[test]
 fn a_rim_inside_a_ball_face() {
     let z0 = 1.0f64;

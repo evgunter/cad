@@ -60,7 +60,7 @@ use crate::blend::admit::{
     RequestedBoundary, StationKind,
 };
 use crate::blend::arms::{BallSection, chamfer_corner_patch, corner_ball, line_meet};
-use crate::blend::battery::{Convexity, EndSection, Link, MixedVertex, Overrun, Turn};
+use crate::blend::battery::{Convexity, EndSection, Link, MixedVertex, Overrun, Turn, signed};
 use crate::blend::build::{fan_at, octant_chart, outward_of};
 use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
 use crate::blend::naming::BlendNaming;
@@ -94,7 +94,7 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
     pub(in crate::blend) surface: Surface<T>,
     /// The corner patch's orientation bit, read exactly as a blend reads its
     /// own — off the stored convexity verdict
-    /// ([`Convexity::blend_sense`]), never a sampled normal. A corner
+    /// ([`blend_sense`](crate::blend::blend_sense)), never a sampled normal. A corner
     /// patch is a sphere about the rolling ball's rest centre whose
     /// chart normal is the outward radial, and the centre lies on the
     /// material side precisely when the corner is convex.
@@ -198,15 +198,15 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             // support's trimlines, because the centre is on both
             // incident spines.
             //
-            // ONE fold, ONE home: `Convexity::signed` — the value the
+            // ONE fold, ONE home: `battery::signed` — the value the
             // plane–plane band arm folds into its feet and the
             // plane–sphere arm into its spine, and (as the side
-            // `Convexity::ball_side`) what the shared sheet reduction
+            // `battery::ball_side`) what the shared sheet reduction
             // hands each trace (`battery::curved_arm`). `corner_ball`
             // alone needs its NEGATIVE, the rest DEPTH
             // (`c·n = p·n − toward`), the displacement's opposite by
             // definition of tangency, and spells it as `-signed(..)`.
-            let toward = convexity.signed(radius);
+            let toward = signed(convexity, radius);
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
                 *foot = ball.center + n * toward;
@@ -313,7 +313,7 @@ fn mixed_corner_plan<'a, T: Real>(
             // The odd band's axis pierces `E` at `p_e`; the rests lie in
             // the plane `r` off `E` on the pair balls' side.
             let p_e = o_odd + a_odd * ((p - o_odd).dot(n_e) / a_odd.dot(n_e));
-            let toward = p1.convexity.signed(radius);
+            let toward = signed(p1.convexity, radius);
             let q = p_e - n_e * toward;
             let section = |l: &Link<T>, centre: Point3<T>, normal: Vec3<T>| {
                 (
@@ -1836,7 +1836,7 @@ mod tests {
     use geom::Surface;
 
     use super::{AdmittedOpen, BlendKind, CornerLinks, Foot, OpenBand, corner_plan};
-    use crate::blend::battery::{Chain, ChainClosure, Convexity, Link};
+    use crate::blend::battery::{Chain, ChainClosure, Convexity, Link, blend_sense};
     use crate::test_support::{L, R, all_links, cube};
 
     /// One open chain per link of a cube, so the door has something to
@@ -1918,7 +1918,7 @@ mod tests {
                 Foot::At(p) => p,
                 Foot::PerEdge(_) => panic!("a uniform corner's foot is one point"),
             });
-            (corner.convexity.blend_sense(), centre, feet, axis, p)
+            (blend_sense(corner.convexity), centre, feet, axis, p)
         };
         let (conv_sense, cc, conv_feet, ax, p) = plan_with(false);
         let (conc_sense, kc, conc_feet, kx, _) = plan_with(true);

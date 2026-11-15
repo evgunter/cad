@@ -2,10 +2,13 @@
 id: revolve-stores-a-balls-two-seam-meridians-in-two-planes-so-a-corner-keeps-a-band-reading
 kind: issue
 title: A revolved ball's two seam meridians are stored in planes 1.2e-16 rad apart, so no separator lists both and the injectivity check keeps a band reading at a corner (against change 2)
-status: open
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: M
+branch: clear/seam-meridians
+closed: 2026-11-13
+pr: 6908
 ---
 
 
@@ -45,3 +48,25 @@ Seam: SWEEP's revolve door, plus any stored-row or tier-3 pin that
 reads the seam frames.
 
 Banded P0: it completes lane B's part of the at-rest gate (P0).
+
+## Closed (2026-11-13, PR 6908)
+
+- **Measured.** The revolve's wire door (`build_wire`) placed the
+  angle-π meridian through the turned placement. Its plane normal was
+  `R(π)·n3`, `(−1.2246467991473532e-16, 0, 1)` against the angle-0
+  meridian's `(0, 0, −1)`; the centre and reference were the same
+  bits. It is the one door that does this. A Boolean carries both
+  carriers verbatim (the snowman's union, spans trimmed).
+  `EdgeFreeSphere` import is already one plane (`pole_form::azimuths`).
+  Import's strut twin (`half_turn_curve`) may be a rounding off on a
+  tilted axis; that is recorded on
+  `importgate/import-mints-the-wrap-tip-at-a-chart-singularity`.
+- **Fixed.** The angle-π normal is `−n3`, which has nothing to round,
+  and a sphere wall's angle-π arc takes the angle-0 arc's centre
+  (`placed_segment_spec_about`). A conic's plane lists every near conic
+  whose stored frame is the same value (`one_plane`). `sign_on`'s
+  corner reads membership only.
+- **Left.** At `Interval` a bracketed centre is not one value, so the
+  small ball's pole refuses:
+  `a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval`
+  (P2).

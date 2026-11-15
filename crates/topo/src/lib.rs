@@ -136,6 +136,7 @@ pub(crate) mod boxes;
 pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
+pub(crate) mod chain_parity;
 pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
@@ -237,6 +238,7 @@ pub(crate) mod seqgen;
 pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
+pub(crate) mod spline_trim;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -536,14 +538,19 @@ pub mod test_support {
     }
 
     /// How far each solid's aimed rays start from `aim`, over two
-    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
-    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
-        crate::side_reader::beyond_report(body, aim)
+    /// (`boolean::solid_contain`'s `selection_reach`): the reach's pins
+    /// read its scale.
+    pub fn aim_reach(
+        body: &Body<f64>,
+        aim: geom_core::Point3<f64>,
+        band: geom_core::Band,
+    ) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim, band)
     }
 
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
-    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn aimed_rays<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
@@ -561,11 +568,11 @@ pub mod test_support {
 
     /// One aimed ray at `aim` on `face`, at the aimed incidence to
     /// `normal` (`side_reader`): the probes aim it at and about an edge.
-    pub fn ray_at(
-        body: &Body<f64>,
+    pub fn ray_at<T: geom_core::Decide>(
+        body: &Body<T>,
         face: crate::FaceKey,
-        aim: geom_core::Point3<f64>,
-        normal: geom_core::Vec3<f64>,
+        aim: geom_core::Point3<T>,
+        normal: geom_core::Vec3<T>,
         band: geom_core::Band,
     ) -> String {
         crate::side_reader::ray_at_report(body, face, aim, normal, band)
@@ -1389,7 +1396,7 @@ pub mod transform;
 mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
-pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
+pub use edge_wedge::{edge_wedge, edge_wedge_as, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1482,7 +1489,7 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, CurveSelector, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
-    Structural, SurfacePair,
+    StoredSpan, Structural, SurfacePair,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{

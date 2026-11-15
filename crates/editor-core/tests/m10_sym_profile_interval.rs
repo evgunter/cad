@@ -280,22 +280,57 @@ fn eps_row(eps: f64) -> usize {
 /// forms), `Plain/Decision` 9809 → 9709 forms over the same calls (an
 /// edge's witness is its carrier's middle, which the walks spell with
 /// fewer forms than a strut's chord midpoint).
+///
+/// **Moved when a validated segment began recording its directions**:
+/// validation's mint reads each component of a side's chord, and the
+/// sign of the other, exactly and outside the log (audit row F43), so
+/// `Plain/Decision` 976 → 984 and both `Assertion` rows 988 → 996
+/// calls, with no form, frozen count or digest moving at any ε row.
+///
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953): a placed line's span is `‖b − a‖` over the sketch
+/// and its direction the sketch chord's unit placed, where both were read
+/// off the placed vertices. Nothing is registered for a line (its far end
+/// folds to the far vertex as a form), so the walks the door adds are
+/// main's: the slab has no `Door/Decision` line, as before. It composes
+/// with the move above: the calls are its, the forms and digests this
+/// one's, each unchanged by the other.
+/// - The span alone (the PR's first head, whose direction still
+///   normalized `q_to − q_from`): `Plain/Decision` 9709 → 9663 and
+///   `Plain/Assertion` 3503 → 3391 forms, same calls. The span's own
+///   3-space difference, its three squares and its root are formed no
+///   more; the sketch chord's two-coordinate norm, over sketch values
+///   other forms already hold, replaces them.
+/// - The direction from the sketch chord takes the rest: `Plain/Decision`
+///   9663 → 9559, `Plain/Assertion` 3391 → 3375, and `Early/Assertion`
+///   4931 → 4854, calls unchanged. The second 3-space difference and its
+///   normalization go too; the slab's placement is the identity's axes,
+///   so the placed unit chord folds to its sketch components.
+///
+/// **Moved with the extrude keeping its sketch frame**: it fits no
+/// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
+/// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
+/// 2572 forms, `Early` 4931 → 3001), and their digests. Then a line
+/// wall's origin is the wall's middle, from construction data (the placed
+/// start, half the segment's length along its direction, half the sweep):
+/// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
+/// that middle, and its digest; nothing else moves.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest 356e6bc8d414c449867c2fa116fe555b\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest d29e6603588f9290df3ef832f6e6a695\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 7b8f13deaebfb7286d3d5cae4aa38359",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest 15650ad068981415de10a62c3c0b6d04\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 8ba06018ed2547dbea4dd12d641db960\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 132566a5d2a8c5015e646a317640f1df",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
     "\
-     Plain/Decision calls 976 forms 9709 frozen 0 digest da582f77a3025ab853209680dd368f7c\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 0a321bffbfb7de6a6e9bf1bc04eadca6\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 3d94bcd55c6752fd6cc9b3256f656dce",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -405,7 +440,10 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
-const SLAB_MAX_TERMS: usize = 6;
+///
+/// **The slab's largest 6 → 4** when the extrude stopped fitting planes
+/// to its corners: the largest form it built was a Newell sum's.
+const SLAB_MAX_TERMS: usize = 4;
 const PLATE_MAX_TERMS: usize = 38;
 
 /// The plate's walk ledger at its nominal — one row, because the
@@ -481,12 +519,37 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 10422 → 14775), `Door/Decision` 403 → 555 calls (11719 → 15037
 /// forms), and `Plain/Decision` and `Early/Decision` keep their calls
 /// over fewer forms (41501 → 40761, 28904 → 28232).
+///
+/// **Moved when a validated segment began recording its directions**:
+/// validation's mint reads the plate's side chords' components and signs
+/// exactly and outside the log (audit row F43); the circles' radials are
+/// recorded by the verb and read nothing. `Plain/Decision` 1015 → 1019
+/// and both `Assertion` rows 1050 → 1054 calls, no form, frozen count or
+/// digest moving, at every ε row.
+///
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953, [`SLAB_LEDGER`]'s note), calls unchanged and the
+/// `Door/Decision` walk main's: `Plain/Assertion` 13400 → 13305 (13293
+/// with the span alone), `Early/Decision` 28232 → 28205, and two rises,
+/// `Plain/Decision` 40761 → 40813 (+52) and `Early/Assertion` 14775 →
+/// 14807 (+32). The rises are the direction's (the span alone moved only
+/// `Plain/Assertion`), and which reads build the new forms is not traced:
+/// on the slab the placed unit chord folds to its sketch components,
+/// and on the plate the walks build more forms over it than they did over
+/// `q_to − q_from`.
+/// **Moved with the sweeps keeping their sketch frames**: the extrudes'
+/// caps and walls fit no plane, so the Newell sums and their residuals
+/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40813 → 39644
+/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13305 →
+/// 12913 forms, frozen 245 → 0; `Early` 14807 → 13378), `Door/Decision`
+/// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
+/// its calls, its forms 28205 → 28232 (+27, not traced).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1015 forms 40761 frozen 54 digest 5b07296e02e3891fdefde646874c13f4\n\
-     Plain/Assertion calls 1050 forms 13400 frozen 245 digest 0c08c295799141fb624ae59bcad32c59\n\
-     Early/Decision calls 308 forms 28232 frozen 0 digest d3ce1e02bc1dbb309fe24a2b5bc1e603\n\
-     Early/Assertion calls 1050 forms 14775 frozen 0 digest a11a330641699ef49bafd67159091d6b\n\
-     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
+     Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
+     Plain/Assertion calls 1048 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
+     Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
+     Early/Assertion calls 1048 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\
+     Door/Decision calls 551 forms 13477 frozen 0 digest 894b22f3486d3ee0b1d118034b51814c";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

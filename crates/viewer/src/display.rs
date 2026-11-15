@@ -892,8 +892,9 @@ pub struct DisplayView {
 
 /// **The copies drawn where the placement editor's draft stands them**,
 /// in place of where the drawn evaluation stands them: every copy the
-/// draft's scratch solve stands elsewhere, the one it edits and every
-/// copy mated to it.
+/// draft's scratch solve stands elsewhere, the one it edits, every
+/// copy mated to it and every copy placed from one of those, each a
+/// copy of one body ([`crate::pickindex::preview_copies`]).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PreviewedPlacement {
     /// Placement → where its copy is drawn and where the draft stands it.
@@ -901,21 +902,24 @@ pub struct PreviewedPlacement {
 }
 
 /// **One copy as the placement editor previews it**: the space the
-/// draft stands it in and its pose there, beside its pose in the space
-/// the drawn evaluation stands it in.
+/// draft stands it in and its body's frame there, beside its frame in
+/// the space the drawn evaluation stands it in
+/// ([`crate::pickindex::preview_copies`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PreviewedCopy {
     /// The space the draft stands the copy in, whose display frame it
     /// is drawn under.
     pub space: VarId,
-    /// Where the drawn evaluation stands the copy, in its space.
+    /// The copy's body's frame as the drawn evaluation stands it, in
+    /// its space.
     pub drawn: Frame,
-    /// Where the draft's scratch solve stands it, in `space`.
+    /// Its body's frame as the draft's scratch solve stands it, in
+    /// `space`.
     pub stands: Frame,
 }
 
 impl PreviewedCopy {
-    /// The map from the copy's pose as drawn to its pose as the draft
+    /// The map from the copy's frame as drawn to its frame as the draft
     /// stands it, beneath its space's display frame.
     pub fn carry(&self) -> Affine3<f64> {
         self.stands.affine() * self.drawn.affine().inverse()

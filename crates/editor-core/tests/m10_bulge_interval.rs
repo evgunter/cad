@@ -166,9 +166,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// against a window, and a cylinder has no singular set, so no joint of
 /// it decides one.
 ///
-/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
-/// decide once whether Newell's normal agrees with the profile's
-/// winding, definite and numeric, on this table and on the boss's.
+/// **The extrude fits no plane**: its caps are its sketch frame and its
+/// line walls the frame turning their segments, so `newell_plane_residual`
+/// (30/0/0/0 here, 18/0/0/0 on the boss) and `cap_plane_orientation`
+/// (0/0/0/4 on both), which each cap decided once, leave both tables.
 ///
 /// **Validation reads a missed contact candidate's segment ends.** Where
 /// a span definitely misses a tangency or crossing candidate, each
@@ -268,7 +269,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_diameter_clearance", [0, 6]),
     ("arc_span", [6, 4]),
     ("assert_bound", [0, 1]),
-    ("cap_plane_orientation", [0, 4]),
     ("carrier_circles_identity", [3, 0]),
     ("carrier_endpoint_end", [36, 0]),
     ("carrier_endpoint_start", [36, 0]),
@@ -291,7 +291,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("interval_span_winding", [0, 12]),
     ("line_span", [6, 4]),
     ("mate_chart_pole", [0, 1]),
-    ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
@@ -307,6 +306,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
+    // Validation's mint reads each component of its three straight
+    // sides' chords exactly (audit row F43): of the six, three are the
+    // zero a theorem proves, and the bulge's sign signs its radials.
+    ("segment_direction_axis", [3, 3]),
+    ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
     // ONEHOME stage 2: the d-tab's placement asks the session box of its
@@ -485,7 +489,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 6]),
             ("arc_span", [6, 0]),
             ("assert_bound", [0, 1]),
-            ("cap_plane_orientation", [0, 4]),
             ("carrier_circles_identity", [3, 0]),
             ("carrier_endpoint_end", [24, 0]),
             ("carrier_endpoint_start", [24, 0]),
@@ -506,7 +509,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("interval_span_winding", [0, 12]),
             ("line_span", [2, 0]),
             ("mate_chart_pole", [0, 1]),
-            ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
@@ -522,6 +524,11 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_line_chart_incident", [10, 4]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
+            // Validation's mint reads its one straight side's chord
+            // exactly (audit row F43), and the bulge's sign signs its
+            // radials.
+            ("segment_direction_axis", [1, 1]),
+            ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
             // ONEHOME stage 2: the boss's placement asks the session box
             // of its image (`Replay::moved_by`), one numeric decision.
