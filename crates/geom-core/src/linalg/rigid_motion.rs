@@ -88,9 +88,6 @@
 //! - [`RigidMotion::aimed`] — the frame whose `w` is a [`UnitVec3`], its
 //!   `u` and `v` the images of `x̂` and `ŷ` under the shortest turn
 //!   carrying `ẑ` (or `−ẑ`) onto it, rational in its components;
-//! - [`RigidMotion::least_turn`] — the least turn carrying one
-//!   [`UnitVec3`] onto another, as the rational Rodrigues form with its
-//!   angle eliminated.
 //!
 //! [`RigidMotion::renormalized`] decides each axis of a minted frame's
 //! length again, the same real motion with its axes tightened.
@@ -135,7 +132,8 @@
 //! - [`RigidMotion::turned_onto`] — a written frame turned about its
 //!   own origin by that minimal rotation, carrying its `w` onto a
 //!   direction: the frame across a direction with no stated reference.
-//!   The same one decision.
+//!   It decides through [`RigidMotion::least_turn`], over the lever its
+//!   caller passes: the same two verdicts.
 //!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
@@ -1388,10 +1386,13 @@ impl<T: Decide> RigidMotion<T> {
     /// to `±1e-9` on every input, the quaternion's widest entry is about
     /// `0.6×` the Rodrigues form's near opposed (narrower on 365–400 of
     /// 400 pairs at `δ` from `1e-1` to `1e-7`), and the Rodrigues form is
-    /// narrower on the majority of generic pairs; the choice is wider than
-    /// the narrower of the two on 35 of 400 generic pairs and matches the
-    /// quaternion near opposed (`least_turn_spelling_probe`). A pair that
-    /// is one direction exactly turns by the identity, exactly.
+    /// narrower on the majority of generic pairs (247 of 400); the choice
+    /// is wider than the narrower of the two on 35 of 400 generic pairs over
+    /// boxes of `±1e-12` and `±1e-9`, 39 at `±1e-15` and 59 at point inputs,
+    /// and matches the quaternion near opposed. The row
+    /// `least_turn_spelling_probe::the_mint_spells_each_class_by_its_narrower_form`
+    /// pins each of these. A pair that is one direction exactly turns by
+    /// the identity, exactly.
     ///
     /// **Its two decisions**, both about the one pole `a = −b`, where
     /// every axis perpendicular to the pair is a least turn and none is
@@ -1434,6 +1435,7 @@ impl<T: Decide> RigidMotion<T> {
         site: &'static str,
         band: Band,
     ) -> Result<Self, TurnError> {
+        let identity = a.is_exactly(b);
         let (a, b) = (a.get(), b.get());
         let anchored = |r: Mat3<T>| {
             let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
@@ -1447,10 +1449,7 @@ impl<T: Decide> RigidMotion<T> {
         // scalar. The identity fixes every point, so it is the world motion
         // whatever `about` is, and no anchor arithmetic is spent on it; the
         // anchor is still checked finite.
-        if [a.x - b.x, a.y - b.y, a.z - b.z]
-            .into_iter()
-            .all(crate::real::is_exact_zero)
-        {
+        if identity {
             finite(about, MotionPart::Anchor)
                 .map_err(|_| TurnError::NonFinite(MotionPart::Anchor))?;
             return Ok(Self::world());
@@ -1460,28 +1459,34 @@ impl<T: Decide> RigidMotion<T> {
         let d = h.dot(h) / two;
         let k = a.cross(h);
         let chord = h.norm();
-        match crate::k_stats::decide(site, Margin::levered(chord, arm), band) {
-            Ok(Sign::Positive) => {}
+        // The pole verdict first; a definite opposed pair refuses there.
+        // An undecided one still reads the conditioning: where the lever
+        // passes the reach definitely, the pair is ill-conditioned whatever
+        // the pole verdict, and a tighter ε (which only shrinks the reach)
+        // never builds it, so that refusal is the one reported.
+        let pole = match crate::k_stats::decide(site, Margin::levered(chord, arm), band) {
+            Ok(Sign::Positive) => Ok(()),
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
-            Err(source) => return Err(TurnError::Undecided(source)),
-        }
+            Err(source) => Err(source),
+        };
         let reach = T::from_computed(band.rounding_reach());
         let room = reach * chord - two * arm.length();
-        match crate::k_stats::decide(
+        let conditioning = crate::k_stats::decide(
             LEAST_TURN_CONDITIONING,
             Margin::sign_of(room),
             Band::enclosure_sign(),
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(TurnError::IllConditioned {
-                    lever: (two * arm.length() / chord)
-                        .structure_bracket()
-                        .map_or(f64::NAN, |(lo, hi)| crate::param::mid_param(lo, hi)),
-                    reach: band.rounding_reach(),
-                });
-            }
-            Err(source) => return Err(TurnError::ConditioningUndecided(source)),
+        );
+        if let Ok(Sign::Negative) = conditioning {
+            return Err(TurnError::IllConditioned {
+                lever: (two * arm.length() / chord)
+                    .structure_bracket()
+                    .map_or(f64::NAN, |(lo, hi)| crate::param::mid_param(lo, hi)),
+                reach: band.rounding_reach(),
+            });
+        }
+        pole.map_err(TurnError::Undecided)?;
+        if let Err(source) = conditioning {
+            return Err(TurnError::ConditioningUndecided(source));
         }
         // The spelling, chosen by the pair (W1: by what its width scales
         // with): a choice, not a claim, read off `c`'s midpoint by
@@ -1631,7 +1636,9 @@ impl core::fmt::Display for TurnError {
                 .fmt(f),
             Self::IllConditioned { lever, reach } => write!(
                 f,
-                "the two directions are so near opposed that the least turn between them levers                  their rounding by {lever:e}, past the run's rounding reach of {reach:e} m, so                  the turn is not determined at the tolerance. Recourse: {TURN_RECOURSE}"
+                "the two directions are so near opposed that the least turn between them levers \
+                 their rounding by {lever:e} m, past the run's rounding reach of {reach:e} m, so \
+                 the turn is not determined at the tolerance. Recourse: {TURN_RECOURSE}"
             ),
             Self::ConditioningUndecided(source) => source
                 .undecided(
@@ -2869,6 +2876,40 @@ mod crossing_and_turn_rows {
         );
     }
 
+    /// **A definite conditioning refusal outranks an undecided pole
+    /// verdict**: past the crossover arm, a chord inside the pole verdict's
+    /// band (twice its zero half-width, levered) is also far inside the
+    /// conditioning's refusal, so the pair is `IllConditioned`, which no
+    /// tighter ε builds, and not `Undecided`, which reads as if one might.
+    /// *Breaks if* the pole verdict's undecided arm returns before the
+    /// conditioning is read.
+    #[test]
+    fn an_undecided_pole_verdict_past_the_reach_refuses_ill_conditioned() {
+        let b = band();
+        let reach = b.rounding_reach();
+        let arm = 100.0 * (b.escalate() * reach / 2.0).sqrt();
+        let chord = 2.0 * b.zero() / arm;
+        assert!(chord < b.escalate() / arm && chord < 2.0 * arm / reach);
+        let got = RigidMotion::least_turn(
+            UnitVec3::exact_x(),
+            at_chord(chord),
+            Point3::origin(),
+            crate::test_support::fixture_lever(arm),
+            SITE,
+            b,
+        );
+        match got {
+            Err(e @ TurnError::IllConditioned { .. }) => {
+                let text = e.to_string();
+                assert!(
+                    !text.contains("  ") && text.contains(" m, past"),
+                    "the message reads as one sentence with the lever in metres: {text}"
+                );
+            }
+            other => panic!("ill-conditioned, not undecided: {other:?}"),
+        }
+    }
+
     /// **Up to the edge its decisions admit, the turn is rigid and carries
     /// `a` onto `b` to rounding**, at `f64` and at `Interval`: over six
     /// generic pairs at chords from `1` down to four times the edge, at
@@ -3439,6 +3480,51 @@ mod construction_mint_rows {
         }
     }
 
+    /// **Where `c` reads non-negative the mint is the direct spelling,
+    /// bit for bit**: `k = a × b`, `1 + c`, the Rodrigues columns, over
+    /// 4000 drawn pairs at `c ≥ 0`, through [`RigidMotion::least_turn`]
+    /// itself (over the session box's lever, which admits every such pair:
+    /// its chord is at least `√2`). So the near-opposed spelling moves no
+    /// bit of a turn in the near hemisphere. *Breaks if* the mint's branch
+    /// takes the quaternion where `c` reads non-negative.
+    #[test]
+    fn the_least_turn_in_the_near_hemisphere_keeps_the_direct_bits() {
+        let mut d = Draw(0x2545_f491_4f6c_dd1d);
+        let mut seen = 0;
+        while seen < 4000 {
+            let (ua, ub) = (d.direction(), d.direction());
+            let (a, b) = (ua.get(), ub.get());
+            let (k, c) = (a.cross(b), a.dot(b));
+            if c < 0.0 {
+                continue;
+            }
+            seen += 1;
+            let col = |v: Vec3<f64>| v * c + k.cross(v) + k * (k.dot(v) / (1.0 + c));
+            let want = Mat3::from_cols(
+                col(Vec3::unit_x()),
+                col(Vec3::unit_y()),
+                col(Vec3::unit_z()),
+            );
+            let got = RigidMotion::least_turn(
+                ua,
+                ub,
+                Point3::origin(),
+                Lever::session_box(),
+                SITE,
+                band(),
+            )
+            .expect("a near-hemisphere pair builds")
+            .linear();
+            for (g, w) in [(got.c0, want.c0), (got.c1, want.c1), (got.c2, want.c2)] {
+                assert_eq!(
+                    [g.x.to_bits(), g.y.to_bits(), g.z.to_bits()],
+                    [w.x.to_bits(), w.y.to_bits(), w.z.to_bits()],
+                    "a = {a:?}, b = {b:?}: the near-hemisphere turn moved a bit"
+                );
+            }
+        }
+    }
+
     /// **Every construction mint is rigid within rounding at every
     /// input**, by the `f64` door's own rule (`16u·t` of each margin's
     /// term bound): over 4000 directions drawn on the sphere, the
@@ -3641,7 +3727,7 @@ mod least_turn_spelling_probe {
     }
 
     #[test]
-    fn the_two_spellings_measured() {
+    fn the_mint_spells_each_class_by_its_narrower_form() {
         let u = f64::EPSILON;
         let mut d = Draw(0x51_7cc1_b727_220a);
         let classes: [(&str, Option<f64>); 7] = [
@@ -3713,6 +3799,39 @@ mod least_turn_spelling_probe {
                     "{label:11} box ±{w:e}: widest entry quat {wq:.3e} rod {wr:.3e}; quat wider on {q_wider}, rod wider on {r_wider} of {}; hybrid {wh:.3e}, wider than the narrower on {h_worse}",
                     pairs.len()
                 );
+                // The guard: what the mint's doc says of these draws.
+                match delta {
+                    Some(_) => {
+                        assert!(
+                            h_worse == q_wider && wh.to_bits() == wq.to_bits(),
+                            "{label} ±{w:e}: near opposed the mint is the quaternion"
+                        );
+                        assert!(
+                            r_wider >= 360,
+                            "{label} ±{w:e}: the quaternion is the narrower near opposed \
+                             ({r_wider} of 400)"
+                        );
+                    }
+                    None => {
+                        assert!(
+                            q_wider > r_wider,
+                            "{label} ±{w:e}: Rodrigues is the narrower on most generic pairs \
+                             ({q_wider} against {r_wider})"
+                        );
+                        let most = if w == 0.0 {
+                            59
+                        } else if w < 1e-12 {
+                            39
+                        } else {
+                            35
+                        };
+                        assert!(
+                            h_worse <= most,
+                            "{label} ±{w:e}: the mint is wider than the narrower on {h_worse} \
+                             of 400 generic pairs, past the {most} its doc states"
+                        );
+                    }
+                }
             }
         }
     }

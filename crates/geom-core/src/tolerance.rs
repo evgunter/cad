@@ -146,8 +146,10 @@ pub fn admissible(eps: f64, k: f64) -> bool {
 /// `[placement.values]`; the geom-core README, "Float rounding"). Where
 /// the headroom covers the floor the reach is at least the box:
 /// `eps ≥ ADMISSION_FLOOR/(k − 1)` is `reach ≥ SESSION_BOX_EXTENT`, up to
-/// the rounding of the two spellings at the boundary itself. The one door
-/// for it; no site states its own.
+/// the rounding of the two spellings at the boundary itself. The formula;
+/// a decision reads it through its band's one door,
+/// [`Band::rounding_reach`](crate::Band::rounding_reach), and no site
+/// states its own.
 #[must_use]
 pub fn rounding_reach(eps: f64, k: f64) -> f64 {
     SESSION_BOX_EXTENT * ((k - 1.0) * eps / ADMISSION_FLOOR)
@@ -694,12 +696,6 @@ impl Tolerance {
         Self { eps, k: DEFAULT_K }
     }
 
-    /// This tolerance's [rounding reach](rounding_reach).
-    #[must_use]
-    pub fn rounding_reach(self) -> f64 {
-        rounding_reach(self.eps, self.k)
-    }
-
     /// Validates the run's admission rule ([`admissible`]): `eps` finite
     /// and strictly positive, else [`ToleranceError::InvalidValue`]; `k`
     /// finite and above 1, else [`ToleranceError::InvalidK`]; and `eps`
@@ -962,11 +958,6 @@ impl Tol {
     pub fn k(self) -> f64 {
         self.get().k
     }
-
-    /// The run's committed [rounding reach](rounding_reach).
-    pub fn rounding_reach(self) -> f64 {
-        self.get().rounding_reach()
-    }
 }
 
 #[cfg(test)]
@@ -994,12 +985,6 @@ mod tests {
                 );
             }
         }
-        let t = Tolerance::with_eps(DEFAULT_EPS);
-        assert_eq!(
-            t.rounding_reach().to_bits(),
-            rounding_reach(DEFAULT_EPS, DEFAULT_K).to_bits(),
-            "the method is the function"
-        );
         assert_eq!(
             rounding_reach(2.0 * DEFAULT_EPS, DEFAULT_K),
             2.0 * rounding_reach(DEFAULT_EPS, DEFAULT_K),

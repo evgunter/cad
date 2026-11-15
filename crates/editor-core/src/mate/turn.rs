@@ -14,28 +14,43 @@ pub const SNAP_TURN: &str = "mate_snap_turn";
 
 /// **A turn carrying the unit `from` onto the unit `to`**: the least
 /// turn ([`RigidMotion::least_turn`], over the session box's lever: a
-/// gesture has no extent in hand), or where that refuses, at and about
-/// its pole, a half turn about a direction across `from` ([`across`]),
-/// so a direction standing backwards still turns onto `to`.
+/// gesture has no extent in hand), or where that refuses, in the band
+/// about its pole, the half turn `H` about a direction across `from`
+/// ([`across`]) followed by the least turn carrying `H·from = −from` onto
+/// `to`. That second turn is near the identity (its chord is near 2), so
+/// it is far from its own pole and well conditioned, and the composition
+/// carries `from` onto `to` within a few ulps at every tilt in the band.
+/// Its roll about `to` is `across(from)`'s, as the bare half turn's was
+/// at the pole exactly. So a direction standing backwards, or nearly,
+/// still seats on `to`.
 #[must_use]
 pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band) -> Mat3<f64> {
     let unit = |v: Vec3<f64>| UnitVec3::new(v, SNAP_TURN, band).ok();
-    let least = unit(from).zip(unit(to)).and_then(|(f, t)| {
-        RigidMotion::least_turn(
-            f,
-            t,
-            Point3::origin(),
-            Lever::session_box(),
-            SNAP_TURN,
-            band,
-        )
-        .ok()
-    });
-    if let Some(turn) = least {
+    let least = |a: Vec3<f64>, b: Vec3<f64>| {
+        unit(a).zip(unit(b)).and_then(|(f, t)| {
+            RigidMotion::least_turn(
+                f,
+                t,
+                Point3::origin(),
+                Lever::session_box(),
+                SNAP_TURN,
+                band,
+            )
+            .ok()
+        })
+    };
+    if let Some(turn) = least(from, to) {
         return turn.linear();
     }
-    let a = across(from).normalize();
-    // A half turn about `a`: `2 a aᵀ − I`.
+    let half = half_turn(across(from).normalize());
+    match least(half * from, to) {
+        Some(rest) => rest.linear() * half,
+        None => half,
+    }
+}
+
+/// A half turn about the unit `a`: `2 a aᵀ − I`.
+fn half_turn(a: Vec3<f64>) -> Mat3<f64> {
     let col = |e: Vec3<f64>| a * (2.0 * a.dot(e)) - e;
     Mat3::from_cols(
         col(Vec3::unit_x()),
@@ -122,4 +137,59 @@ pub fn across<T: SolveScalar>(n: Vec3<T>) -> Vec3<T> {
     let least = (0..3).fold(0, |b, i| if q[i] < q[b] { i } else { b });
     let e = axes[least];
     e - n * n.dot(e)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RigidMotion, turn_onto};
+    use geom_core::linalg::{Point3, Vec3};
+    use geom_core::tolerance::SESSION_BOX_EXTENT;
+    use geom_core::{Band, Lever, Tol, UnitVec3};
+
+    /// **Inside the least turn's band the snap still seats**: an oblique
+    /// `to`, and `from` its opposite tilted by a fraction of the band's
+    /// edge (the chord `2·box/R` at the run's ε: about 4e-4 at ε 1e-9,
+    /// about 0.39 at ε 1e-12), where the mint refuses. `turn_onto` carries
+    /// `from` onto `to`, the landing within ε at the session box's lever,
+    /// and is a rotation. *Breaks if* the fallback is the bare half turn,
+    /// which carries `from` onto `−from`, off `to` by about the tilt.
+    #[test]
+    fn inside_the_band_the_snap_carries_from_onto_to() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let eps = Tol::witness().get().eps;
+        let edge = 2.0 * SESSION_BOX_EXTENT / band.rounding_reach();
+        let norm = |v: Vec3<f64>| v * (1.0 / v.norm());
+        let to = norm(Vec3::new(0.3, -0.2, 0.9));
+        let w = norm(to.cross(Vec3::new(1.0, 2.0, 3.0)));
+        for frac in [0.5, 0.1, 1e-3] {
+            let tau = (edge * frac).min(1.0);
+            let from = -to * tau.cos() + w.cross(-to) * tau.sin();
+            let unit = |v| UnitVec3::new(v, super::SNAP_TURN, band).unwrap();
+            assert!(
+                RigidMotion::least_turn(
+                    unit(from),
+                    unit(to),
+                    Point3::origin(),
+                    Lever::session_box(),
+                    super::SNAP_TURN,
+                    band
+                )
+                .is_err(),
+                "tilt {tau:e} is inside the band, where the mint refuses"
+            );
+            let m = turn_onto(from, to, band);
+            let landing = (m * from - to).norm();
+            assert!(
+                landing * SESSION_BOX_EXTENT <= eps,
+                "tilt {tau:e}: |turn·from − to| = {landing:e}, past ε {eps:e} at the box's lever"
+            );
+            let g = m.transpose() * m;
+            let id = geom_core::linalg::Mat3::<f64>::identity();
+            let rigid = [g.c0 - id.c0, g.c1 - id.c1, g.c2 - id.c2]
+                .into_iter()
+                .map(Vec3::norm)
+                .fold(0.0, f64::max);
+            assert!(rigid < 1e-14, "tilt {tau:e}: not a rotation, {rigid:e}");
+        }
+    }
 }

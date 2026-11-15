@@ -6838,10 +6838,15 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // atan2/sin/cos, so under the Interval scalar exact zeros stay
             // exact), about the sphere's centre. Rigid by construction,
             // so no rigidity door is asked of twelve numbers (closing
-            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`);
-            // its pole verdict and conditioning, over the radius, are what
-            // the alignment trilean above already settled for the axis
-            // pair and the seam's half-plane choice settles for the spin.
+            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`).
+            // Its pole verdict, over the radius, is settled by the
+            // alignment trilean above for the axis pair (near opposed
+            // `|axis × align|` is the chord, levered at the same radius)
+            // and by the seam's half-plane choice for the spin. Its
+            // conditioning is not: past the crossover radius `√(Kε·R/2)`
+            // (about 0.16 m at the default ε) the conditioning's edge
+            // `2r/R` is the wider, so an axis that near opposed refuses
+            // here, typed, as a re-chart the band cannot determine.
             const RECUT_TURN: &str = "bool_sphere_recut_turn";
             let unit = |v: Vec3<T>| {
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
@@ -6859,7 +6864,20 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     RECUT_TURN,
                     band,
                 )
-                .map_err(|_| corrupt("re-cut rotation does not mint a turn"))
+                .map_err(|e| match e {
+                    geom_core::TurnError::IllConditioned { .. }
+                    | geom_core::TurnError::ConditioningUndecided(_) => {
+                        BooleanError::FallbackExtentUnsupported {
+                            operand,
+                            face: r.representative,
+                            what: "a sphere group whose stored polar axis stands so near \
+                                   opposed to its escape normal that the re-chart's turn, \
+                                   levered at the radius, passes the run's rounding reach: \
+                                   the turn is not determined at ε",
+                        }
+                    }
+                    _ => corrupt("re-cut rotation does not mint a turn"),
+                })
             };
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to

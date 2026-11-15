@@ -4,7 +4,7 @@ kind: issue
 title: The Interval mate chart's least turn is about 12ε wide at its band's conditioning edge
 status: open
 opened: 2026-11-15
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -33,6 +33,15 @@ reach, which holds the `f64` turn within ε there. At `Interval` the
 quaternion near the pole compounds its operations' outward roundings, so
 the box admitted at the edge is about 12ε wide. Placements that chart
 just past the edge carry axes that wide into the copy's pose.
+
+**The consequence, reproduced** (PR 6988's FULL review). A copy point
+at arm 0.5 placed by a chart just past the edge is about 5.6ε wide. A
+later exact-zero coincidence verdict on it ("is the copy's point on the
+target plane?") then reads Undecided from 1× to 2× the edge, where the
+same verdict at `f64` decides Zero. So a placement the chart admitted
+is refused later, under another decision's story. That is
+`[tolerance.recourse]` territory: the refusal names a coincidence
+question when the cause is the chart's width at its edge.
 
 **What closes it.** Either the Interval enclosure at the edge within ε
 (a narrower spelling near the pole), or the conditioning edge read from

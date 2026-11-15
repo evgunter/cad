@@ -1261,8 +1261,9 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
 /// **The snap moves a turned copy only by the snap**, wherever it is
 /// turned: post_b turned about `z` and tilted about `x` by nine pairs,
 /// some needing a turn of their own onto the shelf and an orientation
-/// other than the identity, then rested by its top cap on the shelf's
-/// underside with no value named. It keeps everything the mate leaves.
+/// other than the identity, and one inside the snap's least-turn band,
+/// then rested by its top cap on the shelf's underside with no value
+/// named. It keeps everything the mate leaves.
 ///
 /// *Breaks if* the gesture writes an orientation or spin the chart reads
 /// back as another turn, or slides it reads along other axes.
@@ -1271,7 +1272,16 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
     use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
     let tol = Tol::witness();
     let mut bad = Vec::new();
+    // The snap's least turn refuses within this chord of its pole (the
+    // session box's lever against the run's rounding reach): inside it the
+    // snap turns by the half turn and then the least turn from `−from`.
+    let edge = 2.0 * pncad::geom_core::tolerance::SESSION_BOX_EXTENT
+        / pncad::geom_core::Band::linear(tol)
+            .expect("a band")
+            .rounding_reach();
+    let in_band = 180.0 - (edge / 2.0).min(0.5).to_degrees();
     for (zt, xt) in [
+        (30.0, in_band),
         (100.0_f64, 0.0_f64),
         (10.0, 20.0),
         (100.0, 20.0),
@@ -1382,8 +1392,9 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         };
         println!("snap z={zt} x={xt}: orient {orient:?} turn err {dcol:e} point xy err {dxy:e}");
         // At the antipode (x = 180°) the expected least turn has no
-        // formula; only the rest and the point are checked there.
-        if (dcol > 1e-9 && 1.0 + c > 1e-9) || dxy > 1e-9 {
+        // formula, and inside the snap's band it is not the turn the snap
+        // writes; only the rest and the point are checked there.
+        if (dcol > 1e-9 && (2.0 * (1.0 + c)).max(0.0).sqrt() > edge) || dxy > 1e-9 {
             bad.push(format!("{zt},{xt}: turn err {dcol:e}, point err {dxy:e}"));
         }
         assert_faces_rest(&session, &post_top, &shelf_bottom, "r1 snapped seat");

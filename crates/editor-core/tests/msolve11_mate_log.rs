@@ -243,9 +243,14 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 /// by a rest and three values against the base.
 ///
 /// - Each placement's chart is on its own log: its unit-norm checks
-///   (`pose_unit_norm`). Each copy's mated direction is its target's
-///   exactly, so each least turn is the identity, which owes no pole
-///   verdict (`RigidMotion::least_turn`), and none is on either log.
+///   (`pose_unit_norm`), which the chart decides where it mints its mated
+///   and across directions (`Chart::sides`, `Chart::charted`). Each
+///   copy's mated direction is its target's exactly, so each least turn
+///   is the identity, which owes no pole verdict
+///   (`RigidMotion::least_turn`), and none is on either log. The witness
+///   proves what `mate_chart_pole` proved before: a decision the fold's
+///   chart made lands on the row of the placement that folded, since only
+///   that placement's evaluation logs to it.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
 ///   is minted (`mate_axes_parallel`) on either log.

@@ -1900,8 +1900,8 @@ impl PathCarry {
     /// reflections' product with `H_tᵢ` inserted), followed by the
     /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
     /// ([`RigidMotion::least_turn`], over the session box's lever),
-    /// whose decisions are the second reflection's. A step whose two tangents are equal
-    /// bit for bit is the identity with no rounding, as the exact law
+    /// whose decisions are the second reflection's. A step whose two tangents are the
+    /// same exactly ([`UnitVec3::is_exactly`]) is the identity with no rounding, as the exact law
     /// makes it (the second reflection is then the first). The carried
     /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
     /// aimed along the start tangent, [`RigidMotion::aimed`]) to the
@@ -1968,11 +1968,10 @@ impl PathCarry {
             let ((p, t), (q, next)) = (pair[0], pair[1]);
             let chord = UnitVec3::new(q - p, SWEEP_PATH_CHORD, band)
                 .map_err(|e| direction_refusal(e, station, PathDirection::Chord))?;
-            let (a, b) = (t.get(), next.get());
-            let same = [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
-                .iter()
-                .all(|(x, y)| x.to_bits() == y.to_bits());
-            if !same {
+            let b = next.get();
+            // The least turn's own identity predicate (`+0` and `−0`
+            // agree): a still step is the identity with no rounding.
+            if !t.is_exactly(next) {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;

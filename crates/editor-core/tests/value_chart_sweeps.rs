@@ -253,6 +253,50 @@ fn a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously() {
     );
 }
 
+/// **A slid copy's pole verdict moves with its slide**: the boss hung
+/// under the plate tilted to a chord `τ` short of its pole, written with
+/// a slide of 10 or of 10⁴ along `x`. The bundle's arm sums the written
+/// slides (`[placement.values]`, "written slides included"), so the
+/// conditioning refuses within `2·arm/R`: `τ` sits between the edge the
+/// short slide's arm sets (its pole verdict's or its conditioning's,
+/// whichever is wider) and the long slide's conditioning edge, at the
+/// run's ε. The short slide places; the long one refuses `Backwards`.
+/// *Breaks if* the arm leaves the written slides out, which levers the
+/// long slide's verdict over the copy's reach alone, so it places.
+#[test]
+fn a_slid_copys_pole_verdict_moves_with_its_slide() {
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let (reach, k_eps) = (band.rounding_reach(), band.escalate());
+    // The copy's arm without its slides is about 23 (the boss at x = 10
+    // under a plate whose reach is 20 × 10 × 2).
+    let arm = |slide: f64| 23.0 + slide;
+    let short = (k_eps / arm(10.0)).max(2.0 * arm(10.0) / reach);
+    let long = (2.0 * arm(1e4) / reach).min(2.0);
+    let tau = (short * long).sqrt();
+    assert!(short < tau && tau < long, "{short:e} < {tau:e} < {long:e}");
+    let chain = vec![(
+        Coord::Spin(Some(TargetAxis::X)),
+        fixture::ang(std::f64::consts::PI - tau),
+    )];
+    let values = |slide: f64| {
+        vec![
+            (Coord::slide(TargetAxis::X), len(slide)),
+            (Coord::slide(TargetAxis::Y), len(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
+        ]
+    };
+    let placed = hung(chain.clone(), Orientation::IDENTITY, values(10.0));
+    assert!(
+        placed.is_ok(),
+        "the short slide places at τ = {tau:e}: {placed:?}"
+    );
+    let refused = hung(chain, Orientation::IDENTITY, values(1e4));
+    assert!(
+        matches!(&refused, Err(e) if e.contains("puts the copy's mated direction opposite")),
+        "the long slide refuses backwards at τ = {tau:e}: {refused:?}"
+    );
+}
+
 /// The plate sweep under `orients`, about each of `axes`, in `steps`
 /// steps from −(π−δ) to π−δ: no refusal outside the pole band, and no
 /// step moving the copy by more than the lever times the step.
