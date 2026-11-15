@@ -3632,7 +3632,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.params.ends();
+        let (t0, t1) = row.params;
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -3777,7 +3777,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.params.ends();
+                            let (t0, t1) = row.params;
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -3792,7 +3792,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.params.ends();
+                    let (t0, t1) = row.params;
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
@@ -4041,18 +4041,15 @@ fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injec
 /// so no zero is decided here. The value is crossed by `lift`.
 fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<IsoImage> {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
-    let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
-        if zero(d.x) {
-            Some((Axis::U, lift.of(p0.x), false))
-        } else if zero(d.y) {
-            Some((Axis::V, lift.of(p0.y), false))
-        } else {
-            None
-        }
-    };
     match p {
-        Pcurve::IsoLine { p0, pl, .. } => line(*p0, *pl),
-        Pcurve::IsoArc { p0, pd, .. } => line(*p0, *pd),
+        // An iso image holds its line as structure.
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => p.held_line().map(|line| {
+            let axis = match line.axis {
+                geom_brep::ChartAxis::U => Axis::U,
+                geom_brep::ChartAxis::V => Axis::V,
+            };
+            (axis, lift.of(line.value), false)
+        }),
         Pcurve::Harmonic { u, v } => {
             let constant = |ch: &Channel<T>| match *ch {
                 Channel::Angle { phase, winding: 0 } => Some(lift.of(phase)),

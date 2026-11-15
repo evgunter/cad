@@ -2606,30 +2606,46 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
     out
 }
 
-/// The chart row an `IsoLine` image runs along over its edge's `span`:
-/// the axis it holds fixed, the parameter it holds it at, and its span
-/// along the row. `None` for a line that fixes neither parameter
-/// exactly — a slanted line is no row — or both, a point, and for any
-/// other image.
+/// The chart row an `IsoLine` image of `edge` on the chart `chart` runs
+/// along: the axis it holds fixed, the value it holds it at, and its
+/// span along the row over the edge's interval `(t0, t1)`. `None` for
+/// any other image.
 ///
-/// The held parameter is the map's ([`geom_brep::Pcurve::held_line`],
-/// held to `IsoLine`s), the one check 4 decided the row by; the span
-/// along it is the image's ends ([`geom_brep::Pcurve::span_ends`]). So a
-/// stated end that sits off the held row inside the band picks no other
-/// row than the map does.
+/// The held line is the image's structure ([`geom_brep::Pcurve::held_line`],
+/// held to `IsoLine`s). An end of the span is the corner the loop's lift
+/// reads there, where the edge's row on `chart` meets a row across it
+/// ([`crate::pcurves::Lift::stored_corners`]: the meet of two held
+/// values, on the image's own branch), so a row that runs a chart's whole
+/// side spans its domain exactly at every scalar; anywhere else it is
+/// the image's value at that end.
 fn iso_image_row<T: Decide>(
+    body: &Body<T>,
+    edge: &crate::entity::Edge,
+    chart: SurfaceKey,
     image: &geom_brep::Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
 ) -> Option<(geom_brep::ChartAxis, T, (T, T))> {
-    if !matches!(image, geom_brep::Pcurve::IsoLine { .. }) {
+    let geom_brep::Pcurve::IsoLine { line, .. } = *image else {
         return None;
-    }
-    let line = image.held_line().ok()?;
-    let [a, b] = image.span_ends(span);
-    Some(match line.axis {
-        geom_brep::ChartAxis::U => (line.axis, line.value, (a.y, b.y)),
-        geom_brep::ChartAxis::V => (line.axis, line.value, (a.x, b.x)),
-    })
+    };
+    let corners = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .find_map(|he| {
+            let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+            let face = proven(&body.loops, half.parent_loop, EntityId::Loop).face;
+            let record = proven(&body.faces, face, EntityId::Face);
+            if record.surface != chart {
+                return None;
+            }
+            let lift = crate::pcurves::Lift::read(body, half.parent_loop).ok()?;
+            let row = lift.rows().iter().position(|row| row.half_edge == he)?;
+            let periods = crate::pcurves::ChartPeriods::stated(body.proven_face(face).surface());
+            Some(lift.stored_corners(row, periods))
+        })
+        .unwrap_or([None, None]);
+    let [a, b] = [(corners[0], t0), (corners[1], t1)]
+        .map(|(corner, t)| corner.unwrap_or_else(|| line.along(image.eval(t))));
+    Some((line.axis, line.value, (a, b)))
 }
 
 /// One boundary edge's re-derivation: the description re-stated against
@@ -2725,7 +2741,7 @@ fn plan_edge<'s, T: Decide>(
         // The image's own line, read as a row only where it holds a
         // parameter EXACTLY fixed: an exact test can only refuse more
         // than a margined one, so it needs no band.
-        let row = iso_image_row(&c.pcurve, curve.edge_span());
+        let row = iso_image_row(body, edge_data, old_key, &c.pcurve, (t0, t1));
         // The hold is read on the OLD chart and the row extracted from
         // the new fit at the same `at`: the fit lives on the old
         // chart's own parameter rectangle, ends exact
@@ -2769,22 +2785,14 @@ fn plan_edge<'s, T: Decide>(
             let carrier = Curve3::Nurbs(Arc::new(row));
             let ends = Some((carrier.eval(s0), carrier.eval(s1)));
             // The image is `(fixed, along·t)` or `(along·t, fixed)`: the
-            // row's own parameter, run back on a reflected carrier. It
-            // states no ends: its map reads them exactly at every scalar
-            // (`0 + (±1)·s` is `±s`, `fixed + 0·s` is `fixed`).
-            let (p0, pl) = match axis {
-                geom_brep::ChartAxis::U => (
-                    geom_core::Point2::new(fixed, T::zero()),
-                    geom_core::Vec2::new(T::zero(), along),
-                ),
-                geom_brep::ChartAxis::V => (
-                    geom_core::Point2::new(T::zero(), fixed),
-                    geom_core::Vec2::new(along, T::zero()),
-                ),
-            };
+            // row's own parameter, run back on a reflected carrier.
             let description = EdgeDescriptionSpec::Chart {
                 surface: old_key,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, ends: None }),
+                image: Some(geom_brep::Pcurve::IsoLine {
+                    line: geom_brep::ChartLine { axis, value: fixed },
+                    at0: T::zero(),
+                    rate: along,
+                }),
                 wrap: c.wrap,
                 declared: None,
             };
@@ -3599,30 +3607,9 @@ fn derive_edge<'w, 's, T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
-        Pcurve::IsoLine { p0, pl, ends } => {
-            let shifted = |p: geom_core::Point2<T>| geom_core::Point2::new(p.x, p.y + shift);
-            Pcurve::IsoLine {
-                p0: shifted(p0),
-                pl,
-                ends: ends.map(|e| e.map(shifted)),
-            }
+        Pcurve::Harmonic { .. } | Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            pcurve.translate(T::zero(), shift)
         }
-        Pcurve::IsoArc {
-            p0,
-            pd,
-            t0,
-            angle,
-            ref breaks,
-            ref ends,
-        } => Pcurve::IsoArc {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pd,
-            t0,
-            angle,
-            breaks: breaks.clone(),
-            ends: ends.clone(),
-        },
         // Both spiric images are affine in the chart's SECOND channel
         // — the cap's `v` coordinate is its constant term's, the
         // wall's is `v0` — so the shift lands on one field exactly, as
@@ -4120,13 +4107,6 @@ fn plan_reanchors<T: Decide>(
                 t0 = t_new;
             } else {
                 t1 = t_new;
-            }
-            if let EdgeDescriptionSpec::Chart {
-                image: Some(ref mut image),
-                ..
-            } = description
-            {
-                *image = image.with_end_at(!is_start, t_new);
             }
         }
         // **The witness follows the parameter range.** An intrinsic
@@ -4913,13 +4893,6 @@ fn read_ends<T: Decide>(
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
-    if let EdgeDescriptionSpec::Chart {
-        image: Some(ref mut image),
-        ..
-    } = plan.spec.description
-    {
-        *image = image.over_span((t0, t1));
-    }
     // A sketch record beside the edge ends where the edge now does.
     let restate = |m, point, is_start| {
         move_mapped_endpoint(m, point, is_start).ok_or(ReplaceFaceError::CarrierLaneUnsupported {

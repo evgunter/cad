@@ -2565,41 +2565,23 @@ fn exact_zero<T: Bounds>(x: T) -> bool {
 /// the pcurve VARIANT (module docs: the planar trim inventory).
 /// `Ok(point)` only when the image is a straight chart segment whose
 /// endpoint this is; `Err(what)` names the violated inventory clause.
+///
+/// An iso image states no ends: its entry is the joint the loop's lift
+/// reads there (`joint`, [`crate::pcurves::Lift::joint_point`]: a
+/// corner's meet where a row meets a column), or, for an image read
+/// outside a lift, its own value where it enters.
 fn pcurve_entry<T: Decide + Bounds>(
     pcurve: &geom_brep::Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
     forward: bool,
+    joint: Option<Point2<T>>,
 ) -> Result<Point2<T>, &'static str> {
     use geom_brep::Pcurve;
-    let (t0, t1) = span.ends();
     match pcurve {
-        // Straight by variant: `P(t) = p0 + pl·t`, its ends read as its
-        // mint placed them where it stored them.
-        Pcurve::IsoLine { .. } => {
-            let [start, end] = pcurve.span_ends(span);
-            Ok(if forward { start } else { end })
+        // Straight by variant: a row or a column of its chart.
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            Ok(joint.unwrap_or_else(|| pcurve.eval(if forward { t0 } else { t1 })))
         }
-        // The UV image lies on the straight segment `p0 → p0 + pd` by
-        // variant; only the parameterization along it is
-        // transcendental. An edge spanning the image's whole arc has
-        // the segment's ends as its own, read structurally (`g = 0` at
-        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
-        // split rim's child) ends where the image is at its parameter.
-        Pcurve::IsoArc {
-            p0,
-            pd,
-            t0: at0,
-            angle,
-            ..
-        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
-            if forward {
-                *p0
-            } else {
-                Point2::new(p0.x + pd.x, p0.y + pd.y)
-            }
-        } else {
-            pcurve.eval(if forward { t0 } else { t1 })
-        }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
         // A free channel is straight iff its trig coefficients are
@@ -2666,10 +2648,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
     // here, and each half refuses or derives below.
     let lifted = match read {
-        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
-        ChartRead::WorldCarrier => vec![None; cycle.len()],
+        ChartRead::Minted => crate::pcurves::lift_of_halves(body, &cycle),
+        ChartRead::WorldCarrier => None,
     };
-    for (he, image) in cycle.into_iter().zip(lifted) {
+    for (i, he) in cycle.into_iter().enumerate() {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body
             .get_edge(he_data.edge)
@@ -2680,9 +2662,16 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = body.pcurve(he).zip(image);
-        let entry = if let Some((cache, image)) = cache {
-            pcurve_entry(&image, cache.edge_span(), forward).map_err(refuse)?
+        let row = lifted.as_ref().map(|(lift, rows)| (lift, rows[i]));
+        let entry = if let Some((cache, (lift, row))) = body.pcurve(he).zip(row) {
+            let image = &lift.rows()[row].pcurve;
+            pcurve_entry(
+                image,
+                cache.params(),
+                forward,
+                Some(lift.joint_point(row)),
+            )
+            .map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2704,7 +2693,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                         None => refuse("no closed-form chart image for this carrier kind"),
                     }
                 })?;
-            pcurve_entry(&pcurve, curve.edge_span(), forward).map_err(refuse)?
+            pcurve_entry(&pcurve, curve.params(), forward, None).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
         };

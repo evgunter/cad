@@ -1347,22 +1347,11 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
         }
         Some(_) => {}
     }
-    let runs = lift.runs().map_err(|missed| {
-        refuse(match missed.why {
-            geom_brep::NoHeldLine::NotIso => {
-                "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
-                 quadrature is the cut-loft unit's"
-            }
-            geom_brep::NoHeldLine::Diagonal => {
-                "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
-                 outside the rectangle lane (the cut-loft unit's)"
-            }
-            geom_brep::NoHeldLine::Point => {
-                "a NURBS-face pcurve is one chart point — an image that moves along \
-                 no channel holds no line of the chart, and the rectangle lane reads \
-                 lines"
-            }
-        })
+    let runs = lift.runs().map_err(|_| {
+        refuse(
+            "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
+             quadrature is the cut-loft unit's",
+        )
     })?;
     let [r0, r1, r2, r3] = runs.as_slice() else {
         return Err(refuse(
@@ -1577,25 +1566,24 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<LaneRun, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "NURBS face half-edge carries no stored pcurve cache — the \
-                       loft assembly mints them; a body that lost its caches must \
-                       re-mint before mass properties",
-            });
-        };
+    let unminted = || PropsError::QuadratureUnsupported {
+        what: "NURBS face half-edge carries no stored pcurve cache — the \
+               loft assembly mints them; a body that lost its caches must \
+               re-mint before mass properties",
+    };
+    let (lift, rows) = crate::pcurves::lift_of_halves(body, hes).ok_or_else(unminted)?;
+    for ((le, he), &row) in outer.iter().zip(hes).zip(&rows) {
+        let cache = body.pcurve(*he).ok_or_else(unminted)?;
+        let image = &lift.rows()[row].pcurve;
         let (t0, t1) = cache.params();
-        let [pa, pb] = image.span_ends(cache.edge_span());
-        let (a, b) = if le.forward {
-            ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
-        } else {
-            ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
-        };
+        // The chord runs between the row's two joints in the lift: a
+        // corner's meet where an iso row meets an iso column, the
+        // image's own value everywhere else.
+        let (pa, pb) = (lift.joint_point(row), lift.exit_point(row));
+        let (a, b) = ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)));
         let piece = match image {
-            // An iso image is one exact chord: its endpoints are
-            // structure, so there is no arc to bound.
+            // An iso image is its chord: a straight segment of the
+            // chart, so there is no arc to bound.
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
             Pcurve::General(image) => {
                 // The engine subdivides the WHOLE stored image, so

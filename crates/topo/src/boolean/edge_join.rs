@@ -1290,7 +1290,7 @@ fn joined_spec<T: Decide>(
                 image: if c.wrap {
                     None
                 } else {
-                    Some(c.pcurve.over_span((a, b)))
+                    Some(c.pcurve.clone())
                 },
                 wrap: c.wrap,
                 declared,
