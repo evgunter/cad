@@ -717,12 +717,19 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // outside the log (audit row F43), with the ladder or without it: the
     // plate +4/+4, the boss +1/+2, the bracket +8/+8 and the link +1/+1;
     // the annulus, two circles, reads none, and the recovery holds at 6.
+    // Then the decided least-turn mint (fork 270) took a pair that is one
+    // direction exactly to the identity with no pole verdict (its chord is
+    // 2): each mate chart whose mated directions agree exactly logs no
+    // `mate_chart_pole` row, with the ladder or without it: numeric the
+    // plate −2, the annulus −1, the boss −1, the bracket −2 and the link
+    // −1; no symbolic row moves and the recovery holds at 6. Measured by
+    // deciding the pole at the identity again: every row here is main's.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1019, 1054], [1019, 1054], 0),
-        ("r1_annulus", [535, 553], [535, 553], 0),
-        ("r1_segment_boss", [507, 577], [507, 577], 0),
-        ("r2_filleted_bracket", [1417, 1548], [1423, 1542], 6),
-        ("r2_link", [814, 948], [814, 948], 0),
+        ("two_hole_plate", [1019, 1052], [1019, 1052], 0),
+        ("r1_annulus", [535, 552], [535, 552], 0),
+        ("r1_segment_boss", [507, 576], [507, 576], 0),
+        ("r2_filleted_bracket", [1417, 1546], [1423, 1540], 6),
+        ("r2_link", [814, 947], [814, 947], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -903,10 +910,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // tier proved, two of them through the ladder, and the stations'
     // numeric reads. Then validation's mint read each straight side's
     // chord components exactly (audit row F43): [1384, 1830, 32] ->
-    // [1396, 1848, 32].
+    // [1396, 1848, 32]. Then the decided least-turn mint (fork 270) took
+    // the pad's identity chart with no pole verdict: [1396, 1848, 32] ->
+    // [1396, 1847, 32].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1396, 1848, 32],
+        [1396, 1847, 32],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -931,8 +940,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1358, 1379, 0] -> [1358, 1380, 0]. Then the constructors'
     // whole-wedge reads, as the shipped receipt's: [1358, 1380, 0] ->
     // [1352, 1862, 0]. Then validation's mint, as the shipped receipt's:
-    // [1352, 1862, 0] -> [1364, 1880, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1364, 1880, 0]);
+    // [1352, 1862, 0] -> [1364, 1880, 0]. Then the decided least-turn
+    // mint's identity chart, as the shipped receipt's: [1364, 1880, 0] ->
+    // [1364, 1879, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1364, 1879, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

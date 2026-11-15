@@ -242,10 +242,9 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 /// copy of `row[1]`) and its slide and spin, and the other block, held
 /// by a rest and three values against the base.
 ///
-/// - Each placement's chart is on its own log: the other block's pole
-///   verdict (`mate_chart_pole`), and the cap's unit-norm checks
-///   (`pose_unit_norm`). The cap's mated direction is the target's
-///   exactly, so its least turn is the identity, which owes no pole
+/// - Each placement's chart is on its own log: its unit-norm checks
+///   (`pose_unit_norm`). Each copy's mated direction is its target's
+///   exactly, so each least turn is the identity, which owes no pole
 ///   verdict (`RigidMotion::least_turn`), and none is on either log.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
@@ -263,14 +262,12 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
         |node| -> Vec<&'static str> { log(&ev, node).iter().map(|v| v.predicate).collect() };
     let (cap_log, other_log) = (names(s.cap), names(s.other));
     let on = |got: &[&str], p: &str| got.contains(&p);
-    assert!(
-        on(&other_log, "mate_chart_pole"),
-        "the other block charts its values on its own log: {other_log:?}"
-    );
-    assert!(
-        on(&cap_log, "pose_unit_norm") && !on(&cap_log, "mate_chart_pole"),
-        "the cap charts its values on its own log, its identity turn owing no pole verdict: {cap_log:?}"
-    );
+    for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
+        assert!(
+            on(got, "pose_unit_norm") && !on(got, "mate_chart_pole"),
+            "the {what} charts its values on its own log, its identity turn owing no pole verdict: {got:?}"
+        );
+    }
     assert!(
         !on(&other_log, "mate_axes_parallel") && !on(&cap_log, "mate_axes_parallel"),
         "no slide mints a line: {other_log:?}, cap {cap_log:?}"

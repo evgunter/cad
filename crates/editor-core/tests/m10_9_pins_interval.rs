@@ -256,7 +256,13 @@ pub(crate) struct Study {
 /// plate 1015 -> 1019, the link 813 -> 814, the bracket 1419 -> 1427
 /// and the pad 1515 -> 1531; door shut the link (723, 846) -> (724,
 /// 847), the bracket (1349, 1610) -> (1356, 1619) and the pad (1515,
-/// 1698) -> (1531, 1714). The annulus, two circles, reads none. The moves
+/// 1698) -> (1531, 1714). The annulus, two circles, reads none. Then the
+/// decided least-turn mint (fork 270) took a pair that is one direction
+/// exactly to the identity with no pole verdict (its chord is 2): each
+/// mate chart whose mated directions agree exactly logs no
+/// `mate_chart_pole` row, door shut the bracket (1356, 1619) -> (1356,
+/// 1617) and the pad (1531, 1714) -> (1531, 1713); measured by deciding
+/// the pole at the identity again, which gives main's. The moves
 /// this ledger lists between PR 5728 and PR 5811
 /// are PR 5728's (the pad and the link door shut) and PR 5811's (the
 /// bracket door shut), measured at each merge and its first parent.
@@ -350,7 +356,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
             // +1 numeric: the placement asks the session box of its image.
-            without_the_registry: Some(((1356, 1619), None)),
+            // −2 numeric: its two identity charts owe no pole verdict.
+            without_the_registry: Some(((1356, 1617), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -381,7 +388,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
             // +1 numeric: the placement asks the session box of its image.
-            without_the_registry: Some(((1531, 1714), None)),
+            // −1 numeric: its identity chart owes no pole verdict.
+            without_the_registry: Some(((1531, 1713), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -934,8 +942,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // span and direction stated from its sketch segment (PR 6953): the
     // decisions hold, and the forms they freeze read the placed sketch
     // chord's unit where they read the placed vertices' difference,
-    // 3989 -> 4000.
-    assert_eq!(got[0], (1531, 1714, 4000), "rule F shut: the pad's receipt");
+    // 3989 -> 4000. Then the decided least-turn mint (fork 270) took the
+    // pad's identity chart with no pole verdict: 1714 -> 1713 numeric.
+    assert_eq!(got[0], (1531, 1713, 4000), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

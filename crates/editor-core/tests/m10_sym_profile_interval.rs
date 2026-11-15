@@ -525,12 +525,25 @@ const PLATE_MAX_TERMS: usize = 38;
 /// on the slab the placed unit chord folds to its sketch components,
 /// and on the plate the walks build more forms over it than they did over
 /// `q_to − q_from`.
+///
+/// **Moved with the decided least-turn mint** (fork 270), `Plain/Decision`
+/// and `Early/Decision` main's, by two causes, each measured by undoing it:
+/// - A pair that is one direction exactly turns by the identity with no
+///   pole verdict (its chord is 2), and the plate's two mate charts are
+///   identities: `Plain/Assertion` and `Early/Assertion` 1054 → 1052
+///   calls (13305 → 13294, 14807 → 14796 forms) and `Door/Decision` 555 →
+///   553 calls (15037 → 15026 forms). Deciding the pole at the identity
+///   again puts back every count.
+/// - The pole verdict's chord is `|a + b|`, where main read `√(2(1 + c))`
+///   off the least turn's `1 + c`: with the identity decided again, the
+///   three digests still move with no count moving, and spelling the
+///   chord as main did puts back the whole ledger.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1019 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
-     Plain/Assertion calls 1054 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
+     Plain/Assertion calls 1052 forms 13294 frozen 245 digest 568c6ca95ecb15da1d5a6fdc595a127c\n\
      Early/Decision calls 308 forms 28205 frozen 0 digest 26327ae7eaa72dca689e4aa27ad071c4\n\
-     Early/Assertion calls 1054 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
-     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
+     Early/Assertion calls 1052 forms 14796 frozen 0 digest 641f8fc3f1cd4559448f36a878b75562\n\
+     Door/Decision calls 553 forms 15026 frozen 0 digest 2758226ddfb210d10c56c684f145cb7e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
