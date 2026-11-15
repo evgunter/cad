@@ -420,9 +420,7 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`.
 /// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
 /// `the_walk_matches_the_serial_golden_at_four_threads` alike,
-/// `arc_loft_1e11eps`' two pads at 1e-12, each wider than the table
-/// held (the volume's by under three parts in 10⁷) with the volume and
-/// the area unmoved:
+/// `arc_loft_1e11eps`' two pads at 1e-12:
 /// `work/boxfinish/main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap.md`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {

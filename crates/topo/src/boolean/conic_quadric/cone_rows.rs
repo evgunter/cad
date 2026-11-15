@@ -901,7 +901,11 @@ fn the_apex_spread_bound_refuses_where_a_factor_is_not_positive() {
 fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
     let e = geom::Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(
-            Point3::from_array([0.5951044729266803, -0.4948492339322913, -0.48992849588759274]),
+            Point3::from_array([
+                0.5951044729266803,
+                -0.4948492339322913,
+                -0.48992849588759274,
+            ]),
             Vec3::from_array([0.4075878663827065, 0.6480769646040943, 0.6433260286411057]),
             Vec3::from_array([0.881430409939996, -0.4633281245914571, -0.09169231917436711]),
         ),
@@ -910,7 +914,11 @@ fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
     ));
     let s = geom::Surface::Cone {
         apex: Point3::from_array([-0.5248723522085268, -0.2602737120283434, 0.5026482288829277]),
-        axis: Vec3::from_array([0.16386811977525384, -0.9491390527668793, -0.26885367364816554]),
+        axis: Vec3::from_array([
+            0.16386811977525384,
+            -0.9491390527668793,
+            -0.26885367364816554,
+        ]),
         half_angle: 1.1109037283720684,
         u_ref: Vec3::from_array([0.9854212451578827, 0.17013221209250257, 0.0]),
     };

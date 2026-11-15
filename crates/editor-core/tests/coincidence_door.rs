@@ -3277,7 +3277,10 @@ fn the_balls_interval_union_encloses_its_closed_form_under_a_bounded_pad() {
     let want = (0.75 + 0.875 + 0.5625) * PI - lens;
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
     let Some(editor_core::NodeResult::Ok(iv)) = ev.nodes.get(&union) else {
-        panic!("the ball's union builds at Interval: {:?}", ev.nodes.get(&union));
+        panic!(
+            "the ball's union builds at Interval: {:?}",
+            ev.nodes.get(&union)
+        );
     };
     let i = topo::test_support::finished(
         cd.name,

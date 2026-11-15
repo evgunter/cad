@@ -425,9 +425,12 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/pcurves/lift_agreement_rows.rs",
-        disposition: Shared, // the lift-agreement makers' census over the kernel
-                             // crates and `pcurves.rs`'s gated module rows, code view
-                             // carved by `attributed_extent` and `fn_items`
+        disposition: Unconverted(
+            "unowned by a code-quality track (the file is CHARTTAIL's) — the maker \
+             census counts `JointElement(` over raw lines with `//` skipped by prefix, \
+             beside two reads that do go through the shared lexer \
+             (work/charttail/the-ring-promotion-posture-row-reads-euler-kill-rs-by-hand.md)",
+        ),
     },
     Entry {
         path: "crates/topo/src/pcurves/staleness_posture.rs",
@@ -981,7 +984,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 4;
+const UNCONVERTED_TODAY: usize = 5;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

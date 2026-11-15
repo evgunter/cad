@@ -727,6 +727,12 @@ jobs:
       # self-test (and the provenance guard's and the uv composer's,
       # which it leans on) runs before any lane can: a failure here
       # leaves tour_ok unset, and no lane renders or publishes.
+      # This job's interpreter, for every `python3` below it: the self-tests
+      # here and the venv render-wild.sh builds, whose scripts pin 3.12 only
+      # on their `uv` branch and otherwise take whatever `python3` is on PATH.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: render tooling self-tests
         run: |
           python3 demos/publish_lane.py --selftest
@@ -841,15 +847,6 @@ jobs:
       #
       # Needed on BOTH paths: render-wild.sh builds the venv itself, so this
       # is the renderer's dependency, not the generator's.
-      # The interpreter the venv is built on is chosen HERE: the scripts pin
-      # 3.12 only on their `uv` branch, and a hosted runner has no `uv`, so
-      # `python3 -m venv` takes whatever `python3` the image carries. The
-      # pinned matplotlib does not run on 3.14 (`Path.__deepcopy__` recurses
-      # without bound there), and it has no wheel for it either.
-      - uses: actions/setup-python@v5
-        if: ${{ env.WILD_WANTED == 'true' }}
-        with:
-          python-version: "3.12"
       - name: venv deps
         if: ${{ env.WILD_WANTED == 'true' }}
         # Same bound as the montage lanes' bigger install below, and it is the
@@ -1131,8 +1128,8 @@ jobs:
       # ONE INSTALL FOR BOTH LANES since the merge — and note that the two
       # wedges above happened on two separate runners, so a merged job has
       # one exposure to this where the matrix had two.
-      # The venv's interpreter, as in the wild lane above: render.sh's
-      # fallback takes the image's `python3`, so it is chosen here.
+      # The venv's interpreter: render.sh's fallback takes whatever
+      # `python3` is on PATH, so it is chosen here.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
