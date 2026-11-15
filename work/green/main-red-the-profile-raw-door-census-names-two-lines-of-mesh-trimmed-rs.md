@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-14
 priority: P1
 cost: E
+parent: nightly-1115-residue-the-reds-no-lane-holds
 ---
 
 
