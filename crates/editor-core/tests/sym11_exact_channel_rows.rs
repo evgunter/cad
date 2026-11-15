@@ -58,12 +58,29 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `sym11_the_exact_channel_never_contradicts_past_the_ceiling` holds
 /// below against the ones the first two left,
 /// `work/boxfinish/sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin.md`.
+///
+/// **Moved by the sweeps keeping their sketch frames** (BOXFINISH's
+/// `boxfinish/sweep-frames`, against main's readings above): the plate
+/// `[1019, 1054, 299]` → `[979, 1048, 54]`, the annulus `[535, 553, 278]`
+/// → `[511, 549, 54]`, the link `[814, 948, 3575]` → `[786, 944, 2738]`,
+/// the bracket `[1433, 1553, 969]` → `[1367, 1547, 84]` and the pad
+/// `[1531, 1714, 4000]` → `[1483, 1710, 2773]`. No extrude or loft fits
+/// a plane, so the Newell sums, their normalisation and their residuals
+/// are built nowhere: fewer decisions in both columns, and the freezes
+/// they caused gone. Attributed by the freezes' profile (`FreezeCause`
+/// by op, every document, on that branch and its merge base):
+/// `Coefficient Powi` 287 → 42 on the plate and 266 → 42 on the annulus,
+/// the link's `Coefficient Mul` 820 → 319 and `Sub` 1478 → 1109, the
+/// bracket's `checks_frozen` 373 → 16 and every one of its `Degree` and
+/// `Terms` freeze classes down, the pad's `Coefficient` classes down
+/// (`Powi` 1885 → 1467). No dispute fired and no registration was
+/// contradicted, at any document.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1019, 1054, 299]),
-    ("r1_annulus", [535, 553, 278]),
-    ("r2_link", [814, 948, 3575]),
-    ("r2_filleted_bracket", [1433, 1553, 969]),
-    ("r2_rounded_pad", [1531, 1714, 4000]),
+    ("two_hole_plate", [979, 1048, 54]),
+    ("r1_annulus", [511, 549, 54]),
+    ("r2_link", [786, 944, 2738]),
+    ("r2_filleted_bracket", [1367, 1547, 84]),
+    ("r2_rounded_pad", [1483, 1710, 2773]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
