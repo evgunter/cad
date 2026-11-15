@@ -930,8 +930,12 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // session box of its image (`Replay::moved_by`): one numeric
     // decision, (1523, 1214, 3683). Then the constructors' whole-wedge
     // reads (the study's `symbolic`): (1523, 1214, 3683) -> (1515, 1698,
-    // 3989), each witness the edge's carrier middle.
-    assert_eq!(got[0], (1531, 1714, 3989), "rule F shut: the pad's receipt");
+    // 3989), each witness the edge's carrier middle. Then a line rim's
+    // span and direction stated from its sketch segment (PR 6953): the
+    // decisions hold, and the forms they freeze read the placed sketch
+    // chord's unit where they read the placed vertices' difference,
+    // 3989 -> 4000.
+    assert_eq!(got[0], (1531, 1714, 4000), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
