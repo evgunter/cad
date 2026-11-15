@@ -2612,8 +2612,8 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
 /// exactly — a slanted line is no row — or both, a point, and for any
 /// other image.
 ///
-/// The held parameter is the map's (`p0`'s, read exactly: that channel's
-/// slope is an exact zero), the one check 4 decided the row by; the span
+/// The held parameter is the map's ([`geom_brep::Pcurve::held_line`],
+/// held to `IsoLine`s), the one check 4 decided the row by; the span
 /// along it is the image's ends ([`geom_brep::Pcurve::span_ends`]). So a
 /// stated end that sits off the held row inside the band picks no other
 /// row than the map does.
@@ -2621,18 +2621,15 @@ fn iso_image_row<T: Decide>(
     image: &geom_brep::Pcurve<T>,
     span: geom_brep::StoredSpan<T>,
 ) -> Option<(geom_brep::ChartAxis, T, (T, T))> {
-    let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *image else {
+    if !matches!(image, geom_brep::Pcurve::IsoLine { .. }) {
         return None;
-    };
-    let [a, b] = image.span_ends(span);
-    match (
-        geom_core::is_exact_zero(pl.x),
-        geom_core::is_exact_zero(pl.y),
-    ) {
-        (true, false) => Some((geom_brep::ChartAxis::U, p0.x, (a.y, b.y))),
-        (false, true) => Some((geom_brep::ChartAxis::V, p0.y, (a.x, b.x))),
-        _ => None,
     }
+    let line = image.held_line().ok()?;
+    let [a, b] = image.span_ends(span);
+    Some(match line.axis {
+        geom_brep::ChartAxis::U => (line.axis, line.value, (a.y, b.y)),
+        geom_brep::ChartAxis::V => (line.axis, line.value, (a.x, b.x)),
+    })
 }
 
 /// One boundary edge's re-derivation: the description re-stated against
