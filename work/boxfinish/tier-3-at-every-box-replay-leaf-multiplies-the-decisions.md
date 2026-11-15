@@ -7,7 +7,7 @@ opened: 2026-11-02
 priority: P0
 cost: H
 refs: [6371]
-blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
+blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`

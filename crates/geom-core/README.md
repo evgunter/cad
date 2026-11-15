@@ -315,7 +315,14 @@ This section is where that rule's parts live.
 - **Re-posing, never charging.** A quantity a formula would divide by
   that can vanish (a sine, a radius, a determinant) is a pose decided
   first (coaxial, parallel, tangent), and the formula divides only on
-  the pose's definite arm. A formula that loses digits where its
+  the pose's definite arm. Where what is decided is singular at that
+  pose and no re-posing removes it (the least turn's pole), the pose's
+  band also reaches as far as the quotient's lever passes the run's
+  *rounding reach*, `R = box · (K − 1)·ε / ADMISSION_FLOOR`: the
+  admission rule read as a length, the longest lever over which a short
+  chain's rounding still fits the headroom (a run is admitted exactly
+  where `R` is at least the box). `R` is read through one `Tolerance`
+  door, never a site's own constant. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits (a conic whose centre
   lies far from the arc it serves) is re-minted in a well-conditioned
