@@ -76,6 +76,34 @@ things to this unit, because each needs a door that reads a direction.
   what reads its length, or this is RESTDATUM's
   `unlevered-frame-conventions-are-uncertified-at-rest`; say which.
 
+- **A minted direction lies along an axis only where its zero is
+  proven** (`boxfinish/profile-directions-revalue`, after the nightly's
+  five `revalue_corpus` reds): validation mints the axis for a segment
+  that recorded no direction only where a component is an identity of
+  the parameters, never where it reads zero by coincidence. What each
+  scalar stores:
+  - `f64`: the quotient, which is the axis but for the sign of a zero:
+    where one end of a side, or a radial's vertex against its centre,
+    holds `−0.0` and the other `+0.0`, the zero component is the
+    difference's own signed zero where PR 6963's axis stored `+0`
+    (`at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign`).
+  - plain `Interval`: nothing is proven either, so an axis-aligned
+    literal rectangle's hop directors, exact `(0, ±1)` from PR 6963 to
+    that fix, are ulp-wide again (`[0, 0]` over the length is exact;
+    `y/√(y²)` carries rounding).
+  - `Sym<Interval>`: a hop between two points that share a variable
+    (the slab's `(W, 0) → (W, 1)`) keeps its exact axis in an eager
+    session, over a box or a point; in a deferring session only at a
+    point box (over a box it takes the quotient, with `W − W`'s width).
+    One between two different variables that agree at the nominal takes
+    the quotient with its width.
+  - `Sym<f64>`: an identity mints its axis only where its value reads
+    exactly zero; one whose value rounds takes the quotient
+    (`work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`).
+  Verb-recorded directions are untouched. Nothing reads a direction
+  yet; a door that reads a hop's director at plain `Interval` meets this
+  rounding width.
+
 **What this unit will not finish:** profiles whose directions are not
 recorded (`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
 Its closing tests say whether the tour's stop is among them.

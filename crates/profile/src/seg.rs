@@ -775,34 +775,85 @@ fn check_direction<T: Decide>(
 }
 
 /// **A direction minted from the vector `w`**: the axis it lies along,
-/// where one of its components is exactly zero (a theorem of the
-/// parameters at `Sym`, an exact zero at a point scalar) and the other's
-/// sign is definite, the axis signed by that sign as a literal ±1;
-/// otherwise `quotient`, `w` over its length. Both are the direction
-/// wherever the component is zero; the axis carries no width the
-/// geometry lacks, which a quotient of two values that share a parameter
-/// does. The two components' signs are read once each, whatever they
-/// answer, at the least band and outside the log ([`component_signs`]
-/// under audit row F43): a choice between two sound spellings, never a
-/// refusal, whose readings do not depend on their answers.
+/// where one component is a Zero the symbolic tier PROVED and the
+/// other's sign is definite, signed by that sign as a literal ±1;
+/// otherwise `quotient`, `w` over its length. The axis carries no width
+/// the geometry lacks, which a quotient of two values that share a
+/// parameter does (`W − W` over a box).
+///
+/// **What it guarantees:** an axis only where the tier proved the zero,
+/// so never a constant where the computation varies with the parameters
+/// (ERROR-DESIGN E12). **What it does not:** one branch at every
+/// valuation. The tier is asked only where the value channel reads Zero
+/// (a definite sign is never offered to it, and a deferring session
+/// returns an escalation unasked), so an identity whose value rounds off
+/// zero, or straddles it in a deferring session, takes the quotient
+/// where another valuation takes the axis. Lane by lane: audit row F43;
+/// the residual:
+/// `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
+///
+/// **The readings** (`segment_direction_axis`, at the least band and
+/// outside the log) run in [`geom_core::sym::aside`]: kept where the
+/// axis is minted, discarded where the quotient is, whose answers the
+/// mint drops. A discarded reading still counts in the session's receipt
+/// ([`geom_core::SymCounts`]), and inside a deferring session its Zero
+/// keeps an entry on the session's list that no reader is obliged to
+/// discharge. Asking for proof only by a counted sign reading is
+/// `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
 fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
-    let unit = |s: Sign| match s {
-        Sign::Positive => Some(T::one()),
-        Sign::Negative => Some(-T::one()),
-        Sign::Zero => None,
+    let (read, aside) = geom_core::sym::aside(|| {
+        geom_core::k_stats::unlogged("F43", || {
+            [
+                read_component(w.x, Band::least()),
+                read_component(w.y, Band::least()),
+            ]
+        })
+    });
+    let axis = match read {
+        [Component::ProvenZero, Component::Signed(s)] => Some(Vec2::new(T::zero(), s)),
+        [Component::Signed(s), Component::ProvenZero] => Some(Vec2::new(s, T::zero())),
+        _ => None,
     };
-    match geom_core::k_stats::unlogged("F43", || component_signs(w, Band::least())) {
-        [Some(Sign::Zero), Some(s)] => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), s)),
-        [Some(s), Some(Sign::Zero)] => unit(s).map_or(quotient, |s| Vec2::new(s, T::zero())),
-        _ => quotient,
+    match axis {
+        Some(axis) => {
+            aside.keep();
+            axis
+        }
+        None => {
+            aside.discard();
+            quotient
+        }
     }
 }
 
-/// The sign of each of `w`'s components against `band`
-/// (`segment_direction_axis`), `None` where it escalates: the reader
-/// [`axis_or`] runs at the least band.
-fn component_signs<T: Decide>(w: Vec2<T>, band: Band) -> [Option<Sign>; 2] {
-    [w.x, w.y].map(|c| decide(Gate::SegmentDirectionAxis, Margin::of(c), band).ok())
+/// One component of the vector [`axis_or`] mints from, as it reads it.
+enum Component<T> {
+    /// A Zero the symbolic tier proved: an identity of the parameters.
+    ProvenZero,
+    /// A Zero no proof stands behind: zero only at this valuation.
+    UnprovenZero,
+    /// A definite sign, as the literal ±1.
+    Signed(T),
+    /// The reading escalated.
+    Escalated,
+}
+
+/// `c` read against `band` (`segment_direction_axis`), the least band
+/// [`axis_or`] passes it. A Zero is
+/// proven where [`geom_core::sym::deferred::discharge`] says so: it
+/// answers a margin the tier proved as it decided, and inside a
+/// deferring session, which proves nothing as it decides, it runs the
+/// tier for that one Zero.
+fn read_component<T: Decide>(c: T, band: Band) -> Component<T> {
+    match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), band) {
+        Err(_) => Component::Escalated,
+        Ok(d) => match d.sign {
+            Sign::Positive => Component::Signed(T::one()),
+            Sign::Negative => Component::Signed(-T::one()),
+            Sign::Zero if geom_core::sym::deferred::discharge(d.margin) => Component::ProvenZero,
+            Sign::Zero => Component::UnprovenZero,
+        },
+    }
 }
 
 /// **`x`'s sign as the literal ±1**, where it reads definite: a choice
