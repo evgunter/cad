@@ -1007,7 +1007,8 @@ mod kernel {
             Band, StaleFace, Offset, Fit, ApproxLaneUnsupported, SharedSurfaceKey,
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
-            NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
+            NeighborPoseUnroutable, EdgeUncovered, FittedBoundaryUnsupported,
+            CarrierLaneUnsupported,
             IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
@@ -5992,6 +5993,16 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     kind: Plane,
                     other_kind: Cone,
                     why: "the plane no longer passes through the cone's apex",
+                },
+            ),
+            (
+                "EdgeUncovered",
+                R::EdgeUncovered {
+                    edge,
+                    source: topo::EdgeUncovered::Carrier(geom::cover::Uncovered::new(
+                        geom::cover::Entity::Curve(geom::CurveKind::Nurbs),
+                        geom::cover::Unknown::PoisonedNet,
+                    )),
                 },
             ),
             (
