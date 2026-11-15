@@ -96,8 +96,7 @@ use geom_brep::{
     WedgeRefusal,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2,
-    Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
@@ -105,8 +104,8 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::swept;
 use crate::swept::{
-    CapEnd, CosurfaceNames, Placing, SweptChord, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_direction, turn_axis,
+    CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
+    placed_segment_spec, sketch_chord, sketch_direction, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -655,7 +654,7 @@ enum Course<T: Real> {
     /// [`Extrusion::Vector`]: along `dir`, the vector normalized.
     Vector {
         /// The vector's unit direction.
-        dir: Vec3<T>,
+        dir: Unit3<T>,
         /// `dir` points against the sketch normal.
         reversed: bool,
     },
@@ -671,10 +670,10 @@ impl<T: Real> Course<T> {
     }
 
     /// The sweep's unit direction, `normal` the sketch plane's.
-    fn dir(self, normal: Vec3<T>) -> Vec3<T> {
+    fn dir(self, normal: Unit3<T>) -> Unit3<T> {
         match self {
             Self::Normal { reversed: false } => normal,
-            Self::Normal { reversed: true } => -normal,
+            Self::Normal { reversed: true } => normal.reversed(),
             Self::Vector { dir, .. } => dir,
         }
     }
@@ -685,13 +684,13 @@ impl<T: Real> Course<T> {
     /// Along the normal that is the frame turning `d`'s right normal
     /// `(d.y, −d.x)`, negated when the sweep runs against it; along a
     /// vector, the cross product normalized.
-    fn wall_normal(self, place: Placing<T>, d: Vec2<T>) -> Vec3<T> {
+    fn wall_normal(self, place: Placing<T>, d: Unit2<T>) -> Unit3<T> {
         match self {
             Self::Normal { reversed } => {
-                let right = Vec2::new(d.y, T::zero() - d.x);
-                place.direction(if reversed { -right } else { right })
+                let right = d.right();
+                place.direction(if reversed { right.reversed() } else { right })
             }
-            Self::Vector { dir, .. } => place.direction(d).cross(dir).normalize(),
+            Self::Vector { dir, .. } => place.direction(d).cross_normalized(dir),
         }
     }
 }
@@ -705,6 +704,15 @@ struct Sweep<T: Real> {
     w: Vec3<T>,
     length: T,
     course: Course<T>,
+    /// The sketch plane's normal, the frame's decided axis.
+    normal: Unit3<T>,
+}
+
+impl<T: Real> Sweep<T> {
+    /// The sweep's unit direction ([`Course::dir`] off the sketch normal).
+    fn dir(self) -> Unit3<T> {
+        self.course.dir(self.normal)
+    }
 }
 
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
@@ -720,7 +728,6 @@ fn extruded_strut_spec<T: Real>(
     point: Point2<T>,
     place: Affine3<T>,
     q_bottom: Point3<T>,
-    normal: Vec3<T>,
     sweep: Sweep<T>,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
@@ -731,7 +738,7 @@ fn extruded_strut_spec<T: Real>(
                 vec: sweep.w,
             },
         )),
-        carrier: Curve3::line(q_bottom, sweep.course.dir(normal)),
+        carrier: Curve3::line(q_bottom, sweep.dir().get()),
         param_start: T::zero(),
         param_end: sweep.length,
     }
@@ -786,7 +793,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
-    let (w, course) = match extrusion {
+    let (w, length, course) = match extrusion {
         Extrusion::Distance { depth, side } => {
             let decided =
                 swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)
@@ -800,10 +807,10 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     });
                 }
                 (Sign::Positive, ExtrudeSide::Along) => {
-                    (normal * depth, Course::Normal { reversed: false })
+                    (normal * depth, depth, Course::Normal { reversed: false })
                 }
                 (Sign::Positive, ExtrudeSide::Against) => {
-                    (normal * (-depth), Course::Normal { reversed: true })
+                    (normal * (-depth), depth, Course::Normal { reversed: true })
                 }
             }
         }
@@ -827,8 +834,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             }
             (
                 v,
+                v.norm(),
                 Course::Vector {
-                    dir: v.normalize(),
+                    dir: Unit3::normalized(v),
                     reversed: reverse,
                 },
             )
@@ -837,11 +845,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let reverse = course.reversed();
     let sweep = Sweep {
         w,
-        length: match extrusion {
-            Extrusion::Distance { depth, .. } => depth,
-            Extrusion::Vector(v) => v.norm(),
-        },
+        length,
         course,
+        normal: Unit3::from_frame(profile.plane().normal()),
     };
     let top_place = Affine3::translation(w) * place;
 
@@ -1160,7 +1166,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             qs[j] + w,
-            extruded_strut_spec(segs[j].chord.a, place, qs[j], normal, sweep),
+            extruded_strut_spec(segs[j].chord.a, place, qs[j], sweep),
             tol,
         )?);
     }
@@ -1172,18 +1178,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         n,
         |j| struts[j].he_minus,
         |body, j, faces| {
-            let surface = side_surface(
-                body,
-                segs,
-                joins,
-                faces,
-                j,
-                qs,
-                place,
-                normal,
-                sweep.course,
-                tol,
-            );
+            let surface = side_surface(body, segs, joins, faces, j, qs, place, normal, sweep, tol);
             let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
@@ -1324,7 +1319,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         &[q],
         place,
         normal,
-        sweep.course,
+        sweep,
         tol,
     );
     let far = q + sweep.w;
@@ -1337,7 +1332,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
                 vec: back,
             },
         )),
-        carrier: Curve3::line(far, -sweep.course.dir(normal)),
+        carrier: Curve3::line(far, sweep.dir().reversed().get()),
         param_start: T::zero(),
         param_end: sweep.length,
     };
@@ -1406,9 +1401,10 @@ fn side_surface<T: Real>(
     qs: &[Point3<T>],
     place: Affine3<T>,
     normal: Vec3<T>,
-    course: Course<T>,
+    sweep: Sweep<T>,
     tol: Tol,
 ) -> FaceSurface<T> {
+    let course = sweep.course;
     let sense = segs[j].wall_sense;
     if let Some(f) = swept::shared_wall(joins, faces, j) {
         let key = face_surface_key(body, f);
@@ -1416,11 +1412,22 @@ fn side_surface<T: Real>(
     }
     let d = sketch_direction(&segs[j]);
     let surface = match segs[j].chord.kind.get() {
-        SegmentKind::Line => Surface::Plane {
-            origin: qs[j],
-            normal: course.wall_normal(place.into(), d),
-            u_ref: Placing::from(place).direction(d),
-        },
+        // A line wall's origin is the middle of the wall, from the
+        // construction alone: the placed start, half the segment's own
+        // length along its frame-turned direction, and half the sweep.
+        // It is where the four corners' centroid stood when the wall was
+        // fitted to them, to rounding, and where a reader of a face's
+        // point expects it; nothing is fitted or read back.
+        SegmentKind::Line => {
+            let along = Placing::from(place).direction(d);
+            let half = T::from_f64(0.5);
+            let length = sketch_chord(&segs[j]).1;
+            Surface::Plane {
+                origin: qs[j] + along.get() * (length * half) + sweep.w * half,
+                normal: course.wall_normal(place.into(), d).get(),
+                u_ref: along.get(),
+            }
+        }
         SegmentKind::Arc { arc, turn } => {
             // The carrier axis line is the arc's centre extruded:
             // `place · (centre, 0)` — the same computation the rim
@@ -1440,7 +1447,7 @@ fn side_surface<T: Real>(
                 origin: c_world,
                 axis: turn_axis(turn, normal),
                 radius: arc.radius,
-                u_ref: Placing::from(place).direction(d),
+                u_ref: Placing::from(place).direction(d).get(),
             }
         }
     };

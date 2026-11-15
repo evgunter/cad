@@ -145,21 +145,23 @@ impl<T: Real> Placing<T> {
     }
 
     /// A sketch direction carried by the station's frame: `(d, 0)`
-    /// through the placement's linear part, then turned. A rigid frame
-    /// carries a unit direction to a unit direction, so nothing is
+    /// through the placement's linear part, then turned. The placement
+    /// and the turn are rigid, so a unit direction comes out unit, and
+    /// the result carries that as its type ([`Unit3`]); nothing is
     /// re-derived from placed points.
-    pub(crate) fn direction(self, d: Vec2<T>) -> Vec3<T> {
-        self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero()))
+    pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
+        let Unit2(d) = d;
+        Unit3(self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())))
     }
 
     /// The station's normal: the placement's third axis, turned.
-    pub(crate) fn normal(self) -> Vec3<T> {
-        self.carry(self.place.linear.c2)
+    pub(crate) fn normal(self) -> Unit3<T> {
+        Unit3(self.carry(self.place.linear.c2))
     }
 
     /// The station's first axis (sketch `+x`), turned.
-    pub(crate) fn first_axis(self) -> Vec3<T> {
-        self.carry(self.place.linear.c0)
+    pub(crate) fn first_axis(self) -> Unit3<T> {
+        Unit3(self.carry(self.place.linear.c0))
     }
 
     /// A placed direction turned by the turn, or as it is when there is
@@ -552,6 +554,69 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     }
 }
 
+/// **A unit sketch direction**, minted only from a segment as the
+/// profile stores it ([`sketch_direction`], [`sketch_chord`]): the sweep's
+/// one place that divides a sketch difference by its own length. The
+/// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Unit2<T: Real>(Vec2<T>);
+
+impl<T: Real> Unit2<T> {
+    /// The right normal `(d.y, −d.x)`: a quarter turn of a unit
+    /// direction, unit with it. For a material-left loop it points out
+    /// of the region.
+    pub(crate) fn right(self) -> Self {
+        Self(Vec2::new(self.0.y, T::zero() - self.0.x))
+    }
+
+    /// The opposite direction.
+    pub(crate) fn reversed(self) -> Self {
+        Self(-self.0)
+    }
+}
+
+/// **A unit world direction the sweep holds by construction**: a
+/// [`Unit2`] or a station axis carried by a rigid frame
+/// ([`Placing::direction`], [`Placing::normal`],
+/// [`Placing::first_axis`]), a sketch plane's own normal
+/// ([`Unit3::from_frame`]), or, on the vector arm alone, the user's
+/// vector normalized once ([`Unit3::normalized`]). It is unwrapped where
+/// a [`Surface`] or [`Curve3`] stores it: those carriers take bare
+/// vectors, so the witness stops at the sweep doors' seam.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Unit3<T: Real>(Vec3<T>);
+
+impl<T: Real> Unit3<T> {
+    /// The direction, for a carrier that stores bare vectors.
+    pub(crate) fn get(self) -> Vec3<T> {
+        self.0
+    }
+
+    /// A frame's decided axis.
+    pub(crate) fn from_frame(u: UnitVec3<T>) -> Self {
+        Self(u.get())
+    }
+
+    /// **The vector arm's one normalization**: a vector the extrude was
+    /// handed (or a cross product of two unit directions that are not
+    /// perpendicular), divided by its length once. Unit to its rounding
+    /// at `f64`; over a box it carries the box's width
+    /// (`work/boxfinish/a-boxed-vector-extrusions-walls-carry-the-vectors-width.md`).
+    pub(crate) fn normalized(v: Vec3<T>) -> Self {
+        Self(v.normalize())
+    }
+
+    /// The opposite direction.
+    pub(crate) fn reversed(self) -> Self {
+        Self(-self.0)
+    }
+
+    /// `self × other`, normalized: the vector arm's wall normal.
+    pub(crate) fn cross_normalized(self, other: Self) -> Self {
+        Self::normalized(self.0.cross(other.0))
+    }
+}
+
 /// **The sketch direction a placed copy of the segment carries**, in
 /// swept order: a line's director `(b − a)/‖b − a‖`, an arc's radial
 /// at its swept start `(a − centre)/‖a − centre‖`. Decided once here,
@@ -559,11 +624,19 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
 /// placed copy is the station's frame turning it
 /// ([`Placing::direction`]), so no door divides a difference of placed
 /// points by its own length.
-pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
+pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
     match seg.kind().get() {
-        SegmentKind::Line => (seg.b() - seg.a()).direction_and_length().0,
-        SegmentKind::Arc { arc, .. } => (seg.a() - arc.centre).normalize(),
+        SegmentKind::Line => sketch_chord(seg).0,
+        SegmentKind::Arc { arc, .. } => Unit2((seg.a() - arc.centre).normalize()),
     }
+}
+
+/// A segment's chord `b − a` as its unit direction and its own length,
+/// read once (`Vec2::direction_and_length`): a line's director and the
+/// span its carrier runs.
+pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) {
+    let (d, length) = (seg.b() - seg.a()).direction_and_length();
+    (Unit2(d), length)
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
@@ -643,9 +716,9 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// ([`geom_core::Real::register_equal`]), per component.
 ///
 /// **The proof.** The carrier is the circle about `place(centre)` with
-/// radius `radius`, reference direction `u_ref` the placement carrying
-/// the sketch direction `(start − centre)/‖start − centre‖`
-/// ([`sketch_direction`]), and axis the turn-signed plane normal,
+/// radius `radius`, reference direction `u_ref` the sketch direction
+/// `(start − centre)/‖start − centre‖` ([`sketch_direction`]) carried by
+/// the spec's `radial` placing, and axis the turn-signed plane normal,
 /// evaluated at the span `|Δθ|`. A rigid placement maps the sketch
 /// plane's rotation about `centre` by the signed sweep onto the 3-space
 /// rotation about that axis by `|Δθ|`, so the carrier at
@@ -654,6 +727,13 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// `start` lies on the carrier, so it holds for every carrier, a copied
 /// or table one included. Where the placement is not rigid, the door's
 /// own witness refuses typed, as at [`register_rigidity`].
+///
+/// `radial` is `place` everywhere but one site: a full revolve's sphere
+/// meridian whose start is pinned on the axis takes its `u_ref` from the
+/// unturned placement (`revolve::full`). That radial lies along the
+/// axis, which the half turn fixes, so the two placings carry it to the
+/// same direction over the reals and the identity registered here,
+/// against `place`, holds there too.
 ///
 /// **What it chains through.** The construction registers the sketch
 /// carrier end against the arc's far vertex (`Arc2::register_endpoints`),
@@ -742,10 +822,10 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
         // to `place(b)` as a form
         // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
         SegmentKind::Line => {
-            let (dir, span) = (seg.b() - seg.a()).direction_and_length();
+            let (dir, span) = sketch_chord(seg);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::line(q_from, place.direction(dir)),
+                carrier: Curve3::line(q_from, place.direction(dir).get()),
                 param_start: T::zero(),
                 param_end: span,
             }
@@ -762,7 +842,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                 c_world,
                 turn_axis(turn, normal),
                 arc.radius,
-                radial.direction(sketch_direction(seg)),
+                radial.direction(sketch_direction(seg)).get(),
             );
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
@@ -813,14 +893,15 @@ pub(crate) fn cap_plane<T: Real>(
 ) -> Surface<T> {
     let station = station.into();
     let normal = station.normal();
+    let normal = if reversed == (end == CapEnd::Start) {
+        normal
+    } else {
+        normal.reversed()
+    };
     Surface::Plane {
         origin: station.origin(),
-        normal: if reversed == (end == CapEnd::Start) {
-            normal
-        } else {
-            -normal
-        },
-        u_ref: station.first_axis(),
+        normal: normal.get(),
+        u_ref: station.first_axis().get(),
     }
 }
 

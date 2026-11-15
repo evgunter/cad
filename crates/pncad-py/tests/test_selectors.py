@@ -51,14 +51,8 @@ def unit_cube(doc):
 
 
 def floor_of(ev, cube):
-    """The cube's floor: the face whose carrier is the horizontal plane at
-    height 0 (a wall's frame can sit at that height too)."""
-    (floor,) = [
-        f
-        for f in ev.all_faces(cube)
-        for frame in [ev.face_frame(cube, f)]
-        if abs(frame.axis[2]) == 1.0 and frame.origin[2].meters == 0.0
-    ]
+    """The cube's floor: the face whose carrier sits at height 0."""
+    (floor,) = [f for f in ev.all_faces(cube) if ev.face_frame(cube, f).origin[2].meters == 0.0]
     return floor
 
 

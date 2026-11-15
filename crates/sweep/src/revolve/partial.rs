@@ -6,7 +6,7 @@
 //! for the ratified case split.
 //!
 //! Phase order (fixed, D9): start lamina (outer chain + closing `mef`
-//! carrying the start cap's Newell plane), holes (bridge `mev` +
+//! carrying the start cap's plane, the sketch frame), holes (bridge `mev` +
 //! `kemr` + chain + closing `mef` + same-shell `kfmrh` — extrude's
 //! shape), per-loop sweep (struts at off-axis vertices, one wall per
 //! off-axis segment, latitude-join classification), end cap plane, then
@@ -333,8 +333,8 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             start_meridians: start_mer,
             end_meridians: end_mer,
             coplanar_caps,
+            joints: [frame.world(joint), far.point(joint)],
         },
-        joints: Some([frame.world(joint), far.point(joint)]),
         scalar: core::marker::PhantomData,
     })
 }
@@ -585,9 +585,18 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     Ok(LoopSwept { faces, rims, tops })
 }
 
-/// The sketch centre of a section: a circle's centre, else the mean of
-/// its vertices and arc apexes.
-fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
+/// The sketch centre a partial revolve reports for its outer section
+/// ([`super::revolved_caps`]): a one-segment circle's own centre, else
+/// the **unweighted mean of the collapsed runs' start vertices and arc
+/// apexes**, the value the cap's fitted origin used to read.
+///
+/// That mean is not intrinsic to the section: it depends on where the
+/// loop is cut. A circle authored as two unequal arcs reports the mean
+/// of its two cut points and two apexes, not its centre, and a polygon
+/// with one edge split in two moves it. Only a one-segment circle is
+/// read for what it is
+/// (`work/lathe/a-partial-revolves-joint-centre-is-contingent-on-the-loops-cuts.md`).
+pub(super) fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
     if let [seg] = segs
         && let SegmentKind::Arc { arc, .. } = seg.kind.get()
     {

@@ -247,10 +247,7 @@ pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> 
     /// a vertex is `crates/editor-core/src/names/README.md`'s.
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
-    pub kind: RevolvedKind,
-    /// A partial revolve's joint centres, start then end: its outer
-    /// section's centre at each station ([`revolved_caps`]).
-    pub(crate) joints: Option<[Point3<T>; 2]>,
+    pub kind: RevolvedKind<T>,
     /// The scalar the body is at.
     pub(crate) scalar: core::marker::PhantomData<fn() -> T>,
 }
@@ -268,7 +265,6 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             rims,
             poles,
             kind,
-            joints,
             scalar,
         } = self;
         Ok(Revolved {
@@ -280,7 +276,6 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             rims,
             poles,
             kind,
-            joints,
             scalar,
         })
     }
@@ -383,7 +378,7 @@ pub(super) fn bands_of(walls: &[Option<FaceKey>], runs: &[Vec<usize>]) -> Vec<Ba
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
 /// the module docs).
 #[derive(Debug)]
-pub enum RevolvedKind {
+pub enum RevolvedKind<T: Real> {
     /// θ < 2π: wedge caps plus both meridian chains.
     Partial {
         /// The start cap — on the sketch plane; carries the profile's
@@ -403,6 +398,10 @@ pub enum RevolvedKind {
         /// surface record (`topo::Body::one_record_across`). `None`
         /// where they are two.
         coplanar_caps: Option<topo::Coincidence>,
+        /// The joint centres, start then end: the outer section's centre
+        /// ([`partial::section_centre`]) carried to each station, which
+        /// [`revolved_caps`] reports as each cap's frame origin.
+        joints: [Point3<T>; 2],
     },
     /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
     /// one full-period band: `walls`/`rims` carry the complete
@@ -524,14 +523,14 @@ pub fn revolved_caps<T: topo::AtRestPolicy, B: core::ops::Deref<Target = Body<T>
     r: &Revolved<T, B>,
 ) -> Result<WedgeFrames<T>, WedgeCapsError> {
     let RevolvedKind::Partial {
-        start_cap, end_cap, ..
+        start_cap,
+        end_cap,
+        joints: [start, end],
+        ..
     } = r.kind
     else {
         return Err(WedgeCapsError::NoCaps);
     };
-    let [start, end] = r.joints.unwrap_or_else(|| {
-        unreachable!("a partial revolve records its joint centres where it mints its caps")
-    });
     let at = |face, origin| -> Result<Pose<T>, WedgeCapsError> {
         Ok(Pose {
             origin,
@@ -744,7 +743,8 @@ pub enum RevolveError {
     /// whose material pairings or ends differ name a material verdict no
     /// station established.
     ///
-    /// Defense-in-depth (the `CapPlane` posture): the join's circle is
+    /// Defense-in-depth (a typed error for a state no validated profile
+    /// reaches, rather than a panic): the join's circle is
     /// carried by a symmetry flow of both surfaces, so every station
     /// reads alike. Reaching this means the inputs carried something a
     /// validated profile cannot, and it is surfaced rather than stored
@@ -756,8 +756,9 @@ pub enum RevolveError {
         mixed: geom_brep::MixedStations,
     },
     /// A station INSIDE a run of walls (two segments one carrier
-    /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
-    /// posture: a wall through an on-axis station carries on past the
+    /// holds) sits pinned on the axis (defense-in-depth, a typed error
+    /// for a state no validated profile reaches: a wall through an
+    /// on-axis station carries on past the
     /// axis, which the half-plane checks refuse first for every
     /// validated profile).
     PinnedRunStation {
@@ -1131,7 +1132,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
 /// angle, half-plane violations, sliver radii, an arc end on the axis
 /// at no apex of its sheet, non-manifold axis contact, sliver
-/// dihedrals, Newell failures, and every operator/certification
+/// dihedrals, and every operator/certification
 /// refusal.
 ///
 /// # Panics
