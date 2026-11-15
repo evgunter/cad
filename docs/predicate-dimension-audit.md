@@ -1878,27 +1878,35 @@ Flagged, NOT fixed here (dispositions):
   `segment_direction_axis` and `segment_direction_sign`.
   **The first:** each component of the vector a validated segment's
   direction is minted from (a line's chord, an arc's centre-to-vertex),
-  read once at the least band whatever it answers. The axis is minted
-  only where one component's `Zero` is PROVEN (the margin's proof bit,
-  or, inside a deferring session, which proves nothing as it decides,
-  `sym::deferred::discharge` of that margin) and the other's sign is
-  definite, signed by it as a literal ±1; every other answer is dropped
-  and the quotient minted. So the branch depends on the DAG alone, the
-  same at every valuation of one document: a component zero only because
-  two different parameters agree at the point evaluated takes the
-  quotient (before this, it read `Zero` off the value channel and minted
-  the axis, a constant where the computation is a function of the
-  parameters, and the five `revalue_corpus` rows went red on the
-  nightly after PR 6963). At `f64` and plain `Interval` nothing is
-  proven, so the quotient, which at `f64` is the axis bit for bit. The
-  readings run inside `sym::aside`: kept where the axis is minted (a
-  proven zero, which cannot flip, and the other component's sign),
-  discarded otherwise, so the shape report and the re-valuation
-  recorder hold none the mint did not use; the session's receipt still
-  counts them (two per minted direction), and a discarded `Zero` inside
-  a deferring session leaves its entry on the list, which no reader is
-  obliged to discharge. The compound form runs inside
-  `k_stats::unlogged("F43", ..)`.
+  read once at the least band. The axis is minted only where one
+  component reads a Zero the tier proved (`sym::deferred::discharge` of
+  its margin: the proof bit of an eager decision, the tier run for that
+  Zero in a deferring session) and the other's sign is definite; every
+  other answer is dropped and the quotient minted. **What holds in
+  every lane:** an axis only where the tier proved the zero, so no
+  constant where the computation varies with the parameters (before
+  this, a value coincidence minted one, and the five `revalue_corpus`
+  rows went red on the nightly after PR 6963). **What does not:** one
+  branch at every valuation, because the tier is asked only where the
+  value channel reads Zero. Lane by lane, as measured:
+  - eager `Sym<Interval>`: an identity mints its axis over a box or a
+    point (the escalation is handed to the tier, which proves it);
+  - `Sym<f64>`, eager or deferring (the coincidence door's replay): only
+    where the value channel reads exactly zero, so an identity whose
+    `f64` value rounds (`((x + w) − w) − x` at `(0.1, 0.3)`) takes the
+    quotient where another valuation takes the axis;
+  - deferring `Sym<Interval>`: only at point boxes, since over a box the
+    identity straddles zero, escalates, and the session returns the
+    escalation unasked (latent: the one production deferring session is
+    `Sym<f64>`);
+  - `f64` and plain `Interval`: nothing is proven, so the quotient.
+  The residual: `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
+  The readings run inside `sym::aside` (kept where the axis is minted,
+  discarded otherwise) and `k_stats::unlogged("F43", ..)`; the session's
+  receipt still counts a discarded one, and a discarded `Zero` inside a
+  deferring session leaves its entry on the list, which no reader is
+  obliged to discharge. Asking for proof only by a counted sign reading
+  is `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
   **The second:** a bulge's sign, read once per bulge leg into the
   literal ±1 that signs its lowering's radials (`k_stats::choose(..,
   "F43")`); a tie leaves them to validation's mint, which then reads
@@ -1908,10 +1916,8 @@ Flagged, NOT fixed here (dispositions):
   that straddles escalates `segment_straightness` before the leg is
   lowered.
   **Both outcomes of each are the direction**, and neither is ever a
-  refusal. That a construction can ask whether a value is an identity
-  only by taking a counted sign reading is
-  `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
-  Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not move.
+  refusal. Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not
+  move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

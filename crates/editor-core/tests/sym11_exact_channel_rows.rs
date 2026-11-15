@@ -63,9 +63,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// both columns, the plate +4/+4, the link +1/+1, the bracket +8/+8 and
 /// the pad +16/+16. Measured as theirs: with the mint reading nothing,
 /// every one of the four is back on the old column exactly. The
-/// annulus, two circles whose radials the verb records, reads none. The frozen column is left as stored: `r2_link` 3576 → 3575
-/// and `r2_rounded_pad` 3989 → 4000 are PR 6953's move, unaccounted, so
-/// the row reds on those two for that alone (the onehome row above).
+/// annulus, two circles whose radials the verb records, reads none.
+///
+/// The frozen column is left as stored. `r2_link` reads 3575 and
+/// `r2_rounded_pad` 4000 from PR 6953's merge on (bisected:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`).
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1019, 1054, 299]),
     ("r1_annulus", [535, 553, 278]),
