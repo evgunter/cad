@@ -208,6 +208,19 @@ pub struct LiftedRow<T: Real> {
 }
 
 impl<T: Real> LiftedRow<T> {
+    /// A row a suite states: `pcurve` over `(t0, t1)`, unmoved, traversed
+    /// forward where `plus`, on no half-edge of any body.
+    #[cfg(test)]
+    pub(crate) fn stated_for_tests(pcurve: Pcurve<T>, (t0, t1): (T, T), plus: bool) -> Self {
+        Self {
+            half_edge: HalfEdgeKey::default(),
+            lift: Deck::IDENTITY,
+            pcurve,
+            params: geom_brep::StoredSpan::for_tests(t0, t1),
+            plus,
+        }
+    }
+
     /// The carrier parameters the chain enters and leaves the image at.
     #[must_use]
     pub fn entry_exit(&self) -> (T, T) {

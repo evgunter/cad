@@ -2316,8 +2316,6 @@ mod tests {
     #[allow(clippy::float_cmp, clippy::unwrap_used, clippy::panic)]
     mod trim_rectangle_rows {
         use super::super::{TrimRectangle, joint_defect, trim_rectangle};
-        use crate::entity::HalfEdgeKey;
-        use crate::joint::Deck;
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
         use geom_brep::{Pcurve, StoredSpan};
@@ -2325,17 +2323,12 @@ mod tests {
 
         /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
         fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
-            LiftedRow {
-                half_edge: HalfEdgeKey::default(),
-                lift: Deck::IDENTITY,
-                pcurve: Pcurve::IsoLine {
-                    p0: Point2::new(p0.0, p0.1),
-                    pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
-                    ends: None,
-                },
-                params: StoredSpan::for_tests(T::zero(), T::one()),
-                plus: true,
-            }
+            let pcurve = Pcurve::IsoLine {
+                p0: Point2::new(p0.0, p0.1),
+                pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
+                ends: None,
+            };
+            LiftedRow::stated_for_tests(pcurve, (T::zero(), T::one()), true)
         }
 
         /// The piece from `a` to `b`, along one chart line.
