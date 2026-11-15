@@ -2,10 +2,12 @@
 id: the-pierce-reads-a-struts-facing-the-stars-site-already-names
 kind: issue
 title: vtxfac's piercing runs read a strut's facing geometrically (strut_faces_first) where the star's site names it topologically
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
+closed: 2026-11-15
+branch: onehome/pierce-strut-facing
 ---
 
 Found by `run-loops-of-split-and-pierce-are-twins` stage 1 (`onehome/star-sites`).
@@ -25,3 +27,22 @@ They agree by construction too. A strut's two germs lie in different entries of 
 ## Owed
 
 Decide whether the pierce drops its geometric read and the check, and takes the star's tip alone. The one verdict that would move is `strut_faces_first`'s `ClosedEdge` refusal (`CurvedBooleanUnsupported` at a closed edge's lone vertex with a germ along it). No row reaches that pose, and the topological tip would build there. That needs a row reaching it, with an oracle independent of both readings, before the refusal goes. The vertex–vertex planner's struts are different: their germs can share one entry, where only the geometric read can order them. They keep `strut_faces_first`.
+
+## Closed (2026-11-15)
+
+The pierce takes the star's tip alone. `vtxfac`'s run loop no longer calls
+`strut_faces_first`, and the `ClassificationInvariant` that held the two
+readings in step is gone with it. The strut is minted by `site.tip()`, which
+`facing_at` already carried.
+
+The one verdict the row named stays. A closed edge's lone vertex with a germ
+along it still refuses `CurvedBooleanUnsupported`, now asked structurally by
+`insert::strut_at_closed_edge`, which reads `strut_facing`'s own closed-edge
+rule. No row reaches that pose: a probe with a full-revolve cylinder whose rim
+circle lies exactly on a ball, under all three ops in both orders, read no
+pierce strut at all. So no answer there is checked yet, and the refusal waits
+for a row that reaches it with an oracle independent of the tip, as this row
+asked.
+
+The vertex–vertex planner keeps `strut_faces_first`. `Cut::apart`, which only
+the pierce's read built, is now test-only.

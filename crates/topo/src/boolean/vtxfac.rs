@@ -1378,40 +1378,28 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 format!("the run {run:?}")
             })
         });
-        // The star names a strut's facing by the orbit; the Boolean's one
-        // facing rule ([`super::insert::strut_faces_first`]) reads it by
-        // the corner's geometry, and the two must agree.
+        // The star names the strut's facing by the orbit (`site.tip()`),
+        // and the pierce mints by it alone (`facing_at` below). The one
+        // pose the edges cannot name a half at is a closed edge's lone
+        // vertex with a germ along it (`insert::strut_at_closed_edge`). No
+        // row reaches it (a section along a closed piercing edge puts the
+        // whole edge on the pierced face), so no answer there is checked:
+        // refused. An answer needs a row that reaches it, with an oracle
+        // independent of the tip.
         let strut = site.and_then(|site| strut_at(piercing_body, site));
-        if let (Some(site), Some((corner, arrival))) = (site, strut) {
+        if let (Some(_), Some((corner, arrival))) = (site, strut) {
             let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
-            // A pierce's germs lie in the pierced face, through no
-            // edge of the pierced solid: their cuts run beside none.
-            let germ =
-                |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
-            let facing = super::insert::strut_faces_first(
+            if super::insert::strut_at_closed_edge(
                 (orbit_body, vertex),
-                (piercing, &sectors),
+                piercing,
                 (arrival, corner_half.edge),
-                germ((run.start + n - 1) % n, start_germ),
-                germ((run.start + run.len - 1) % n, end_germ),
-                band,
-            )?;
-            // At a closed edge's lone vertex with a germ along it the
-            // edge names no half. No row reaches the pose (a section
-            // along a closed piercing edge puts the whole edge on the
-            // pierced face), so no answer here is checked: refused.
-            // An answer needs a row that reaches it, with an oracle
-            // independent of the facing rule.
-            let facing = facing.ok_or(BooleanError::CurvedBooleanUnsupported {
-                operand: pierced_op,
-                face: contact.face,
-                kind: pierced_kind,
-            })?;
-            if crate::star::TipSide::facing(facing) != site.tip() {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a pierce strut's facing read by the corner's geometry \
-                               (strut_faces_first) contradicts the one its site names by the \
-                               orbit (star::arc_site)",
+                start_germ.0,
+                end_germ.0,
+            ) {
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand: pierced_op,
+                    face: contact.face,
+                    kind: pierced_kind,
                 });
             }
         }
@@ -1427,8 +1415,9 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     Ok(read_pierce)
 }
 
-/// A strut site's corner and the edge arriving at it, which a strut's
-/// facing is read at ([`super::insert::strut_faces_first`]).
+/// A strut site's corner and the edge arriving at it, where the pierce
+/// asks whether its corner is a closed edge's lone vertex
+/// ([`super::insert::strut_at_closed_edge`]).
 fn strut_at<T: geom_core::Real>(
     body: &Body<T>,
     site: crate::star::Site,
