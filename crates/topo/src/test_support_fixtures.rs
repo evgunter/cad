@@ -1776,6 +1776,126 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body.get_face_mut(face).expect("the face").sense = sense;
 }
 
+/// **A solid cylinder whose wall has no ruling in its boundary**: radius
+/// `radius` about `+z` from the origin, between `z = 0` and
+/// `z = height`, its wall one face bounded by the bottom circle (its
+/// outer loop) and the top circle (a ring), each one closed edge at its
+/// one vertex `(radius, 0, z)`. Three faces, two edges, two vertices.
+/// Authored at `f64` and lifted, as [`CylFrame`]'s sheets are.
+///
+/// The seed face is the bottom cap; `mef` at its lone vertex along the
+/// bottom circle mints the wall; a strut up the wall killed by `kemr`
+/// leaves the top vertex as a ring of the wall, and `mef` there along
+/// the top circle mints the top cap. Each circle runs about `−z`, so
+/// each face lies to the left of its loops under its outward normal.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn seamless_drum<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    radius: f64,
+    height: f64,
+    tol: Tol,
+) -> Body<T> {
+    let c = T::from_f64;
+    let at = |x: f64, z: f64| Point3::new(c(x), c(0.0), c(z));
+    let (x, z) = (Vec3::unit_x().map(c), Vec3::unit_z().map(c));
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(at(radius, 0.0), true).unwrap();
+    let cap = |body: &mut Body<T>, h: f64| {
+        body.add_surface(Surface::Plane {
+            origin: at(0.0, h),
+            normal: z,
+            u_ref: x,
+        })
+    };
+    let circle = |wall, plane, h: f64| EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(wall, plane),
+            selector: geom_brep::CurveSelector::Witness(at(-radius, h)),
+        },
+        carrier: Curve3::circle(at(0.0, h), -z, c(radius), x),
+        param_start: c(0.0),
+        param_end: c(core::f64::consts::TAU),
+    };
+    let shared = |key, sense| FaceSurface::Shared { key, sense };
+    // Each surface is added just before the op that gives it a face.
+    let bottom = cap(&mut body, 0.0);
+    body.set_face_surface(seed.face, shared(bottom, false))
+        .unwrap();
+    let wall = body.add_surface(Surface::Cylinder {
+        origin: at(0.0, 0.0),
+        axis: z,
+        radius: c(radius),
+        u_ref: x,
+    });
+    let rim = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            circle(wall, bottom, 0.0),
+            shared(wall, true),
+            tol,
+        )
+        .unwrap();
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: rim.he_minus,
+                he2: rim.he_minus,
+            },
+            at(radius, height),
+            tol,
+        )
+        .unwrap();
+    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let top = cap(&mut body, height);
+    body.mef(
+        MefSite::Lone { r#loop: kill.ring },
+        circle(wall, top, height),
+        shared(top, true),
+        tol,
+    )
+    .unwrap();
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+/// Which arena a scalar [`restate_geometry`] hands its map is stored in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stored {
+    /// A vertex point's coordinate.
+    Point,
+    /// A datum of an edge's carrier.
+    Curve,
+    /// A datum of a face's surface.
+    Surface,
+}
+
+/// **`body` with every stored scalar of its points, carriers and
+/// surfaces restated through `map`**, its topology, parameters and
+/// records kept: the fixture of a row that wants a built body's
+/// geometry written in other terms (a radius as a boxed parameter) or
+/// written wrong (a rim of another radius than its wall), which no door
+/// builds. Nothing is checked and no pcurve is minted again, so the
+/// result is a body for the readers that take stored geometry as it
+/// stands.
+#[cfg(feature = "test-support")]
+pub fn restate_geometry<T: Real>(body: &mut Body<T>, map: impl Fn(Stored, T) -> T) {
+    for (_, point) in &mut body.points {
+        *point = point.map(|x| map(Stored::Point, x));
+    }
+    for (_, curve) in &mut body.curves {
+        if let crate::CurveGeom::Certified(edge) = curve {
+            edge.restate_carrier(|x| map(Stored::Curve, x));
+        }
+    }
+    for (_, surface) in &mut body.surfaces {
+        *surface = surface.map_scalar(|x| map(Stored::Surface, x));
+    }
+}
+
 /// The first half-edge of `lk`'s cycle; `None` for a lone vertex.
 fn cycle_first<T: Real>(body: &Body<T>, lk: crate::LoopKey) -> Option<crate::HalfEdgeKey> {
     match body.get_loop(lk).expect("the loop").boundary {

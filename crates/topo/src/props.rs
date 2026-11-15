@@ -1611,7 +1611,9 @@ fn closed_form_or_carried<T: Decide>(
 ///   ([`quad_lane::polygon_face_about`]), which encloses the same value;
 /// - **otherwise** the divergence sum about `c` of the faces as stored:
 ///   each closed-form face's flux about `c` from its surface and loops
-///   lifted exactly and moved by `−c` (a plane as its distance from `c`
+///   lifted exactly and moved by `−c`, or, for a curved face at a scalar
+///   whose own sums are enclosures, the flux the walk read
+///   ([`walked_closed_form`]) (a plane as its distance from `c`
 ///   along its stored normal times its loops' signed area, widened by the
 ///   loops' tilt off the plane, so the term encloses the loops' own flux:
 ///   `quad_lane::planar_face_about`), and each quadrature face measured
@@ -1635,7 +1637,7 @@ fn closed_form_or_carried<T: Decide>(
 /// The property layer's refusal of a face whose closed form does not
 /// hold at the interval scalar — the face's geometry read with no
 /// rounding to hide behind, which can leave a classification open that
-/// the walk's scalar decided.
+/// a walk's scalar that rounds decided.
 fn rederive<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -1724,20 +1726,24 @@ fn rederive_faces<T: Decide>(
                     Err(_) => enclosure,
                 }
             }
-            None => {
-                let (c, moved) = closed_form_or_carried(
-                    lane.closed_form,
-                    surface,
-                    &loops,
-                    &held,
-                    face.sense(),
-                    band,
-                    from,
-                )
-                .map_err(refused)?;
-                recentred &= moved;
-                (c.flux + carry, c.area)
-            }
+            None => match walked_closed_form(lane, surface, &run.contribution) {
+                // The walk's own read, about `from`, its carry in it.
+                Some(read) => read,
+                None => {
+                    let (c, moved) = closed_form_or_carried(
+                        lane.closed_form,
+                        surface,
+                        &loops,
+                        &held,
+                        face.sense(),
+                        band,
+                        from,
+                    )
+                    .map_err(refused)?;
+                    recentred &= moved;
+                    (c.flux + carry, c.area)
+                }
+            },
         };
         flux = flux + f;
         area = area + a;
@@ -1748,6 +1754,36 @@ fn rederive_faces<T: Decide>(
         recentred,
         quadrature,
     })
+}
+
+/// **A curved closed-form face's flux and area as the walk read them,
+/// as intervals**, at a scalar whose value channel is a certified
+/// enclosure ([`geom_core::Witness::Exact`]): the run's sums lifted,
+/// each widened by its pad (a carried region's carry, held as a
+/// midpoint and a half-width). The walk's closed form there is interval
+/// arithmetic on decisions that hold at every member of the box, so its
+/// sums enclose every member's, and its premises are decided once, at
+/// the scalar the body lives at: the closed form run again over the
+/// lifted geometry would ask each of them of the value channel alone,
+/// where an identity the scalar proves is a width.
+///
+/// `None` at a scalar that rounds, whose closed form is run again at the
+/// interval scalar ([`closed_form_or_carried`]), and for a plane, which
+/// the re-derivation reads by another formula
+/// (`quad_lane::planar_face_about`).
+fn walked_closed_form<T: Decide>(
+    lane: QuadLane<T>,
+    surface: &Surface<T>,
+    walked: &FaceFlux<T>,
+) -> Option<(Interval, Interval)> {
+    if T::WITNESS != geom_core::Witness::Exact || matches!(surface, Surface::Plane { .. }) {
+        return None;
+    }
+    let padded = |sum: T, pad: f64| lane.lift(sum) + Interval::from_bounds(-pad, pad);
+    Some((
+        padded(walked.flux, walked.flux_pad),
+        padded(walked.area, walked.area_pad),
+    ))
 }
 
 /// A face's loops as their vertex points, in traversal order, the outer
@@ -3621,6 +3657,46 @@ pub fn every_door(
     Ok(out)
 }
 
+/// **Check 7's volume reading of `body`, finished or not**: the role walk
+/// over every face through the certified lane under check 7's names, as
+/// the at-rest gate makes it, and the interval re-derivation it leaves
+/// (`(lo, hi)`). The role is `None` where the walk ends with the sign
+/// unread. Test vocabulary: the rows that read the volume of a body no
+/// door finishes.
+///
+/// # Errors
+///
+/// The walk's refusal of a face, at round 0 or in the re-derivation.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn volume_role_reading<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(Option<ShellRole>, (f64, f64)), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let lane = QuadLane::certified();
+    let (role, certificate) = role_walk(
+        body,
+        &faces,
+        band,
+        tol,
+        Some(lane),
+        Some(lane),
+        crate::validate::PLUS_V_SIGN,
+    )?;
+    let role = match role {
+        Ok(role) => Some(role),
+        Err(RoleWalkRefusal::Refused(source)) => return Err(source),
+        Err(RoleWalkRefusal::Poisoned(_) | RoleWalkRefusal::Unread { .. }) => None,
+    };
+    let exact = rederive(body, band, tol, lane, &certificate.runs, true)?.volume;
+    Ok((
+        role,
+        (geom_core::Bounds::lo(exact), geom_core::Bounds::hi(exact)),
+    ))
+}
+
 /// One door [`every_door`] entered: its name, what it answered, and every
 /// face read it made ([`read_points::recorded`]). Test vocabulary.
 #[cfg(any(test, feature = "test-support"))]
@@ -3903,7 +3979,7 @@ struct FaceFlux<T> {
     /// The quadrature's flux and area enclosures as the lane returned
     /// them, before [`quad_lane::mid_pad`] rounded them to a midpoint
     /// and a half-width; `None` for a closed-form face, whose
-    /// enclosure [`rederive`] re-derives.
+    /// enclosure [`rederive`] reads.
     enclosure: Option<(Interval, Interval)>,
 }
 
@@ -4087,8 +4163,9 @@ fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
 /// **A face's closed form**, at whatever scalar its geometry is read
 /// at, over every loop: a plane, a cylinder, a torus, a cone, and a
 /// sphere (which also reads its sense). The face walk runs it
-/// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
-/// interval scalar over the same geometry lifted.
+/// at the walk's scalar, and at a scalar that rounds [`QuadLane`]'s
+/// `closed_form` runs it again at the interval scalar over the same
+/// geometry lifted ([`walked_closed_form`] says which scalar).
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
@@ -6382,7 +6459,9 @@ pub struct QuadLane<T: Decide> {
     /// `quad_lane::closed_form` (`wiring_rows` pins the pointer). The
     /// closed forms run at the walk's scalar, where an `f64` sum rounds
     /// with no pad to say so; this is the enclosure a decision about a
-    /// rounding-scale sign reads instead ([`rederive`]).
+    /// rounding-scale sign reads instead ([`rederive`]), of every plane
+    /// and of every curved face the walk read at a scalar that rounds
+    /// ([`walked_closed_form`]).
     closed_form: ClosedFormAt<T>,
     /// A value of the walk's scalar as the interval holding it —
     /// `Interval::from_certified` (`wiring_rows` pins the pointer).

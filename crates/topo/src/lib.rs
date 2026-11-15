@@ -417,9 +417,12 @@ pub mod test_support {
         DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
         face_reading_structural, fold_order_bound, mass_properties_one_point,
         mass_properties_with_face_terms, measure_with_unmet_width, quadrature_rounds, read_points,
-        region_carries_of, shell_references,
+        region_carries_of, shell_references, volume_role_reading,
     };
     pub use crate::star::with_ring_root;
+    #[cfg(feature = "test-support")]
+    pub use crate::test_support_fixtures::restate_geometry;
+    pub use crate::test_support_fixtures::{Stored, seamless_drum};
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
         RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
