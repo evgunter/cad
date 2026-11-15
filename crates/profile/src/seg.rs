@@ -802,7 +802,12 @@ fn check_direction<T: Decide>(
 /// `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
 fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
     let (read, aside) = geom_core::sym::aside(|| {
-        geom_core::k_stats::unlogged("F43", || [read_component(w.x), read_component(w.y)])
+        geom_core::k_stats::unlogged("F43", || {
+            [
+                read_component(w.x, Band::least()),
+                read_component(w.y, Band::least()),
+            ]
+        })
     });
     let axis = match read {
         [Component::ProvenZero, Component::Signed(s)] => Some(Vec2::new(T::zero(), s)),
@@ -833,13 +838,14 @@ enum Component<T> {
     Escalated,
 }
 
-/// `c` read at the least band (`segment_direction_axis`). A Zero is
+/// `c` read against `band` (`segment_direction_axis`), the least band
+/// [`axis_or`] passes it. A Zero is
 /// proven where [`geom_core::sym::deferred::discharge`] says so: it
 /// answers a margin the tier proved as it decided, and inside a
 /// deferring session, which proves nothing as it decides, it runs the
 /// tier for that one Zero.
-fn read_component<T: Decide>(c: T) -> Component<T> {
-    match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), Band::least()) {
+fn read_component<T: Decide>(c: T, band: Band) -> Component<T> {
+    match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), band) {
         Err(_) => Component::Escalated,
         Ok(d) => match d.sign {
             Sign::Positive => Component::Signed(T::one()),
