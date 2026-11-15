@@ -4,6 +4,7 @@ crates/bvh/tests/proximity.rs	test	1	oracle
 crates/bvh/tests/proximity_r2.rs	test	1	oracle
 crates/bvh/tests/ray_r2.rs	test	2	oracle
 crates/editor-core/src/mate/value.rs	prod	1	pose
+crates/editor-core/src/mate/value.rs	test	2	oracle
 crates/editor-core/src/placement.rs	test	1	oracle
 crates/editor-core/src/range.rs	test	5	oracle
 crates/editor-core/src/resolve/pick.rs	prod	6	re-pose

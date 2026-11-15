@@ -5327,6 +5327,14 @@ impl<T: Real> Real for Sym<T> {
         self.value.is_bounded()
     }
 
+    /// Its numeric channel's every channel: at `Sym<Dual<_>>` the dual's
+    /// derivative too. The symbolic scalar's own exact zero
+    /// ([`crate::real::is_exact_zero`]) reads its poison off that channel
+    /// alone, so the channel's answer already holds it.
+    fn is_exact_zero_in_every_channel(self) -> bool {
+        self.value.is_exact_zero_in_every_channel()
+    }
+
     /// **The one scalar that RECORDS** rather than only witnessing —
     /// the door itself ([`Sym::register_equal`], which carries the
     /// whole of the contract).

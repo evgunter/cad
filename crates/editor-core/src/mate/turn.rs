@@ -1,36 +1,70 @@
-//! **The least turn's pole, and a direction across one**: what the value
-//! chart ([`super::value`]) and the viewer's snap both read beside the
-//! least turn, whose arithmetic is geom-core's ([`LeastTurn`], its one
-//! home), so the turn a gesture writes and the turn the chart reads it
-//! back by are the same arithmetic.
+//! **A turn onto a direction, and a direction across one**: what the
+//! viewer's snap reads beside the value chart ([`super::value`]), whose
+//! least turn, and this one, are geom-core's one decided mint
+//! ([`RigidMotion::least_turn`]). Outside the mint's band the turn a
+//! gesture writes and the turn the chart reads it back by are the same
+//! arithmetic. Inside it the chart refuses and the snap does not: it
+//! turns by a half turn and then a second least turn ([`turn_onto`]),
+//! an arithmetic of its own.
 
-use geom_core::linalg::{Mat3, Vec3};
+use geom_core::linalg::{Mat3, Point3, Vec3};
+use geom_core::{Band, Lever, RigidMotion, Tol, UnitVec3};
 
 use super::{SlideAxes, SolveScalar, TargetAxis};
 
-pub use geom_core::LeastTurn;
-
-/// **Whether `turn` is at its pole**, `from` against `to`, where it has
-/// no answer: its `1 + c` not above zero, quoted. A reader's own verdict
-/// about the band (the chart's, `Backwards`) is its own. The turn itself
-/// is geom-core's ([`LeastTurn`]), its one home.
-#[must_use]
-pub fn at_pole<T: SolveScalar>(turn: &LeastTurn<T>) -> bool {
-    turn.one_plus_c().quoted() <= 0.0
-}
+/// The decision name of the snap's least turn ([`turn_onto`]).
+pub const SNAP_TURN: &str = "mate_snap_turn";
 
 /// **A turn carrying the unit `from` onto the unit `to`**: the least
-/// turn ([`LeastTurn`]), or at its pole a half turn about a direction
-/// across `from` ([`across`]), so a direction standing backwards still
-/// turns onto `to`.
+/// turn ([`RigidMotion::least_turn`], over the session box's lever: a
+/// gesture has no extent in hand), or where that refuses, in the band
+/// about its pole, the half turn `H` about a direction across `from`
+/// ([`across`]) followed by the least turn carrying `H·from = −from` onto
+/// `to`. That second turn is near the identity (its chord is near 2), so
+/// it is far from its own pole and well conditioned, and the composition
+/// carries `from` onto `to` within a few ulps at every tilt in the band.
+/// Its roll about `to` is `across(from)`'s carried by the second turn,
+/// which moves it by up to the tilt from backwards. So a direction
+/// standing backwards, or nearly, still seats on `to`.
+///
+/// The roll is not continuous across the band's edge: just outside it
+/// the least turn rolls the copy by a half turn about `to` from where the
+/// fallback rolls it just inside. The edge is set by the session box's
+/// lever, about 4e-4 rad from backwards at the default ε and about
+/// 0.40 rad at ε 1e-12, where a drag can cross it
+/// (`work/onehome/the-snaps-roll-jumps-by-a-half-turn-at-its-band-edge.md`).
+///
+/// `None` where `from` or `to` is not a direction the band can mint, or
+/// where the second least turn refuses too: no turn is written then,
+/// rather than the half turn alone, which leaves `from` off `to` by the
+/// tilt.
 #[must_use]
-pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>) -> Mat3<f64> {
-    let turn = LeastTurn::between(from, to);
-    if !at_pole(&turn) {
-        return turn.matrix();
+pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band, tol: Tol) -> Option<Mat3<f64>> {
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, SNAP_TURN, band).ok();
+    let least = |a: Vec3<f64>, b: Vec3<f64>| {
+        unit(a).zip(unit(b)).and_then(|(f, t)| {
+            RigidMotion::least_turn(
+                f,
+                t,
+                Point3::origin(),
+                Lever::session_box(),
+                SNAP_TURN,
+                band,
+                tol,
+            )
+            .ok()
+        })
+    };
+    unit(from).zip(unit(to))?;
+    if let Some(turn) = least(from, to) {
+        return Some(turn.linear());
     }
-    let a = across(from).normalize();
-    // A half turn about `a`: `2 a aᵀ − I`.
+    let half = half_turn(across(from).normalize());
+    least(half * from, to).map(|rest| rest.linear() * half)
+}
+
+/// A half turn about the unit `a`: `2 a aᵀ − I`.
+fn half_turn(a: Vec3<f64>) -> Mat3<f64> {
     let col = |e: Vec3<f64>| a * (2.0 * a.dot(e)) - e;
     Mat3::from_cols(
         col(Vec3::unit_x()),
@@ -117,4 +151,83 @@ pub fn across<T: SolveScalar>(n: Vec3<T>) -> Vec3<T> {
     let least = (0..3).fold(0, |b, i| if q[i] < q[b] { i } else { b });
     let e = axes[least];
     e - n * n.dot(e)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::{RigidMotion, turn_onto};
+    use geom_core::linalg::{Point3, Vec3};
+    use geom_core::tolerance::SESSION_BOX_EXTENT;
+    use geom_core::{Band, Lever, Tol, UnitVec3};
+
+    /// **A direction the band cannot mint writes no turn**: a vanishing
+    /// `from`, a vanishing `to` and a `from` that is not finite each give
+    /// `None`. *Breaks if* the fallback returns the half turn about
+    /// `across(from)` wherever the least turn refuses, which writes a
+    /// turn that seats nothing.
+    #[test]
+    fn a_direction_the_band_cannot_mint_writes_no_turn() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for (from, to) in [
+            (Vec3::new(0.0, 0.0, 0.0), z),
+            (z, Vec3::new(0.0, 0.0, 0.0)),
+            (Vec3::new(f64::NAN, 0.0, 1.0), z),
+        ] {
+            assert!(
+                turn_onto(from, to, band, Tol::witness()).is_none(),
+                "{from:?} onto {to:?} writes no turn"
+            );
+        }
+    }
+
+    /// **Inside the least turn's band the snap still seats**: an oblique
+    /// `to`, and `from` its opposite tilted by a fraction of the band's
+    /// edge (the chord `2·box/R` at the run's ε: about 4e-4 at ε 1e-9,
+    /// about 0.39 at ε 1e-12), where the mint refuses. `turn_onto` carries
+    /// `from` onto `to`, the landing within ε at the session box's lever,
+    /// and is a rotation. *Breaks if* the fallback is the bare half turn,
+    /// which carries `from` onto `−from`, off `to` by about the tilt.
+    #[test]
+    fn inside_the_band_the_snap_carries_from_onto_to() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let eps = Tol::witness().get().eps;
+        let edge =
+            geom_core::test_support::least_turn_band_edge(Tol::witness(), SESSION_BOX_EXTENT);
+        let norm = |v: Vec3<f64>| v * (1.0 / v.norm());
+        let to = norm(Vec3::new(0.3, -0.2, 0.9));
+        let w = norm(to.cross(Vec3::new(1.0, 2.0, 3.0)));
+        for frac in [0.5, 0.1, 1e-3] {
+            let tau = (edge * frac).min(1.0);
+            let from = -to * tau.cos() + w.cross(-to) * tau.sin();
+            let unit = |v| UnitVec3::new(v, super::SNAP_TURN, band).unwrap();
+            assert!(
+                RigidMotion::least_turn(
+                    unit(from),
+                    unit(to),
+                    Point3::origin(),
+                    Lever::session_box(),
+                    super::SNAP_TURN,
+                    band,
+                    Tol::witness(),
+                )
+                .is_err(),
+                "tilt {tau:e} is inside the band, where the mint refuses"
+            );
+            let m = turn_onto(from, to, band, Tol::witness()).expect("the snap seats");
+            let landing = (m * from - to).norm();
+            assert!(
+                landing * SESSION_BOX_EXTENT <= eps,
+                "tilt {tau:e}: |turn·from − to| = {landing:e}, past ε {eps:e} at the box's lever"
+            );
+            let g = m.transpose() * m;
+            let id = geom_core::linalg::Mat3::<f64>::identity();
+            let rigid = [g.c0 - id.c0, g.c1 - id.c1, g.c2 - id.c2]
+                .into_iter()
+                .map(Vec3::norm)
+                .fold(0.0, f64::max);
+            assert!(rigid < 1e-14, "tilt {tau:e}: not a rotation, {rigid:e}");
+        }
+    }
 }

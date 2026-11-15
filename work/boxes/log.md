@@ -669,3 +669,4 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - `edge-extent-sup-poisons-an-uncovered-span`.
 
   BOXES's implementation queue is empty apart from the filed P2/P3 follow-ups. (BOXES orchestrator)
+- 2026-11-15: The track is set back to `ready`. Its orchestrator exited without handing the track back, so it read `active` with nobody on it; 20 rows are dispatchable. (set at Ev's request)

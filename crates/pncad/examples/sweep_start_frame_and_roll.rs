@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::polygon;
-use pncad::geom_core::{Band, Point3, RigidMotion, Tol, UnitVec3, Vec3};
+use pncad::geom_core::{Band, Lever, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use pncad::profile::SketchPlane;
 
 const TURNS: f64 = 0.4;
@@ -41,7 +41,13 @@ fn main() {
     let (p, tau) = path.ders1(t0);
     let place = SketchPlane::from_frame(
         RigidMotion::axes_xy(p)
-            .turned_onto(unit(tau).expect("a tangent"), "example_start", band)
+            .turned_onto(
+                unit(tau).expect("a tangent"),
+                Lever::session_box(),
+                "example_start",
+                band,
+                tol,
+            )
             .expect("start frame"),
     );
     println!("start frame: {place:?}");
@@ -76,7 +82,13 @@ fn main() {
     println!(
         "pole tangent: {:?}",
         world
-            .turned_onto(-UnitVec3::exact_z(), "example_start", band)
+            .turned_onto(
+                -UnitVec3::exact_z(),
+                Lever::session_box(),
+                "example_start",
+                band,
+                tol
+            )
             .err()
     );
     // The recourse at the pole is to write a different frame.
@@ -87,14 +99,26 @@ fn main() {
             UnitVec3::exact_x(),
             pncad::geom_core::Turns::quarters(2)
         )
-        .turned_onto(-UnitVec3::exact_z(), "example_start", band)
+        .turned_onto(
+            -UnitVec3::exact_z(),
+            Lever::session_box(),
+            "example_start",
+            band,
+            tol
+        )
         .map(RigidMotion::linear)
     );
     // Tangents a few band-widths off +z: the roll moves with them.
     let eps = tol.eps();
     for k in [0.5, 1.0, 5.0, 10.0, 20.0] {
         let t = Vec3::new(k * eps, 0.0, 1.0);
-        let r = world.turned_onto(unit(t).expect("a tangent"), "example_start", band);
+        let r = world.turned_onto(
+            unit(t).expect("a tangent"),
+            Lever::session_box(),
+            "example_start",
+            band,
+            tol,
+        );
         println!(
             "tangent ({k}·eps, 0, 1): {}",
             match &r {

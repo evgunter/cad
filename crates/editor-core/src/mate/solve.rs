@@ -1174,10 +1174,13 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     Ok(Folded::Pinned(super::value::settle(coset, values, chart)?))
 }
 
-/// **The fold's arm**: the copy's reach in its own coordinates, plus
-/// the farthest a mate's two poses sit from their coordinates' origins
-/// — the length an angle's verdict is levered over (D4 ¶1), through
-/// the one door that admits it ([`Arm::of`]).
+/// **The fold's arm**: the copy's reach in its own coordinates and the
+/// written slides it is carried along, plus the farthest a mate's two
+/// poses sit from their coordinates' origins — the length an angle's
+/// verdict is levered over (D4 ¶1), through the one door that admits it
+/// ([`Arm::of`]). A slide runs along an axis the least turn carries, so a
+/// copy slid `L` stands up to `L` past its reach on that axis
+/// (`[placement.values]`: the band's arm, "written slides included").
 ///
 /// # Errors
 ///
@@ -1186,7 +1189,18 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
 pub(crate) fn bundle_arm<T: SolveScalar>(
     reach: f64,
     mates: &[ReadMate<T>],
+    values: &[super::value::ReadValue<T>],
 ) -> Result<Arm, Box<MateFault>> {
+    let slid = values
+        .iter()
+        .filter(|v| {
+            matches!(
+                v.coord,
+                super::Coord::Slide(_) | super::Coord::SlideAlong(_)
+            )
+        })
+        .map(|v| v.by.abs().upper())
+        .fold(0.0_f64, |sum, l| sum + l);
     let from_origin = |pose: &PoseValue<T>| {
         let o = pose_origin(pose) - geom_core::linalg::Point3::origin();
         (o.x.powi(2) + o.y.powi(2) + o.z.powi(2)).sqrt().upper()
@@ -1195,7 +1209,7 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
         .iter()
         .map(|m| from_origin(&m.on) + from_origin(&m.to))
         .fold(0.0_f64, f64::max);
-    Arm::of(reach, datum).map_err(|refusal| {
+    Arm::of(reach + slid, datum).map_err(|refusal| {
         Box::new(MateFault::Unleverable {
             mate: mates.first().map_or_else(
                 || unreachable!("an arm is formed for a bundle with a mate"),
