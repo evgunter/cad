@@ -2519,6 +2519,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
                 _ => false,
             };
+            let scalar = <S as pncad::geom_core::Real>::NAME;
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
@@ -2539,10 +2540,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                     a_kind: SurfaceKind::Torus,
                     b_face,
                     b_kind: SurfaceKind::Nurbs,
-                    why: SectionUnbuilt::Refused(
-                        pncad::geom_brep::SectionError::Unaccounted { cause }
-                    ),
-                } if lower_tube(*a_face) && ridge_wall(*b_face) && cause.contains("cell budget")
+                    why: SectionUnbuilt::Refused(why),
+                } if lower_tube(*a_face) && ridge_wall(*b_face) && match why {
+                    // Where the scalar marches, the torus × spline
+                    // section runs to its cell budget.
+                    pncad::geom_brep::SectionError::Unaccounted { cause } => {
+                        scalar == "f64" && cause.contains("cell budget")
+                    }
+                    // PINNED, not wanted: the recording scalar has no
+                    // march lane, so the K sweep reads this wall one
+                    // refusal short of the one the tour reads. It waits on
+                    // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
+                    pncad::geom_brep::SectionError::NoMarch { scalar: unmarched } => {
+                        scalar == "telemetry probe" && *unmarched == scalar
+                    }
+                    _ => false,
+                }
             )
         },
         "join the long leaf to the stem it grows from",
