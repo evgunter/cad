@@ -504,3 +504,27 @@ fn item4_circle() {
         }
     }
 }
+
+/// Item 5, the loft: its finish at `Sym<Interval>`, by phase.
+#[test]
+fn item5_loft_cost() {
+    let tol = Tol::witness();
+    for (lo, hi) in [(0.999, 1.001), (0.95, 1.05), (0.9, 1.1)] {
+        let (_, counts) = geom_core::sym::with_session(budget(), || {
+            let t = Instant::now();
+            let leaf = match loft2::<SI>(0.0, sym_box("loft_top", lo, hi), tol) {
+                Ok(leaf) => leaf,
+                Err(e) => return println!("LOFT [{lo}, {hi}] door refused {}", e.chars().take(300).collect::<String>()),
+            };
+            let door_ms = t.elapsed().as_secs_f64() * 1e3;
+            let rays = topo::test_support::aimed_rays(&*leaf, geom_core::Band::linear(tol).unwrap());
+            let mid = geom_core::sym::session_counts().unwrap();
+            let t = Instant::now();
+            let taken = topo::take::<SI>(&Arc::new(leaf), tol).map(|_| ());
+            let take_ms = t.elapsed().as_secs_f64() * 1e3;
+            let after = geom_core::sym::session_counts().unwrap();
+            println!("LOFT top [{lo}, {hi}]: door {door_ms:.1} ms, finish {take_ms:.1} ms symbolic=+{} numeric=+{} frozen={} rays={:?} -> {}", after.symbolic - mid.symbolic, after.numeric - mid.numeric, after.frozen, rays.iter().map(|r| r.chars().take(70).collect::<String>()).collect::<Vec<_>>(), match &taken { Ok(()) => "finished".to_owned(), Err(e) => format!("REFUSED {}", format!("{e:?}").chars().take(500).collect::<String>()) });
+        });
+        let _ = counts;
+    }
+}
