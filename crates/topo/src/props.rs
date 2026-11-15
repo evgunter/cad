@@ -1151,11 +1151,40 @@ impl<T: Decide> Round<'_, '_, T> {
     /// interval re-derivation under `certified` where the walk holds a
     /// lane, and off its sums under `names` where it holds none.
     pub(crate) fn certify(&self, names: RoleNames, certified: RoleNames) -> Certified {
+        if vol_trace() {
+            let (lo, hi, _) = self.reading().ends();
+            let walk = self.certify.map(|lane| {
+                use geom_core::Bounds;
+                ((lane.lift)(lo).lo(), (lane.lift)(hi).hi())
+            });
+            eprintln!(
+                "[vol] ROUND certify: walk sums at the walk's scalar={walk:?} faces={}",
+                self.runs.len()
+            );
+        }
         certify_role(
             self.reading(),
             |tight| {
-                self.certify
-                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight))
+                let started = std::time::Instant::now();
+                let got = self
+                    .certify
+                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight));
+                if let Some(Ok((SignReading::Exact { volume, .. }, _))) = &got {
+                    use geom_core::Bounds;
+                    PROBE_LAST.with(|c| c.set(Some((volume.lo(), volume.hi()))));
+                }
+                if vol_trace() {
+                    eprintln!(
+                        "[vol] REDERIVED tight={tight} dt_ms={:.3} -> {}",
+                        started.elapsed().as_secs_f64() * 1e3,
+                        match &got {
+                            Some(Ok((SignReading::Exact { volume, .. }, limit))) =>
+                                format!("volume={} limit={limit:?}", pv(*volume)),
+                            other => format!("{other:?}"),
+                        }
+                    );
+                }
+                got
             },
             || rounding_bound(self.body, self.runs),
             names,
@@ -1692,6 +1721,8 @@ fn rederive_faces<T: Decide>(
         // A carried region's first face takes its carry on every read
         // below but the walk's own enclosure, which holds it already.
         let carry = run.about.carry().unwrap_or_else(Interval::zero);
+        let face_started = std::time::Instant::now();
+        let mut how = "closed-form";
         let (f, a) = match run.contribution.enclosure {
             Some(enclosure) => {
                 // The quadrature again, about `from`, at the round the
@@ -1719,6 +1750,22 @@ fn rederive_faces<T: Decide>(
                     })
                 };
                 quadrature = true;
+                how = match (&rerun, tight) {
+                    (Ok(_), _) => "quadrature re-run about centre",
+                    (Err(_), true) => "quadrature re-run REFUSED, walk's enclosure kept",
+                    (Err(_), false) => "quadrature: walk's enclosure (untight)",
+                };
+                if vol_trace() {
+                    eprintln!(
+                        "[vol]   quad taken_round={taken} walk_enclosure flux/3={} rerun={}",
+                        pv(enclosure.0 / Interval::from_f64(3.0)),
+                        match &rerun {
+                            Ok(LaneRun { bounds: b, .. }) =>
+                                format!("flux/3={}", pv(b.flux / Interval::from_f64(3.0))),
+                            Err(e) => format!("{e:?}"),
+                        }
+                    );
+                }
                 match rerun {
                     Ok(LaneRun { bounds: b, .. }) => (b.flux + carry, b.area),
                     Err(_) => enclosure,
@@ -1736,11 +1783,36 @@ fn rederive_faces<T: Decide>(
                 )
                 .map_err(refused)?;
                 recentred &= moved;
+                if !moved {
+                    how = "closed-form about world origin, carried";
+                }
                 (c.flux + carry, c.area)
             }
         };
         flux = flux + f;
         area = area + a;
+        if vol_trace() {
+            let kind = match surface {
+                Surface::Plane { .. } => "Plane",
+                Surface::Cylinder { .. } => "Cylinder",
+                Surface::Cone { .. } => "Cone",
+                Surface::Sphere { .. } => "Sphere",
+                Surface::Torus { .. } => "Torus",
+                Surface::Spindle { .. } => "Spindle",
+                Surface::Nurbs(_) => "Nurbs",
+                Surface::Approx(_) => "Approx",
+            };
+            eprintln!(
+                "[vol] FACE {:?} {kind} tight={tight} lane=<{how}> centre={} term/3={} carry/3={} area={} running_sum/3={} dt_ms={:.3}",
+                run.face,
+                pv3(from.x, from.y, from.z),
+                pv(f / Interval::from_f64(3.0)),
+                pv(carry / Interval::from_f64(3.0)),
+                pv(a),
+                pv(flux / Interval::from_f64(3.0)),
+                face_started.elapsed().as_secs_f64() * 1e3
+            );
+        }
     }
     Ok(Rederived {
         volume: flux / Interval::from_f64(3.0),
@@ -1813,6 +1885,18 @@ fn rederive_polygons<T: Decide>(
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     for ((rings, normal), run) in polygons.iter().zip(runs) {
         let centre = corner_of(lane, run);
+        if vol_trace() {
+            eprintln!(
+                "[vol] POLYGON face {:?} centre={} normal={}",
+                run.face,
+                pv3(centre.x, centre.y, centre.z),
+                pv3(normal.x, normal.y, normal.z)
+            );
+            for ring in rings {
+                let pts: Vec<String> = ring.iter().map(|p| pv3(p.x, p.y, p.z)).collect();
+                eprintln!("[vol]   ring {}", pts.join(" "));
+            }
+        }
         let c = quad_lane::polygon_face_about(rings, *normal, centre).map_err(|source| {
             MassPropsError::Face {
                 face: run.face,
@@ -1821,6 +1905,22 @@ fn rederive_polygons<T: Decide>(
         })?;
         flux = flux + c.flux;
         area = area + c.area;
+        if vol_trace() {
+            eprintln!(
+                "[vol]   term/3={} area={} running_sum/3={}",
+                pv(c.flux / Interval::from_f64(3.0)),
+                pv(c.area),
+                pv(flux / Interval::from_f64(3.0))
+            );
+        }
+    }
+    if vol_trace() {
+        let rings: Vec<Rings> = polygons.iter().map(|(rings, _)| rings.clone()).collect();
+        eprintln!(
+            "[vol] POLYGON route: exact_polygon_volume={:?} fallback_sum/3={}",
+            quad_lane::exact_polygon_volume(&rings).map(pv),
+            pv(flux / Interval::from_f64(3.0))
+        );
     }
     let rings: Vec<Rings> = polygons.iter().map(|(rings, _)| rings.clone()).collect();
     Ok(Rederived {
@@ -9208,4 +9308,121 @@ mod shell_reference_rows {
             "the carried sum encloses the prism's 6 m³: {volume:?}"
         );
     }
+}
+
+
+// PROBE (boxfinish/probe-volume-reading, never merged).
+thread_local! {
+    /// PROBE: the last interval re-derivation's volume a round certified on.
+    pub(crate) static PROBE_LAST: std::cell::Cell<Option<(f64, f64)>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// PROBE: the last interval re-derivation's volume read on this thread.
+pub fn probe_last_reading() -> Option<(f64, f64)> {
+    PROBE_LAST.with(std::cell::Cell::get)
+}
+
+/// Whether the volume reading's trace is on (`BOXFINISH_VOL_TRACE`).
+pub(crate) fn vol_trace() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("BOXFINISH_VOL_TRACE").is_some())
+}
+
+/// An interval as `[lo, hi] w=width`.
+pub(crate) fn pv(x: Interval) -> String {
+    use geom_core::Bounds;
+    format!("[{:.6}, {:.6}] w={:.3e}", x.lo(), x.hi(), x.hi() - x.lo())
+}
+
+/// A triple of intervals.
+pub(crate) fn pv3(x: Interval, y: Interval, z: Interval) -> String {
+    use geom_core::Bounds;
+    let c = |v: Interval| {
+        if v.lo().to_bits() == v.hi().to_bits() {
+            format!("{}", v.lo())
+        } else {
+            format!("[{:.6},{:.6}]", v.lo(), v.hi())
+        }
+    };
+    format!("({}, {}, {})", c(x), c(y), c(z))
+}
+
+/// PROBE: check 7's volume reading of every solid of `body`, as check 7
+/// makes it (the role walk through the certified lane under check 7's
+/// names), as text, with its wall time and its decisions' tally.
+pub fn probe_volume_reading<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Vec<String> {
+    let band = Band::linear(tol).expect("band");
+    let lane = QuadLane::<T>::certified();
+    body.solids
+        .iter()
+        .map(|(solid, _)| {
+            let faces = body.faces_of_solid(solid).expect("solid");
+            PROBE_LAST.with(|c| c.set(None));
+            let started = std::time::Instant::now();
+            let walked = role_walk(
+                body,
+                &faces,
+                band,
+                tol,
+                Some(lane),
+                Some(lane),
+                crate::validate::PLUS_V_SIGN,
+            );
+            let dt = started.elapsed().as_secs_f64() * 1e3;
+            match walked {
+                Ok((role, certificate)) => {
+                    let e = certificate.enclosure();
+                    format!(
+                        "reading={:?} role={role:?} walk_enclosure=[{:?}, {:?}] dt_ms={dt:.3}",
+                        probe_last_reading(),
+                        e.volume_lo,
+                        e.volume_hi
+                    )
+                }
+                Err(e) => format!("round0 refused {e:?} dt_ms={dt:.3}"),
+            }
+        })
+        .collect()
+}
+
+/// PROBE: a face of a shell of planes bounded by lines, at the body's
+/// scalar: its rings' vertex points in traversal order, its plane's
+/// stored normal and origin.
+pub type ProbePlaneFace<T> = (Vec<Vec<Point3<T>>>, geom_core::Vec3<T>, Point3<T>);
+
+/// PROBE: the first shell's reference point ([`shell_reference`]) and
+/// its faces as [`ProbePlaneFace`]s, `None` where a face is no plane
+/// bounded by lines.
+pub fn probe_plane_shell<T: Decide>(body: &Body<T>) -> Option<(Point3<T>, Vec<ProbePlaneFace<T>>)> {
+    let (shell, record) = body.shells.iter().next()?;
+    let centre = shell_reference(body, shell);
+    let mut faces = Vec::new();
+    for &face in &record.faces {
+        let face = body.proven_face(face);
+        let &Surface::Plane { normal, origin, .. } = face.surface() else {
+            return None;
+        };
+        let loops = flat_loops(body, face.record()).ok()?;
+        if loops
+            .iter()
+            .flat_map(|(edges, _)| edges)
+            .any(|e| e.carrier.is_curved())
+        {
+            return None;
+        }
+        let rings = loops
+            .iter()
+            .map(|(_, hes)| {
+                hes.iter()
+                    .map(|&he| body.half_edge_start_point(he))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        faces.push((rings, normal, origin));
+    }
+    Some((centre, faces))
 }

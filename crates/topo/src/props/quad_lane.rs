@@ -378,6 +378,26 @@ fn planar_face_about(
         va = va + loop_vector_area(edges, anchor.lever)?;
     }
     let lever = anchor.from(centre);
+    if super::vol_trace() {
+        let across = va - normal * (va.dot(normal) / normal.dot(normal));
+        eprintln!(
+            "[vol]   planar_face_about anchor.lever={} lever(anchor-centre)={} va={}",
+            super::pv3(anchor.lever.x, anchor.lever.y, anchor.lever.z),
+            super::pv3(lever.x, lever.y, lever.z),
+            super::pv3(va.x, va.y, va.z)
+        );
+        eprintln!(
+            "[vol]   lever.n={} va.n={} n.n={} plane_flux/3={} across={} |lever|={} |across|={} tilt_slack/3={}",
+            super::pv(lever.dot(normal)),
+            super::pv(va.dot(normal)),
+            super::pv(normal.dot(normal)),
+            super::pv(plane_flux(lever, va, normal) / Interval::point(3.0)),
+            super::pv3(across.x, across.y, across.z),
+            super::pv(lever.norm()),
+            super::pv(across.norm()),
+            super::pv(tilt_slack(lever, va, normal) / Interval::point(3.0))
+        );
+    }
     Ok(FaceContribution {
         flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),
@@ -451,6 +471,26 @@ pub(super) fn polygon_face_about(
         }
     }
     let lever = anchor.from(centre);
+    if super::vol_trace() {
+        let across = va - normal * (va.dot(normal) / normal.dot(normal));
+        eprintln!(
+            "[vol]   polygon_face_about anchor.lever={} lever(anchor-centre)={} va={}",
+            super::pv3(l.x, l.y, l.z),
+            super::pv3(lever.x, lever.y, lever.z),
+            super::pv3(va.x, va.y, va.z)
+        );
+        eprintln!(
+            "[vol]   lever.n={} va.n={} n.n={} plane_flux/3={} across={} |lever|={} |across|={} tilt_slack/3={}",
+            super::pv(lever.dot(normal)),
+            super::pv(va.dot(normal)),
+            super::pv(normal.dot(normal)),
+            super::pv(plane_flux(lever, va, normal) / Interval::point(3.0)),
+            super::pv3(across.x, across.y, across.z),
+            super::pv(lever.norm()),
+            super::pv(across.norm()),
+            super::pv(tilt_slack(lever, va, normal) / Interval::point(3.0))
+        );
+    }
     Ok(FaceContribution {
         flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),

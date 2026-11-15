@@ -115,3 +115,8 @@ rayon = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# PROBE (boxfinish/probe-volume-reading, never merged).
+[[test]]
+name = "probe_volume"
+path = "tests/probe_volume.rs"

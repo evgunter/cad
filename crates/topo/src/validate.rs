@@ -6688,6 +6688,27 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     bracket: Bracket<'_, 'b, T>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let subjects = check7_subjects(body);
+    // PROBE: phase clock and the session's decision counts.
+    let probe_mark = || {
+        let c = geom_core::sym::session_counts();
+        (
+            std::time::Instant::now(),
+            c.map_or((0, 0, 0), |c| (c.symbolic, c.numeric, c.frozen)),
+        )
+    };
+    let probe_phase = |what: &str, from: (std::time::Instant, (u64, u64, u64))| {
+        if crate::props::vol_trace() {
+            let (_, now) = probe_mark();
+            eprintln!(
+                "[vol-phase] check7 {what}: dt_ms={:.3} symbolic=+{} numeric=+{} frozen=+{}",
+                from.0.elapsed().as_secs_f64() * 1e3,
+                now.0 - from.1.0,
+                now.1 - from.1.1,
+                now.2.saturating_sub(from.1.2)
+            );
+        }
+    };
+    let probe_t0 = probe_mark();
     // Every solid's round 0, then one walk over the solids measured.
     let mut unmeasured = Vec::new();
     let mut parts = Vec::new();
@@ -6707,11 +6728,15 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             Err(source) => unmeasured.push(Some(source)),
         }
     }
+    probe_phase("round zero (the walk's face terms)", probe_t0);
+    let probe_t1 = probe_mark();
     let roles = {
         let mut members: Vec<&mut crate::props::SignCertificate<'b, T>> =
             parts.iter_mut().collect();
         crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
     };
+    probe_phase("role walk (certify rounds, the volume reading)", probe_t1);
+    let probe_t2 = probe_mark();
     // Each solid's bracket where its walk stopped, read outward where the
     // door reads a bracket end: an unresolved sign carries it. Read only
     // for a sign left unresolved — it is an interval re-derivation of
@@ -6730,6 +6755,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
         };
         errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
+    probe_phase("side reader (aimed rays, then the walk's verdict)", probe_t2);
     if errors.is_empty() {
         Ok(crate::props::SignCertificate::assembled(
             body, band, tol, quad, parts,
