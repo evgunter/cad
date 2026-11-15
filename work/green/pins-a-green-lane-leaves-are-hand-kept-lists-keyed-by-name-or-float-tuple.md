@@ -47,3 +47,41 @@ by, for the check that a pin's row is still open
 Not swept beyond the three above: the other lanes' pins from nightly
 43371638371 and the earlier `nightly-*-reds-greened` units were not
 read for the same shape.
+
+## More instances (GREEN `green/eps-1e-12`, PR 6967, 2026-11-14)
+
+**Pins that carry digits or slot keys red the nightly on moves far below
+ε.** Two of the 1e-12 slate's reds were pins whose 16-digit `achieved`
+moved by 1e-5 relative, from a tightened floor, with the stop unchanged:
+`encl_curved_loft_shell::a_moved_curved_fitted_cap_builds_where_its_fit_certifies`
+and `shell_general_door::a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold`.
+Both now hold the stop by text and grid. That PR's own pins hold theirs
+by refusal kind and predicate, with no `FaceKey` and no digits.
+
+A sweep of `pinned_red::row` calls whose pieces carry a slot key
+(`…Key(NvM)`) or a float of six or more decimals turned up six more, left
+as they are:
+
+- `crates/geom-brep/src/pair_section.rs` `close_rings_carry_counted`
+  (a float in a `Classified` verdict);
+- `crates/editor-core/tests/coincidence_door.rs`
+  `the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order`
+  (`LoopKey(1v3)`);
+- `crates/sweep/tests/review_4781_r1_probes.rs`
+  `review_4781_touch_pairs_every_op` (`extent: 670.8203932499385`);
+- `crates/sweep/tests/review_4781_r2_probes.rs`
+  `r2_every_same_side_touch_pose_answers_as_a_touch` (the same extent);
+- `crates/sweep/tests/cone_operand_rows.rs`
+  `an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms`
+  (a 17-digit volume);
+- `crates/sweep/tests/r1_lane0_e2e.rs`
+  `the_f64_seam_answers_every_public_door` (`EdgeKey(10v1…`).
+
+The sweep cannot see `kernel_limit::pinned*` pins or pins whose text is
+built by `format!`.
+
+**Row → pin is unchecked.** `scripts/gates/pin-cites-an-open-row.sh`
+checks that every pin cites an open row; nothing checks that a row's own
+list of the pins citing it is complete. PR 6967's NEARPOINT and BOXFINISH
+rows each keep such a list by hand, and its first draft had one wrong (a
+pin cited for a stop it was not on).

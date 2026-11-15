@@ -528,6 +528,23 @@ fn cut_and_tipped(
 /// admitted ε below it the 1 km pose stands down.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
+    // Pinned red: the body's volume escalates in band
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the tipped rod",
+        &[
+            "the tipped rod is not a finished body",
+            "VolumeUncomputable",
+            "props_cylinder_circle_off_axis",
+        ],
+        a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings_row,
+    );
+}
+
+/// The row [`a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`] runs, under its pin.
+fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings_row() {
     const R: f64 = 0.5;
     let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));

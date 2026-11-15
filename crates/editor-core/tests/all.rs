@@ -67,6 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "a_turned_discs_union_names_its_unfinished_member.rs"]
+mod a_turned_discs_union_names_its_unfinished_member;
 #[path = "aligned_overlap_quiets.rs"]
 mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
@@ -295,6 +297,8 @@ mod takeover_door;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
+mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]

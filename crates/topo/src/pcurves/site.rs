@@ -271,18 +271,18 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // sub-interval: a closed-form or projected image is derived
         // there, exactly as the mint derives it. A fitted, general or iso
         // image has no angular placement, and its children restrict the
-        // parent's (`Pcurve::is_placed`).
-        let placed_again = image.is_placed();
+        // parent's (`Pcurve::is_placed`, `Pcurve::split_at`).
         // A derivation that refuses over a child's span refuses the split
         // (fail-loud): the parent's image is not the child's row there.
-        let child = |a: T, b: T| {
-            if placed_again {
+        let placed_again = image.is_placed();
+        let (first, second) = if placed_again {
+            let child = |a: T, b: T| {
                 geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band).map_err(refused)
-            } else {
-                Ok(image.clone())
-            }
+            };
+            (child(t0, t)?, child(t, t1)?)
+        } else {
+            image.split_at(t)
         };
-        let (first, second) = (child(t0, t)?, child(t, t1)?);
         // The loop runs from the child the parent's entry fed into the
         // other: first into second on a plus half, the other way on a
         // minus one.

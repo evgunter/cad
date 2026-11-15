@@ -51,6 +51,7 @@ fn joint<T: Decide>(s: &Surface<f64>, entry_v: f64, prev_v: f64) -> Result<Joint
     let image = Pcurve::IsoLine {
         p0: Point2::new(f(0.5), f(entry_v)),
         pl: Vec2::new(f(0.0), f(0.1)),
+        ends: None,
     };
     decide_plain_joint(
         DescribedChart::of(&s).unwrap(),
@@ -140,6 +141,7 @@ fn a_long_u_domain_crosses_its_seam_by_one_period() {
         &Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.5),
             pl: Vec2::new(0.3 * k, 0.0),
+            ends: None,
         },
         0.0,
         Point2::new(k, 0.5),
@@ -224,6 +226,7 @@ fn u_crossing<T: Decide>(s: &Surface<f64>) -> Result<JointElement, PinMiss> {
         &Pcurve::IsoLine {
             p0: Point2::new(f(0.0), f(0.5)),
             pl: Vec2::new(f(0.3), f(0.0)),
+            ends: None,
         },
         f(0.0),
         Point2::new(f(1.0), f(0.5)),

@@ -77,8 +77,10 @@ impl PatchClass {
         image: &'a Pcurve<T>,
     ) -> Option<(Self, PatchImage<'a, T>)> {
         match image {
-            Pcurve::IsoLine { p0, pl } => Self::along(surface, || geom_core::is_exact_zero(pl.x))
-                .map(|class| (class, PatchImage::Iso(*p0, *pl))),
+            Pcurve::IsoLine { p0, pl, .. } => {
+                Self::along(surface, || geom_core::is_exact_zero(pl.x))
+                    .map(|class| (class, PatchImage::Iso(*p0, *pl)))
+            }
             Pcurve::General(net) | Pcurve::Fitted(net) => Self::along(surface, || {
                 net.control().split_first().is_none_or(|(first, rest)| {
                     rest.iter().all(|p| geom_core::is_exact_zero(p.x - first.x))

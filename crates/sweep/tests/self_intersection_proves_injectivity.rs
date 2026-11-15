@@ -1069,25 +1069,6 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
-    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
-    // enclosure at `Interval`, so its exact boundary-row image is not
-    // picked and the rim stores a fitted pcurve, whose loop joint (half
-    // edge 18v1) escalates on an enclosure of ±4.5e-11
-    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the closed spine",
-        &[
-            "the closed spine sweeps: Pcurve(Escalated",
-            "predicate: Some(\"pcurve_loop_continuity\")",
-        ],
-        a_closed_spine_reads_violated_top_against_bottom_row,
-    );
-}
-
-/// The row [`a_closed_spine_reads_violated_top_against_bottom`] runs, under its pin.
-fn a_closed_spine_reads_violated_top_against_bottom_row() {
     fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
@@ -1234,25 +1215,6 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
-    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
-    // enclosure at `Interval`, so its exact boundary-row image is not
-    // picked and the rim stores a fitted pcurve, whose loop joint (half
-    // edge 20v1) escalates on an enclosure of ±1.9e-12
-    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the S duct",
-        &[
-            "the S path sweeps: Pcurve(Escalated",
-            "predicate: Some(\"pcurve_loop_continuity\")",
-        ],
-        the_s_duct_walls_hold_against_themselves_row,
-    );
-}
-
-/// The row [`the_s_duct_walls_hold_against_themselves`] runs, under its pin.
-fn the_s_duct_walls_hold_against_themselves_row() {
     fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;
@@ -1810,8 +1772,11 @@ fn shell_4s_vessel_holds() {
     }
 }
 
-/// **A cylinder–cylinder tee refuses typed at the vertices its walls
-/// share alone.** Two radius-1 rods on crossing axes, one mitred by
+/// **A cylinder–cylinder tee builds at both scalars, and its injectivity
+/// refuses typed at the vertices its walls share alone.** At `Interval`
+/// the union builds at every ε, as the `f64` body: as many faces, edges
+/// and vertices, and a volume enclosure that brackets the `f64` volume.
+/// Two radius-1 rods on crossing axes, one mitred by
 /// their bisector plane (`crossing_equal_rods`' pair at spins `(0, 0)`,
 /// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
 /// junction never reaches the node plane `x = 0`: it ends where `B`'s
@@ -1827,7 +1792,8 @@ fn shell_4s_vessel_holds() {
 /// verdict is `Uncertified { Departure }` naming a vertex — never
 /// certified, never measured by distance.
 #[test]
-fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
+fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
+ {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
         use core::f64::consts::{FRAC_PI_2, PI};
         use geom_core::{Affine3, Vec3};
@@ -1841,13 +1807,10 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         let b = moved(&rod((0.2, 3.0)), &onto_x);
         topo::union(&a, &b, tol())
     }
-    // At `Interval` the union builds too at the default ε and 1e-6: the
-    // ruled region's span reads the rim's parameter within half a turn
-    // of its middle (`Period::near`), no longer through a floor a turn
-    // wide at the middle's antipode. At 1e-12 it refuses, typed, naming
-    // its cause rather than a kernel defect.
+    // At `Interval` the union builds, the ruled region's span reading the
+    // rim's parameter within half a turn of its middle (`Period::near`).
     match tee_at::<Interval>() {
-        Ok(topo::BooleanResult::Body(iv)) if tol().eps() != 1e-12 => {
+        Ok(topo::BooleanResult::Body(iv)) => {
             // The same body as the `f64` lane's: as many faces, edges and
             // vertices, and a volume enclosure, padded by the pinned
             // resolution, that brackets the `f64` body's pinned volume,
@@ -1881,11 +1844,8 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
                 "the tee: Interval volume [{lo}, {hi}] against f64 {want}, its enclosure less the pad no wider than 1e-9 of it"
             );
         }
-        Err(e) if tol().eps() == 1e-12 && !topo::test_support::offer_key(&e).1 => {
-            println!("[corner] tee at Interval refuses {e:?}");
-        }
         other => panic!(
-            "the tee's union builds at Interval off ε 1e-12, and refuses typed there: {:?}",
+            "the tee's union builds at Interval: {:?}",
             other.map(|_| ())
         ),
     }

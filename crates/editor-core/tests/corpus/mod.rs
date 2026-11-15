@@ -406,10 +406,13 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// registry membership, which requires every node green at every lane, and
 /// `coincidence_door.rs` pins where it stops, or (the press fit written
 /// over two equal variables) it is a variant read for the census only.
-/// `shaft_and_bearing`, its one-radius variant, `boss_tangent_by_value`,
-/// `shaft_and_bearing::with_a_ball` and `shaft_and_bearing::rounded_mouth`
-/// are green at `f64` and their unions escalate at `Interval`; the
-/// others' unions refuse at `f64`.
+/// `shaft_and_bearing`, its one-radius variant and `boss_tangent_by_value`
+/// are green at `f64` and their unions escalate at `Interval`;
+/// `shaft_and_bearing::with_a_ball` is green at `f64` and certifies at
+/// `Interval` but at ε 1e-12, where it escalates;
+/// `shaft_and_bearing::rounded_mouth` is green at every lane and ε
+/// (`work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry.md`);
+/// the others' unions refuse at `f64`.
 /// The per-row door census reads them beside [`documents`], so the rows
 /// they reach are counted.
 pub fn stage6_beside_the_registry() -> Vec<CorpusDoc> {
