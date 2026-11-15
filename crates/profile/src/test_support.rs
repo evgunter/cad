@@ -16,7 +16,9 @@ use crate::{ArcData, ArcSide, ProfileLoop, Step, Target, TipState, Verb};
 /// run tolerance, so unlike the lattice it registers none of the
 /// lowered arcs' endpoint facts (`crate::lower_arc`). A bulge of exactly zero
 /// (either sign) is a line; any other bulge is an arc, finite or not,
-/// and [`crate::Profile::validate`] decides what the table is.
+/// and [`crate::Profile::validate`] decides what the table is. It records
+/// no direction: the table holds its points and bulges only, and
+/// validation decides each segment's directions from them.
 pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
     ProfileLoop::from_chain(crate::lower_chain(&chain))
 }

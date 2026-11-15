@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-14
 priority: P0
 cost: M
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-profile-drops-the-unit-directions-its-verbs-made]
+blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
 ---
 
 
