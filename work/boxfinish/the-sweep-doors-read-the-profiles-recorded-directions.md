@@ -76,6 +76,26 @@ things to this unit, because each needs a door that reads a direction.
   what reads its length, or this is RESTDATUM's
   `unlevered-frame-conventions-are-uncertified-at-rest`; say which.
 
+- **No minted direction lies exactly along an axis any more**
+  (`boxfinish/profile-directions-revalue`, after the nightly's five
+  `revalue_corpus` reds): validation mints a direction a segment did not
+  record as the quotient, never the axis, because the axis rule branched
+  on a component's value. What each scalar stores:
+  - `f64`: unchanged, bit for bit (`x − x` is `+0`, `√(0 + y²)` is
+    `|y|`; `at_f64_an_axis_aligned_chords_quotient_is_the_axis_bit_for_bit`).
+  - plain `Interval`: an axis-aligned literal rectangle's hop directors
+    were exact `(0, ±1)` from PR 6963 to that fix, and are ulp-wide again
+    (`[0, 0]` over the length is exact; `y/√(y²)` carries rounding).
+  - `Sym<Interval>`: a hop between two points that share a variable
+    (the slab's `(W, 0) → (W, 1)`) carries `W − W`'s width in its value
+    channel, as it did before PR 6963; the axis there waits on a reading
+    of proof that is no sign decision (the item
+    `a_hop_along_an_axis_mints_its_director_with_no_width` names).
+  Verb-recorded directions are untouched: the circle's ±x, the
+  rectangle's axes and a directed leg's `Dir` are still exact at every
+  scalar. Nothing reads a direction yet; a door that reads a hop's
+  director at `Interval` or over a box meets this width.
+
 **What this unit will not finish:** profiles whose directions are not
 recorded (`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
 Its closing tests say whether the tour's stop is among them.

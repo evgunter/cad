@@ -164,6 +164,12 @@ fn a0_alone() -> SymRules {
 /// whole box with no rule) before refusing for its own later reason, so
 /// each channel decides 63 more. Every leaf's verdict, and A0's yield of
 /// 56, hold.
+///
+/// Then validation's mint stopped reading a chord's components for an
+/// axis (a branch on a value that a re-valuation sees flip; the
+/// profile-directions-revalue fix): plain 2926/2894 → 2898/2866, shipped
+/// 2982/2838 → 2954/2810, F43's 28 off each channel and PR 6953's 63
+/// kept; A0's yield holds at 56.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -194,13 +200,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2926 numeric=2894 frozen=0",
+        "decisions symbolic=2898 numeric=2866 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2982 numeric=2838 frozen=0",
-        "56 of the 2894 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2954 numeric=2810 frozen=0",
+        "56 of the 2866 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

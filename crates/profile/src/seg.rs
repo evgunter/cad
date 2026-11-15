@@ -774,37 +774,6 @@ fn check_direction<T: Decide>(
     }
 }
 
-/// **A direction minted from the vector `w`**: the axis it lies along,
-/// where one of its components is exactly zero (a theorem of the
-/// parameters at `Sym`, an exact zero at a point scalar) and the other's
-/// sign is definite, the axis signed by that sign as a literal ±1;
-/// otherwise `quotient`, `w` over its length. Both are the direction
-/// wherever the component is zero; the axis carries no width the
-/// geometry lacks, which a quotient of two values that share a parameter
-/// does. The two components' signs are read once each, whatever they
-/// answer, at the least band and outside the log ([`component_signs`]
-/// under audit row F43): a choice between two sound spellings, never a
-/// refusal, whose readings do not depend on their answers.
-fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
-    let unit = |s: Sign| match s {
-        Sign::Positive => Some(T::one()),
-        Sign::Negative => Some(-T::one()),
-        Sign::Zero => None,
-    };
-    match geom_core::k_stats::unlogged("F43", || component_signs(w, Band::least())) {
-        [Some(Sign::Zero), Some(s)] => unit(s).map_or(quotient, |s| Vec2::new(T::zero(), s)),
-        [Some(s), Some(Sign::Zero)] => unit(s).map_or(quotient, |s| Vec2::new(s, T::zero())),
-        _ => quotient,
-    }
-}
-
-/// The sign of each of `w`'s components against `band`
-/// (`segment_direction_axis`), `None` where it escalates: the reader
-/// [`axis_or`] runs at the least band.
-fn component_signs<T: Decide>(w: Vec2<T>, band: Band) -> [Option<Sign>; 2] {
-    [w.x, w.y].map(|c| decide(Gate::SegmentDirectionAxis, Margin::of(c), band).ok())
-}
-
 /// **`x`'s sign as the literal ±1**, where it reads definite: a choice
 /// between sound spellings ([`geom_core::k_stats::choose`],
 /// `segment_direction_sign`, audit row F43), one reading per call;
@@ -833,7 +802,7 @@ pub(crate) fn validated_directions<T: Decide>(
     match (&s.kind, recorded) {
         (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
         | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
-        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.chord, s.unit)),
+        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.unit)),
         (SegKind::Arc(g), _) => SegmentDirections::Arc {
             start: mint_radial(g.arc, s.a),
             end: mint_radial(g.arc, s.b),
@@ -842,18 +811,31 @@ pub(crate) fn validated_directions<T: Decide>(
 }
 
 /// **The chord's director, minted**: the chord `b − a` over its length,
-/// `unit` ([`ChordFrame`]'s one spelling), or the axis it lies along
-/// ([`axis_or`]). The one mint of a line's direction from its points.
-pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T> {
-    axis_or(chord, unit)
+/// `unit` ([`ChordFrame`]'s one spelling). The one mint of a line's
+/// direction from its points.
+///
+/// No branch on the chord's value: a component that reads zero only
+/// because two different parameters are equal at the point evaluated is
+/// no identity, and minting the axis there would store a constant where
+/// the computation is a function of the parameters, a branch a
+/// re-valuation of the document sees flip (ERROR-DESIGN E12; the five
+/// `revalue_corpus` rows). A component zero as an identity (`W − W`)
+/// still carries the quotient's width at `Sym<Interval>`; minting the
+/// axis there needs a reading of proof that is no sign decision, which
+/// the kernel does not have
+/// (`work/boxfinish/an-axis-director-is-minted-only-where-its-zero-is-proven.md`).
+/// At `f64` the quotient of an exactly-zero component is the axis bit
+/// for bit: `x − x` is `+0`, and `√(0 + y²)` is `|y|`.
+pub(crate) fn mint_director<T: Decide>(unit: Vec2<T>) -> Vec2<T> {
+    unit
 }
 
 /// **The radial at `p`, minted**: `p − centre` over the rim at `p`
-/// ([`Arc2::rim`]), or the axis it lies along ([`axis_or`]). The one
-/// mint of an arc's direction from its points.
+/// ([`Arc2::rim`]). The one mint of an arc's direction from its points,
+/// with no branch on its value ([`mint_director`]).
 pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
     let w = p - arc.centre;
-    axis_or(w, w / arc.rim(p))
+    w / arc.rim(p)
 }
 
 /// One read-back of a constructed arc against what was authored, past

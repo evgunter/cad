@@ -1041,3 +1041,104 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap();
     records(&side.loop_.into_loop(), &[None; 6], "arc_fillet");
 }
+
+/// **Two valuations of one document take one branch in the mint**
+/// (ERROR-DESIGN E12): a hop between two corners whose `x` are different
+/// parameters, equal at the nominal, has a chord component that is
+/// exactly `0.0` there and no identity. Built at `Sym<f64>` at the
+/// nominal and with one corner moved, every decision the two builds take
+/// answers the same sign: a mint that branched on that component's value
+/// (the axis where it reads zero, the quotient where it does not) would
+/// answer Zero at one and Positive at the other, and store a constant
+/// where the computation is a function of the parameters.
+#[test]
+fn a_value_coincident_hop_takes_one_branch_at_every_valuation() {
+    use geom_core::sym::revalue::record;
+    let build = |x2: f64| {
+        record(|| {
+            in_session(|| {
+                let p = |name: &str, v: f64| {
+                    Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
+                };
+                let (z, one) = (Sym::from_f64(0.0), Sym::from_f64(1.0));
+                let lp = Open
+                    .at(Point2::new(z, z))
+                    .line_to(Point2::new(p("x1", 1.0), z), tol())
+                    .unwrap()
+                    .line_to(Point2::new(p("x2", x2), one), tol())
+                    .unwrap()
+                    .line_to(Point2::new(z, one), tol())
+                    .unwrap()
+                    .line_to(Start, tol())
+                    .unwrap();
+                let vp: ValidatedProfile<Sym<f64>> = validated(vec![lp.loop_]);
+                vp.loops()[0].segments()[1].directions
+            })
+        })
+    };
+    let ((d0, at0), (d1, at1)) = (build(1.0), build(1.0 + 1.0e-7));
+    assert_eq!(
+        at0.len(),
+        at1.len(),
+        "the two builds take as many decisions"
+    );
+    for (k, (a, b)) in at0.iter().zip(&at1).enumerate() {
+        assert_eq!(
+            (a.predicate, a.sign),
+            (b.predicate, b.sign),
+            "decision {k} answers alike at both valuations"
+        );
+    }
+    // Both store the chord's quotient, the nominal's x an exact +0.
+    let (d0, d1) = (director(d0), director(d1));
+    assert_eq!(d0.x.lo().to_bits(), 0.0f64.to_bits());
+    assert!(
+        d1.x.lo() > 0.0,
+        "the moved build's director leans by the move"
+    );
+}
+
+/// **At `f64` the quotient of an axis-aligned chord is the axis, bit for
+/// bit**, so taking the axis mint out moved no stored `f64` direction:
+/// `x − x` is `+0.0` (never `−0.0`), `√(0 + y²)` is `|y|`, and `y/|y|` is
+/// `±1`. Every side of axis-aligned rectangles over a spread of corners
+/// and scales, and the radials of circles at the four axis points, read
+/// back as the exact axes with a positive zero.
+#[test]
+fn at_f64_an_axis_aligned_chords_quotient_is_the_axis_bit_for_bit() {
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for _ in 0..200 {
+        let scale = 10f64.powf(6.0 * next() - 3.0);
+        let (x0, y0) = ((next() - 0.5) * 8.0 * scale, (next() - 0.5) * 8.0 * scale);
+        let (w, h) = ((0.1 + next()) * scale, (0.1 + next()) * scale);
+        let lp = Open
+            .at(Point2::new(x0, y0))
+            .line_to(Point2::new(x0 + w, y0), tol())
+            .unwrap()
+            .line_to(Point2::new(x0 + w, y0 + h), tol())
+            .unwrap()
+            .line_to(Point2::new(x0, y0 + h), tol())
+            .unwrap()
+            .line_to(Start, tol())
+            .unwrap();
+        let vp = validated(vec![lp.loop_]);
+        let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
+        for (k, s) in vp.loops()[0].segments().iter().enumerate() {
+            let d = director(s.directions);
+            // A positive zero on the forward sides, its negation on the
+            // backward ones: what the axis mint stored there too.
+            let (x, y) = want[k];
+            assert_eq!(
+                bits(d),
+                bits(Vec2::new(x, y)),
+                "side {k} at scale {scale:e}: {d:?}"
+            );
+        }
+    }
+}
