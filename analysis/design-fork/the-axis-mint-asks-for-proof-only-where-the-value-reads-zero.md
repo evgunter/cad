@@ -1240,3 +1240,7 @@ Either way the mint's stored values are the same: the same bits at `f64`, the qu
 **Checked this round:** nothing new in the tree. B's `PINNED_UNDER_GUIDANCE` trace closes my guided-pass question.
 
 **Still open for the lane, not designers':** B's question of whether an `Err` from inside `unlogged` reaches the driver's bisection cue.
+
+## Round 5 (dispatched 16:19 UTC), one point
+
+Each designer was pointed at the round-4 replies by label and asked, in at most 15 lines, about the query's term budget alone: its position now, whether it would accept the other, and the one sentence each side should have in the PR if they still differ. The message noted that A and B had each taken the other's previous position twice.
