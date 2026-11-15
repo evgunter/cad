@@ -60,9 +60,15 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
 }
 
 /// **The measurement of record for a plain-`Interval` extrude of a
-/// WIDENED height** (no frame anywhere): certifies at ε/10 and every
-/// narrower width, refuses at ε/8 — a floor near ε/16, at every ε
-/// row. The ladder is printed in full; the assertion is the floor.
+/// WIDENED height** (no frame anywhere): certifies at ε/8 and every
+/// narrower width, refuses at ε/6 — the floor between the two, at every
+/// ε row. The ladder is printed in full; the assertion is the floor.
+///
+/// It was ε/10 certifying and ε/8 refusing until a line rim's span and
+/// direction were stated from its sketch segment (PR 6953): the top
+/// cap's line rims sit at the widened height, and a span read off their
+/// two placed vertices carried both vertices' width, where the sketch
+/// segment's length carries none.
 #[test]
 fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();
@@ -109,9 +115,9 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         fails.is_empty()
     };
-    for div in [8.0, 10.0, 30.0, 100.0, 300.0, 1.0e3, 1.0e4, 1.0e6] {
+    for div in [6.0, 8.0, 10.0, 30.0, 100.0, 300.0, 1.0e3, 1.0e4, 1.0e6] {
         let green = at(e / div);
-        if div >= 10.0 {
+        if div >= 8.0 {
             assert!(
                 green,
                 "a widened extrude height of ε/{div} certifies on plain Interval"

@@ -281,42 +281,39 @@ fn eps_row(eps: f64) -> usize {
 /// edge's witness is its carrier's middle, which the walks spell with
 /// fewer forms than a strut's chord midpoint).
 ///
-/// **Moved with a line rim's span read from its sketch segment** (PR
-/// 6953): a placed line's span is `‖b − a‖` over the sketch and its
-/// direction the sketch chord's unit placed, where both were read off
-/// the placed vertices, and its carrier end is registered against the
-/// placed far vertex, as an arc's is (`register_placed_line_end`).
-/// - The span spelling alone takes `Plain/Decision` 9709 → 9663 and
-///   `Plain/Assertion` 3503 → 3391 forms, same calls (PR 6953's review,
-///   on its first head): the 3-space difference `q_to − q_from`, its
-///   three squares, its norm and its normalization are formed no more
-///   for each line rim, and the two-coordinate sketch chord and its one
-///   norm, over sketch values other forms already hold, replace them.
-/// - The registration adds the `Door/Decision` walk, 940 calls and 5923
-///   forms: the door now proves each line rim's far-end decisions (check
-///   3) by the registered alias (the carrier's end against its placed
-///   sketch end, as an arc's is), and those decisions build no plain
-///   forms. With it `Plain/Decision` is 9559 forms, `Plain/Assertion`
-///   3375 and `Early/Assertion` 4931 → 4854, calls unchanged.
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953): a placed line's span is `‖b − a‖` over the sketch
+/// and its direction the sketch chord's unit placed, where both were read
+/// off the placed vertices. Nothing is registered for a line (its far end
+/// folds to the far vertex as a form), so the walks the door adds are
+/// main's: the slab has no `Door/Decision` line, as before.
+/// - The span alone (the PR's first head, whose direction still
+///   normalized `q_to − q_from`): `Plain/Decision` 9709 → 9663 and
+///   `Plain/Assertion` 3503 → 3391 forms, same calls. The span's own
+///   3-space difference, its three squares and its root are formed no
+///   more; the sketch chord's two-coordinate norm, over sketch values
+///   other forms already hold, replaces them.
+/// - The direction from the sketch chord takes the rest: `Plain/Decision`
+///   9663 → 9559, `Plain/Assertion` 3391 → 3375, and `Early/Assertion`
+///   4931 → 4854, calls unchanged. The second 3-space difference and its
+///   normalization go too; the slab's placement is the identity's axes,
+///   so the placed unit chord folds to its sketch components.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 976 forms 9559 frozen 0 digest cb0330eb6422ff0b3787f555a7c6bd20\n\
      Plain/Assertion calls 988 forms 3375 frozen 0 digest 9d51ee8e5d27c08f84d2c19d6ada93a1\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224\n\
-     Door/Decision calls 940 forms 5923 frozen 0 digest 02135644926066d0be3dbbdccb0a7961",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest afe8371cf57350ba09777217386d7224",
     "\
      Plain/Decision calls 976 forms 9559 frozen 0 digest 1e76b0ed45fb1ecc9dbf35db192b2b8f\n\
      Plain/Assertion calls 988 forms 3375 frozen 0 digest 2617924e0a82d92b5de4344b48457546\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600\n\
-     Door/Decision calls 940 forms 5923 frozen 0 digest a89f86054bc776e1b538a64d3ec5e4dd",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest cba48293163310adb85acb8777a4e600",
     "\
      Plain/Decision calls 976 forms 9559 frozen 0 digest 2ea5e2fe9a0970fe0e4699410cb53451\n\
      Plain/Assertion calls 988 forms 3375 frozen 0 digest 6e29316b4194cf0b9f3a5a71e3d022b4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79\n\
-     Door/Decision calls 940 forms 5923 frozen 0 digest ba28753dc636952bb25af72793dec4f9",
+     Early/Assertion calls 988 forms 4854 frozen 0 digest 1ac419697f3342ab925a63c087641c79",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -503,19 +500,22 @@ const PLATE_MAX_TERMS: usize = 38;
 /// forms), and `Plain/Decision` and `Early/Decision` keep their calls
 /// over fewer forms (41501 → 40761, 28904 → 28232).
 ///
-/// **Moved with a line rim's span read from its sketch segment** (PR
-/// 6953, [`SLAB_LEDGER`]'s note): the span spelling alone takes
-/// `Plain/Assertion` 13400 → 13293 (PR 6953's review); with the far-end
-/// registration the door proves each line rim's far-end decisions,
-/// `Door/Decision` 555 → 1002 calls (15037 → 18053 forms), and
-/// `Plain/Assertion` reads 13305, `Plain/Decision` 40761 → 40813,
-/// `Early/Decision` 28232 → 28205, `Early/Assertion` 14775 → 14807.
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953, [`SLAB_LEDGER`]'s note), calls unchanged and the
+/// `Door/Decision` walk main's: `Plain/Assertion` 13400 → 13305 (13293
+/// with the span alone), `Early/Decision` 28232 → 28205, and two rises,
+/// `Plain/Decision` 40761 → 40813 (+52) and `Early/Assertion` 14775 →
+/// 14807 (+32). The rises are the direction's (the span alone moved only
+/// `Plain/Assertion`), and which reads build the new forms is not traced:
+/// on the slab the placed unit chord folds to its sketch components,
+/// and on the plate the walks build more forms over it than they did over
+/// `q_to − q_from`.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1015 forms 40813 frozen 54 digest 485731a745d32488b10cc82b2ba6460d\n\
      Plain/Assertion calls 1050 forms 13305 frozen 245 digest 4c5517586a973b448659d89edfc0593a\n\
      Early/Decision calls 308 forms 28205 frozen 0 digest 26327ae7eaa72dca689e4aa27ad071c4\n\
      Early/Assertion calls 1050 forms 14807 frozen 0 digest 2925bd5da0c54a8d53a602781a6be0b3\n\
-     Door/Decision calls 1002 forms 18053 frozen 0 digest e4240acf1c23fd2839211cad92c0c778";
+     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
