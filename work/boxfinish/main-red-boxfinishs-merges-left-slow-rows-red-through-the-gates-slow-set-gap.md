@@ -38,17 +38,26 @@ every ε: `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents
 PR's lane: red after the merge and green on its first parent at three ε.
 The split row is re-stated (a child states its end at the cut on
 purpose) and the mint row goes back to its first contract (the lane's
-own mechanical edit wrote `ends: None` into it).
+own mechanical edit wrote `ends: None` into it). **Repaired by PR
+6984.**
 
 Not this PR's, measured: `demos/tour`
 `k_probe_brackets::k_probe_brackets_the_lofted_leaf_at_eps_1e_9` and
 `..._at_eps_1e_6` are red on the PR's first parent too. Filed on GREEN:
 `work/green/the-tours-k-probe-reads-lily-wall-8-at-the-probe-scalar-where-it-refuses-nomarch.md`.
 
-**PR 6946 (edge turns), to confirm.** `sweep::all`
-`mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_one_thread`,
-ε 1e-12 only. The unit changed what the whole-turn decision reads at
-that ε; other PRs moved that golden in the same window.
+**PR 6946 (edge turns).** Nothing attributed. Its lane bisected the
+thread-count golden below and ran the slow set of `geom-brep` and
+`sweep` on main: no red there is this unit's.
+
+**PR 6959 again: the thread-count golden.** `sweep::all`
+`mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_one_thread`
+and `..._at_four_threads`, ε 1e-12 only. Green at PR 6946's merge, red
+at PR 6959's. One line differs, `arc_loft_1e11eps`: both pads widened
+(`vpad` by 2.69e-7 relative, `apad` by 2.1e-14), with the values, the
+verdicts and the escalations unchanged. PR 6959's lane is to say why
+from the code and then re-cut it. PR 6982 changes the same pad and is
+measured against this line before it merges.
 
 **PR 6958 (the aimed ray).** Nothing attributed.
 
