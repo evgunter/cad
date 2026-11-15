@@ -1492,3 +1492,9 @@ No spelling built on sign readings can be independent of the valuation.
 **Reversible:** yes. The licence and the caller list say where the question is used. With `Sym` answering "no", the mint stores the quotient everywhere.
 
 **Possible later (unsure):** a constant-ratio form of the question, which would make a 45° side between formula corners exact. It should be measured on a real document first.
+
+## The `[ev]` PR (16:29 UTC)
+
+PR 6993, `boxfinish/ev-identity-question` → `main`, first commit eca9909b: the text the three would ratify (DESIGN `[scalars]` and `[verdicts.consumers]`, ERROR-DESIGN E12, the profile README's direction clause), the item's weighed section, and the recommendation half of fork-log row 272 (labels only). Its body is a decision document followed by the three final `For Ev` sections verbatim under A, B, C; it names no model. The body was posted from a file by a helper and read back identical (27,114 characters) after one correction: the create call had replaced the body's closing lines with a tool footer.
+
+The second commit, after Ev answers: row 272's `Ev`, `match`, `tokens` (first report / total: A 3,827,883 / 10,580,769; B 4,543,143 / 14,985,007; C 2,832,135 / 9,452,681) and `A/B/C` (bytes arm 79, labels 129: A = Fable 5.2, B = Opus 5.5, C = Opus 5.5).
