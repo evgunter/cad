@@ -34,10 +34,16 @@ asked for the two-lanes case to be driven and it was not built.
 every ε: `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
 (a child's `IsoLine` `ends` differ from the parent's) and
 `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`
-(stored `ends: Some(..)` against derived `ends: None`). Possibly also
-`demos/tour` `k_probe_brackets::k_probe_brackets_the_lofted_leaf_at_eps_1e_9`
-and `..._at_eps_1e_6` (wall 8's refusal moved; `demos/tour/src/walls.rs:33`):
-a weak guess by name.
+(stored `ends: Some(..)` against derived `ends: None`). Measured by the
+PR's lane: red after the merge and green on its first parent at three ε.
+The split row is re-stated (a child states its end at the cut on
+purpose) and the mint row goes back to its first contract (the lane's
+own mechanical edit wrote `ends: None` into it).
+
+Not this PR's, measured: `demos/tour`
+`k_probe_brackets::k_probe_brackets_the_lofted_leaf_at_eps_1e_9` and
+`..._at_eps_1e_6` are red on the PR's first parent too. Filed on GREEN:
+`work/green/the-tours-k-probe-reads-lily-wall-8-at-the-probe-scalar-where-it-refuses-nomarch.md`.
 
 **PR 6946 (edge turns), to confirm.** `sweep::all`
 `mass_props_are_thread_count_invariant::the_walk_matches_the_serial_golden_at_one_thread`,
