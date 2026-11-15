@@ -281,6 +281,17 @@ fn tally(readings: &[String]) -> String {
 /// of the parameter**: no aim reads `In`. The table of what each width
 /// reads is printed (how wide a box each body's rays still read at),
 /// asserted only for the wrong side.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// `topo`'s `a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`
+/// is red and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn no_aim_of_a_boxed_door_body_reads_in() {
     let eps = Tol::witness().eps();
@@ -319,6 +330,17 @@ fn no_aim_of_a_boxed_door_body_reads_in() {
 /// the box, so the ray passes through a moving edge, rim or wall for
 /// that member and beside it for the others. Normals are the axes and
 /// random unit vectors.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// `topo`'s `a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`
+/// is red and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn no_ray_about_a_boxed_door_body_reads_in() {
     let mut rng = test_utils::fuzz::start("boxed_door_boxed_rays");
@@ -560,6 +582,17 @@ const DRIFT_X: f64 = 0.130_018_027_939_938;
 /// carry the box and which the door refuses over a wide one: this
 /// prints, for each box, the door's refusal or the reading, and fails on
 /// a wrong side.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// `topo`'s `a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`
+/// is red and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side() {
     let slab = shapes().remove(0);

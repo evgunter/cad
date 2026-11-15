@@ -139,6 +139,17 @@ fn tally(readings: &[String]) -> String {
 /// **Every face's own aim, upright and inside out, over one and two
 /// boxed stations**, from a thousandth of the brick's height to three
 /// tenths of it: no aim reads the side no member has.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// [`a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`] is red
+/// and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn no_aim_of_a_boxed_brick_reads_the_side_no_member_has() {
     let eps = Tol::witness().eps();
@@ -173,6 +184,17 @@ fn no_aim_of_a_boxed_brick_reads_the_side_no_member_has() {
 /// moving wall's at a member of the box, corners included, so the ray
 /// runs through an edge or a vertex for that member and beside it for
 /// the others.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// [`a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`] is red
+/// and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn no_ray_about_a_boxed_brick_reads_the_side_no_member_has() {
     let mut rng = test_utils::fuzz::start("boxed_brick_rays");
@@ -269,90 +291,103 @@ fn no_ray_about_a_boxed_brick_reads_the_side_no_member_has() {
     }
 }
 
-/// How far a ray aimed along `+z` drifts in `x` and `y` per unit it
-/// drops: the aimed incidence and turn, as [`aimed_ray`] builds them.
-fn drift_per_drop() -> (f64, f64) {
-    let n = Vec3::new(0.0, 0.0, 1.0);
-    let (b1, b2) = n.orthonormal_basis();
+/// A ray at the aimed incidence about the outward axis `a` (`0` the far
+/// `x` wall, `2` the top cap), entering that moving face at station `hi`
+/// beside the edge it drifts toward along axis `c`, `margin` short of
+/// the wall under that edge when it has dropped `hi`: `(aim, normal)`.
+fn beside(a: usize, c: usize, hi: f64, margin: f64) -> ([f64; 3], [f64; 3]) {
+    let mut n = [0.0; 3];
+    n[a] = 1.0;
+    let nv = Vec3::new(n[0], n[1], n[2]);
+    let (b1, b2) = nv.orthonormal_basis();
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * turn_cos + b2 * turn_sin;
     let (along, across) = AIM_INCIDENCE;
-    let out = n * along + tangent * across;
-    (-out.x / out.z, -out.y / out.z)
+    let out = nv * along + tangent * across;
+    let o = [out.x, out.y, out.z];
+    let drift = -o[c] / o[a];
+    let off = drift.abs() * hi + margin;
+    let mut aim = [0.5; 3];
+    aim[a] = hi;
+    aim[c] = if drift > 0.0 { 1.0 - off } else { off };
+    (aim, n)
 }
 
-/// The aim of [`a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side`]:
-/// over the middle of the top edge the ray drifts toward, `margin`
-/// further from that edge's wall than the ray drifts in dropping `hi`,
-/// at height `hi`. Every member with its top at or below `hi` is entered
-/// through its top cap, clear of that edge, and left through its bottom
-/// cap, `margin` short of the wall.
-fn aim_beside_the_edge_it_drifts_toward(hi: f64, margin: f64) -> [f64; 3] {
-    let (dx, dy) = drift_per_drop();
-    if dx.abs() >= dy.abs() {
-        let off = dx.abs() * hi + margin;
-        [if dx > 0.0 { 1.0 - off } else { off }, 0.5, hi]
-    } else {
-        let off = dy.abs() * hi + margin;
-        [0.5, if dy > 0.0 { 1.0 - off } else { off }, hi]
-    }
-}
-
-/// **A ray beside a silhouette edge that moves with the box reads no
-/// wrong side.** The upright brick's top cap lies anywhere in `[lo, hi]`.
-/// One fixed ray comes down at the aimed incidence beside the top edge
-/// it drifts toward: for every member it enters the top cap clear of
-/// that edge and leaves through the bottom cap, short of the wall under
-/// the edge, so every member's ray reads `Out` (three members are read
-/// at `f64` beside the box, as the witness of that). Over a wide box the
-/// ray's gap from that edge is an enclosure from zero up though no
-/// member's ray comes near it, and the ray is set aside on it
-/// (`side_at_infinity_edge`). Red against a walk that reads such a gap
-/// as the edge met in band: the edge then stands for the top cap's
-/// entry, counts nothing at the silhouette, and the ray reads `In` off
-/// the bottom cap's exit (top in `[0.05, 0.3]`, margins 0.002 to 0.01).
+/// **A ray beside a silhouette edge that moves with the box is set
+/// aside at that edge, and never read for the other side.** The brick's
+/// moving face (its top cap, or its far `x` wall) lies anywhere in
+/// `[0.05, 0.3]`. One fixed ray comes in at the aimed incidence beside
+/// one of the two edges of that face it drifts toward, 0.002 to 0.01
+/// short of the wall under the edge: for every member it enters the
+/// moving face clear of that edge and leaves through the face opposite,
+/// so every member reads one side (three members are read at `f64`
+/// beside the box, as the witness). Over the box the ray's gap from the
+/// edge is an enclosure from zero up, though no member's ray comes near
+/// it. Twenty-four rays: two moving faces, two edges each, three
+/// margins, the brick upright and with every normal negated.
+///
+/// Each ray is asserted set aside on the edge's own row
+/// (`side_at_infinity_edge`), and to read no wrong side.
+///
+/// **Red, each of the twenty-four, under
+/// `Err(undecided) => Ok(Gap::InBand(undecided))` in
+/// `solid_contain::edge_meets`** (an undecided gap read as the edge met
+/// in band): the edge is then met and stands for its faces' crossings,
+/// and the ray is set aside further on, on another row; none reads the
+/// wrong side under that change alone. With that and the edge read off
+/// its two vertices (`census::line_passes` without `on_its_line`), the
+/// tree this was found on, eighteen read the wrong side (`In` upright,
+/// `Out` inside out) and the six beside the wall's edge along `z` graze.
 #[test]
-fn a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side() {
+fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
-    let up = [0.0, 0.0, 1.0];
-    for (lo, hi) in [(0.2, 0.3), (0.1, 0.3), (0.05, 0.3), (0.02, 0.26)] {
-        for margin in [0.002, 0.004, 0.01, 0.03] {
-            let aim = aim_beside_the_edge_it_drifts_toward(hi, margin);
-            let what = format!("top in [{lo}, {hi}], margin {margin}, aim {aim:?}");
-            for h in [lo, 0.5 * (lo + hi), hi] {
-                let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, h), tol);
-                let face = body.faces().next().expect("a brick has faces").0;
-                let member = ray_at_report(
-                    &body,
-                    face,
-                    Point3::new(aim[0], aim[1], aim[2]),
-                    Vec3::new(up[0], up[1], up[2]),
-                    band,
-                );
-                assert_eq!(member, "Ok(Side(Out))", "{what}: the member at {h}");
-            }
-            let boxed = over((lo, hi), (1.0, 1.0), |body, band| {
-                let face = body.faces().next().expect("a brick has faces").0;
-                let iv = Boxed::from_f64;
-                ray_at_report(
-                    body,
-                    face,
-                    Point3::new(iv(aim[0]), iv(aim[1]), iv(aim[2])),
-                    Vec3::new(iv(up[0]), iv(up[1]), iv(up[2])),
-                    band,
-                )
-            });
-            assert!(
-                !boxed.contains("Side(In)"),
-                "{what}: a ray every member reads Out reads In over the box"
-            );
-            if (lo, hi) == (0.05, 0.3) && margin < 0.02 {
-                assert!(
-                    boxed.starts_with("Ok(SetAside(Crossing(")
-                        && boxed.contains("side_at_infinity_edge"),
-                    "{what}: set aside on its gap from the moving edge: {boxed}"
-                );
+    let (lo, hi) = (0.05, 0.3);
+    for (a, edges) in [(2_usize, [0_usize, 1]), (0, [1, 2])] {
+        for c in edges {
+            for margin in [0.002, 0.004, 0.01] {
+                let (aim, n) = beside(a, c, hi, margin);
+                let what = format!("moving face {a}, edge along {c}, margin {margin}");
+                for h in [lo, 0.5 * (lo + hi), hi] {
+                    let (x, z) = if a == 2 { (1.0, h) } else { (h, 1.0) };
+                    let body = brick::<f64>((0.0, x), (0.0, 1.0), (0.0, z), tol);
+                    let face = body.faces().next().expect("a brick has faces").0;
+                    let member = ray_at_report(
+                        &body,
+                        face,
+                        Point3::new(aim[0], aim[1], aim[2]),
+                        Vec3::new(n[0], n[1], n[2]),
+                        band,
+                    );
+                    assert_eq!(member, "Ok(Side(Out))", "{what}: the member at {h}");
+                }
+                let (top, right) = if a == 2 {
+                    ((lo, hi), (1.0, 1.0))
+                } else {
+                    ((1.0, 1.0), (lo, hi))
+                };
+                for (inside_out, wrong) in [(false, "Side(In)"), (true, "Side(Out)")] {
+                    let boxed = over_oriented(top, right, inside_out, |body, band| {
+                        let face = body.faces().next().expect("a brick has faces").0;
+                        let iv = Boxed::from_f64;
+                        ray_at_report(
+                            body,
+                            face,
+                            Point3::new(iv(aim[0]), iv(aim[1]), iv(aim[2])),
+                            Vec3::new(iv(n[0]), iv(n[1]), iv(n[2])),
+                            band,
+                        )
+                    });
+                    assert!(
+                        !boxed.contains(wrong),
+                        "{what}, inside out {inside_out}: the side no member has: {boxed}"
+                    );
+                    assert!(
+                        boxed.starts_with("Ok(SetAside(Crossing(")
+                            && boxed.contains("side_at_infinity_edge"),
+                        "{what}, inside out {inside_out}: set aside at the moving edge: {boxed}"
+                    );
+                }
             }
         }
     }
@@ -405,6 +440,17 @@ fn a_boxed_brick_reads_the_side_its_members_have() {
 /// twentieth to three across and deep, the top cap's height and the far
 /// wall's station each over a box up to nine tenths of itself, upright
 /// and inside out.
+///
+/// **What this can go red on:** a reading of the side no member has, and
+/// nothing else. A reading lost is not a wrong one, so a change that
+/// only sets more rays aside leaves it green; and it stayed green with
+/// an undecided edge gap read as an edge met in `edge_meets`, alone and
+/// with the edge read off its two vertices, where
+/// [`a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it`] is red
+/// and eighteen of its rays read the wrong side. Its draws do not put a
+/// ray beside a moving silhouette edge closely enough, so it is evidence
+/// that these draws find no wrong side, not that the edge reading is
+/// sound.
 #[test]
 fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
     let mut rng = test_utils::fuzz::start("random_boxed_bricks");

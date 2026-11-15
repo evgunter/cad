@@ -23,11 +23,12 @@ value holds none of it. None is a wrong answer; each narrows the width
 at which a ray reads, and since an undecided edge gap now sets the ray
 aside, the first is what stops most rays.
 
-Measured on the brick of `side_reader::boxed_brick_rows` (every plane
-normal exact, the top cap's height the one box, `Sym<Interval>`) and on
-the extrude door's slab.
+Each item says what it rests on. The measured ones were taken on the
+brick of `side_reader::boxed_brick_rows` (every plane normal exact, the
+top cap's height the one box, `Sym<Interval>`) and on the extrude
+door's slab.
 
-**1. A moving edge's own line** (the edge pass's gap,
+**1. A moving edge's own line (measured)** (the edge pass's gap,
 `side_at_infinity_edge`). A top edge's stored line was minted from its
 two ends, which share the cap's height `h`, so its direction's `z` is
 `(h − h)/len`: on the door's slab at `h = 1 ± 0.05` every top edge's
@@ -43,7 +44,7 @@ on the brick at `± 0.05` the four wall rays are set aside on
 the two cap rays read; at `± 0.1` one of six reads; at `± 0.025` all
 six. On the door's slab at `± 0.025` one ray reads (the bottom cap's).
 
-**2. The aim's step into a moving face** (`side_reader::loop_aim`).
+**2. The aim's step into a moving face (measured)** (`side_reader::loop_aim`).
 The aim is a point of the face's first edge stepped along
 `normal × τ` by half the least clearance of the other edges
 (`solid_contain::edge_clearance`). On a face whose every vertex shares
@@ -53,20 +54,20 @@ where the true aim does not move: top at `h = 1 ± 0.1`, the top cap's
 aim is `x ∈ [0.184, 0.318]`, `z ∈ [0.822, 1.178]`; at `± 0.3`,
 `x ∈ [0.140, 0.848]`, `z ∈ [0.433, 1.567]`.
 
-**3. The aimed moving face's own advance**
+**3. The aimed moving face's own advance (read from the code, not measured)**
 (`ray_crossings`' plane arm, `t = (origin − aim)·n̂ / (d·n̂)`). The
 plane's origin and the aim both lie on the moving face and share its
 coordinate, so `t` is as wide as the box where the true advance is
 zero. Read from the code; on the brick it is not what sets a ray aside
 at the widths above, so its share is not separated.
 
-**4. The turn of a face's loops about a crossing**
+**4. The turn of a face's loops about a crossing (read from the code, not measured)**
 (`solid_contain::loop_turn`, `arc_turn`, the wall's image in
 `wall_crosses_by_turn`): `atan2` over `a − p` and `b − p`, the face's
 vertices less the ray's crossing of that face's plane, all sharing the
 face's boxed coordinate. Read from the code, not measured apart.
 
-**5. A curved carrier's roots, read about the line's nearest approach**
+**5. A curved carrier's roots, read about the line's nearest approach (read from the code and `About`'s own doc, not measured)**
 (`solid_contain::carrier_roots`, `About::Nearest`). `About`'s own doc
 says what it costs at `Interval`: the shift is an enclosure, and the
 moved offset and the root each carry its width. An aimed ray's origin

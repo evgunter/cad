@@ -4341,11 +4341,13 @@ pub(crate) fn ray_crossings<T: Decide>(
         let outward = decide(rows.denom(), Margin::levered(denom, arm), band).map_err(escalate)?;
         if outward == Sign::Zero {
             // A ray parallel to the plane within the band rises off it
-            // by at most the band's zero over the reach. The pre-pass
-            // passes q in band of the carrier wherever its foot is
-            // outside the face, so a miss is asked, not assumed: q
-            // definitely off the plane, or the face definitely to one
-            // side of the ray.
+            // by at most the band's zero over the reach, so it stands as
+            // far off the plane everywhere as its line's origin `q` does.
+            // That `q` may lie in band of the carrier: point containment's
+            // pre-pass passes a query there wherever its foot is outside
+            // the face, and an aimed ray's `q` is its aim, on another
+            // face. So a miss is asked, not assumed: `q` definitely off
+            // the plane, or the face definitely to one side of the ray.
             let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, ray, normal, band, rows)?
             {

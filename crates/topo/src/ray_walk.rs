@@ -272,7 +272,9 @@ pub(crate) fn apart_as<T: Decide>(
 /// the ray's start ([`advance_as`], [`geom::Ray::ahead`]), and whether
 /// its material side cannot be read there. An advance is read from the
 /// line's origin, so one ahead of a start behind that origin may be
-/// negative; only differences of advances are compared here.
+/// negative. The forward test against the start is the offering
+/// reader's, taken before a crossing reaches this fold; the fold itself
+/// compares only one crossing's advance with another's.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
     /// Each crossing's span along the ray, `[from, to]`: the point `at`

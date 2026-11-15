@@ -56,6 +56,6 @@ With the ray as it was built before, the same twelve cone-frustum aims
 at `Kε` read `Out` eight times and grazed four at 1e-9, read `Out` six
 times and grazed six at 1e-6, and read `Out` twelve times at 1e-12:
 which side of the band's edge they landed was rounding's then too. The
-pin now asserts "none set aside on a crossing" at `0.3Kε` only and
-counts the `Kε` aims against its floor. The other bodies of the pin
-did not move.
+pin asserts "none set aside on a crossing" of every aim but the cone
+frustum's at `Kε`, which it counts against its floor. The other bodies
+of the pin did not move.

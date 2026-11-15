@@ -104,8 +104,10 @@ fn a_boxed_slab_reads_its_side_by_its_rays_and_is_taken() {
 /// an enclosure from zero up), and an edge met on such a gap would stand
 /// for crossings only some members make. Over a box a hundredth as wide,
 /// wholly below, every member leaves through the top cap clear of the
-/// edge and the ray reads `Out`. Red against a walk that reads an
-/// undecided gap as an edge met in band.
+/// edge and the ray reads `Out`. Red under
+/// `Err(undecided) => Ok(Gap::InBand(undecided))` in `topo`'s
+/// `solid_contain::edge_meets` (an undecided gap read as an edge met in
+/// band): the straddling ray is then not set aside at that edge.
 #[test]
 fn a_ray_whose_exit_moves_across_an_edge_over_the_box_is_set_aside() {
     assert_eq!(
@@ -134,8 +136,10 @@ fn top_edge_ray(x_edge: f64, lo: f64, hi: f64) -> String {
     })
 }
 
-/// **A ray that crosses the slab for some members of the box and misses
-/// it for others reads nothing.** Two rays come down at the aimed
+/// **A ray whose crossing only some members of the box have is not
+/// read.** Every member of the slab has the one side, `Out`; what
+/// differs across the box is whether a given ray crosses the slab at
+/// all, and so what that ray reads. Two rays come down at the aimed
 /// incidence onto the points where the top cap's edges over `x = 0` and
 /// `x = 1` lie at depth 1, both drifting the same way across `x`: one
 /// into the slab, one out of it. Where the slab is deeper than 1 the ray
@@ -149,9 +153,11 @@ fn top_edge_ray(x_edge: f64, lo: f64, hi: f64) -> String {
 ///   for the member at depth 1, and the one drifting out has no
 ///   crossing that is every member's.
 ///
-/// Red against a ray that reads the crossing one member has.
+/// Red under `Err(undecided) => Ok(Gap::InBand(undecided))` in `topo`'s
+/// `solid_contain::edge_meets`: over depths holding 1 a ray is then not
+/// set aside.
 #[test]
-fn a_ray_that_only_some_members_of_the_box_cross_reads_nothing() {
+fn a_ray_whose_crossing_only_some_members_have_is_not_read() {
     let over = |lo: f64, hi: f64| [0.0, 1.0].map(|x_edge| top_edge_ray(x_edge, lo, hi));
     let below = over(0.9, 0.91);
     let leaving = below
