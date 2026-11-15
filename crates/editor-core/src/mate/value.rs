@@ -1604,4 +1604,88 @@ mod tests {
             "zero is the seat: {zero:?}"
         );
     }
+
+    /// The band-edge fixture: a target direction `d` oblique to every
+    /// axis, and a copy direction `n` that is `−d` tilted by `tau` about
+    /// an oblique axis `w` across `d`, so the chord `|n + d|` is
+    /// `2·sin(tau/2)`. Returns the chart, or `None` where it refuses,
+    /// with `n`, `d` and `w` as `f64`.
+    fn band_edge_chart<T: crate::mate::SolveScalar>(
+        tau: f64,
+        band: Band,
+    ) -> (Option<Chart<T>>, [Vec3<f64>; 3]) {
+        let norm = |v: Vec3<f64>| v * (1.0 / v.norm());
+        let d = norm(Vec3::new(0.3, -0.2, 0.9));
+        let w = norm(d.cross(Vec3::new(1.0, 2.0, 3.0)));
+        let n = -d * tau.cos() + w.cross(-d) * tau.sin();
+        let lift = |v: Vec3<f64>| {
+            UnitVec3::new(
+                Vec3::new(T::from_computed(v.x), T::from_computed(v.y), T::from_computed(v.z)),
+                topo::query::POSE_UNIT_NORM,
+                band,
+            )
+            .expect("a unit direction")
+        };
+        let arm = 0.5;
+        let chart = Chart::charted(
+            lift(d),
+            lift(n),
+            Seat::Free,
+            false,
+            Orientation::IDENTITY,
+            Arm::of(arm, 0.0).unwrap(),
+            geom_core::Lever::unsourced(T::from_computed(arm)),
+            band,
+        )
+        .ok();
+        (chart, [n, d, w])
+    }
+
+    /// The tilt at which the chart's refusal ends, by bisection on a log
+    /// scale: the largest refusing tilt and the smallest building one.
+    fn band_edge<T: crate::mate::SolveScalar>(band: Band) -> (f64, f64) {
+        let (mut lo, mut hi) = (1e-14_f64, 1e-1_f64);
+        assert!(band_edge_chart::<T>(lo, band).0.is_none());
+        assert!(band_edge_chart::<T>(hi, band).0.is_some());
+        for _ in 0..80 {
+            let mid = (lo * hi).sqrt();
+            if band_edge_chart::<T>(mid, band).0.is_some() { hi = mid } else { lo = mid }
+        }
+        (lo, hi)
+    }
+
+    #[test]
+    fn band_edge_probe() {
+        let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let (lo, hi) = band_edge::<f64>(band);
+        println!("f64 edge: refuses {lo:e} builds {hi:e}");
+        for f in [1.0, 1.2, 2.0, 10.0, 1e3] {
+            let tau = hi * f;
+            let (c, [n, d, w]) = band_edge_chart::<f64>(tau, band);
+            let c = c.expect("builds");
+            let s = c.least();
+            let app = |v: Vec3<f64>| s.u().get() * v.x + s.v().get() * v.y + s.w().get() * v.z;
+            let chord = (n + d).norm();
+            println!(
+                "f64 tau {tau:e} chord {chord:e} |Sn-d| {:e} |Sw-w| {:e} 2u/chord {:e}",
+                (app(n) - d).norm(),
+                (app(w) - w).norm(),
+                2.0 * f64::EPSILON / 2.0 / chord
+            );
+        }
+        let (lo, hi) = band_edge::<geom_core::Interval>(band);
+        println!("Interval edge: refuses {lo:e} builds {hi:e}");
+        use geom_core::Bounds;
+        for f in [1.0, 1.2, 2.0, 10.0, 1e3] {
+            let tau = hi * f;
+            let (c, [n, d, _w]) = band_edge_chart::<geom_core::Interval>(tau, band);
+            let c = c.expect("builds");
+            let s = c.least();
+            let lift = |x: f64| <geom_core::Interval as geom_core::Real>::from_computed(x);
+            let app = s.u().get() * lift(n.x) + s.v().get() * lift(n.y) + s.w().get() * lift(n.z);
+            let wid = [app.x, app.y, app.z].map(|x| x.hi() - x.lo());
+            let has = [(app.x, d.x), (app.y, d.y), (app.z, d.z)].map(|(x, v)| x.lo() <= v && v <= x.hi());
+            println!("Interval tau {tau:e} chord {:e} width {wid:?} contains {has:?}", (n + d).norm());
+        }
+    }
 }
