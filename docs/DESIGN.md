@@ -399,6 +399,20 @@ curve pairs.
   conventions: f64 tangents are branch-consistent with the value
   channel (abs′(0) = +1, ties keep self); the interval instantiation
   carries the *Clarke subdifferential enclosure* (straddle hulls).
+- **The structural question**: `is_exact_zero` asks whether a value is
+  zero at every point its scalar stands for. `f64` stands for one
+  point and answers yes at 0; `Interval` for its enclosure, yes only at
+  `[0, 0]`; `Dual` for a value and its first-order change, yes only
+  where the value and every derivative are 0; `Sym` for every
+  valuation of the document, yes only where the symbolic tier proves
+  the expression the zero function, by rules that read no value and a
+  budget that no session sets (ERROR-DESIGN E12), so at `Sym` the
+  answer never comes from the value channel and is the same at every
+  valuation. It is not a decision: it reads no sign and no band,
+  counts and records nothing, and defers nothing. Its answer may only
+  choose between two spellings of one real value (a lane choice,
+  [verdicts.consumers]); it never glues, splits or refuses, and a
+  branch that changes what is built is a decision ([verdicts]).
 - **Genericity boundary**: `Body<T>` = scalar-free topology arenas +
   `T`-valued geometry arenas; topology contains no `T` and never
   branches on it; keys are *body-lineage-scoped* (key identity across
@@ -500,7 +514,13 @@ body has either way: a pcurve row's class, an edge's rest locus, a
 section curve's formula where both answers give the same cells, a
 carrier's recognised kind at import. Zero takes the closed form; in
 band and definite take the general lane, whose certificate does not
-rest on the answer, and every class a lane choice reads has one. A
+rest on the answer, and every class a lane choice reads has one. At a
+symbolic scalar a closed form that drops a dependence on the
+document's variables (a literal axis where the general form divides
+two of them) is taken only where the value is identically zero
+([scalars], the structural question): a Zero read off the value holds
+at this valuation only, and a constant stored on it is wrong at the
+next (ERROR-DESIGN E12). A
 lane choice records nothing, never ends as a kernel defect at a build,
 and refuses only where its general lane is not yet written, with the
 closed form's pose as its lever and never a tolerance offer. A closed form before the general lane is a stage of the one

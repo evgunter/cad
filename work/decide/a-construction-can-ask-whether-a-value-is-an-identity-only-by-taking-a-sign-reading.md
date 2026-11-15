@@ -62,3 +62,11 @@ answering `discharge_retried` (memoised per session).
 **Not blocking.** The repair mints the axis through the existing parts
 and re-baselines the counts. This row is for whoever next needs to ask
 the question at a site where the counts or the pending entries matter.
+
+**Weighed as fork 272 (2026-11-15)**, with the mint's own row
+`work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`,
+which holds the recommendation: `is_exact_zero` itself becomes the
+structural question, answered from the expression at `Sym`. The
+"not blocking" line above no longer holds: PR 6990's review showed the
+sign-reading spelling takes two branches for one document.
+

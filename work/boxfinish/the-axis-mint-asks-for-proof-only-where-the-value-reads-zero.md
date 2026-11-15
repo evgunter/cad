@@ -73,3 +73,75 @@ lane's sketch was a non-deciding query on `geom_core::Decide`
 **Closed when** the mint's branch is the same at every valuation of
 one document in every lane it runs in, the two probes above are green
 as ordinary rows, and `axis_or` reads no sign it then throws away.
+
+## Weighed (fork 272, 2026-11-15): three designers agree after five rounds
+
+**The structural question.** `geom_core::is_exact_zero` becomes "is
+this value zero at every point its scalar stands for", and is not a
+decision. `f64` answers yes at 0; `Interval` only at `[0, 0]`; `Dual`
+only where the value and every derivative are 0; `Sym` only where the
+tier's normal form proves the expression zero, with every rule that
+reads a value off (the certified read at `min` / `max` / `select`; the
+registered-identity door) and with rules and a term budget fixed for
+the kernel. At `Sym` nothing reads "exactly zero" off the number, so a
+new caller cannot write the defect the corpus rows caught. Its one
+licence is to choose between two spellings of one real value.
+
+**The mint, one function.** Where one component of the vector is zero
+by the question, the axis, signed by a reading of the other component;
+otherwise the vector over its length, and no reading. The `line_to`
+verb calls it and records the director, and that hop's junction checks
+read the same value (today `path::chord_director` and validation spell
+the hop's direction twice). Validation calls it only for a table. An
+arc's radial uses it. `sym::aside` and the discarded readings go.
+
+**The sign reading** is a new fact (vertex separation decides the
+length, not which way the line points). It is kept; it sits outside
+the cross-lane verdict log under its audit row, since the `f64` witness
+and the leaf can take different arms, and the re-valuation instrument
+still records it; where it does not decide, the escalation propagates
+as the verb's error, with no fallback to the quotient.
+
+**The other sites.**
+- `literal_sign` (a bulge's sign) is a fact about a value: an ordinary
+  recorded decision.
+- `is_exact_zero`'s other callers (about two dozen) are audited in the
+  same change: a read of a literal the kernel wrote answers as today; a
+  choice of spelling on a computed value changes only where two values
+  agree by coincidence or an identity rounds; a branch that changes
+  what is built (a bulge of zero lowering to a line, which repeats
+  validation's straightness decision) becomes a margined decision.
+- The readers of "was this Zero proven" (`MarginDiag::proven`,
+  `deferred::discharge`) and the unproven-coincidence lint stay as they
+  are; a construction's registered identities count as established.
+- `[verdicts.consumers]`' "Zero takes the closed form" is amended for
+  every lane choice, with an audit to follow.
+
+**Rejected as final states, by all three:** PR 6990's spelling (a
+decision reads the value first by design); taking the axis rule out
+(the slab's wall turns over the box); making the value channel exact
+(`h/|h|` still needs a sign); a tagged direction type; a separate
+query beside `is_exact_zero` (two functions that must agree at `Sym`).
+
+**What it costs.** Every `is_exact_zero` caller's answer at `Sym` and
+`Dual` can change the day it lands, so the audit is part of the
+change. With the symbolic tier switched off by its dial the driver
+runs plain `Interval`, and a literal-zero component there stores the
+axis, so that replay is no longer the pre-E12 one byte for byte on such
+a profile. The question needs a memo of its own.
+
+**To trace before building** (none changes the answer): how an
+escalation taken outside the verdict log reaches the subdivision
+driver; one run of the value-free walk on the corpus's hop identities;
+one measured run of the lint; the per-caller audit. Deferred, to be
+measured on a real document first: a "constant ratio" form of the
+question, which would make a 45° side with a boxed size exact.
+
+**How the rounds went.** The first reports agreed on a question that
+is not a decision and split on four things; the box-certified reads
+and where the mint lives closed in round 1, the lint and the sign
+reading in round 2. One door or two crossed over three times before
+all three settled on one in round 4, and the budget in round 5. The
+reports are on `boxfinish/fork-identity-reports`
+(`probe/fork-identity/round0` to `round4`), by label.
+
