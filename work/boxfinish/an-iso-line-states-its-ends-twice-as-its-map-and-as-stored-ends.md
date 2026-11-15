@@ -107,3 +107,12 @@ planes; the offset's `v` shift on cones).
 **Left to the implementer:** whether the straight and arc images are
 one variant or two sharing the held-line type.
 
+**Acceptance, when unit 2 lands.** `sweep`
+`split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
+goes back to its first contract: a split child holds the parent's
+image, the same `Debug` bytes, with only the interval moved. PR 6959
+made a child's stated end at the cut differ from its parent's, so the
+row was re-stated in three parts (the map bit for bit, the kept end,
+the cut's end as the map's value); with no ends to state, those three
+are one comparison again.
+
