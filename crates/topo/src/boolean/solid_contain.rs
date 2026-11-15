@@ -2990,7 +2990,7 @@ fn cast_ray<T: Decide>(
     reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count_as(
+    let side = ray_crossings(body, geos, (ray, None), reach, band, SCHEDULE_ROWS)?.first_count_as(
         SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
@@ -3179,6 +3179,20 @@ impl<T: Copy> RayHit<T> {
 
 /// A ray's crossings, each a [`RayHit`].
 pub(crate) type RayCrossings<T> = Crossings<T, RayHit<T>>;
+
+/// **What a ray's origin was stepped from**: a point `m` of an edge the
+/// two `faces` share, and the `offset` from `m` to the ray's line's
+/// origin. An edge lies on the carriers of the faces it bounds, which
+/// the body holds and nothing here checks, so `m` is a point of each
+/// face's plane, and the ray's advance to that plane is read from `m`
+/// ([`ray_crossings`]' plane arm).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Anchor<T: geom_core::Real> {
+    /// The faces the anchored edge bounds: one face twice for a seam.
+    pub(crate) faces: [FaceKey; 2],
+    /// The ray's line's origin less the anchor point.
+    pub(crate) offset: Vec3<T>,
+}
 
 /// A planar face's plane as one ray crosses it: the advance, the
 /// crossing point and the face's outward sign there.
@@ -3608,12 +3622,29 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
+/// **`u × w` about a plane's normal and `u·w`, for two vectors of the
+/// plane**, read on their components along the normal's own frame
+/// `(e1, e2)` ([`Vec3::orthonormal_basis`], `e1 × e2` the normal): with
+/// `u = u1·e1 + u2·e2` and `w` likewise, `n̂·(u × w) = u1·w2 − u2·w1` and
+/// `u·w = u1·w1 + u2·w2`. A vector between two points of a plane has no
+/// part along its normal, and the points' own enclosures do not know it:
+/// two points of a cap that rides a boxed height each carry that height,
+/// their difference carries its width along the normal, and `u·w` read
+/// on all three components carries the width squared where the value
+/// holds none of it. Read on the two in-plane components, the normal
+/// part is never summed.
+fn in_plane<T: Decide>((e1, e2): (Vec3<T>, Vec3<T>), u: Vec3<T>, w: Vec3<T>) -> (T, T) {
+    let ((u1, u2), (w1, w2)) = ((u.dot(e1), u.dot(e2)), (w.dot(e1), w.dot(e2)));
+    (u1 * w2 - u2 * w1, u1 * w1 + u2 * w2)
+}
+
 /// **The turn of `face`'s loops about `p`**, about `normal`, every point
 /// of them first carried by `map` (the identity for a planar face, which
 /// `p` lies in; an image of a curved face in the plane `p`'s image lies
 /// in): a line edge, carried to a segment, turns by the angle its ends
 /// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
-/// over its two halves. `None` where an edge is neither.
+/// over its two halves, each read in the plane ([`in_plane`]). `None`
+/// where an edge is neither.
 fn loop_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3628,9 +3659,10 @@ fn loop_turn<T: Decide>(
             .map(|&x| map(x))
             .ok_or_else(corrupt)
     };
+    let frame = normal.orthonormal_basis();
     let angle = |a: Point3<T>, b: Point3<T>| {
-        let (u, w) = (a - p, b - p);
-        normal.dot(u.cross(w)).atan2(u.dot(w))
+        let (cross, dot) = in_plane(frame, a - p, b - p);
+        cross.atan2(dot)
     };
     let mut turn = T::zero();
     for e in body.proven_face(face).edges() {
@@ -3656,8 +3688,8 @@ fn loop_turn<T: Decide>(
                 };
                 let m = on(0.5)?;
                 turn = turn
-                    + arc_turn(normal, p, (a, on(0.25)?, m))
-                    + arc_turn(normal, p, (m, on(0.75)?, b));
+                    + arc_turn(frame, p, (a, on(0.25)?, m))
+                    + arc_turn(frame, p, (m, on(0.75)?, b));
             }
             _ => return Ok(None),
         }
@@ -3666,7 +3698,8 @@ fn loop_turn<T: Decide>(
 }
 
 /// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
-/// at most half a turn, about `normal`, in the plane of `p`: the change
+/// at most half a turn, about the normal of `frame`
+/// ([`in_plane`]), in the plane of `p`: the change
 /// in the direction from `p` to the arc's point as it runs from `a` to
 /// `b`. As complex numbers in that plane, `M(x) = (x − a)/(x − b)` carries
 /// the arc's circle to a line through the origin and the arc to the
@@ -3677,13 +3710,13 @@ fn loop_turn<T: Decide>(
 /// `M` is read by its numerator `(x − a)·conj(x − b)`, the positive
 /// scale `|x − b|²` turning no argument.
 fn arc_turn<T: Decide>(
-    normal: Vec3<T>,
+    frame: (Vec3<T>, Vec3<T>),
     p: Point3<T>,
     (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
 ) -> T {
     let numerator = |x: Point3<T>| {
-        let (u, w) = (x - a, x - b);
-        (u.dot(w), normal.dot(w.cross(u)))
+        let (cross, dot) = in_plane(frame, x - b, x - a);
+        (dot, cross)
     };
     let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
     let zero = T::zero();
@@ -3738,6 +3771,44 @@ pub(crate) fn edge_clearance<T: Decide>(
         geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
     }
+}
+
+/// **A lower bound on the distance from `m` to the edge of `e`, in the
+/// plane across `normal`**: a line edge's segment and `m` each dropped
+/// onto the plane's own frame ([`Vec3::orthonormal_basis`]) and read
+/// there, another edge as [`edge_clearance`] reads it. Dropping the part
+/// along the normal lengthens nothing, so it is a lower bound on the
+/// distance wherever the points lie, and it is the distance where `m`
+/// and the edge lie in one plane across `normal`: a point of a planar
+/// face's boundary against another edge of it. Two points of a face
+/// that rides a boxed height each carry that height, and their
+/// difference carries its width along the normal, which this reading
+/// never sums.
+pub(crate) fn clearance_in_plane<T: Decide>(
+    body: &Body<T>,
+    e: &crate::live::FaceEdge,
+    m: Point3<T>,
+    normal: Vec3<T>,
+) -> Option<T> {
+    let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
+    let curve = body
+        .get_edge(e.edge)
+        .and_then(|ed| body.get_curve_geom(ed.curve))
+        .and_then(crate::null::CurveGeom::certified)?;
+    if curve.carrier().as_line().is_none() {
+        return edge_clearance(body, e, m);
+    }
+    let (e1, e2) = normal.orthonormal_basis();
+    let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+    let flat = |w: Vec3<T>| Vec3::new(w.dot(e1), w.dot(e2), T::zero());
+    let o = Point3::new(T::zero(), T::zero(), T::zero());
+    Some(
+        geom::Line {
+            origin: o,
+            dir: flat(b - a),
+        }
+        .distance_within(o + flat(m - a), (T::zero(), T::one())),
+    )
 }
 
 /// Whether every edge bounding `face` is one of `read`: a seam inside it
@@ -4251,7 +4322,7 @@ fn root_held<T: Decide>(
 pub(crate) fn ray_crossings<T: Decide>(
     body: &Body<T>,
     geos: &[(FaceKey, FaceGeo<T>)],
-    ray: &geom::Ray<T>,
+    (ray, anchor): (&geom::Ray<T>, Option<&Anchor<T>>),
     arm: Lever<T>,
     band: Band,
     rows: RayRows,
@@ -4315,13 +4386,21 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Ok(_) => RayFault::Graze,
             });
         }
-        let t = (origin - q).dot(normal) / denom;
+        // The plane's point less the ray's origin. For a plane the ray's
+        // anchor lies on it is read from the anchor, `m − q = −offset`:
+        // `q` was stepped from `m`, so `(m − q)·n̂` holds the step alone,
+        // where `(origin − q)·n̂` subtracts two points that each carry
+        // the plane's place along its normal.
+        let to_plane = match anchor {
+            Some(anchor) if anchor.faces.contains(&face) => -anchor.offset,
+            _ => origin - q,
+        };
+        let t = to_plane.dot(normal) / denom;
         planes.push(PlaneCross {
             face,
             normal,
             t,
-            slack: geom_core::rounding_charge((origin - q).norm() + t.abs() * d.norm())
-                / denom.abs(),
+            slack: geom_core::rounding_charge(to_plane.norm() + t.abs() * d.norm()) / denom.abs(),
             p: q + d * t,
             outward,
         });
@@ -6309,7 +6388,7 @@ mod arc_turn_rows {
                             (true, false) if principal >= 0.0 => principal - 2.0 * pi,
                             _ => principal,
                         };
-                        let got = arc_turn(normal, p, (a, m, b));
+                        let got = arc_turn(normal.orthonormal_basis(), p, (a, m, b));
                         assert!(
                             (got - want).abs() < 1e-6,
                             "span {span}, t0 {t0}, r {r} at {at}: {got} against {want}"
@@ -6363,7 +6442,10 @@ mod arc_turn_rows {
                     Point3::new(b.x * 2.0 - a.x, b.y * 2.0 - a.y, 0.0),
                 ];
                 for p in points {
-                    let (got, want) = (arc_turn(normal, p, (a, m, b)), polyline(p, t0, t1));
+                    let (got, want) = (
+                        arc_turn(normal.orthonormal_basis(), p, (a, m, b)),
+                        polyline(p, t0, t1),
+                    );
                     assert!(
                         (got - want).abs() < 1e-6,
                         "span {span}, t0 {t0}, p {p:?}: {got} against {want}"

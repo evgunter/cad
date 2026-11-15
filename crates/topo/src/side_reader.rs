@@ -22,7 +22,7 @@ use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 use crate::body::Body;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
+    Anchor, FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
 use crate::entity::{EntityId, FaceKey};
@@ -245,8 +245,9 @@ impl<V> SideUnread<V> {
     }
 }
 
-/// An aim: a point on a face and the face's outward normal there.
-type Aim<T> = (Point3<T>, Vec3<T>);
+/// An aim: a point on a face, the face's outward normal there, and what
+/// the point was stepped from, where it was ([`loop_aim`]).
+type Aim<T> = (Point3<T>, Vec3<T>, Option<Anchor<T>>);
 
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
 /// there. A planar face whose every edge is a line or a circle arc aims at
@@ -282,10 +283,12 @@ fn aim_at<T: Decide>(
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     if let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face) {
-        if let Some(aim) = loop_aim(body, face, normal) {
-            return Ok(Some((aim, normal)));
+        if let Some((aim, anchor)) = loop_aim(body, face, normal) {
+            return Ok(Some((aim, normal, Some(anchor))));
         }
-        return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
+        return Ok(
+            crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal, None))
+        );
     }
     let f = body
         .face(face)
@@ -324,13 +327,14 @@ fn aim_at<T: Decide>(
             crate::face_normal::face_outward_normal_at(body, face, aim, band)
                 .ok()
                 .flatten()
-                .map(|normal| (aim, normal.vec())),
+                .map(|normal| (aim, normal.vec(), None)),
         );
     }
     let chart = geom_brep::implicit_gradient(surface, aim);
     Ok(Some((
         aim,
         geom_brep::OutwardNormal::from_chart(chart, f.sense()).vec(),
+        None,
     )))
 }
 
@@ -340,8 +344,8 @@ fn aim_at<T: Decide>(
 /// first half-edge aims elsewhere) at the golden section of its span
 /// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
 /// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
-/// distance from every other edge of every loop
-/// ([`crate::boolean::solid_contain::edge_clearance`]), and
+/// distance from every other edge of every loop, read in the face's
+/// plane ([`crate::boolean::solid_contain::clearance_in_plane`]), and
 /// by at most half its own arc's radius. The step's path meets no edge,
 /// so the aim lies in the face, off its middles and its boundary; a face
 /// narrower than the rounding there steps nowhere, and its aim only
@@ -349,7 +353,15 @@ fn aim_at<T: Decide>(
 /// by the turn of its loops however near an edge it lands
 /// ([`ray_crossings`]). `None` for a face with another edge, or one whose
 /// outer loop has none.
-fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
+///
+/// The aim is returned with its [`Anchor`]: `m` is a point of the first
+/// edge, which the face and the face across it share, and the step is
+/// the offset.
+fn loop_aim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+) -> Option<(Point3<T>, Anchor<T>)> {
     let edges = body.proven_face(face).edges();
     let outer = proven(&body.faces, face, EntityId::Face).outer;
     let first = *edges.first()?;
@@ -375,11 +387,18 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         if e.edge == first.edge || e.across == face {
             continue;
         }
-        let room = crate::boolean::solid_contain::edge_clearance(body, e, m)? * half;
+        let room = crate::boolean::solid_contain::clearance_in_plane(body, e, m, normal)? * half;
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
-    Some(m + into.normalize() * step.unwrap_or(T::zero()).max(T::zero()))
+    let offset = into.normalize() * step.unwrap_or(T::zero()).max(T::zero());
+    Some((
+        m + offset,
+        Anchor {
+            faces: [face, first.across],
+            offset,
+        },
+    ))
 }
 
 /// **Whether faces `a` and `b` meet**, so that a ray's two crossings of
@@ -600,13 +619,13 @@ fn cast_aims<T: Decide>(
     // the volume, not a refusal, is what follows it.
     let (mut aimed, mut set_aside) = (0, Vec::new());
     let read = climb(Answering::Any, &geos, |&(face, ref geo)| {
-        let (aim, normal) = match aim_at(body, face, geo, band) {
+        let (aim, normal, anchor) = match aim_at(body, face, geo, band) {
             Ok(Some(aimed_at)) => aimed_at,
             Ok(None) => return Rung::Passes,
             Err(e) => return Rung::Aborts(Err(e)),
         };
         aimed += 1;
-        match aimed_ray(body, faces, &geos, face, aim, normal, band) {
+        match aimed_ray(body, faces, &geos, face, (aim, normal, anchor), band) {
             Ok(Aimed::Side(side)) => Rung::Answers(Ok(side)),
             Ok(Aimed::Pair(pair)) => Rung::InBand(pair),
             Ok(Aimed::SetAside(why)) => {
@@ -653,14 +672,12 @@ enum Aimed {
 /// unit as `normal` is, so an advance along it is a length; that a
 /// face's stored normal is unit is the body's to hold, and nothing here
 /// checks it.
-#[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     geos: &[(FaceKey, FaceGeo<T>)],
     face: FaceKey,
-    aim: Point3<T>,
-    normal: Vec3<T>,
+    (aim, normal, anchor): Aim<T>,
     band: Band,
 ) -> Result<Aimed, PointInSolidError> {
     let (along, across) = AIM_INCIDENCE;
@@ -680,7 +697,7 @@ fn aimed_ray<T: Decide>(
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::starting(aim, -out, start),
+        (&geom::Ray::starting(aim, -out, start), anchor.as_ref()),
         reach,
         band,
         AIMED_ROWS,
@@ -799,10 +816,10 @@ pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<Stri
         };
         for (face, geo) in &geos {
             let read = match aim_at(body, *face, geo, band) {
-                Ok(Some((aim, normal))) => {
+                Ok(Some(aim)) => {
                     format!(
                         "{:?}",
-                        aimed_ray(body, sel.faces(), &geos, *face, aim, normal, band)
+                        aimed_ray(body, sel.faces(), &geos, *face, aim, band)
                     )
                 }
                 Ok(None) => "no aim".to_owned(),
@@ -937,7 +954,7 @@ pub(crate) fn ray_at_report<T: Decide>(
     match geos {
         Ok(geos) => format!(
             "{:?}",
-            aimed_ray(body, sel.faces(), &geos, face, aim, normal, band)
+            aimed_ray(body, sel.faces(), &geos, face, (aim, normal, None), band)
         ),
         Err(e) => format!("no geometry: {e:?}"),
     }
@@ -975,8 +992,8 @@ pub(crate) fn ray_counts(
     geos.rotate_left(turn % n);
     let reach = selection_reach(body, sel.faces(), ray.line().origin, band)
         .map_err(|e| format!("{e:?}"))?;
-    let crossings =
-        ray_crossings(body, &geos, ray, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
+    let crossings = ray_crossings(body, &geos, (ray, None), reach, band, AIMED_ROWS)
+        .map_err(|e| format!("{e:?}"))?;
     Ok(crossings
         .all()
         .into_iter()
