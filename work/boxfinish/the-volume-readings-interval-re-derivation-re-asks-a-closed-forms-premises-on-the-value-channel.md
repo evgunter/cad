@@ -2,10 +2,11 @@
 id: the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel
 kind: issue
 title: The volume reading's Interval re-derivation re-asks a closed form's premises on the value channel, so a cylinder wall the body's own scalar proves on its rim refuses props_rim_fit over a box
-status: open
+status: dispatched
 opened: 2026-11-15
 priority: P0
 cost: M
+branch: boxfinish/volume-premises
 ---
 
 
