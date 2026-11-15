@@ -110,3 +110,25 @@ else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).
 PR 6956 re-cut tables and golden files read by ten slow-set rows; its diff spelled none of their names, and `slow_set.py --new-expr` selected `none()`. To be gated at all it added, beside each re-cut table, a doc line naming the test that reads it (`[`the_blend_documents_evaluate_to_their_committed_digests`]` and the like, in `lib_g16_corpus_name_digests.rs`, `perf2_name_keying_differential.rs`, `seat4_verb_lowering.rs`, `seat7_sweep_lowering.rs`, `sym11_exact_channel_rows.rs`, `perf12_census_goldens.rs`, `m10_5_clearance_interval.rs`, `step-export/tests/export.rs` and `sweep/tests/mass_props_are_thread_count_invariant.rs`).
 
 Those lines exist only for the selector. They fail open: a later re-cut that edits a constant and leaves the doc line alone adds no line spelling the name, so it is selected by nothing again, and nothing says so. A golden FILE re-cut (`.txt`, `.step`) never adds a Rust line at all. When the selector is fixed to see a slow test whose body, table or `include_str!` target the diff touches, the lines can go.
+
+## Six more of those lines (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+PR 6985 re-states six slow-set rows without respelling a name, so it
+names each on an added line. Four read as part of the doc they sit in
+and two exist only for the selector:
+
+- only for the selector: `crates/editor-core/tests/coincidence_door.rs`,
+  the parenthesis naming
+  `the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows` in
+  that test's own doc; `crates/test-utils/tests/reader_census.rs`, the
+  two comment lines naming
+  `every_site_that_reads_rust_source_is_in_the_ledger` on the ledger's
+  new `a_blend_reads_the_wedge_through_the_one_fold.rs` entry;
+- part of the doc: `sym11_exact_channel_rows.rs` (`PAST_THE_CEILING`'s
+  doc), `mass_props_are_thread_count_invariant.rs` (`expected`'s doc,
+  both walk rows; its golden `.txt` edit adds no Rust line),
+  `raw_door_census.rs` (`after_mod_keyword`'s doc).
+
+The step runs them at the default ε only. Three of the six were red at
+1e-12 only or at every row, so the 1e-6 and 1e-12 readings in that PR
+are local runs.
