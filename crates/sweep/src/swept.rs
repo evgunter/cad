@@ -1150,7 +1150,14 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
                 Sign::Zero
             ))
         }
-        (SegmentKind::Arc { arc: a1, turn: t1, .. }, SegmentKind::Arc { arc: a2, turn: t2, .. }) => {
+        (
+            SegmentKind::Arc {
+                arc: a1, turn: t1, ..
+            },
+            SegmentKind::Arc {
+                arc: a2, turn: t2, ..
+            },
+        ) => {
             if t1 != t2 {
                 return Ok(false);
             }
@@ -1866,11 +1873,22 @@ mod tests {
             })
         };
         let (end, plain) = readings(geom_core::SymRules::none(), true);
-        assert_eq!(end, [Some(Sign::Zero); 3], "the axis's far end, plain: {plain:?}");
+        assert_eq!(
+            end,
+            [Some(Sign::Zero); 3],
+            "the axis's far end, plain: {plain:?}"
+        );
         assert_eq!(plain.numeric, 0, "the axis: no numeric decision: {plain:?}");
         let (end, shipped) = readings(geom_core::SymRules::shipped(), false);
-        assert_eq!(end, [Some(Sign::Zero); 3], "the quotient's far end: {shipped:?}");
-        assert_eq!(shipped.numeric, 0, "the quotient: no numeric decision: {shipped:?}");
+        assert_eq!(
+            end,
+            [Some(Sign::Zero); 3],
+            "the quotient's far end: {shipped:?}"
+        );
+        assert_eq!(
+            shipped.numeric, 0,
+            "the quotient: no numeric decision: {shipped:?}"
+        );
     }
 
     fn budget() -> SymBudget {

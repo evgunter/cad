@@ -110,7 +110,10 @@ fn normals<T: geom_core::Decide + topo::AtRestPolicy>(
     node: RecipeNodeId,
 ) -> BTreeMap<topo::FaceKey, Vec3<T>> {
     let Some(ValuePayload::Body(b)) = ev.value(node).map(|v| &v.payload) else {
-        panic!("the extrude builds: {:?}", ev.node_error(node).map(|e| &e.kind));
+        panic!(
+            "the extrude builds: {:?}",
+            ev.node_error(node).map(|e| &e.kind)
+        );
     };
     let body = b.body();
     body.faces()

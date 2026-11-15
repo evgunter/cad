@@ -1094,10 +1094,11 @@ fn a_tables_director_is_stored_as_a_walls_normal_at_its_own_length() {
     use profile::{Segment, SegmentDirections};
     let delta = 2e-10;
     let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-    let lp: ProfileLoop<f64> = RawLoop::new_directed(corners.iter().enumerate().map(|(k, &(x, y))| {
-        let written = (k == 0).then(|| SegmentDirections::Line(Vec2::new(1.0 + delta, 0.0)));
-        (Point2::new(x, y), Segment::Line, written)
-    }));
+    let lp: ProfileLoop<f64> =
+        RawLoop::new_directed(corners.iter().enumerate().map(|(k, &(x, y))| {
+            let written = (k == 0).then(|| SegmentDirections::Line(Vec2::new(1.0 + delta, 0.0)));
+            (Point2::new(x, y), Segment::Line, written)
+        }));
     let built = slab(SketchPlane::xy(), lp, 1.0);
     let lengths: Vec<f64> = built.walls[0]
         .iter()

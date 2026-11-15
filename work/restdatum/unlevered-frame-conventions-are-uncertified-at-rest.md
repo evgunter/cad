@@ -108,3 +108,19 @@ and the split refused valid near-flush cuts in kernel-defect voice.
 The minter now projects (branch `cleave/band-on-pinch-residue`), so
 that measurement no longer stands. The convention is still certified
 nowhere at rest, and that question remains open.
+
+## Evidence from the sweep doors reading the profile's directions (BOXFINISH, 2026-11-15)
+
+An extrude's line wall stores as its normal the frame turning the
+director the profile recorded for the segment
+(`sweep::extrude::Course::wall_normal`), and its line rim stores that
+director, turned, as its carrier's `dir`. Validation accepts a table's
+written director `d` wherever `‖o + ℓ·d − p‖` is within the band, which
+bounds `(|d| − 1)·ℓ` and not `|d| − 1`. So a door can store a plane
+normal (and a line `dir`) off unit by up to band/ℓ, and nothing at rest
+reads either length. Pinned by
+`sweep`'s `a_sweep_keeps_the_frame_it_is_handed::a_tables_director_is_stored_as_a_walls_normal_at_its_own_length`:
+the unit square whose bottom side records `(1 + 2e-10, 0)` validates,
+and its wall stores a normal `1 + 2e-10` long. Only fixtures and
+`into_loop` write such a table today; the verbs record unit directors
+and validation mints the rest.
