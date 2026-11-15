@@ -24,11 +24,11 @@
 //!   fillet, so the bore opens through a torus, and the shaft wider than
 //!   the bore and narrower than its mouth, its wall crossing the torus
 //!   on a circle (the site `CoaxialCylinderTorus`). Its union is green
-//!   at `f64` and escalates at `Interval`.
+//!   at `f64` and certifies at `Interval`, at every ε.
 //! - [`with_a_ball`]: the collar a ball, its centre on the shaft's axis
 //!   (the site `CoaxialSphere`), turned so no edge of the ball
-//!   crosses the shaft's wall. Its union is green at `f64` and escalates
-//!   at `Interval`.
+//!   crosses the shaft's wall. Its union is green at `f64` and certifies
+//!   at `Interval` but at ε 1e-12, where it escalates.
 //!
 //! A fourth, [`one_radius`], is the scene itself with the bore, the
 //! shaft and the collar's bore all reading one `Length` variable,
@@ -200,7 +200,7 @@ pub fn collar_by_values() -> CorpusDoc {
 }
 
 /// **The scene with the bore's mouth rounded** (module docs): beside
-/// the registry, its union green at `f64` and escalating at `Interval`.
+/// the registry, its union green at `f64` and certified at `Interval`.
 pub fn rounded_mouth() -> CorpusDoc {
     scene(
         (
@@ -231,7 +231,8 @@ pub fn rounded_mouth() -> CorpusDoc {
 }
 
 /// **The scene with a ball for the collar** (module docs): beside the
-/// registry, its union green at `f64` and escalating at `Interval`.
+/// registry, its union green at `f64` and certified at `Interval` but at
+/// ε 1e-12.
 pub fn with_a_ball() -> CorpusDoc {
     scene(
         (

@@ -846,15 +846,11 @@ fn iso_curve_candidates(
             let (dv0, dv1) = wp.knot_values_v().domain();
             let v = if end { dv1 } else { dv0 };
             let (u0, u1) = wp.knot_values_u().domain();
-            let slope = (u1 - u0) / (spec.t1 - spec.t0);
             candidates.push((
                 AdoptionCandidate::IsoCurve,
                 EdgeDescriptionSpec::chart_image(
                     wall,
-                    geom_brep::Pcurve::IsoLine {
-                        p0: geom_core::Point2::new(u0 - slope * spec.t0, v),
-                        pl: geom_core::Vec2::new(slope, 0.0),
-                    },
+                    geom_brep::Pcurve::iso_row(v, (u0, u1), (spec.t0, spec.t1)),
                 ),
             ));
         }

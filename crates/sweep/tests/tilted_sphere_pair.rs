@@ -529,7 +529,7 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// projected lane's own gap where the lane choice sent the circle,
 /// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
 /// such an arc at the pole is the join's
-/// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+/// (`work/germ/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
 ///
 /// **What the mesher answers** (measured in release, PR 5920's second
 /// fix pass; `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
@@ -540,6 +540,25 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// is not meshed here.
 #[test]
 fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
+    // Pinned red at 1e-6: the arc through the pole escalates the general
+    // lane's sector reading in band, where the row wants the lane's own
+    // azimuth gap
+    // (`work/gauge/the-in-arc-pairing-turns-the-pole-arcs-lane-gap-into-an-indeterminate-at-eps-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the section through the pole",
+        &[
+            "δ 0: the arc through the pole refuses not yet on its azimuth sector",
+            "error: Escalated { check: GeneralLane, sample: 0, cause: Indeterminate { margin: MarginDiag(Value(-2.1396",
+            "band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some(\"pcurve_projected_sector\")",
+        ],
+        a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row,
+    );
+}
+
+/// The row [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`] runs, under its pin.
+fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed_row() {
     let c = Vec3::new(2.0, 2.0, 0.5);
     let pair = |d: f64| {
         let s = 0.7 + d;

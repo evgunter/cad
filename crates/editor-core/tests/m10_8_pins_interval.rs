@@ -147,6 +147,12 @@ fn a0_alone() -> SymRules {
 /// witness: plain 2898/1612 → 2835/2803, shipped 2954/1556 →
 /// 2891/2747. The symbolic count falls by the witness reads the tier
 /// proved, which no station's read reproduces; A0's yield holds at 56.
+///
+/// Then a validated segment began recording its directions, and
+/// validation's mint reads each side chord's components and the other's
+/// sign exactly and outside the log (audit row F43): plain 2835/2803 →
+/// 2863/2831, shipped 2891/2747 → 2919/2775, the same at every ε row;
+/// A0's yield holds at 56.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -177,13 +183,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2835 numeric=2803 frozen=0",
+        "decisions symbolic=2863 numeric=2831 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2891 numeric=2747 frozen=0",
-        "56 of the 2803 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2919 numeric=2775 frozen=0",
+        "56 of the 2831 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(
