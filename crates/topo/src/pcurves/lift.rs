@@ -4,7 +4,6 @@
 use geom::Surface;
 use geom_brep::{ChartAxis, ChartImage, Pcurve, PcurveCertifyError, chart_pcurve_over};
 use geom_core::predicate::Band;
-use geom_core::spline::SpanLocate;
 use geom_core::{Decide, Point2, Real, is_exact_zero};
 
 use super::{
@@ -245,7 +244,7 @@ impl<T: Real> LiftedRow<T> {
     }
 }
 
-impl<T: Real + SpanLocate> LiftedRow<T> {
+impl<T: Decide> LiftedRow<T> {
     /// The chart points the chain enters and leaves the image at, read
     /// through its map ([`Pcurve::eval`]).
     #[must_use]
@@ -409,7 +408,7 @@ impl<T: Real> Lift<T> {
     }
 }
 
-impl<T: Real + SpanLocate> Lift<T> {
+impl<T: Decide> Lift<T> {
     /// **The chain grouped into its held runs** ([`HeldRun`]): maximal
     /// runs of consecutive rows whose images hold one chart axis, in
     /// chain order. A whole loop's chain is a cycle, so its last run and

@@ -1224,8 +1224,8 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
             let Some(line) = lift.rows()[i].held_line() else {
                 unreachable!("a run's members hold its axis: `Lift::runs` read each one")
             };
-            let value = exact_value(line.value)?;
-            let way = decided_way(line.along)?;
+            let value = exact_value(Interval::from_certified(line.value))?;
+            let way = way_along(Interval::from_certified(line.along))?;
             let (v, w) = *held.get_or_insert((value, way));
             if v != value {
                 return Err(refuse(
@@ -1271,8 +1271,7 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// A held value as the exact number it is: a certified point bracket.
-fn exact_value<T: Bounds + CertifiedEnclosure>(x: T) -> Result<f64, PropsError> {
-    let x = Interval::from_certified(x);
+fn exact_value(x: Interval) -> Result<f64, PropsError> {
     // The refusal first: a refused crossing carries the scalar's own
     // endpoints, so a point bracket that may not certify passes both
     // tests below.
@@ -1290,8 +1289,7 @@ fn exact_value<T: Bounds + CertifiedEnclosure>(x: T) -> Result<f64, PropsError> 
 /// The way a piece runs along its line ([`crate::pcurves::HeldLine::along`]):
 /// `true` with its moving channel, decided by the rate's certified
 /// bracket lying wholly on one side of zero.
-fn decided_way<T: Bounds + CertifiedEnclosure>(along: T) -> Result<bool, PropsError> {
-    let x = Interval::from_certified(along);
+fn way_along(x: Interval) -> Result<bool, PropsError> {
     if x.is_certified() && x.lo() > 0.0 {
         Ok(true)
     } else if x.is_certified() && x.hi() < 0.0 {
@@ -1460,7 +1458,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                 // so a sub-range would get a certified number for
                 // chart the face does not bound; it refuses instead.
                 // The refusal first, for the reason the
-                // `exact` closure above gives.
+                // held-value read gives ([`exact_value`]).
                 if !r0.is_certified()
                     || !r1.is_certified()
                     || !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
@@ -2323,7 +2321,7 @@ mod tests {
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
         use geom_brep::{Pcurve, StoredSpan};
-        use geom_core::{Bounds, CertifiedEnclosure, Decide, Interval, Point2, Real, Vec2};
+        use geom_core::{Bounds as _, Interval, Point2, Real, Vec2};
 
         /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
         fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
@@ -2355,13 +2353,28 @@ mod tests {
 
         const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
 
-        fn read<T: Decide + Bounds + CertifiedEnclosure>(
-            rows: Vec<LiftedRow<T>>,
-        ) -> Result<TrimRectangle, PropsError> {
-            trim_rectangle(&Lift::stated_for_tests(rows, true))
+        /// The two scalars a loop is read at, each reading its loop.
+        trait Reads: Real {
+            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError>;
         }
 
-        fn refused<T: Decide + Bounds + CertifiedEnclosure>(rows: Vec<LiftedRow<T>>, says: &str) {
+        impl Reads for f64 {
+            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, true))
+            }
+        }
+
+        impl Reads for Interval {
+            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, true))
+            }
+        }
+
+        fn read<T: Reads>(rows: Vec<LiftedRow<T>>) -> Result<TrimRectangle, PropsError> {
+            T::read(rows)
+        }
+
+        fn refused<T: Reads>(rows: Vec<LiftedRow<T>>, says: &str) {
             match read(rows) {
                 Err(PropsError::QuadratureUnsupported { what }) if what.contains(says) => {}
                 other => panic!("{}: refused, saying {says:?}: {other:?}", T::NAME),
@@ -2491,7 +2504,7 @@ mod tests {
         /// four lines.
         #[test]
         fn three_five_and_notched_sides_refuse() {
-            fn each<T: Decide + Bounds + CertifiedEnclosure>() {
+            fn each<T: Reads>() {
                 // Three: the bottom, the right side and the top, the top's
                 // row joined to the bottom's.
                 let three = vec![
@@ -2539,7 +2552,7 @@ mod tests {
         /// iso map, and a harmonic image.
         #[test]
         fn a_side_on_no_held_line_refuses() {
-            fn each<T: Decide + Bounds + CertifiedEnclosure>() {
+            fn each<T: Reads>() {
                 let mut diagonal = polygon::<T>(&SQUARE);
                 diagonal[1] = piece((T::one(), T::zero()), (1e-3, 1.0));
                 refused::<T>(diagonal, "not axis-aligned");
@@ -2606,7 +2619,7 @@ mod tests {
         /// outside the bracket.
         #[test]
         fn a_wall_trimmed_short_of_its_chart_certifies_the_lines_it_holds() {
-            use geom_brep::props::quad::{self, FaceCutBounds, LaneStop, PatchNet};
+            use geom_brep::props::quad::{self, PatchNet};
             use geom_core::spline::KnotVector;
             use geom_core::{Band, Tol};
             let tol = Tol::witness();
@@ -2616,7 +2629,7 @@ mod tests {
             let net = PatchNet::new(&kv, &kv, &control, &[1.0; 4]).unwrap();
             // `δ` in chart units: the chart's `u` runs 2 m.
             for delta in [f64::EPSILON / 2.0, tol.eps() / 20.0] {
-                fn rect<T: Decide + Bounds + CertifiedEnclosure>(delta: f64) -> TrimRectangle {
+                fn rect<T: Reads>(delta: f64) -> TrimRectangle {
                     read::<T>(polygon(&[
                         (delta, 0.0),
                         (1.0, 0.0),
@@ -2640,7 +2653,7 @@ mod tests {
                         10.0,
                         0.0,
                         Band::linear(tol).unwrap(),
-                        &mut |_: &FaceCutBounds, _: LaneStop| Ok(true),
+                        &mut |_, _| Ok(true),
                     )
                     .unwrap();
                     let flux = run.bounds.flux;
@@ -2659,6 +2672,31 @@ mod tests {
                     }
                 }
             }
+        }
+
+        /// **A seam column moved one period of a closed chart** whose
+        /// domain is `[0.3, 1.7]`: the lift states it at `0.3 + (1.7 −
+        /// 0.3)`, computed. At `Interval` that sum has width, so the
+        /// column's value is no point and the certificate refuses it; at
+        /// `f64` it reads the sum's rounding as the column, which here
+        /// lands back on `1.7`. (The period's statement is
+        /// `work/boxfinish/a-seam-column-moved-a-period-reads-lo-plus-the-period.md`'s.)
+        #[test]
+        fn a_seam_column_moved_one_period_is_its_computed_sum() {
+            fn moved<T: Reads>() -> Result<TrimRectangle, PropsError> {
+                let f = T::from_f64;
+                let (lo, hi) = (f(0.3), f(1.7));
+                let column = lo + (hi - lo);
+                let mut rows = polygon::<T>(&[(0.3, 0.0), (1.7, 0.0), (1.7, 1.0), (0.3, 1.0)]);
+                rows[1] = piece((column, T::zero()), (0.0, 1.0));
+                read(rows)
+            }
+            match moved::<Interval>() {
+                Err(PropsError::QuadratureUnsupported { what }) if what.contains("not exact structure") => {}
+                other => panic!("Interval: the moved column is no point: {other:?}"),
+            }
+            assert_eq!(moved::<f64>().unwrap().rect, (0.3, 0.3 + (1.7 - 0.3), 0.0, 1.0));
+            assert_eq!(0.3 + (1.7 - 0.3), 1.7, "f64: the sum lands on the domain's end");
         }
 
         /// **A ring is never offered as a side.** The certificate reads one

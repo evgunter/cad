@@ -128,13 +128,15 @@ pub(super) fn composite_round_cost(
 /// two numbers through the quotient statement.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
-/// caller's `Σ (metric edge length)·(pcurve envelope)` bound on the
-/// metric area between the true trim boundary and the rectangle; it
-/// widens the area directly and the flux through the patch's position
-/// magnitude bound. For minted (exact-in-family) iso pcurves its only
-/// part is a stated end's distance from the map
-/// ([`crate::Pcurve::span_ends`]): zero at `f64` where the map reads the
-/// end exactly and an ulp or so of the end, metred by the chart's
+/// caller's bound on the metric area between the true trim boundary and
+/// the rectangle, `Σ (metric edge length)·(pcurve envelope)` along the
+/// images and, at each joint, the stretch of the rectangle's side between
+/// an image's end and the joint's point (`topo`'s rectangle certificate
+/// states both); it widens the area directly and the flux through the
+/// patch's position magnitude bound. For minted (exact-in-family) iso
+/// pcurves the envelope's only part is a stated end's distance from the
+/// map ([`crate::Pcurve::span_ends`]): zero at `f64` where the map reads
+/// the end exactly and an ulp or so of the end, metred by the chart's
 /// stretch, where it does not; at `Interval`, where a span end is a
 /// computed enclosure, about that enclosure's width times the stretch
 /// (some 1e-15 of it), never zero.
