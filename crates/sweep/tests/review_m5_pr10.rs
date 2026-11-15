@@ -663,9 +663,10 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
 ///   two stations nearly coincide;
 /// - the fold-back: a quadratic that rises along `+z` and comes back
 ///   down past its start, its middle pole tilted off the line by `δ` so
-///   the arrival tangent misses the departure tangent's mirror by
-///   `θ ≈ 1.5·δ`, a margin `1 − cos θ` of `ε·√K`. At `δ = 0` the same
-///   path folds back exactly, and refuses as decided.
+///   the arrival tangent misses the departure tangent's mirror by a
+///   chord `≈ 1.5·δ`, levered over the session box (the station step's
+///   lever) to `ε·√K`. At `δ = 0` the same path folds back exactly, and
+///   refuses as decided.
 #[test]
 fn each_path_decision_has_an_in_band_twin() {
     use sweep::PathDecision;
@@ -719,7 +720,9 @@ fn each_path_decision_has_an_in_band_twin() {
         Err(SkinError::PathFoldsBack { station: 1 }),
         "the untilted hairpin folds back exactly"
     );
-    let delta = (2.0 * in_band).sqrt() / 1.5;
+    // The step's pole verdict reads the chord `|m + t| ≈ 1.5·δ` levered
+    // over the session box (the station step's lever).
+    let delta = in_band / geom_core::tolerance::SESSION_BOX_EXTENT / 1.5;
     assert_eq!(
         which(&fold(delta)),
         Some((PathDecision::FoldBack, 1)),
