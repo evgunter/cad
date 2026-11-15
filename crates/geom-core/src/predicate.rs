@@ -518,17 +518,6 @@ impl Band {
         }
     }
 
-    /// **This band's rounding reach**: the run's
-    /// [rounding reach](crate::tolerance::rounding_reach) at this band's
-    /// `ε` (its zero) and `K` (its escalation over its zero), the longest
-    /// lever a quotient decided against it may carry
-    /// ([`crate::RigidMotion::least_turn`]'s conditioning). Read through
-    /// the one door; no site states its own.
-    #[must_use]
-    pub fn rounding_reach(self) -> f64 {
-        crate::tolerance::rounding_reach(self.zero, self.escalate / self.zero)
-    }
-
     /// **The tolerance below which `margin` is decided**, `|m|/K`: below
     /// it the band's escalation edge falls under `|m|`. The one home of
     /// the value every sized recourse offers to tighten below

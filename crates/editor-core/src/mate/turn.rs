@@ -1,11 +1,14 @@
 //! **A turn onto a direction, and a direction across one**: what the
 //! viewer's snap reads beside the value chart ([`super::value`]), whose
 //! least turn, and this one, are geom-core's one decided mint
-//! ([`RigidMotion::least_turn`]), so the turn a gesture writes and the
-//! turn the chart reads it back by are the same arithmetic.
+//! ([`RigidMotion::least_turn`]). Outside the mint's band the turn a
+//! gesture writes and the turn the chart reads it back by are the same
+//! arithmetic. Inside it the chart refuses and the snap does not: it
+//! turns by a half turn and then a second least turn ([`turn_onto`]),
+//! an arithmetic of its own.
 
 use geom_core::linalg::{Mat3, Point3, Vec3};
-use geom_core::{Band, Lever, RigidMotion, UnitVec3};
+use geom_core::{Band, Lever, RigidMotion, Tol, UnitVec3};
 
 use super::{SlideAxes, SolveScalar, TargetAxis};
 
@@ -20,11 +23,23 @@ pub const SNAP_TURN: &str = "mate_snap_turn";
 /// `to`. That second turn is near the identity (its chord is near 2), so
 /// it is far from its own pole and well conditioned, and the composition
 /// carries `from` onto `to` within a few ulps at every tilt in the band.
-/// Its roll about `to` is `across(from)`'s, as the bare half turn's was
-/// at the pole exactly. So a direction standing backwards, or nearly,
-/// still seats on `to`.
+/// Its roll about `to` is `across(from)`'s carried by the second turn,
+/// which moves it by up to the tilt from backwards. So a direction
+/// standing backwards, or nearly, still seats on `to`.
+///
+/// The roll is not continuous across the band's edge: just outside it
+/// the least turn rolls the copy by a half turn about `to` from where the
+/// fallback rolls it just inside. The edge is set by the session box's
+/// lever, about 4e-4 rad from backwards at the default ε and about
+/// 0.40 rad at ε 1e-12, where a drag can cross it
+/// (`work/onehome/the-snaps-roll-jumps-by-a-half-turn-at-its-band-edge.md`).
+///
+/// `None` where `from` or `to` is not a direction the band can mint, or
+/// where the second least turn refuses too: no turn is written then,
+/// rather than the half turn alone, which leaves `from` off `to` by the
+/// tilt.
 #[must_use]
-pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band) -> Mat3<f64> {
+pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band, tol: Tol) -> Option<Mat3<f64>> {
     let unit = |v: Vec3<f64>| UnitVec3::new(v, SNAP_TURN, band).ok();
     let least = |a: Vec3<f64>, b: Vec3<f64>| {
         unit(a).zip(unit(b)).and_then(|(f, t)| {
@@ -35,18 +50,17 @@ pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band) -> Mat3<f64> {
                 Lever::session_box(),
                 SNAP_TURN,
                 band,
+                tol,
             )
             .ok()
         })
     };
+    unit(from).zip(unit(to))?;
     if let Some(turn) = least(from, to) {
-        return turn.linear();
+        return Some(turn.linear());
     }
     let half = half_turn(across(from).normalize());
-    match least(half * from, to) {
-        Some(rest) => rest.linear() * half,
-        None => half,
-    }
+    least(half * from, to).map(|rest| rest.linear() * half)
 }
 
 /// A half turn about the unit `a`: `2 a aᵀ − I`.
@@ -147,6 +161,27 @@ mod tests {
     use geom_core::tolerance::SESSION_BOX_EXTENT;
     use geom_core::{Band, Lever, Tol, UnitVec3};
 
+    /// **A direction the band cannot mint writes no turn**: a vanishing
+    /// `from`, a vanishing `to` and a `from` that is not finite each give
+    /// `None`. *Breaks if* the fallback returns the half turn about
+    /// `across(from)` wherever the least turn refuses, which writes a
+    /// turn that seats nothing.
+    #[test]
+    fn a_direction_the_band_cannot_mint_writes_no_turn() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for (from, to) in [
+            (Vec3::new(0.0, 0.0, 0.0), z),
+            (z, Vec3::new(0.0, 0.0, 0.0)),
+            (Vec3::new(f64::NAN, 0.0, 1.0), z),
+        ] {
+            assert!(
+                turn_onto(from, to, band, Tol::witness()).is_none(),
+                "{from:?} onto {to:?} writes no turn"
+            );
+        }
+    }
+
     /// **Inside the least turn's band the snap still seats**: an oblique
     /// `to`, and `from` its opposite tilted by a fraction of the band's
     /// edge (the chord `2·box/R` at the run's ε: about 4e-4 at ε 1e-9,
@@ -158,7 +193,8 @@ mod tests {
     fn inside_the_band_the_snap_carries_from_onto_to() {
         let band = Band::linear(Tol::witness()).expect("a band");
         let eps = Tol::witness().get().eps;
-        let edge = 2.0 * SESSION_BOX_EXTENT / band.rounding_reach();
+        let edge =
+            geom_core::test_support::least_turn_band_edge(Tol::witness(), SESSION_BOX_EXTENT);
         let norm = |v: Vec3<f64>| v * (1.0 / v.norm());
         let to = norm(Vec3::new(0.3, -0.2, 0.9));
         let w = norm(to.cross(Vec3::new(1.0, 2.0, 3.0)));
@@ -173,12 +209,13 @@ mod tests {
                     Point3::origin(),
                     Lever::session_box(),
                     super::SNAP_TURN,
-                    band
+                    band,
+                    Tol::witness(),
                 )
                 .is_err(),
                 "tilt {tau:e} is inside the band, where the mint refuses"
             );
-            let m = turn_onto(from, to, band);
+            let m = turn_onto(from, to, band, Tol::witness()).expect("the snap seats");
             let landing = (m * from - to).norm();
             assert!(
                 landing * SESSION_BOX_EXTENT <= eps,

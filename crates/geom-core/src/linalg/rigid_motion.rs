@@ -125,10 +125,15 @@
 //! - [`RigidMotion::least_turn`] — the least turn carrying one
 //!   direction witness onto another, with no normalized axis and no
 //!   angle (the quaternion matrix near the pole, the Rodrigues form away
-//!   from it, chosen by width, W1), decided
-//!   over the arm it is consumed over: its pole verdict (the chord from
-//!   the pole, levered) and its conditioning (its lever against the
-//!   run's rounding reach). The one least-turn mint (fork 270).
+//!   from it, chosen by width, W1), decided over the arm it is consumed
+//!   over: its pole verdict (the chord from the pole, levered) and its
+//!   conditioning (its lever against the run's rounding reach, read
+//!   through [`Tol::rounding_reach`](crate::Tol::rounding_reach)). The
+//!   one least-turn mint (fork 270).
+//! - [`RigidMotion::least_turn_selected`] — the same mint's body and
+//!   pole verdict with no conditioning, for a turn that only selects
+//!   (a choice no claim consumes). Its one caller is the path sweep's
+//!   station step, held by `scripts/gates/least-turn-selected.sh`.
 //! - [`RigidMotion::turned_onto`] — a written frame turned about its
 //!   own origin by that minimal rotation, carrying its `w` onto a
 //!   direction: the frame across a direction with no stated reference.
@@ -214,6 +219,7 @@ use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
 use crate::real::Real;
 use crate::spline::SpanLocate;
+use crate::tolerance::Tol;
 
 /// **A motion that cannot be non-rigid.** An origin and a right-handed
 /// orthonormal triple; the only spellings are the mints the
@@ -1405,7 +1411,8 @@ impl<T: Decide> RigidMotion<T> {
     /// - **the conditioning** (`least_turn_conditioning`): the turn's
     ///   lever on its own two directions, `2·arm/|h|` (how far a point at
     ///   `arm` moves per unit of rounding in `a` or `b`), at most the
-    ///   run's rounding reach ([`Band::rounding_reach`]), decided as
+    ///   run's rounding reach ([`Tol::rounding_reach`], the one
+    ///   `Tolerance` door, read off `tol`), decided as
     ///   `reach·|h| − 2·arm` on its enclosure ([`Band::enclosure_sign`]),
     ///   so an enclosure straddling the reach escalates. It refuses where
     ///   the turn's answer is not determined at ε by its inputs.
@@ -1434,8 +1441,9 @@ impl<T: Decide> RigidMotion<T> {
         arm: Lever<T>,
         site: &'static str,
         band: Band,
+        tol: Tol,
     ) -> Result<Self, TurnError> {
-        Self::least_turn_minted(a, b, about, arm, site, band, true)
+        Self::least_turn_minted(a, b, about, arm, site, band, Some(tol.rounding_reach()))
     }
 
     /// **The least turn as a selection**: [`Self::least_turn`]'s one body
@@ -1460,12 +1468,13 @@ impl<T: Decide> RigidMotion<T> {
         site: &'static str,
         band: Band,
     ) -> Result<Self, TurnError> {
-        Self::least_turn_minted(a, b, about, arm, site, band, false)
+        Self::least_turn_minted(a, b, about, arm, site, band, None)
     }
 
     /// The one body of [`Self::least_turn`] and
-    /// [`Self::least_turn_selected`], deciding the conditioning where
-    /// `conditioned`.
+    /// [`Self::least_turn_selected`], deciding the conditioning against
+    /// `reach` where one is given (the run's, read through
+    /// [`Tol::rounding_reach`] by [`Self::least_turn`]).
     fn least_turn_minted(
         a: UnitVec3<T>,
         b: UnitVec3<T>,
@@ -1473,7 +1482,7 @@ impl<T: Decide> RigidMotion<T> {
         arm: Lever<T>,
         site: &'static str,
         band: Band,
-        conditioned: bool,
+        reach: Option<f64>,
     ) -> Result<Self, TurnError> {
         let identity = a.is_exactly(b);
         let (a, b) = (a.get(), b.get());
@@ -1509,12 +1518,11 @@ impl<T: Decide> RigidMotion<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
             Err(source) => Err(source),
         };
-        if !conditioned {
+        let Some(reach_f) = reach else {
             pole.map_err(TurnError::Undecided)?;
             return anchored(Self::least_turn_spelled(a, b, d, k));
-        }
-        let reach = T::from_computed(band.rounding_reach());
-        let room = reach * chord - two * arm.length();
+        };
+        let room = T::from_computed(reach_f) * chord - two * arm.length();
         let conditioning = crate::k_stats::decide(
             LEAST_TURN_CONDITIONING,
             Margin::sign_of(room),
@@ -1525,7 +1533,7 @@ impl<T: Decide> RigidMotion<T> {
                 lever: (two * arm.length() / chord)
                     .structure_bracket()
                     .map_or(f64::NAN, |(lo, hi)| crate::param::mid_param(lo, hi)),
-                reach: band.rounding_reach(),
+                reach: reach_f,
             });
         }
         pole.map_err(TurnError::Undecided)?;
@@ -1580,8 +1588,9 @@ impl<T: Decide> RigidMotion<T> {
         arm: Lever<T>,
         site: &'static str,
         band: Band,
+        tol: Tol,
     ) -> Result<Self, TurnError> {
-        let turn = Self::least_turn(self.w, direction, Point3::origin(), arm, site, band)?;
+        let turn = Self::least_turn(self.w, direction, Point3::origin(), arm, site, band, tol)?;
         Ok(Self {
             origin: self.origin,
             u: turn.turn(self.u),
@@ -1659,7 +1668,7 @@ pub enum TurnError {
     IllConditioned {
         /// The lever, read as a number for the report.
         lever: f64,
-        /// The run's rounding reach ([`Band::rounding_reach`]).
+        /// The run's rounding reach ([`Tol::rounding_reach`]).
         reach: f64,
     },
     /// Whether the lever passes the reach could not be decided; the
@@ -2801,6 +2810,7 @@ mod crossing_and_turn_rows {
             crate::test_support::fixture_lever(ARM),
             SITE,
             band(),
+            Tol::witness(),
         )
     }
 
@@ -2885,13 +2895,21 @@ mod crossing_and_turn_rows {
     #[test]
     fn a_long_arm_refuses_where_the_lever_passes_the_rounding_reach() {
         let b = band();
-        let reach = b.rounding_reach();
+        let reach = Tol::witness().rounding_reach();
         let arm = 100.0 * (b.escalate() * reach / 2.0).sqrt();
         let edge = 2.0 * arm / reach;
         let x = UnitVec3::exact_x();
         let o = Point3::origin();
         let mint = |to: UnitVec3<f64>| {
-            RigidMotion::least_turn(x, to, o, crate::test_support::fixture_lever(arm), SITE, b)
+            RigidMotion::least_turn(
+                x,
+                to,
+                o,
+                crate::test_support::fixture_lever(arm),
+                SITE,
+                b,
+                Tol::witness(),
+            )
         };
         assert!(
             mint(at_chord(1.01 * edge)).is_ok(),
@@ -2919,6 +2937,7 @@ mod crossing_and_turn_rows {
             crate::test_support::fixture_lever(Interval::from_f64(arm)),
             SITE,
             b,
+            Tol::witness(),
         );
         assert!(
             matches!(got, Err(TurnError::ConditioningUndecided(_))),
@@ -2952,6 +2971,7 @@ mod crossing_and_turn_rows {
             Lever::session_box(),
             SITE,
             band(),
+            Tol::witness(),
         )
         .expect("the turn builds")
         .linear();
@@ -2977,7 +2997,7 @@ mod crossing_and_turn_rows {
     #[test]
     fn an_undecided_pole_verdict_past_the_reach_refuses_ill_conditioned() {
         let b = band();
-        let reach = b.rounding_reach();
+        let reach = Tol::witness().rounding_reach();
         let arm = 100.0 * (b.escalate() * reach / 2.0).sqrt();
         let chord = 2.0 * b.zero() / arm;
         assert!(chord < b.escalate() / arm && chord < 2.0 * arm / reach);
@@ -2988,6 +3008,7 @@ mod crossing_and_turn_rows {
             crate::test_support::fixture_lever(arm),
             SITE,
             b,
+            Tol::witness(),
         );
         match got {
             Err(e @ TurnError::IllConditioned { .. }) => {
@@ -3016,8 +3037,12 @@ mod crossing_and_turn_rows {
         use crate::real::Bounds;
         // The crossover arm, where the two decisions refuse below one
         // chord, `√(Kε·reach/2)`: the deepest ladder, at every ε row.
-        let arm = (band().escalate() * band().rounding_reach() / 2.0).sqrt();
-        let edge = 4.0 * (band().escalate() / arm).max(2.0 * arm / band().rounding_reach());
+        let arm = (band().escalate() * Tol::witness().rounding_reach() / 2.0).sqrt();
+        let edge = 4.0
+            * (band().escalate() / arm).max(crate::test_support::least_turn_band_edge(
+                Tol::witness(),
+                arm,
+            ));
         let pairs = [
             (Vec3::new(0.36, -0.48, 0.8), Vec3::new(0.2, 0.9, -0.3)),
             (Vec3::new(1.0, 2.0, 3.0), Vec3::new(-0.7, 0.1, 0.4)),
@@ -3060,6 +3085,7 @@ mod crossing_and_turn_rows {
                     crate::test_support::fixture_lever(arm),
                     SITE,
                     band(),
+                    Tol::witness(),
                 )
                 .unwrap_or_else(|e| panic!("{at}: {e}"));
                 let defect = defects(m.linear());
@@ -3101,6 +3127,7 @@ mod crossing_and_turn_rows {
                     crate::test_support::fixture_lever(Interval::from_f64(arm)),
                     SITE,
                     band(),
+                    Tol::witness(),
                 )
                 .unwrap_or_else(|e| panic!("{at}, Interval: {e}"));
                 let off = mi.turn(ai).get() - bi.get();
@@ -3186,7 +3213,13 @@ mod turned_onto_rows {
     use super::crossing_and_turn_rows::ARM;
 
     fn onto(frame: RigidMotion<f64>, d: UnitVec3<f64>) -> Result<RigidMotion<f64>, TurnError> {
-        frame.turned_onto(d, crate::test_support::fixture_lever(ARM), SITE, band())
+        frame.turned_onto(
+            d,
+            crate::test_support::fixture_lever(ARM),
+            SITE,
+            band(),
+            Tol::witness(),
+        )
     }
 
     /// **A frame already along the direction is unchanged**, the world
@@ -3342,6 +3375,7 @@ mod turned_onto_rows {
                 crate::test_support::fixture_lever(ARM),
                 SITE,
                 band(),
+                Tol::witness(),
             )
             .unwrap()
             .compose(frame)
@@ -3603,6 +3637,7 @@ mod construction_mint_rows {
                 Lever::session_box(),
                 SITE,
                 band(),
+                Tol::witness(),
             )
             .expect("a near-hemisphere pair builds")
             .linear();
@@ -3898,7 +3933,7 @@ mod least_turn_spelling_probe {
                             "{label} ±{w:e}: near opposed the mint is the quaternion"
                         );
                         assert!(
-                            r_wider >= 360,
+                            r_wider >= 365,
                             "{label} ±{w:e}: the quaternion is the narrower near opposed \
                              ({r_wider} of 400)"
                         );

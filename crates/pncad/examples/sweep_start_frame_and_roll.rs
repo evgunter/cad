@@ -46,6 +46,7 @@ fn main() {
                 Lever::session_box(),
                 "example_start",
                 band,
+                tol,
             )
             .expect("start frame"),
     );
@@ -85,7 +86,8 @@ fn main() {
                 -UnitVec3::exact_z(),
                 Lever::session_box(),
                 "example_start",
-                band
+                band,
+                tol
             )
             .err()
     );
@@ -101,7 +103,8 @@ fn main() {
             -UnitVec3::exact_z(),
             Lever::session_box(),
             "example_start",
-            band
+            band,
+            tol
         )
         .map(RigidMotion::linear)
     );
@@ -114,6 +117,7 @@ fn main() {
             Lever::session_box(),
             "example_start",
             band,
+            tol,
         );
         println!(
             "tangent ({k}·eps, 0, 1): {}",

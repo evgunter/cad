@@ -397,6 +397,7 @@ pub fn start_frame(point: Point3<f64>, tangent: Vec3<f64>) -> RigidMotion<f64> {
             geom_core::Lever::session_box(),
             "test_start_turn",
             band,
+            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("the start tangent must be off the world -z: {e:?}"))
 }

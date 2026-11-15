@@ -6790,12 +6790,14 @@ pub(super) fn recut_lean<T: Decide>(
 /// re-chart the band cannot determine, typed; any other refusal is past
 /// what the alignment trilean and the seam's half-plane choice settled,
 /// so it is an invariant broken.
+#[allow(clippy::too_many_arguments)] // the turn's mint arguments, and the face its refusal names
 fn recut_turn<T: Decide>(
     a: geom_core::UnitVec3<T>,
     b: geom_core::UnitVec3<T>,
     center: Point3<T>,
     radius: T,
     band: Band,
+    tol: Tol,
     operand: Operand,
     representative: FaceKey,
 ) -> Result<geom_core::RigidMotion<T>, BooleanError> {
@@ -6806,6 +6808,7 @@ fn recut_turn<T: Decide>(
         geom_core::Lever::curvature_radius(radius),
         RECUT_TURN,
         band,
+        tol,
     )
     .map_err(|e| match e {
         geom_core::TurnError::IllConditioned { .. }
@@ -6895,7 +6898,18 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            let turn = |a, b| recut_turn(a, b, r.center, r.radius, band, operand, r.representative);
+            let turn = |a, b| {
+                recut_turn(
+                    a,
+                    b,
+                    r.center,
+                    r.radius,
+                    band,
+                    tol,
+                    operand,
+                    r.representative,
+                )
+            };
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
             // `seam`; the sign that keeps the turn at most a quarter is
@@ -8336,6 +8350,7 @@ mod tests {
             geom_core::Point3::new(zero, zero, zero),
             d(1.0, 0.0),
             band,
+            geom_core::Tol::witness(),
             crate::boolean::Operand::A,
             crate::entity::FaceKey::default(),
         )

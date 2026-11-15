@@ -122,6 +122,7 @@ pub fn frame_across<S: Scalar>(
             pncad::geom_core::Lever::session_box(),
             TOUR_FRAME_AXIS,
             band,
+            tol,
         )
         .expect("the scene's direction is off the world -z")
 }

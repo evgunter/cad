@@ -6911,6 +6911,7 @@ mod unit_vector_witness_through_the_facade {
                 pncad::geom_core::Lever::session_box(),
                 "facade_turned_onto",
                 band,
+                Tol::witness(),
             )
             .unwrap();
         assert!((start.w().get() - dir.get()).norm() < 1e-15);

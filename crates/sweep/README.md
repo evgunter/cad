@@ -293,11 +293,12 @@ and a fixed reference direction would read the world axes.
   it onto its own start plane. So nothing claims where the `f64` step's
   turn lands: the frame's axis is the tangent read at the lane, aimed
   verbatim, and the step's rounding reaches only the roll it chooses.
-  The step therefore decides the least turn's pole alone
-  (`RigidMotion::least_turn_selected`, its lever the session box's) and
-  owes no conditioning; the rounding reach bands a turn only where a
-  claim consumes its lever (the geom-core README, "Float rounding"). Station 0 is the start plane itself. A
-  station on one span, straight by its data, with its predecessor is
+  The step's turn is therefore a selection (`[scalars]`: a choice,
+  never a claim): no claim consumes its lever, so it owes no
+  rounding-reach band under the geom-core README's "Float rounding",
+  and it decides the least turn's pole alone
+  (`RigidMotion::least_turn_selected`, its lever the session box's).
+  Station 0 is the start plane itself. A station on one span, straight by its data, with its predecessor is
   still where its tangent is checked at the lane scalar to be its
   predecessor's: it reuses its predecessor's rotation, one expression,
   and every other station is minted alone. A station's tangent is the

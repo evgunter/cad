@@ -1901,11 +1901,12 @@ impl PathCarry {
     /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
     /// ([`RigidMotion::least_turn_selected`], its pole verdict over the
     /// session box's lever, with no conditioning: the step selects a roll
-    /// no claim consumes), whose decision is the second reflection's. A step whose two tangents are the
-    /// same exactly ([`UnitVec3::is_exactly`]) is the identity with no rounding, as the exact law
-    /// makes it (the second reflection is then the first). The carried
-    /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
-    /// aimed along the start tangent, [`RigidMotion::aimed`]) to the
+    /// no claim consumes), whose decision is the second reflection's. A
+    /// step whose two tangents are the same exactly
+    /// ([`UnitVec3::is_exactly`]) is the identity with no rounding, as the
+    /// exact law makes it (the second reflection is then the first). The
+    /// carried rotation `Cᵢ` takes the start reference `r₀` (the world
+    /// `x̂` aimed along the start tangent, [`RigidMotion::aimed`]) to the
     /// station's reference `rᵢ`. `r₀` cancels from every station's
     /// rotation `Fᵢ∘F₀⁻¹` (`Self::minted`) up to rounding.
     ///
@@ -1992,17 +1993,19 @@ impl PathCarry {
                     band,
                 )
                 .map_err(|e| match e {
-                    TurnError::Opposed | TurnError::IllConditioned { .. } => {
-                        SkinError::PathFoldsBack { station }
-                    }
-                    TurnError::Undecided(source) | TurnError::ConditioningUndecided(source) => {
-                        SkinError::PathUndecided {
-                            station,
-                            which: PathDecision::FoldBack,
-                            source,
-                        }
-                    }
+                    TurnError::Opposed => SkinError::PathFoldsBack { station },
+                    TurnError::Undecided(source) => SkinError::PathUndecided {
+                        station,
+                        which: PathDecision::FoldBack,
+                        source,
+                    },
                     TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
+                    TurnError::IllConditioned { .. } | TurnError::ConditioningUndecided(_) => {
+                        unreachable!(
+                            "least_turn_selected decides no conditioning, so it refuses \
+                             neither ill-conditioned nor conditioning-undecided"
+                        )
+                    }
                 })?
                 .compose(mirror)
                 .map_err(not_finite(station))?;
@@ -2304,6 +2307,53 @@ mod ending_tests {
                 test_utils::refusal::recourse_markers(&text),
                 1,
                 "one repair, the door's: {text}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod still_step_tests {
+    use super::*;
+
+    /// **A still step whose tangents differ only in a zero's sign keeps
+    /// its predecessor's reference, bit for bit**: an oblique straight
+    /// path whose first span rises by the least subnormal in z, so the
+    /// tangent read there is `(a, b, −0)` and on the second span
+    /// `(a, b, +0)`. The step between them is one direction exactly
+    /// ([`UnitVec3::is_exactly`]: `+0` and `−0` agree), so it is the
+    /// identity with no rounding and every station's reference is the
+    /// start's. *Breaks if* the still test is bitwise, as on main: the
+    /// pair then takes the two half turns about the oblique tangent and
+    /// the least turn, and the reference moves by a few ulps.
+    #[test]
+    fn a_still_step_across_a_signed_zero_keeps_its_reference_bits() {
+        let tiny = -f64::from_bits(1);
+        let path = NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 2.0], 1)
+                .expect("a knot vector"),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(2.0, 3.0, tiny),
+                Point3::new(4.0, 6.0, tiny),
+            ],
+            vec![1.0; 3],
+        )
+        .expect("a path");
+        let carry = PathCarry::of(&path, 3, Tol::witness()).expect("the carry");
+        let bits = |v: Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
+        let s = &carry.stations;
+        assert_eq!(
+            [s[0].tangent.z.to_bits(), s[1].tangent.z.to_bits()],
+            [(-0.0_f64).to_bits(), 0.0_f64.to_bits()],
+            "the fixture's tangents differ only in z's sign"
+        );
+        for (i, st) in s.iter().enumerate() {
+            assert_eq!(
+                bits(st.reference),
+                bits(s[0].reference),
+                "station {i}'s reference is the start's"
             );
         }
     }

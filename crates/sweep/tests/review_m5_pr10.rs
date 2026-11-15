@@ -439,8 +439,10 @@ fn a_hairpin_kink_folds_back_at_every_station_count() {
 #[test]
 fn the_station_step_owes_no_conditioning_and_builds_inside_its_old_band() {
     let tol = Tol::witness();
-    let reach = Band::linear(tol).unwrap().rounding_reach();
-    let edge = 2.0 * geom_core::tolerance::SESSION_BOX_EXTENT / reach;
+    let edge = geom_core::test_support::least_turn_band_edge(
+        tol,
+        geom_core::tolerance::SESSION_BOX_EXTENT,
+    );
     let fold = |delta: f64| {
         NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),

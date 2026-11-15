@@ -132,7 +132,7 @@ impl DraftSnap {
             to_flipped: *to_flipped,
             orient: orient.or(self.orient).unwrap_or(Orientation::IDENTITY),
         });
-        read_back(chart, &self.at, coords, band)
+        read_back(chart, &self.at, coords, band, tol)
     }
 
     /// **The new chart's spin as a link of the loaded chain `chain`**,
@@ -314,7 +314,12 @@ pub(crate) fn draft_snap(
     };
     let d = seat.dir.get();
     let band = pncad::geom_core::Band::linear(tol).ok()?;
-    let turned = turn_onto(r0 * seat.copy_dir.get(), d, band) * r0;
+    // No turn seats the copy's direction (it or the target's is no
+    // direction the band mints): nothing is snapped.
+    let Some(turn) = turn_onto(r0 * seat.copy_dir.get(), d, band, tol) else {
+        return Some(unsnapped);
+    };
+    let turned = turn * r0;
     let t = match point {
         Some((o, p)) => p - turned * o,
         None => {

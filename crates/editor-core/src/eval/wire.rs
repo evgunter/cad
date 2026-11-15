@@ -873,7 +873,7 @@ where
         let arm = crate::mate::solve::bundle_arm(reach, &mates, &values).map_err(|f| fault(*f))?;
         for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
             if let Some(found) =
-                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b, tol)?
             {
                 chart = Some(found);
                 break;

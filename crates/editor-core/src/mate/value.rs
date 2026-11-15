@@ -295,6 +295,7 @@ impl<T: SolveScalar> Chart<T> {
     ///
     /// [`MateFault::Backwards`] in the band about the least turn's pole,
     /// or a direction the band cannot mint.
+    #[allow(clippy::too_many_arguments)] // the mate's two poses and its seat, the arm, and the run
     pub(crate) fn of(
         mate: MateRef,
         on: &PoseValue<T>,
@@ -303,6 +304,7 @@ impl<T: SolveScalar> Chart<T> {
         orient: Orientation,
         arm: Arm,
         band: Band,
+        tol: geom_core::Tol,
     ) -> Result<Option<Self>, NodeErrorKind> {
         let Some((d, copy_d, seat)) = Self::sides(on, to) else {
             return Ok(None);
@@ -320,7 +322,7 @@ impl<T: SolveScalar> Chart<T> {
         // slides plus the poses' distances from their origins, an `f64` sum no extent
         // read spells.
         let lever = geom_core::Lever::unsourced(T::from_computed(arm.get()));
-        Self::charted(d, copy_d, seat, to_flipped, orient, arm, lever, band)
+        Self::charted(d, copy_d, seat, to_flipped, orient, arm, lever, band, tol)
             .map(Some)
             .map_err(|refusal| match refusal {
                 ChartRefusal::Pole => backwards(),
@@ -358,6 +360,7 @@ impl<T: SolveScalar> Chart<T> {
         arm: Arm,
         lever: geom_core::Lever<T>,
         band: Band,
+        tol: geom_core::Tol,
     ) -> Result<Self, ChartRefusal> {
         let degenerate = || {
             ChartRefusal::Kind(Box::new(NodeErrorKind::PoseDegenerate {
@@ -386,6 +389,7 @@ impl<T: SolveScalar> Chart<T> {
                 lever,
                 "mate_chart_pole",
                 band,
+                tol,
             )
             .map_err(|e| match e {
                 geom_core::TurnError::NonFinite(_) => degenerate(),
@@ -883,6 +887,7 @@ pub fn read_back<R>(
     at: &Affine3<f64>,
     coords: &[Coord<R>],
     band: Band,
+    tol: geom_core::Tol,
 ) -> Vec<Option<f64>> {
     // A read direction, or a chain link about a read line off the origin
     // (whose turn moves the origin), is a line the caller does not hold.
@@ -925,6 +930,7 @@ pub fn read_back<R>(
             arm,
             geom_core::Lever::session_box(),
             band,
+            tol,
         )
         .ok()
     });
@@ -1458,6 +1464,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
+            geom_core::Tol::witness(),
         )
         .expect("a chart off the pole");
         let value = |k: u32, coord, by| ReadValue {
@@ -1551,6 +1558,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
+            geom_core::Tol::witness(),
         )
         .expect("a chart off the pole");
         assert!(
@@ -1648,6 +1656,7 @@ mod tests {
             Arm::of(0.5, 0.0).unwrap(),
             geom_core::Lever::session_box(),
             band,
+            geom_core::Tol::witness(),
         )
         .expect("a chart off the pole");
         let deriv = |v: Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
@@ -1692,6 +1701,7 @@ mod tests {
             Arm::of(arm, 0.0).unwrap(),
             geom_core::test_support::fixture_lever(T::from_computed(arm)),
             band,
+            geom_core::Tol::witness(),
         )
         .ok();
         (chart, [n, d, w])

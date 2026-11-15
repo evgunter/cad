@@ -1275,10 +1275,10 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
     // The snap's least turn refuses within this chord of its pole (the
     // session box's lever against the run's rounding reach): inside it the
     // snap turns by the half turn and then the least turn from `−from`.
-    let edge = 2.0 * pncad::geom_core::tolerance::SESSION_BOX_EXTENT
-        / pncad::geom_core::Band::linear(tol)
-            .expect("a band")
-            .rounding_reach();
+    let edge = pncad::geom_core::test_support::least_turn_band_edge(
+        tol,
+        pncad::geom_core::tolerance::SESSION_BOX_EXTENT,
+    );
     let in_band = 180.0 - (edge / 2.0).min(0.5).to_degrees();
     for (zt, xt) in [
         (30.0, in_band),

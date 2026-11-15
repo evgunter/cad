@@ -266,12 +266,13 @@ fn a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously() {
 #[test]
 fn a_slid_copys_pole_verdict_moves_with_its_slide() {
     let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
-    let (reach, k_eps) = (band.rounding_reach(), band.escalate());
+    let k_eps = band.escalate();
+    let edge = |arm: f64| geom_core::test_support::least_turn_band_edge(Tol::witness(), arm);
     // The copy's arm without its slides is about 23 (the boss at x = 10
     // under a plate whose reach is 20 × 10 × 2).
     let arm = |slide: f64| 23.0 + slide;
-    let short = (k_eps / arm(10.0)).max(2.0 * arm(10.0) / reach);
-    let long = (2.0 * arm(1e4) / reach).min(2.0);
+    let short = (k_eps / arm(10.0)).max(edge(arm(10.0)));
+    let long = edge(arm(1e4)).min(2.0);
     let tau = (short * long).sqrt();
     assert!(short < tau && tau < long, "{short:e} < {tau:e} < {long:e}");
     let chain = vec![(
@@ -309,10 +310,10 @@ fn a_slid_copys_pole_verdict_moves_with_its_slide() {
 /// of 10). δ is 1e-3, or twice the edge for an arm of 50 where that is
 /// wider.
 fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
-    let reach = geom_core::predicate::Band::linear(Tol::witness())
-        .expect("a band")
-        .rounding_reach();
-    let delta = f64::max(1e-3, 2.0 * (2.0 * 50.0 / reach));
+    let delta = f64::max(
+        1e-3,
+        2.0 * geom_core::test_support::least_turn_band_edge(Tol::witness(), 50.0),
+    );
     let mut report = Vec::new();
     for &o in orients {
         for &axis in axes {
