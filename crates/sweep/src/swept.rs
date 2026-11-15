@@ -683,11 +683,20 @@ fn register_placed_carrier_end<T: Real>(
     };
     let end = Curve3::circle_at(&circle.frame, circle.radius, param_end);
     let sketch = arc.carrier_end(start);
-    let placed = place.point(sketch);
-    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
-        built
-            .register_equal(held, tol)
-            .handle("a placed arc's carrier end from its placed sketch carrier end");
+    register_point_equal(
+        end,
+        place.point(sketch),
+        tol,
+        "a placed arc's carrier end from its placed sketch carrier end",
+    );
+}
+
+/// `built` IS `held`, registered per component
+/// ([`geom_core::Real::register_equal`]) and handled under `what`: the
+/// one loop the placed carrier ends' registrations share.
+fn register_point_equal<T: Real>(built: Point3<T>, held: Point3<T>, tol: Tol, what: &str) {
+    for (b, h) in [(built.x, held.x), (built.y, held.y), (built.z, held.z)] {
+        b.register_equal(h, tol).handle(what);
     }
 }
 
@@ -696,17 +705,18 @@ fn register_placed_carrier_end<T: Real>(
 /// ([`geom_core::Real::register_equal`]), per component, as
 /// [`register_placed_carrier_end`] registers an arc's.
 ///
-/// **The proof.** The carrier is the line from `q_from` along
+/// **The proof.** The carrier is the line from `place(a)` along
 /// `L·(b − a)/‖b − a‖`, `L` the placement's linear part, evaluated at the
-/// span `‖b − a‖`, so its end is `q_from + L·(b − a)`, which is
-/// `place(b)` wherever `q_from` is `place(a)`; a rigid `L` keeps the
-/// direction unit, so the span is the placed segment's length too. Its
-/// held side is `place(b)` built here, never the caller's `q_to`: a
-/// caller may hand vertices computed on another channel (the stacking
-/// door's strips are `f64` points lifted, `loft.rs`), which are the far
-/// vertex only to that channel's rounding, and the certifier's far-end
-/// check (check 3) reads the carrier against `q_to` numerically. Where
-/// `q_from` is not `place(a)` the door's own witness refuses typed, as
+/// span `‖b − a‖`, so its end is `place(a) + L·(b − a)`, which is
+/// `place(b)`; a rigid `L` keeps the direction unit, so the span is the
+/// placed segment's length too. Both sides are built here from the
+/// segment and the placement, so the identity holds on every path, and
+/// neither reads the caller's vertices: a caller may hand vertices
+/// computed on another channel (the stacking door's strips are `f64`
+/// points lifted, `loft/stacking.rs`), which are `place(a)` and
+/// `place(b)` only to that channel's rounding, and the certifier's start
+/// and far-end checks read the carrier against them numerically. Where
+/// the placement is not rigid, the door's own witness refuses typed, as
 /// at [`register_rigidity`].
 ///
 /// **What it touches: nothing.** [`geom::Line::at`] at the spec's own span
@@ -719,12 +729,12 @@ fn register_placed_line_end<T: Real>(
     b: Point2<T>,
     tol: Tol,
 ) {
-    let (end, placed) = (line.at(span), place.point(b));
-    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
-        built
-            .register_equal(held, tol)
-            .handle("a placed line's carrier end from its placed sketch end");
-    }
+    register_point_equal(
+        line.at(span),
+        place.point(b),
+        tol,
+        "a placed line's carrier end from its placed sketch end",
+    );
 }
 
 /// The edge spec of a profile segment carried into 3-space by one
@@ -737,9 +747,9 @@ fn register_placed_line_end<T: Real>(
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated one for an extrude's swept copy, the turned
 /// [`Placing`] for a revolve's. `tol` is
-/// the run's ε, carried through to the rigidity the arc arm states
-/// ([`register_rigidity`], [`register_placed_carrier_end`]) and used for
-/// nothing else here.
+/// the run's ε, carried through to the rigidity each arm states
+/// ([`register_rigidity`], [`register_placed_carrier_end`],
+/// [`register_placed_line_end`]) and used for nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
@@ -762,8 +772,9 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
     q_from: Point3<T>,
-    // The far vertex the certifier's check 3 reads the spec against;
-    // the spec is built from the segment and its placement, not from it.
+    // The far vertex, unread here: the certifier's check 3 (not this
+    // function) reads the spec's far end against it, and the spec is
+    // built from the segment and its placement.
     _q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
@@ -781,8 +792,12 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
         // at a lane scalar is not the span's.
         SegmentKind::Line => {
             let (dir, span) = (seg.b() - seg.a()).direction_and_length();
+            // The origin is `place(a)` built here, not the caller's
+            // `q_from`, so the registration below is a theorem on every
+            // path (`register_placed_line_end`); the certifier reads the
+            // start against `q_from` numerically.
             let line = geom::Line {
-                origin: q_from,
+                origin: place.point(seg.a()),
                 dir: place.vector(dir),
             };
             // Rigidity, stated where it is guaranteed, as the arc arm
@@ -1850,6 +1865,63 @@ mod tests {
         // end to the far vertex (the lowering), and `q_to` is `place` of
         // that vertex — one node, minted by the same op on the same
         // operand.
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
+        let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
+        assert!(
+            counts.symbolic > shut.symbolic,
+            "the door is what decides them: {counts:?} {shut:?}"
+        );
+        assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
+    }
+
+    /// **The placed line's far end decides `Zero` against the far vertex
+    /// through the door**, the line twin of
+    /// [`the_placed_rim_chains_through_the_sketch_rim_to_the_radius`]'s far
+    /// end. A segment from the origin to `(1, p)`, `p` a box at
+    /// `Sym<Interval>`, under a quarter turn and a translation: the
+    /// carrier's end `place(a) + L·dir·span` and the far vertex `place(b)`
+    /// are different forms, which the numeric channel cannot separate from
+    /// zero over the box and the plain tier cannot fold. The registration
+    /// (`register_placed_line_end`) decides all three components, the
+    /// door is what decides them, and it records no refusal.
+    #[test]
+    fn the_placed_lines_far_end_decides_zero_through_the_door() {
+        use geom_core::sym::with_session_rules;
+        use geom_core::{ParamSymbol, Sym};
+        type S = Sym<Interval>;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let readings = |rules| {
+            with_session_rules(budget(), rules, || {
+                let lit = |x: f64| <S as Real>::from_f64(x);
+                let p = S::param(
+                    ParamSymbol::new(test_utils::symbol_id("p")),
+                    Interval::from_bounds(0.45, 0.55),
+                );
+                let seg = SweptSeg {
+                    a: Point2::new(lit(0.0), lit(0.0)),
+                    b: Point2::new(lit(1.0), p),
+                    kind: Traversed::forward(SegmentKind::Line),
+                    canonical_vertex: 0,
+                    canonical_segment: 0,
+                };
+                let place = quarter_turn_placement([2.0, 3.0, 5.0]);
+                let to3 = |q: Point2<S>| place.transform_point(Point3::new(q.x, q.y, lit(0.0)));
+                let (q_from, q_to) = (to3(seg.a), to3(seg.b));
+                let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+                let Curve3::Line(line) = spec.carrier else {
+                    panic!("a line places onto a line carrier");
+                };
+                let end = line.at(spec.param_end);
+                let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
+                [
+                    sign(end.x - q_to.x),
+                    sign(end.y - q_to.y),
+                    sign(end.z - q_to.z),
+                ]
+            })
+        };
+        let (end, counts) = readings(geom_core::SymRules::shipped());
         assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
         let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
         assert!(
