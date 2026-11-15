@@ -11,6 +11,7 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
 ## Posture
 
 - **P0:**
+  - `main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap`: eight slow rows on main, red after our own merges; each PR's lane is measuring before it repairs. First in line.
   - `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: the sweep doors keep the frames they are handed. Holds the slab and the derived-frame cube. Weighed (fork 268); in review on `boxfinish/sweep-frames` (PR 6972).
   - `a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box`: the curved twin of the unsound edge reading PR 6958 fixed. Unreachable until a sweep door finishes a curved body over a box, so it goes before the doors' unit.
   - `the-sweep-doors-read-the-profiles-recorded-directions`: the doors' half; holds the tour's stop and the cut plate's refusal on main. The `profile` half landed (PR 6963). Parked on the two rows above.
