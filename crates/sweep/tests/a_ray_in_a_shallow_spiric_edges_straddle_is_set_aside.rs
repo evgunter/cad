@@ -1,5 +1,6 @@
-//! **A ray in the straddle of a shallow spiric edge is set aside, and
-//! the body keeps every answer it had** (`topo`'s curved edge reading,
+//! **A ray in the straddle of a shallow spiric edge is set aside: a
+//! read lost at `f64`, with the reader's side and point containment as
+//! they were** (`topo`'s curved edge reading,
 //! `boolean::solid_contain::curved_edges`).
 //!
 //! A torus about `y` (major 2, minor 0.5) cut by the plane
@@ -41,8 +42,8 @@ fn flat_torus(tol: Tol) -> Body<f64> {
 /// sampled point of a spiric edge where the faces' dihedral sine is
 /// under a fifth, rays are aimed 12 and 15 bands either way from the
 /// edge along each face, at the aimed incidence about the face's normal
-/// and about it tilted toward and away from the edge. Each reads `Out` or is set aside, and
-/// those set aside on the carrier's straddle are counted: the straddle
+/// and about it tilted toward and away from the edge. Each reads `Out`
+/// or is set aside, and those set aside on the carrier's straddle are counted: the straddle
 /// brackets the ray's distance from the edge across the band's edge, so
 /// it says neither that the ray meets the edge nor that it passes it.
 /// The side reader's own aims stand clear of every edge and still read
@@ -51,12 +52,21 @@ fn flat_torus(tol: Tol) -> Body<f64> {
 /// contained or not as the torus's and the plane's own equations say.
 ///
 /// **Red under a carrier's escalation read as the edge met**
-/// (`curved_edges::passes` returning `Passes::Met` where it returns
-/// `Passes::Unread`, or `Gap::escalated` passing every escalation):
-/// no ray is set aside on a straddle, each reading `Out` through a rim
-/// no reading placed. At `f64` that reading and the faces' own
+/// (`curved_edges::passes` handing the door a forged
+/// `Ok(MarginDiag::value(0.0))` for a carrier that refused, or
+/// `edge_gap::Reach::escalated` sorting every escalation within the
+/// band): no ray is set aside on a straddle, each reading `Out` through
+/// a rim no reading placed. At `f64` that reading and the faces' own
 /// crossings agree on every such ray; what the straddle lacks is a
 /// reading, not a right answer.
+///
+/// **This pins a loss, and is the next reader's to move.** The count of
+/// rays set aside on a straddle is asserted above zero, so the row goes
+/// red the day those reads come back: by a spiric lower bound that is
+/// the distance from the curve, or by a straddle left to each face's
+/// own trim
+/// (`work/flushtail/a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary.md`).
+/// Whoever lands either turns that assertion round.
 #[test]
 fn a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside() {
     let tol = Tol::witness();

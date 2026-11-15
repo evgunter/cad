@@ -64,7 +64,7 @@ of the pin did not move.
 
 `curved_edges::passes` read a carrier's escalation as the edge met in
 band whatever it bracketed. It now reads one that reaches past the
-band's edge as no reading, and sets the ray aside
+band's edge as unplaced, no reading, and sets the ray aside
 (`boolean/solid_contain/edge_gap.rs`). At `f64` the only such
 escalation is the carrier's straddle (`curve_carrier_straddle`), and the
 only place it was found is beside a spiric edge where the plane meets
@@ -84,8 +84,11 @@ depth 1e-2, 24 at 1e-3, 44 at 1e-4, 64 at 1e-5, 76 at 1e-6, all between
 so each is a lost read, never a wrong one. The reader's own aims and
 6400 containment queries about those points answer the same either way.
 The pin is `sweep` `a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside`.
-No row of the `topo`, `sweep` or `editor-core` suites reaches a straddle
-at ε 1e-9 but `curved_edges`' own pin.
+No row of the `topo`, `sweep` or `editor-core` suites reached a straddle
+at ε 1e-9 but `curved_edges`' own pin, as measured on 2026-11-15 by a
+log line at the arm that is not in the tree (the unit's review took the
+same count with its own). It is a measurement of that date, and nothing
+guards it: a new row or a new body can reach one unannounced.
 
 **What would give the reads back.** Either a spiric lower bound that is
 the distance from the curve rather than from each surface (no straddle

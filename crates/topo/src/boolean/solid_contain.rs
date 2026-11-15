@@ -3345,12 +3345,7 @@ fn edge_meets<T: Decide>(
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
         let at = geom::mid_param(lo, hi);
-        // Where the ray's line comes closest to the edge's line behind
-        // the ray's start, the ray itself is nearest the edge at its
-        // start, which lies clear of both the edge's faces, so of the
-        // edge: point containment's start by its boundary pre-pass, an
-        // aimed ray's by lying beyond every face.
-        if ray.ahead(at, rows.advance(), band) == Ok(Sign::Negative) {
+        if edge_gap::start(ray, (at, at), rows, band) == edge_gap::Start::Behind {
             continue;
         }
         // Where the lines come closest, against each end of the edge:
@@ -3370,7 +3365,7 @@ fn edge_meets<T: Decide>(
         if !inside {
             continue;
         }
-        let gap = gap.map_err(|diag| edge_gap::unread(pass.faces.0, diag))?;
+        let gap = gap.map_err(|diag| edge_gap::set_aside(pass.faces.0, diag))?;
         meets.meet(Met {
             edge: pass.edge,
             faces,
@@ -4179,14 +4174,8 @@ fn reaches_root_in_band<T: Decide>(
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let margin = reach_margin(body, face, ray, m, root)?;
-    match decide(rows.reaches(), Margin::of(margin), band) {
-        Ok(sign) => Ok(sign != Sign::Positive),
-        Err(diag) if crate::validate::in_band(&diag) => Ok(false),
-        Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
-            face,
-            diag,
-        })),
-    }
+    edge_gap::shown(decide(rows.reaches(), Margin::of(margin), band))
+        .map_err(|diag| edge_gap::set_aside(face, diag))
 }
 
 /// **Whether trimmed curved `face` holds the point `p` of its carrier**,
@@ -6423,7 +6412,10 @@ mod reach_tests {
             at: root - off,
             span: (root - off, root - off),
             cross: [Cross::Root(0); 2],
-            gap: Gap::Zero,
+            gap: Reach::of(Ok(geom_core::k_stats::Magnitude::Zero))
+                .met()
+                .and_then(Result::ok)
+                .expect("a decided Zero is a gap"),
         };
         let (mut decided, mut in_band) = (0, 0);
         for i in 0..400 {

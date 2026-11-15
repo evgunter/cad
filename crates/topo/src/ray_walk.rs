@@ -103,8 +103,12 @@ pub(crate) enum RayFault<E> {
     /// at the point itself), or its ray meets nothing a side is read
     /// from. Nothing is kept.
     Unread,
-    /// An in-band margin about this ray alone, kept as evidence with its
-    /// value: a tighter tolerance could decide it.
+    /// An escalation about this ray alone, kept as evidence with its
+    /// diagnostics, which say which kind: a margin in the band, which a
+    /// tighter tolerance could decide, or an enclosure reaching past the
+    /// band's edge, which only a narrower box could. No reader of the
+    /// fault tells the two apart; a reader of the diagnostics does
+    /// ([`geom_core::ladder::in_band`]).
     InBand(E),
     /// A limit of the reader this ray meets that no tolerance moves — a
     /// face or an edge it has no exact reading for, met on definite

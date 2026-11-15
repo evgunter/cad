@@ -123,6 +123,8 @@ mod boolean_discards;
 mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "boxed_revolved_bodies_read_what_their_members_read.rs"]
+mod boxed_revolved_bodies_read_what_their_members_read;
 #[path = "carried_citations_past_index_zero.rs"]
 mod carried_citations_past_index_zero;
 #[path = "carried_vertex_pairs_share_a_key.rs"]

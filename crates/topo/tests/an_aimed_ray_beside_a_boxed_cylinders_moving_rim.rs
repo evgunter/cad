@@ -171,13 +171,13 @@ fn member_ray(top: f64, radius: f64, aim: [f64; 3], normal: [f64; 3]) -> String 
 ///
 /// **Red under either of two mutants**, at ε 1e-9, 1e-6 and 1e-12.
 /// With the curved arm alone reading a carrier's escalation as the edge
-/// met (`curved_edges::passes` returning `Passes::Met` where it returns
-/// `Passes::Unread`), the rim stands in for its faces' crossings and
+/// met (`curved_edges::passes` handing the door a forged
+/// `Ok(MarginDiag::value(0.0))` for a carrier that refused), the rim stands in for its faces' crossings and
 /// each of the four rays is set aside further on, where the wall's root
 /// is read against the passage (`side_at_infinity_met_edge_reaches`);
-/// none reads a wrong side. With `Gap::escalated` passing every
-/// escalation as in band (`solid_contain::edge_gap`, the door every arm
-/// reads through), the two rays over the boxed height read `Side(Out)`:
+/// none reads a wrong side. With `Reach::escalated` sorting every
+/// escalation within the band (`solid_contain::edge_gap`, the door every
+/// arm reads through), the two rays over the boxed height read `Side(Out)`:
 /// the side every member has, read through a rim no reading placed.
 #[test]
 fn a_ray_beside_a_moving_rim_is_set_aside_at_the_rim() {
@@ -229,14 +229,19 @@ fn a_ray_beside_a_moving_rim_is_set_aside_at_the_rim() {
 ///
 /// **What this can go red on:** a reading of the side no member has, and
 /// nothing else. A reading lost is not a wrong one, so a change that
-/// only sets more rays aside leaves it green; and it stays green with a
-/// carrier's escalation read as the edge met
-/// (`Gap::escalated` passing every escalation), where
-/// [`a_ray_beside_a_moving_rim_is_set_aside_at_the_rim`] is red: over a
-/// box a met rim stands for a crossing only where the wall's root is
-/// read near the passage or reached from it in band, and that reading
-/// refuses on an enclosure past the band. So it is evidence that these
-/// draws find no wrong side, not that the rim's reading is sound.
+/// only sets more rays aside leaves it green.
+///
+/// **It has no power over the rim's reading today.** It stays green
+/// with a carrier's escalation read as the edge met
+/// (`edge_gap::Reach::escalated` sorting every escalation within the
+/// band), and with `reaches_root_in_band` opened as well: each cap of
+/// this body closes on one whole-turn circle, which the cap's in-face
+/// walk refuses over a box (`CorruptLoop`;
+/// `work/inside/a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers.md`),
+/// so no ray that needs the cap's crossing reads at all. It is held by
+/// that refusal, and is a tripwire for the day the walk reads: then the
+/// rim's reading is first live over a box, and this is where a wrong
+/// side would show.
 #[test]
 fn no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has() {
     let mut rng = test_utils::fuzz::start("boxed_cylinder_rays");
