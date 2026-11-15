@@ -312,12 +312,31 @@ where
     let mut v_ref = None;
     let mut outlines = Vec::new();
     let mut holes = Vec::new();
-    for section in &completed {
-        // A slit trace bounds no region: its slit lies inside an outline.
-        let SectionKind::Area { slit } = &section.kind else {
+    let walked = completed
+        .iter()
+        .filter_map(|section| match &section.kind {
+            // A slit trace bounds no region: its slit lies inside an outline.
+            SectionKind::Area { slit } => Some((section, slit)),
+            SectionKind::Slit { .. } => None,
+        })
+        .map(|(section, slit)| {
+            section_walk(&red.body, section.below_loop).map(|halves| (section, slit, halves))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let paired = closed_keels(
+        &walked
+            .iter()
+            .map(|(_, _, h)| h.as_slice())
+            .collect::<Vec<_>>(),
+    );
+    for (k, (section, slit, halves)) in walked.into_iter().enumerate() {
+        // Two below loops that are one cycle of edges walked both ways
+        // bound no area: the below side's material lies on both sides of
+        // those edges, so its section runs on across them, as across a
+        // slit ([`closed_keels`]).
+        if paired[k] {
             continue;
-        };
-        let halves = section_walk(&red.body, section.below_loop)?;
+        }
         // The caller's plane, which the frame is reported on: the below
         // loop's first chord, as the split's section face reads it.
         let u = *u_ref.get_or_insert_with(|| {
@@ -404,6 +423,36 @@ where
     })
 }
 
+/// **Which walked below loops are a closed keel's two sides**: two loops
+/// whose halves are the same edges', each edge once in each, are one
+/// cycle of edges in the plane walked both ways round, with the below
+/// side's material on both sides of it (a closed keel: the trace of a
+/// circle of the operand in the plane, under which the below half's
+/// section face runs on, as the finish merges it). They bound no area,
+/// so the section reads neither; each such pair is marked. A tree edge's
+/// slit is [`drop_slits`]'; a closed edge the loop runs out and back
+/// along is its own slit there. This is the closed edge that bounds two
+/// polygons instead, which no prune from a free end reaches.
+fn closed_keels<T: Real>(loops: &[&[Half<T>]]) -> Vec<bool> {
+    let edges = |halves: &[Half<T>]| {
+        let mut e: Vec<_> = halves.iter().map(|h| h.edge).collect();
+        e.sort_unstable();
+        e
+    };
+    let sets: Vec<_> = loops.iter().map(|l| edges(l)).collect();
+    let mut paired = vec![false; loops.len()];
+    for a in 0..loops.len() {
+        if paired[a] || sets[a].windows(2).any(|w| w[0] == w[1]) {
+            continue;
+        }
+        if let Some(b) = (a + 1..loops.len()).find(|&b| !paired[b] && sets[b] == sets[a]) {
+            paired[a] = true;
+            paired[b] = true;
+        }
+    }
+    paired
+}
+
 /// Takes the slit out of a walked section loop: the halves `slit` names,
 /// which run over a tree of the other loop ([`super::join::SectionKind::Area`])
 /// out to its tips and back to a second copy of the vertex they left, where
@@ -439,6 +488,7 @@ fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Ha
 /// what it runs along to the next.
 struct Half<T: Real> {
     he: HalfEdgeKey,
+    edge: crate::entity::EdgeKey,
     corner: Point3<T>,
     carrier: HalfCarrier<T>,
 }
@@ -525,6 +575,7 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
         };
         halves.push(Half {
             he,
+            edge: ek,
             corner,
             carrier,
         });
