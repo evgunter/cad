@@ -2,10 +2,13 @@
 id: a-bundles-arm-omits-its-written-slides-so-a-slid-copys-pole-verdict-is-levered-short
 kind: issue
 title: A placement's arm omits its written slide values, so the least turn's pole verdict for a copy slid L is levered over its reach alone and the copy lands about L·u/δ off inside the admitted band
-status: open
+status: closed
 opened: 2026-11-15
 priority: P1
 cost: E
+closed: 2026-11-15
+pr: 6988
+branch: onehome/least-turn-mint
 ---
 
 
