@@ -38,7 +38,8 @@ every ε: `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents
 PR's lane: red after the merge and green on its first parent at three ε.
 The split row is re-stated (a child states its end at the cut on
 purpose) and the mint row goes back to its first contract (the lane's
-own mechanical edit wrote `ends: None` into it).
+own mechanical edit wrote `ends: None` into it). **Repaired by PR
+6984.**
 
 Not this PR's, measured: `demos/tour`
 `k_probe_brackets::k_probe_brackets_the_lofted_leaf_at_eps_1e_9` and

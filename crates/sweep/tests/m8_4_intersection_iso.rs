@@ -321,7 +321,8 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     let MintPosture::Certified(image) = posture("boundary column", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl, .. } = image else {
+    let derived = format!("{image:?}");
+    let Pcurve::IsoLine { p0, pl, ends } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     // The moving channel is the chart's own `v`, traversed with the
@@ -333,6 +334,14 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         "the seam traverses the chart's whole v domain: {pl:?} on [{dv0}, {dv1}]"
     );
     assert!(p0.y.abs() < 1e-12, "and starts at its v origin: {p0:?}");
+    // The arm places the column by its corners and states them.
+    let corners = ends.map(|e| e.map(|q| (q.x.to_bits(), q.y.to_bits())));
+    let want = [(p0.x, dv0), (p0.x, dv1)].map(|(x, y)| (x.to_bits(), y.to_bits()));
+    assert_eq!(
+        corners,
+        Some(want),
+        "the image states the column's corners: {ends:?}"
+    );
     // The mint pass certifies every face of the body it charts.
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body
@@ -340,7 +349,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         .expect("the seam's own half-edge stores its certified image");
     assert_eq!(
         format!("{:?}", stored.pcurve()),
-        format!("{:?}", Pcurve::IsoLine { p0, pl, ends: None }),
+        derived,
         "the stored cache is the derived image"
     );
     println!(
