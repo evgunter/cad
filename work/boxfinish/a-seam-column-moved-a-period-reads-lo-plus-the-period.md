@@ -25,10 +25,14 @@ lifted one period is held at `lo + (hi − lo)`, computed. At `Interval`
 that sum has width on any domain that does not start at 0, so the
 column's held value is no point, and the rectangle certificate refuses
 the wall ("a NURBS-face boundary line's held value is not exact
-structure"); at `f64` the sum's rounding is the column, which may miss
-`hi` by an ulp. Pinned by
-`topo::props::quad_lane::tests::trim_rectangle_rows::a_seam_column_moved_one_period_is_its_computed_sum`
-(domain `[0.3, 1.7]`).
+structure"); at `f64` the sum is a point, and its rounding is read as
+the column, misplacing it by an ulp wherever the sum misses `hi`:
+`[0.3, 1.7]` lands on `1.7`, but `[0.4, 1.7]` gives `1.6999999999999997`,
+`[0.6, 1.7]` gives `1.7000000000000002` (outside the domain) and
+`[0.7, 3.1]` gives `3.1000000000000005` (found by PR 6982's review).
+Pinned, all four, by
+`topo::props::quad_lane::tests::trim_rectangle_rows::a_seam_column_moved_one_period_is_its_computed_sum`;
+at `Interval` the certificate refuses the column naming the period.
 
 **What reaches it today** (head of `boxfinish/rectangle-runs`, every
 suite of `topo`, `sweep`, `mesh`, `step-export`, `step-import`, `verbs`,

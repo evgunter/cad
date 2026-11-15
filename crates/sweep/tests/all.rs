@@ -106,6 +106,8 @@ mod a_loft_computes_its_walls_in_t;
 mod a_lofted_lens_blade_certifies_its_sign;
 #[path = "a_lofts_chart_ends_read_as_placed.rs"]
 mod a_lofts_chart_ends_read_as_placed;
+#[path = "a_split_and_reminted_loft_holds_its_volume.rs"]
+mod a_split_and_reminted_loft_holds_its_volume;
 #[path = "a_long_bound_beside_a_short_arm.rs"]
 mod a_long_bound_beside_a_short_arm;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]

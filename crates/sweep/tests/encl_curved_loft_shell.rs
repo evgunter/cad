@@ -608,14 +608,18 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         reading.area_pad
     );
     // Tier 3 passes the moved cap and the walls. Each wall's rim is the
-    // cap's rim on the wall's row to rounding, held a few ulps under the
-    // exact row `v = 0.025`, and its seams start an ulp under it: a NURBS
-    // wall's patch lane reads the rectangle its rows hold and pads the
-    // corners' gaps, never asking an end to be exact. The vase is turned,
-    // `r(z) = 1 + 0.6·z − 0.3·z²` for `z ∈ [0, 2]`, so its volume above the
-    // moved cap is `π ∫ r² dz` over `[z, 2]`, and the certified volume holds
-    // it; the rims are their circles to 1e-12, so the slab they bound moves
-    // the volume by at most the disc's perimeter times that.
+    // cap's rim on the wall's row to rounding: held at
+    // `v = 0.024999999999974973`, 2.5e-14 (some 7,200 ulps) under the exact
+    // row `v = 0.025`, while its seams start at `0.024999999999999998`. The
+    // patch lane reads the rectangle its rows hold, `[0, 1] ×
+    // [0.024999999999974973, 1]`, and pads the corners' gap. The vase is
+    // turned, `r(z) = 1 + 0.6·z − 0.3·z²` for `z ∈ [0, 2]`, so its volume
+    // above the moved cap is `π ∫ r² dz` over `[z, 2]`, and the certified
+    // volume holds it within its own bracket. That bracket's half-width is
+    // some 4e-6, so the row cannot tell the rows' rectangle from the exact
+    // row's (their slabs differ by 1.7e-13); what it pins is a gross misread,
+    // such as the wall's rectangle taken from `v = 0`, which moves the volume
+    // by 0.16.
     use geom_core::Bounds as _;
     topo::validate_geometric(&alone, Tol::witness())
         .expect("the vase with its cap moved alone validates");
@@ -635,12 +639,17 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     };
     let turned = core::f64::consts::PI * (antiderivative(2.0) - antiderivative(z));
     let (lo, hi) = (
-        measured.volume.lo() - measured.volume_pad - residual,
-        measured.volume.hi() + measured.volume_pad + residual,
+        measured.volume.lo() - measured.volume_pad,
+        measured.volume.hi() + measured.volume_pad,
     );
     assert!(
         lo <= turned && turned <= hi,
         "the moved vase's volume [{lo}, {hi}] holds the turned solid's {turned}"
+    );
+    assert!(
+        hi - lo < 0.01,
+        "the bracket [{lo}, {hi}] is narrow enough to refuse a rectangle read from v = 0 \
+         (a volume 0.16 larger)"
     );
     // The structural door has no quadrature lane: the moved cap keeps
     // the closed form's typed refusal there.
