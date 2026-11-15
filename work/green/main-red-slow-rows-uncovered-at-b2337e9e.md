@@ -2,11 +2,11 @@
 id: main-red-slow-rows-uncovered-at-b2337e9e
 kind: issue
 title: Four slow-set rows red on main at b2337e9e that no open row covers, and two open main-red rows that cite a state the tree no longer has
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: E
-parent: nightly-reds-the-source-censuses
+closed: 2026-11-14
 ---
 
 
@@ -43,3 +43,7 @@ Two of the rows above are greened by the `nightly-reds-the-source-censuses` unit
 - `certified_endpoint_census`: the geom-brep drift this row lists was re-pinned by PR 6738 (`d43220b275`), and none of those files moves the census today. Today's red is topo only, `clearance.rs` 53 → 56 (PR 6885) and `injective.rs` 121/40 → 137/52 (PRs 6892, 6894, 6905) and → 144/59 (PR 6907); re-blessed with the new sites' dispositions.
 
 The other rows here are outside that unit and are not re-checked.
+
+## Closed (2026-11-14)
+
+Nothing this row lists is red any more. `node_standing` and the endpoint census were greened by PR 6921. Every other test it names (`docm2_part_interval`'s a7 rows, `m10_sym_profile_interval`'s slab row, `coincidence_door::two_copies_on_one_axis…`, the near-node poses, the lofted arc wall, `dm1`) passes at all three ε rows of nightly 43371638371, read from each leg's junit. Which merge or pin greened each is not traced here.

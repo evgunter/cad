@@ -104,3 +104,9 @@ edits inside a test. They are:
 The review of that PR also read which rows the second run reached: each
 of the six once, at the default ε, in the slow-set step, and nowhere
 else (`work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`).
+
+## The workaround in the tree, and when it goes (GREEN `green/goldens`, PR 6956, 2026-11-14)
+
+PR 6956 re-cut tables and golden files read by ten slow-set rows; its diff spelled none of their names, and `slow_set.py --new-expr` selected `none()`. To be gated at all it added, beside each re-cut table, a doc line naming the test that reads it (`[`the_blend_documents_evaluate_to_their_committed_digests`]` and the like, in `lib_g16_corpus_name_digests.rs`, `perf2_name_keying_differential.rs`, `seat4_verb_lowering.rs`, `seat7_sweep_lowering.rs`, `sym11_exact_channel_rows.rs`, `perf12_census_goldens.rs`, `m10_5_clearance_interval.rs`, `step-export/tests/export.rs` and `sweep/tests/mass_props_are_thread_count_invariant.rs`).
+
+Those lines exist only for the selector. They fail open: a later re-cut that edits a constant and leaves the doc line alone adds no line spelling the name, so it is selected by nothing again, and nothing says so. A golden FILE re-cut (`.txt`, `.step`) never adds a Rust line at all. When the selector is fixed to see a slow test whose body, table or `include_str!` target the diff touches, the lines can go.

@@ -218,6 +218,7 @@ impl Image {
             Self::Iso(p0, pl) => Pcurve::IsoLine {
                 p0: Point2::new(c(p0[0]), c(p0[1])),
                 pl: geom_core::Vec2::new(c(pl[0]), c(pl[1])),
+                ends: None,
             },
             Self::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
         }
@@ -1039,6 +1040,7 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
     let image: Pcurve<Interval> = Pcurve::IsoLine {
         p0: Point2::new(Interval::from_bounds(0.1, 0.1 + 1e-15), fi(-1.0)),
         pl: geom_core::Vec2::new(fi(0.0), fi(2.5)),
+        ends: None,
     };
     let surface = cylinder.map_scalar(fi);
     assert!(
@@ -1056,6 +1058,7 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
         Pcurve::IsoLine {
             p0: Point2::new(0.1, -1.0),
             pl: geom_core::Vec2::new(0.0, 2.5),
+            ends: None,
         },
         image,
         &carrier,

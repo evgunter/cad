@@ -68,9 +68,10 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             u: channel(u),
             v: channel(v),
         },
-        &Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+        &Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
             p0: p2(p0),
             pl: v2(pl),
+            ends: ends.map(|e| e.map(p2)),
         },
         Pcurve::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
         &Pcurve::Spiric {
@@ -1160,7 +1161,7 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             if [pa.x, pa.y, pb.x, pb.y].iter().any(|&x| x != 0.0) {
                 continue;
             }
-            let iso = Pcurve::IsoLine { p0, pl };
+            let iso = Pcurve::IsoLine { p0, pl, ends: None };
             let mut breaks: Vec<f64> = (0..g.below(5))
                 .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
                 .collect();
