@@ -2,10 +2,12 @@
 id: a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions
 kind: issue
 title: A closed keel lying in the section plane divides the section into two regions where drop_slits promises one
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
+closed: 2026-11-15
+branch: onehome/closed-keel
 ---
 
 
@@ -38,3 +40,34 @@ Bisected, first-parent, at ε 1e-6: the witness does not exist at `89ca86d8e`, `
 Owed with the flip: say whether a region's area may stand `1.5 ε` off its annulus when the keel's tip is `0.6 ε` off the plane, and state the witness's bound from that, or fix the reading.
 
 The witness is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`). Take the pin off with the fix.
+
+## Closed (2026-11-15): one annulus from under the keel, two from the V's side, by contract
+
+The owed result, restated by `plane_section`'s contract. The section reads
+the reading side's section faces, and takes out only the slits where a piece
+on that side touches itself along the plane (`crates/topo/src/splitting/section.rs`,
+the module doc and `plane_section`'s winding contract). That contract lives in
+code docs only, with no README or DESIGN clause. `git log -S` (deepened past
+the shallow graft) traces it to `f814900f45` (M3 PR 3, `plane_section`) and
+`38c940fb2b` ("split: read a curved slit", 2026-10-11), neither an `[ev]`
+ratification.
+
+- **Read from under the keel** (normal `+y`) it reads one annulus, `0.5..3`.
+  The halves were already right: that half is finished with one annulus face.
+  The reading was not. `plane_section` reads the scratch polygons from before
+  the finish merges them, and there the side's two loops at the circle are the
+  one keel edge's two halves, one an outline and one a hole. The new
+  `section::closed_keels` drops a pair of below loops that are the same edges,
+  each once, walked both ways.
+- **Read from the V's side** (normal `−y`) it reads the two annuli, touching at
+  the keel. That half really is two pieces in two shells, and two pieces
+  touching each other are no slit.
+
+The witness pins both, at all three ε. Its ε 1e-6 red, read from the V's side,
+is the walls' plane traces sitting `slope × offset` off the keel. It is filed
+as `the-v-sides-keel-regions-read-their-walls-plane-traces-off-the-keel` (P3),
+and the pin now cites that row.
+
+Not filed: the split recording each slit copy's provenance, so that a reader
+could pair the copies with no decision and read a point-set section. No reader
+asks for a point-set section today.
