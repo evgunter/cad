@@ -61,3 +61,18 @@ Both were asked which of E12's two readings of a symbolic Zero it should state, 
 - **A, 21:11 UTC.** The Zero conditional (DESIGN's wording, written in #4322, which Ev approved), a registration STRICT ("equal at every parameter value … a fact that holds only past a decision is not registered: the construction spells it with that decision's literal sign"). Argument: a registration is the one thing nothing checks, and "true where my gate passed" is what let the defect in. Confidence: Zero sure, registrations strict likely.
 
 **They agree on the Decision paragraph and split on the registration sentence.** One round dispatched 21:14 UTC: each shown the other's answer and asked to check the allowlist for a registrant, other than the four that retire, whose fact holds only past a decision of its own; and whether one text serves both or it is a split for Ev.
+- **Round on the registration sentence, both in by 21:13 UTC: agreed.** B MOVED to strict (the deciding evidence: the profile's `Facts::Registered` is already "a theorem at every value of the construction's inputs", and `Facts::Decided` is the home for a fact that holds only past a decision); it found one more registrant whose doc reads conditional, the line×line fillet's tangency and endpoint facts (filed on PROFILETAIL). A held strict; it read the allowlist's two registrant files and found no shipped registrant that needs the conditional form. Neither offers a combined text.
+
+## Provenance, checked by the orchestrator before the PR (21:20 UTC)
+
+- PR 1712 wrote E12's "IDENTICALLY ZERO … for every parameter value" (agent, 2026-09-03). The PR carries NO comment by Ev; "lgtm" is recorded only in agent text in the file ("RATIFIED — Ev on PR #1712, "lgtm"; in-chat").
+- PR 4322 wrote DESIGN's "takes the decisions it took here" (agent, 2026-10-08); Ev's only comment: "sounds great! does this relate to the k-lint at all, by the way?". The PR body had put the reading to Ev.
+- PRs 4901 / 4929: Ev ruled on deleting a label kind ("full deletion sounds good!"); the phrase about E12's claim is agent text only (a designer's report and 4929's body). B's first wording answer cited it as Ev's ruling: NOT CONFIRMED, and not relied on in the PR.
+
+## `[ev]` PR 7003 opened (21:24 UTC)
+
+Branch `boxfinish/ev-e12-wording`, first commit 70811423: E12's Decision paragraph and registration sentence, fork-log row 273 (recommendation half, labels only), the fillet follow-up row. Body: a decision document with both designers' final `For Ev` sections on the wording, verbatim, by label. Reports of every round on `boxfinish/fork-radius-reports` (commits 71a3d529, 8fa11410, 6123d933).
+
+Totals from the sessions' result events (a two-designer fork records no token column; kept here): A output 79,055, cache read 12,592,942, cache written 216,378, $9.15 (first report $4.84); B output 63,852, cache read 12,128,887, cache written 179,832, $5.14 (first report $1.89).
+
+When Ev answers: second commit on the branch fills row 273's Ev / match / A/B columns (A = Fable 5.2, B = Opus 5.5; bytes 126, 241), merge main, merge.
