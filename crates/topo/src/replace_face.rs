@@ -422,6 +422,19 @@ pub enum ReplaceFaceError<T: Real> {
         /// text (unequal cylinder radii).
         why: &'static str,
     },
+    /// **An edge with no region to read its pose over.** The C5 gate and
+    /// the section arms lever the moved pair's pose over the edge's
+    /// cover ([`crate::cover::edge_cover`], or the moved carrier's over
+    /// its span), and the edge has none, as a face with no cover is at
+    /// the chart-region gate.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
+    EdgeUncovered {
+        /// The edge whose region was read.
+        edge: EdgeKey,
+        /// Why it has no cover.
+        source: crate::cover::EdgeUncovered,
+    },
     /// **The fitted face's boundary this door does not carry.** A moved
     /// fitted face keeps a row of its fit whose sides both move with it,
     /// and an edge with a distinct surface as their section. It
@@ -870,6 +883,7 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::ApproxLaneUnsupported { .. }
             | Self::NeighborPairUnroutable { .. }
             | Self::NeighborPoseUnroutable { .. }
+            | Self::EdgeUncovered { .. }
             | Self::FittedBoundaryUnsupported { .. }
             | Self::CarrierLaneUnsupported { .. }
             | Self::NurbsLaneUnsupported { .. }
@@ -1023,6 +1037,11 @@ impl<T: Real> ReplaceFaceError<T> {
                  follow. {NOT_YET_ENDING}",
                 kind.adjective(),
                 other_kind.adjective()
+            ),
+            Self::EdgeUncovered { source, .. } => write!(
+                f,
+                "an edge of the offset face has no region the kernel can read its position \
+                 over ({source}), so it cannot follow the face. {NOT_YET_ENDING}"
             ),
             Self::FittedBoundaryUnsupported { what, .. } => write!(
                 f,
@@ -2380,25 +2399,42 @@ fn mint_offset<T: Decide>(
 }
 
 /// **Whether the arm serves this pose** at the C5 gate: the moved
-/// surface against the untouched one, read over the edge's carrier on
-/// `[t0, t1]` ([`geom_brep::Reach::Span`]). Every arm is levered by the
-/// carrier's exact per-carrier distance from its pivot, never by a ball
-/// around the edge: a looser lever decides an in-band pose as served
-/// ([`geom_brep::intersect::route_pose`]).
+/// surface against the untouched one, read over the edge's region
+/// ([`geom_brep::Reach::Region`]). Every arm is levered by the region's
+/// cover, never by a ball around the edge: a looser lever decides an
+/// in-band pose as served ([`geom_brep::intersect::route_pose`]).
 fn pose_route<T: Decide>(
     moved: &Surface<T>,
     other: &Surface<T>,
-    carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
+    reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<geom_brep::intersect::PairRoute, geom_brep::SectionError> {
-    let reach = geom_brep::Reach::Span {
-        carrier: carrier.clone(),
-        t0,
-        t1,
-    };
-    geom_brep::intersect::route_pose(moved, other, &reach, band)
+    geom_brep::intersect::route_pose(moved, other, reach, band)
+}
+
+/// **An edge's region as a reach**: its cover, or the refusal naming
+/// `edge` ([`ReplaceFaceError::EdgeUncovered`]).
+pub(crate) fn region_reach<T: Real>(
+    edge: EdgeKey,
+    cover: Result<geom::cover::Cover<T>, crate::cover::EdgeUncovered>,
+) -> Result<geom_brep::Reach<T>, ReplaceFaceError<T>> {
+    cover
+        .map(geom_brep::Reach::Region)
+        .map_err(|source| ReplaceFaceError::EdgeUncovered { edge, source })
+}
+
+/// **A carrier over a span as a reach**, for a carrier with no edge
+/// record yet (the moved edge's): its cover over the span, or the
+/// refusal naming `edge`.
+pub(crate) fn span_reach<T: geom_core::spline::SpanLocate>(
+    edge: EdgeKey,
+    carrier: &Curve3<T>,
+    span: (T, T),
+) -> Result<geom_brep::Reach<T>, ReplaceFaceError<T>> {
+    geom_brep::Reach::of_span(carrier, span).map_err(|why| ReplaceFaceError::EdgeUncovered {
+        edge,
+        source: crate::cover::EdgeUncovered::Carrier(why),
+    })
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -2635,7 +2671,10 @@ fn plan_edge<'s, T: Decide>(
         (Some(a), Some(b)) if a.old_key != b.old_key => {
             return plan_between_moved(
                 (edge, start, end, sides),
-                curve,
+                (
+                    curve,
+                    region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
+                ),
                 crate::wedge_reach(
                     body,
                     crate::edge_faces(body, edge),
@@ -2811,9 +2850,12 @@ fn plan_edge<'s, T: Decide>(
             return derive_edge(
                 (edge, start, end, sides),
                 (curve, &description, (t0, t1)),
+                region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
                 (old_key, other_key, new_surface, held),
-                extent,
-                crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
+                (
+                    extent,
+                    crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
+                ),
                 band,
                 (
                     section_lane,
@@ -2895,7 +2937,8 @@ fn plan_edge<'s, T: Decide>(
         // The kind pair routes; the arm is asked whether it serves
         // THIS pose — the moved surface against the untouched one,
         // read over the edge's own reach.
-        let posed = pose_route(new_surface, other_surface, &carrier, t0, t1, band).map_err(
+        let reach = span_reach(edge, &carrier, (t0, t1))?;
+        let posed = pose_route(new_surface, other_surface, &reach, band).map_err(
             |e| match e {
                 geom_brep::SectionError::Escalated(source)
                 | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
@@ -3155,7 +3198,10 @@ fn edge_side_keys<T: Real>(
 /// carrier for branch and sense ([`derive_edge`]).
 fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
-    curve: &geom_brep::EdgeCurve<T>,
+    (curve, region): (
+        &geom_brep::EdgeCurve<T>,
+        Result<geom_brep::Reach<T>, ReplaceFaceError<T>>,
+    ),
     reach: geom_core::Lever<T>,
     (a, b): (&'s MovedChart<'_, T>, &'s MovedChart<'_, T>),
     band: Band,
@@ -3233,9 +3279,9 @@ fn plan_between_moved<'w, 's, T: Decide>(
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
+        region,
         (a.old_key, b.old_key, &a.new_surface, &b.new_surface),
-        extent,
-        reach,
+        (extent, reach),
         band,
         (section_lane, slots),
     )
@@ -3336,14 +3382,14 @@ fn untilted<T: Real>(
 fn derive_edge<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     (curve, description, (t0, t1)): (&geom_brep::EdgeCurve<T>, &EdgeDescription<T>, (T, T)),
+    region: Result<geom_brep::Reach<T>, ReplaceFaceError<T>>,
     (old_key, other_key, new_surface, neighbour): (
         SurfaceKey,
         SurfaceKey,
         &'s Surface<T>,
         &'s Surface<T>,
     ),
-    extent: geom_core::Lever<T>,
-    reach: geom_core::Lever<T>,
+    (extent, reach): (geom_core::Lever<T>, geom_core::Lever<T>),
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
         Option<crate::offset_derive::SectionLane<T>>,
@@ -3372,8 +3418,9 @@ fn derive_edge<'w, 's, T: Decide>(
     }
     let old = curve.carrier();
     // The kind pair routes; the arm is asked whether it serves this
-    // pose, over the edge's reach.
-    let posed = pose_route(new_surface, neighbour, old, t0, t1, band).map_err(|e| match e {
+    // pose, over the edge's region.
+    let region = region?;
+    let posed = pose_route(new_surface, neighbour, &region, band).map_err(|e| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
             ReplaceFaceError::Escalated { source }
@@ -3467,8 +3514,8 @@ fn derive_edge<'w, 's, T: Decide>(
         (None, None) => crate::offset_derive::section_closed(
             new_surface,
             neighbour,
-            old,
-            (t0, t1),
+            (old, (t0, t1)),
+            &region,
             extent,
             band,
         )
@@ -4915,11 +4962,11 @@ fn pair_over_its_span<T: Decide>(
     let Some((plane, cone)) = plan.apex_pair.take() else {
         return Ok(());
     };
-    let reach = geom_brep::Reach::Span {
-        carrier: plan.spec.carrier.clone(),
-        t0: plan.spec.param_start,
-        t1: plan.spec.param_end,
-    };
+    let reach = span_reach(
+        plan.edge,
+        &plan.spec.carrier,
+        (plan.spec.param_start, plan.spec.param_end),
+    )?;
     let refused = |verdict| ReplaceFaceError::EdgeSection {
         edge: plan.edge,
         kind: plane.kind(),
@@ -5107,6 +5154,11 @@ mod pose_reach_rows {
 
     use super::pose_route;
 
+    /// The edge `carrier` over `span` as a reach.
+    fn span(carrier: &Curve3<f64>, span: (f64, f64)) -> Reach<f64> {
+        Reach::of_span(carrier, span).expect("the span is covered")
+    }
+
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("a linear band")
     }
@@ -5131,13 +5183,10 @@ mod pose_reach_rows {
                 minor,
             ));
             let span = 2.0;
-            let reach = Reach::Span {
-                carrier: e.clone(),
-                t0: 0.0,
-                t1: span,
-            }
-            .lever_from(anchor)
-            .length();
+            let reach = Reach::of_span(&e, (0.0, span))
+                .expect("the span is covered")
+                .lever_from(anchor)
+                .length();
             for k in 0..=720 {
                 let t = span * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
@@ -5170,12 +5219,8 @@ mod pose_reach_rows {
         };
         let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let tight = 8.0_f64.sqrt();
-        let span = Reach::Span {
-            carrier: edge.clone(),
-            t0: 0.0,
-            t1: 4.0,
-        };
-        assert!((span.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
+        let reach = span(&edge, (0.0, 4.0));
+        assert!((reach.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
         // `k = 1.2` is in the band too, and reads Zero if the lever is
         // cut below the endpoints' distance.
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
@@ -5187,7 +5232,7 @@ mod pose_reach_rows {
                 normal: Vec3::new(beta.sin(), 0.0, beta.cos()),
                 u_ref: Vec3::new(0.0, 1.0, 0.0),
             };
-            let got = pose_route(&plane, &cone, &edge, 0.0, 4.0, band());
+            let got = pose_route(&plane, &cone, &span(&edge, (0.0, 4.0)), band());
             assert!(
                 matches!(got, Err(geom_brep::SectionError::Escalated(_))),
                 "k = {k}: an in-band near-parabola must escalate, got {got:?}"
@@ -5236,14 +5281,14 @@ mod pose_reach_rows {
             ("cyl, torus", &general, &torus),
             ("torus, cyl", &torus, &general),
         ] {
-            let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+            let got = pose_route(a, b, &span(&edge, (0.0, 0.1)), band());
             assert!(
                 matches!(got, Ok(ref r) if r.implemented),
                 "({label}): the general pose is served, got {got:?}"
             );
         }
         let square = rod(Vec3::unit_x());
-        let got = pose_route(&square, &torus, &edge, 0.0, 0.1, band());
+        let got = pose_route(&square, &torus, &span(&edge, (0.0, 0.1)), band());
         assert!(
             matches!(got, Ok(ref r) if r.implemented),
             "the square pose is served, got {got:?}"
@@ -5255,8 +5300,8 @@ mod pose_reach_rows {
             let derived = crate::offset_derive::section_closed(
                 a,
                 b,
-                &edge,
-                (0.0, 0.1),
+                (&edge, (0.0, 0.1)),
+                &span(&edge, (0.0, 0.1)),
                 super::corner_arm(&edge, 0.0, 0.1),
                 band(),
             );
@@ -5310,7 +5355,7 @@ mod pose_reach_rows {
             "the tilted cylinder is refused by the offset row"
         );
         for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
-            let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+            let got = pose_route(a, b, &span(&edge, (0.0, 0.1)), band());
             assert!(
                 matches!(got, Ok(ref r) if !r.implemented && r.note == refusal(&parallel)),
                 "({label}): axes apart at the apex refuse the pose, got {got:?}"
@@ -5347,7 +5392,7 @@ mod pose_reach_rows {
                 u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
-                let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+                let got = pose_route(a, b, &span(&edge, (0.0, 0.1)), band());
                 if serves {
                     assert!(
                         matches!(got, Ok(ref r) if r.implemented),
@@ -5429,7 +5474,7 @@ mod pose_reach_rows {
                     u_ref: Vec3::unit_y(),
                 };
                 for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-                    let got = pose_route(a, b, edge, 0.0, 1.0, band());
+                    let got = pose_route(a, b, &span(edge, (0.0, 1.0)), band());
                     assert!(
                         matches!(got, Err(geom_brep::SectionError::Escalated(_))),
                         "{name}, k = {k} ({label}): an in-band tilt must escalate, got {got:?}"
@@ -5469,7 +5514,7 @@ mod pose_reach_rows {
                 u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-                let got = pose_route(a, b, &edge, 0.0, 2.0, band());
+                let got = pose_route(a, b, &span(&edge, (0.0, 2.0)), band());
                 assert!(
                     matches!(got, Err(geom_brep::SectionError::Escalated(_))),
                     "k = {k} ({label}): an in-band tilt must escalate, got {got:?}"

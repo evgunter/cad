@@ -8,7 +8,7 @@
 //! circle's never past it either and an ellipse's never by more than a
 //! quarter's bulge.
 
-#![allow(clippy::panic, clippy::cast_precision_loss)]
+#![allow(clippy::panic, clippy::expect_used, clippy::cast_precision_loss)]
 
 test_utils::gated_to!["crates/geom-brep/src/extent.rs"];
 
@@ -106,11 +106,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             carrier.eval(tm) + u_ref * big * g.range(-1e-4, 1e-4),
         ];
         for p in pivots {
-            let reach = Reach::Span {
-                carrier: carrier.clone(),
-                t0,
-                t1,
-            };
+            let reach = Reach::of_span(&carrier, (t0, t1)).expect("the span is covered");
             let got = reach.lever_from(p).length();
             let far = farthest(&carrier, t0, t1, p);
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
@@ -197,13 +193,10 @@ fn an_arc_read_from_its_centre_is_never_past_the_whole_turn() {
     ];
     for ((carrier, centre), (t0, t1)) in rows {
         let reach = |t0, t1| {
-            Reach::Span {
-                carrier: carrier.clone(),
-                t0,
-                t1,
-            }
-            .lever_from(centre)
-            .length()
+            Reach::of_span(&carrier, (t0, t1))
+                .expect("the span is covered")
+                .lever_from(centre)
+                .length()
         };
         let (got, whole) = (reach(t0, t1), reach(0.0, core::f64::consts::TAU));
         assert!(

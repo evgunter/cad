@@ -4335,6 +4335,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
         | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. }
+        | ReplaceFaceError::EdgeUncovered { edge, .. }
         | ReplaceFaceError::DegenerateTorus { edge, .. }
         | ReplaceFaceError::NeighborPairUnroutable { edge, .. }
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
