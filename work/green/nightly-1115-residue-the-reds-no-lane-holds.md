@@ -2,10 +2,13 @@
 id: nightly-1115-residue-the-reds-no-lane-holds
 kind: unit
 title: Nightly 11-15: the reds no program's lane holds (two censuses, a moved pin, two 1e-12 rows, the probe rows, the render lanes)
-status: dispatched
+status: closed
 opened: 2026-11-15
 priority: P1
 cost: M
+branch: green/nightly-1115
+pr: 6985
+closed: 2026-11-15
 ---
 
 
@@ -32,3 +35,14 @@ Jobs:
 - `k-lint (dev-probe)`: the sweep now runs every plain suite past its reds, then dies in the dump half at `k-probe sweep @ eps=1e-6 (demo scenes)`: demos `src/walls.rs` wall 8 "still refuses, but NOT with the refusal it pins" (`NoMarch { scalar: "telemetry probe" }`). So the 1e-9 and 1e-12 dumps, the marker and both lints did not run. Row on this slate: `the-tours-k-probe-reads-lily-wall-8-at-the-probe-scalar-where-it-refuses-nomarch`.
 - `render lanes / scene inputs + uv sheet + wild montage` and `render lanes / freecad montages`: `RecursionError: maximum recursion depth exceeded` in matplotlib's `Path.__deepcopy__` under Python 3.14 (`demos/compose_montage.py` `fig.tight_layout`), red on 11-14 at the same steps too. `work/ciw/tool-versions-outside-the-env-block-have-no-source-of-truth` may be the class.
 - `PR CI latency (alarm)`: median 20.8 minutes over 128 runs against the 20-minute alarm. Report only: say how much of the 24 hours' load was GREEN's own six lanes at tier `all`.
+
+## Closed (2026-11-15, PR 6985)
+
+Green on the lane's local runs at the nightly's opt-level 2 at all three ε rows, and on the gate at the default ε; the 11-16 nightly is the hosted record for the rest. What became of each:
+- `raw_door_census`: the red was the census reading a `pub(super) mod tests` as production. The cut takes any visibility and follows `#[path]` mounts, through `test_utils::source`. Nothing in mesh owed a change.
+- `reader_census`: ledger re-blessed; two hand-rolled readers listed `Unconverted` with a row on CHARTTAIL.
+- sym11's receipts, the thread-count line, the chamfer probe row: pinned or re-blessed against BOXFINISH's bisects (PRs 6963, 6953, 6959) and PR 6913.
+- `coincidence_door`'s coaxial ball at 1e-12: re-stated to require the build, which is checked against its closed form; the merge that made it build is not named (TINT's row says so).
+- The three fuzz rows are not greened, and cannot be under the rule that a fuzz row takes no fixed seed: each has a row with its inputs on its owner (GERM, SPLICE, HONEROOT). **The cone one is a false certificate, P0 on GERM**: `the-conic-quadric-door-certifies-first-harmonic-roots-past-the-zero-band`, with a pinned deterministic row beside the fuzz row.
+- Render lanes: the runner image's default Python moved to 3.14; both jobs pin 3.12. Four FreeCAD frames drifted between 11-13 and 11-15 (row on CIW).
+- The probe sweep's dump half: wall 8 is pinned per scalar, so the dumps are written; whether the lints then run is the 11-16 nightly's to show.

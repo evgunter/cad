@@ -51,16 +51,19 @@ use crate::m10_9_pins_interval::measured_studies;
 /// [`sym11_the_exact_channel_never_contradicts_past_the_ceiling`] reads
 /// this table, and it holds main's readings so the next move reds; no
 /// one has said which decisions its latest moves changed or that they
-/// are right. Two rows owe that account:
-/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
-/// and
-/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
+/// are right. Three rows owe that account:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`,
+/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`
+/// and, for the readings
+/// `sym11_the_exact_channel_never_contradicts_past_the_ceiling` holds
+/// below against the ones the first two left,
+/// `work/boxfinish/sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin.md`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1015, 1050, 299]),
+    ("two_hole_plate", [1019, 1054, 299]),
     ("r1_annulus", [535, 553, 278]),
-    ("r2_link", [813, 947, 3576]),
-    ("r2_filleted_bracket", [1425, 1545, 969]),
-    ("r2_rounded_pad", [1515, 1698, 3989]),
+    ("r2_link", [814, 948, 3575]),
+    ("r2_filleted_bracket", [1433, 1553, 969]),
+    ("r2_rounded_pad", [1531, 1714, 4000]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
