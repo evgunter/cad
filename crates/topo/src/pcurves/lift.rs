@@ -8,13 +8,17 @@ use geom_core::{Decide, Real};
 
 use super::{
     ChartPeriods, DerivedRow, DescribedChart, PinMiss, WalkFail, WalkItem, edge_record, entry_exit,
-    entry_vertex, half_edge_carrier, is_plus, stored_edge, stored_reach, walk_cycle, walk_item,
+    entry_vertex, half_edge_curve, is_plus, stored_edge, stored_reach, walk_cycle, walk_item,
 };
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
 use crate::live::proven;
 use crate::null::Scaffolding;
+
+/// A half-edge charted for a derived lift: its carrier, its window
+/// `(t0, t1)`, and that window as the span its row is read over.
+type Charted<T> = (HalfEdgeKey, geom::Curve3<T>, T, T, geom_brep::StoredSpan<T>);
 
 /// One face's boundary as this module's passes walk it: each loop's
 /// half-edge cycle, **whether that boundary already STORES a row**, and
@@ -197,8 +201,8 @@ pub struct LiftedRow<T: Real> {
     /// this half-edge.
     pub pcurve: Pcurve<T>,
     /// The carrier interval the image is over, in the edge's forward
-    /// order.
-    pub params: (T, T),
+    /// order: the edge's span ([`geom_brep::Pcurve::span_ends`]).
+    pub params: geom_brep::StoredSpan<T>,
     /// Whether the chain traverses the image forward.
     pub plus: bool,
 }
@@ -207,7 +211,8 @@ impl<T: Real> LiftedRow<T> {
     /// The carrier parameters the chain enters and leaves the image at.
     #[must_use]
     pub fn entry_exit(&self) -> (T, T) {
-        entry_exit(self.plus, self.params.0, self.params.1)
+        let (t0, t1) = self.params.ends();
+        entry_exit(self.plus, t0, t1)
     }
 }
 
@@ -294,7 +299,7 @@ impl<T: Real> Lift<T> {
         self.rows
             .iter()
             .map(|row| {
-                let (t0, t1) = row.params;
+                let (t0, t1) = row.params.ends();
                 row.pcurve
                     .closed_form_span_box(t0, t1)
                     .map(|b| ((b.u_min, b.u_max), (b.v_min, b.v_max)))
@@ -446,7 +451,7 @@ impl<T: Decide> Lift<T> {
                     half_edge,
                     lift,
                     pcurve,
-                    params: row.params(),
+                    params: row.edge_span(),
                     plus: is_plus(body, half_edge),
                 })
             })
@@ -492,16 +497,18 @@ impl<T: Decide> Lift<T> {
             return Err(LiftRefusal::Placeholder);
         };
         let sense = proven(&body.faces, face, EntityId::Face).sense;
-        let charted: Vec<(HalfEdgeKey, geom::Curve3<T>, T, T)> = halves
+        // Each half's carrier, its window, and that window as the span its
+        // row is read over, from one read of the edge's certified curve.
+        let charted: Vec<Charted<T>> = halves
             .iter()
             .filter_map(|&he| {
-                half_edge_carrier(body, he)
-                    .ok()
-                    .map(|(carrier, t0, t1)| (he, carrier, t0, t1))
+                let curve = half_edge_curve(body, he).ok()?;
+                let (t0, t1) = curve.params();
+                Some((he, curve.carrier().clone(), t0, t1, curve.edge_span()))
             })
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
-            let (he, carrier, t0, t1) = &charted[i];
+            let (he, carrier, t0, t1, _) = &charted[i];
             let pcurve =
                 chart_pcurve_over(carrier, *t0, *t1, surface, band).map_err(LiftRefusal::Image)?;
             Ok(walk_item(
@@ -544,10 +551,10 @@ impl<T: Decide> Lift<T> {
             .collect();
         let winding = closes.then(|| Winding::of(walked.iter().filter_map(|pinned| pinned.3)));
         let mut rows = Vec::with_capacity(walked.len());
-        for (i, (((_, image), t0, t1, _), lift)) in
+        for (i, (((_, image), _, _, _), lift)) in
             walked.into_iter().zip(lift_decks(&elements)).enumerate()
         {
-            let half_edge = charted[i].0;
+            let (half_edge, params) = (charted[i].0, charted[i].4);
             let pcurve = lift
                 .apply(image.pcurve(), surface, periods)
                 .ok_or(LiftRefusal::Joint(PinMiss::Discontinuity))?;
@@ -555,7 +562,7 @@ impl<T: Decide> Lift<T> {
                 half_edge,
                 lift,
                 pcurve,
-                params: (t0, t1),
+                params,
                 plus: is_plus(body, half_edge),
             });
         }
