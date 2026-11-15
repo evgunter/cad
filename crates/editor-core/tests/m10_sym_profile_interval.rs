@@ -309,20 +309,24 @@ fn eps_row(eps: f64) -> usize {
 /// **Moved with the extrude keeping its sketch frame**: it fits no
 /// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
 /// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
-/// 2572 forms, `Early` 4931 → 3001), and their digests.
+/// 2572 forms, `Early` 4931 → 3001), and their digests. Then a line
+/// wall's origin is the wall's middle, from construction data (the placed
+/// start, half the segment's length along its direction, half the sweep):
+/// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
+/// that middle, and its digest; nothing else moves.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 7778 frozen 0 digest 2a29e209e20130e8e9009ef2d1178c28\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
      Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 936 forms 7778 frozen 0 digest 5f8d8243dfc0f2009232135bfb9c4e2c\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
      Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
     "\
-     Plain/Decision calls 936 forms 7778 frozen 0 digest daa66e0c888be50f17ec17c219722088\n\
+     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
      Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",

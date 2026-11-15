@@ -153,9 +153,11 @@ fn slab<T: Decide + topo::AtRestPolicy>(
 }
 
 /// **A slab whose depth carries a box stores exact caps and walls**: the
-/// caps' normals and `u_ref`s, the walls' normals, `u_ref`s and origins
-/// are exact to rounding, and the top cap's origin carries the depth's
-/// width on its normal coordinate and nothing on the others.
+/// caps' normals and `u_ref`s and the walls' normals and `u_ref`s are
+/// exact to rounding. The top cap's origin carries the depth's width on
+/// its normal coordinate and nothing on the others; a wall's origin, the
+/// middle of the wall, carries half of it on the same coordinate (half
+/// the sweep) and nothing on the others.
 fn the_slab_is_exact<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str, depth: T)
 where
     T::Leaf: Deref<Target = Body<T>>,
@@ -182,9 +184,17 @@ where
         let (origin, normal, u_ref) = plane(body, wall.face);
         assert_exact_unit(&format!("{lane} wall {:?} normal", wall.face), normal);
         assert_exact_unit(&format!("{lane} wall {:?} u_ref", wall.face), u_ref);
-        assert_exact(
-            &format!("{lane} wall {:?} origin", wall.face),
-            origin - Point3::origin(),
+        assert!(
+            width(origin.x) <= ROUNDING && width(origin.y) <= ROUNDING,
+            "{lane} wall {:?} origin is exact across the sweep: {origin:?}",
+            wall.face
+        );
+        assert!(
+            (width(origin.z) - 0.5 * width(depth)).abs() <= ROUNDING,
+            "{lane} wall {:?} origin, the wall's middle, carries half the depth's width: [{}, {}]",
+            wall.face,
+            origin.z.lo(),
+            origin.z.hi()
         );
     }
 }
@@ -350,22 +360,6 @@ fn members(lo: f64, hi: f64) -> [f64; 5] {
     [0.0, 0.25, 0.5, 0.75, 1.0].map(|s| lo + (hi - lo) * s)
 }
 
-/// `member` lies in `held`, componentwise, to rounding.
-fn assert_contains(what: &str, held: Vec3<S>, member: Vec3<f64>) {
-    for (axis, h, m) in [
-        ("x", held.x, member.x),
-        ("y", held.y, member.y),
-        ("z", held.z, member.z),
-    ] {
-        assert!(
-            h.lo() - ROUNDING <= m && m <= h.hi() + ROUNDING,
-            "{what}.{axis}: the member's {m} lies in the stored [{}, {}]",
-            h.lo(),
-            h.hi()
-        );
-    }
-}
-
 /// The stored datum of a face, at either scalar: a plane's normal and
 /// `u_ref`, or a cylinder's axis and `u_ref`.
 fn datum<T: Real>(body: &Body<T>, face: FaceKey) -> [Vec3<T>; 2] {
@@ -386,21 +380,25 @@ fn faces<T: topo::AtRestPolicy>(e: &Extruded<T>) -> Vec<FaceKey> {
 
 /// Every face of `boxed` (top, bottom, walls in order) against the same
 /// face of each member's `f64` build: the box's enclosure contains every
-/// member's datum, and, where `varies`, somewhere the truth varies by
-/// more than the narrowest box here, which the enclosure is at least as
-/// wide as.
+/// member's datum to a few ulps ([`assert_holds`]). Where the truth
+/// varies (`tight` is set), somewhere it varies by more than the
+/// narrowest box here, and every enclosure is no wider than the truth
+/// needs plus today's named width ([`assert_tight`]), so the row goes red
+/// when an enclosure degrades as well as when it stops containing.
 fn assert_holds_its_members(
     what: &str,
     boxed: &Extruded<S>,
     members: impl IntoIterator<Item = Extruded<f64>>,
-    varies: bool,
+    tight: Option<(f64, f64)>,
 ) {
+    let varies = tight.is_some();
     let held: Vec<[Vec3<S>; 2]> = faces(boxed)
         .into_iter()
         .map(|f| datum(&boxed.body, f))
         .collect();
     let mut spread = 0.0_f64;
     let mut first: Option<Vec<[Vec3<f64>; 2]>> = None;
+    let mut all: Vec<Vec<[Vec3<f64>; 2]>> = Vec::new();
     for member in members {
         let got: Vec<[Vec3<f64>; 2]> = faces(&member)
             .into_iter()
@@ -408,9 +406,10 @@ fn assert_holds_its_members(
             .collect();
         assert_eq!(got.len(), held.len(), "{what}: one face per face");
         for (i, (h, m)) in held.iter().zip(&got).enumerate() {
-            assert_contains(&format!("{what} face {i} normal"), h[0], m[0]);
-            assert_contains(&format!("{what} face {i} u_ref"), h[1], m[1]);
+            assert_holds(&format!("{what} face {i} normal"), h[0], m[0]);
+            assert_holds(&format!("{what} face {i} u_ref"), h[1], m[1]);
         }
+        all.push(got.clone());
         if let Some(f) = &first {
             for (a, b) in f.iter().zip(&got) {
                 spread = spread.max((a[0] - b[0]).norm()).max((a[1] - b[1]).norm());
@@ -423,6 +422,19 @@ fn assert_holds_its_members(
         !varies || spread > vertex_box(),
         "{what}: the truth varies across the box ({spread:e}), so the row reads a width"
     );
+    if let Some(width_over_truth) = tight {
+        for (i, h) in held.iter().enumerate() {
+            for (k, name) in [(0, "normal"), (1, "u_ref")] {
+                let ms: Vec<Vec3<f64>> = all.iter().map(|m| m[i][k]).collect();
+                assert_tight(
+                    &format!("{what} face {i} {name}"),
+                    h[k],
+                    &ms,
+                    width_over_truth,
+                );
+            }
+        }
+    }
 }
 
 fn turned<T: Real>(angle: T) -> SketchPlane<T> {
@@ -441,7 +453,7 @@ fn a_frame_turned_by_a_boxed_angle_stores_every_members_direction() {
             quad(lit(1.0), lit(0.0)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned plane", &boxed_slab, members, true);
+        assert_holds_its_members("a turned plane", &boxed_slab, members, Some((0.01, 1.25)));
     });
 }
 
@@ -458,7 +470,12 @@ fn a_wall_whose_edge_turns_with_a_boxed_vertex_stores_every_members_direction() 
             quad(boxed(0x7a2, lo, hi), lit(0.0)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned edge", &boxed_slab, members, true);
+        assert_holds_its_members(
+            "a turned edge",
+            &boxed_slab,
+            members,
+            Some((vertex_box(), 4.25)),
+        );
     });
 }
 
@@ -474,7 +491,12 @@ fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direct
             quad(lit(1.0), boxed(0x7a3, lo, hi)),
             lit(1.0),
         );
-        assert_holds_its_members("a turned arc", &boxed_slab, members, true);
+        assert_holds_its_members(
+            "a turned arc",
+            &boxed_slab,
+            members,
+            Some((vertex_box(), 11.0)),
+        );
     });
 }
 
@@ -519,6 +541,473 @@ fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_wal
                 "a wall the box moves takes no width across the sketch plane: {moving:?}"
             );
         }
-        assert_holds_its_members("a width box", &boxed_slab, members, false);
+        assert_holds_its_members("a width box", &boxed_slab, members, None);
+    });
+}
+
+// ---- The doors' other boxes, and rows that go red when an enclosure
+// degrades. ----
+
+/// How far a member may sit outside the stored enclosure: a few ulps
+/// of a unit-scale datum. It is below every spread a row reads (the
+/// narrowest, a profile-vertex box at ε = 1e-12, is 1.6e-14), so an
+/// enclosure that kept only its middle misses the box's ends and goes
+/// red.
+const CONTAIN: f64 = 4.0 * f64::EPSILON;
+
+/// `member` lies in `held`, componentwise, to [`CONTAIN`].
+fn assert_holds(what: &str, held: Vec3<S>, member: Vec3<f64>) {
+    for (axis, h, m) in [
+        ("x", held.x, member.x),
+        ("y", held.y, member.y),
+        ("z", held.z, member.z),
+    ] {
+        assert!(
+            h.lo() - CONTAIN <= m && m <= h.hi() + CONTAIN,
+            "{what}.{axis}: the member's {m} lies in the stored [{}, {}]",
+            h.lo(),
+            h.hi()
+        );
+    }
+}
+
+/// How much wider than the truth's spread an enclosure may be before a
+/// row calls it degraded, before any width the row names.
+const SLACK: f64 = 2.0;
+
+/// **The enclosure is no wider than the truth needs, or than today's
+/// named width**: componentwise, the stored width is at most [`SLACK`]
+/// times the members' spread, plus `width_over_truth.1` half-widths of
+/// the box (`width_over_truth.0`), plus rounding. So a row goes red when
+/// an enclosure widens, not only when it stops containing.
+///
+/// The second term is what a row measures today beyond its truth, as a
+/// multiple of its box's half-width, which is the same at every ε row.
+/// Two mechanisms put it there, neither this unit's:
+/// - a sketch plane turned by a boxed angle stores its first axis
+///   `[0.99, 1.01]`, though a rotation about `x` fixes `x`
+///   (`work/scalar/a-rotation-about-an-exact-axis-widens-the-axis-it-turns-about.md`):
+///   1.22 half-widths on the turned plane, 0.44 on the tilted loft;
+/// - a profile edge or arc whose direction a boxed vertex sets divides
+///   that vertex's difference by its own length in the sketch, once
+///   (`swept::sketch_direction`, which the doors' unit replaces with the
+///   profile's recorded direction): 4.0 half-widths on the edge, 10.7 on
+///   the arc.
+///
+/// Each row's factor is that measurement rounded up by a few percent.
+fn assert_tight(what: &str, held: Vec3<S>, members: &[Vec3<f64>], width_over_truth: (f64, f64)) {
+    let comps: [(&str, S, fn(&Vec3<f64>) -> f64); 3] = [
+        ("x", held.x, |v| v.x),
+        ("y", held.y, |v| v.y),
+        ("z", held.z, |v| v.z),
+    ];
+    for (axis, h, pick) in comps {
+        let (lo, hi) = members
+            .iter()
+            .map(pick)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+                (lo.min(v), hi.max(v))
+            });
+        let truth = hi - lo;
+        let ceiling = SLACK * truth + width_over_truth.0 * width_over_truth.1 + ROUNDING;
+        assert!(
+            width(h) <= ceiling,
+            "{what}.{axis}: the stored width {:e} is within {SLACK}× the truth's spread \
+             {truth:e} plus {} box half-widths ({:e}): the enclosure degraded",
+            width(h),
+            width_over_truth.1,
+            width_over_truth.0
+        );
+    }
+}
+
+/// [`assert_holds`] and [`assert_tight`] over one stored direction and
+/// its members.
+fn assert_encloses(what: &str, held: Vec3<S>, members: &[Vec3<f64>], width_over_truth: (f64, f64)) {
+    for m in members {
+        assert_holds(what, held, *m);
+    }
+    assert_tight(what, held, members, width_over_truth);
+}
+
+/// A quarter turn about the sketch `y` axis by `angle`, partial.
+fn quarter<T: Decide + topo::AtRestPolicy>(
+    plane: SketchPlane<T>,
+    lp: ProfileLoop<T>,
+    angle: T,
+) -> Result<sweep::Revolved<T>, sweep::RevolveError> {
+    let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
+    revolve(&profile, y_axis(), Revolution::Partial(angle), tol())
+}
+
+/// A partial revolve's end cap and its latitudes' `u_ref`s, in order.
+fn far_station<T: Real + topo::AtRestPolicy>(r: &sweep::Revolved<T>) -> Vec<Vec3<T>>
+where
+    T::Leaf: Deref<Target = Body<T>>,
+{
+    let RevolvedKind::Partial { end_cap, .. } = r.kind else {
+        panic!("a partial revolve has caps")
+    };
+    let body: &Body<T> = &r.body;
+    let (_, normal, u_ref) = plane(body, end_cap);
+    let mut out = vec![normal, u_ref];
+    for rim in r.rims.iter().flatten().flatten() {
+        let carrier = topo::readback::edge_carrier_ref(body, *rim).expect("a carried rim");
+        out.push(
+            carrier
+                .as_circle()
+                .expect("a latitude is a circle")
+                .frame
+                .u_ref,
+        );
+    }
+    out
+}
+
+/// **A revolve's angle carries a box: the far station turns with it.**
+/// Over a leaf-narrow box on the angle the end cap's normal and `u_ref`
+/// and every latitude's `u_ref` hold every member's and are no wider
+/// than the truth's spread allows. Over a macroscopic box the revolve
+/// refuses at the far rims' endpoint pin (check 3): a rim's carrier end
+/// and its far vertex reach the turned point by two routes through the
+/// box's angle, so their distance reads the angle's width, today's
+/// truth (`work/onehome/an-arc-on-a-turned-plane-misses-its-own-vertex-at-check-3-over-the-box.md`
+/// is the same class on a turned plane).
+#[test]
+fn a_revolves_far_station_turns_with_a_boxed_angle() {
+    let (lo, hi) = (1.0 - vertex_box(), 1.0 + vertex_box());
+    let members: Vec<Vec<Vec3<f64>>> = members(lo, hi)
+        .iter()
+        .map(|&a| far_station(&quarter(SketchPlane::xy(), band(0.5), a).unwrap()))
+        .collect();
+    in_session(|| {
+        let r = quarter(SketchPlane::<S>::xy(), band(lit(0.5)), boxed(0x9a1, lo, hi))
+            .expect("a leaf-narrow angle box revolves");
+        let held = far_station(&r);
+        assert_eq!(held.len(), members[0].len(), "one datum per datum");
+        for (i, h) in held.iter().enumerate() {
+            let ms: Vec<Vec3<f64>> = members.iter().map(|m| m[i]).collect();
+            assert_encloses(
+                &format!("far station datum {i}"),
+                *h,
+                &ms,
+                (vertex_box(), 0.0),
+            );
+        }
+        let wide = quarter(
+            SketchPlane::<S>::xy(),
+            band(lit(0.5)),
+            boxed(0x9a2, 1.0, 1.02),
+        );
+        let err = format!("{:?}", wide.expect_err("a macroscopic angle box refuses"));
+        assert!(
+            err.contains("EndpointEnd") || err.contains("EndpointStart"),
+            "it refuses at check 3's endpoint pin: {err}"
+        );
+    });
+}
+
+/// A loft from a square on the floor to a smaller one on a plane tilted
+/// by `tilt` about `x` and raised 1.5.
+fn tilted_loft<T: Decide + topo::AtRestPolicy>(tilt: T) -> sweep::Lofted<T> {
+    let lit = T::from_f64;
+    let top = SketchPlane::from_frame(
+        RigidMotion::rotation(UnitVec3::exact_x(), tilt)
+            .unwrap()
+            .translated(Vec3::new(T::zero(), T::zero(), lit(1.5)))
+            .unwrap(),
+    );
+    loft_body(
+        &[vec![square(T::one())], vec![square(lit(0.6))]],
+        &[SketchPlane::xy(), top],
+        1,
+        tol(),
+    )
+    .expect("the tilted loft builds")
+}
+
+/// **A loft's placement carries a box: its top cap is that frame.** Over
+/// a box on the top section's tilt, the bottom cap stays exact and the
+/// top cap's normal and `u_ref` hold every member's and are no wider
+/// than the truth's spread allows.
+#[test]
+fn a_lofts_top_cap_turns_with_a_boxed_placement() {
+    let (lo, hi) = (0.10, 0.12);
+    let members: Vec<[Vec3<f64>; 2]> = members(lo, hi)
+        .iter()
+        .map(|&t| {
+            let l = tilted_loft(t);
+            let (_, n, u) = plane(&l.body, l.top);
+            [n, u]
+        })
+        .collect();
+    in_session(|| {
+        let l = tilted_loft(boxed(0x9b1, lo, hi));
+        let (_, n, u) = plane(&l.body, l.bottom);
+        assert_exact_unit("boxed loft bottom cap normal", n);
+        assert_exact_unit("boxed loft bottom cap u_ref", u);
+        let (_, n, u) = plane(&l.body, l.top);
+        let ns: Vec<Vec3<f64>> = members.iter().map(|m| m[0]).collect();
+        let us: Vec<Vec3<f64>> = members.iter().map(|m| m[1]).collect();
+        assert_encloses("boxed loft top cap normal", n, &ns, (0.01, 0.5));
+        assert_encloses("boxed loft top cap u_ref", u, &us, (0.01, 0.5));
+        assert!(
+            width(n.y).max(width(n.z)) > 1e-3,
+            "the tilt's box turns the top cap"
+        );
+    });
+}
+
+/// **Two parameters at once**: a slab on a plane turned by a boxed angle,
+/// extruded a boxed depth. Every face's normal and `u_ref` hold every
+/// member's on a 3 × 3 grid of the box and are no wider than the truth
+/// needs, and the top cap's origin holds every member's.
+#[test]
+fn a_slab_over_a_two_parameter_box_holds_every_member() {
+    let ((alo, ahi), (dlo, dhi)) = ((0.3, 0.32), (0.95, 1.05));
+    let grid: Vec<(f64, f64)> = [alo, 0.5 * (alo + ahi), ahi]
+        .into_iter()
+        .flat_map(|a| [dlo, 1.0, dhi].map(|d| (a, d)))
+        .collect();
+    let members: Vec<Extruded<f64>> = grid
+        .iter()
+        .map(|&(a, d)| slab(turned(a), quad(1.0, 0.0), d))
+        .collect();
+    in_session(|| {
+        let b = slab(
+            turned(boxed(0x9c1, alo, ahi)),
+            quad(lit(1.0), lit(0.0)),
+            boxed(0x9c2, dlo, dhi),
+        );
+        let held: Vec<[Vec3<S>; 2]> = faces(&b).into_iter().map(|f| datum(&b.body, f)).collect();
+        for (i, h) in held.iter().enumerate() {
+            for k in 0..2 {
+                let ms: Vec<Vec3<f64>> = members
+                    .iter()
+                    .map(|m| datum(&m.body, faces(m)[i])[k])
+                    .collect();
+                assert_encloses(
+                    &format!("two-parameter face {i} datum {k}"),
+                    h[k],
+                    &ms,
+                    (0.01, 1.25),
+                );
+            }
+        }
+        let (origin, _, _) = plane(&b.body, b.top);
+        for m in &members {
+            let (o, _, _) = plane(&m.body, m.top);
+            assert_holds(
+                "two-parameter top origin",
+                origin - Point3::origin(),
+                o - Point3::origin(),
+            );
+        }
+    });
+}
+
+/// **The vector arm keeps the width this unit removed elsewhere**
+/// (`work/boxfinish/a-boxed-vector-extrusions-walls-carry-the-vectors-width.md`).
+/// A slab extruded along a boxed vector `(0, 0, [0.95, 1.05])` stores
+/// exact caps (the sketch frame), but its line walls' normals are
+/// `place(d) × v/‖v‖` normalized, a division by a length the box moves,
+/// so every wall's normal stores the vector's width though the truth
+/// is fixed. The row states today's truth on both sides: the caps exact
+/// to rounding, the walls holding every member and at least
+/// [`VECTOR_WALL_WIDTH`] wide. It goes red when the arm is fixed, and
+/// that is the row's purpose: re-cut it then.
+const VECTOR_WALL_WIDTH: f64 = 0.3;
+
+#[test]
+fn a_slab_along_a_boxed_vector_stores_exact_caps_and_wide_walls() {
+    let (lo, hi) = (0.95, 1.05);
+    let along = |z: f64| {
+        let profile = Profile::new(SketchPlane::xy(), vec![quad(1.0, 0.0)])
+            .validate(tol())
+            .unwrap();
+        extrude(&profile, Extrusion::Vector(Vec3::new(0.0, 0.0, z)), tol()).unwrap()
+    };
+    let members: Vec<Extruded<f64>> = members(lo, hi).iter().map(|&z| along(z)).collect();
+    in_session(|| {
+        let profile = Profile::new(SketchPlane::<S>::xy(), vec![quad(lit(1.0), lit(0.0))])
+            .validate(tol())
+            .unwrap();
+        let z = boxed(0x9d1, lo, hi);
+        let b = extrude(
+            &profile,
+            Extrusion::Vector(Vec3::new(lit(0.0), lit(0.0), z)),
+            tol(),
+        )
+        .expect("a boxed vector extrudes");
+        for (name, face) in [("top", b.top), ("bottom", b.bottom)] {
+            let (_, n, u) = plane(&b.body, face);
+            assert_exact_unit(&format!("vector {name} cap normal"), n);
+            assert_exact_unit(&format!("vector {name} cap u_ref"), u);
+        }
+        for (i, wall) in b.walls[0].iter().enumerate() {
+            let (_, n, _) = plane(&b.body, wall.face);
+            for m in &members {
+                let (_, mn, _) = plane(&m.body, m.walls[0][i].face);
+                assert_holds(&format!("vector wall {i} normal"), n, mn);
+            }
+            let w = width(n.x).max(width(n.y)).max(width(n.z));
+            assert!(
+                w >= VECTOR_WALL_WIDTH,
+                "vector wall {i}'s normal is {w:e} wide, today's truth on this arm"
+            );
+        }
+    });
+}
+
+/// The largest distance of a planar face's loop vertices from its
+/// stored plane, over every planar face.
+fn worst_vertex_off_plane(body: &Body<f64>) -> f64 {
+    let mut worst = 0.0_f64;
+    for (fk, face) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
+            continue;
+        };
+        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            let (_, lp) = body.loops().find(|(k, _)| *k == lk).expect("a live loop");
+            if let topo::entity::LoopBoundary::Cycle { first } = lp.boundary {
+                for he in body.loop_cycle(first).expect("a cycle") {
+                    let q = body.half_edge_start_point(he).expect("a placed vertex");
+                    worst = worst.max(((q - *origin).dot(*normal)).abs());
+                }
+            }
+        }
+    }
+    worst
+}
+
+/// **A sketch origin far from its profile costs rounding, and the ε
+/// budget holds it inside the session box.** The sketch plane is turned
+/// and set 1e3 from the world origin (the session box's edge), and the
+/// profile is drawn about the sketch point that lands at the world
+/// origin, so the body is small and near the origin while its sketch
+/// coordinates are 1e3. Every cap and wall carrier is the frame and
+/// every vertex is the frame placing a sketch point, so a vertex misses
+/// its plane by the placement's rounding of a 1e3 coordinate: at most a
+/// few ulps of 1e3, measured 3.4e-13, where a profile at its sketch
+/// origin reads 3e-15. The body builds at every ε row; at ε = 1e-12 that
+/// residual spends a third of ε, and a sketch origin past the box
+/// (4.2e3) refuses there
+/// (`work/onehome/a-sketch-origin-far-from-its-profile-spends-the-placements-rounding.md`).
+#[test]
+fn a_slab_far_from_its_sketch_origin_holds_its_vertices_to_the_placements_rounding() {
+    let far = 1.0e3;
+    let frame = RigidMotion::rotation(UnitVec3::exact_x(), 0.3)
+        .unwrap()
+        .translated(Vec3::new(-far, 0.0, 0.0))
+        .unwrap();
+    let plane = SketchPlane::from_frame(frame);
+    // The sketch point the frame places at the world origin.
+    let centre = Point2::new(far, 0.0);
+    let lp = bulge_loop(vec![
+        (Point2::new(centre.x - 0.5, centre.y - 0.5), 0.0),
+        (Point2::new(centre.x + 0.5, centre.y - 0.5), 0.0),
+        (Point2::new(centre.x + 0.5, centre.y + 0.5), 0.0),
+        (Point2::new(centre.x - 0.5, centre.y + 0.5), 0.0),
+    ]);
+    let built = slab(plane, lp, 1.0);
+    let off = worst_vertex_off_plane(&built.body);
+    let bound = 8.0 * f64::EPSILON * far;
+    assert!(
+        off <= bound,
+        "every vertex lies on its plane to the placement's rounding of a {far:e} coordinate: \
+         {off:e} against {bound:e}"
+    );
+    assert!(
+        off < tol().eps() / 2.0,
+        "and inside the session box that rounding fits the ε budget: {off:e} at ε {:e}",
+        tol().eps()
+    );
+}
+
+/// The washer `[r0, 2] × [0, 1]` about the sketch `y` axis, `r0` a
+/// leaf-narrow box about 1, revolved whole or by one radian, in a
+/// session under the shipped rules: whether it builds, and the
+/// session's decision counts.
+fn washer_counts(full: bool) -> (bool, u64, u64) {
+    use geom_core::SymRules;
+    use geom_core::sym::with_session_rules;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let (ok, counts) = with_session_rules(budget, SymRules::shipped(), || {
+        let r0 = about(0x9e1, 1.0);
+        let profile = Profile::new(
+            SketchPlane::<S>::xy(),
+            vec![bulge_loop(vec![
+                (Point2::new(r0, lit(0.0)), lit(0.0)),
+                (p(2.0, 0.0), lit(0.0)),
+                (p(2.0, 1.0), lit(0.0)),
+                (Point2::new(r0, lit(1.0)), lit(0.0)),
+            ])],
+        )
+        .validate(tol())
+        .expect("the washer validates over its box");
+        let r = if full {
+            Revolution::Full
+        } else {
+            Revolution::Partial(lit(1.0))
+        };
+        revolve(&profile, y_axis(), r, tol()).is_ok()
+    });
+    (ok, counts.symbolic, counts.numeric)
+}
+
+/// **A latitude's endpoint identity is decided symbolically, with
+/// nothing registered.** The washer's latitudes take their `u_ref` from
+/// the revolve's frame, so a latitude through its point is
+/// `centre + r·u₃ = q`, which the plain form proves; the registration
+/// that used to state it (`register_rim_identity`, deleted) bought
+/// nothing the tier does not now reach. Pinned as the session's
+/// counts: a build that decided those endpoints numerically would move
+/// decisions from the first count to the second. The full revolve reads
+/// 501 / 461, as it did with the registration; the partial reads 493 /
+/// 611 where it read 501 / 613, eight fewer decisions symbolic and two
+/// fewer numeric, the planes it no longer fits.
+#[test]
+fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
+    assert_eq!(washer_counts(true), (true, 501, 461), "the full washer");
+    assert_eq!(washer_counts(false), (true, 493, 611), "the partial washer");
+}
+
+/// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world
+/// axis.
+fn tilted<T: Real>() -> SketchPlane<T> {
+    SketchPlane::from_frame(
+        RigidMotion::rotation(UnitVec3::exact_x(), T::from_f64(0.4))
+            .unwrap()
+            .translated(Vec3::new(T::zero(), T::zero(), T::from_f64(2.0)))
+            .unwrap(),
+    )
+}
+
+/// **Off `SketchPlane::xy()`**: a partial revolve on a tilted plane,
+/// over a box on the profile's width. Its caps' normals and `u_ref`s and
+/// its latitudes' `u_ref`s are its frames' turned axes, exact to
+/// rounding though no component is 0 or 1, and equal to the `f64`
+/// build's.
+#[test]
+fn a_partial_revolve_on_a_tilted_plane_stores_its_frames_exactly() {
+    let exact = far_station(&quarter(tilted(), band(0.5), FRAC_PI_2).unwrap());
+    in_session(|| {
+        let r = quarter(tilted::<S>(), band(about(0x9f1, 0.5)), lit(FRAC_PI_2))
+            .expect("the tilted band revolves a quarter turn");
+        let held = far_station(&r);
+        assert_eq!(held.len(), exact.len());
+        for (i, (h, m)) in held.iter().zip(&exact).enumerate() {
+            assert_exact(&format!("tilted far station datum {i}"), *h);
+            assert_holds(&format!("tilted far station datum {i}"), *h, *m);
+        }
+        let RevolvedKind::Partial { start_cap, .. } = r.kind else {
+            panic!("a partial revolve has caps")
+        };
+        let (_, n, u) = plane(&r.body, start_cap);
+        assert_exact_unit("tilted start cap normal", n);
+        assert_exact_unit("tilted start cap u_ref", u);
     });
 }

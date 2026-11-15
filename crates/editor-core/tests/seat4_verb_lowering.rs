@@ -458,9 +458,12 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         // Re-measured when the placement came to mint its source
         // (VARIABLES VR4): the ids after it moved. Re-measured when the
         // extrudes' caps and walls became their sketch frames: the
-        // bodies' stored planes moved.
+        // bodies' stored planes moved. And again when a line wall's
+        // origin became the wall's middle, from construction data: the
+        // walls' origins moved back to where their fitted centroids
+        // stood, to rounding; the caps' stay at their sketch origins.
         got,
-        0x89b0_7e61_0a79_a664,
+        0x2dc5_d456_0ce3_02b2,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

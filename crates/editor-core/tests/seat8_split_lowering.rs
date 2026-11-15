@@ -620,9 +620,12 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     // Re-measured when the cube's caps and walls became its sketch
-    // frame: the body's stored planes moved.
+    // frame: the body's stored planes moved. And again when a line
+    // wall's origin became the wall's middle, from construction data:
+    // the walls' origins moved back to where their fitted centroids
+    // stood, to rounding; the caps' stay at their sketch origins.
     assert_eq!(
-        got, 0xca4e_29b3_f68e_444e,
+        got, 0x4623_582c_d764_9006,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
