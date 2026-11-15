@@ -145,3 +145,42 @@ all three settled on one in round 4, and the budget in round 5. The
 reports are on `boxfinish/fork-identity-reports`
 (`probe/fork-identity/round0` to `round4`), by label.
 
+## Revised on Ev's first answer (2026-11-15): the question has an answer only at the symbolic scalar
+
+Ev, on `[ev]` PR 6993: "this makes sense at the symbolic tier but sits
+uncomfortably with the eps allowance for numeric tiers".
+
+Each of the three designers, asked alone, moved to the same narrower
+answer, and each called the discomfort right: at a numeric scalar the
+design's only zero is the band's (`[verdicts]`: bit-equality is never
+the test), and "`f64`: yes at 0; `Interval`: only `[0, 0]`" would have
+ratified a second one, which is this row's own defect one scalar down
+(`(x + w) − w − x` reads `0.0` at one valuation and `2.8e-17` at the
+next).
+
+**What stands now, replacing the section above where they differ:**
+- The structural question (is this value zero as a function of the
+  document's variables) is answered only by `Sym`, from the expression,
+  by value-free rules under a kernel-fixed budget. `f64`, `Interval`
+  and `Dual` hold no expression and answer no, so a numeric lane always
+  takes the general spelling: the quotient, which is what PR 6990
+  already does and which at `f64` is the axis but for a zero's sign.
+- So the `Dual` clause goes (the quotient carries its derivative), and
+  so does "every caller audited in the same change": the mint's change
+  no longer touches `is_exact_zero`.
+- `geom_core::is_exact_zero` is not the door and gets no ratified
+  text. The designers audited its callers (17 to 22 sites, counted
+  three ways): none asks whether a computed quantity vanishes by
+  identity. They are in-band tags, bit-for-bit comparisons of two
+  stored copies, and a few branches that change what is built decided
+  by bit-equality
+  (`work/decide/is-exact-zero-reads-tags-copies-and-decisions-off-a-number.md`).
+- Unchanged from the section above: the value-reading rules off and
+  the fixed budget; the mint as one function called by the `line_to`
+  verb and by validation for tables; the one kept sign reading, outside
+  the verdict log; the lint; the `[verdicts.consumers]` amendment.
+
+**The cost named by one designer:** with the symbolic tier switched
+off, a plain-`Interval` side between literal-equal coordinates stays
+as wide as rounding makes it; that lane already refuses identities
+over a box.
