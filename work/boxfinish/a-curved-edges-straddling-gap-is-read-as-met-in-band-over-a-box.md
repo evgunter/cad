@@ -2,10 +2,13 @@
 id: a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box
 kind: issue
 title: A curved edge whose carrier reading straddles the band is read as met in band; over a box that reading may hold members that pass it clear
-status: open
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: M
+closed: 2026-11-15
+pr: 6979
+branch: boxfinish/curved-straddle
 ---
 
 
@@ -75,3 +78,20 @@ pins the present reading at `f64` as FLUSH's ruled behaviour. Whether an
 `f64` carrier straddle and a box-wide one are the same thing to this
 reader is the question to settle first; if the answer changes what FLUSH
 ruled, it is a design fork.
+
+**Closed by PR 6979 (2026-11-15).** A curved edge's carrier reading
+that reaches past the band is no reading: the ray is set aside where
+the edge could be met. The three edge arms sort a distance against the
+band through one door (`solid_contain/edge_gap.rs`), whose `Gap` has no
+constructor outside it; a passage nothing placed is folded exactly as a
+met one is.
+
+What the PR does not show, and says so: no test in it reads a wrong
+side under the old rule, because every curved body buildable over a box
+today is refused first by the loop walker
+(`work/inside/a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers.md`).
+The row that does is a closing test of the doors' unit
+(`the-sweep-doors-read-the-profiles-recorded-directions`). Reading a
+straddle as `Undecided`, which would keep the four `f64` reads this
+costs on the spiric fixture, stays FLUSHTAIL's open row.
+
