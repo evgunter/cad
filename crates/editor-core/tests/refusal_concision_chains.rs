@@ -952,7 +952,8 @@ mod kernel {
         /// `SplitReduceError`'s arms, for the `Split/Reduce/` rows.
         pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
-            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSector, SectionGermsEscalated,
+            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSection, SliverSector,
+            SectionGermsEscalated,
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
@@ -2310,6 +2311,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "SliverVertex",
             R::SliverVertex {
+                vertex,
+                diag: diag(),
+            },
+        ),
+        (
+            "SliverSection",
+            R::SliverSection {
                 vertex,
                 diag: diag(),
             },

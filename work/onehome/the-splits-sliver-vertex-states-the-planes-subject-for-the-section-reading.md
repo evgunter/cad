@@ -2,10 +2,12 @@
 id: the-splits-sliver-vertex-states-the-planes-subject-for-the-section-reading
 kind: issue
 title: The split's SliverVertex states the plane's subject for the section reading's margin
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-11-02
+closed: 2026-11-15
+branch: onehome/split-sliver-vertex
 ---
 
 
@@ -35,3 +37,21 @@ and `crates/sweep/tests/split_tangent_edge_curved.rs` moved to it.
 
 P1 by `work/README.md` Priority: the same decision stated two ways at
 two doors.
+
+## Closed (2026-11-15)
+
+The split now refuses its two readings under two subjects, as the Boolean
+does. The offset from the plane (`split_vertex_side`) stays
+`SplitReduceError::SliverVertex`, "whether a vertex lies on the split plane".
+The vertex's reading against the section the plane ends at it
+(`vertex_section_side`, margin `δ / sin ψ`) is the new
+`SplitReduceError::SliverSection`, "whether a vertex on the split plane lies
+on the section that plane cuts in a face at the vertex", the twin of the
+Boolean's `Coincide::VertexOnSection` wording. Both take the split's
+coincidence lever.
+
+Rows moved: `refusal_concision_chains` lists the arm (`f6_variants!`) and
+words it. `a_vertex_on_a_grazing_plane`'s band arm takes each reading at its
+own variant, and its shallower-face row takes `SliverSection`.
+`split_tangent_edge_curved`'s in-band seam arm reads `split_vertex_side`, the
+offset, so it stays on `SliverVertex`.
