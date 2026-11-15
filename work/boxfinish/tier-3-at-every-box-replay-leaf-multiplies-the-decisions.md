@@ -2,11 +2,13 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [6371]
+blocked_on: [the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision]
+design: true
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -173,3 +175,45 @@ per leaf.
 **Next:** M5 decomposes a curved finish's time by check, says whether
 the repeated decisions are the same decisions, and whether the plate's
 1023 finishes are of one value. The fix is weighed from that.
+
+## Measured (2026-11-15, M5): where a finish spends its time when nothing refuses
+
+M5 (`boxfinish/probe-switch-off` at `2f37154e`, `BOXFINISH_TRACE=3`
+and `4`).
+
+- **A curved finish is slow in one place.** On a cylinder-walled body
+  82% of 842 ms is eight side-reader decisions
+  (`side_at_infinity_winding`, `side_at_infinity_denom`), each decided
+  numerically, each then walking the symbolic tier's whole ladder for
+  the check that the two channels do not contradict
+  (`sym::contradicts`, a debug assertion that ships on). The same on
+  the revolved circle, across the torus readings. That is the tier's,
+  and a design question:
+  `work/sym/the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision.md`.
+- **The decisions a finish repeats from the door's build are the same
+  decisions**: 732 of a slab finish's 824 carry the same symbolic node,
+  enclosure and band as one the build took in that leaf (the door asks
+  when it mints each edge through the scalar's edge door; the finish
+  asks again in check 2, which "never trusts the stored certificate",
+  and check 4's wedge fold). They cost 8.9 ms of 57: 89% of the
+  decisions, 15% of a slab finish's time, 1% of a curved one's.
+- **The 96 forms a slab finish freezes** are all in
+  `side_at_infinity_winding`, refused by the ring's guards, not the
+  budget.
+- **The tour's plate is one value finished 1023 times**: the same
+  boxes and the same symbolic nodes in every replay, while the leaf's
+  box varies only in variables it does not read. Each hole value is
+  finished about eight times.
+
+**So this row is now three things, in the order they cost:**
+1. the contradiction check on a curved body's ray decisions (SYM's
+   row above; this row is parked on it);
+2. a body a drive's leaf does not change is finished again per leaf
+   (the tour: 1023 finishes of one plate, 35% of leaf time): a design
+   question on what a leaf's finish may be keyed by, not yet weighed;
+3. the repeated edge-door decisions (15% of a slab finish): small, and
+   by design (check 2 re-derives).
+
+The ray-readings unit (`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`)
+re-poses the two readings that are slowest here; what its change does
+to their cost is measured in its PR.

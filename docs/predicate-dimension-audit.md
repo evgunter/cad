@@ -91,8 +91,8 @@ comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
-enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1, F22 ×1,
-F42 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
+enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1,
+F42 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -1334,7 +1334,14 @@ Flagged, NOT fixed here (dispositions):
   F18 and F20. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
   not move.
 
-- **F22** (added by PATHS' sketch-plane frame unit)
+- **F22** (added by PATHS' sketch-plane frame unit). **Retired** with
+  the one decided least-turn mint (fork 270, `[placement.values]`,
+  PR 6964): `RigidMotion::least_turn` decides the chord from the pole,
+  `|a + b|`, levered over the arm the turn is consumed over
+  (`Margin::levered`, a length), and its conditioning, the lever
+  `2·arm/|a + b|` against the run's rounding reach, on its enclosure
+  (`Band::enclosure_sign`). No `decide_flagged` site remains here; the
+  row's text below records what it was.
   `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
   under the caller's site name (`sweep`'s `sweep_path_turn`, a path
   sweep's step turn from station `i`'s tangent mirrored in the chord
