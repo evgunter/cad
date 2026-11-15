@@ -278,6 +278,10 @@ fn containment(kind: Kind) {
 }
 
 fn aims(kind: Kind) {
+    aims_at(kind, &[0.7, 2.3, 4.4]);
+}
+
+fn aims_at(kind: Kind, angles: &[f64]) {
     let mut tally = std::collections::BTreeMap::<String, usize>::new();
     let mut wrong = Vec::new();
     let (a0, b0) = cases(kind);
@@ -287,7 +291,7 @@ fn aims(kind: Kind) {
             if zr == 1 && matches!(kind, Kind::SphereCap) {
                 break;
             }
-            for ang in [0.7_f64, 2.3, 4.4] {
+            for &ang in angles {
                 let (c, s) = (ang.cos(), ang.sin());
                 for inset in [0.0, 1e-8, -1e-5, 1e-2, -1e-2] {
                     for dz in [0.0, 1e-8, -1e-5] {
@@ -412,4 +416,192 @@ fn probe_aims_frustum() {
 #[ignore = "reviewer probe"]
 fn probe_aims_sphere_cap() {
     aims(Kind::SphereCap);
+}
+
+/// Rays at and beside the seam's vertices, where the wall's seam meets
+/// each rim: a vertex where a curved and a planar face meet.
+#[test]
+#[ignore = "reviewer probe"]
+fn probe_aims_seam() {
+    for kind in [Kind::Cylinder, Kind::Frustum] {
+        aims_at(kind, &[0.0, 1e-7, -1e-7, 1e-4]);
+    }
+}
+
+/// The sphere cap of `topo::test_support`'s fixture over a box: the unit
+/// sphere below the plane `z = b`, its rim two half circles with no seam
+/// (no whole-turn circle a loop walk refuses), the rim plane the seed.
+fn halved_cap<T: Decide + AtRestPolicy>(b: T, tol: Tol) -> (Body<T>, FaceKey) {
+    let (zero, one) = (T::zero(), T::one());
+    let pi = T::from_f64(core::f64::consts::PI);
+    let r = (one - b * b).sqrt();
+    let on = |u: T| Point3::new(r * u.cos(), r * u.sin(), b);
+    let (x, z) = (Vec3::new(one, zero, zero), Vec3::new(zero, zero, one));
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(on(zero), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::new(zero, zero, b),
+                normal: z,
+                u_ref: x,
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let half = |u0: T| {
+        let circle = Curve3::circle(Point3::new(zero, zero, b), z, r, x);
+        EdgeCurveSpec::arc_of_circle(circle, u0, u0 + pi).unwrap()
+    };
+    let e = body
+        .mev(MevSite::Lone { r#loop: seed.r#loop }, on(pi), half(zero), tol)
+        .unwrap();
+    let face = body
+        .lifting_rechart_refusals_for_tests(|body| {
+            // Lifts the rechart refusal as the f64 fixture does.
+            body.mef(
+                MefSite::Chords { he1: e.he_minus, he2: e.he_plus },
+                half(pi),
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: one,
+                        axis: z,
+                        u_ref: x,
+                    },
+                    sense: true,
+                },
+                tol,
+            )
+        })
+        .unwrap()
+        .face;
+    let _ = topo::mint_pcurves(&mut body, tol);
+    (body, face)
+}
+
+/// Containment and aimed rays about the halved cap's moving rim, its
+/// plane's height boxed, against each member. On the reviewed head the
+/// boxed build refuses (`mef`'s endpoint certification escalates on the
+/// boxed radius), so this row panics before any read: kept as the record
+/// that the two-arc rim does not build over a box.
+#[test]
+#[ignore = "reviewer probe"]
+fn probe_halved_sphere_cap() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let b0 = 0.3_f64;
+    let r0 = (1.0 - b0 * b0).sqrt();
+    let mut tally = std::collections::BTreeMap::<String, usize>::new();
+    let mut wrong = Vec::new();
+    for w in [1e-7, 1e-4, 1e-2, 0.1] {
+        let bb = (b0 - w, b0 + w);
+        let mut pts = Vec::new();
+        for ang in [0.0_f64, 0.7, core::f64::consts::PI, 4.4] {
+            for dr in [0.0, 3e-9, -3e-9, 1e-6, -1e-6, 1e-4, -1e-4, 1e-2, -1e-2, 0.05, -0.05] {
+                for dz in [0.0, 3e-9, -3e-9, 1e-6, -1e-6, 1e-3, -1e-3, 0.03, -0.03] {
+                    pts.push([(r0 + dr) * ang.cos(), (r0 + dr) * ang.sin(), b0 + dz]);
+                }
+            }
+        }
+        let boxed: Vec<String> = pts
+            .chunks(30)
+            .flat_map(|chunk| {
+                over((0.0, 0.0), bb, |_, b, band, tol| {
+                    let (body, _) = halved_cap::<Boxed>(b, tol);
+                    let iv = Boxed::from_f64;
+                    chunk
+                        .iter()
+                        .map(|p| {
+                            name(&topo::point_in_solid(
+                                &body,
+                                Point3::new(iv(p[0]), iv(p[1]), iv(p[2])),
+                                band,
+                                tol,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let mut each: Vec<Vec<String>> = vec![Vec::new(); pts.len()];
+        for &b in &members(bb) {
+            let (body, _) = halved_cap::<f64>(b, tol);
+            for (k, p) in pts.iter().enumerate() {
+                each[k].push(name(&topo::point_in_solid(
+                    &body,
+                    Point3::new(p[0], p[1], p[2]),
+                    band,
+                    tol,
+                )));
+            }
+        }
+        for (k, p) in pts.iter().enumerate() {
+            let x = &boxed[k];
+            if x != "Err" && each[k].iter().any(|m| m != "Err" && m != x) {
+                wrong.push(format!("b {bb:?} p {p:?}: boxed {x}, members {:?}", each[k]));
+            }
+            *tally.entry(format!("containment boxed {x}")).or_default() += 1;
+        }
+        // Aimed rays about the rim.
+        let mut draws = Vec::new();
+        for ang in [0.0_f64, 0.7, core::f64::consts::PI, 4.4] {
+            let (c, s) = (ang.cos(), ang.sin());
+            for inset in [0.0, 1e-8, -1e-5, 1e-2, -1e-2] {
+                for dz in [0.0, 1e-8, -1e-5] {
+                    let aim = [(r0 + inset) * c, (r0 + inset) * s, b0 + dz];
+                    for (nr, nz) in [(0.0, 1.0), (0.0, -1.0), (1.0, 0.0), (1.0, 1.0), (1.0, -1.0), (1e-3, 1.0), (1.0, 1e-3)] {
+                        let l = (nr * nr + nz * nz_f(nz)).sqrt();
+                        draws.push((aim, [nr * c / l, nr * s / l, nz / l]));
+                    }
+                }
+            }
+        }
+        let rays: Vec<String> = draws
+            .chunks(60)
+            .flat_map(|chunk| {
+                over((0.0, 0.0), bb, |_, b, band, tol| {
+                    let (body, face) = halved_cap::<Boxed>(b, tol);
+                    let iv = Boxed::from_f64;
+                    chunk
+                        .iter()
+                        .map(|&(p, n)| {
+                            topo::test_support::ray_at(
+                                &body,
+                                face,
+                                Point3::new(iv(p[0]), iv(p[1]), iv(p[2])),
+                                Vec3::new(iv(n[0]), iv(n[1]), iv(n[2])),
+                                band,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        for (k, r) in rays.iter().enumerate() {
+            if r.contains("Side(In)") {
+                wrong.push(format!("b {bb:?} {:?}: {r}", draws[k]));
+            }
+            let class = if r.contains("Side(Out)") {
+                "ray Out".to_string()
+            } else if let Some(i) = r.find("predicate: Some(\"") {
+                let rest = &r[i + 17..];
+                format!("ray aside {}", &rest[..rest.find('"').unwrap_or(rest.len())])
+            } else {
+                format!("ray aside {}", &r[..r.len().min(40)])
+            };
+            *tally.entry(class).or_default() += 1;
+        }
+    }
+    println!("halved sphere cap, ε {:e}: {tally:#?}", tol.eps());
+    for w in wrong.iter().take(30) {
+        println!("WRONG {w}");
+    }
+    assert!(wrong.is_empty(), "{} wrong answers", wrong.len());
+}
+
+fn nz_f(nz: f64) -> f64 {
+    nz
 }
