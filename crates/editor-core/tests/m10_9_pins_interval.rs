@@ -935,7 +935,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // decisions hold, and the forms they freeze read the placed sketch
     // chord's unit where they read the placed vertices' difference,
     // 3989 -> 4000.
-    assert_eq!(got[0], (1531, 1714, 3989), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1531, 1714, 4000), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
