@@ -140,6 +140,7 @@ pub fn across<T: SolveScalar>(n: Vec3<T>) -> Vec3<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{RigidMotion, turn_onto};
     use geom_core::linalg::{Point3, Vec3};
