@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, check-7s-volume-reading-is-loose-over-a-box, an-iso-arc-rims-end-reads-through-its-map-at-interval]
+blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, an-iso-arc-rims-end-reads-through-its-map-at-interval]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -90,8 +90,10 @@ Measured with the box arm off on the frames' head
    `a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
 2. **Rays on a slab boxed wider than ± 0.215 of its depth, and the
    loose volume behind them:** two red rows.
-   `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`,
-   `check-7s-volume-reading-is-loose-over-a-box`.
+   `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`.
+   (M6, the same day: the slab's volume gives out before its rays do,
+   so `check-7s-volume-reading-is-loose-over-a-box` is not in the way
+   once the rays read.)
 3. **The `Interval` quadrature on an arc-rimmed wall:** one red sweep
    row (`a_seam_in_the_band_takes_its_general_image_at_interval`).
    `an-iso-arc-rims-end-reads-through-its-map-at-interval` (inferred,
