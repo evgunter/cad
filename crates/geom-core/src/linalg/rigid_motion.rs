@@ -1451,7 +1451,8 @@ impl<T: Decide> RigidMotion<T> {
             .into_iter()
             .all(crate::real::is_exact_zero)
         {
-            finite(about, MotionPart::Anchor).map_err(|_| TurnError::NonFinite(MotionPart::Anchor))?;
+            finite(about, MotionPart::Anchor)
+                .map_err(|_| TurnError::NonFinite(MotionPart::Anchor))?;
             return Ok(Self::world());
         }
         let two = T::one() + T::one();

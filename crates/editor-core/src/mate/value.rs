@@ -283,7 +283,7 @@ enum ChartRefusal {
     /// The least turn's pole verdict or conditioning refused.
     Pole,
     /// The chart's own refusal.
-    Kind(NodeErrorKind),
+    Kind(Box<NodeErrorKind>),
 }
 
 impl<T: SolveScalar> Chart<T> {
@@ -323,7 +323,7 @@ impl<T: SolveScalar> Chart<T> {
             .map(Some)
             .map_err(|refusal| match refusal {
                 ChartRefusal::Pole => backwards(),
-                ChartRefusal::Kind(kind) => kind,
+                ChartRefusal::Kind(kind) => *kind,
             })
     }
 
@@ -359,9 +359,9 @@ impl<T: SolveScalar> Chart<T> {
         band: Band,
     ) -> Result<Self, ChartRefusal> {
         let degenerate = || {
-            ChartRefusal::Kind(NodeErrorKind::PoseDegenerate {
+            ChartRefusal::Kind(Box::new(NodeErrorKind::PoseDegenerate {
                 construction: crate::pose::PoseConstruction::Chart,
-            })
+            }))
         };
         let unit = |v: Vec3<T>| {
             UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| degenerate())
@@ -1632,13 +1632,19 @@ mod tests {
         let n = -d * tau.cos() + w.cross(-d) * tau.sin();
         let lift = |v: Vec3<f64>| {
             UnitVec3::new(
-                Vec3::new(T::from_computed(v.x), T::from_computed(v.y), T::from_computed(v.z)),
+                Vec3::new(
+                    T::from_computed(v.x),
+                    T::from_computed(v.y),
+                    T::from_computed(v.z),
+                ),
                 topo::query::POSE_UNIT_NORM,
                 band,
             )
             .expect("a unit direction")
         };
         let arm = 0.5;
+        // The fixture's stated arm, as `Chart::of` levers the chart over
+        // the bundle's `Arm`.
         let chart = Chart::charted(
             lift(d),
             lift(n),
@@ -1646,7 +1652,7 @@ mod tests {
             false,
             Orientation::IDENTITY,
             Arm::of(arm, 0.0).unwrap(),
-            geom_core::Lever::unsourced(T::from_computed(arm)),
+            geom_core::test_support::fixture_lever(T::from_computed(arm)),
             band,
         )
         .ok();
@@ -1661,7 +1667,11 @@ mod tests {
         assert!(band_edge_chart::<T>(hi, band).0.is_some());
         for _ in 0..80 {
             let mid = (lo * hi).sqrt();
-            if band_edge_chart::<T>(mid, band).0.is_some() { hi = mid } else { lo = mid }
+            if band_edge_chart::<T>(mid, band).0.is_some() {
+                hi = mid
+            } else {
+                lo = mid
+            }
         }
         (lo, hi)
     }
@@ -1689,7 +1699,10 @@ mod tests {
         let band = Band::linear(geom_core::Tol::witness()).expect("a band");
         let eps = geom_core::Tol::witness().get().eps;
         let (lo, hi) = band_edge::<f64>(band);
-        assert!(band_edge_chart::<f64>(lo, band).0.is_none(), "inside the band it refuses");
+        assert!(
+            band_edge_chart::<f64>(lo, band).0.is_none(),
+            "inside the band it refuses"
+        );
         for tau in [hi, hi * 1.2, hi * 10.0, hi * 1e3] {
             let (chart, [n, d, w]) = band_edge_chart::<f64>(tau, band);
             let chart = chart.expect("past the band it charts");
@@ -1731,11 +1744,20 @@ mod tests {
             let image = turned(&chart.expect("past the band it charts"), n);
             let chord = (n + d).norm();
             for (c, v) in [(image.x, d.x), (image.y, d.y), (image.z, d.z)] {
-                assert!(c.lo() <= v && v <= c.hi(), "at tilt {tau:e} {c:?} loses {v}");
+                assert!(
+                    c.lo() <= v && v <= c.hi(),
+                    "at tilt {tau:e} {c:?} loses {v}"
+                );
             }
-            let wide = [image.x, image.y, image.z].map(|c| c.hi() - c.lo()).into_iter().fold(0.0, f64::max);
+            let wide = [image.x, image.y, image.z]
+                .map(|c| c.hi() - c.lo())
+                .into_iter()
+                .fold(0.0, f64::max);
             let rate = 32.0 * f64::EPSILON / 2.0 / chord;
-            assert!(wide <= rate, "at tilt {tau:e} the width {wide:e} passes the rate {rate:e}");
+            assert!(
+                wide <= rate,
+                "at tilt {tau:e} the width {wide:e} passes the rate {rate:e}"
+            );
             wide
         };
         for tau in [hi * 1.2, hi * 10.0, hi * 1e3] {
