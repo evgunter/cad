@@ -1874,7 +1874,7 @@ pub fn parallel_axes_at<T: Real>(
     ParallelAxes {
         foot1,
         d_vec: w - line1.dir * w.dot(line1.dir),
-        d: line2.offset(foot1).norm().max(line1.offset(foot2).norm()),
+        d: line2.distance(foot1).max(line1.distance(foot2)),
     }
 }
 

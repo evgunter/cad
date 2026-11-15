@@ -1873,7 +1873,7 @@ mod tests {
             dir: Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos()),
         };
         let (f1, f2) = (reach.foot_on(l1), reach.foot_on(l2));
-        let want = l2.offset(f1).norm().max(l1.offset(f2).norm());
+        let want = l2.distance(f1).max(l1.distance(f2));
         let ab = crate::intersect::parallel_axes_at(&reach, l1, l2).d;
         let ba = crate::intersect::parallel_axes_at(&reach, l2, l1).d;
         assert_eq!(ab, ba, "d moves with the operand order");
@@ -1884,7 +1884,7 @@ mod tests {
             "the fixture's feet stand at one station: {foot_to_foot} against {want}"
         );
         assert!(
-            (l2.offset(f1).norm() - l1.offset(f2).norm()).abs() > 1e-6,
+            (l2.distance(f1) - l1.distance(f2)).abs() > 1e-6,
             "the fixture's two distances agree, so the order cannot show"
         );
     }
