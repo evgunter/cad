@@ -1843,7 +1843,7 @@ pub(crate) const SWEEP_PATH_CHORD: &str = "sweep_path_chord";
 
 /// The K funnel name of a path sweep's step turn: the pole verdict of
 /// the least turn carrying `m`, the tangent `tᵢ` mirrored in the chord,
-/// onto `tᵢ₊₁` ([`RigidMotion::least_turn`]).
+/// onto `tᵢ₊₁` ([`RigidMotion::least_turn_selected`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
 /// The K funnel name of a station's roll: the residual of the station's
@@ -1899,8 +1899,9 @@ impl PathCarry {
     /// product of the half turns about `tᵢ` and about `ĉ` (the two
     /// reflections' product with `H_tᵢ` inserted), followed by the
     /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
-    /// ([`RigidMotion::least_turn`], over the session box's lever),
-    /// whose decisions are the second reflection's. A step whose two tangents are the
+    /// ([`RigidMotion::least_turn_selected`], its pole verdict over the
+    /// session box's lever, with no conditioning: the step selects a roll
+    /// no claim consumes), whose decision is the second reflection's. A step whose two tangents are the
     /// same exactly ([`UnitVec3::is_exactly`]) is the identity with no rounding, as the exact law
     /// makes it (the second reflection is then the first). The carried
     /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
@@ -1916,8 +1917,8 @@ impl PathCarry {
     ///   (`sweep_path_chord`): coincident stations have no chord to
     ///   reflect in;
     /// - **the fold-back** (`sweep_path_turn`): the chord `|m + tᵢ₊₁|`
-    ///   levered over the session box past the band, and its lever
-    ///   within the run's rounding reach (`least_turn_conditioning`).
+    ///   levered over the session box past the band. The step decides no
+    ///   conditioning: its turn selects a roll no claim consumes.
     ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
     ///   chord (the path leaves along the chord and comes back against
     ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
@@ -1975,14 +1976,14 @@ impl PathCarry {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;
-                // The step is a selection at `f64` from the path alone: the
-                // station's roll is a choice carried as data (fork 266), so
-                // its conditioning cannot make a claim false, and with no
-                // geometry in hand the lever is the session box's. At the
-                // default ε it refuses a step whose chord from fold-back is
-                // under about 4e-4 rad (`2·box/reach`); at ε = 1e-12, under
-                // about 0.39.
-                let step = RigidMotion::least_turn(
+                // The step is a selection at `f64` from the path alone: it
+                // selects the station's roll as a reference vector (fork 266),
+                // and each lane mints the station's frame from the tangent read
+                // there, aimed verbatim (`Self::minted`). No claim consumes the
+                // step's landing, so it owes no conditioning: it decides the
+                // pole alone (`RigidMotion::least_turn_selected`), over the
+                // session box's lever, with no geometry in hand.
+                let step = RigidMotion::least_turn_selected(
                     mirror.turn(t),
                     next,
                     o,

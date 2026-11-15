@@ -1435,6 +1435,46 @@ impl<T: Decide> RigidMotion<T> {
         site: &'static str,
         band: Band,
     ) -> Result<Self, TurnError> {
+        Self::least_turn_minted(a, b, about, arm, site, band, true)
+    }
+
+    /// **The least turn as a selection**: [`Self::least_turn`]'s one body
+    /// and arithmetic and its pole verdict over `arm`, with no
+    /// conditioning. The rounding reach bands a quotient where its lever
+    /// is consumed (the geom-core README, "Float rounding"); a turn whose
+    /// rounding no claim consumes owes it none. Its one caller is the path
+    /// sweep's station step (`crates/sweep/README.md` `[sweep.frame]`): the
+    /// step selects a station's roll as a reference vector (fork 266), and
+    /// each lane mints the station's frame from the tangent read there,
+    /// aimed verbatim, so nothing claims the step's landing.
+    /// [`Self::least_turn`] is the door for a turn a claim consumes.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::least_turn`], less the two conditioning refusals.
+    pub fn least_turn_selected(
+        a: UnitVec3<T>,
+        b: UnitVec3<T>,
+        about: Point3<T>,
+        arm: Lever<T>,
+        site: &'static str,
+        band: Band,
+    ) -> Result<Self, TurnError> {
+        Self::least_turn_minted(a, b, about, arm, site, band, false)
+    }
+
+    /// The one body of [`Self::least_turn`] and
+    /// [`Self::least_turn_selected`], deciding the conditioning where
+    /// `conditioned`.
+    fn least_turn_minted(
+        a: UnitVec3<T>,
+        b: UnitVec3<T>,
+        about: Point3<T>,
+        arm: Lever<T>,
+        site: &'static str,
+        band: Band,
+        conditioned: bool,
+    ) -> Result<Self, TurnError> {
         let identity = a.is_exactly(b);
         let (a, b) = (a.get(), b.get());
         let anchored = |r: Mat3<T>| {
@@ -1469,6 +1509,10 @@ impl<T: Decide> RigidMotion<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
             Err(source) => Err(source),
         };
+        if !conditioned {
+            pole.map_err(TurnError::Undecided)?;
+            return anchored(Self::least_turn_spelled(a, b, d, k));
+        }
         let reach = T::from_computed(band.rounding_reach());
         let room = reach * chord - two * arm.length();
         let conditioning = crate::k_stats::decide(
@@ -1493,12 +1537,18 @@ impl<T: Decide> RigidMotion<T> {
         // `reads_negative`, the one branch. Both are
         // the same turn over the reals, so either is sound where an
         // enclosure of `c` straddles zero.
-        let r = if reads_negative(a.dot(b)) {
+        anchored(Self::least_turn_spelled(a, b, d, k))
+    }
+
+    /// The least turn's spelling, chosen by the pair (W1): the quaternion
+    /// over `d = |a + b|²/2` and `k = a × (a + b)` where `c` reads
+    /// negative, the Rodrigues form otherwise.
+    fn least_turn_spelled(a: Vec3<T>, b: Vec3<T>, d: T, k: Vec3<T>) -> Mat3<T> {
+        if reads_negative(a.dot(b)) {
             least_turn_linear(d, k)
         } else {
             least_turn_rodrigues(a, b)
-        };
-        anchored(r)
+        }
     }
 
     /// **This frame turned onto `direction` by the least turn**: the

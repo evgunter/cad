@@ -37,6 +37,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("registered"),
     NameCarrier::Call("render_as"),
     NameCarrier::Call("least_turn"),
+    NameCarrier::Call("least_turn_minted"),
     NameCarrier::Const("LEAST_TURN_CONDITIONING"),
     // The unit-direction row the normalising doors read at.
     NameCarrier::Const("UNIT_DIRECTION_ARM"),
@@ -125,7 +126,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "linalg/rigid_motion.rs: admitted_for_a_suite: check",
         ROW_TABLE,
     ),
-    ("linalg/rigid_motion.rs: least_turn: site", FORWARDS),
+    ("linalg/rigid_motion.rs: least_turn: a", NOT_FIRST),
+    ("linalg/rigid_motion.rs: least_turn_minted: site", FORWARDS),
+    ("linalg/rigid_motion.rs: least_turn_selected: a", NOT_FIRST),
     ("linalg/rigid_motion.rs: turned_onto: self.w", CARRIER_CALL),
     ("linalg/unit_vec.rs: decide_direction_by: site", FORWARDS),
     ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),

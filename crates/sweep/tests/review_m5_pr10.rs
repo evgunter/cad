@@ -424,17 +424,20 @@ fn a_hairpin_kink_folds_back_at_every_station_count() {
     }
 }
 
-/// **The station step's conditioning band is a fold-back refusal.** The
-/// step is the least turn decided over the session box's lever (the
-/// station's roll is a choice carried as data, and no geometry is in
-/// hand), so it refuses where the turn's lever `2·box/chord` passes the
-/// run's rounding reach: about 4e-4 rad from fold-back at the default ε,
-/// about 0.39 at 1e-12. On the two-station hairpin tilted by `δ` (its
-/// mirrored start tangent `(−δ, 0, 1)/|·|` against its arrival
-/// `(−δ, 0, −2)/|·|`), a chord a fifth inside that edge refuses as the
-/// fold-back, and a fifth outside it builds.
+/// **The station step owes no conditioning: inside the old conditioning
+/// band it builds.** The step selects a station's roll as a reference
+/// vector, and each lane mints the station's frame from the tangent read
+/// there, aimed verbatim, so no claim consumes where the step's turn lands
+/// (`crates/sweep/README.md` `[sweep.frame]`). It decides the least turn's
+/// pole alone (`RigidMotion::least_turn_selected`). On the two-station
+/// hairpin tilted by `δ` (its mirrored start tangent `(−δ, 0, 1)/|·|`
+/// against its arrival `(−δ, 0, −2)/|·|`), chords of a fifth and a half of
+/// the edge `2·box/reach` a conditioned turn over the session box would
+/// refuse within (about 4e-4 at the default ε, about 0.39 at 1e-12) build,
+/// as on main. *Breaks if* the step decides the conditioning
+/// (`RigidMotion::least_turn`), which refuses them as the fold-back.
 #[test]
-fn the_station_steps_conditioning_band_is_a_fold_back_refusal() {
+fn the_station_step_owes_no_conditioning_and_builds_inside_its_old_band() {
     let tol = Tol::witness();
     let reach = Band::linear(tol).unwrap().rounding_reach();
     let edge = 2.0 * geom_core::tolerance::SESSION_BOX_EXTENT / reach;
@@ -473,16 +476,13 @@ fn the_station_steps_conditioning_band_is_a_fold_back_refusal() {
         let path = fold(tilt(chord));
         sweep::sweep_places(start_plane(&path), &path, 2, tol).map(|_| ())
     };
-    assert_eq!(
-        places(0.8 * edge),
-        Err(SkinError::PathFoldsBack { station: 1 }),
-        "a chord inside the conditioning edge {edge:e} refuses as the fold-back"
-    );
-    assert_eq!(
-        places(1.2 * edge),
-        Ok(()),
-        "a chord outside the conditioning edge {edge:e} builds"
-    );
+    for frac in [0.2, 0.5] {
+        assert_eq!(
+            places(frac * edge),
+            Ok(()),
+            "a chord at {frac} of the conditioning edge {edge:e} builds"
+        );
+    }
 }
 
 /// A VANISHING tangent is the case the arm genuinely catches: a path
@@ -728,10 +728,11 @@ fn each_path_decision_has_an_in_band_twin() {
         Some((PathDecision::FoldBack, 1)),
         "the fold-back"
     );
-    // Past the step's conditioning edge too (`2·box/reach`, under about
-    // 0.39 at every ε row): a tilt of one, a chord of about 1.17.
+    // The step decides its pole alone (`least_turn_selected`): a tilt a
+    // thousand times the in-band one, past the pole verdict's band and far
+    // inside the conditioning edge `2·box/reach` it owes none of, carries.
     assert!(
-        sweep::sweep_places(plane, &fold(1.0), 2, tol).is_ok(),
+        sweep::sweep_places(plane, &fold(1e3 * delta), 2, tol).is_ok(),
         "a tilt well past the band carries"
     );
 }
