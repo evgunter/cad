@@ -1578,8 +1578,12 @@ the axisless spin does. Where the mated direction is opposite to where the
 orientation puts it (the orientation written backwards) the least
 turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
-a construction refuses at its degenerate values; so no edit that keeps
-the face short of a half turn from where the orientation puts it
+a construction refuses at its degenerate values. The band is where the
+least turn's answer is not determined at ε: its chord from the pole,
+levered by the bundle's arm (written slides included), is within the
+run's band, or its lever on its own two directions, twice the arm over
+that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
+"Float rounding"). So no edit that keeps the face outside that band
 moves a held value's meaning, or the copy's place on the face. The
 orientation and a mate's `Flip` are two facts, the copy's attitude and
 the contact's sense; only the pole band refuses. Where no direction is
