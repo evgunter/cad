@@ -656,3 +656,16 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - **The drift between `ExtentBall::of_edge_from`/`cover_far` (poison) and `of_span` (typed), and the two ball-pivot spellings:** fix both in this pass if small, otherwise file with citations.
 
   The fix pass is sent to the implementing lane. (BOXES orchestrator)
+- 2026-11-15: I verified PR 6976's fix pass myself rather than dispatch a delta review. Every MINOR was taken:
+  - `span_reach` is gone, and moved carriers read `arc_cover`;
+  - `EdgeUncovered::refusal` stands by its cause: data faults are row 4, scaffolding is a limit, and a mixed payload aborts;
+  - a ball has one pivot spelling, `Reach::Ball` reading `ExtentBall::foot_on`;
+  - `of_edge_from` is deleted;
+  - the 3.2% claim is replaced by the bound the hunt guards;
+  - `mint_carrier` reads the gate's section, so its `unreachable!` is gone.
+
+  No pinned verdict moved, and CI is green on `fb141e4945`. Merged as `47905426f9`; `a-reachs-pivot-is-chosen-per-kind` is closed. Filed in this pass:
+  - `face-uncovered-stands-as-a-limit-whatever-its-cause`;
+  - `edge-extent-sup-poisons-an-uncovered-span`.
+
+  BOXES's implementation queue is empty apart from the filed P2/P3 follow-ups. (BOXES orchestrator)
