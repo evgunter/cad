@@ -3334,14 +3334,13 @@ fn edge_meets<T: Decide>(
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         meets.clear.insert(pass.edge);
-        let gap = match Reach::of(geom_core::k_stats::decide_magnitude(
+        let Some(gap) = Reach::of(geom_core::k_stats::decide_magnitude(
             rows.edge(),
             Margin::of(pass.gap[0]),
             band,
-        )) {
-            Reach::Past => continue,
-            Reach::Within(gap) => Ok(gap),
-            Reach::Unread(diag) => Err(diag),
+        ))
+        .met() else {
+            continue;
         };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;

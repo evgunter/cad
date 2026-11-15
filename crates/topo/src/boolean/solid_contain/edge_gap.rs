@@ -88,6 +88,18 @@ impl Reach {
         }
     }
 
+    /// **The gap the ray meets the edge by**, where this is the ray's
+    /// distance from it: `None` past the band, and `Err` where nothing
+    /// read it, which the arm raises where the edge could be met
+    /// ([`unread`]).
+    pub(super) fn met(self) -> Option<Result<Gap, Indeterminate>> {
+        match self {
+            Self::Past => None,
+            Self::Within(gap) => Some(Ok(gap)),
+            Self::Unread(diag) => Some(Err(diag)),
+        }
+    }
+
     /// Whether the distance is read within the band.
     pub(super) const fn within(&self) -> bool {
         matches!(self, Self::Within(_))
