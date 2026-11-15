@@ -2,9 +2,11 @@
 id: three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval
 kind: issue
 title: two path-sweep injectivity rows refuse at ε = 1e-12 over station frames minted at Interval (at most 3.3e-14 wide), on a cap rim's General pcurve
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
+closed: 2026-11-14
+pr: 6953
 ---
 
 
@@ -49,3 +51,7 @@ The General pcurve's naive interval evaluation is filed separately: `work/pcert/
 **The refusal does not name the station frame.** Each refuses as the wall certificate's own text (`Pcurve(Escalated … pcurve_loop_continuity)`), not as a typed refusal naming the station whose frame is too wide for the band. That is the same ask as the variable-path row's (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`, "Must hold"): a typed refusal naming the station frame.
 
 **Pinned.** The two rows are pinned red at 1e-12 (`test_utils::pinned_red::row`) on these refusals, citing this row; the pins lift with its fix.
+
+## Closed
+
+Closed by PR 6953 (`onehome/rim-span`), which settles fork 269 (record on `analysis/design-fork/edge-span`): a line rim's span is the sketch segment's own length (`crates/sweep/src/swept.rs`, `placed_segment_spec_about`'s `SegmentKind::Line` arm), not its placed vertices' distance, and `crates/geom-brep/README.md` "Parameterization conventions" says an edge's bounds are stated from the quantity that defines them, the vertices certifying them (geom-core W1; DESIGN `[intent.stored]`). Each cap rim's `t₁` is a point, so the probe picks its iso image and the joint reads the exact boundary row. Both pins are lifted; the closed spine and the S duct pass at 1e-12, as the long helix does since PR 6952. The whole `self_intersection_proves_injectivity` suite passes at the default ε and at 1e-6, and at 1e-12 apart from the cylinder tee, which is red on main and GREEN's (`work/green/nightly-reds-the-1e-12-rows.md`). Exact chart ends, an `IsoLine` storing its two ends, are BOXFINISH's `boxfinish/chart-ends` unit (`work/boxfinish/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`), not this row's.

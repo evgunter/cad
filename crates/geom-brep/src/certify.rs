@@ -34,23 +34,27 @@
 //! ([`crate::classify_dihedral`]'s margin). No squared bands, no
 //! dimensionless margins.
 //!
-//! # The stored parameter interval — a certified cache, not an authority
+//! # The stored parameter interval — stated by its construction, certified against the vertices
 //!
-//! `geom`'s ratified curve convention stands: an edge's bounds are
-//! *derived from its vertices* — the authority is the vertex geometry.
-//! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
-//! as a certified derived cache in exactly the carrier's sense: the
-//! endpoint-pinning checks of every certification pin
-//! `carrier(t₀)`/`carrier(t₁)` to the endpoint points within ε, the
-//! span checks enforce the ratified forward direction (t₁ > t₀) and —
-//! for circle carriers — the at-most-one-period winding bound, and the
-//! Intersection mid-parameter pin ties the interval's interior to the
-//! stored witness; all at attachment and again at tier 3. Storing
-//! the certified interval is what keeps periodic carriers total
-//! (a full-period scaffolding edge's `(0, τ)` is not recoverable from
-//! its coincident endpoints) and keeps bound recovery evaluation-free
-//! (no atan2 branch selection). It can never disagree with the vertices
-//! by more than ε without failing loudly — a cache, never a peer.
+//! `geom`'s curve convention stands: a construction states an edge's
+//! bounds from the quantity that defines them (for example a segment's
+//! length, an arc's span, an extrusion distance, a knot domain, a split's
+//! certified parameter), and the vertices certify them: the vertices are
+//! the authority the bounds are certified against, not their source, and
+//! where they are the only definition their distance is the definition
+//! (the crate README, "Parameterization conventions"). The
+//! [`EdgeCurve`] **stores** the parameter interval, certified: the
+//! endpoint-pinning check (check 3) pins `carrier(t₀)`/`carrier(t₁)` to
+//! the endpoint points within ε, the span check (check 2) enforces the
+//! ratified forward direction (t₁ > t₀) and — for circle carriers — the
+//! at-most-one-period winding bound, and the Intersection mid-parameter
+//! pin ties the interval's interior to the stored witness; all at
+//! attachment and again at tier 3. Storing the certified interval is
+//! what keeps periodic carriers total (a full-period scaffolding edge's
+//! `(0, τ)` is not recoverable from its coincident endpoints) and keeps
+//! bound recovery evaluation-free (no atan2 branch selection). It can
+//! never disagree with the vertices by more than ε without failing
+//! loudly.
 
 use geom::Curve3;
 use geom::Surface;
@@ -1936,8 +1940,19 @@ pub struct EdgeCurveSpec<T: Real> {
     pub carrier: Curve3<T>,
     /// Carrier parameter at `start(he_plus)` — the `he_plus` forward
     /// contract's t₀ (increasing parameter runs start → end).
+    ///
+    /// The construction states both bounds from the quantity that
+    /// defines them (for example a segment's length, an arc's span, an
+    /// extrusion distance, a knot domain, a split's certified
+    /// parameter), and the vertices certify them: endpoint pinning
+    /// (check 3) reads the carrier at the bounds against the
+    /// `he_plus`-forward vertices, and the interval-span check (check 2)
+    /// holds them forward, nonzero and within one period. The vertices are the authority the
+    /// bounds are certified against, not their source; where the
+    /// vertices are the only definition, their distance is the
+    /// definition (crate README, "Parameterization conventions").
     pub param_start: T,
-    /// Carrier parameter at `end(he_plus)` — t₁.
+    /// Carrier parameter at `end(he_plus)` — t₁ (see `param_start`).
     pub param_end: T,
 }
 
