@@ -1976,9 +1976,13 @@ impl PathCarry {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;
-                // The step is a selection at `f64` from the path alone (the
-                // station's roll crosses as data, never a claim), so no
-                // extent is in hand: the session box, which refuses widest.
+                // The step is a selection at `f64` from the path alone: the
+                // station's roll is a choice carried as data (fork 266), so
+                // its conditioning cannot make a claim false, and with no
+                // geometry in hand the lever is the session box's. At the
+                // default ε it refuses a step whose chord from fold-back is
+                // under about 4e-4 rad (`2·box/reach`); at ε = 1e-12, under
+                // about 0.39.
                 let step = RigidMotion::least_turn(
                     mirror.turn(t),
                     next,

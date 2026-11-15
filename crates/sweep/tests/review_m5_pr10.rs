@@ -424,6 +424,63 @@ fn a_hairpin_kink_folds_back_at_every_station_count() {
     }
 }
 
+/// **The station step's conditioning band is a fold-back refusal.** The
+/// step is the least turn decided over the session box's lever (the
+/// station's roll is a choice carried as data, and no geometry is in
+/// hand), so it refuses where the turn's lever `2·box/chord` passes the
+/// run's rounding reach: about 4e-4 rad from fold-back at the default ε,
+/// about 0.39 at 1e-12. On the two-station hairpin tilted by `δ` (its
+/// mirrored start tangent `(−δ, 0, 1)/|·|` against its arrival
+/// `(−δ, 0, −2)/|·|`), a chord a fifth inside that edge refuses as the
+/// fold-back, and a fifth outside it builds.
+#[test]
+fn the_station_steps_conditioning_band_is_a_fold_back_refusal() {
+    let tol = Tol::witness();
+    let reach = Band::linear(tol).unwrap().rounding_reach();
+    let edge = 2.0 * geom_core::tolerance::SESSION_BOX_EXTENT / reach;
+    let fold = |delta: f64| {
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::origin(),
+                Point3::new(delta, 0.0, 1.0),
+                Point3::new(0.0, 0.0, -1.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap()
+    };
+    let chord_of = |delta: f64| {
+        let m = Vec3::new(-delta, 0.0, 1.0) / (delta * delta + 1.0).sqrt();
+        let t = Vec3::new(-delta, 0.0, -2.0) / (delta * delta + 4.0).sqrt();
+        (m + t).norm()
+    };
+    // The tilt whose step's chord is `chord`, by bisection: the chord
+    // rises with the tilt over (0, 1].
+    let tilt = |chord: f64| {
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if chord_of(mid) < chord { lo = mid } else { hi = mid }
+        }
+        0.5 * (lo + hi)
+    };
+    let places = |chord: f64| {
+        let path = fold(tilt(chord));
+        sweep::sweep_places(start_plane(&path), &path, 2, tol).map(|_| ())
+    };
+    assert_eq!(
+        places(0.8 * edge),
+        Err(SkinError::PathFoldsBack { station: 1 }),
+        "a chord inside the conditioning edge {edge:e} refuses as the fold-back"
+    );
+    assert_eq!(
+        places(1.2 * edge),
+        Ok(()),
+        "a chord outside the conditioning edge {edge:e} builds"
+    );
+}
+
 /// A VANISHING tangent is the case the arm genuinely catches: a path
 /// curve whose derivative is zero at a station has no frame at all.
 #[test]
