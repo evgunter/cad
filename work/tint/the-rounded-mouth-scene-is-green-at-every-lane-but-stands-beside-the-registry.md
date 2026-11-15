@@ -26,3 +26,11 @@ Decide whether it moves into the registry, which runs it through the
 registry battery, or stays beside it for a reason the module doc then
 states. Its sibling `with_a_ball` still escalates at 1e-12 and stays
 beside.
+
+- 2026-11-15 — BOXFINISH (`boxfinish/sweep-frames`): the sibling
+  `with_a_ball` no longer escalates at 1e-12 either. Its union
+  certifies at `Interval` at 1e-12 on that branch's merge base
+  (`dbb21b4a12`) and on the branch, so
+  `the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
+  was red at 1e-12 on both; the branch drops the pin. Whether the ball
+  is green at every other lane was not measured.

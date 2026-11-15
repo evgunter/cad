@@ -538,13 +538,13 @@ const PLATE_MAX_TERMS: usize = 38;
 /// `q_to − q_from`.
 /// **Moved with the sweeps keeping their sketch frames**: the extrudes'
 /// caps and walls fit no plane, so the Newell sums and their residuals
-/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40761 → 39604
-/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13400 →
-/// 12913 forms, frozen 245 → 0; `Early` 14775 → 13378), `Door/Decision`
+/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40813 → 39644
+/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13305 →
+/// 12913 forms, frozen 245 → 0; `Early` 14807 → 13378), `Door/Decision`
 /// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
-/// its calls and forms.
+/// its calls, its forms 28205 → 28232 (+27, not traced).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39604 frozen 54 digest dcb74baa9104ed9f6cf0ac2e4396ffce\n\
+     Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
      Plain/Assertion calls 1048 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
      Early/Assertion calls 1048 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\

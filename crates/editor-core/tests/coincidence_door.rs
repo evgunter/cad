@@ -3186,10 +3186,10 @@ fn rounded_mouth_volume() -> f64 {
 /// circles as the closed forms they are (SECTARMS stage 3b-i). Each
 /// union builds at its exact volume: the ball's
 /// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
-/// ([`rounded_mouth_volume`]). At `Interval` the rounded mouth certifies
-/// at every ε, and the ball at every ε but 1e-12, where it escalates, so
-/// it stays beside the registry, which requires every lane green
-/// (whether the rounded mouth joins it:
+/// ([`rounded_mouth_volume`]). At `Interval` both certify at every ε:
+/// the ball escalated at 1e-12 and no longer does, on the merge base
+/// of BOXFINISH's `boxfinish/sweep-frames` as on that branch (whether
+/// either joins the registry, which requires every lane green:
 /// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
@@ -3216,7 +3216,7 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
             row: "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
             count: 4,
             want: 5.836_839_596_566_8,
-            escalates_at_1e12: true,
+            escalates_at_1e12: false,
         },
         Scene {
             cd: crate::corpus::shaft_and_bearing::rounded_mouth(),

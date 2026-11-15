@@ -165,14 +165,21 @@ enum Rung {
 /// (enclosures scale with ε, so the rungs are the same at each). A
 /// plain-`Interval` extrude of a widened height certifies at ε/4
 /// (DOCM-1's measurement of record); the UNION of the split's halves
-/// does not at ε/10 and ε/16: the glue door reads the cut faces as
-/// parallel in band (`bool_faces_parallel`), so the pair is not glued
-/// and the corner that reads it one carrier refuses with that reading.
-/// ε/32 is the widest width that clears it, and every narrower rung
-/// certifies. The split itself certifies at every rung; its section
-/// edges escalated `carrier_matches_mapped_source` at ε/10 while the
-/// box's walls were planes fitted to their boxed corners. Each rung is asserted, so a floor that moves — up or
-/// down — reds this
+/// does not at ε/10 and ε/16: the glue door reads the cut faces' plane
+/// offset in band (`plane_eq_offset`, an enclosure across zero: ±2.4e-9
+/// at ε/10 at the default ε), so the pair is not glued, and the corner
+/// that reads it one carrier refuses with that reading, its own decision
+/// `bool_faces_parallel` (on main as here). The offset is read at the
+/// pair's extent's centre, which the faces' boundary covers bound, so
+/// the centre is as wide as the carriers read there and the enclosure
+/// halves with the width. ε/32 is the widest width that clears it, and
+/// every narrower rung certifies. The split itself certifies at every
+/// rung: its section edges escalated `carrier_matches_mapped_source` at
+/// ε/10 (an enclosure `[0, 1.0000050e-9]` against the band's zero) while
+/// the box's walls were planes fitted to their boxed corners. The union
+/// clears a rung sooner than on main, at ε/32 where main's cleared at
+/// ε/64 (which stored value narrows its offset is not traced). Each
+/// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
 fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
@@ -184,14 +191,14 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
             10,
             Rung::Escalates {
                 node: union,
-                predicate: "bool_faces_parallel",
+                predicate: "plane_eq_offset",
             },
         ),
         (
             16,
             Rung::Escalates {
                 node: union,
-                predicate: "bool_faces_parallel",
+                predicate: "plane_eq_offset",
             },
         ),
         (32, Rung::Green),

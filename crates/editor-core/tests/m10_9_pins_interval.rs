@@ -263,11 +263,11 @@ pub(crate) struct Study {
 /// Then the sweeps keep their sketch frames: a cap is its station's
 /// frame and a wall the frame turning its segment, so no extrude or loft
 /// fits a plane (`newell_plane_residual`, `cap_plane_orientation` go)
-/// and a latitude registers nothing: symbolic the plate 1015 -> 975,
-/// the annulus 535 -> 511, the link 813 -> 785, the bracket 1419 -> 1353
-/// and the pad 1515 -> 1467; door shut the link (723, 846) -> (695, 842),
-/// the bracket (1349, 1610) -> (1283, 1604) and the pad (1515, 1698) ->
-/// (1467, 1694).
+/// and a latitude registers nothing: symbolic the plate 1019 -> 979,
+/// the annulus 535 -> 511, the link 814 -> 786, the bracket 1427 -> 1361
+/// and the pad 1531 -> 1483; door shut the link (724, 847) -> (696, 843),
+/// the bracket (1356, 1619) -> (1290, 1613) and the pad (1531, 1714) ->
+/// (1483, 1710).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -942,13 +942,12 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // span and direction stated from its sketch segment (PR 6953): the
     // decisions hold, and the forms they freeze read the placed sketch
     // chord's unit where they read the placed vertices' difference,
-    // 3989 -> 4000.
-    // 3989), each witness the edge's carrier middle. Then validation's
-    // mint read each straight side's chord exactly (audit row F43):
-    // (1515, 1698, 3989) -> (1531, 1714, 3989). Then the sweeps keep their
-    // sketch frames, fitting no plane: (1531, 1714, 3989) -> (1483, 1710,
-    // 2786), the Newell sums' forms no longer frozen.
-    assert_eq!(got[0], (1483, 1710, 2786), "rule F shut: the pad's receipt");
+    // 3989 -> 4000. Validation's mint reading each straight side's chord
+    // exactly (audit row F43) took (1515, 1698) to (1531, 1714). Then the
+    // sweeps keep their sketch frames, fitting no plane: (1531, 1714,
+    // 4000) -> (1483, 1710, 2773), the Newell sums' forms no longer
+    // frozen.
+    assert_eq!(got[0], (1483, 1710, 2773), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

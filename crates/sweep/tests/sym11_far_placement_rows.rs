@@ -333,9 +333,23 @@ where
 /// cell, printing the measured row either way.
 fn assert_lane(name: &str, d: f64, want: &Lane, got: &[Result<usize, String>; 3], disputes: u64) {
     let eps = Tol::witness().eps();
-    for ((body, expected), r) in BODIES.iter().zip(want.bodies).zip(got) {
+    let at_origin = [
+        stadium_extrude::<f64>(0.0, 0.5),
+        washer_revolve::<f64>(0.0, 1.0),
+        triangle_extrude::<f64>(0.0, 1.0),
+    ];
+    for (((body, expected), r), origin) in BODIES.iter().zip(want.bodies).zip(got).zip(&at_origin) {
         let measured = outcome(r);
         println!("   [{name}] eps={eps:e} d={d:e} {body}: {measured}");
+        // A cell that builds builds the body: the face census of the
+        // bare lift at the origin, not merely an `Ok`.
+        if let (Ok(faces), Ok(want_faces)) = (r, origin) {
+            assert_eq!(
+                faces, want_faces,
+                "[{name}] eps={eps:e} d={d:e}: the {body} built with {faces} faces where the \
+                 origin's bare lift builds {want_faces}"
+            );
+        }
         assert_eq!(
             measured, expected,
             "[{name}] eps={eps:e} d={d:e}: the {body} answered `{measured}` where TABLE says \

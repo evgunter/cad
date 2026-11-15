@@ -89,8 +89,13 @@ pub(crate) fn arch_frame() -> ArchFrame {
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
 pub(crate) fn arch() -> AtRestBody<f64> {
+    finished("the arch", arch_revolved().body, Tol::witness())
+}
+
+/// The arch as the tube door answers it, caps and joints and all.
+pub(crate) fn arch_revolved() -> sweep::Revolved<f64> {
     let f = arch_frame();
-    let arch = tube_along_arc(
+    tube_along_arc(
         tube_frame(
             f.center,
             Vec3::new(0.0, -1.0, 0.0),
@@ -106,8 +111,15 @@ pub(crate) fn arch() -> AtRestBody<f64> {
         Tol::witness(),
     )
     .expect("arch builds")
-    .body;
-    finished("the arch", arch, Tol::witness())
+}
+
+/// The arch's two cap joints, where the section's centre stands at
+/// each end ([`sweep::revolved_caps`]): the fork and the far end. A
+/// cap's stored plane is read as a plane (its origin is the station's
+/// frame origin); the joint is where the cap is centred.
+pub(crate) fn arch_joints() -> (Point3<f64>, Point3<f64>) {
+    let caps = sweep::revolved_caps(&arch_revolved()).expect("a windowed tube has caps");
+    (caps.start.origin, caps.end.origin)
 }
 
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
@@ -176,6 +188,15 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 fn p1_wall1_glues_the_stem_into_one_body() {
     let Some(s) = stem() else { return };
     let a = arch();
+    let (start, end) = arch_joints();
+    assert!(
+        (start - arch_frame().fork).norm() < 1e-9,
+        "the arch's start cap is centred at the fork: {start:?}"
+    );
+    assert!(
+        (end - arch_frame().far).norm() < 1e-9,
+        "the arch's far cap is centred at the turtle math's arch end point: {end:?}"
+    );
     assert_eq!(
         weld_cap_pairs(&s, &a),
         1,

@@ -1032,7 +1032,14 @@ fn turned_disc<T: Decide + topo::AtRestPolicy>(
         .validate(tol())
         .expect("the disc validates on its turned plane");
     let side = ExtrudeSide::Along;
-    extrude(&profile, Extrusion::Distance { depth: c(radius), side }, tol())
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: c(radius),
+            side,
+        },
+        tol(),
+    )
 }
 
 /// **A disc on a plane turned by a boxed angle refuses at check 3**

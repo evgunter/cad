@@ -222,8 +222,22 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
 #[test]
 fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
     let at_1e6 = Tol::witness().eps() == 1e-6;
-    match shell(dumbbell::<Interval>(-0.2), 0.15) {
-        Err(ShellError::CavityCrosses { .. }) if at_1e6 => {}
+    let operand: Body<Interval> = dumbbell(-0.2);
+    match shell(operand.clone(), 0.15) {
+        Err(ShellError::CavityCrosses {
+            face,
+            other,
+            stations,
+            distance,
+        }) if at_1e6 => {
+            // The neck: its two arc walls, eroded toward each other, meet.
+            assert!(
+                is_cylinder(&operand, face) && is_cylinder(&operand, other) && face != other,
+                "the witness is the neck's two arc walls: {face:?} {other:?}"
+            );
+            println!("[dumbbell 1e-6] stations {stations:?} distance {distance:e}");
+            assert!(distance <= 1e-6, "the witness pair coincides: {distance}");
+        }
         Err(ShellError::Face { error, .. })
             if !at_1e6
                 && matches!(

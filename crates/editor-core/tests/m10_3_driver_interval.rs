@@ -55,14 +55,17 @@ use std::sync::Arc;
 
 use editor_core::UnitSym;
 use editor_core::VarId;
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, var_env_over};
+use editor_core::analysis::{
+    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, var_env_over,
+};
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
-    Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -419,8 +422,10 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 /// frame turning its segments' directions, so nothing the door stores
 /// widens with the box, and the search settles where the depth's low
 /// end, `1 − half`, meets the sliver band a depth must clear (`10ε`,
-/// measured: `1 − 1e-5` at ε = 1e-6), or within the search's last step
-/// of `1.0` where that is the finer. Two mechanisms once ended the one-leaf regime well short of
+/// measured to 1e-7 relative at ε = 1e-6, 1e-9 and 1e-12). Just past it a one-leaf replay
+/// refuses at the extrude (whether the extrusion leaves the sketch plane
+/// is undecided), and with bisection everything but the sliver's leaf
+/// certifies. Two mechanisms once ended the one-leaf regime well short of
 /// it — a wall's line carrier with no certified enclosure over the box
 /// (0.094756 at every ε row), and before that `dihedral_wedge` and a
 /// side wall's Newell normal whose enclosure reached zero — and both
@@ -448,7 +453,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
         !certifies_whole(hi),
         "a box reaching a zero extrusion distance must not certify whole"
     );
-    for _ in 0..24 {
+    for _ in 0..52 {
         let mid = 0.5 * (lo + hi);
         if certifies_whole(mid) {
             lo = mid
@@ -456,14 +461,109 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
             hi = mid
         }
     }
-    // The ceiling is the flip, less the sliver band, to the search's
-    // last step (`2^-24`).
+    // (1) THE NUMBER, two-sided: the ceiling is the flip less the sliver
+    // band a depth must clear, `1 − lo = 10ε`, measured to 1e-7 relative
+    // at every ε row (the search resolves `2^-52`). A move either way is
+    // the mechanism moving.
+    let gap = 1.0 - lo;
     assert!(
-        1.0 - lo <= 10.0 * e * 1.01 + 2.0 * 2f64.powi(-24),
-        "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}), short of the \
-         flip at 1.0: something the door stores widens with the box again, and the account \
-         above needs re-reading, not a band"
+        (gap / (10.0 * e) - 1.0).abs() <= 1e-4,
+        "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}): 1 − lo = {gap:e}, \
+         {} × 10ε. Short of it, something the door stores widens with the box again; past it, \
+         the sliver band moved. Either way the account above needs re-reading, not a band",
+        gap / (10.0 * e)
     );
+
+    // (2) IT IS NOT A FRACTION OF ε, which is the claim the row's name
+    // makes. Before the tier this same search settled at ε/8.
+    assert!(
+        lo / e > 1.0e4,
+        "the ceiling is {} ε — that is the pre-tier regime",
+        lo / e
+    );
+
+    // (3) WHAT ENDS THE ONE-LEAF REGIME IS NAMED: a one-leaf replay just
+    // past the ceiling refuses at the extrude, the depth's low end inside
+    // the sliver band, so whether the extrusion leaves the sketch plane
+    // is undecided.
+    let past = slab(1.0, hi);
+    let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    assert!(
+        why.len() == 1
+            && why[0].contains("whether the extrusion leaves the sketch plane is undecided"),
+        "just past the ceiling a ONE-LEAF replay must refuse on the depth's sliver band alone; \
+         a different predicate means the mechanism that sets the ceiling moved: {why:?}"
+    );
+
+    // (4) WITH BISECTION, the drive certifies everything but the sliver:
+    // the one leaf it cannot certify is the one touching the zero depth,
+    // refused at the depth budget, and nothing is refused for any other
+    // reason.
+    let v = drive(
+        &past,
+        &analyzed_box(&past, &AnalysisPolicy::default()),
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert!(
+        v.receipt().certified > 0
+            && v.receipt().splits > 0
+            && v.refused().len() == 1
+            && v.refused()
+                .iter()
+                .all(|l| format!("{:?}", l.reason).starts_with("Budget(Depth")),
+        "past the ceiling the drive certifies after bisection and refuses only the sliver's \
+         leaf, at the depth budget: {:?} refused={:?}",
+        v.receipt(),
+        v.refused().iter().map(|l| &l.reason).collect::<Vec<_>>()
+    );
+
+    // (5) AND THE MECHANISMS THAT ONCE ENDED IT ARE GONE: at half 0.5,
+    // where a side wall's Newell normal reached zero, a one-leaf replay
+    // fails nowhere.
+    let half = slab(1.0, 0.5);
+    let why = node_failures(&half, &analyzed_box(&half, &AnalysisPolicy::default()));
+    assert!(
+        why.is_empty(),
+        "at half = 0.5 a ONE-LEAF replay certifies whole: {why:?}"
+    );
+}
+
+/// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
+/// WHOLE box in ONE leaf, as text — the public evaluation door, used to
+/// NAME the predicate that stops a box certifying whole.
+///
+/// The driver's own leaf reason says `Budget` or nothing at all: it
+/// reports what the SUBDIVISION did, and a box that certifies after one
+/// split leaves no trace of what the unsplit box could not decide. This
+/// reads the unsplit evaluation directly, which is the question the
+/// ceiling is about.
+fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
+    let opts = EvalOptions {
+        param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
+        ..EvalOptions::default()
+    };
+    let dials = SymbolicDials::default();
+    let budget = geom_core::SymBudget {
+        max_terms: dials.max_terms,
+        max_degree: dials.max_degree,
+    };
+    let (out, _) = geom_core::sym::with_session(budget, || {
+        let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness());
+        ev.order
+            .iter()
+            .filter_map(|id| match ev.result(*id) {
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    });
+    out
 }
 
 /// **The macroscopic box certifies** — the row that was the limit, cut

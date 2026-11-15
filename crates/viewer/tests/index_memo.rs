@@ -1067,11 +1067,18 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// is the other side of the same line, where they are not.
 ///
 /// **Pinned to its premise's stop at every ε row**
-/// (`work/vgeom/the-wide-candidate-row-lost-its-near-coplanar-triangle-before-the-vertex.md`):
-/// the ring's planar caps are triangulated in their charts, whose origin
-/// is now the sketch frame's, and on the mesh that gives this ray's
-/// near-coplanar candidates answer at the vertex and `0.031` beyond it,
-/// none short of it, so the class the row carries has no fixture here.
+/// (`work/vgeom/the-wide-candidate-row-lost-its-near-coplanar-triangle-before-the-vertex.md`).
+/// The aimed vertex is on the inner rim of the bumped ring's far cap.
+/// That cap's four rim circles now take their `u_ref` from the arc's
+/// sketch start radial carried by the turned station frame, where they
+/// took it from the vector to the placed start vertex; the two differ by one to three ulps (`0.9807852804032304` →
+/// `…303`, `0.19509032201612878` → `…872`), every other stored value
+/// the mesher reads is bit-identical, and the planar mesher does not
+/// read the stored plane at all. The rim's chord points moved by that
+/// rounding, the cap and band triangulations around the vertex with
+/// them, and on that mesh this ray's near-coplanar candidates answer at
+/// the vertex and `0.031` beyond it, none short of it, so the class the
+/// row carries has no fixture here.
 #[test]
 fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     test_utils::pinned_red::row(
@@ -1269,8 +1276,28 @@ const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 /// in front of it. A door comparing rounded `t` reds here (it answers
 /// the wide candidate alone); a door that kept the width key reds here
 /// (it answers the vertex alone).
+///
+/// **Pinned to its premise's stop at every ε row**, on the same filing
+/// and by the same mechanism as the ring's row above: `tube_arc`'s far
+/// cap's two rim circles now take their `u_ref` from the turned station
+/// frame, one ulp from the vector to the placed start vertex they read before
+/// (`0.5403023058681397` → `…398`), every other stored value the mesher
+/// reads is bit-identical, and on the mesh that gives no near-coplanar
+/// candidate answers `TUBE_ARC_WIDE_CANDIDATE_T` on this ray.
 #[test]
 fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "tube_arc's wide candidate",
+        &["the near-coplanar candidate still answers short of the vertex"],
+        a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both_row,
+    );
+}
+
+/// The row [`a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both`]
+/// runs, under its pin.
+fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both_row() {
     let tol = Tol::witness();
     let c = corpus::documents()
         .into_iter()

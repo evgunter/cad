@@ -48,6 +48,15 @@ fn window(deg: f64) -> TubeWindow<f64> {
 /// `work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
 /// as for segment B and the socket.
 fn segment_a() -> Option<AtRestBody<f64>> {
+    Some(finished(
+        "segment A",
+        segment_a_tube()?.body,
+        Tol::witness(),
+    ))
+}
+
+/// Segment A as the tube door answers it, caps and joints and all.
+fn segment_a_tube() -> Option<sweep::Revolved<f64>> {
     let body = tube_along_arc(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
@@ -60,9 +69,7 @@ fn segment_a() -> Option<AtRestBody<f64>> {
         TUBE,
         Tol::witness(),
     );
-    let body =
-        test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "segment A")?.body;
-    Some(finished("segment A", body, Tol::witness()))
+    test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[1e-12], "segment A")
 }
 
 /// Segment B: the SAME tube radius on a tighter ring, continuing from
@@ -70,6 +77,15 @@ fn segment_a() -> Option<AtRestBody<f64>> {
 /// the shared terminal meridian circle and the composed material runs
 /// smoothly through it.
 fn segment_b() -> Option<AtRestBody<f64>> {
+    Some(finished(
+        "segment B",
+        segment_b_tube()?.body,
+        Tol::witness(),
+    ))
+}
+
+/// Segment B as the tube door answers it.
+fn segment_b_tube() -> Option<sweep::Revolved<f64>> {
     let turn = TURN.to_radians();
     let end = Point3::new(-RING + RING * turn.cos(), 0.0, RING * turn.sin());
     let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
@@ -84,8 +100,7 @@ fn segment_b() -> Option<AtRestBody<f64>> {
         TUBE,
         Tol::witness(),
     );
-    let body = test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[], "segment B")?.body;
-    Some(finished("segment B", body, Tol::witness()))
+    test_utils::kernel_limit::pinned(body, Tol::witness().eps(), &[], "segment B")
 }
 
 /// The toroidal SOCKET: a hollow elbow whose BORE is a torus of tube
@@ -459,6 +474,21 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     assert_eq!(
         shared, 1,
         "exactly one cap plane is shared between the segments"
+    );
+    // And the shared cap is centred at one point: A's end joint is B's
+    // start joint, where the section's centre stands on that plane.
+    let (Some(ta), Some(tb)) = (segment_a_tube(), segment_b_tube()) else {
+        return;
+    };
+    let (ca, cb) = (
+        sweep::revolved_caps(&ta).expect("a windowed tube has caps"),
+        sweep::revolved_caps(&tb).expect("a windowed tube has caps"),
+    );
+    assert!(
+        (ca.end.origin - cb.start.origin).norm() < 1e-12,
+        "the shared cap is centred at one point: A ends at {:?}, B starts at {:?}",
+        ca.end.origin,
+        cb.start.origin
     );
     match topo::union(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(_) | BooleanResult::Empty) => {

@@ -203,8 +203,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x5629_3fdb_a9ca_baed_u64),
-        ("die_chamfer", 0x3093_8ea6_f95c_075d),
+        ("die_fillet", 0x7cbe_7b29_671d_8995_u64),
+        ("die_chamfer", 0x38b5_7ede_f05c_4b6d),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -296,9 +296,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x43d5_f7b3_2524_7ad2_u64),
-        ("heat_sink", 0x2688_0623_4b9c_24a3),
-        ("kiss_carry", 0xa0df_ef99_39cc_6214),
+        ("crossing_slots", 0xb23a_a372_91fe_158a_u64),
+        ("heat_sink", 0x2165_3b85_6f75_fdab),
+        ("kiss_carry", 0xf9a0_fd68_642d_b9cc),
     ] {
         let doc = corpus::documents()
             .into_iter()

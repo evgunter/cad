@@ -910,14 +910,14 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // numeric reads. Then validation's mint read each straight side's
     // chord components exactly (audit row F43): [1384, 1830, 32] ->
     // [1396, 1848, 32]. Then the sweeps keep their sketch frames and fit
-    // no plane: [1396, 1848, 32] -> [1412, 1780, 0], the planes' residuals
+    // no plane: [1396, 1848, 32] -> [1390, 1802, 0], the planes' residuals
     // gone from the numeric column and no decision on this leaf left for
     // the ladder to retry; the bracket's recovery
     // (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) is
     // what carries the ladder now.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1412, 1780, 0],
+        [1390, 1802, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -944,8 +944,8 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1352, 1862, 0]. Then validation's mint, as the shipped receipt's:
     // [1352, 1862, 0] -> [1364, 1880, 0].
     // Then the sweeps' frames: the ladder retries nothing on this leaf,
-    // and the bare drive reads the shipped receipt, [1412, 1780, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1412, 1780, 0]);
+    // and the bare drive reads the shipped receipt, [1390, 1802, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1802, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
