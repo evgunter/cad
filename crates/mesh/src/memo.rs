@@ -1129,24 +1129,26 @@ impl KeyWriter {
                 self.u8(2);
                 self.nurbs2(c);
             }
-            // No mesh lane reads a stated end: the chord pass reads the
-            // map ([`Pcurve::eval`]), so the key holds the map alone.
-            Pcurve::IsoLine { p0, pl, .. } => {
+            // An iso image is keyed as the straight chart segment it is:
+            // its chart point at the origin of its map and its velocity
+            // (an arc rim's whole displacement).
+            Pcurve::IsoLine { line, at0, rate } => {
                 self.u8(3);
-                self.p2(*p0);
-                self.v2(*pl);
+                self.p2(line.point(*at0));
+                self.v2(line.vector(*rate));
             }
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,
                 ends,
             } => {
                 self.u8(4);
-                self.p2(*p0);
-                self.v2(*pd);
+                self.p2(line.point(*g0));
+                self.v2(line.vector(*gd));
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
