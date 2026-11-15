@@ -2,11 +2,12 @@
 id: fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction
 kind: issue
 title: Fillet, side and Center arcs and off-axis hops record no direction, so they still reach the doors as a quotient with width
-status: open
+status: parked
 opened: 2026-11-14
 priority: P1
 cost: M
 refs: [6963]
+blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions]
 ---
 
 
@@ -56,3 +57,13 @@ this, this row is P0 and blocks the switch's deletion.
 side and a boxed fillet radius, extruded at `Sym<Interval>` over a
 macroscopic box, stores each fillet wall's `u_ref` with no width; and
 `ProfileLoop::directions` is `Some` on a line-line fillet.
+
+**Parked on the doors' unit (2026-11-15).** The test that closes this
+row extrudes at `Sym<Interval>` and reads a wall's `u_ref`, which needs
+a door that reads recorded directions; and that unit moves the
+directions into `SegmentKind`'s arms, so a recording added before it
+would be moved once more. Its measurement also says whether this row is
+P0. What PR 6963's repair found applies here: a direction is recorded
+as a constant only where the construction holds it as an identity of
+the parameters, never where it is zero or axis-aligned at one
+valuation.
