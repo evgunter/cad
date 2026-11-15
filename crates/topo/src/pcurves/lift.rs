@@ -2,9 +2,10 @@
 //! [`Lift`], decided by the walk or read off what the mint stored.
 
 use geom::Surface;
-use geom_brep::{ChartImage, Pcurve, PcurveCertifyError, chart_pcurve_over};
+use geom_brep::{ChartAxis, ChartImage, Pcurve, PcurveCertifyError, chart_pcurve_over};
 use geom_core::predicate::Band;
-use geom_core::{Decide, Real};
+use geom_core::spline::SpanLocate;
+use geom_core::{Decide, Point2, Real, is_exact_zero};
 
 use super::{
     ChartPeriods, DerivedRow, DescribedChart, PinMiss, WalkFail, WalkItem, edge_record, entry_exit,
@@ -214,6 +215,83 @@ impl<T: Real> LiftedRow<T> {
         let (t0, t1) = self.params.ends();
         entry_exit(self.plus, t0, t1)
     }
+
+    /// **The chart line the image lies on**: an [`Pcurve::IsoLine`]'s or
+    /// an [`Pcurve::IsoArc`]'s fixed coordinate, read where that
+    /// channel's slope is an exact zero, so every point of the image
+    /// holds it; `None` for any other image, and for an iso image with
+    /// both channels moving or neither.
+    #[must_use]
+    pub fn held_line(&self) -> Option<HeldLine<T>> {
+        let (p0, slope) = match self.pcurve {
+            Pcurve::IsoLine { p0, pl, .. } => (p0, pl),
+            Pcurve::IsoArc { p0, pd, .. } => (p0, pd),
+            _ => return None,
+        };
+        let way = |s: T| if self.plus { s } else { -s };
+        match (is_exact_zero(slope.x), is_exact_zero(slope.y)) {
+            (true, false) => Some(HeldLine {
+                axis: ChartAxis::U,
+                value: p0.x,
+                along: way(slope.y),
+            }),
+            (false, true) => Some(HeldLine {
+                axis: ChartAxis::V,
+                value: p0.y,
+                along: way(slope.x),
+            }),
+            _ => None,
+        }
+    }
+}
+
+impl<T: Real + SpanLocate> LiftedRow<T> {
+    /// The chart points the chain enters and leaves the image at, read
+    /// through its map ([`Pcurve::eval`]).
+    #[must_use]
+    pub fn entry_exit_points(&self) -> (Point2<T>, Point2<T>) {
+        let (entry, exit) = self.entry_exit();
+        (self.pcurve.eval(entry), self.pcurve.eval(exit))
+    }
+}
+
+/// **The chart line an iso image lies on** ([`LiftedRow::held_line`]):
+/// the channel it holds fixed, the value it holds there, and the way
+/// the chain runs along it.
+#[derive(Clone, Copy, Debug)]
+pub struct HeldLine<T> {
+    /// The channel held fixed: [`ChartAxis::U`] for a column,
+    /// [`ChartAxis::V`] for a row.
+    pub axis: ChartAxis,
+    /// The value the line holds that channel at.
+    pub value: T,
+    /// The moving channel's rate along the image in the chain's order:
+    /// the map's slope there (an `IsoArc`'s whole displacement, its
+    /// parameter increasing with the carrier's), negated where the chain
+    /// traverses the image backward. Its sign is the way the chain runs.
+    pub along: T,
+}
+
+/// **A maximal run of the chain's images on one held axis**
+/// ([`Lift::runs`]): consecutive rows whose lines all hold `axis`, as
+/// indices into [`Lift::rows`] in chain order. Two consecutive images
+/// holding one axis meet only on one line, so in a loop whose joints
+/// close a run is one side; whether its pieces state one value is the
+/// reader's to check.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldRun {
+    /// The channel the run's lines hold fixed.
+    pub axis: ChartAxis,
+    /// The run's rows, in chain order.
+    pub members: Vec<usize>,
+}
+
+/// Why the chain has no runs ([`Lift::runs`]): the first row, in chain
+/// order, whose image lies on no held line ([`LiftedRow::held_line`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NotHeld {
+    /// The row's index in [`Lift::rows`].
+    pub row: usize,
 }
 
 /// Why a loop has no lift to read ([`Lift::read`]): the first
@@ -257,6 +335,16 @@ pub struct Lift<T: Real> {
 }
 
 impl<T: Real> Lift<T> {
+    /// A lift a suite states row by row: a whole loop that closes in the
+    /// chart where `closed`, an open run otherwise.
+    #[cfg(test)]
+    pub(crate) fn stated_for_tests(rows: Vec<LiftedRow<T>>, closed: bool) -> Self {
+        Self {
+            rows,
+            winding: closed.then(|| Winding::of(core::iter::empty())),
+        }
+    }
+
     /// The chain's rows, in order.
     #[must_use]
     pub fn rows(&self) -> &[LiftedRow<T>] {
@@ -318,6 +406,68 @@ impl<T: Real> Lift<T> {
     #[must_use]
     pub fn azimuth_window(&self) -> Option<(T, T)> {
         self.window().map(|(u, _)| u)
+    }
+
+}
+
+impl<T: Real + SpanLocate> Lift<T> {
+    /// **The chain grouped into its held runs** ([`HeldRun`]): maximal
+    /// runs of consecutive rows whose images hold one chart axis, in
+    /// chain order. A whole loop's chain is a cycle, so its last run and
+    /// its first are one where they hold the same axis; an open run's
+    /// are not joined. Consecutive runs hold different axes, by
+    /// construction.
+    ///
+    /// # Errors
+    ///
+    /// [`NotHeld`] for the first row whose image lies on no held line.
+    pub fn runs(&self) -> Result<Vec<HeldRun>, NotHeld> {
+        let mut runs: Vec<HeldRun> = Vec::new();
+        for (row, lifted) in self.rows.iter().enumerate() {
+            let axis = lifted.held_line().ok_or(NotHeld { row })?.axis;
+            match runs.last_mut() {
+                Some(run) if run.axis == axis => run.members.push(row),
+                _ => runs.push(HeldRun {
+                    axis,
+                    members: vec![row],
+                }),
+            }
+        }
+        if self.winding.is_some() && runs.len() > 1 && runs[0].axis == runs[runs.len() - 1].axis {
+            let last = runs.pop().map(|run| run.members).unwrap_or_default();
+            runs[0].members.splice(0..0, last);
+        }
+        Ok(runs)
+    }
+
+    /// **The chart point of the joint into row `i`**, from the row before
+    /// it (the last row, for a whole loop's first): where a row of the
+    /// chart meets a column, the MEET of their two held values,
+    /// `(column's value, row's value)`, exact wherever both are; at
+    /// every other joint (two images on one line, a split's cut; a
+    /// non-iso image; an open run's first row; the closure joint of a
+    /// loop that winds a period) the point the chain enters row `i` at,
+    /// through its map. No end of an iso image is read where two lines
+    /// meet.
+    ///
+    /// # Panics
+    ///
+    /// Where `i` is not a row of the chain.
+    #[must_use]
+    pub fn joint_point(&self, i: usize) -> Point2<T> {
+        let row = &self.rows[i];
+        let before = match i.checked_sub(1) {
+            Some(b) => Some(&self.rows[b]),
+            None if self.closes_in_chart() => self.rows.last(),
+            None => None,
+        };
+        match (before.and_then(LiftedRow::held_line), row.held_line()) {
+            (Some(a), Some(b)) if a.axis != b.axis => match b.axis {
+                ChartAxis::U => Point2::new(b.value, a.value),
+                ChartAxis::V => Point2::new(a.value, b.value),
+            },
+            _ => row.entry_exit_points().0,
+        }
     }
 }
 

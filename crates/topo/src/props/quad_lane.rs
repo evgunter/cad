@@ -19,7 +19,7 @@ use geom_core::interval::certification::Certification;
 // same bound. So the module stays uninstantiable at a dual.
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3};
+use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point2, Point3};
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -1020,18 +1020,35 @@ fn cap_about(
 
 /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
 /// M8-3): certified volume flux + area of a described NURBS face whose
-/// stored pcurves pin its trim region to an exact axis-aligned UV
-/// rectangle (every loft/sweep wall — their boundaries are iso
-/// lines with exact-structure `0`/`1` chart values).
+/// trim is a rectangle of its chart: four sides, each a run of iso
+/// images on one chart line placed at an exact value (every loft/sweep
+/// wall: its seams and rims are the chart's boundary columns and rows).
 ///
-/// Structure checks are EXACT `f64` (C6: the chart values a mint
-/// places are stored with the image and read as placed,
-/// [`Pcurve::span_ends`]; a non-exact or non-rectangular
-/// boundary refuses typed, naming the trimmed-NURBS lane as the
-/// cut-loft unit's). The direction the traversal walks its rectangle
-/// ([`rectangle_winding`]) IS the S10 orientation input —
+/// The rectangle is the lines the loop's images hold and their meets
+/// ([`trim_rectangle`]), never an image's end, so a split's cut and an
+/// end a re-mint reads through a measured map are never asked to be
+/// exact; how far an end stands off its joint's point is padded
+/// ([`joint_defect`]). A loop that is not that shape refuses typed,
+/// naming the trimmed-NURBS lane as the cut-loft unit's. The direction
+/// the loop walks its rectangle IS the S10 orientation input —
 /// winding-derived end to end, like the cylinder lane; no sense bit is
 /// read.
+///
+/// **Why the rectangle's flux is the face's, to within the pad.** Every
+/// image is certified within its envelope of its edge (checks 3 and 4,
+/// stored with the row; tier 3's check 8 replays them, after this check
+/// in the one-pass battery, before it in `validate_geometric`). Each
+/// image lies on its side's line, every point of it holding that side's
+/// value, and each side's pieces run one way from the side before it to
+/// the side after it, so the images and the rectangle's boundary differ
+/// only near the joints, where an image may stop short of its joint's
+/// point or run past it. Along an image the envelope pad `Σ L·envelope`
+/// covers the strip between the image's surface curve and its edge; at
+/// a joint [`joint_defect`] covers the stretch of line between each end
+/// and the joint's point, from the gap it measures. Nothing here relies
+/// on a joint having been decided closed: a loop whose joints gape is
+/// padded by its gaps, and refused for them by tier 3
+/// (`PcurveMintError::LoopDiscontinuity`).
 #[allow(clippy::too_many_arguments)]
 fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -1063,39 +1080,20 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     {
         return trimmed_face(body, payload, outer, hes, band, window, centre, accept);
     }
-    // Exact-structure read of a T scalar (point bracket required).
-    let exact = |x: Interval| -> Result<f64, PropsError> {
-        // The refusal first: a refused crossing carries the
-        // scalar's own endpoints, so a point bracket that may not
-        // certify passes both tests below.
-        if x.is_certified() && x.lo() == x.hi() && x.lo().is_finite() {
-            Ok(x.lo())
-        } else {
-            Err(PropsError::QuadratureUnsupported {
-                what: "a NURBS-face pcurve endpoint is not exact structure — the \
-                       rectangle-trim certificate needs the minted exact 0/1 chart \
-                       values (trimmed-NURBS regions are the cut-loft unit's)",
-            })
-        }
+    let no_cache = || PropsError::QuadratureUnsupported {
+        what: "NURBS face half-edge carries no stored pcurve cache — the \
+               loft assembly mints them; a body that lost its caches must \
+               re-mint before mass properties",
     };
-    let mut segments: Vec<ChartSegment> = Vec::with_capacity(outer.len());
-    let mut slacks: Vec<SegmentSlack> = Vec::with_capacity(outer.len());
+    let mut envelopes = std::collections::HashMap::with_capacity(hes.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "NURBS face half-edge carries no stored pcurve cache — the \
-                       loft assembly mints them; a body that lost its caches must \
-                       re-mint before mass properties",
-            });
-        };
-        // Both iso classes pin the trim region to the rectangle:
-        // `IsoLine` for seams and line rims, `IsoArc` for a
-        // rational wall's arc rims (M8-3) — an arc rim's chart
-        // image is the SAME boundary line, only its
-        // parameterization differs, and this lane reads endpoints.
+    for (le, he) in outer.iter().zip(hes) {
+        let cache = body.pcurve(*he).ok_or_else(no_cache)?;
+        // Both iso classes lie on a row or a column of the chart:
+        // `IsoLine` for seams and line rims, `IsoArc` for a rational
+        // wall's arc rims (M8-3), the same line on another
+        // parameterization of it.
         if !matches!(
             cache.pcurve(),
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
@@ -1106,65 +1104,31 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
                        edge×NURBS-face boolean layer mints those trims)",
             });
         }
-        let (t0, t1) = cache.params();
-        let [a, b] = image.span_ends(cache.edge_span());
-        let (ax, ay) = (
-            exact(Interval::from_certified(a.x))?,
-            exact(Interval::from_certified(a.y))?,
-        );
-        let (bx, by) = (
-            exact(Interval::from_certified(b.x))?,
-            exact(Interval::from_certified(b.y))?,
-        );
-        if ax != bx && ay != by {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
-                       outside the rectangle lane (the cut-loft unit's)",
-            });
-        }
-        // Traversal order: the loop walks he_plus-forward edges
-        // start→end and reversed ones end→start.
-        let mag = |x: T| Interval::from_certified(x).mag();
-        let (sa, sb) = (end_slack(image, t0, mag), end_slack(image, t1, mag));
-        if le.forward {
-            segments.push(((ax, ay), (bx, by)));
-            slacks.push((sa, sb));
-        } else {
-            segments.push(((bx, by), (ax, ay)));
-            slacks.push((sb, sa));
-        }
         // Metric boundary length bound + the map-residual defect.
+        let (t0, t1) = cache.params();
         let len = carrier_metric_length(&le.carrier, t0, t1)?;
+        let envelope = Interval::from_certified(cache.certificate().envelope).mag();
         perimeter += len;
-        boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
+        boundary_defect += len * envelope;
+        envelopes.insert(*he, envelope);
     }
-    // The rectangle certificate: hull of the segments' starts, every
-    // start on its boundary, and the segments walking that boundary
-    // once — the direction IS the S10 winding.
-    let (mut u0, mut u1) = (f64::INFINITY, f64::NEG_INFINITY);
-    let (mut v0, mut v1) = (f64::INFINITY, f64::NEG_INFINITY);
-    for &((x, y), _) in &segments {
-        u0 = u0.min(x);
-        u1 = u1.max(x);
-        v0 = v0.min(y);
-        v1 = v1.max(y);
-    }
-    for &((x, y), _) in &segments {
-        if (x != u0 && x != u1) && (y != v0 && y != v1) {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a NURBS-face boundary vertex sits strictly inside the UV \
-                       rectangle — a re-entrant trim is outside the rectangle lane \
-                       (the cut-loft unit's)",
-            });
-        }
-    }
-    let winding = rectangle_winding(&segments, &slacks, (u0, u1, v0, v1)).ok_or(
-        PropsError::QuadratureUnsupported {
-            what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
-                   once — a trimmed or multiply-wound region is outside the rectangle \
-                   lane (the cut-loft unit's)",
-        },
-    )?;
+    let lift = hes
+        .first()
+        .and_then(|&first| body.get_half_edge(first))
+        .and_then(|h| crate::pcurves::Lift::read(body, h.parent_loop).ok())
+        .filter(|lift| {
+            lift.rows().len() == hes.len()
+                && lift.iter().all(|row| envelopes.contains_key(&row.half_edge))
+        })
+        .ok_or_else(no_cache)?;
+    let TrimRectangle {
+        rect: (u0, u1, v0, v1),
+        winding,
+    } = trim_rectangle(&lift)?;
+    let envelopes: Vec<f64> = lift.iter().map(|row| envelopes[&row.half_edge]).collect();
+    let (sup_u, sup_v) = payload.stretch_sup();
+    let mag = |x: T| Interval::from_certified(x).mag();
+    boundary_defect += joint_defect(&lift, (mag(sup_u.get()), mag(sup_v.get())), &envelopes);
     let control = about(
         payload
             .control()
@@ -1204,121 +1168,184 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     }))
 }
 
-/// One trim edge's chart image as `(start, end)` in traversal order.
-type ChartSegment = ((f64, f64), (f64, f64));
+/// The rectangle a NURBS face's trim states, `(u0, u1, v0, v1)`, and the
+/// way its loop walks it: `+1.0` counter-clockwise, `−1.0` clockwise.
+#[derive(Debug, PartialEq)]
+struct TrimRectangle {
+    rect: (f64, f64, f64, f64),
+    winding: f64,
+}
 
-/// How far each end of a [`ChartSegment`] may stand from the vertex it
-/// images, per chart axis, `(start, end)`: [`end_slack`].
-type SegmentSlack = ((f64, f64), (f64, f64));
+/// **The rectangle a NURBS face's trim states**, read off its loop's
+/// lift ([`crate::pcurves::Lift::runs`]): the loop is images that lie on
+/// a row or a column of the chart and nothing else; grouped into runs on
+/// one held axis there are exactly four, alternating; every piece of a
+/// run holds one value, a single number, and runs the same way along
+/// it, a decided sign; and each side runs from the side before it to
+/// the side after it. The rectangle is the four held values, its corners
+/// the meets of consecutive sides ([`crate::pcurves::Lift::joint_point`]),
+/// and the winding is the order the sides are visited, read by
+/// comparisons alone, so a rectangle whose sides are not dyadic (a
+/// sub-patch at a knot of `1/9`) is read as exactly as `[0, 1]²`.
+///
+/// No end of any image is read. A cut, a joint between two images on
+/// one line, is never asked to be exact, and a corner is the meet of two
+/// lines, never an image's end; how far an end lies from its joint's
+/// point is the pad's ([`joint_defect`]).
+fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
+    lift: &crate::pcurves::Lift<T>,
+) -> Result<TrimRectangle, PropsError> {
+    let refuse = |what| PropsError::QuadratureUnsupported { what };
+    if !lift.closes_in_chart() {
+        return Err(refuse(
+            "a NURBS-face boundary winds a period of its chart — a loop round a \
+             closed chart bounds no rectangle of it",
+        ));
+    }
+    let runs = lift.runs().map_err(|_| {
+        refuse(
+            "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
+             outside the rectangle lane (the cut-loft unit's)",
+        )
+    })?;
+    let [r0, r1, r2, r3] = runs.as_slice() else {
+        return Err(refuse(
+            "the NURBS-face boundary is not four sides of its chart — a trimmed \
+             or multiply-wound region is outside the rectangle lane (the \
+             cut-loft unit's)",
+        ));
+    };
+    // Each side's held value, one exact number, and the way it runs.
+    let side = |run: &crate::pcurves::HeldRun| -> Result<(f64, bool), PropsError> {
+        let mut held = None;
+        for &i in &run.members {
+            let Some(line) = lift.rows()[i].held_line() else {
+                unreachable!("a run's members hold its axis: `Lift::runs` read each one")
+            };
+            let value = exact_value(line.value)?;
+            let way = decided_way(line.along)?;
+            let (v, w) = *held.get_or_insert((value, way));
+            if v != value {
+                return Err(refuse(
+                    "a NURBS-face side's pieces lie on different chart lines — a \
+                     stepped trim is outside the rectangle lane (the cut-loft unit's)",
+                ));
+            }
+            if w != way {
+                return Err(refuse(
+                    "a NURBS-face side runs back on itself — a trim that doubles a \
+                     side is outside the rectangle lane (the cut-loft unit's)",
+                ));
+            }
+        }
+        held.ok_or_else(|| unreachable!("a run has a member"))
+    };
+    let sides = [side(r0)?, side(r1)?, side(r2)?, side(r3)?];
+    // Side `k` runs from the line of side `k − 1` to that of side `k + 1`.
+    for k in 0..4 {
+        let (from, to) = (sides[(k + 3) % 4].0, sides[(k + 1) % 4].0);
+        if from == to || (to > from) != sides[k].1 {
+            return Err(refuse(
+                "the NURBS-face boundary does not traverse its UV rectangle exactly \
+                 once — a trimmed or multiply-wound region is outside the rectangle \
+                 lane (the cut-loft unit's)",
+            ));
+        }
+    }
+    // The sides alternate, so 0 and 2 hold one axis and 1 and 3 the other.
+    let (row, column) = match r0.axis {
+        geom_brep::ChartAxis::V => (0, 1),
+        geom_brep::ChartAxis::U => (1, 0),
+    };
+    let span = |a: f64, b: f64| (a.min(b), a.max(b));
+    let (u0, u1) = span(sides[column].0, sides[column + 2].0);
+    let (v0, v1) = span(sides[row].0, sides[row + 2].0);
+    // Counter-clockwise walks the bottom row with `u` and the top against it.
+    let ccw = (sides[row].0 == v0) == sides[row].1;
+    Ok(TrimRectangle {
+        rect: (u0, u1, v0, v1),
+        winding: if ccw { 1.0 } else { -1.0 },
+    })
+}
 
-/// How far an iso image's point at `t` may round from the vertex it
-/// images, per chart axis, from what it is computed from: an `IsoLine`
-/// is `p₀ + l·t`, two roundings of those terms, or its stated end, which
-/// carries no rounding of its own and so takes the same slack as the map
-/// it stands beside (a bound, never tighter than needed); an `IsoArc` is
-/// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
-/// which rounds `g` itself by a few ulps of one, and through each
-/// sub-arc's Möbius change where its row's end weights differ
-/// (`ends`), which scales that rounding near the sub-arc's ends by up to
-/// `max(λ, 1/λ)` and adds its own division's. NaN for any other kind,
-/// which joins nothing. `m` reads a scalar's magnitude, upward.
-fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
-    let ulps = |x: f64| 4.0 * f64::EPSILON * x;
-    match image {
-        Pcurve::IsoLine { p0, pl, .. } => {
-            (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t)))
-        }
-        Pcurve::IsoArc { p0, pd, ends, .. } => {
-            let skew = ends
-                .windows(2)
-                .map(|e| {
-                    let lambda = geom_brep::iso_arc_skew(e[0], e[1]);
-                    m(lambda).max(m(T::one() / lambda))
-                })
-                .fold(1.0_f64, f64::max);
-            let g = 4.0 * (skew + 1.0);
-            (
-                ulps(m(p0.x) + m(pd.x)) + g * ulps(m(pd.x)),
-                ulps(m(p0.y) + m(pd.y)) + g * ulps(m(pd.y)),
-            )
-        }
-        _ => (f64::NAN, f64::NAN),
+/// A held value as the exact number it is: a certified point bracket.
+fn exact_value<T: Bounds + CertifiedEnclosure>(x: T) -> Result<f64, PropsError> {
+    let x = Interval::from_certified(x);
+    // The refusal first: a refused crossing carries the scalar's own
+    // endpoints, so a point bracket that may not certify passes both
+    // tests below.
+    if x.is_certified() && x.lo() == x.hi() && x.lo().is_finite() {
+        Ok(x.lo())
+    } else {
+        Err(PropsError::QuadratureUnsupported {
+            what: "a NURBS-face boundary line's held value is not exact structure — \
+                   the rectangle-trim certificate needs each side's chart value as one \
+                   number (a line placed at a measured foot is the cut-loft unit's)",
+        })
     }
 }
 
-/// Whether the trim's iso segments, each `(start, end)` in traversal
-/// order, walk the boundary of the rectangle `(u0, u1, v0, v1)` exactly
-/// once: `+1.0` counter-clockwise, `−1.0` clockwise, `None` otherwise.
-/// Read by comparisons alone, so a rectangle whose sides are not dyadic
-/// (a sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
-/// which a shoelace in `f64` cannot promise.
+/// The way a piece runs along its line ([`crate::pcurves::HeldLine::along`]):
+/// `true` with its moving channel, decided by the rate's certified
+/// bracket lying wholly on one side of zero.
+fn decided_way<T: Bounds + CertifiedEnclosure>(along: T) -> Result<bool, PropsError> {
+    let x = Interval::from_certified(along);
+    if x.is_certified() && x.lo() > 0.0 {
+        Ok(true)
+    } else if x.is_certified() && x.hi() < 0.0 {
+        Ok(false)
+    } else {
+        Err(PropsError::QuadratureUnsupported {
+            what: "a NURBS-face boundary piece's way along its chart line is not \
+                   decided — the rectangle-trim certificate reads each side's direction",
+        })
+    }
+}
+
+/// **How far the trim's images stand off the rectangle at its joints**,
+/// as a metric area: the term [`trim_rectangle`]'s reading adds to the
+/// envelope pad `Σ L·envelope`.
 ///
-/// A once-around walk is closed and connected, each segment starting
-/// where the one before it ended. Each segment is axis-aligned, so it
-/// lies on one side of the rectangle (or inside it, which refuses) and
-/// runs one way along it. A once-around walk runs every moving segment
-/// the same way round and visits the four sides in their order, each in
-/// one run.
-fn rectangle_winding(
-    segments: &[ChartSegment],
-    slacks: &[SegmentSlack],
-    (u0, u1, v0, v1): (f64, f64, f64, f64),
-) -> Option<f64> {
-    if u0 >= u1 || v0 >= v1 {
-        return None;
+/// At the joint into row `i` the rectangle's boundary passes through the
+/// joint's point `M` ([`crate::pcurves::Lift::joint_point`]: the meet
+/// where two sides meet, the entry point at a cut), while the row before
+/// it leaves its line at `P` and row `i` enters at `Q`. Each image lies
+/// on its side's line, so the boundary and the images differ there by
+/// the stretch of line between `P` and `M` and that between `M` and `Q`,
+/// covered by no image or by two. The stretch from `P` has a metric
+/// length of at most `a = sup|S_u|·|ΔP_u| + sup|S_v|·|ΔP_v|`, and starts
+/// within the arriving image's envelope `e` of its edge's end, so it
+/// stays within `a + e` of that end and sweeps at most `a·(a + 2e)`
+/// between itself and the edge (the `2e` holds the edge's own run from
+/// that end past an overshoot); the same for `Q` with `b` and the leaving
+/// image's envelope. Each joint adds `a·(a + 2e₋) + b·(b + 2e₊)`,
+/// computed upward. A corner whose image ends read as its meet adds
+/// nothing, and a joint whose gap decides closed at the band (tier 3's
+/// reading, `crate::pcurves::spline_gap_closes`, through the same sups)
+/// adds at most `ε·(ε + 2e₋) + ε·(ε + 2e₊)`.
+fn joint_defect<T: Decide + Bounds + CertifiedEnclosure>(
+    lift: &crate::pcurves::Lift<T>,
+    (sup_u, sup_v): (f64, f64),
+    envelopes: &[f64],
+) -> f64 {
+    let iv = Interval::from_certified;
+    let (su, sv) = (Interval::point(sup_u), Interval::point(sup_v));
+    let n = lift.rows().len();
+    let mut defect = Interval::zero();
+    for i in 0..n {
+        let before = (i + n - 1) % n;
+        let m = lift.joint_point(i);
+        let off = |x: T| Interval::point(iv(x).mag());
+        let reach = |p: Point2<T>| Interval::point((su * off(p.x - m.x) + sv * off(p.y - m.y)).mag());
+        let (a, b) = (
+            reach(lift.rows()[before].entry_exit_points().1),
+            reach(lift.rows()[i].entry_exit_points().0),
+        );
+        let (e0, e1) = (Interval::point(envelopes[before]), Interval::point(envelopes[i]));
+        let two = Interval::point(2.0);
+        defect = defect + a * (a + two * e0) + b * (b + two * e1);
     }
-    // Each moving segment's side (bottom, right, top, left: the
-    // counter-clockwise order) and whether it runs counter-clockwise.
-    let mut sides = Vec::with_capacity(segments.len());
-    let mut ccw = None;
-    // Each segment starts where the one before it ended: the two are one
-    // vertex's images, each within its own slack of it, and a wider gap
-    // is two vertices.
-    if slacks.len() != segments.len() {
-        return None;
-    }
-    let ends = segments.iter().zip(slacks);
-    let joined = ends.clone().zip(ends.cycle().skip(1)).all(
-        |((&(_, (ex, ey)), &(_, (rx, ry))), (&((sx, sy), _), &((qx, qy), _)))| {
-            (ex - sx).abs() <= rx + qx && (ey - sy).abs() <= ry + qy
-        },
-    );
-    if !joined {
-        return None;
-    }
-    for &((ax, ay), (bx, by)) in segments {
-        let (side, forward) = if ay == by && ax != bx {
-            match ay {
-                y if y == v0 => (0u8, bx > ax),
-                y if y == v1 => (2, bx < ax),
-                _ => return None,
-            }
-        } else if ax == bx && ay != by {
-            match ax {
-                x if x == u1 => (1, by > ay),
-                x if x == u0 => (3, by < ay),
-                _ => return None,
-            }
-        } else if ax == bx && ay == by {
-            // A segment whose image is one chart point walks no way.
-            continue;
-        } else {
-            return None;
-        };
-        if *ccw.get_or_insert(forward) != forward {
-            return None;
-        }
-        if sides.last() != Some(&side) {
-            sides.push(side);
-        }
-    }
-    if sides.len() > 1 && sides.first() == sides.last() {
-        sides.pop();
-    }
-    let ccw = ccw?;
-    let next = |s: u8| if ccw { (s + 1) % 4 } else { (s + 3) % 4 };
-    let once = sides.len() == 4 && (0..4).all(|i| sides[(i + 1) % 4] == next(sides[i]));
-    once.then_some(if ccw { 1.0 } else { -1.0 })
+    defect.mag()
 }
 
 /// A certified UPPER bound on a trim carrier's METRIC length, in
@@ -2275,159 +2302,6 @@ mod tests {
                     "tight {tight}: the re-derivation is every face's closed form"
                 );
             }
-        }
-    }
-
-    /// `rectangle_winding` on hand-built walks of the unit square.
-    #[allow(clippy::float_cmp)]
-    mod rectangle_winding {
-        use super::super::{ChartSegment, SegmentSlack, end_slack, rectangle_winding};
-        use geom_brep::Pcurve;
-        use geom_core::{Point2, Vec2};
-
-        const R: (f64, f64, f64, f64) = (0.0, 1.0, 0.0, 1.0);
-
-        /// The slack of a walk on the unit square read off unit-sized
-        /// terms: four ulps of one at every end.
-        fn unit(w: &[ChartSegment]) -> Vec<SegmentSlack> {
-            let e = 4.0 * f64::EPSILON;
-            vec![((e, e), (e, e)); w.len()]
-        }
-
-        const ONCE: [ChartSegment; 4] = [
-            ((0.0, 0.0), (1.0, 0.0)),
-            ((1.0, 0.0), (1.0, 1.0)),
-            ((1.0, 1.0), (0.0, 1.0)),
-            ((0.0, 1.0), (0.0, 0.0)),
-        ];
-
-        #[test]
-        fn once_around_reads_its_direction_and_twice_around_refuses() {
-            assert_eq!(
-                rectangle_winding(&ONCE, &unit(&ONCE), R),
-                Some(1.0),
-                "counter-clockwise"
-            );
-            let cw: Vec<ChartSegment> = ONCE.iter().rev().map(|&(a, b)| (b, a)).collect();
-            assert_eq!(
-                rectangle_winding(&cw, &unit(&cw), R),
-                Some(-1.0),
-                "clockwise"
-            );
-            let twice: Vec<ChartSegment> = ONCE.iter().chain(&ONCE).copied().collect();
-            assert_eq!(
-                rectangle_winding(&twice, &unit(&twice), R),
-                None,
-                "twice around"
-            );
-        }
-
-        /// A vertex whose two images round apart by an ulp along their
-        /// side, as a degree-1 path sweep's wall closes, is one vertex.
-        #[test]
-        fn a_vertex_an_ulp_apart_on_its_two_images_is_one_vertex() {
-            let below_one = 1.0 - f64::EPSILON / 2.0;
-            let mut w = ONCE;
-            w[0].1 = (below_one, 0.0);
-            w[2].0 = (below_one, 1.0);
-            assert_eq!(rectangle_winding(&w, &unit(&w), R), Some(1.0));
-        }
-
-        /// Walks the segment sides and directions alone would read as
-        /// once around, each with a gap between two segments.
-        #[test]
-        fn a_walk_with_a_gap_refuses() {
-            let mut gap = ONCE;
-            gap[1].0 = (1.0, 0.5);
-            assert_eq!(
-                rectangle_winding(&gap, &unit(&gap), R),
-                None,
-                "the right side starts half way up"
-            );
-            let mut short = ONCE;
-            short[1].1 = (1.0, 0.5);
-            assert_eq!(
-                rectangle_winding(&short, &unit(&short), R),
-                None,
-                "the right side stops short"
-            );
-            let mut hair = ONCE;
-            hair[1].0 = (1.0, 1e-9);
-            assert_eq!(
-                rectangle_winding(&hair, &unit(&hair), R),
-                None,
-                "a gap of 1e-9"
-            );
-            let mut more = ONCE.to_vec();
-            more.push(((0.0, 0.0), (0.5, 0.0)));
-            assert_eq!(
-                rectangle_winding(&more, &unit(&more), R),
-                None,
-                "five quarters round, unclosed"
-            );
-        }
-
-        /// A spur on the bottom side, out to 1, back to 1/2, out again.
-        #[test]
-        fn a_spur_on_one_side_refuses() {
-            let w = [
-                ((0.0, 0.0), (1.0, 0.0)),
-                ((1.0, 0.0), (0.5, 0.0)),
-                ((0.5, 0.0), (1.0, 0.0)),
-                ((1.0, 0.0), (1.0, 1.0)),
-                ((1.0, 1.0), (0.0, 1.0)),
-                ((0.0, 1.0), (0.0, 0.0)),
-            ];
-            assert_eq!(rectangle_winding(&w, &unit(&w), R), None);
-        }
-
-        /// An `IsoLine` read at parameters about 100 rounds at ulps of
-        /// 100, not of the rectangle: the bottom side `x = −100 + t` ends
-        /// at `t = 100.7` some ulps of 100 off the right side's
-        /// `x = 0.7`, and is one vertex.
-        #[test]
-        fn an_image_at_offset_parameters_joins_within_its_own_slack() {
-            let bottom = Pcurve::IsoLine {
-                p0: Point2::new(-100.0, 0.0),
-                pl: Vec2::new(1.0, 0.0),
-                ends: None,
-            };
-            let at = |c: &Pcurve<f64>, t: f64| {
-                let p = c.eval(t);
-                (p.x, p.y)
-            };
-            let right = Pcurve::IsoLine {
-                p0: Point2::new(0.7, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
-            };
-            let top = Pcurve::IsoLine {
-                p0: Point2::new(0.7, 1.0),
-                pl: Vec2::new(-1.0, 0.0),
-                ends: None,
-            };
-            let left = Pcurve::IsoLine {
-                p0: Point2::new(0.0, 1.0),
-                pl: Vec2::new(0.0, -1.0),
-                ends: None,
-            };
-            let walk = [
-                (&bottom, 100.0, 100.7),
-                (&right, 0.0, 1.0),
-                (&top, 0.0, 0.7),
-                (&left, 0.0, 1.0),
-            ];
-            let segments: Vec<ChartSegment> =
-                walk.iter().map(|&(c, a, b)| (at(c, a), at(c, b))).collect();
-            assert_ne!(segments[0].1, segments[1].0, "the two images round apart");
-            let slacks: Vec<SegmentSlack> = walk
-                .iter()
-                .map(|&(c, a, b)| (end_slack(c, a, f64::abs), end_slack(c, b, f64::abs)))
-                .collect();
-            assert_eq!(
-                rectangle_winding(&segments, &slacks, (0.0, 0.7, 0.0, 1.0)),
-                Some(1.0)
-            );
         }
     }
 }
