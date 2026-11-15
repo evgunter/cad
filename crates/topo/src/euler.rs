@@ -280,7 +280,7 @@ pub enum FaceSurface<T: Real> {
     /// demoting face.
     Inherit,
     /// Mint a new surface for the new face (the sweep's usual case —
-    /// e.g. a Newell-certified plane from `geom_brep::newell_plane`).
+    /// e.g. a sweep's cap, its station's frame).
     New {
         /// The surface to mint.
         surface: Surface<T>,

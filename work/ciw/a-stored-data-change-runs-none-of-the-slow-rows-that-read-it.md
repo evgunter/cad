@@ -80,3 +80,5 @@ says what the gate does. The cost side is
 **Until then** an orchestrator whose unit changes stored data asks its
 lane for a head-against-merge-base differential of the slow set, as
 BOXFINISH now does.
+
+- 2026-11-15 — **what the gap costs once a program compensates for it** (BOXFINISH orchestrator). After its merges left slow rows red on main, BOXFINISH requires a head-against-merge-base run of the slow set before any merge. In a lane's 4-vCPU container that is 45 to 70 minutes per tree for `topo`, `sweep` and `editor-core`, twice for the differential, and again after each merge of main: three units paid it on 2026-11-15 (PRs 6979, 6982, 6990), and PR 6972 about three hours of it. A hosted slow-set job on PRs that touch kernel sources would take this off every lane.

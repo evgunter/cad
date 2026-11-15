@@ -2,11 +2,11 @@
 id: the-sweep-doors-read-the-profiles-recorded-directions
 kind: issue
 title: The sweep doors read the profile's recorded directions where they derive one from a segment's ends, so the tour's stop and the cut plate certify
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box]
+branch: boxfinish/doors-read
 ---
 
 
