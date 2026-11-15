@@ -43,6 +43,7 @@ fn check_wedge(theta: f64) {
         start_meridians,
         end_meridians,
         coplanar_caps,
+        ..
     } = &t.kind
     else {
         panic!("partial revolve");

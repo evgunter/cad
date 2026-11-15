@@ -140,7 +140,6 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("sweep_path_turn", PATH),
     ("sweep_station_roll", PATH),
     ("sweep_station_still", PATH),
-    ("cap_plane_orientation", CAP),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
@@ -153,8 +152,6 @@ const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveEr
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const PATH: &str = "the path sweep's station tangents, chords and turns, typed on `SkinError`";
-const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
-                   the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 

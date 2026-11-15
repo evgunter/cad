@@ -22,3 +22,10 @@ Found by GREEN's `green/goldens` lane, from nightly 43371638371 (main `e36675c1`
 Reproduce: `cargo nextest run -p editor-core -E 'test(the_answer_is_deterministic_across_repeats)'` (slow set; revert the pin to see the floor).
 
 **The pin reds on the next improvement too.** `assert_eq!(cells, 992)` goes red whenever clearance discharges this pair in a different number of cells, which a tighter support test will do again. That red is the pin, not a defect: re-take the count, or better, do what this row owes and take the count out of the determinism row (a floor bolted onto another row's claim is what `docs/prompts/implementer-discipline.md` §8 says not to do; the pin is there only so the row is not vacuous in the meantime).
+
+- 2026-11-15 — BOXFINISH (`boxfinish/sweep-frames`): the count moved
+  992 → 978 (`splits` 991 → 977, `outside` 344 → 330) at every ε row
+  when the extrudes' caps and walls became their sketch frames (which
+  stored value the subdivision reads differently is not traced); the
+  answer and the repeats' bit-equality hold. Re-pinned at 978; the ask is
+  unchanged.

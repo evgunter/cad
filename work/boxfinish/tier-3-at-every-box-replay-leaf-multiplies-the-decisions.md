@@ -2,12 +2,11 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: parked
+status: open
 opened: 2026-11-02
 priority: P0
 cost: H
 refs: [6371]
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -104,3 +103,13 @@ parked on the two rows that remove the forced bisection, and is
 measured again on the tree that has them. What is then left (the
 repeated body, the build's decisions made twice) is filed from that
 measurement, not from this one.
+
+## Un-parked (2026-11-15): the frames landed (PR 6972); being measured again
+
+Both repairs M1 substituted by hand are built: the aimed ray (PR 6958)
+and the frames (PR 6972). The measurement lane M4 re-takes this row's
+table on three trees (the frames' head with the switch on; the probe
+with main; the probe with the frames) and counts what still refuses at
+a finish, with the directions the doors still derive from a segment's
+ends counted apart (`the-sweep-doors-read-the-profiles-recorded-directions`,
+in flight). This row is re-stated from that measurement.
