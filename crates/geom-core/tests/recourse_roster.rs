@@ -36,7 +36,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("forward"),
     NameCarrier::Call("registered"),
     NameCarrier::Call("render_as"),
-    NameCarrier::Call("turned_between"),
+    NameCarrier::Call("least_turn"),
+    NameCarrier::Const("LEAST_TURN_CONDITIONING"),
     // The unit-direction row the normalising doors read at.
     NameCarrier::Const("UNIT_DIRECTION_ARM"),
     // The rigidity check's table of rows, read in a loop.
@@ -124,7 +125,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "linalg/rigid_motion.rs: admitted_for_a_suite: check",
         ROW_TABLE,
     ),
-    ("linalg/rigid_motion.rs: turned_between: site", FORWARDS),
+    ("linalg/rigid_motion.rs: least_turn: site", FORWARDS),
     ("linalg/rigid_motion.rs: turned_onto: self.w", CARRIER_CALL),
     ("linalg/unit_vec.rs: decide_direction_by: site", FORWARDS),
     ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),
