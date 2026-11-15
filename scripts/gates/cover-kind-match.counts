@@ -14,7 +14,7 @@ arm 1 crates/geom-brep/src/curve_face/spline_face.rs
 whole 1 crates/geom-brep/src/curve_pair/pose.rs
 arm 1 crates/geom-brep/src/curve_pair/span.rs
 arm 1 crates/geom-brep/src/edge_nurbs.rs
-arm 17 crates/geom-brep/src/extent.rs
+arm 14 crates/geom-brep/src/extent.rs
 ball 2 crates/geom-brep/src/extent.rs
 arm 7 crates/geom-brep/src/implicit.rs
 ball 7 crates/geom-brep/src/implicit.rs
@@ -106,7 +106,7 @@ arm 7 crates/topo/src/face_normal.rs
 arm 7 crates/topo/src/injective.rs
 arm 2 crates/topo/src/link.rs
 arm 9 crates/topo/src/offset_axial.rs
-arm 13 crates/topo/src/offset_derive.rs
+arm 11 crates/topo/src/offset_derive.rs
 arm 1 crates/topo/src/offset_together.rs
 arm 5 crates/topo/src/pcurves/decision.rs
 arm 1 crates/topo/src/props.rs
