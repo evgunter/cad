@@ -1534,7 +1534,7 @@ impl<T: Real> Curve3<T> {
     /// [`Conic::point_at`] on the circle they make, the very expression
     /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
     /// builds a point here builds the node either would. That is what
-    /// `sweep::swept::register_placed_carrier_ends` rests on — node ids are
+    /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
     /// content hashes, so "the constructor states the identity about the
     /// node the certifier will ask about" is a fact of this delegation and
     /// not a transcription anyone has to keep in step.

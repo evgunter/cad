@@ -581,11 +581,11 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     }
 }
 
-/// **A unit sketch direction**, read only from the directions a
-/// segment's traversal holds ([`sketch_direction`]): the ones the
-/// profile recorded, or a half turn's construction. Nothing in the
-/// sweep divides a sketch difference by its own length for one. The
-/// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
+/// **A unit sketch direction**, minted only from a segment
+/// ([`sketch_direction`]): a line's recorded director, or an arc's start
+/// radial over its own length, the sweep's one place that divides a
+/// sketch difference by its length. The station's frame carries it to a
+/// [`Unit3`] ([`Placing::direction`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit2<T: Real>(Vec2<T>);
 
@@ -646,19 +646,24 @@ impl<T: Real> Unit3<T> {
 }
 
 /// **The sketch direction a placed copy of the segment carries**, in
-/// swept order: a line's director, an arc's radial at its swept start,
-/// as its traversal holds them ([`Traversed`]) — the profile's recorded
-/// directions, carried through the traversal's relabelling. Every
-/// placed copy is the station's frame turning it
-/// ([`Placing::direction`]), so no door divides a difference of points
-/// by its own length.
+/// swept order: a line's director as its traversal holds it
+/// ([`Traversed`]), the profile's recorded director carried through the
+/// traversal's relabelling; an arc's radial at its swept start,
+/// `(a − centre)/‖a − centre‖`. Every placed copy is the station's
+/// frame turning it ([`Placing::direction`]).
+///
+/// **The arc arm is the sweep's one division of a sketch difference by
+/// its own length**, and it divides although the arm holds the recorded
+/// radial: a carrier about the recorded radial is `centre + radius·x`
+/// where a verb's vertex is `centre + r·x` and its stored radius `|r|`,
+/// and the symbolic tier cannot use the sign the verb's gate decided, so
+/// over a box such a carrier misses its own description by `|r| − r`;
+/// the quotient's rim folds onto the stored radius instead
+/// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`).
 pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
     match seg.kind().get() {
         SegmentKind::Line { director } => Unit2(director),
-        SegmentKind::Arc {
-            radials: [start, _],
-            ..
-        } => Unit2(start),
+        SegmentKind::Arc { arc, .. } => Unit2((seg.a() - arc.centre).normalize()),
     }
 }
 
@@ -745,75 +750,60 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
         .handle("a placed arc's ‖q − c‖ from its sketch rim");
 }
 
-/// **A placed arc's carrier ends ARE its sketch carrier's ends, placed**
-/// — the second fact of rigidity the sweep registers about a profile
-/// arc ([`geom_core::Real::register_equal`]), per component, at the
-/// carrier's start and at its span.
+/// **A placed arc's carrier end IS its sketch carrier end, placed** —
+/// the second fact of rigidity the sweep registers about a profile arc
+/// ([`geom_core::Real::register_equal`]), per component.
 ///
 /// **The proof.** The carrier is the circle about `place(centre)` with
-/// radius `radius`, reference direction `u_ref` the arc's recorded unit
-/// radial at its swept start, `radial`, carried by the spec's `radial`
-/// placing, and axis the turn-signed plane normal. At parameter 0 it is
-/// `place(centre) + radius·L·radial`, which is `place(centre +
-/// radius·radial)` for every affine placement with linear part `L`:
-/// [`Arc2::on_radial`]. A rigid placement maps the sketch plane's
-/// rotation about `centre` by the signed sweep onto the 3-space rotation
-/// about that axis by `|Δθ|`, so the carrier at its span is `place` of
-/// the sketch point the sweep turns `radial` to,
-/// [`Arc2::on_turned_radial`]. Neither reads whether `radial` points at
-/// a vertex or the stored centre and radius agree with one, so both hold
-/// for every carrier, a copied or table one included. Where the
-/// placement is not rigid, the door's own witness refuses typed, as at
-/// [`register_rigidity`].
+/// radius `radius`, reference direction `u_ref` the sketch direction
+/// `(start − centre)/‖start − centre‖` ([`sketch_direction`]) carried by
+/// the spec's `radial` placing, and axis the turn-signed plane normal,
+/// evaluated at the span `|Δθ|`. A rigid placement maps the sketch
+/// plane's rotation about `centre` by the signed sweep onto the 3-space
+/// rotation about that axis by `|Δθ|`, so the carrier at
+/// its span is `place` of the sketch carrier's own end,
+/// [`Arc2::carrier_end`] from `start`. Nothing in it reads whether
+/// `start` lies on the carrier, so it holds for every carrier, a copied
+/// or table one included. Where the placement is not rigid, the door's
+/// own witness refuses typed, as at [`register_rigidity`].
 ///
 /// `radial` is `place` everywhere but one site: a full revolve's sphere
 /// meridian whose start is pinned on the axis takes its `u_ref` from the
 /// unturned placement (`revolve::full`). That radial lies along the
 /// axis, which the half turn fixes, so the two placings carry it to the
-/// same direction over the reals and the identities registered here,
-/// against `place`, hold there too.
+/// same direction over the reals and the identity registered here,
+/// against `place`, holds there too.
 ///
-/// **What they chain through.** A construction that records radials
-/// registers the sketch facts at its vertices: `centre + radius·radial`
-/// IS the vertex each radial points at (`Arc2::register_radials`), and
-/// the turned start radial IS the far vertex where the radial is its
-/// start's own quotient (`Arc2::register_endpoints`, through
-/// [`Arc2::carrier_end`]). The tier's alias applies inside the early
-/// walk, so the placed carrier's ends take the placed vertices' forms.
-/// A carrier the construction did not register claims nothing past
-/// rigidity, and its ends discharge numerically or escalate.
+/// **What it chains through.** The construction registers the sketch
+/// carrier end against the arc's far vertex (`Arc2::register_endpoints`),
+/// which is the step that needs the start on the carrier; the tier's
+/// alias applies inside the early walk, so the placed carrier end's form
+/// is the placed far vertex's, and the carrier's far end reaches it
+/// without a registration of the whole point against it. A carrier the
+/// construction did not register claims nothing past rigidity, and its
+/// far end discharges numerically or escalates.
 ///
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
-/// own carrier is the node the certifier evaluates; the placed sketch
-/// points are built here and thrown away.
-fn register_placed_carrier_ends<T: Real>(
+/// own carrier and span is the node the certifier evaluates; the
+/// placed carrier end is built here and thrown away.
+fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
     place: Placing<T>,
     arc: Arc2<T>,
-    radial: Vec2<T>,
+    start: Point2<T>,
     tol: Tol,
 ) {
     let Some(circle) = carrier.as_circle() else {
         return;
     };
-    for (param, sketch, fact) in [
-        (
-            T::zero(),
-            arc.on_radial(radial),
-            "a placed arc's carrier start from its placed sketch radial",
-        ),
-        (
-            param_end,
-            arc.on_turned_radial(radial),
-            "a placed arc's carrier end from its placed sketch carrier end",
-        ),
-    ] {
-        let built = Curve3::circle_at(&circle.frame, circle.radius, param);
-        let held = place.point(sketch);
-        for (b, h) in [(built.x, held.x), (built.y, held.y), (built.z, held.z)] {
-            b.register_equal(h, tol).handle(fact);
-        }
+    let end = Curve3::circle_at(&circle.frame, circle.radius, param_end);
+    let sketch = arc.carrier_end(start);
+    let placed = place.point(sketch);
+    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
+        built
+            .register_equal(held, tol)
+            .handle("a placed arc's carrier end from its placed sketch carrier end");
     }
 }
 
@@ -831,7 +821,7 @@ fn register_placed_carrier_ends<T: Real>(
 /// [`sketch_direction`], and a line's span is the sketch chord's
 /// length, which a rigid placement keeps. `tol` is the run's ε, carried
 /// through to the rigidity the arc arm states ([`register_rigidity`],
-/// [`register_placed_carrier_ends`]) and used for nothing else here.
+/// [`register_placed_carrier_end`]) and used for nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
@@ -887,18 +877,17 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rigidity(rim, arc, seg.a(), tol);
-            let start = sketch_direction(seg);
             let carrier = Curve3::circle(
                 c_world,
                 turn_axis(turn, normal),
                 arc.radius,
-                radial.direction(start).get(),
+                radial.direction(sketch_direction(seg)).get(),
             );
             let param_end = arc_span(turn, arc);
-            // The carrier's ends, stated where they are guaranteed
-            // (`register_placed_carrier_ends` carries the proof), about
-            // the very carrier and span the spec carries.
-            register_placed_carrier_ends(&carrier, param_end, place, arc, start.0, tol);
+            // The carrier end, stated where it is guaranteed
+            // (`register_placed_carrier_end` carries the proof), about the
+            // very carrier and span the spec carries.
+            register_placed_carrier_end(&carrier, param_end, place, arc, seg.a(), tol);
             EdgeCurveSpec {
                 description,
                 carrier,

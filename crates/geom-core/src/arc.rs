@@ -241,22 +241,9 @@ impl<T: Real> Arc2<T> {
     /// carrier (`rim(a) = radius`), which is the construction's fact to
     /// state, not this reading's.
     pub fn carrier_end(self, a: Point2<T>) -> Point2<T> {
-        self.on_turned_radial((a - self.centre) / self.rim(a))
-    }
-
-    /// The carrier's point at the end of the sweep, reached from the
-    /// unit `radial`: `centre + radius·R(sweep)·radial`. For the radial
-    /// at a start vertex it is the point a carrier built from this arc's
-    /// centre, radius and sweep about that radial evaluates to at its
-    /// span; [`Arc2::carrier_end`] is it at the radial a start point's
-    /// offset makes.
-    pub fn on_turned_radial(self, radial: Vec2<T>) -> Point2<T> {
+        let u = (a - self.centre) / self.rim(a);
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
-        self.centre
-            + Vec2::new(
-                radial.x * cos - radial.y * sin,
-                radial.x * sin + radial.y * cos,
-            ) * self.radius
+        self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
     }
 
     /// **Registers a tangency at a foot** ([`Real::register_equal`]),
@@ -366,22 +353,14 @@ impl<T: Real> Arc2<T> {
     /// **Registers the radial facts** of this arc between `a` and `b`
     /// ([`Real::register_equal`]), per component: the carrier point
     /// along the start radial is `a` and along the end radial is `b`
-    /// ([`Arc2::on_radial`]), and the start radial turned by the sweep
-    /// lands on `b` and the end radial turned back by it on `a`
-    /// ([`Arc2::on_turned_radial`], of this arc and of its reversal).
-    /// The fact states the radial's direction and its length at once,
-    /// since the radius is the rim at each end.
+    /// ([`Arc2::on_radial`]). The fact states the radial's direction
+    /// and its length at once, since the radius is the rim at each end.
     ///
     /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
-    /// sound only where the CALLER built both radials so that the first
-    /// two hold over the reals wherever its construction's decisions
-    /// hold (a radius decided positive is `|r|`), and its doc comment
-    /// carries that proof. The turned two follow from them and from the
-    /// endpoint facts the same construction registers: where
-    /// `centre + radius·start = a` with `radius > 0` and `start` a unit,
-    /// `start` is `(a − centre)/rim(a)`, so the start radial turned by
-    /// the sweep is [`Arc2::carrier_end`] from `a`, which is `b`; and
-    /// the same at `b` for the reversal.
+    /// sound only where the CALLER built both radials so that this holds
+    /// over the reals wherever its construction's decisions hold (a
+    /// radius decided positive is `|r|`), and its doc comment carries
+    /// that proof.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_radials(
@@ -390,33 +369,13 @@ impl<T: Real> Arc2<T> {
         b: Point2<T>,
         [start, end]: [Vec2<T>; 2],
         tol: Tol,
-    ) -> [(&'static str, SymRegistration); 8] {
+    ) -> [(&'static str, SymRegistration); 4] {
         let (from, to) = (self.on_radial(start), self.on_radial(end));
-        let (turned, back) = (
-            self.on_turned_radial(start),
-            self.reversed().on_turned_radial(end),
-        );
         [
             ("the start radial's x", from.x.register_equal(a.x, tol)),
             ("the start radial's y", from.y.register_equal(a.y, tol)),
             ("the end radial's x", to.x.register_equal(b.x, tol)),
             ("the end radial's y", to.y.register_equal(b.y, tol)),
-            (
-                "the turned start radial's x",
-                turned.x.register_equal(b.x, tol),
-            ),
-            (
-                "the turned start radial's y",
-                turned.y.register_equal(b.y, tol),
-            ),
-            (
-                "the turned-back end radial's x",
-                back.x.register_equal(a.x, tol),
-            ),
-            (
-                "the turned-back end radial's y",
-                back.y.register_equal(a.y, tol),
-            ),
         ]
     }
 }
@@ -612,9 +571,8 @@ mod tests {
     }
 
     /// **The radial facts, and a planted lie, at the exact witness.**
-    /// The quarter circle's radials (1, 0) and (0, 1) meet, as do they
-    /// turned by the sweep and back; swapped, each is refused in both
-    /// components.
+    /// The quarter circle's radials (1, 0) and (0, 1) meet; swapped,
+    /// each is refused in both components.
     #[test]
     fn register_radials_refuses_a_planted_lie_at_the_exact_witness() {
         let (arc, a, b) = quarter_circle::<Interval>();
@@ -628,12 +586,12 @@ mod tests {
         };
         assert_eq!(
             answers([x, y]),
-            [SymRegistration::Witnessed; 8],
+            [SymRegistration::Witnessed; 4],
             "the true radials"
         );
         assert_eq!(
             answers([y, x]),
-            [SymRegistration::Contradicted; 8],
+            [SymRegistration::Contradicted; 4],
             "the radials swapped"
         );
     }

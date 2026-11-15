@@ -141,7 +141,7 @@
 //! `Arc2::register_endpoints`) states the endpoint facts its algebra
 //! proves in the sketch: the rim at each end is the radius, and the
 //! carrier's end is the far vertex. The sweep that places the arc states only rigidity
-//! (`sweep::swept::register_rigidity`, `register_placed_carrier_ends`):
+//! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
 //! the placed rim is the sketch rim, and the placed carrier at its span
 //! is the sketch carrier's end, placed — the latter same-object because
 //! `Curve3::eval`'s `Circle` arm DELEGATES to a `Real`-bounded door
@@ -7175,7 +7175,7 @@ mod tests {
     /// The arc carrier's far-end identity, in miniature — the carrier at
     /// its span is the far vertex, `carrier.eval(θ) = q_to` (M10-9
     /// amendment A1; stated today as a chain of
-    /// `sweep::swept::register_placed_carrier_ends` and the lowering's
+    /// `sweep::swept::register_placed_carrier_end` and the lowering's
     /// `Arc2::register_endpoints`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
     /// residual carries `cos`/`sin` of the span `4·atan b`, which no
