@@ -683,58 +683,12 @@ fn register_placed_carrier_end<T: Real>(
     };
     let end = Curve3::circle_at(&circle.frame, circle.radius, param_end);
     let sketch = arc.carrier_end(start);
-    register_point_equal(
-        end,
-        place.point(sketch),
-        tol,
-        "a placed arc's carrier end from its placed sketch carrier end",
-    );
-}
-
-/// `built` IS `held`, registered per component
-/// ([`geom_core::Real::register_equal`]) and handled under `what`: the
-/// one loop the placed carrier ends' registrations share.
-fn register_point_equal<T: Real>(built: Point3<T>, held: Point3<T>, tol: Tol, what: &str) {
-    for (b, h) in [(built.x, held.x), (built.y, held.y), (built.z, held.z)] {
-        b.register_equal(h, tol).handle(what);
+    let placed = place.point(sketch);
+    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
+        built
+            .register_equal(held, tol)
+            .handle("a placed arc's carrier end from its placed sketch carrier end");
     }
-}
-
-/// **A placed line's carrier end IS its placed sketch end** — the fact
-/// of rigidity the sweep registers about a profile line
-/// ([`geom_core::Real::register_equal`]), per component, as
-/// [`register_placed_carrier_end`] registers an arc's.
-///
-/// **The proof.** The carrier is the line from `place(a)` along
-/// `L·(b − a)/‖b − a‖`, `L` the placement's linear part, evaluated at the
-/// span `‖b − a‖`, so its end is `place(a) + L·(b − a)`, which is
-/// `place(b)`; a rigid `L` keeps the direction unit, so the span is the
-/// placed segment's length too. Both sides are built here from the
-/// segment and the placement, so the identity holds on every path, and
-/// neither reads the caller's vertices: a caller may hand vertices
-/// computed on another channel (the stacking door's strips are `f64`
-/// points lifted, `loft/stacking.rs`), which are `place(a)` and
-/// `place(b)` only to that channel's rounding, and the certifier's start
-/// and far-end checks read the carrier against them numerically. Where
-/// the placement is not rigid, the door's own witness refuses typed, as
-/// at [`register_rigidity`].
-///
-/// **What it touches: nothing.** [`geom::Line::at`] at the spec's own span
-/// is the node check 3 evaluates; the placed sketch end is built here and
-/// thrown away.
-fn register_placed_line_end<T: Real>(
-    line: &geom::Line<T>,
-    span: T,
-    place: Placing<T>,
-    b: Point2<T>,
-    tol: Tol,
-) {
-    register_point_equal(
-        line.at(span),
-        place.point(b),
-        tol,
-        "a placed line's carrier end from its placed sketch end",
-    );
 }
 
 /// The edge spec of a profile segment carried into 3-space by one
@@ -747,9 +701,9 @@ fn register_placed_line_end<T: Real>(
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated one for an extrude's swept copy, the turned
 /// [`Placing`] for a revolve's. `tol` is
-/// the run's ε, carried through to the rigidity each arm states
-/// ([`register_rigidity`], [`register_placed_carrier_end`],
-/// [`register_placed_line_end`]) and used for nothing else here.
+/// the run's ε, carried through to the rigidity the arc arm states
+/// ([`register_rigidity`], [`register_placed_carrier_end`]) and used for
+/// nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
@@ -789,25 +743,19 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
         // span is its own (`arc_span`). A rigid placement keeps the
         // length, so the placed vertices certify the span (check 3, the
         // far end against `q_to`) rather than define it, and their width
-        // at a lane scalar is not the span's.
+        // at a lane scalar is not the span's. Unlike the arc arm, nothing
+        // is registered: the far end `q_from + L·(b − a)/‖b − a‖·‖b − a‖`
+        // is `place(b)` as a form, which the plain tier folds where
+        // `q_from` is `place(a)`
+        // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
         SegmentKind::Line => {
             let (dir, span) = (seg.b() - seg.a()).direction_and_length();
-            // The origin is `place(a)` built here, not the caller's
-            // `q_from`, so the registration below is a theorem on every
-            // path (`register_placed_line_end`); the certifier reads the
-            // start against `q_from` numerically.
-            let line = geom::Line {
-                origin: place.point(seg.a()),
-                dir: place.vector(dir),
-            };
-            // Rigidity, stated where it is guaranteed, as the arc arm
-            // states its own (`register_placed_line_end` carries the
-            // proof).
-            register_placed_line_end(&line, span, place, seg.b(), tol);
-            let carrier = Curve3::Line(line);
             EdgeCurveSpec {
                 description,
-                carrier,
+                carrier: Curve3::Line(geom::Line {
+                    origin: q_from,
+                    dir: place.vector(dir),
+                }),
                 param_start: T::zero(),
                 param_end: span,
             }
@@ -1874,17 +1822,16 @@ mod tests {
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
-    /// **The placed line's far end decides `Zero` against the far vertex**,
-    /// the line twin of
-    /// [`the_placed_rim_chains_through_the_sketch_rim_to_the_radius`]'s far
-    /// end. A segment from the origin to `(1, p)`, `p` a box at
-    /// `Sym<Interval>`, under a quarter turn and a translation: the
-    /// carrier's end `place(a) + L·dir·span` and the far vertex `place(b)`
-    /// are built from the same segment and placement, and every component
-    /// decides `Zero` over the box with no registration refused
-    /// (`register_placed_line_end`).
+    /// **The placed line's far end folds to the far vertex in the plain
+    /// tier**, so the line arm registers nothing where the arc arm
+    /// registers its carrier end. A segment from `(0.3, 0.7)` to
+    /// `(2.9, p)`, `p` a box at `Sym<Interval>`, under a quarter turn and
+    /// a translation: the carrier's end `q_from + L·dir·span` against the
+    /// far vertex `place(b)` decides `Zero` on every component with no
+    /// rule at all (`SymRules::none`), as many decisions as under the
+    /// shipped rules, and none of them numeric.
     #[test]
-    fn the_placed_lines_far_end_decides_zero_through_the_door() {
+    fn the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier() {
         use geom_core::sym::with_session_rules;
         use geom_core::{ParamSymbol, Sym};
         type S = Sym<Interval>;
@@ -1898,8 +1845,8 @@ mod tests {
                     Interval::from_bounds(0.45, 0.55),
                 );
                 let seg = SweptSeg {
-                    a: Point2::new(lit(0.0), lit(0.0)),
-                    b: Point2::new(lit(1.0), p),
+                    a: Point2::new(lit(0.3), lit(0.7)),
+                    b: Point2::new(lit(2.9), p),
                     kind: Traversed::forward(SegmentKind::Line),
                     canonical_vertex: 0,
                     canonical_segment: 0,
@@ -1920,9 +1867,18 @@ mod tests {
                 ]
             })
         };
-        let (end, counts) = readings(geom_core::SymRules::shipped());
-        assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
-        assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
+        let (end, plain) = readings(geom_core::SymRules::none());
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end, plain: {plain:?}");
+        assert_eq!(plain.numeric, 0, "no numeric decision: {plain:?}");
+        let (shipped_end, shipped) = readings(geom_core::SymRules::shipped());
+        assert_eq!(
+            shipped_end, end,
+            "the shipped rules read the same: {shipped:?}"
+        );
+        assert_eq!(
+            shipped.symbolic, plain.symbolic,
+            "no rule is needed: {shipped:?} {plain:?}"
+        );
     }
 
     fn budget() -> SymBudget {
