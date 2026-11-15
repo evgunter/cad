@@ -1086,7 +1086,70 @@ impl<T: Copy> StoredSpan<T> {
     }
 }
 
+/// **The chart line an iso image lies on** ([`Pcurve::held_line`]): the
+/// channel it holds fixed, the value it holds there, and the moving
+/// channel's rate along the image's own parameter.
+#[derive(Clone, Copy, Debug)]
+pub struct HeldLine<T> {
+    /// The channel held fixed: [`ChartAxis::U`](crate::ssi::ChartAxis::U)
+    /// for a column, [`ChartAxis::V`](crate::ssi::ChartAxis::V) for a row.
+    pub axis: crate::ssi::ChartAxis,
+    /// The value the line holds that channel at.
+    pub value: T,
+    /// The moving channel's rate: an `IsoLine`'s slope there, an `IsoArc`'s
+    /// whole displacement (its parameter increases with the carrier's).
+    /// Its sign is the way the image runs along the line.
+    pub rate: T,
+}
+
+/// Why an image lies on no held line ([`Pcurve::held_line`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoHeldLine {
+    /// The image is not an iso image: no variant states it straight.
+    NotIso,
+    /// Both channels move: a diagonal line of the chart.
+    Diagonal,
+    /// Neither channel moves: the image is one chart point.
+    Point,
+}
+
 impl<T: Real> Pcurve<T> {
+    /// **The chart line the image lies on** ([`HeldLine`]): an
+    /// [`Pcurve::IsoLine`]'s or an [`Pcurve::IsoArc`]'s fixed coordinate,
+    /// read where that channel's slope is an exact zero, so every point
+    /// of the image holds it. The one reading of a held line; a reader
+    /// that admits fewer images filters this one.
+    ///
+    /// # Errors
+    ///
+    /// [`NoHeldLine`]: a non-iso image, or an iso image with both channels
+    /// moving or neither.
+    pub fn held_line(&self) -> Result<HeldLine<T>, NoHeldLine> {
+        use crate::ssi::ChartAxis;
+        let (p0, slope) = match *self {
+            Pcurve::IsoLine { p0, pl, .. } => (p0, pl),
+            Pcurve::IsoArc { p0, pd, .. } => (p0, pd),
+            _ => return Err(NoHeldLine::NotIso),
+        };
+        match (
+            geom_core::is_exact_zero(slope.x),
+            geom_core::is_exact_zero(slope.y),
+        ) {
+            (true, false) => Ok(HeldLine {
+                axis: ChartAxis::U,
+                value: p0.x,
+                rate: slope.y,
+            }),
+            (false, true) => Ok(HeldLine {
+                axis: ChartAxis::V,
+                value: p0.y,
+                rate: slope.x,
+            }),
+            (false, false) => Err(NoHeldLine::Diagonal),
+            (true, true) => Err(NoHeldLine::Point),
+        }
+    }
+
     /// The `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0` to
     /// `u1` at `t1`, the span of the edge it is minted for, with its two
     /// ends stored: the row a mint places by its ends (a boundary row
@@ -9296,9 +9359,10 @@ fn side_of<T: Decide>(
 /// fidelity idiom transposed. Every slack is exactly zero on the
 /// minted path (the builder mints exact `0`/`1` chart values). A stated
 /// end ([`Pcurve::span_ends`]) adds its metred distance from the map's
-/// value at that end: the rectangle lane reads the stated end and pads
-/// by this envelope, so the pad covers the stated corner wherever the
-/// map leaves it.
+/// value at that end, so the envelope covers the image wherever either
+/// places that end: the readers of stated ends pad by it, and the
+/// rectangle lane, which reads the line the image holds and the map's
+/// end, pads by it beside the joint's gap.
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 fn run_iso_checks<T: Decide>(
     pcurve: &Pcurve<T>,
@@ -9539,7 +9603,7 @@ fn seam_envelope<T: Decide>(
     let span = t1 - t0;
     // The moving channel's reach for the domain gates below: the map's
     // value at both span ends and, where they are stated, the stated
-    // ends, which the rectangle lane reads in their place. The gate
+    // ends, which `span_ends`' readers read in their place. The gate
     // decides on that reach; the envelope folds only the map's own
     // excursion, since a stated end's distance from the map is already
     // in it (`run_iso_checks`).

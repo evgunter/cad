@@ -2,10 +2,12 @@
 id: a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map
 kind: issue
 title: A split rim's re-minted row reads its kept chart corner through its measured map, so a split Interval loft refuses check 7
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
+closed: 2026-11-15
+pr: 6982
 ---
 
 
@@ -55,3 +57,34 @@ runs and their meets, where a cut is a joint inside one run and is
 never read as a point (unit 1 of
 `an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`).
 
+
+## Closed (2026-11-15, PR 6982)
+
+Check 7's rectangle certificate reads no image's end. A NURBS face's
+trim is the lines its loop holds (`geom_brep::Pcurve::held_line`,
+`topo::pcurves::Lift::runs`): four runs, each of pieces that state one
+exact value and run one decided way, walked once round
+(`TrimRectangle::walked`). A cut between two images on one line is
+never asked to be exact, and a corner is the meet of two lines
+(`Lift::joint_point`); how far an image's end stands from its joint's
+point is padded (`joint_defect`), with the argument and its five
+assumptions stated once on `nurbs_face`. So the re-minted split
+`Interval` loft finishes: split `Interval` lofts and five re-minted
+`f64` ones that main refused certify (the review counted 25 and 5),
+each holding its analytic volume
+(`a_split_and_reminted_loft_holds_its_volume.rs`,
+`split_lofts_hold_their_volumes_at_interval`).
+
+Neither question the row left unmeasured was needed: the mint is as it
+was, and the measured-feet arm still states no ends.
+
+Left, each with a row: a seam column moved one period reads
+`lo + (hi − lo)`, which is no single number
+(`a-seam-column-moved-a-period-reads-lo-plus-the-period`);
+`clearance::iso_bounded_domain` still reads image ends through the map
+with a hand ulp slack
+(`clearances-free-form-domain-test-reads-image-ends-with-a-hand-ulp-slack`);
+the readers that move onto `Lift::joint_point` and the one held-line
+home with the image's representation
+(`an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`,
+with Ev on `[ev]` PR 6975).

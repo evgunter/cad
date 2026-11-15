@@ -2,9 +2,9 @@
 //! them**, so an `Interval` loft's walls take check 7's rectangle
 //! certificate and the body finishes at its taker. A rim's span is a
 //! computed length, an enclosure some ulps wide at `Interval`, and its
-//! image's map `p0 + pl·t` read there only encloses the chart's `1`; the
-//! boundary row's mint stores the ends it places the row by
-//! (`geom_brep::Pcurve::iso_row`), and the quadrature reads them.
+//! image's map `p0 + pl·t` read there only encloses the chart's `1`.
+//! Check 7's rectangle is the chart lines the rows hold, each a value the
+//! mint placed exactly, and their meets; no end of an image is read.
 //!
 //! The other side is pinned too: the certified volume is the body's,
 //! and a split rim's cut is never read as a chart end.
@@ -111,7 +111,9 @@ fn bounds<T: Bounds>(x: T) -> (f64, f64) {
 /// reads the rim's chart corner, exactly, at the end it keeps, and at the
 /// cut a value strictly inside the chart, both as the split carries the
 /// row; minted again, the kept corner is read through the measured map.
-/// At `f64` the split body finishes and its volume holds the prism's 8.4.
+/// As split and minted again the body finishes and its volume holds the
+/// prism's 8.4: check 7 reads the chart lines the rows hold, never an
+/// image's end.
 #[test]
 fn a_split_rims_cut_is_never_read_as_a_chart_end() {
     fn at<T: Decide + Bounds + geom_core::CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
@@ -171,6 +173,7 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
             }
         };
         read(&body, "as split", true);
+        let split = body.clone();
         assert_eq!(
             topo::mint_pcurves(&mut body, tol()),
             Ok(()),
@@ -178,42 +181,28 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
         );
         // The mint pass derives a piece's row again by its measured end
         // feet, which state no ends: at `f64` the map reads the corner,
-        // at `Interval` only an enclosure of it, and check 7 refuses the
-        // wall (`work/boxfinish/a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map.md`).
+        // at `Interval` only an enclosure of it. Check 7's rectangle is
+        // the lines the rows hold, so neither the cut nor that corner is
+        // asked to be exact.
         let interval = T::NAME == geom_core::Interval::NAME;
         read(&body, "minted again", !interval);
-        let finished = topo::finish(body, tol());
-        if interval {
-            let refusal = finished.expect_err("the split body refuses at Interval");
+        for (when, body) in [("as split", split), ("minted again", body)] {
+            let finished = topo::finish(body, tol())
+                .unwrap_or_else(|e| panic!("{scalar}, {when}: the split body finishes: {e:?}"));
+            let m = topo::mass_properties(
+                &finished,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .expect("the split body measures")
+            .enclosure;
+            let (lo, hi) = bounds(m.volume);
+            let (lo, hi) = (lo - m.volume_pad, hi + m.volume_pad);
             assert!(
-                matches!(
-                    refusal.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                        ..
-                    }] if what.contains("not exact structure")
-                ),
-                "{scalar}: check 7 refuses the re-minted wall: {refusal:?}"
+                lo <= 8.4 && 8.4 <= hi && hi - lo < 1e-6,
+                "{scalar}, {when}: the split body's volume [{lo}, {hi}] holds the prism's 8.4"
             );
-            return;
         }
-        let finished = finished.expect("the split body finishes");
-        let m = topo::mass_properties(
-            &finished,
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
-        )
-        .expect("the split body measures")
-        .enclosure;
-        let (lo, hi) = bounds(m.volume);
-        let (lo, hi) = (lo - m.volume_pad, hi + m.volume_pad);
-        assert!(
-            lo - 1e-9 <= 8.4 && 8.4 <= hi + 1e-9 && hi - lo < 1e-6,
-            "{scalar}: the split body's volume [{lo}, {hi}] holds the prism's 8.4"
-        );
     }
     at::<f64>("f64");
     at::<Interval>("Interval");
