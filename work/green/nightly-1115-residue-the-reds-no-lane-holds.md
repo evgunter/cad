@@ -7,6 +7,7 @@ opened: 2026-11-15
 priority: P1
 cost: M
 branch: green/nightly-1115
+pr: 6985
 ---
 
 
