@@ -290,8 +290,15 @@ and a fixed reference direction would read the world axes.
   carry runs once at `f64` and chooses each station's roll as a
   reference vector; every scalar lane mints each station's frame from
   the path's tangent read at that scalar and that vector, and composes
-  it onto its own start plane. Station 0 is the start plane itself. A
-  station on one span, straight by its data, with its predecessor is
+  it onto its own start plane. So nothing claims where the `f64` step's
+  turn lands: the frame's axis is the tangent read at the lane, aimed
+  verbatim, and the step's rounding reaches only the roll it chooses.
+  The step's turn is therefore a selection (`[scalars]`: a choice,
+  never a claim): no claim consumes its lever, so it owes no
+  rounding-reach band under the geom-core README's "Float rounding",
+  and it decides the least turn's pole alone
+  (`RigidMotion::least_turn_selected`, its lever the session box's).
+  Station 0 is the start plane itself. A station on one span, straight by its data, with its predecessor is
   still where its tangent is checked at the lane scalar to be its
   predecessor's: it reuses its predecessor's rotation, one expression,
   and every other station is minted alone. A station's tangent is the
