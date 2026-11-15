@@ -97,6 +97,17 @@ pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
     crate::Lever(length)
 }
 
+/// **The least turn's conditioning edge at `arm`**: the chord from the
+/// pole, `2·arm/R`, below which [`RigidMotion::least_turn`] refuses
+/// ill-conditioned, `R` the run's rounding reach read through its one
+/// door ([`Tol::rounding_reach`]). Near the pole the chord is the tilt
+/// from backwards, so a row tilts by a fraction or a multiple of it. The
+/// suites' one spelling of the edge.
+#[must_use]
+pub fn least_turn_band_edge(tol: Tol, arm: f64) -> f64 {
+    2.0 * arm / tol.rounding_reach()
+}
+
 /// **The reading of a scale twin's margin streams**: one body at two
 /// model scales, each run's [`MarginSample`](crate::k_stats::MarginSample)s
 /// grouped by predicate in recording order, and the two read side by side.

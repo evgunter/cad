@@ -722,13 +722,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // symbolic the plate −40, the annulus −24, the boss −18, the bracket
     // −56 and the link −28; numeric the plate, the annulus, the boss, the
     // bracket and the link −6, −4, −4, −6 and −4. The ladder's recovery on
-    // the bracket holds at 6.
+    // the bracket holds at 6. Then the decided least-turn mint (fork 270)
+    // took a pair that is one direction exactly to the identity with no
+    // pole verdict (its chord is 2), with the ladder or without it:
+    // numeric the plate −2, the annulus −1, the boss −1, the bracket −2
+    // and the link −1; no symbolic row moves and the recovery holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [979, 1048], [979, 1048], 0),
-        ("r1_annulus", [511, 549], [511, 549], 0),
-        ("r1_segment_boss", [489, 573], [489, 573], 0),
-        ("r2_filleted_bracket", [1361, 1542], [1367, 1536], 6),
-        ("r2_link", [786, 944], [786, 944], 0),
+        ("two_hole_plate", [979, 1046], [979, 1046], 0),
+        ("r1_annulus", [511, 548], [511, 548], 0),
+        ("r1_segment_boss", [489, 572], [489, 572], 0),
+        ("r2_filleted_bracket", [1361, 1540], [1367, 1534], 6),
+        ("r2_link", [786, 943], [786, 943], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -914,10 +918,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // gone from the numeric column and no decision on this leaf left for
     // the ladder to retry; the bracket's recovery
     // (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) is
-    // what carries the ladder now.
+    // what carries the ladder now. Then the decided least-turn mint (fork
+    // 270) took the pad's identity chart with no pole verdict: [1390,
+    // 1802, 0] -> [1390, 1801, 0].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1802, 0],
+        [1390, 1801, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -944,8 +950,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1352, 1862, 0]. Then validation's mint, as the shipped receipt's:
     // [1352, 1862, 0] -> [1364, 1880, 0].
     // Then the sweeps' frames: the ladder retries nothing on this leaf,
-    // and the bare drive reads the shipped receipt, [1390, 1802, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1802, 0]);
+    // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
+    // the least-turn mint's identity chart, as the shipped receipt's:
+    // [1390, 1802, 0] -> [1390, 1801, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1801, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
