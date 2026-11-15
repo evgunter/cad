@@ -895,7 +895,7 @@ fn the_apex_spread_bound_refuses_where_a_factor_is_not_positive() {
 ///
 /// PINNED, not wanted: the second certified root lies more than the zero
 /// band along the arc from the crossing it stands for. It waits on
-/// `work/germ/the-cone-rows-certified-ellipse-roots-lie-past-the-band-along-the-arc-at-1e-12.md`,
+/// `work/germ/the-conic-quadric-door-certifies-first-harmonic-roots-past-the-zero-band.md`,
 /// and reds when that root comes inside the band or stops being certified.
 #[test]
 fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
