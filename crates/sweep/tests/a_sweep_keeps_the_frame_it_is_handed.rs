@@ -511,13 +511,17 @@ fn rect<T: Real>(w: T) -> ProfileLoop<T> {
     ])
 }
 
-/// **A slab whose width carries a box**: the caps and the wall at
-/// `x = 0`, whose ends the box does not move, store exact unit normals,
-/// from the frame. The other three walls each have an end that carries
-/// the box, and take their sketch directions from their ends, so they
-/// store the box's width in the sketch plane and none across it; the
-/// enclosure holds every member's normal. The profile recording its segments' directions is what would
-/// make it exact (`the-profile-drops-the-unit-directions-its-verbs-made`).
+/// **A slab whose width carries a box stores every face's frame
+/// exact**: the caps, and all four walls' normals and `u_ref`s, exact
+/// unit vectors, in an eager session; the enclosure holds every
+/// member's normal. The fixture is a table (`bulge_loop`), so every
+/// side's director is the one validation mints: the axis wherever the
+/// tier proves the other component zero — `0 − 0` and `1 − 1` as
+/// literals, and the moving side `(W, 0) → (W, 1)`'s `W − W` as an
+/// identity — and the walls read it through the frame. The mutant that
+/// turns it red: the line arm of `sweep::swept::sketch_direction`
+/// dividing the chord by its own length, which gives the three walls the
+/// box moves the box's width in the sketch plane.
 /// The box is a leaf's, as for every profile-vertex box here.
 #[test]
 fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_walls() {
@@ -1071,4 +1075,43 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
             "at Sym<Interval> it refuses at check 3's end pin: {sym}"
         );
     });
+}
+
+/// **A table's director is stored as a wall's normal at its own length**:
+/// the unit square as a table whose bottom side records the director
+/// `(1 + δ, 0)`, `δ = 2e-10`. Validation accepts it — its miss
+/// `‖o + ℓ·d − p‖ = δ·ℓ` is within the band — and the extrude stores
+/// that side's wall normal as the frame turning the director's right
+/// normal, so the stored normal is `1 + δ` long, and nothing at rest
+/// reads a plane normal's length (check 1 length-reads no plane):
+/// `work/restdatum/unlevered-frame-conventions-are-uncertified-at-rest.md`
+/// holds it. The other three sides record nothing; validation mints
+/// their directors, and their walls store unit normals. This row pins
+/// the convention as it stands; it goes red when the door normalizes the
+/// director or when tier 3 starts reading a plane normal's length.
+#[test]
+fn a_tables_director_is_stored_as_a_walls_normal_at_its_own_length() {
+    use profile::{Segment, SegmentDirections};
+    let delta = 2e-10;
+    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let lp: ProfileLoop<f64> = RawLoop::new_directed(corners.iter().enumerate().map(|(k, &(x, y))| {
+        let written = (k == 0).then(|| SegmentDirections::Line(Vec2::new(1.0 + delta, 0.0)));
+        (Point2::new(x, y), Segment::Line, written)
+    }));
+    let built = slab(SketchPlane::xy(), lp, 1.0);
+    let lengths: Vec<f64> = built.walls[0]
+        .iter()
+        .map(|w| plane(&built.body, w.face).1.norm())
+        .collect();
+    let off: Vec<f64> = lengths.iter().map(|l| l - 1.0).collect();
+    assert_eq!(
+        off.iter().filter(|o| (**o - delta).abs() <= 1e-15).count(),
+        1,
+        "one wall, the written side's, stores its normal 1 + δ long: {off:?}"
+    );
+    assert_eq!(
+        off.iter().filter(|o| o.abs() <= 1e-15).count(),
+        3,
+        "the minted sides' walls store unit normals: {off:?}"
+    );
 }

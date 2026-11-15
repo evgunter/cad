@@ -147,4 +147,69 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
         };
         assert_eq!(lines, *pinned, "a plate verdict moved at eps={eps}");
     }
+
+    /// **The cut plate over the study box: its first `Subtract` refuses
+    /// the drilled blank's bore at its `u_ref`.** The tour's plate with
+    /// its holes subtracted, evaluated over the whole study box at
+    /// `Sym<Interval>`: the blank, both hole extrudes and their placed
+    /// copies build, and the first node that refuses is the first
+    /// `Subtract`, taking a hole that does not finish: a cylinder's
+    /// `u_ref`, whose length tier 3 cannot read. The extrude stores an
+    /// arc wall's `u_ref` as the start radial over its own length, the
+    /// verb's vertex `c + r·x` read against the stored radius `|r|`, which
+    /// is as wide as the radius box relative to the radius
+    /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`
+    /// holds it). The mutant that turns it red: the arc arm of
+    /// `sweep::swept::sketch_direction` reading the recorded radial
+    /// instead, which moves the refusal onto the hole's own extrude
+    /// (`carrier_endpoint_start`).
+    #[test]
+    fn the_cut_plates_first_subtract_refuses_a_bores_u_ref_over_the_study() {
+        use demo_tour::plate::cut_plate;
+        use pncad::analysis::ParamBox;
+        use pncad::document::{Evaluation, Node, NodeErrorKind, NodeResult};
+        use pncad::geom_core::{Interval, Sym, SymBudget, SymRules};
+        let tol = Tol::witness();
+        let p = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let opts = EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
+            ..EvalOptions::default()
+        };
+        // The drive's default budget.
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let first = pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+            let ev: Evaluation<Sym<Interval>> =
+                evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
+            ev.order.iter().find_map(|id| match ev.result(*id) {
+                Some(NodeResult::Failed(e)) => Some((*id, e.kind.clone())),
+                _ => None,
+            })
+        })
+        .0
+        .expect("the cut plate refuses over the study box");
+        let (node, kind) = first;
+        assert!(
+            matches!(p.doc.node(node), Some(Node::Subtract { .. })),
+            "the first refusal is a Subtract's: node {node:?}, {kind:?}"
+        );
+        let NodeErrorKind::UnfinishedLeaf { findings, .. } = &kind else {
+            panic!("the Subtract refuses an operand that does not finish: {kind:?}");
+        };
+        assert!(
+            findings.as_slice().iter().all(|f| matches!(
+                f,
+                pncad::topo::ValidationError::SurfaceDatumUndecided {
+                    kind: pncad::geom::SurfaceKind::Cylinder,
+                    datum: pncad::geom::SurfaceDatum::URef,
+                    measure: pncad::geom::ConventionMeasure::Length,
+                    ..
+                }
+            )),
+            "every finding is a bore's u_ref length, undecided: {findings:?}"
+        );
+    }
 }
