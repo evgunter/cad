@@ -2,11 +2,12 @@
 id: an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends
 kind: issue
 title: An IsoLine states where its ends are twice, as its map and as stored ends, kept in step by hand and certified by different checks
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: M
 refs: [6959]
+branch: boxfinish/iso-image
 ---
 
 
