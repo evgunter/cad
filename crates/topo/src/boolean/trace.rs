@@ -222,7 +222,7 @@ pub fn ray_crossings<T: Decide>(
             });
         }
         _ => {
-            let run = (ray.start(), ray.start() + reach);
+            let run = (ray.start(), ray.from_start(reach));
             match super::reduce::line_wall_roots_of(ray.line(), run, surface, band).map_err(door)? {
                 None => {
                     return Err(TraceFault::Unsupported {

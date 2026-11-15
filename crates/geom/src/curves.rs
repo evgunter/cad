@@ -903,11 +903,9 @@ impl<T: Real> Line<T> {
 pub struct Ray<T: Real> {
     /// The line the ray runs along.
     line: Line<T>,
-    /// The advance the ray starts at on its line; `None` at the line's
-    /// origin, which [`Ray::new`] builds so that its forward test reads
-    /// the advance itself, as it did before a ray could start elsewhere
-    /// (the same bits, and at the symbolic scalar the same expression).
-    start: Option<T>,
+    /// The advance the ray starts at on its line: zero at the line's
+    /// origin.
+    start: T,
 }
 
 impl<T: Real> Ray<T> {
@@ -915,10 +913,7 @@ impl<T: Real> Ray<T> {
     /// is in units of `|dir|` (the type's doc).
     #[must_use]
     pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
-        Self {
-            line: Line { origin, dir },
-            start: None,
-        }
+        Self::starting(origin, dir, T::zero())
     }
 
     /// The ray along `dir` on the line through `origin` that starts at
@@ -928,7 +923,7 @@ impl<T: Real> Ray<T> {
     pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
         Self {
             line: Line { origin, dir },
-            start: Some(start),
+            start,
         }
     }
 
@@ -945,15 +940,45 @@ impl<T: Real> Ray<T> {
     /// The advance the ray starts at: `0` at its line's origin.
     #[must_use]
     pub fn start(&self) -> T {
-        self.start.unwrap_or(T::zero())
+        self.start
     }
 
-    /// The point the ray starts at: its line's origin, or the line's
-    /// point at the start's advance.
+    /// The point the ray starts at: its line's origin itself where the
+    /// start is exactly zero ([`Ray::from_start`]).
     #[must_use]
     pub fn start_point(&self) -> Point3<T> {
-        self.start
-            .map_or(self.line.origin, |start| self.line.at(start))
+        if geom_core::is_exact_zero(self.start) {
+            self.line.origin
+        } else {
+            self.line.at(self.start)
+        }
+    }
+
+    /// **The advance `reach` past the ray's start.** The one place the
+    /// start is added to or taken from an advance, with
+    /// [`Ray::past_start`]: an exactly zero start
+    /// ([`geom_core::is_exact_zero`]) is not added, since `x + 0` is `x`,
+    /// so a ray from its line's origin reads `reach` itself, the bits and
+    /// the expression a reader held before a ray could start elsewhere.
+    #[must_use]
+    pub fn from_start(&self, reach: T) -> T {
+        if geom_core::is_exact_zero(self.start) {
+            reach
+        } else {
+            self.start + reach
+        }
+    }
+
+    /// **How far advance `at` lies past the ray's start**, negative
+    /// behind it: `at` less the start, the start not subtracted where it
+    /// is exactly zero ([`Ray::from_start`]).
+    #[must_use]
+    pub fn past_start(&self, at: T) -> T {
+        if geom_core::is_exact_zero(self.start) {
+            at
+        } else {
+            at - self.start
+        }
     }
 }
 
@@ -964,12 +989,12 @@ impl<T: Decide> Ray<T> {
     /// and for an undecided reading.
     ///
     /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
-    /// the margin decided is `at` less the start's advance (`at` itself
-    /// for a ray from its line's origin), in units of `|dir|` (the type's
-    /// doc). The method takes the parameter, not a point, because every
-    /// reader holds only a parameter computed on [`Ray::line`]: a root
-    /// against a carrier (`line_*_roots`), or the closest-approach span of
-    /// an edge's passage. No point is minted before the forward test. The
+    /// the margin decided is how far `at` lies past the start
+    /// ([`Ray::past_start`]), in units of `|dir|` (the type's doc). The
+    /// method takes the parameter, not a point, because every reader
+    /// holds only a parameter computed on [`Ray::line`]: a root against a
+    /// carrier (`line_*_roots`), or the closest-approach span of an
+    /// edge's passage. No point is minted before the forward test. The
     /// ray does not re-derive `at`; a reader that passes a parameter of
     /// another line decides nothing about this ray.
     ///
@@ -981,8 +1006,7 @@ impl<T: Decide> Ray<T> {
     ///
     /// [`Indeterminate`] where the margin is in band.
     pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
-        let past = self.start.map_or(at, |start| at - start);
-        geom_core::k_stats::decide(site, Margin::of(past), band)
+        geom_core::k_stats::decide(site, Margin::of(self.past_start(at)), band)
     }
 }
 

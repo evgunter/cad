@@ -2346,11 +2346,21 @@ pub(crate) fn edge_line<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<geom::Line<T>> {
-    body.edges
+    edge_line_span(body, ek).map(|(line, _)| line)
+}
+
+/// [`edge_line`] with the edge's interval on it, `(t0, t1)` as its plus
+/// half walks it: the edge as its stored line holds it.
+fn edge_line_span<T: Real>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+) -> Option<(geom::Line<T>, (T, T))> {
+    let curve = body
+        .edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)
-        .and_then(|c| c.carrier().as_line())
+        .and_then(CurveGeom::certified)?;
+    Some((curve.carrier().as_line()?, curve.params()))
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -11422,30 +11432,26 @@ fn span_along<T: Real>(p0: Point3<T>, dir: Vec3<T>, len: T) -> EdgeGeo<T> {
     }
 }
 
-/// **A line edge as its stored line holds it**: `edge`'s span from its
-/// carrier's point at the start of its interval, along the carrier's
-/// direction, to the interval's end, its keys and faces kept. A vertex
-/// is the body's cache of where an edge ends and the line is what the
-/// edge is (`[intent.stored]`), so a direction read off two vertices
+/// **A line edge as its stored line holds it**: the span from the
+/// line's point at the start of the edge's interval, along the line's
+/// direction, to the interval's end, with `edge`'s keys and faces. A
+/// vertex is the body's cache of where an edge ends and the line is what
+/// the edge is (`[intent.stored]`), so a direction read off two vertices
 /// that share a boxed coordinate carries that box where the line holds
-/// none. `None` where the edge's certified line does not resolve.
-fn on_its_line<T: Real>(body: &Body<T>, edge: EdgeGeo<T>) -> Option<EdgeGeo<T>> {
-    let curve = body
-        .edges
-        .get(edge.key)
-        .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)?;
-    let line = curve.carrier().as_line()?;
-    let (t0, t1) = curve.params();
+/// none.
+fn on_its_line<T: Real>(
+    edge: &EdgeGeo<T>,
+    (line, (t0, t1)): (geom::Line<T>, (T, T)),
+) -> EdgeGeo<T> {
     let (dir, speed) = line.dir.direction_and_length();
-    Some(EdgeGeo {
+    EdgeGeo {
         key: edge.key,
         v0: edge.v0,
         v1: edge.v1,
         f_plus: edge.f_plus,
         f_minus: edge.f_minus,
         ..span_along(line.at(t0), dir, (t1 - t0) * speed)
-    })
+    }
 }
 
 /// **How a ray's span passes one of a body's line edges** — the
@@ -11473,19 +11479,30 @@ pub(crate) struct LinePass<T: Real> {
 /// faces), as the span from `from` along the unit `dir` to advance `top`
 /// passes it ([`LinePass`]). Both spans are read as given: the ray's by
 /// its start and direction ([`span_along`]), each edge by its stored line
-/// ([`on_its_line`]). The caller keeps only edges whose line is not
-/// parallel to the span: the closed form divides by the sine of their
-/// angle.
+/// ([`on_its_line`]), found once. The caller keeps only edges whose line
+/// is not parallel to the span: the closed form divides by the sine of
+/// their angle.
+///
+/// Reading the edge off its line and not off its two vertices changes a
+/// reading only where the two differ: by the body's tolerance at `f64`
+/// (`the_ray_passes_an_edges_stored_line_not_its_vertices_chord`), and
+/// over a box wherever the line was stored narrower than the chord. The
+/// sweep doors store a moving edge's line as wide as its chord today
+/// (`work/boxfinish/the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box.md`),
+/// so over their bodies it changes none yet.
 pub(crate) fn line_passes<T: Real>(
     body: &Body<T>,
     (from, dir, top): (Point3<T>, Vec3<T>, T),
     keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
 ) -> Vec<LinePass<T>> {
     let ray = span_along(from, dir, top);
-    line_edges(body)
-        .into_iter()
-        .filter(|e| keep(e.key, e.f_plus, e.f_minus))
-        .filter_map(|e| on_its_line(body, e))
+    body.edges
+        .iter()
+        .filter_map(|(key, _)| {
+            let line = edge_line_span(body, key)?;
+            let edge = edge_geo(body, key)?;
+            keep(edge.key, edge.f_plus, edge.f_minus).then(|| on_its_line(&edge, line))
+        })
         .map(|e| {
             let closest = ee_lines_closest(&ray, &e);
             LinePass {
@@ -23117,5 +23134,42 @@ mod corner_cause_rows {
         for (why, named) in causes {
             assert_eq!(corner_cause(&why), TouchUnread::Curved(named), "{why:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod line_pass_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::test_support_fixtures::brick;
+
+    /// **The ray's edge pass reads an edge off its stored line, not off
+    /// the chord of its vertices.** A unit brick with one vertex's point
+    /// moved a thousandth off the edges that end at it, their lines left
+    /// as built: a span through the middle of one such edge's line passes
+    /// it at no gap, and half a thousandth from its vertices' chord. Red
+    /// against a pass that reads the edge's two ends.
+    #[test]
+    fn the_ray_passes_an_edges_stored_line_not_its_vertices_chord() {
+        let tol = geom_core::Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (key, edge) = line_edges(&body)
+            .into_iter()
+            .map(|e| (e.key, e))
+            .find(|(_, e)| e.dir.z.abs() < 0.5 && e.p0.z > 0.5)
+            .expect("a brick has a top edge");
+        let moved = edge.points[1].expect("an edge of a body sits on points");
+        body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
+        let middle = edge.p0 + edge.dir * (0.5 * edge.len);
+        let across = edge.dir.cross(Vec3::new(0.0, 0.0, 1.0));
+        let passes = line_passes(&body, (middle - across, across, 2.0), |k, _, _| k == key);
+        let [pass] = &passes[..] else {
+            panic!("the one edge kept: {} passes", passes.len());
+        };
+        assert!(
+            pass.gap[1] < 1e-12,
+            "the span runs through the edge's stored line: gap {:?}",
+            pass.gap
+        );
     }
 }
