@@ -27,7 +27,7 @@ fn rectangle_validates_at_interval() {
         vp.loops()[0]
             .segments()
             .iter()
-            .all(|s| matches!(s.kind, SegmentKind::Line))
+            .all(|s| matches!(s.kind, SegmentKind::Line { .. }))
     );
     // The canonical start's enclosure is the exact point (0, 0).
     let v0 = vp.loops()[0].vertices()[0];
@@ -47,7 +47,7 @@ fn annulus_validates_at_interval_with_roles_and_turns() {
         for s in vp.loops()[li].segments() {
             match s.kind {
                 SegmentKind::Arc { turn, .. } => assert_eq!(turn, want),
-                SegmentKind::Line => panic!("annulus segments are arcs"),
+                SegmentKind::Line { .. } => panic!("annulus segments are arcs"),
             }
         }
     }

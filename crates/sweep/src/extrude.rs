@@ -105,7 +105,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_chord, sketch_direction, turn_axis,
+    line_span, placed_segment_spec, sketch_direction, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -622,7 +622,7 @@ pub(crate) fn wall_segments<T: Real>(lp: &ValidatedLoop<T>, reverse: bool) -> Ve
 /// outward by construction.
 fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
     match s.kind {
-        SegmentKind::Line => true,
+        SegmentKind::Line { .. } => true,
         SegmentKind::Arc { turn, .. } => swept::centre_on_material_side(turn),
     }
 }
@@ -1418,17 +1418,17 @@ fn side_surface<T: Real>(
         // It is where the four corners' centroid stood when the wall was
         // fitted to them, to rounding, and where a reader of a face's
         // point expects it; nothing is fitted or read back.
-        SegmentKind::Line => {
+        SegmentKind::Line { .. } => {
             let along = Placing::from(place).direction(d);
             let half = T::from_f64(0.5);
-            let length = sketch_chord(&segs[j]).1;
+            let length = line_span(&segs[j], d);
             Surface::Plane {
                 origin: qs[j] + along.get() * (length * half) + sweep.w * half,
                 normal: course.wall_normal(place.into(), d).get(),
                 u_ref: along.get(),
             }
         }
-        SegmentKind::Arc { arc, turn } => {
+        SegmentKind::Arc { arc, turn, .. } => {
             // The carrier axis line is the arc's centre extruded:
             // `place · (centre, 0)` — the same computation the rim
             // carrier makes, so cylinder and BOTTOM rim circle agree

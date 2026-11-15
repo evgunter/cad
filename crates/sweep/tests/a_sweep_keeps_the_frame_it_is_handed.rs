@@ -534,12 +534,10 @@ fn a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_wal
         let walls = &boxed_slab.walls[0];
         let (_, fixed, _) = plane(body, walls[3].face);
         assert_exact_unit("width box wall x = 0 normal", fixed);
-        for wall in &walls[..3] {
-            let (_, moving, _) = plane(body, wall.face);
-            assert!(
-                width(moving.z) <= ROUNDING,
-                "a wall the box moves takes no width across the sketch plane: {moving:?}"
-            );
+        for (k, wall) in walls[..3].iter().enumerate() {
+            let (_, moving, u_ref) = plane(body, wall.face);
+            assert_exact_unit(&format!("width box moving wall {k} normal"), moving);
+            assert_exact_unit(&format!("width box moving wall {k} u_ref"), u_ref);
         }
         assert_holds_its_members("a width box", &boxed_slab, members, None);
     });

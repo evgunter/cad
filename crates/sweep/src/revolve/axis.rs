@@ -259,7 +259,7 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     for lp in profile.loops() {
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if let SegmentKind::Arc { arc, turn } = s.kind {
+            if let SegmentKind::Arc { arc, turn, .. } = s.kind {
                 for dir in [T::one(), T::zero() - T::one()] {
                     let toward = e_r * dir;
                     let p = arc.centre + toward * arc.radius;
@@ -490,7 +490,7 @@ pub(super) fn classify_segment<T: Decide>(
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind.get() {
-        SegmentKind::Line => {
+        SegmentKind::Line { .. } => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
             }
@@ -529,7 +529,7 @@ pub(super) fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SegmentKind::Arc { arc, turn } => {
+        SegmentKind::Arc { arc, turn, .. } => {
             let Arc2 { centre, radius, .. } = arc;
             // Arc walls' sense (doc above), through the shared rule —
             // the same body extrude's cylinder walls read.

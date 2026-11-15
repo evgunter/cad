@@ -92,7 +92,7 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                         assert_eq!(tf, tq);
                         assert_eq!(wf.to_bits(), wq.0.to_bits());
                     }
-                    (SegmentKind::Line, SegmentKind::Line) => {}
+                    (SegmentKind::Line { .. }, SegmentKind::Line { .. }) => {}
                     other => panic!("kind divergence: {other:?}"),
                 }
             }

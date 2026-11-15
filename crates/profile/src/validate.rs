@@ -244,7 +244,7 @@ use crate::seg::{
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{ConstructedLoop, Profile, ProfileLoop, SegmentDirections, SketchPlane};
+use crate::{ConstructedLoop, Profile, ProfileLoop, SketchPlane};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -905,13 +905,35 @@ impl core::fmt::Display for LoopRole {
     }
 }
 
-/// A validated segment's classified carrier, exposed read-only for
-/// sweeps (PR 4 lowers `Arc` to a `geom` circle carrier and
-/// `Line` to a line carrier at sweep time).
+/// A validated segment's classified carrier, with the unit directions
+/// the segment records, exposed read-only for sweeps (a sweep lowers
+/// `Arc` to a circle carrier and `Line` to a line carrier).
+///
+/// **A direction lives in the arm of its kind**: a line holds its
+/// director, an arc its two radials, so a line with radials or an arc
+/// with a director cannot be written. Each direction is the one the
+/// segment's construction made, carried verbatim, or for a segment that
+/// recorded none (or an arc read as a line) decided once, at validation,
+/// from its vertices. A consumer that needs a direction reads it here.
+///
+/// A table's direction is checked by one reading at the band, the miss
+/// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
+/// chord or radius), and that is what "unit" means here: the miss
+/// bounds both the direction's turn and its stretch, since
+/// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
+/// check 1's measure for a unit datum at arm ℓ
+/// (`geom::convention::frame_margins`). So a radial accepted here is
+/// one check 1 accepts as a `u_ref` at that radius. What it does not
+/// promise: check 1 length-reads no plane or line, so a director stored
+/// as a plane's normal is a unit only at its chord's lever. An accepted
+/// direction is stored as written, never normalised or re-minted.
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
     /// A straight segment on its chord.
-    Line,
+    Line {
+        /// The unit director, start to end.
+        director: Vec2<T>,
+    },
     /// A circular arc.
     Arc {
         /// The carrier (sketch coordinates) and the signed sweep Δθ from
@@ -921,7 +943,33 @@ pub enum SegmentKind<T: Real> {
         /// `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
         turn: Sign,
+        /// The unit radials, centre to vertex, at the start and at the
+        /// end.
+        radials: [Vec2<T>; 2],
     },
+}
+
+impl<T: Real> SegmentKind<T> {
+    /// The same kind read at another scalar: `f` on every stored
+    /// component (an arc's carrier through [`Arc2::map`]), the turn
+    /// carried, nothing derived.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentKind<U> {
+        match self {
+            Self::Line { director } => SegmentKind::Line {
+                director: director.map(&f),
+            },
+            Self::Arc {
+                arc,
+                turn,
+                radials: [start, end],
+            } => SegmentKind::Arc {
+                arc: arc.map(&f),
+                turn,
+                radials: [start.map(&f), end.map(&f)],
+            },
+        }
+    }
 }
 
 /// One segment of a validated loop, in canonical traversal order.
@@ -931,48 +979,22 @@ pub struct ValidatedSegment<T: Real> {
     pub start: Point2<T>,
     /// End point.
     pub end: Point2<T>,
-    /// The classified carrier — the decision sweeps consume (PR 4
-    /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
+    /// The classified carrier and the directions it records — the
+    /// decision sweeps consume.
     pub kind: SegmentKind<T>,
-    /// The unit directions the segment records, of `kind`'s kind: a
-    /// line's director, an arc's radial at each end. The ones its
-    /// construction made, carried verbatim, or for a segment that
-    /// recorded none (or an arc read as a line) decided once, here, from
-    /// its vertices ([`SegmentDirections`]). A consumer that needs a
-    /// direction reads it here. A table's is checked by one reading at the band, the miss
-    /// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
-    /// chord or radius), and that is what "unit" means here: the miss
-    /// bounds both the direction's turn and its stretch, since
-    /// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
-    /// check 1's measure for a unit datum at arm ℓ
-    /// (`geom::convention::frame_margins`). So a radial accepted here is
-    /// one check 1 accepts as a `u_ref` at that radius. What it does not
-    /// promise: check 1 length-reads no plane or line, so a director
-    /// stored as a plane's normal is a unit only at its chord's lever.
-    /// An accepted direction is stored as written, never normalised or
-    /// re-minted.
-    pub directions: SegmentDirections<T>,
 }
 
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: every stored field through
-    /// `from_f64` — the endpoints, an arc's carrier and sweep
-    /// ([`Arc2::map`]) and the recorded directions — and the
+    /// `from_f64` — the endpoints, an arc's carrier and sweep and the
+    /// recorded directions ([`SegmentKind::map`]) — and the
     /// classification and turn carried.
     /// Nothing is re-derived. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
-        let kind = match self.kind {
-            SegmentKind::Line => SegmentKind::Line,
-            SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
-                arc: arc.map(U::from_f64),
-                turn,
-            },
-        };
         ValidatedSegment {
             start: self.start.map(U::from_f64),
             end: self.end.map(U::from_f64),
-            kind,
-            directions: self.directions.map(U::from_f64),
+            kind: self.kind.map(U::from_f64),
         }
     }
 }
@@ -1159,7 +1181,7 @@ impl<T: Real> ValidatedLoop<T> {
     ///         assert!((arc.radius - 0.25).abs() < 1e-12);
     ///         assert!(arc.centre.x.abs() < 1e-12);
     ///     }
-    ///     SegmentKind::Line => panic!("a fillet is an arc"),
+    ///     SegmentKind::Line { .. } => panic!("a fillet is an arc"),
     /// }
     /// ```
     #[must_use]
@@ -1377,17 +1399,6 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                         loop_index,
                         segment,
                     };
-                    let kind = match s.kind {
-                        SegmentKind::Line => SegmentKind::Line,
-                        SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
-                            arc: Arc2 {
-                                centre: point2(arc.centre, site)?,
-                                radius: arc.radius.point_value().ok_or(site)?,
-                                sweep: arc.sweep.point_value().ok_or(site)?,
-                            },
-                            turn,
-                        },
-                    };
                     let (start, end) = (point2(s.start, site)?, point2(s.end, site)?);
                     // A direction is a point where its construction held
                     // one; one validation minted from points is their
@@ -1401,32 +1412,37 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                         (Some(x), Some(y)) => Vec2::new(x, y),
                         _ => mint,
                     };
-                    let directions = match (s.directions, kind) {
-                        (SegmentDirections::Line(d), SegmentKind::Line) => {
+                    let kind = match s.kind {
+                        SegmentKind::Line { director } => {
                             let frame = seg::ChordFrame::of(start, end);
-                            SegmentDirections::Line(vec2(
-                                d,
-                                seg::mint_director(frame.chord, frame.unit),
-                            ))
+                            SegmentKind::Line {
+                                director: vec2(
+                                    director,
+                                    seg::mint_director(frame.chord, frame.unit),
+                                ),
+                            }
                         }
-                        (
-                            SegmentDirections::Arc { start: rs, end: re },
-                            SegmentKind::Arc { arc, .. },
-                        ) => SegmentDirections::Arc {
-                            start: vec2(rs, seg::mint_radial(arc, start)),
-                            end: vec2(re, seg::mint_radial(arc, end)),
-                        },
-                        (directions, kind) => unreachable!(
-                            "a validated segment records the directions of its own kind: \
-                             {directions:?} on {kind:?}"
-                        ),
+                        SegmentKind::Arc {
+                            arc,
+                            turn,
+                            radials: [rs, re],
+                        } => {
+                            let arc = Arc2 {
+                                centre: point2(arc.centre, site)?,
+                                radius: arc.radius.point_value().ok_or(site)?,
+                                sweep: arc.sweep.point_value().ok_or(site)?,
+                            };
+                            SegmentKind::Arc {
+                                arc,
+                                turn,
+                                radials: [
+                                    vec2(rs, seg::mint_radial(arc, start)),
+                                    vec2(re, seg::mint_radial(arc, end)),
+                                ],
+                            }
+                        }
                     };
-                    Ok(ValidatedSegment {
-                        start,
-                        end,
-                        kind,
-                        directions,
-                    })
+                    Ok(ValidatedSegment { start, end, kind })
                 })
                 .collect::<Result<Vec<_>, ValueNotAPoint>>()?;
             loops.push(ValidatedLoop {
@@ -2522,20 +2538,14 @@ fn canonicalize_loop<T: Decide>(
                 None => ProfileError::escalated(EscalationSite::Segment(at), source),
             })
         })?;
-        let kind = match &s.kind {
-            SegKind::Line => SegmentKind::Line,
-            SegKind::Arc(g) => SegmentKind::Arc {
-                arc: g.arc,
-                turn: g.turn,
-            },
-        };
+        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
         // The value-channel check the pinned permutation earns: the
         // segments the recorded rotation and reversal produce must
         // classify HERE the way they classified there. A line where an
         // arc was recorded, or an arc turning the other way, is a
         // structure the lane is watching change under it.
         let shape = match kind {
-            SegmentKind::Line => SegmentShape::Line,
+            SegmentKind::Line { .. } => SegmentShape::Line,
             SegmentKind::Arc { turn, .. } => SegmentShape::Arc { turn },
         };
         if let Some(rec) = recorded
@@ -2559,7 +2569,6 @@ fn canonicalize_loop<T: Decide>(
             start: s.a,
             end: s.b,
             kind,
-            directions: seg::validated_directions(&s, made.get(k).copied().flatten()),
         });
     }
     if let Some(rec) = recorded

@@ -620,17 +620,22 @@ fn circle_traversal<T: Real>(
         Point2::new(centre.x - radius, T::zero()),
         Point2::new(centre.x + radius, T::zero()),
     );
-    let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
+    // The radial at `hi` is `+x` and at `lo` `−x`: the vertices are
+    // the centre moved by the radius along the sketch `x` axis, which
+    // is the construction itself, for the positive radius a circle
+    // carrier stores.
+    let x = Vec2::new(T::one(), T::zero());
+    let arc = |a, b, radial, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        kind: Traversed::half_turn(centre, radius, turn),
+        kind: Traversed::half_turn(centre, radius, turn, radial),
         canonical_vertex,
         canonical_segment,
     };
     if reversed {
-        vec![arc(hi, lo, 0, 1), arc(lo, hi, 1, 0)]
+        vec![arc(hi, lo, x, 0, 1), arc(lo, hi, -x, 1, 0)]
     } else {
-        vec![arc(hi, lo, 0, 0), arc(lo, hi, 1, 1)]
+        vec![arc(hi, lo, x, 0, 0), arc(lo, hi, -x, 1, 1)]
     }
 }
 
@@ -701,7 +706,7 @@ mod tests {
         for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
             for reversed in [false, true] {
                 for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
-                    let SegmentKind::Arc { arc, turn: t } = seg.kind.get() else {
+                    let SegmentKind::Arc { arc, turn: t, .. } = seg.kind.get() else {
                         panic!("a circle traversal is arcs");
                     };
                     let span = arc_span(t, arc);

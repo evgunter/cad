@@ -1794,7 +1794,7 @@ fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool
                 point_all(&s.start, holds)
                     && point_all(&s.end, holds)
                     && match &s.kind {
-                        profile::SegmentKind::Line => true,
+                        profile::SegmentKind::Line { .. } => true,
                         profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })

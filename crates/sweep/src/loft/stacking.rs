@@ -286,7 +286,7 @@ fn pieces<T: Decide>(
                         segment: j,
                     },
                     ends,
-                    line: matches!(profile_loop.segments()[j].kind, SegmentKind::Line),
+                    line: matches!(profile_loop.segments()[j].kind, SegmentKind::Line { .. }),
                     carrier: spec.carrier,
                     span: (spec.param_start, spec.param_end),
                 }

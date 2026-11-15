@@ -146,7 +146,7 @@ pub fn decided_facts<T: Real>(vp: &crate::ValidatedProfile<T>) -> String {
         );
         for s in lp.segments() {
             match s.kind {
-                crate::SegmentKind::Line => out.push_str(" L"),
+                crate::SegmentKind::Line { .. } => out.push_str(" L"),
                 crate::SegmentKind::Arc { turn, .. } => {
                     let _ = write!(out, " {turn:?}");
                 }
