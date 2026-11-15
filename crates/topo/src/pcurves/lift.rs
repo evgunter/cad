@@ -407,7 +407,6 @@ impl<T: Real> Lift<T> {
     pub fn azimuth_window(&self) -> Option<(T, T)> {
         self.window().map(|(u, _)| u)
     }
-
 }
 
 impl<T: Real + SpanLocate> Lift<T> {
