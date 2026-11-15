@@ -62,3 +62,20 @@ answering `discharge_retried` (memoised per session).
 **Not blocking.** The repair mints the axis through the existing parts
 and re-baselines the counts. This row is for whoever next needs to ask
 the question at a site where the counts or the pending entries matter.
+
+## Evidence (2026-11-15, PR 6990's reviews): "was this Zero proven" has three spellings
+
+PR 6990 gave the profile's axis mint one spelling,
+`geom_core::sym::deferred::discharge(margin)` (true for a margin proven
+eagerly, and for one a deferring session discharges). Two more stand in
+production code, each asking the same question of a `Decided`:
+
+- `topo` `coincidence.rs`, `Discharge::of`: `MarginDiag::proven()`
+  alone, which does not see a deferred Zero's discharge;
+- `editor-core` `coincide/replay.rs`: `discharge_or_why`, at three call
+  sites (the deferring replay lane).
+
+Three presentation readers of `proven()` in `geom-core`'s
+`predicate.rs` only report. Whatever answers this row gives the
+question one home; until then a fourth site has three examples to copy.
+(BOXFINISH orchestrator)
