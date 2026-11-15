@@ -8,9 +8,9 @@
 //!   that zero;
 //! - **the quotient hop**: corners `(0, 0) (w, 0) (v, 1) (0, 1)` with
 //!   `w` and a second variable `v` both `1 ± 1e-10`, equal at the
-//!   nominal and not an identity. `v − w` reads Zero over the whole box,
-//!   inside the band, with no proof behind it, so its director is the
-//!   chord over its length and carries the box's width.
+//!   nominal and not an identity. Over the box `v − w` straddles zero at
+//!   the mint's least band, so its director is the chord over its length
+//!   and carries the box's width; at a corner member it reads definite.
 //!
 //! The drive certifies leaves of each, and each member of a leaf (its
 //! corners and middle) is built at `f64`. Every member's stored wall
@@ -21,11 +21,16 @@
 //! at a point; over a box a deferring session proves nothing as it
 //! decides, so the profile's simplicity gates escalate there).
 //!
-//! The mutant that turns the quotient row red: `profile`'s axis mint
-//! taking a Zero no proof stands behind (`seg::read_component`'s
-//! `UnprovenZero`) as proven, which stores the quotient hop's director
-//! as the exact `(0, 1)` over the box, where no member off the nominal
-//! has it.
+//! The mutants, each run: the quotient row goes red when `profile`'s
+//! axis mint (`seg::axis_or`) takes an escalated component as the zero
+//! of an axis — the whole leaf certifies with the hop's wall normal
+//! stored exactly, and a corner member's leans by `2e-10`; the identity
+//! row goes red when the proven axis takes `+1` whatever the sign the
+//! other component read, but through its first assertion, not a member:
+//! the box lane stores the side `(w, 1) → (0, 1)` running the wrong way
+//! and the drive certifies no leaf (16 refused). No lane-dependent
+//! mutant of the identity hop reaches a certified leaf that a member
+//! then reads; that row holds the proven axis's lane, not a mutant's.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
