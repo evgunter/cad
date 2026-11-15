@@ -393,6 +393,255 @@ fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
     }
 }
 
+/// [`brick_at`] upright over `[0, 1] × [0, 1] × [0, top]`, every edge's
+/// line stated as a sweep door states it: from the edge's own start
+/// along the unit brick's exact direction, as long as the edge is
+/// (`top` for an upright edge). [`brick_at`]'s own lines are minted from
+/// their two ends (`EdgeCurveSpec::line_between`), so a moving edge's
+/// direction there is as wide as its chord.
+fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
+    let mut body = brick_at(top, Boxed::from_f64(1.0), false, tol);
+    let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let mut stated = std::collections::BTreeSet::new();
+    for (face, _) in twin.faces() {
+        for e in twin.proven_face(face).edges() {
+            let plus = twin
+                .edges
+                .get(e.edge)
+                .and_then(|edge| edge.claim(e.half))
+                .expect("the twin's half claims its edge")
+                .plus;
+            if !plus || !stated.insert(e.edge) {
+                continue;
+            }
+            let at = |b: &Body<f64>, v| {
+                *b.get_point(b.get_vertex(v).expect("a vertex").point)
+                    .expect("a point")
+            };
+            let dir = at(&twin, e.ends[1]) - at(&twin, e.ends[0]);
+            let ends = e.ends.map(|v| {
+                *body
+                    .get_point(body.get_vertex(v).expect("the twin's keys").point)
+                    .expect("a point")
+            });
+            let mut spec = geom_brep::EdgeCurveSpec::line_between(ends[0], ends[1]);
+            spec.carrier = geom::Curve3::line(ends[0], dir.map(Boxed::from_f64));
+            spec.param_end = if dir.z == 0.0 {
+                Boxed::from_f64(1.0)
+            } else {
+                top
+            };
+            body.set_edge_curve(e.edge, spec, tol)
+                .expect("the edge takes its line");
+        }
+    }
+    body
+}
+
+/// Runs `read` on [`lined_brick`] with its top cap over `1 ± half`.
+fn over_lined<R>(half: f64, read: impl FnOnce(&Body<Boxed>, Band) -> R) -> R {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    geom_core::sym::with_session(budget, || {
+        let top = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("lined_brick_top")),
+            Interval::from_bounds(1.0 - half, 1.0 + half),
+            1.0 - half,
+            1.0 + half,
+        );
+        read(&lined_brick(top, tol), band)
+    })
+    .0
+}
+
+/// The brick's top cap (`up`) or bottom cap: the face whose stated
+/// normal runs along `z` that way.
+fn cap<T: Decide + geom_core::Bounds>(body: &Body<T>, up: bool) -> (FaceKey, Vec3<T>) {
+    body.faces()
+        .find_map(|(face, _)| {
+            let normal = crate::face_normal::face_plane(body, face)?.normal;
+            (normal.z.lo() > 0.5 && up || normal.z.hi() < -0.5 && !up).then_some((face, normal))
+        })
+        .expect("a brick has two caps")
+}
+
+/// The upright `f64` brick whose top cap stands at `top`.
+fn member(top: f64) -> Body<f64> {
+    brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, top), Tol::witness())
+}
+
+/// Whether the enclosure of `x` holds `value` and is no wider than
+/// `width`, as the reason it does not.
+fn held<T: geom_core::Bounds>(x: T, value: f64, width: f64) -> Result<(), String> {
+    let (lo, hi) = (x.lo(), x.hi());
+    if lo <= value && value <= hi && hi - lo <= width {
+        Ok(())
+    } else {
+        Err(format!(
+            "[{lo}, {hi}] (width {:e}) against the member's {value} and a width of {width:e}",
+            hi - lo
+        ))
+    }
+}
+
+/// The half-widths the moving cap's readings are held at: a twentieth,
+/// a quarter and nine twentieths of the brick's height.
+const HALVES: [f64; 3] = [0.05, 0.25, 0.45];
+
+/// **The turn of a moving cap's loop about a point of it is `2π` over
+/// the box, and about a point beside it `0`, each as narrow as at a
+/// member** (`solid_contain::loop_turn`). The cap's four vertices and
+/// the point each carry the cap's boxed height, and the turn holds none
+/// of it: every member's is `±2π` or `0` to rounding. Held within
+/// `1e-9` of the members' value at each of [`HALVES`].
+///
+/// **Red where the turn is read on all three components**
+/// (`normal.dot(u.cross(w)).atan2(u.dot(w))` in `loop_turn`'s `angle`):
+/// `u·w` then sums the height's width squared, and at a quarter of the
+/// height the turn about the inside point encloses `[−0.6, 13]`.
+#[test]
+fn a_moving_caps_turn_is_as_narrow_as_a_members() {
+    use crate::boolean::solid_contain::planar_turn;
+    let tau = core::f64::consts::TAU;
+    for (what, x, turns) in [("inside", 0.37, 1.0), ("beside", 1.5, 0.0)] {
+        for top in [0.55, 1.0, 1.45] {
+            let body = member(top);
+            let (face, normal) = cap(&body, true);
+            let turn = planar_turn(&body, face, normal, Point3::new(x, 0.41, top))
+                .expect("a brick's cap is four lines");
+            assert!(
+                (turn - turns * tau).abs() < 1e-12,
+                "{what}, the member at {top}: its turn is {turn}"
+            );
+        }
+        for half in HALVES {
+            let turn = over_lined(half, |body, _| {
+                let (face, normal) = cap(body, true);
+                let height = crate::face_normal::face_plane(body, face)
+                    .expect("a cap is planar")
+                    .origin
+                    .z;
+                let p = Point3::new(Boxed::from_f64(x), Boxed::from_f64(0.41), height);
+                planar_turn(body, face, normal, p).expect("a brick's cap is four lines")
+            });
+            if let Err(why) = held(turn, turns * tau, 1e-9) {
+                panic!("{what}, top 1 ± {half}: the cap's turn is {why}");
+            }
+        }
+    }
+}
+
+/// **A moving cap's aim is stepped in by its members' step**
+/// (`side_reader::loop_aim`): across the cap it stands where every
+/// member's does, to `1e-12`, and along the normal it is as wide as the
+/// box. The step is half the least clearance of the cap's other edges,
+/// `0.19` at every height, read between points that each carry the
+/// cap's height.
+///
+/// **Red where the step reads `solid_contain::edge_clearance`** in
+/// place of `clearance_in_plane`: a clearance then carries the height's
+/// width along the normal, and at a quarter of the height the aim is
+/// `0.27` wide across the cap.
+#[test]
+fn a_moving_caps_aim_is_stepped_by_its_members_step() {
+    let at = |top: f64| {
+        let body = member(top);
+        let (face, normal) = cap(&body, true);
+        loop_aim(&body, face, normal).expect("a brick's cap aims").0
+    };
+    let (low, high) = (at(0.55), at(1.45));
+    assert!(
+        (low.x - high.x).abs() < 1e-15 && (low.y - high.y).abs() < 1e-15,
+        "the members' aims stand at one place across the cap: {low:?}, {high:?}"
+    );
+    for half in HALVES {
+        let aim = over_lined(half, |body, _| {
+            let (face, normal) = cap(body, true);
+            loop_aim(body, face, normal).expect("a brick's cap aims").0
+        });
+        for (axis, got, want, width) in [
+            ("x", aim.x, low.x, 1e-12),
+            ("y", aim.y, low.y, 1e-12),
+            ("z", aim.z, 1.0, 2.0 * half + 1e-12),
+        ] {
+            if let Err(why) = held(got, want, width) {
+                panic!("top 1 ± {half}: the aim's {axis} is {why}");
+            }
+        }
+    }
+}
+
+/// **An aimed moving cap is crossed at its aim** (`solid_contain`'s
+/// plane arm, read from the aim's [`Anchor`]): the ray's advance to the
+/// cap it is aimed at is `0` to `1e-12` over the box, as at every
+/// member, and the cap counts there. The cap's plane and the aim each
+/// carry the cap's height; the aim was stepped across the cap from a
+/// point of its first edge, so its advance to the cap's plane holds the
+/// step alone.
+///
+/// **Red where the plane arm reads `origin − q` for every plane** (the
+/// anchor passed over): at a quarter of the height the advance is then
+/// `[−0.51, 0.51]`.
+#[test]
+fn an_aimed_moving_cap_is_crossed_at_its_aim() {
+    fn own_crossing<T: Decide + geom_core::Bounds>(body: &Body<T>, band: Band) -> (T, T, i32) {
+        let (face, _) = cap(body, true);
+        let solid = body.solids().next().expect("a brick is a solid").0;
+        let sel = SolidFaces::of(body, solid).expect("the brick's faces");
+        let geos: Vec<_> = sel
+            .faces()
+            .iter()
+            .map(|&f| (f, face_geo(body, f, &sel.charts, band).expect("planar")))
+            .collect();
+        let geo = &geos.iter().find(|g| g.0 == face).expect("the cap").1;
+        let (aim, normal, anchor) = aim_at(body, face, geo, band)
+            .expect("the cap aims")
+            .expect("the cap offers an aim");
+        let (b1, b2) = normal.orthonormal_basis();
+        let (turn_sin, turn_cos) = aim_turn();
+        let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
+        let out = normal * T::from_f64(AIM_INCIDENCE.0) + tangent * T::from_f64(AIM_INCIDENCE.1);
+        let reach = selection_reach(body, sel.faces(), aim, band).expect("a reach");
+        let ray = geom::Ray::starting(aim, -out, reach.length() * T::from_f64(-2.0));
+        let crossings = ray_crossings(
+            body,
+            &geos,
+            (&ray, anchor.as_ref()),
+            reach,
+            band,
+            AIMED_ROWS,
+        )
+        .unwrap_or_else(|_| panic!("the cap's ray is read"));
+        let ((from, to), hit, _) = crossings
+            .all()
+            .into_iter()
+            .find(|(_, hit, _)| hit.face == face && hit.mark.is_none())
+            .expect("the ray crosses the cap it is aimed at");
+        (from, to, hit.count)
+    }
+    let band = Band::linear(Tol::witness()).expect("the witness band");
+    for top in [0.55, 1.0, 1.45] {
+        let (from, to, count) = own_crossing(&member(top), band);
+        assert!(
+            from.abs() < 1e-12 && to.abs() < 1e-12 && count == -1,
+            "the member at {top}: crossed at [{from}, {to}], count {count}"
+        );
+    }
+    for half in HALVES {
+        let (from, to, count) = over_lined(half, own_crossing);
+        assert_eq!(count, -1, "top 1 ± {half}: the ray enters at the cap");
+        let (lo, hi) = (geom_core::Bounds::lo(from), geom_core::Bounds::hi(to));
+        assert!(
+            (-1e-12..=0.0).contains(&lo) && (0.0..=1e-12).contains(&hi),
+            "top 1 ± {half}: the cap's crossing spans [{lo}, {hi}] against the members' 0"
+        );
+    }
+}
+
 /// **A brick over a box a twentieth of its height wide reads its side
 /// by every face's own ray, and an inside-out one reads `In` by a ray
 /// through it.** Upright, each of the six aims reads `Out`. An

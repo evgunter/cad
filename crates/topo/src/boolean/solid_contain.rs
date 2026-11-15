@@ -3697,6 +3697,18 @@ fn loop_turn<T: Decide>(
     Ok(Some(turn))
 }
 
+/// [`loop_turn`] of planar `face` about `p`, for the rows that hold its
+/// enclosure over a box.
+#[cfg(test)]
+pub(crate) fn planar_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+) -> Option<T> {
+    loop_turn(body, face, normal, p, |x| x).ok().flatten()
+}
+
 /// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
 /// at most half a turn, about the normal of `frame`
 /// ([`in_plane`]), in the plane of `p`: the change
