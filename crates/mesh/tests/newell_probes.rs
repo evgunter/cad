@@ -196,7 +196,7 @@ fn probe_d_huge_offset_tiny_face() {
             e.contains("OutsideSessionBox")
                 || (e.contains("ResidualExceeded") && e.contains("MappedSource"))
         }),
-        "huge-offset: the session box refuses it: {got:?}"
+        "huge-offset: past the session box, the body refuses (at the box or at certification): {got:?}"
     );
 }
 

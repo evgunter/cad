@@ -2,12 +2,13 @@
 id: the-side-reader-cannot-read-a-solids-orientation-over-a-box
 kind: issue
 title: The side reader cannot read a solid's orientation over a macroscopic box: every aimed ray's boundary margin blows up
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P0
 cost: M
 refs: [6371]
 branch: boxfinish/aimed-ray
+closed: 2026-11-15
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -104,3 +105,34 @@ across the box still refuses. Branch `boxfinish/aimed-ray`.
 solid's orientation at every at-rest gate, so an unsound ray is a live
 wrong answer, and its rays have been wrong before in ways a read of the
 diff did not show.
+
+## Closed (2026-11-15, PR 6958): the ray's half
+
+An aimed ray is the line through its aim along `−out`, started twice the
+reach behind it (`geom::Ray::starting`); it is no longer rebuilt from
+boxed ends. And an undecided ray-to-edge gap no longer reads as "the ray
+passes this edge": the ray is set aside (`solid_contain::edge_meets`),
+which the first review showed the first head needed.
+
+**What it delivers, measured.** Rays read where every ray was set aside:
+the door slab at depth 1 ± 0.025 reads by its bottom cap's ray and is
+taken; a fixture brick reads all six aims at ± 0.025. With the switch
+off, the ± 0.05 slab certifies in two half leaves by rays (four by the
+volume before); its root still bisects. No ray reads a side no member
+has, on every search two reviews ran.
+
+**What it does not deliver.** This row's first closing test (the slab
+certifying in one leaf, the boss's rungs, the tour's share) is not met by
+the ray alone. One of six rays reads at half the width; the rest are set
+aside because the door's stored normals and edge lines carry the box.
+That is held by:
+- `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`
+  (the stored normals and lines);
+- `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`
+  (the aim's step, the aimed face's advance, the loops' turn);
+- `a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box`
+  (P0: the curved twin of the unsound reading, unreachable today);
+- `the-census-reads-an-edges-direction-off-its-two-ends` and
+  `an-undecided-same-side-overlap-records-nothing-in-the-aligned-face-pair-arm`.
+The three rows of the first closing test are re-run with the switch off
+once the extrude-mint row lands (`tier-3-at-every-box-replay-leaf-multiplies-the-decisions`).

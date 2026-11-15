@@ -287,6 +287,25 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Decision` 976 → 984 and both `Assertion` rows 988 → 996
 /// calls, with no form, frozen count or digest moving at any ε row.
 ///
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953): a placed line's span is `‖b − a‖` over the sketch
+/// and its direction the sketch chord's unit placed, where both were read
+/// off the placed vertices. Nothing is registered for a line (its far end
+/// folds to the far vertex as a form), so the walks the door adds are
+/// main's: the slab has no `Door/Decision` line, as before. It composes
+/// with the move above: the calls are its, the forms and digests this
+/// one's, each unchanged by the other.
+/// - The span alone (the PR's first head, whose direction still
+///   normalized `q_to − q_from`): `Plain/Decision` 9709 → 9663 and
+///   `Plain/Assertion` 3503 → 3391 forms, same calls. The span's own
+///   3-space difference, its three squares and its root are formed no
+///   more; the sketch chord's two-coordinate norm, over sketch values
+///   other forms already hold, replaces them.
+/// - The direction from the sketch chord takes the rest: `Plain/Decision`
+///   9663 → 9559, `Plain/Assertion` 3391 → 3375, and `Early/Assertion`
+///   4931 → 4854, calls unchanged. The second 3-space difference and its
+///   normalization go too; the slab's placement is the identity's axes,
+///   so the placed unit chord folds to its sketch components.
 /// **Moved with the extrude keeping its sketch frame**: it fits no
 /// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
 /// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
@@ -503,6 +522,16 @@ const PLATE_MAX_TERMS: usize = 38;
 /// and both `Assertion` rows 1050 → 1054 calls, no form, frozen count or
 /// digest moving, at every ε row.
 ///
+/// **Moved with a line rim's span and direction stated from its sketch
+/// segment** (PR 6953, [`SLAB_LEDGER`]'s note), calls unchanged and the
+/// `Door/Decision` walk main's: `Plain/Assertion` 13400 → 13305 (13293
+/// with the span alone), `Early/Decision` 28232 → 28205, and two rises,
+/// `Plain/Decision` 40761 → 40813 (+52) and `Early/Assertion` 14775 →
+/// 14807 (+32). The rises are the direction's (the span alone moved only
+/// `Plain/Assertion`), and which reads build the new forms is not traced:
+/// on the slab the placed unit chord folds to its sketch components,
+/// and on the plate the walks build more forms over it than they did over
+/// `q_to − q_from`.
 /// **Moved with the sweeps keeping their sketch frames**: the extrudes'
 /// caps and walls fit no plane, so the Newell sums and their residuals
 /// are built nowhere: `Plain/Decision` 1019 → 979 calls (40761 → 39604

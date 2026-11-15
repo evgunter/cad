@@ -60,6 +60,18 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
 }
 
 /// **The measurement of record for a plain-`Interval` extrude of a
+/// WIDENED height** (no frame anywhere): certifies at ε/8 and every
+/// narrower width, refuses at ε/6 — the floor between the two, at every
+/// ε row. The ladder is printed in full; the assertion is the floor.
+///
+/// It was ε/10 certifying and ε/8 refusing until a line rim's direction
+/// was stated from its sketch segment (PR 6953). Two-variant mutation
+/// (PR 6953's second delta review): reverting only the span leaves ε/8
+/// certified, and reverting only the direction makes it refuse with
+/// main's `carrier_on_surface_2` residual, so the cause is the direction
+/// alone: read off the two placed vertices, the top cap's line rims took
+/// a z-slope as wide as the vertices' widths. At ε/6 the binding refusal
+/// is the top cap's `newell_plane_residual`, which main also has there.
 /// WIDENED height** (no frame anywhere): certifies at ε/4 and every
 /// narrower width, refuses at ε/2, at every ε row (it refused at ε/8
 /// while the extrude fitted its planes to the boxed corners, whose

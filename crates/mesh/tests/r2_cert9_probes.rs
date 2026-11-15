@@ -270,7 +270,7 @@ fn p6_reproduce_the_huge_offset_red_digit() {
             e.contains("OutsideSessionBox")
                 || (e.contains("ResidualExceeded") && e.contains("MappedSource"))
         }),
-        "the 1e8 m cube is past the session box: {got:?}"
+        "the 1e8 m cube is past the session box, so the body refuses (at the box or at certification): {got:?}"
     );
 }
 

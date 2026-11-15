@@ -938,6 +938,11 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // session box of its image (`Replay::moved_by`): one numeric
     // decision, (1523, 1214, 3683). Then the constructors' whole-wedge
     // reads (the study's `symbolic`): (1523, 1214, 3683) -> (1515, 1698,
+    // 3989), each witness the edge's carrier middle. Then a line rim's
+    // span and direction stated from its sketch segment (PR 6953): the
+    // decisions hold, and the forms they freeze read the placed sketch
+    // chord's unit where they read the placed vertices' difference,
+    // 3989 -> 4000.
     // 3989), each witness the edge's carrier middle. Then validation's
     // mint read each straight side's chord exactly (audit row F43):
     // (1515, 1698, 3989) -> (1531, 1714, 3989). Then the sweeps keep their

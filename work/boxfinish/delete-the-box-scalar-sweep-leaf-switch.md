@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions]
+blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
