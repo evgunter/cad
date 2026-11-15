@@ -2926,6 +2926,47 @@ mod crossing_and_turn_rows {
         );
     }
 
+    /// **At the dual scalar a pair one direction only in value keeps its
+    /// turn's derivative**: `a = x̂`, and `b = (cos t, sin t, 0)` seeded at
+    /// `t = 0`, so `b`'s value is `x̂` while its derivative is `ŷ`. The
+    /// least turn there is the rotation about `z` by `t`, whose derivative
+    /// at `t = 0` is the quarter-turn generator: `S'·x̂ = ŷ`, `S'·ŷ = −x̂`,
+    /// `S'·ẑ = 0`. The mint's identity is an exact test, so it must hold in
+    /// every channel (`Real::is_exact_zero_in_every_channel`). *Breaks if*
+    /// the identity reads the value channel alone, which returns the world
+    /// motion and a zero derivative.
+    #[test]
+    fn a_dual_pair_one_direction_only_in_value_keeps_its_derivative() {
+        use crate::Dual;
+        let d = |v: f64, dv: f64| Dual {
+            value: v,
+            deriv: dv,
+        };
+        let zero = d(0.0, 0.0);
+        let a = UnitVec3::by_construction(Vec3::new(d(1.0, 0.0), zero, zero));
+        let b = UnitVec3::by_construction(Vec3::new(d(1.0, 0.0), d(0.0, 1.0), zero));
+        let m = RigidMotion::least_turn(
+            a,
+            b,
+            Point3::new(zero, zero, zero),
+            Lever::session_box(),
+            SITE,
+            band(),
+        )
+        .expect("the turn builds")
+        .linear();
+        let deriv = |v: Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
+        assert_eq!(deriv(m.c0), [0.0, 1.0, 0.0], "S'·x̂ is ŷ");
+        assert_eq!(deriv(m.c1), [-1.0, 0.0, 0.0], "S'·ŷ is −x̂");
+        assert_eq!(deriv(m.c2), [0.0, 0.0, 0.0], "S'·ẑ is zero");
+        let value = |v: Vec3<Dual<f64>>| [v.x.value, v.y.value, v.z.value];
+        assert_eq!(
+            [value(m.c0), value(m.c1), value(m.c2)],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            "its value is the identity"
+        );
+    }
+
     /// **A definite conditioning refusal outranks an undecided pole
     /// verdict**: past the crossover arm, a chord inside the pole verdict's
     /// band (twice its zero half-width, levered) is also far inside the

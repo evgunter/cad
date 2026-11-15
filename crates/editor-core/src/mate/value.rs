@@ -1618,6 +1618,43 @@ mod tests {
         );
     }
 
+    /// **At the dual scalar a chart whose mated directions agree only in
+    /// value keeps its least turn's derivative**: the copy's direction `x̂`
+    /// and the target's `(cos t, sin t, 0)` seeded at `t = 0`. The chart's
+    /// least turn is the rotation about `z` by `t`, so its carried `x` axis
+    /// moves at `ŷ` and its carried `y` axis at `−x̂`. Main's chart took the
+    /// identity there on the value channel alone (`mate::turn::zero`) and
+    /// dropped that derivative. *Breaks if* the identity test reads the
+    /// value channel alone.
+    #[test]
+    fn a_dual_chart_one_direction_only_in_value_keeps_its_derivative() {
+        use geom_core::Dual;
+        let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let d = |v: f64, dv: f64| Dual {
+            value: v,
+            deriv: dv,
+        };
+        let zero = d(0.0, 0.0);
+        let unit =
+            |v| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).expect("a unit direction");
+        let copy = unit(Vec3::new(d(1.0, 0.0), zero, zero));
+        let target = unit(Vec3::new(d(1.0, 0.0), d(0.0, 1.0), zero));
+        let chart = Chart::charted(
+            target,
+            copy,
+            Seat::Free,
+            false,
+            Orientation::IDENTITY,
+            Arm::of(0.5, 0.0).unwrap(),
+            geom_core::Lever::session_box(),
+            band,
+        )
+        .expect("a chart off the pole");
+        let deriv = |v: Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
+        assert_eq!(deriv(chart.carried(0)), [0.0, 1.0, 0.0], "S'·x̂ is ŷ");
+        assert_eq!(deriv(chart.carried(1)), [-1.0, 0.0, 0.0], "S'·ŷ is −x̂");
+    }
+
     /// The band-edge fixture: a target direction `d` oblique to every
     /// axis, and a copy direction `n` that is `−d` tilted by `tau` about
     /// an oblique axis `w` across `d`, so the chord `|n + d|` is

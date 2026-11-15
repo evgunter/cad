@@ -336,17 +336,19 @@ fn decide_direction_by<T: Decide>(
 
 impl<T: Real> UnitVec3<T> {
     /// **Whether this is `other` exactly**: every component's difference
-    /// an exact zero of either sign ([`crate::real::is_exact_zero`]), so
-    /// `+0` and `−0` agree. Structure read as structure, not a tolerance
-    /// decision: the least turn's identity (`RigidMotion::least_turn`), the
-    /// value chart's, and the path sweep's still step all ask it. It reads
-    /// the value channel, as `is_exact_zero` does.
+    /// an exact zero of either sign in every channel the scalar carries
+    /// ([`Real::is_exact_zero_in_every_channel`]), so `+0` and `−0` agree,
+    /// and at the dual scalar a pair whose values agree while their
+    /// derivatives differ is not one direction. Structure read as
+    /// structure, not a tolerance decision: the least turn's identity
+    /// (`RigidMotion::least_turn`), the value chart's, and the path
+    /// sweep's still step all ask it.
     #[must_use]
     pub fn is_exactly(self, other: Self) -> bool {
         let (a, b) = (self.0, other.0);
         [a.x - b.x, a.y - b.y, a.z - b.z]
             .into_iter()
-            .all(crate::real::is_exact_zero)
+            .all(Real::is_exact_zero_in_every_channel)
     }
 
     /// The direction itself, unit.

@@ -6783,6 +6783,50 @@ pub(super) fn recut_lean<T: Decide>(
     })
 }
 
+/// **A re-cut's turn carrying `a` onto `b` about the sphere's `center`**
+/// (`bool_sphere_recut_turn`): the decided least turn, consumed over the
+/// sphere (every point it moves stands at the radius from the centre it
+/// turns about, the sphere's curvature arm). A conditioning refusal is the
+/// re-chart the band cannot determine, typed; any other refusal is past
+/// what the alignment trilean and the seam's half-plane choice settled,
+/// so it is an invariant broken.
+fn recut_turn<T: Decide>(
+    a: geom_core::UnitVec3<T>,
+    b: geom_core::UnitVec3<T>,
+    center: Point3<T>,
+    radius: T,
+    band: Band,
+    operand: Operand,
+    representative: FaceKey,
+) -> Result<geom_core::RigidMotion<T>, BooleanError> {
+    geom_core::RigidMotion::least_turn(
+        a,
+        b,
+        center,
+        geom_core::Lever::curvature_radius(radius),
+        RECUT_TURN,
+        band,
+    )
+    .map_err(|e| match e {
+        geom_core::TurnError::IllConditioned { .. }
+        | geom_core::TurnError::ConditioningUndecided(_) => {
+            BooleanError::FallbackExtentUnsupported {
+                operand,
+                face: representative,
+                what: "a sphere group whose stored polar axis stands so near opposed to its \
+                       escape normal that the re-chart's turn, levered at the radius, passes \
+                       the run's rounding reach: the turn is not determined at ε",
+            }
+        }
+        _ => BooleanError::ClassificationInvariant {
+            what: "re-cut rotation does not mint a turn",
+        },
+    })
+}
+
+/// The decision name of a re-cut's turn ([`recut_turn`]).
+const RECUT_TURN: &str = "bool_sphere_recut_turn";
+
 /// Applies the scan's re-cuts: each escaping group's shell is carved
 /// out, rigidly rotated about the sphere's own center so the stored
 /// polar axis lands on the escape normal (the same point set — a
@@ -6847,38 +6891,11 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // (about 0.16 m at the default ε) the conditioning's edge
             // `2r/R` is the wider, so an axis that near opposed refuses
             // here, typed, as a re-chart the band cannot determine.
-            const RECUT_TURN: &str = "bool_sphere_recut_turn";
             let unit = |v: Vec3<T>| {
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            // The turn is consumed over the sphere: every point it moves
-            // stands at the radius from the centre it turns about, the
-            // sphere's curvature arm.
-            let turn = |a, b| {
-                geom_core::RigidMotion::least_turn(
-                    a,
-                    b,
-                    r.center,
-                    geom_core::Lever::curvature_radius(r.radius),
-                    RECUT_TURN,
-                    band,
-                )
-                .map_err(|e| match e {
-                    geom_core::TurnError::IllConditioned { .. }
-                    | geom_core::TurnError::ConditioningUndecided(_) => {
-                        BooleanError::FallbackExtentUnsupported {
-                            operand,
-                            face: r.representative,
-                            what: "a sphere group whose stored polar axis stands so near \
-                                   opposed to its escape normal that the re-chart's turn, \
-                                   levered at the radius, passes the run's rounding reach: \
-                                   the turn is not determined at ε",
-                        }
-                    }
-                    _ => corrupt("re-cut rotation does not mint a turn"),
-                })
-            };
+            let turn = |a, b| recut_turn(a, b, r.center, r.radius, band, operand, r.representative);
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
             // `seam`; the sign that keeps the turn at most a quarter is
@@ -8293,6 +8310,41 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    /// **A re-cut's turn at the dual scalar keeps its derivative where its
+    /// two directions agree only in value**: the seam spin's `a = x̂` and
+    /// `b = (cos t, sin t, 0)` seeded at `t = 0`, about the origin at a
+    /// radius of one. The spin is the rotation about `z` by `t`, so the
+    /// turn moves `x̂` at `ŷ` and `ŷ` at `−x̂`. *Breaks if* the mint's
+    /// identity reads the value channel alone, which drops that derivative
+    /// from the re-charted sphere's ∂m/∂p.
+    #[test]
+    fn a_recut_turn_one_direction_only_in_value_keeps_its_derivative() {
+        use geom_core::{Dual, UnitVec3};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("a band");
+        let d = |v: f64, dv: f64| Dual {
+            value: v,
+            deriv: dv,
+        };
+        let zero = d(0.0, 0.0);
+        let unit = |v| UnitVec3::new(v, super::RECUT_TURN, band).expect("a unit direction");
+        let a = unit(geom_core::Vec3::new(d(1.0, 0.0), zero, zero));
+        let b = unit(geom_core::Vec3::new(d(1.0, 0.0), d(0.0, 1.0), zero));
+        let m = super::recut_turn(
+            a,
+            b,
+            geom_core::Point3::new(zero, zero, zero),
+            d(1.0, 0.0),
+            band,
+            crate::boolean::Operand::A,
+            crate::entity::FaceKey::default(),
+        )
+        .expect("the turn builds")
+        .linear();
+        let deriv = |v: geom_core::Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
+        assert_eq!(deriv(m.c0), [0.0, 1.0, 0.0], "S'·x̂ is ŷ");
+        assert_eq!(deriv(m.c1), [-1.0, 0.0, 0.0], "S'·ŷ is −x̂");
+    }
 
     /// **The loop walk reads a carrier decided off its chart as torn, and
     /// one read in band at a pose as unread** (D3): only a definite miss
