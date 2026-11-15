@@ -2700,6 +2700,55 @@ mod tests {
             );
         }
 
+        /// **Reviewer row.** A side that runs against its neighbours: the
+        /// square with its right column traversed downward, so the bottom
+        /// arrives at `(1, 0)` and the column leaves from `(1, 1)`. Four
+        /// alternating runs, one value and one way each, so only the
+        /// "between its neighbours" test stands between this loop and a
+        /// rectangle read with the bottom's way as its winding.
+        #[test]
+        fn reviewer_a_side_against_its_neighbours_refuses() {
+            fn each<T: Reads>() {
+                let mut rows = polygon::<T>(&SQUARE);
+                rows[1] = from_to((1.0, 1.0), (1.0, 0.0));
+                refused::<T>(rows, "exactly once");
+            }
+            each::<f64>();
+            each::<Interval>();
+        }
+
+        /// **Reviewer row.** The joint term's `b` half: the right column
+        /// enters a quarter above the bottom-right corner, so the joint
+        /// into it measures `b = 0.25·sup|S_v| = 0.75` from the meet `(1, 0)`
+        /// and the bottom's exit adds nothing; the column's own exit at
+        /// `(1, 1)` is exact. Pad `b·(b + 2e)`.
+        #[test]
+        fn reviewer_an_entry_short_of_its_corner_adds_its_gap() {
+            let mut rows = polygon::<f64>(&SQUARE);
+            rows[1] = from_to((1.0, 0.25), (1.0, 1.0));
+            let lift = Lift::stated_for_tests(rows, true);
+            assert_eq!(trim_rectangle(&lift).unwrap().rect, (0.0, 1.0, 0.0, 1.0));
+            let e = [1e-3, 2e-3, 1e-3, 1e-3];
+            let pad = joint_defect(&lift, (2.0, 3.0), &e);
+            let want = 0.75 * (0.75 + 2.0 * 2e-3);
+            assert!((pad - want).abs() < 1e-12, "{pad} against {want}");
+        }
+
+        /// **Reviewer row.** A point image (both slopes an exact zero),
+        /// which the ends reading skipped, now refuses: and its refusal
+        /// names a diagonal trim, which a point image is not.
+        #[test]
+        fn reviewer_a_point_image_refuses_and_says_why() {
+            let mut rows = polygon::<f64>(&SQUARE);
+            rows.insert(1, piece((1.0, 0.0), (0.0, 0.0)));
+            match read(rows) {
+                Err(PropsError::QuadratureUnsupported { what }) => {
+                    assert!(what.contains("not axis-aligned"), "{what}");
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+
         /// **A ring is never offered as a side.** The certificate reads one
         /// loop; a spline face with a ring refuses at the lane, before any
         /// loop is read (the face walk refuses it earlier still,
