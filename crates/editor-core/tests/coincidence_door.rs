@@ -3187,7 +3187,9 @@ fn rounded_mouth_volume() -> f64 {
 /// union builds at its exact volume: the ball's
 /// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
 /// ([`rounded_mouth_volume`]). At `Interval` both certify at every ε and
-/// build the `f64` body, so both meet the bar of the registry they stand
+/// build the `f64` body
+/// (`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
+/// holds each to it), so both meet the bar of the registry they stand
 /// beside, which requires every lane green (whether they join it:
 /// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///

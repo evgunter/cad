@@ -336,6 +336,8 @@ const LEDGER: &[Entry] = &[
         path: "crates/sweep/tests/a_blend_reads_the_wedge_through_the_one_fold.rs",
         disposition: Shared, // the blend's wedge reads outside its one fold, code and
                              // literal views with the inline test modules blanked
+                             // (`every_site_that_reads_rust_source_is_in_the_ledger`
+                             // named this file on arrival)
     },
     Entry {
         path: "crates/sweep/tests/all.rs",

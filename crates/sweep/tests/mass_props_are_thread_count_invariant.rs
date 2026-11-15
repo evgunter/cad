@@ -418,7 +418,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// bodies' `validate_geometric` lines at every ε row, and
 /// `arc_loft_1e9eps`' volume at 1e-12. They wait on
 /// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`.
-/// And `arc_loft_1e11eps`' two pads at 1e-12, each wider than the table
+/// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
+/// `the_walk_matches_the_serial_golden_at_four_threads` alike,
+/// `arc_loft_1e11eps`' two pads at 1e-12, each wider than the table
 /// held (the volume's by under three parts in 10⁷) with the volume and
 /// the area unmoved:
 /// `work/boxfinish/main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap.md`.

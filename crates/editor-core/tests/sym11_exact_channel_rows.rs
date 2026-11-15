@@ -54,7 +54,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// are right. Three rows owe that account:
 /// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`,
 /// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`
-/// and, for the readings below against the ones the first two left,
+/// and, for the readings
+/// `sym11_the_exact_channel_never_contradicts_past_the_ceiling` holds
+/// below against the ones the first two left,
 /// `work/boxfinish/sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin.md`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1019, 1054, 299]),

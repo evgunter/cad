@@ -162,7 +162,9 @@ fn gates_on_test(attrs: &str) -> bool {
 /// What follows `mod ` on a line that declares a module, at ANY
 /// visibility: `mod`, `pub mod`, and `pub(crate)`, `pub(super)` or
 /// `pub(in path)`. A cut that lists the visibilities it has met reads a
-/// test module declared at the next one as production source.
+/// test module declared at the next one as production source, and
+/// `no_production_source_writes_a_vertex_table` then names its rows'
+/// fixtures.
 fn after_mod_keyword(trimmed: &str) -> Option<&str> {
     let rest = trimmed.strip_prefix("pub").map_or(trimmed, |r| {
         let r = r.trim_start();
