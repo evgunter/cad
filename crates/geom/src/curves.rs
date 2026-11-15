@@ -20,9 +20,14 @@
 //!   length in meters (unit `dir`); a circle's is the angle in radians;
 //!   an ellipse's is the eccentric anomaly.
 //! - **Bounds come from the topology, never from the curve.** An edge
-//!   bounds its carrier by its **vertices**: the parameter interval is
-//!   derived from the vertex positions, not stored (the
-//!   representation-consistency lesson of D2 applied to bounds; also why
+//!   bounds its carrier, a complete locus, by a parameter interval its
+//!   construction states from the quantity that defines it (for example
+//!   a segment's length, an arc's span, an extrusion distance, a knot
+//!   domain, a split's certified parameter), and its **vertices**
+//!   certify it: they are the authority the interval is certified
+//!   against, not its source, and where they are the only definition (a
+//!   line between two computed points) their distance is the definition
+//!   (`geom_brep`'s README, "Parameterization conventions"; also why
 //!   profile carriers are split so no edge spans a full period).
 //! - **The `he_plus` forward contract (D1, ratified at M1):** an edge's
 //!   intrinsic direction is its plus half-edge, and the curve geometry
