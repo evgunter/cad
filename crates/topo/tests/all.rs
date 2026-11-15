@@ -514,3 +514,5 @@ mod the_fin_crown_winds_as_a_solid;
 mod three_solids_on_one_line;
 #[path = "two_copies_filling_one_volume.rs"]
 mod two_copies_filling_one_volume;
+#[path = "review_curved_straddle_probes.rs"]
+mod review_curved_straddle_probes;
