@@ -281,26 +281,32 @@ fn eps_row(eps: f64) -> usize {
 /// edge's witness is its carrier's middle, which the walks spell with
 /// fewer forms than a strut's chord midpoint).
 ///
+/// **Moved when a validated segment began recording its directions**:
+/// validation's mint reads each component of a side's chord, and the
+/// sign of the other, exactly and outside the log (audit row F43), so
+/// `Plain/Decision` 976 → 984 and both `Assertion` rows 988 → 996
+/// calls, with no form, frozen count or digest moving at any ε row.
+///
 /// **Moved with the extrude keeping its sketch frame**: it fits no
-/// plane to its corners, so `Plain/Decision` 976 → 928 calls (9709 →
-/// 7778 forms), the assertions 988 → 984 on both walks (`Plain` 3503 →
+/// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
+/// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
 /// 2572 forms, `Early` 4931 → 3001), and their digests.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 928 forms 7778 frozen 0 digest 2a29e209e20130e8e9009ef2d1178c28\n\
-     Plain/Assertion calls 984 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
+     Plain/Decision calls 936 forms 7778 frozen 0 digest 2a29e209e20130e8e9009ef2d1178c28\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 984 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 928 forms 7778 frozen 0 digest 5f8d8243dfc0f2009232135bfb9c4e2c\n\
-     Plain/Assertion calls 984 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
+     Plain/Decision calls 936 forms 7778 frozen 0 digest 5f8d8243dfc0f2009232135bfb9c4e2c\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 984 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
     "\
-     Plain/Decision calls 928 forms 7778 frozen 0 digest daa66e0c888be50f17ec17c219722088\n\
-     Plain/Assertion calls 984 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
+     Plain/Decision calls 936 forms 7778 frozen 0 digest daa66e0c888be50f17ec17c219722088\n\
+     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 984 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
+     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -490,18 +496,25 @@ const PLATE_MAX_TERMS: usize = 38;
 /// forms), and `Plain/Decision` and `Early/Decision` keep their calls
 /// over fewer forms (41501 → 40761, 28904 → 28232).
 ///
+/// **Moved when a validated segment began recording its directions**:
+/// validation's mint reads the plate's side chords' components and signs
+/// exactly and outside the log (audit row F43); the circles' radials are
+/// recorded by the verb and read nothing. `Plain/Decision` 1015 → 1019
+/// and both `Assertion` rows 1050 → 1054 calls, no form, frozen count or
+/// digest moving, at every ε row.
+///
 /// **Moved with the sweeps keeping their sketch frames**: the extrudes'
 /// caps and walls fit no plane, so the Newell sums and their residuals
-/// are built nowhere: `Plain/Decision` 1015 → 975 calls (40761 → 39604
-/// forms), the assertions 1050 → 1044 on both walks (`Plain` 13400 →
+/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40761 → 39604
+/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13400 →
 /// 12913 forms, frozen 245 → 0; `Early` 14775 → 13378), `Door/Decision`
 /// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
 /// its calls and forms.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 975 forms 39604 frozen 54 digest dcb74baa9104ed9f6cf0ac2e4396ffce\n\
-     Plain/Assertion calls 1044 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
+     Plain/Decision calls 979 forms 39604 frozen 54 digest dcb74baa9104ed9f6cf0ac2e4396ffce\n\
+     Plain/Assertion calls 1048 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1044 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\
+     Early/Assertion calls 1048 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\
      Door/Decision calls 551 forms 13477 frozen 0 digest 894b22f3486d3ee0b1d118034b51814c";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

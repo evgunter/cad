@@ -148,11 +148,16 @@ fn a0_alone() -> SymRules {
 /// 2891/2747. The symbolic count falls by the witness reads the tier
 /// proved, which no station's read reproduces; A0's yield holds at 56.
 ///
+/// Then a validated segment began recording its directions, and
+/// validation's mint reads each side chord's components and the other's
+/// sign exactly and outside the log (audit row F43): plain 2835/2803 →
+/// 2863/2831, shipped 2891/2747 → 2919/2775, the same at every ε row;
+/// A0's yield holds at 56.
 /// Then the extrude keeps its sketch frame: its caps are the frame and
 /// its walls the frame turning their segments, so the tilted face's
 /// normal is exact over the box, limb 2 reads its net, and the root box
 /// certifies in ONE leaf again, fitting no plane on the way: plain
-/// 2835/2803 → 456/500, shipped 2891/2747 → 464/492. A0's yield is 8,
+/// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
 /// one replay's.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
@@ -184,13 +189,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=456 numeric=500 frozen=0",
+        "decisions symbolic=460 numeric=504 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=464 numeric=492 frozen=0",
-        "8 of the 500 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
+        "decisions symbolic=468 numeric=496 frozen=0",
+        "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
          decides exactly"
     );
     assert_eq!(

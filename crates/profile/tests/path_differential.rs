@@ -401,11 +401,41 @@ fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f6
     let vh = Profile::new(SketchPlane::xy(), vec![hand.clone()])
         .validate(Tol::witness())
         .expect("hand-built loop validates");
+    // The algebra's segments record the directions their verbs drew
+    // them along, and the hand table's are decided at validate from its
+    // points, so the two agree to rounding there. Everything else is
+    // compared bit for bit by construction: the hand table re-validated
+    // with the algebra's recorded directions, one canonical direction on
+    // both sides, must give the algebra's validated form whole.
+    let directed: ProfileLoop<f64> = RawLoop::new_directed(
+        hand.vertices()
+            .iter()
+            .zip(hand.segments())
+            .zip(algebra.directions())
+            .map(|((&v, &s), &d)| (v, s, d)),
+    );
+    let vd = Profile::new(SketchPlane::xy(), vec![directed])
+        .validate(Tol::witness())
+        .expect("the hand table with the algebra's directions validates");
     assert_eq!(
-        format!("{:?}", va.loops()),
-        format!("{:?}", vh.loops()),
+        format!("{va:?}"),
+        format!("{vd:?}"),
         "canonical validated forms"
     );
+    let units = |d: profile::SegmentDirections<f64>| match d {
+        profile::SegmentDirections::Line(d) => vec![d],
+        profile::SegmentDirections::Arc { start, end } => vec![start, end],
+    };
+    for (la, lh) in va.loops().iter().zip(vh.loops()) {
+        for (k, (sa, sh)) in la.segments().iter().zip(lh.segments()).enumerate() {
+            for (a, h) in units(sa.directions).into_iter().zip(units(sh.directions)) {
+                assert!(
+                    (a - h).norm() < 1e-12,
+                    "segment {k}'s directions: {a:?} vs {h:?}"
+                );
+            }
+        }
+    }
 }
 
 /// D1 — sharp polygon: lines only, closed with `line_to(Start)`.
