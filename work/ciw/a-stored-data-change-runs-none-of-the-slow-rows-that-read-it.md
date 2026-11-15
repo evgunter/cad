@@ -53,10 +53,11 @@ not give. A lane's local `--profile ci` run excludes the slow set too.
 - **PR 6959, measured** (`boxfinish/chart-ends-slow-rows`): an edit INSIDE
   a slow row's body does not run that row either. The step keys on test
   names on added lines, and a body edit adds none:
-  - PR 6959's mechanical edits to the bodies of
-    `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`
-    and of the image `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
-    compares left both red on main at every ε;
+  - PR 6959's mechanical edit to the body of
+    `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`,
+    and its change to what the image compare in
+    `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
+    reads, left both red on main at every ε;
   - the gate ran neither.
 
 **What would close it.** One of, or both: the slow-set step selects by
