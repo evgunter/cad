@@ -91,7 +91,7 @@ On every body measured, the reading is formed in plain `Interval` from the value
 ## Corrections to the row's premises
 
 1. "Reads only at a box width of about 0.03 or less" is stale: with the frames exact the slab's reading decides through a box width of 0.28 (± 0.14). `{-1.617, 4.129}` at ± 0.05 is `[0.679, 1.321]` today.
-2. The slab's volume reading gives out (± 0.15) before its rays do (± 0.22), so on the slab the volume never rescues a body the rays lost; between 0.215 and 0.22 nothing changes for it.
+2. The slab's volume reading gives out (± 0.15) before its rays do (set aside at ± 0.22, reading through ± 0.215), so on the slab the volume never rescues a body the rays lost.
 3. "A finish that falls to it costs 254 to 787 ms" is not the reading's cost: the reading is 0.5 ms and no decisions, on every finish. The cost is the rays' set-asides.
 4. "Where the width enters is not traced": it is three self-differences of the boxed coordinate and the tilt slack built on them; not distance from the origin (identical at 0, 10, 1000).
 5. A loft's wide reading refuses as `VolumeSignUnresolved { Quadrature }`, not `OrientationUndecided`; it decides through ± 0.05 of a unit height.
@@ -102,7 +102,7 @@ On every body measured, the reading is formed in plain `Interval` from the value
 2. `Sym<Interval>` arc-walled extrude over a boxed depth refuses at the door: `bulge_loop` arcs with `MappedSource` / `"carrier_matches_mapped_source"` `{0, box width}`; `Arc2` arcs with f64 π sweeps with `EndpointEnd` `{2.4e-16, box width}`. Possibly my fixtures' inexact π; not chased.
 3. `loft_body::<Sym<Interval>>` of the square with a POINT top height refuses `Pcurve(Certify { IsoUnsupported: "a LINE seam on a RATIONAL chart column ..." })`, while a boxed height builds and plain `Interval` at a point builds.
 4. A loft of an arc-sided square with only its height boxed refuses `Skin(Structure(Built(CarrierWeightNotAPoint { index: 1 })))` at both box scalars.
-5. The pentagon with a corner at 2.5 ± 0.3 refuses profile validation (`LineSpan`, margin from -0.9996) though every member is a simple convex-cornered polygon; at plain `Interval` it refuses at every width (`ChordSide`).
+5. The pentagon with a corner at 2.5 ± 0.3 refuses profile validation (`LineSpan`, margin from -0.9996) though every member is a simple polygon; at plain `Interval` it refuses at every width (`ChordSide`).
 
 ## Not measured
 
