@@ -2685,11 +2685,19 @@ mod tests {
                 read(rows)
             }
             match moved::<Interval>() {
-                Err(PropsError::QuadratureUnsupported { what }) if what.contains("not exact structure") => {}
+                Err(PropsError::QuadratureUnsupported { what })
+                    if what.contains("not exact structure") => {}
                 other => panic!("Interval: the moved column is no point: {other:?}"),
             }
-            assert_eq!(moved::<f64>().unwrap().rect, (0.3, 0.3 + (1.7 - 0.3), 0.0, 1.0));
-            assert_eq!(0.3 + (1.7 - 0.3), 1.7, "f64: the sum lands on the domain's end");
+            assert_eq!(
+                moved::<f64>().unwrap().rect,
+                (0.3, 0.3 + (1.7 - 0.3), 0.0, 1.0)
+            );
+            assert_eq!(
+                0.3 + (1.7 - 0.3),
+                1.7,
+                "f64: the sum lands on the domain's end"
+            );
         }
 
         /// **A ring is never offered as a side.** The certificate reads one
