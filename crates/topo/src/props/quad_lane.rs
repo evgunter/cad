@@ -2484,7 +2484,7 @@ mod tests {
     #[allow(clippy::float_cmp, clippy::unwrap_used, clippy::panic)]
     mod trim_rectangle_rows {
         use super::super::{ChartRect, TrimRectangle, Turn, joint_defect, trim_rectangle};
-        use crate::joint::{Deck, JointElement, Winding};
+        use crate::joint::{Deck, Winding};
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
         use geom_brep::{Pcurve, StoredSpan};
@@ -2820,11 +2820,13 @@ mod tests {
                 Err(PropsError::QuadratureUnsupported { what }) if what.contains(text) => {}
                 other => panic!("refused saying {text:?}: {other:?}"),
             };
-            let once_round = Winding::of([JointElement(Deck {
-                u: 1,
-                v: 0,
-                twin: false,
-            })]);
+            let once_round = Winding {
+                deck: Deck {
+                    u: 1,
+                    v: 0,
+                    twin: false,
+                },
+            };
             says(
                 Lift::stated_for_tests(polygon(&SQUARE), Some(once_round)),
                 "winds a period",
