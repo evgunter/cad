@@ -544,12 +544,23 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 12913 forms, frozen 245 → 0; `Early` 14807 → 13378), `Door/Decision`
 /// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
 /// its calls, its forms 28205 → 28232 (+27, not traced).
+///
+/// **Then moved with the decided least-turn mint** (fork 270), the two
+/// decision lines unmoved. A pair that is one direction exactly turns by
+/// the identity with no pole verdict (its chord is 2), and the plate's two
+/// mate charts are identities: the assertions 1048 → 1046 on both walks
+/// (`Plain` 12913 → 12902 forms, `Early` 13378 → 13367) and
+/// `Door/Decision` 551 → 549 (13477 → 13466), with their digests. Measured
+/// before main's sketch-frame change came in, by undoing each cause: the
+/// identity's calls and forms, and the pole chord read as `|a + b|`
+/// rather than `√(2(1 + c))`, which moved those three digests with no
+/// count moving.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 979 forms 39644 frozen 54 digest 6864de9225c5f915043de2631828ca38\n\
-     Plain/Assertion calls 1048 forms 12913 frozen 0 digest 5ea0262d8421b559227a192880afb447\n\
+     Plain/Assertion calls 1046 forms 12902 frozen 0 digest f3f2650488c004b6132fe4e28185d1c3\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1048 forms 13378 frozen 0 digest 1ab23e249ece1f606857c2f4760b68e9\n\
-     Door/Decision calls 551 forms 13477 frozen 0 digest 894b22f3486d3ee0b1d118034b51814c";
+     Early/Assertion calls 1046 forms 13367 frozen 0 digest 2bbad2f47a2d5fe99f4737ebee317fe9\n\
+     Door/Decision calls 549 forms 13466 frozen 0 digest 065254e8781fc679bd94b8456903978f";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
