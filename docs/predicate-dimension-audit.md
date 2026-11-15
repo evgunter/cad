@@ -1882,36 +1882,51 @@ Flagged, NOT fixed here (dispositions):
 
 - **F43** (added by BOXFINISH's profile-directions unit)
   `profile/src/seg.rs` `axis_or` and `literal_sign`, under
-  `segment_direction_axis` and `segment_direction_sign`. The first:
-  each component of the vector a validated segment's direction is
-  minted from (a line's chord, an arc's centre-to-vertex), its sign
-  read once at the least band whatever it answers. One component
-  exactly zero (a theorem of the parameters at `Sym`, an exact zero at
-  `f64`) with the other definite mints the axis, signed by the other as
-  a literal ±1; anything else, an escalation included, mints the
-  quotient by its length. The second: a bulge's sign, read once per
-  bulge leg into the literal ±1 that signs its lowering's radials; a
-  tie leaves them to validation's mint. **Both outcomes of each are the
-  direction**, and neither is ever a refusal: the axis only drops the
-  width a quotient of two values that share a parameter carries, and
-  the literal keeps an opaque `copysign` atom out of the symbolic tier.
-  **What rests on the second pick:** the radial identities the bulge's
-  construction registers (`Arc2::register_radials`) are stated with
-  that literal sign, so the symbolic tier believes them; that is sound
-  because `choose` reads at the least band over the whole box, so a
-  Positive or Negative there is the sign of every value the box holds.
-  **What the readings' population depends on:** the axis readings are
-  two per minted direction whatever they answer; the sign reading is
-  one per bulge leg, and where it ties the arc records nothing, so
-  validation then mints its two radials and reads four axis readings
-  more. A lane whose bulge ties where another's reads a sign reads
-  those four more; in practice a bulge whose sign straddles escalates
-  `segment_straightness` before the mint is reached. The first is the
-  compound form: a reader deciding both components against the band it
-  is passed (`component_signs`), run inside `k_stats::unlogged("F43",
-  ..)` at `Band::least()`; the second is `k_stats::choose(.., "F43")`.
-  The K samples reach the sink under the two names. Not
-  `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not move.
+  `segment_direction_axis` and `segment_direction_sign`.
+  **The first:** each component of the vector a validated segment's
+  direction is minted from (a line's chord, an arc's centre-to-vertex),
+  read once at the least band. The axis is minted only where one
+  component reads a Zero the tier proved (`sym::deferred::discharge` of
+  its margin: the proof bit of an eager decision, the tier run for that
+  Zero in a deferring session) and the other's sign is definite; every
+  other answer is dropped and the quotient minted. **What holds in
+  every lane:** an axis only where the tier proved the zero, so no
+  constant where the computation, over the reals, varies with the
+  parameters (before this, a value coincidence minted one, and the five
+  `revalue_corpus` rows went red on the nightly after PR 6963; op by op
+  at `Sym<f64>` an identity's value can still round, below). **What does
+  not:** one branch at every valuation, because the tier is not asked
+  where the value channel reads a definite sign, nor, in a deferring
+  session, on an escalation. Lane by lane, as measured:
+  - eager `Sym<Interval>`: an identity mints its axis over a box or a
+    point (the escalation is handed to the tier, which proves it);
+  - `Sym<f64>`, eager or deferring (the coincidence door's replay): only
+    where the value channel reads exactly zero, so an identity whose
+    `f64` value rounds (`((x + w) − w) − x` at `(0.1, 0.3)`) takes the
+    quotient where another valuation takes the axis;
+  - deferring `Sym<Interval>`: only at point boxes, since over a box the
+    identity straddles zero, escalates, and the session returns the
+    escalation unasked (latent: the one production deferring session is
+    `Sym<f64>`);
+  - `f64` and plain `Interval`: nothing is proven, so the quotient.
+  The residual: `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
+  The readings run inside `sym::aside` (kept where the axis is minted,
+  discarded otherwise) and `k_stats::unlogged("F43", ..)`; the session's
+  receipt still counts a discarded one, and a discarded `Zero` inside a
+  deferring session leaves its entry on the list, which no reader is
+  obliged to discharge. Asking for proof only by a counted sign reading
+  is `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
+  **The second:** a bulge's sign, read once per bulge leg into the
+  literal ±1 that signs its lowering's radials (`k_stats::choose(..,
+  "F43")`); a tie leaves them to validation's mint, which then reads
+  four axis readings more. The radial identities the bulge's
+  construction registers (`Arc2::register_radials`) rest on that pick,
+  soundly: `choose` reads at the least band over the whole box. A bulge
+  that straddles escalates `segment_straightness` before the leg is
+  lowered.
+  **Both outcomes of each are the direction**, and neither is ever a
+  refusal. Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not
+  move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
