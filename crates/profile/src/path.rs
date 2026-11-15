@@ -8003,7 +8003,7 @@ mod stored_arc_landing {
     fn via_miss(r: f64) -> f64 {
         let (a, q, b) = via_probe(r);
         let arc = cancelling_via(a, q, b).arc;
-        (arc.rim(q) - arc.radius).abs()
+        arc.off_carrier(q).abs()
     }
 
     fn built<T: Real>(arc: Arc2<T>) -> BuiltArc<T> {
@@ -8166,7 +8166,7 @@ mod stored_arc_landing {
             .radius
             .max(seg::reach(door.arc.centre))
             .max(seg::reach(q));
-        let off = (door.arc.rim(q) - door.arc.radius).abs();
+        let off = door.arc.off_carrier(q).abs();
         assert!(
             off <= 8.0 * scale * f64::EPSILON,
             "the Via arc is {off:e} m off its q, past 8 ulps of {scale:e}"
@@ -8504,9 +8504,9 @@ mod stored_arc_landing {
 
     /// **A read that overflows is never a defect**: a centimetre chord
     /// whose stored carrier sits 1e160 m away, so the start read's
-    /// `‖a − centre‖` squares past the range and reads infinite. The
-    /// authored points resolve, but an infinite miss is no measurement,
-    /// so it refuses as the scene's.
+    /// `‖a − centre‖²` squares past the range and the gap is poisoned.
+    /// The authored points resolve, but a poisoned read is no
+    /// measurement, so it escalates.
     #[test]
     fn a_read_that_overflows_is_never_a_defect() {
         let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
@@ -8519,15 +8519,15 @@ mod stored_arc_landing {
             crate::Facts::Registered,
         );
         assert!(
-            !(far.arc.rim(a) - far.arc.radius).is_finite(),
+            !far.arc.off_carrier(a).is_finite(),
             "premise: the start read overflows"
         );
         assert!(
             matches!(
                 read(far, a, b, program::Verb::ArcTo),
-                Err(PathError::ArcMissBelowSceneResolution { .. })
+                Err(PathError::Escalated { .. })
             ),
-            "an overflowing read refuses as the scene's"
+            "an overflowing read escalates"
         );
     }
 

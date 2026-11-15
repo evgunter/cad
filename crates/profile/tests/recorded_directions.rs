@@ -1449,3 +1449,175 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
         );
     }
 }
+
+/// One arc verb's loop as its door stores it, `q` the quantity that
+/// fixes the arc's radius: a radius, a bulge, a through-point's or a
+/// target's coordinate, a leg's length.
+fn arc_verb_loop<T: Decide>(verb: &str, q: T) -> ProfileLoop<T> {
+    let t = tol();
+    let l = T::from_f64;
+    let p = |x: f64, y: f64| Point2::new(l(x), l(y));
+    match verb {
+        "circle" => profile::circle(p(0.3, 0.2), q, t).unwrap().loop_.into_loop(),
+        "split circle" => profile::circle_split(p(1.0, 0.5), q, 3, l(0.25), t)
+            .unwrap()
+            .loop_
+            .into_loop(),
+        "bulge" | "bulge cw" => Open
+            .at(p(0.0, 0.0))
+            .line_to(p(4.0, 0.0), t)
+            .unwrap()
+            .arc_to(
+                profile::Bulge {
+                    p: p(4.0, 4.0),
+                    b: q,
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(p(0.0, 4.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+            .into_loop(),
+        "via" | "via cw" => Open
+            .at(p(0.0, 0.0))
+            .line_to(p(4.0, 0.0), t)
+            .unwrap()
+            .arc_to(
+                profile::Via {
+                    q: Point2::new(q, l(2.0)),
+                    p: p(4.0, 4.0),
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(p(0.0, 4.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+            .into_loop(),
+        "tangent" | "tangent cw" => {
+            let far = if verb == "tangent" { 2.0 } else { -2.0 };
+            Open.at(p(0.0, 0.0))
+                .line_to(p(2.0, 0.0), t)
+                .unwrap()
+                .tangent()
+                .tangent_arc_to(Point2::new(l(3.0), q), t)
+                .unwrap()
+                .line_to(p(0.0, far), t)
+                .unwrap()
+                .line_to(Start, t)
+                .unwrap()
+                .loop_
+                .into_loop()
+        }
+        "onto" => Open
+            .at(p(0.0, 0.0))
+            .toward(l(0.0), l(1.0), t)
+            .unwrap()
+            .line(q, t)
+            .unwrap()
+            .toward(l(1.0), l(0.0), t)
+            .unwrap()
+            .tangent_arc_to(p(0.25, 1.0), t)
+            .unwrap()
+            .arc_onto(Start, t)
+            .unwrap()
+            .toward(l(-1.0), l(0.0), t)
+            .unwrap()
+            .loop_
+            .into_loop(),
+        "fillet" => {
+            let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
+            let (west, south) = (core::f64::consts::PI, -north);
+            Open.at(p(0.0, -1.0))
+                .angle(l(east), t)
+                .unwrap()
+                .fillet(q, t)
+                .unwrap()
+                .at(p(1.0, 0.0), t)
+                .unwrap()
+                .angle(l(north), t)
+                .unwrap()
+                .fillet(q, t)
+                .unwrap()
+                .at(p(0.0, 1.0), t)
+                .unwrap()
+                .angle(l(west), t)
+                .unwrap()
+                .fillet(q, t)
+                .unwrap()
+                .at(p(-1.0, 0.0), t)
+                .unwrap()
+                .angle(l(south), t)
+                .unwrap()
+                .fillet(q, t)
+                .unwrap()
+                .to(Start, t)
+                .unwrap()
+                .loop_
+                .into_loop()
+        }
+        other => panic!("no such verb: {other}"),
+    }
+}
+
+/// Each arc verb with the box its defining quantity ranges over.
+const ARC_VERBS: [(&str, f64, f64); 10] = [
+    ("circle", 0.05, 0.005),
+    ("split circle", 0.4, 0.04),
+    ("bulge", 0.4, 0.05),
+    ("bulge cw", -0.3, 0.05),
+    ("via", 5.0, 0.1),
+    ("via cw", 3.5, 0.1),
+    ("tangent", 1.0, 0.1),
+    ("tangent cw", -1.0, 0.1),
+    ("onto", 2.0, 0.05),
+    ("fillet", 0.25, 0.02),
+];
+
+/// PROBE: what each verb's stored arc reads over a box.
+#[test]
+#[ignore = "probe"]
+fn probe_each_arc_verbs_radius_along_its_radial() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for (verb, c, h) in ARC_VERBS {
+        let rows = std::panic::catch_unwind(|| {
+            in_session(|| {
+                let lp = arc_verb_loop::<Lane>(verb, param("q", c, h));
+                let n = lp.vertices().len();
+                let mut rows = Vec::new();
+                for k in 0..n {
+                    let Segment::Arc(arc) = lp.segments()[k] else {
+                        continue;
+                    };
+                    let (a, b) = (lp.vertices()[k], lp.vertices()[(k + 1) % n]);
+                    let sign = |m: Lane| {
+                        let w = m.hi() - m.lo();
+                        (m.sign_within(band).map(|d| d.sign).ok(), w)
+                    };
+                    let radius = (arc.radius.lo(), arc.radius.hi());
+                    let gaps = [sign(arc.off_carrier(a)), sign(arc.off_carrier(b))];
+                    let rims = [sign(arc.rim(a) - arc.radius), sign(arc.rim(b) - arc.radius)];
+                    let along = lp.directions()[k].map(|d| {
+                        let (s, e) = radials(d);
+                        let (ma, mb) = (arc.on_radial(s) - a, arc.on_radial(e) - b);
+                        [sign(ma.x), sign(ma.y), sign(mb.x), sign(mb.y)]
+                    });
+                    rows.push(format!(
+                        "   seg {k}: radius {radius:?}\n      gap {gaps:?}\n      rim-radius {rims:?}\n      along {along:?}"
+                    ));
+                }
+                rows
+            })
+        });
+        println!("== {verb} over {c} ± {h}");
+        match rows {
+            Ok(rows) => rows.iter().for_each(|r| println!("{r}")),
+            Err(_) => println!("   THE DOOR REFUSED OR PANICKED OVER THE BOX"),
+        }
+    }
+}

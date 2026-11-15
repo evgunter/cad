@@ -1908,11 +1908,14 @@ Flagged, NOT fixed here (dispositions):
   obliged to discharge. Asking for proof only by a counted sign reading
   is `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
   **The second:** a bulge's sign, read once per bulge leg into the
-  literal ±1 that signs its lowering's radials (`k_stats::choose(..,
-  "F43")`); a tie leaves them to validation's mint, which then reads
-  four axis readings more. The radial identities the bulge's
-  construction registers (`Arc2::register_radials`) rest on that pick,
-  soundly: `choose` reads at the least band over the whole box. A bulge
+  literal ±1 that signs its lowering's radius and radials
+  (`k_stats::choose(.., "F43")`); a tie stores the start's measured
+  distance from the centre and leaves the radials to validation's mint,
+  which then reads four axis readings more. That the centre plus the
+  stored radius along each recorded radial is its vertex rests on that
+  pick only in the radius's value being positive: the identity holds at
+  either sign (`σ² = 1`), and `choose` reads at the least band over the
+  whole box. A bulge
   that straddles escalates `segment_straightness` before the leg is
   lowered.
   **Both outcomes of each are the direction**, and neither is ever a

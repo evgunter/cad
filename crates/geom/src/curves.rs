@@ -1533,11 +1533,9 @@ impl<T: Real> Curve3<T> {
     /// radius:
     /// [`Conic::point_at`] on the circle they make, the very expression
     /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
-    /// builds a point here builds the node either would. That is what
-    /// `sweep::swept::register_placed_carrier_ends` rests on — node ids are
-    /// content hashes, so "the constructor states the identity about the
-    /// node the certifier will ask about" is a fact of this delegation and
-    /// not a transcription anyone has to keep in step.
+    /// builds a point here builds the node either would: node ids are
+    /// content hashes, so a caller's point and the certifier's are one
+    /// node by this delegation, not by a transcription kept in step.
     ///
     /// Its own bound is [`Real`] alone: `eval` carries [`SpanLocate`] for
     /// its `Nurbs` arm's sealed span selection, and evaluation-code

@@ -1491,20 +1491,23 @@ mod tests {
     #[derive(Clone, Copy)]
     enum Carrier {
         /// Constructed at `Sym<Interval>` through the lattice, over a
-        /// box of bulges: its lowering registers the endpoint facts.
+        /// box of bulges, with the radials its lowering recorded; its
+        /// lowering registers the endpoint facts.
         Constructed,
         /// Constructed at f64 and copied into `Sym<Interval>` field by
         /// field, as the pinned lift copies it: nothing registers its
-        /// endpoint facts, and its rim is the radius only up to the f64
-        /// rounding it was built with.
+        /// endpoint facts, its radials are its vertices' offsets over
+        /// the stored radius, and its rim is the radius only up to the
+        /// f64 rounding it was built with.
         Copied,
     }
 
     /// What the first arc of a lattice-lowered loop decides, placed, at
-    /// `Sym<Interval>` under the shipped rules: the placed rim against
-    /// the radius, the same residual inside a larger expression, the
-    /// carrier's far end against the far vertex (one row per
-    /// component), and the session's receipt.
+    /// `Sym<Interval>` under `rules`: the carrier's start against the
+    /// placed start vertex (a distance), the placed start's gap off the
+    /// carrier circle (`‖q − c‖² − r²`), the carrier's far end against
+    /// the far vertex (one row per component), and the session's
+    /// receipt.
     fn placed_arc_readings(
         place: Affine3<geom_core::Sym<Interval>>,
         carrier: Carrier,
@@ -1522,7 +1525,7 @@ mod tests {
         };
         with_session_rules(budget, rules, || {
             let lit = |x: f64| <S as Real>::from_f64(x);
-            let (a, e, b, turn) = match carrier {
+            let (a, e, kind) = match carrier {
                 Carrier::Constructed => {
                     // A clockwise arc bowing up off the top of a unit
                     // square, over a bulge box wide enough that the
@@ -1554,7 +1557,17 @@ mod tests {
                     let profile::Segment::Arc(arc) = lp.segments()[0] else {
                         panic!("the first segment is the authored arc");
                     };
-                    (lp.vertices()[0], lp.vertices()[1], (arc, b), Sign::Negative)
+                    let Some(profile::SegmentDirections::Arc { start, end }) = lp.directions()[0]
+                    else {
+                        panic!("a bulge leg of a definite sign records its radials");
+                    };
+                    let (a, e) = (lp.vertices()[0], lp.vertices()[1]);
+                    let kind = SegmentKind::Arc {
+                        arc,
+                        turn: Sign::Negative,
+                        radials: [start, end],
+                    };
+                    (a, e, kind)
                 }
                 Carrier::Copied => {
                     // An ordinary arc whose f64 rim and radius enclose
@@ -1578,19 +1591,14 @@ mod tests {
                     let profile::Segment::Arc(arc) = closed.loop_.segments()[0] else {
                         panic!("the first segment is the authored arc");
                     };
-                    (
-                        a.map(lit),
-                        e.map(lit),
-                        (arc.map(lit), lit(1.0)),
-                        Sign::Positive,
-                    )
+                    let (a, e) = (a.map(lit), e.map(lit));
+                    (a, e, arc_from(arc.map(lit), Sign::Positive, a, e))
                 }
             };
-            let (arc, b) = b;
             let seg = SweptSeg {
                 a,
                 b: e,
-                kind: Traversed::forward(arc_from(arc, turn, a, e)),
+                kind: Traversed::forward(kind),
                 canonical_vertex: 0,
                 canonical_segment: 0,
             };
@@ -1607,11 +1615,12 @@ mod tests {
                 panic!("an arc places onto a circle carrier");
             };
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
-            let rim = (q_from - center).norm();
+            let start = Curve3::circle_at(&circle.frame, radius, lit(0.0));
+            let rim = q_from - center;
             let end = Curve3::circle_at(&circle.frame, radius, spec.param_end);
             [
-                sign(rim - radius),
-                sign((rim + b) * b - (radius + b) * b),
+                sign(start.distance(q_from)),
+                sign(rim.dot(rim) - radius.powi(2)),
                 sign(end.x - q_to.x),
                 sign(end.y - q_to.y),
                 sign(end.z - q_to.z),
@@ -1629,28 +1638,25 @@ mod tests {
         )
     }
 
-    /// **A copied carrier claims nothing past rigidity, and never
-    /// contradicts.** The arc was constructed at f64 and copied into
-    /// `Sym<Interval>`, so no construction registered its endpoint facts
-    /// at this scalar, and its f64 rim and radius enclose disjointly
-    /// there. The sweep's registrations read only the carrier and the
-    /// placement, so the exact witness separates none of them; the rim
-    /// and far end decide from their values, not from a registered
-    /// identity.
+    /// **A copied carrier places with nothing claimed about it.** The
+    /// arc was constructed at f64 and copied into `Sym<Interval>`, so no
+    /// construction registered its endpoint facts at this scalar, and
+    /// its f64 rim and radius enclose disjointly there. The sweep
+    /// registers nothing, so no witness is asked; the start and the far
+    /// end decide from their values, the same with the door shut.
     #[test]
-    fn a_copied_carrier_places_without_contradiction_and_claims_nothing() {
+    fn a_copied_carrier_places_with_nothing_claimed() {
         let readings =
             |rules| placed_arc_readings(quarter_turn_placement([0.0; 3]), Carrier::Copied, rules);
-        let ([rim, _, end @ ..], counts) = readings(geom_core::SymRules::shipped());
+        let ([start, _, end @ ..], counts) = readings(geom_core::SymRules::shipped());
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
         let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
         assert_eq!(
             (counts.symbolic, counts.numeric),
             (shut.symbolic, shut.numeric),
-            "no decision rests on a registered identity: the door buys nothing: \
-             {counts:?} {shut:?}"
+            "no decision rests on a registered identity: {counts:?} {shut:?}"
         );
-        assert_eq!(rim, Some(Sign::Zero), "the rim, numerically: {counts:?}");
+        assert_eq!(start, Some(Sign::Zero), "the start, numerically: {counts:?}");
         assert_eq!(
             end,
             [Some(Sign::Zero); 3],
@@ -1658,45 +1664,39 @@ mod tests {
         );
     }
 
-    /// **The placed rim chains through the sketch rim to the radius, and
-    /// the placed far end through the sketch carrier end to the far
-    /// vertex.**
-    /// The lowering registers the arc's 2-D rims against its radius
-    /// (`Arc2::register_endpoints`) and the sweep registers only
-    /// rigidity (`register_rigidity`): the placed rim against the
-    /// sketch rim. The tier's alias is transitive, so the placed rim's
-    /// residual against the radius decides `Zero` over the whole box —
-    /// through a quarter turn and a translation, and inside a larger
-    /// expression — as a registered identity, where the numeric channel
-    /// alone cannot decide it over that box.
+    /// **A constructed arc places as forms, with nothing registered.**
+    /// A clockwise bulge arc over a box of bulges wide enough that no
+    /// enclosure decides, placed by a quarter turn and a translation:
+    /// its carrier starts at the placed start vertex, that vertex is on
+    /// the carrier's circle, and the carrier at its span is the placed
+    /// far vertex, each proven by the tier, and the same with the
+    /// registered-identity door shut. The carrier is the placed centre
+    /// plus the stored radius along the placed recorded radial, and the
+    /// lowering stores `σ·L(1 + b²)/(4b)` with the radial `σ·(…)`, so
+    /// the start folds by `σ² = 1`.
+    ///
+    /// Red on a lowering that stores the radius as a magnitude
+    /// (`Arc2::from_chord_radials` with `.abs()` on the radius): the
+    /// start, the gap and the far end read `None`.
     #[test]
-    fn the_placed_rim_chains_through_the_sketch_rim_to_the_radius() {
-        let readings = |rules| {
-            placed_arc_readings(
+    fn a_constructed_arc_places_as_forms_with_nothing_registered() {
+        for (name, rules) in [
+            ("shipped", geom_core::SymRules::shipped()),
+            ("the door shut", geom_core::SymRules::shipped_without_the_door()),
+        ] {
+            let (readings, counts) = placed_arc_readings(
                 quarter_turn_placement([2.0, 3.0, 5.0]),
                 Carrier::Constructed,
                 rules,
-            )
-        };
-        let ([rim, inside, end @ ..], counts) = readings(geom_core::SymRules::shipped());
-        assert_eq!(rim, Some(Sign::Zero), "the placed rim: {counts:?}");
-        assert_eq!(
-            inside,
-            Some(Sign::Zero),
-            "inside a larger expression: {counts:?}"
-        );
-        // The far end chains the same way: the carrier at its span to
-        // the placed sketch carrier end (the sweep), the sketch carrier
-        // end to the far vertex (the lowering), and `q_to` is `place` of
-        // that vertex — one node, minted by the same op on the same
-        // operand.
-        assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
-        let (_, shut) = readings(geom_core::SymRules::shipped_without_the_door());
-        assert!(
-            counts.symbolic > shut.symbolic,
-            "the door is what decides them: {counts:?} {shut:?}"
-        );
-        assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
+            );
+            assert_eq!(
+                readings,
+                [Some(Sign::Zero); 5],
+                "{name}: the start, the gap and the far end: {counts:?}"
+            );
+            assert_eq!(counts.symbolic, 5, "{name}: each proven: {counts:?}");
+            assert_eq!(counts.registrations_refused, 0, "{name}: {counts:?}");
+        }
     }
 
     /// **The placed line's far end folds to the far vertex**, with

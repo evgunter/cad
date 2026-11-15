@@ -876,7 +876,7 @@ pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
 /// are of the kind `s` reads as; otherwise decided here, once, from what
 /// the segment holds — a line's chord unit (`s.unit`, under the
 /// `vertex_separation` decision already taken), an arc's
-/// centre-to-vertex offsets over its stored radius. An arc that reads
+/// centre-to-vertex units over its rim at each end. An arc that reads
 /// as a line keeps no carrier, and its recorded radials go with it.
 pub(crate) fn validated_kind<T: Decide>(
     s: &Seg<T>,
@@ -905,13 +905,15 @@ pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T>
     axis_or(chord, unit)
 }
 
-/// **The radial at `p`, minted**: `p − centre` over the stored radius,
-/// or the axis it lies along ([`axis_or`]). The one mint of an arc's
-/// direction from its points, for a vertex validation decided on the
-/// carrier.
+/// **The radial at `p`, minted**: `p − centre` over the rim at `p`
+/// ([`Arc2::rim`]), or the axis it lies along ([`axis_or`]). The one
+/// mint of an arc's direction from its points. The divisor is the
+/// offset's own measured length: a vertex that holds only its points is
+/// on the carrier to validation's decision, so its offset over the
+/// stored radius is a unit only to that band.
 pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
     let w = p - arc.centre;
-    axis_or(w, w / arc.radius)
+    axis_or(w, w / arc.rim(p))
 }
 
 /// One read-back of a constructed arc against what was authored, past
@@ -1167,9 +1169,10 @@ enum Reading<T> {
 /// digits and also inflated the magnitude it stored (a carrier flattened
 /// to 1e12 m) still reads as the defect it is; the clearance reads the
 /// STORED magnitude, so a sound arc whose stored form is legitimately
-/// far out is never called one. A miss that is not finite (a rim past
-/// 1.3e154 m overflows) is the scene's, never a defect. A difference in
-/// the band, or poisoned, escalates. Not a verdict
+/// far out is never called one. A miss that is not finite (a landing
+/// past the range) is the scene's, never a defect. A difference in the
+/// band, or poisoned (a rim past 1.3e154 m, whose square overflows the
+/// gap), escalates. Not a verdict
 /// (`k_stats::check_unlogged`): a box leaf has no row for it.
 ///
 /// It shares [`resolves`]'s headroom and not its door: validation's
