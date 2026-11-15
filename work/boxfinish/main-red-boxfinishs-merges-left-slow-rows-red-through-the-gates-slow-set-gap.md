@@ -55,9 +55,13 @@ thread-count golden below and ran the slow set of `geom-brep` and
 and `..._at_four_threads`, ε 1e-12 only. Green at PR 6946's merge, red
 at PR 6959's. One line differs, `arc_loft_1e11eps`: both pads widened
 (`vpad` by 2.69e-7 relative, `apad` by 2.1e-14), with the values, the
-verdicts and the escalations unchanged. PR 6959's lane is to say why
-from the code and then re-cut it. PR 6982 changes the same pad and is
-measured against this line before it merges.
+verdicts and the escalations unchanged. The cause is check 4's
+`off_map` term, which PR 6959 added to an iso image's envelope: two
+line rims of that fixture state an end one ulp off their map at that ε,
+and the rectangle certificate pads by it. With the term off the old
+line returns bit for bit. **Re-cut by PR 6987.** PR 6982 changes the
+same pad; its lane measured this golden on its head against its merge
+base at three ε and no line moves.
 
 **PR 6958 (the aimed ray).** Nothing attributed.
 
