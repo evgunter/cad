@@ -21,3 +21,11 @@ Found by BOXFINISH's sweep for its unit `boxfinish/sweep-frames` (the sweep door
 **Why it matters.** Over a parameter box the quotient carries the feet's width into a direction the plan held exactly, and tier 3 then reads that width as tilt or length (the class BOXFINISH measured on the extrude: a cap normal read `±0.2` of tilt it does not have).
 
 **Repair shape.** Pass the held direction to the carrier (the trimline, the support normal, the frame radial) instead of re-deriving it from the feet, as `TrimLine` already does for fillets.
+
+- 2026-11-15 — **Sites this row omitted** (the review of PR 6972, reviewer r1; read at `boxfinish/sweep-frames` after merging main at `dbb21b4a`, line numbers as of then). Each mints an edge by `EdgeCurveSpec::line_between` over two points the blend placed, so its direction is the points' difference over its length:
+  - `crates/sweep/src/blend/surgery.rs:4915` (`line_between(pf, pv)`), `:4536` (`line_between(fp_i, fp_j)`), `:4596` (`line_between(p1, p2)`), the last two a `MefSite::Chords` split;
+  - `crates/sweep/src/blend/junction.rs:720` (`line_between(merged.start, merged.end)`), a merged line restated from its two ends;
+  - `crates/sweep/src/blend/open/end_face.rs:1262` and `open/planar.rs:1187`, `:1343`, `:1763`, each a `MefSite::Chords` chord.
+
+  Most are scaffold chords that cut a face and are killed or restated before rest, as `junction.rs`'s `MixedTrim::spec` above; whether each survives to rest, and so whether its direction is read at rest, is the first thing to settle per site.
+

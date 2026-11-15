@@ -1011,3 +1011,56 @@ fn a_partial_revolve_on_a_tilted_plane_stores_its_frames_exactly() {
         assert_exact_unit("tilted start cap u_ref", u);
     });
 }
+
+/// A disc of radius 5e-3 on the sketch plane turned about `y` by
+/// `theta`, extruded its radius.
+fn turned_disc<T: Decide + topo::AtRestPolicy>(
+    theta: T,
+) -> Result<Extruded<T>, sweep::ExtrudeError> {
+    let c = T::from_f64;
+    let radius = 5e-3;
+    let turn = RigidMotion::rotation(UnitVec3::exact_y(), theta).unwrap();
+    let rim = RawLoop::new([(
+        Point2::new(c(radius), c(0.0)),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(c(0.0), c(0.0)),
+            radius: c(radius),
+            sweep: c(core::f64::consts::TAU),
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::from_frame(turn), vec![rim])
+        .validate(tol())
+        .expect("the disc validates on its turned plane");
+    let side = ExtrudeSide::Along;
+    extrude(&profile, Extrusion::Distance { depth: c(radius), side }, tol())
+}
+
+/// **A disc on a plane turned by a boxed angle refuses at check 3**
+/// (`work/onehome/an-arc-on-a-turned-plane-misses-its-own-vertex-at-check-3-over-the-box.md`):
+/// the circle's carrier and its one vertex reach the same point through
+/// the turned frame by two routes, so their distance reads the frame's
+/// width, first order in the box. Today's truth on both box scalars,
+/// with the `f64` member building; it goes red when either builds.
+#[test]
+fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
+    let (lo, hi) = (29f64.to_radians(), 31f64.to_radians());
+    turned_disc(30f64.to_radians()).expect("the f64 disc builds");
+    let plain = format!(
+        "{:?}",
+        turned_disc(Interval::from_bounds(lo, hi)).expect_err("the Interval disc refuses")
+    );
+    assert!(
+        plain.contains("carrier_endpoint_start"),
+        "at Interval it refuses at check 3's start pin: {plain}"
+    );
+    in_session(|| {
+        let sym = format!(
+            "{:?}",
+            turned_disc(boxed(0x9f2, lo, hi)).expect_err("the Sym<Interval> disc refuses")
+        );
+        assert!(
+            sym.contains("carrier_endpoint_end"),
+            "at Sym<Interval> it refuses at check 3's end pin: {sym}"
+        );
+    });
+}

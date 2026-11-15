@@ -19,7 +19,7 @@ Before that branch the build refused `newell_plane_residual` at
 `Interval` and `carrier_endpoint_end` at `Sym<Interval>`
 (`[1.2e-18, 7.8e-4]`). After it, nothing in the door fits anything, and
 both scalars refuse at check 3's endpoint pins
-(`crates/geom-brep/src/certify.rs:4907-4920`,
+(`crates/geom-brep/src/certify.rs:4941-4956`, the `// ---- Check 3: endpoint pinning. ----` block,
 `Margin::of(spec.carrier.eval(t).distance(end))`):
 
 - `Interval`: `Escalated { check: EndpointStart, sample: 0,
@@ -55,3 +55,10 @@ frame's width (by construction, or symbolically), and the probe row's
 door builds at `Interval` or `Sym<Interval>` over the 1° box. A row at
 the door that fails on today's code.
 
+**Reproducer in the suite.** `crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs`
+`a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box` builds the
+probe row's door (a disc of radius 5e-3 on `SketchPlane::from_frame(RigidMotion::rotation(y, 30° ± 1°))`)
+at `Interval` and at `Sym<Interval>` and pins today's refusal on each:
+`carrier_endpoint_start` and `carrier_endpoint_end`, both escalated
+over a margin that reaches 3.37e-4. It goes red when either builds,
+which is this row's close.
