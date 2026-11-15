@@ -357,7 +357,9 @@ fn slab_reads(half: f64) -> (usize, Vec<String>) {
 ///   `solid_contain::loop_turn`): no ray reads at `± 0.25`;
 /// - the plane arm reading `origin − q` for every plane (the aim's
 ///   anchor passed over): the walls' rays are set aside at `± 0.075`,
-///   on the turn of the cap over them.
+///   on the turn of the cap over them;
+/// - the aim's step reading `solid_contain::edge_clearance`: one cap's
+///   ray reads at `± 0.25`, not both.
 ///
 /// The walls' rays are not asked for past `± 0.075`: a wall's aim hangs
 /// a fixed step under its moving top edge
