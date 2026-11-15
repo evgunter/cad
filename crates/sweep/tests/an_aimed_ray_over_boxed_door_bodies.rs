@@ -323,6 +323,80 @@ fn no_aim_of_a_boxed_door_body_reads_in() {
     }
 }
 
+/// How many of the slab's six aims read `Out` over depth `1 ± half`,
+/// and what the reader's own rays read ([`topo::test_support::aimed_rays`]).
+fn slab_reads(half: f64) -> (usize, Vec<String>) {
+    let slab = &shapes()[0];
+    assert_eq!(slab.name, "slab");
+    over(slab, 1.0 - half, 1.0 + half, |body, band| {
+        let each = topo::test_support::each_aim(body, band);
+        for r in &each {
+            assert!(kind(r) != "IN", "depth 1 ± {half}: a wrong side: {r}");
+        }
+        (
+            each.iter().filter(|r| kind(r) == "out").count(),
+            topo::test_support::aimed_rays(body, band),
+        )
+    })
+    .expect("the door builds a slab")
+}
+
+/// **The door's slab reads its side by its rays over a box half its
+/// depth wide, and by every face's ray over one a sixth as wide.** The
+/// extrude door's leaf at the symbolic box scalar, its plane normals and
+/// edge lines the door's own:
+///
+/// - depth `1 ± 0.25` and `1 ± 0.45`: both caps' rays read `Out`, and
+///   the reader's rays answer `Out` (no volume). Every member is a solid
+///   whose side at infinity is `Out` (three are read at `f64`).
+/// - depth `1 ± 0.075`: all six aims read `Out`.
+///
+/// **Red, each under one reading put back as it was** in `topo`:
+/// - the loops' turn read on all three components
+///   (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
+///   `solid_contain::loop_turn`): no ray reads at `± 0.25`;
+/// - the plane arm reading `origin − q` for every plane (the aim's
+///   anchor passed over): the walls' rays are set aside at `± 0.075`,
+///   on the turn of the cap over them.
+///
+/// The walls' rays are not asked for past `± 0.075`: a wall's aim hangs
+/// a fixed step under its moving top edge
+/// (`work/boxfinish/a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide.md`).
+#[test]
+fn a_door_slab_reads_its_side_by_its_rays_over_a_wide_box() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    for depth in [0.55, 1.0, 1.45] {
+        let member = prism::<f64>(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .iter()
+                .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                .collect(),
+            depth,
+            tol,
+        );
+        assert_eq!(
+            topo::test_support::aimed_rays(&member, band),
+            ["Ok(Side(Out))"],
+            "the member of depth {depth}"
+        );
+    }
+    for half in [0.25, 0.45] {
+        let (out, rays) = slab_reads(half);
+        assert!(
+            out >= 2,
+            "depth 1 ± {half}: both caps' rays read, {out} did"
+        );
+        assert_eq!(
+            rays,
+            ["Ok(Side(Out))"],
+            "depth 1 ± {half}: the reader's rays"
+        );
+    }
+    let (out, _) = slab_reads(0.075);
+    assert_eq!(out, 6, "depth 1 ± 0.075: every face's ray reads");
+}
+
 /// **Rays aimed anywhere about a boxed body, from any normal, read no
 /// `In`** (counterexample search, shape 1). Half the aims are drawn in
 /// the body's bounding box grown by a fifth; the other half are points
