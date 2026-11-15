@@ -899,8 +899,13 @@ pub fn read_back<R>(
     };
     // The read is of a pose the caller stands the copy at, with no
     // bundle's arm in hand: the least turn is decided over the session
-    // box, which refuses widest, so a freedom read here is one the
-    // placement's evaluation, over its own arm, reads too.
+    // box, which refuses widest (about 4e-4 rad from the pole at the
+    // default ε), so a freedom read here is one the placement's
+    // evaluation, over its own arm, reads too. That is conservative and
+    // costs no gesture: the snap writes the nearest orientation, so no
+    // gesture lands that near the pole. Threading the copy's reach in
+    // from the caller is
+    // `work/onehome/the-gesture-read-back-decides-its-least-turn-over-the-session-box.md`.
     let read = Chart::<f64>::sides(charted.on, charted.to).and_then(|(d, copy_d, seat)| {
         let arm = Arm::of(0.0, 0.0).ok()?;
         Chart::charted(
