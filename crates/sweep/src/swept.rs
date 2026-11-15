@@ -738,15 +738,10 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             place: place.map(),
         }));
     match seg.kind().get() {
-        // The span is the sketch segment's own length and the direction
-        // its own unit chord, placed: one source for both, as an arc's
-        // span is its own (`arc_span`). A rigid placement keeps the
-        // length, so the placed vertices certify the span (check 3, the
-        // far end against `q_to`) rather than define it, and their width
-        // at a lane scalar is not the span's. Unlike the arc arm, nothing
-        // is registered: the far end `q_from + L·(b − a)/‖b − a‖·‖b − a‖`
-        // is `place(b)` as a form, which the plain tier folds where
-        // `q_from` is `place(a)`
+        // The bounds from the quantity that defines them, the sketch
+        // segment's own length, and the direction from the same chord
+        // (geom-brep README, "Parameterization conventions"). Nothing is
+        // registered: the far end folds to `place(b)` as a form
         // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
         SegmentKind::Line => {
             let (dir, span) = (seg.b() - seg.a()).direction_and_length();

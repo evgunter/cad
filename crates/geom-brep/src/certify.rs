@@ -1936,8 +1936,18 @@ pub struct EdgeCurveSpec<T: Real> {
     pub carrier: Curve3<T>,
     /// Carrier parameter at `start(he_plus)` — the `he_plus` forward
     /// contract's t₀ (increasing parameter runs start → end).
+    ///
+    /// The construction states both bounds from the quantity that
+    /// defines them (for example a segment's length, an arc's span, an
+    /// extrusion distance, a knot domain, a split's certified
+    /// parameter), and the vertices certify them: endpoint pinning
+    /// (check 3) reads the carrier at the bounds against the
+    /// `he_plus`-forward vertices. The vertices are the authority the
+    /// bounds are certified against, not their source; where the
+    /// vertices are the only definition, their distance is the
+    /// definition (crate README, "Parameterization conventions").
     pub param_start: T,
-    /// Carrier parameter at `end(he_plus)` — t₁.
+    /// Carrier parameter at `end(he_plus)` — t₁ (see `param_start`).
     pub param_end: T,
 }
 
