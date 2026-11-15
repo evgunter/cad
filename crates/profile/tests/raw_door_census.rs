@@ -159,6 +159,32 @@ fn gates_on_test(attrs: &str) -> bool {
     positive.contains("cfg(") && positive.contains("test")
 }
 
+/// What follows `mod ` on a line that declares a module, at ANY
+/// visibility: `mod`, `pub mod`, and `pub(crate)`, `pub(super)` or
+/// `pub(in path)`. A cut that lists the visibilities it has met reads a
+/// test module declared at the next one as production source.
+fn after_mod_keyword(trimmed: &str) -> Option<&str> {
+    let rest = trimmed.strip_prefix("pub").map_or(trimmed, |r| {
+        let r = r.trim_start();
+        r.strip_prefix('(')
+            .and_then(|inner| inner.split_once(')'))
+            .map_or(r, |(_, after)| after.trim_start())
+    });
+    rest.strip_prefix("mod ")
+}
+
+/// The cut finds a gated test module at each visibility a module can be
+/// declared at, and does not take a gated item that is not a module.
+#[test]
+fn the_test_region_starts_at_a_gated_module_of_any_visibility() {
+    for vis in ["", "pub ", "pub(crate) ", "pub(super) ", "pub(in crate::a) "] {
+        let view = format!("fn shipped() {{}}\n#[cfg(test)]\n{vis}mod tests {{\n}}\n");
+        assert_eq!(test_module_starts_at(&view), 2, "`{vis}mod tests`");
+    }
+    let not_a_module = "#[cfg(test)]\npub(super) fn model() {}\n";
+    assert_eq!(test_module_starts_at(not_a_module), usize::MAX);
+}
+
 /// Where a file's in-file test region begins — the first `mod` BLOCK
 /// carrying a test cfg — or `usize::MAX` if it has none.
 ///
@@ -173,10 +199,9 @@ fn test_module_starts_at(view: &str) -> usize {
         .enumerate()
         .find_map(|(i, l)| {
             let t = l.trim_start();
-            let is_mod = t.starts_with("mod ")
-                || t.starts_with("pub mod ")
-                || t.starts_with("pub(crate) mod ");
-            (is_mod && !t.ends_with(';') && gates_on_test(&attributes_above(&lines, i)))
+            (after_mod_keyword(t).is_some()
+                && !t.ends_with(';')
+                && gates_on_test(&attributes_above(&lines, i)))
                 .then_some(i)
         })
         .unwrap_or(usize::MAX)
@@ -204,11 +229,7 @@ fn gated_module_files(file: &Path, view: &str, out: &mut Vec<PathBuf>) {
     let lines: Vec<&str> = view.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         let t = line.trim();
-        let Some(rest) = t
-            .strip_prefix("pub mod ")
-            .or_else(|| t.strip_prefix("pub(crate) mod "))
-            .or_else(|| t.strip_prefix("mod "))
-        else {
+        let Some(rest) = after_mod_keyword(t) else {
             continue;
         };
         let Some(name) = rest.strip_suffix(';') else {

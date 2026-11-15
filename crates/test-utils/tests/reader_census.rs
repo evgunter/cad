@@ -333,6 +333,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // caller's re-description door call census, code view
     },
     Entry {
+        path: "crates/sweep/tests/a_blend_reads_the_wedge_through_the_one_fold.rs",
+        disposition: Shared, // the blend's wedge reads outside its one fold, code and
+                             // literal views with the inline test modules blanked
+    },
+    Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -378,13 +383,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
-        path: "crates/topo/src/boxes.rs",
-        disposition: Unconverted(
-            "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
-             topo's handle on it; the direct call is Track Q's to make",
-        ),
-    },
-    Entry {
         path: "crates/topo/src/boolean/join.rs",
         disposition: Shared, // the join's one face-to-surface walk, code view
     },
@@ -422,6 +420,21 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/live.rs",
         disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
+    },
+    Entry {
+        path: "crates/topo/src/pcurves/lift_agreement_rows.rs",
+        disposition: Shared, // the lift-agreement makers' census over the kernel
+                             // crates and `pcurves.rs`'s gated module rows, code view
+                             // carved by `attributed_extent` and `fn_items`
+    },
+    Entry {
+        path: "crates/topo/src/pcurves/staleness_posture.rs",
+        disposition: Unconverted(
+            "unowned by a code-quality track (the file is CHARTTAIL's) — the \
+             ring-promotion posture row reads `euler_kill.rs` as raw lines and skips \
+             `//` by prefix, no reader \
+             (work/charttail/the-ring-promotion-posture-row-reads-euler-kill-rs-by-hand.md)",
+        ),
     },
     Entry {
         path: "crates/topo/src/policy_lane.rs",
