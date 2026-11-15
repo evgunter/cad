@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box]
+blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -77,3 +77,4 @@ count (`corpus_finish_count`) falls to the switch-free figure, about
 - 2026-11-14 — `blocked_on` gains `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: M1 measured the slab, the derived-frame cube and the tour's stop as that row's, not the side reader's alone. The boxed-motion sweep test joins the list. (BOXFINISH orchestrator)
 - 2026-11-14 — one more pin moves with the deletion: `sweep` `a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge` reads 22 symbolic Zeros against its pinned 11 with the switch off, because the finish runs at the door (measured by PR 6959's review, on that PR's head with the probe's switch-off edit). (BOXFINISH orchestrator)
 - 2026-11-14 — the quadrature row closed (PR 6959) and leaves `blocked_on`. Two `Interval` loft walls it left are not blockers by measurement, only by inference, so the deletion's own run with the switch off is where they show: `an-iso-arc-rims-end-reads-through-its-map-at-interval` and `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`. (BOXFINISH orchestrator)
+- 2026-11-15 — the curved twin closed (PR 6979) and leaves `blocked_on`. Its rule is first exercised on a body a sweep door finishes over a box, so the doors' unit carries the row that goes red on a wrong side. (BOXFINISH orchestrator)

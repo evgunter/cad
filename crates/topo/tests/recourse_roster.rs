@@ -640,7 +640,7 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain/curved_edges.rs: read: rows.order()",
+        "boolean/solid_contain/curved_edges.rs: fold: rows.order()",
         ROW_FIELD,
     ),
     (
