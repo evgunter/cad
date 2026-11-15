@@ -1176,6 +1176,12 @@ fn an_identity_that_reads_zero_mints_its_axis_in_both_sessions_and_keeps_its_rea
 /// Zero and the mint stores the axis; at `(0.1, 0.3)` it rounds to
 /// `2.8e-17`, a definite sign the tier is never asked about, and the
 /// mint stores the quotient. Today's truth, not the goal: [`RESIDUAL`].
+///
+/// The axis half is told from the quotient by the readings it keeps (at
+/// `(1, 1)` the quotient is `(0, 1)` too): eight `segment_direction_axis`
+/// readings, two per axis side, against six where this side takes the
+/// quotient. A mint that returned the quotient without reading turns it
+/// red on both halves.
 #[test]
 fn an_identity_that_rounds_takes_the_axis_only_where_its_value_reads_zero() {
     let rounds = |x: f64, w: f64| ((x + w) - w) - x;
@@ -1183,13 +1189,18 @@ fn an_identity_that_rounds_takes_the_axis_only_where_its_value_reads_zero() {
     assert_ne!(rounds(0.1, 0.3), 0.0);
     for kind in SESSIONS {
         let at = |x: f64, w: f64| {
-            run(kind, || {
-                let (x, w) = (pf("x", x), pf("w", w));
-                quad_hop(x, (x + w) - w)
+            geom_core::sym::revalue::record(|| {
+                run(kind, || {
+                    let (x, w) = (pf("x", x), pf("w", w));
+                    quad_hop(x, (x + w) - w)
+                })
             })
         };
-        assert_eq!(at(1.0, 1.0), AXIS_UP, "{kind:?}: reads zero: the axis");
-        let d = at(0.1, 0.3);
+        let (d, kept) = at(1.0, 1.0);
+        assert_eq!(d, AXIS_UP, "{kind:?}: reads zero: the axis");
+        assert_eq!(axis_readings(&kept), 8, "{kind:?}: reads zero: kept");
+        let (d, kept) = at(0.1, 0.3);
+        assert_eq!(axis_readings(&kept), 6, "{kind:?}: rounds: none kept here");
         assert!(
             d[0].0 > 0.0 && d[0].0 == d[0].1,
             "{kind:?}: rounds: the quotient, one ulp off the axis ({RESIDUAL}): {d:?}"
@@ -1223,24 +1234,36 @@ fn the_slabs_side_takes_the_quotient_in_a_deferring_session_over_a_box() {
     );
 }
 
-/// **Pinned: a `max` in a corner takes the branch its point box
-/// certifies**: the hop `(max(a, b), 0) → (b, 1)` at `Sym<Interval>` over
-/// point boxes mints the axis where `a < b` (the tier reads the `max`'s
-/// comparison off the box and proves `max(a, b) − b` zero) and the
-/// quotient where `a > b` (where the chord is `b − a`, no zero). That is
-/// the tier's own reading of a comparison, which DECIDE's row on asking
-/// for an identity weighs
+/// **Pinned: a `max` in a corner is no identity the mint proves, on
+/// either side of its comparison**: the hop `(max(a, b), 0) → (b, 1)` at
+/// `Sym<Interval>` over point boxes. Where `a < b` the chord's `x`,
+/// `max(a, b) − b`, reads `[0, 0]` as a value, but the tier does not
+/// prove it zero, so the mint takes the quotient and keeps none of this
+/// side's readings; its value is the axis's, `[0, 0]` over a length of
+/// one. Where `a > b` the chord is `b − a`, the quotient leaning back. So
+/// the tier does not read the `max`'s comparison off the box here, which
+/// DECIDE's row on asking for an identity weighs
 /// (`work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`).
+///
+/// The branch is told by the readings kept, six (two per literal axis
+/// side) and none of this side's on either side of the comparison. A
+/// mint that returned the quotient without reading turns it red (none
+/// kept); one that took a Zero for proof turns it red where `a < b`.
 #[test]
-fn a_max_in_a_corner_takes_the_branch_its_point_box_certifies() {
+fn a_max_in_a_corner_is_no_identity_the_mint_proves() {
     let at = |a: f64| {
-        in_session(|| {
-            let (a, b) = (param("a", a, 0.0), param("b", 1.0, 0.0));
-            quad_hop(Real::max(a, b), b)
+        geom_core::sym::revalue::record(|| {
+            in_session(|| {
+                let (a, b) = (param("a", a, 0.0), param("b", 1.0, 0.0));
+                quad_hop(Real::max(a, b), b)
+            })
         })
     };
-    assert_eq!(at(0.5), AXIS_UP, "a < b: the axis");
-    let d = at(1.5);
+    let (d, kept) = at(0.5);
+    assert_eq!(d, AXIS_UP, "a < b: the quotient, whose value is the axis's");
+    assert_eq!(axis_readings(&kept), 6, "a < b: none kept on this side");
+    let (d, kept) = at(1.5);
+    assert_eq!(axis_readings(&kept), 6, "a > b: none kept on this side");
     assert!(
         d[0].1 < 0.0,
         "a > b: the quotient, (b − a) leaning back: {d:?}"

@@ -1884,11 +1884,13 @@ Flagged, NOT fixed here (dispositions):
   Zero in a deferring session) and the other's sign is definite; every
   other answer is dropped and the quotient minted. **What holds in
   every lane:** an axis only where the tier proved the zero, so no
-  constant where the computation varies with the parameters (before
-  this, a value coincidence minted one, and the five `revalue_corpus`
-  rows went red on the nightly after PR 6963). **What does not:** one
-  branch at every valuation, because the tier is asked only where the
-  value channel reads Zero. Lane by lane, as measured:
+  constant where the computation, over the reals, varies with the
+  parameters (before this, a value coincidence minted one, and the five
+  `revalue_corpus` rows went red on the nightly after PR 6963; op by op
+  at `Sym<f64>` an identity's value can still round, below). **What does
+  not:** one branch at every valuation, because the tier is not asked
+  where the value channel reads a definite sign, nor, in a deferring
+  session, on an escalation. Lane by lane, as measured:
   - eager `Sym<Interval>`: an identity mints its axis over a box or a
     point (the escalation is handed to the tier, which proves it);
   - `Sym<f64>`, eager or deferring (the coincidence door's replay): only

@@ -782,14 +782,14 @@ fn check_direction<T: Decide>(
 /// parameter does (`W − W` over a box).
 ///
 /// **What it guarantees:** an axis only where the tier proved the zero,
-/// so never a constant where the computation varies with the parameters
-/// (ERROR-DESIGN E12). **What it does not:** one branch at every
-/// valuation. The tier is asked only where the value channel reads Zero
-/// (a definite sign is never offered to it, and a deferring session
-/// returns an escalation unasked), so an identity whose value rounds off
-/// zero, or straddles it in a deferring session, takes the quotient
-/// where another valuation takes the axis. Lane by lane: audit row F43;
-/// the residual:
+/// so never a constant where the computation, over the reals, varies with
+/// the parameters (ERROR-DESIGN E12). **What it does not:** one branch at
+/// every valuation. The tier is not asked where the value channel reads a
+/// definite sign, nor, in a deferring session, on an escalation (an eager
+/// session offers it the escalation), so an identity whose `f64` value
+/// rounds off zero, or straddles it in a deferring session, takes the
+/// quotient where another valuation takes the axis. Lane by lane: audit
+/// row F43; the residual:
 /// `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
 ///
 /// **The readings** (`segment_direction_axis`, at the least band and
@@ -830,7 +830,8 @@ fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
 enum Component<T> {
     /// A Zero the symbolic tier proved: an identity of the parameters.
     ProvenZero,
-    /// A Zero no proof stands behind: zero only at this valuation.
+    /// A Zero no proof stands behind: zero at this valuation, or an
+    /// identity the tier did not prove (its budget, an opaque atom).
     UnprovenZero,
     /// A definite sign, as the literal ±1.
     Signed(T),
@@ -839,11 +840,10 @@ enum Component<T> {
 }
 
 /// `c` read against `band` (`segment_direction_axis`), the least band
-/// [`axis_or`] passes it. A Zero is
-/// proven where [`geom_core::sym::deferred::discharge`] says so: it
-/// answers a margin the tier proved as it decided, and inside a
-/// deferring session, which proves nothing as it decides, it runs the
-/// tier for that one Zero.
+/// [`axis_or`] passes it. A Zero is proven where
+/// [`geom_core::sym::deferred::discharge`] says so: it answers a margin
+/// the tier proved as it decided, and inside a deferring session, which
+/// proves nothing as it decides, it runs the tier for that one Zero.
 fn read_component<T: Decide>(c: T, band: Band) -> Component<T> {
     match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), band) {
         Err(_) => Component::Escalated,
