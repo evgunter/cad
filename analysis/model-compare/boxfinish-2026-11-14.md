@@ -17,6 +17,7 @@ Protocol: e1c428efbb2. One /dev/urandom byte per draw: even = Opus, odd = Fable.
 | `a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box` (the curved straddle; `boxfinish/curved-straddle`) | implementer, letter M, dual tier (sequential) | 65 | Fable | 2026-11-15 |
 | `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box` (PR 6972) | slot order, dual tier H (concurrent pair), frozen head 032ac18556cc | 213 | odd: Fable is R1, Opus is R2 | 2026-11-15 |
 | the same pair (PR 6972) | blind coding (A/B for the attribution-stripped correspondence coding; even: A is R1, odd: A is R2) | 3 | odd: A = R2, B = R1 | 2026-11-15 |
+| `a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box` (PR 6979) | first reviewer, dual tier M (sequential), frozen head 60717f6f886e | 24 | Opus | 2026-11-15 |
 
 ## Row notes (for the rows; kept off the unit branches until each row lands)
 
@@ -88,3 +89,4 @@ Protocol: e1c428efbb2. One /dev/urandom byte per draw: even = Opus, odd = Fable.
   - Six contradictions on fact between the reports, the two that matter: whether a boxed vector extrusion builds (A: refuses at the strut on both trees; B: builds with walls of width 0.403; different boxes), and what moved the ring row's mesh (A: the triangulator is translation-sensitive; B: the mesher never reads the stored plane). Both are in the fix pass for the implementer to settle by measurement.
   - Rubrics: A 4 / 2 / 3, B 4 / 3 / 2 (idiom, tests, docs): each marks down hardest where its own unilateral findings sit.
   - The orchestrator's pre-note matched the coding on the headline and on the two readings of the tally.
+- **PR 6979, curved-straddle.** Implementer: session_013QoYWXWD1qvFpNybhDqotb, configured claude-fable-5-2 (byte 65). Dispatched 03:31 UTC (11-15), measure first; PR opened 07:03; report 07:45 on head 60717f6f (main merged), `gate ok` green. Its three measurements found no shipped `f64` answer lost, so it did not stop; it built the set-aside rule and one door (`edge_gap.rs`), and flags for judgement that reading a straddle as `Undecided` instead would keep the `f64` reads it measured. No model named and no trailer in its commits or the PR body; no footer (checked). First reviewer (drawn, byte 24): Opus, session_013QoYWUDniLGY5dLecieCAL, configured claude-opus-5-5, dispatched 07:47 UTC on frozen head 60717f6f886e.
