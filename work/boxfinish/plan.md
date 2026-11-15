@@ -13,8 +13,7 @@ The box scalars' tier-3 readers can read a sweep leaf over a box, at a cost a re
 - **P0:**
   - `the-side-reader-cannot-read-a-solids-orientation-over-a-box`: an aimed ray keeps, across the box, what it is by construction. Dispatched on `boxfinish/aimed-ray`.
   - `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: the sweep doors keep the frames they are handed. Holds the slab and the derived-frame cube. Weighed (fork 268); dispatched on `boxfinish/sweep-frames`.
-  - `the-profile-drops-the-unit-directions-its-verbs-made`: a validated segment records its unit directions (Ev approved the format on PR 6936). The `profile` half, its own PR on `boxfinish/profile-directions`.
-  - `the-sweep-doors-read-the-profiles-recorded-directions`: the doors' half; holds the tour's stop and the cut plate's refusal on main. Parked on the two rows above it.
+  - `the-sweep-doors-read-the-profiles-recorded-directions`: the doors' half; holds the tour's stop and the cut plate's refusal on main. The `profile` half landed (PR 6963: a validated segment records its unit directions); parked on the extrude-mint row, whose lane edits the same door code.
   - `tier-3-at-every-box-replay-leaf-multiplies-the-decisions`: parked on the two rows above. The multiple is mostly the bisection their refusals force, so it is measured again on the tree that has them.
 - **P1:**
   - `an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`: a design question the chart-ends review raised; weighed before `IsoArc` gets stored ends. `an-iso-arc-rims-end-reads-through-its-map-at-interval` is parked on it.

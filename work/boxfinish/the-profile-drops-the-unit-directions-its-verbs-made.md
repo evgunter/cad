@@ -2,12 +2,13 @@
 id: the-profile-drops-the-unit-directions-its-verbs-made
 kind: issue
 title: The profile drops the unit directions its verbs made, so a door recovers an arc's start direction by dividing two boxed points' difference by its own length
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: M
 refs: [6936]
 branch: boxfinish/profile-directions
+closed: 2026-11-15
 ---
 
 
@@ -123,3 +124,25 @@ construction made, exact where the construction is; a table's is
 decided once at validate; the lift carries it verbatim; reversal swaps
 and negates and rotates nothing; a recorded direction that disagrees
 with its vertices refuses at validate.
+
+## Closed (2026-11-15, PR 6963)
+
+A validated segment records the unit directions its construction made
+(`profile::SegmentDirections`: a line's director, an arc's radial at
+each end). The circle, split circle, rectangle, directed legs, bulge,
+via and tangent arcs and `arc_onto` record what they hold exactly; a
+hop along an axis is minted as the axis; a table's written direction is
+checked once against its vertices (`segment_direction`), and "unit"
+there is check 1's own measure at the segment's lever. Constructed arcs
+register the identity their radials satisfy with the symbolic tier.
+Lifts and reversal carry the directions with their segment. No door
+reads them yet.
+
+What it left has its own files:
+- `the-sweep-doors-read-the-profiles-recorded-directions`: the doors'
+  half, with the items the review left to it (the directions into the
+  segment kind's arms; the axis rule's two lanes driven through a door;
+  the placed start's rigidity; a table director stored as a plane's
+  normal);
+- `fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`:
+  the verbs that record nothing.
