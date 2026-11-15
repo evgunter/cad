@@ -136,6 +136,23 @@ pub fn admissible(eps: f64, k: f64) -> bool {
     eps.is_finite() && k.is_finite() && k > 1.0 && eps >= eps_min(k)
 }
 
+/// **The rounding reach of a run at `(eps, k)`**: the
+/// [admission rule](admissible) read as a length,
+/// `SESSION_BOX_EXTENT · (k − 1)·eps / ADMISSION_FLOOR`. It is the
+/// longest lever over which a short chain's rounding (the
+/// [`ADMISSION_FLOOR`]'s, per metre of the box) still fits the run's
+/// headroom `(k − 1)·eps`: a quotient whose lever on its inputs passes it
+/// is not determined at ε even where its divisor is definite (DESIGN
+/// `[placement.values]`; the geom-core README, "Float rounding"). Where
+/// the headroom covers the floor the reach is at least the box:
+/// `eps ≥ ADMISSION_FLOOR/(k − 1)` is `reach ≥ SESSION_BOX_EXTENT`, up to
+/// the rounding of the two spellings at the boundary itself. The one door
+/// for it; no site states its own.
+#[must_use]
+pub fn rounding_reach(eps: f64, k: f64) -> f64 {
+    SESSION_BOX_EXTENT * ((k - 1.0) * eps / ADMISSION_FLOOR)
+}
+
 /// **The K a tolerance of `eps` runs at**: the committed run's K where
 /// one is committed; else the environment's ([`ENV_K`]) where it is a K
 /// and admits `eps`, else [`DEFAULT_K`], the fallback every commitment
@@ -677,6 +694,12 @@ impl Tolerance {
         Self { eps, k: DEFAULT_K }
     }
 
+    /// This tolerance's [rounding reach](rounding_reach).
+    #[must_use]
+    pub fn rounding_reach(self) -> f64 {
+        rounding_reach(self.eps, self.k)
+    }
+
     /// Validates the run's admission rule ([`admissible`]): `eps` finite
     /// and strictly positive, else [`ToleranceError::InvalidValue`]; `k`
     /// finite and above 1, else [`ToleranceError::InvalidK`]; and `eps`
@@ -939,11 +962,51 @@ impl Tol {
     pub fn k(self) -> f64 {
         self.get().k
     }
+
+    /// The run's committed [rounding reach](rounding_reach).
+    pub fn rounding_reach(self) -> f64 {
+        self.get().rounding_reach()
+    }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+
+    /// **The rounding reach is the admission rule read as a length**:
+    /// at least the session box wherever the headroom covers the floor,
+    /// short of it wherever it does not, at Ks either side of the
+    /// coordinate floor's crossover, and scaled by `(k − 1)·eps`.
+    #[test]
+    fn the_rounding_reach_is_the_box_exactly_where_the_headroom_covers_the_floor() {
+        for k in [1.5, 2.0, DEFAULT_K, 16.0, 40.0] {
+            let floor = ADMISSION_FLOOR / (k - 1.0);
+            for scale in [1.0 + 1e-9, 2.0, 1e3, 1e6] {
+                assert!(
+                    rounding_reach(floor * scale, k) >= SESSION_BOX_EXTENT,
+                    "k={k} eps={:e}: covered, so the reach is the box or more",
+                    floor * scale
+                );
+                assert!(
+                    rounding_reach(floor / scale, k) < SESSION_BOX_EXTENT,
+                    "k={k} eps={:e}: not covered, so the reach falls short",
+                    floor / scale
+                );
+            }
+        }
+        let t = Tolerance::with_eps(DEFAULT_EPS);
+        assert_eq!(
+            t.rounding_reach().to_bits(),
+            rounding_reach(DEFAULT_EPS, DEFAULT_K).to_bits(),
+            "the method is the function"
+        );
+        assert_eq!(
+            rounding_reach(2.0 * DEFAULT_EPS, DEFAULT_K),
+            2.0 * rounding_reach(DEFAULT_EPS, DEFAULT_K),
+            "linear in eps"
+        );
+    }
+
     use super::*;
     use crate::tolerance::Tol;
 
