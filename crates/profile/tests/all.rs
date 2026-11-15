@@ -146,6 +146,10 @@ mod r2_bool9_review_probes;
 mod raw_door_census;
 #[path = "recorded_directions.rs"]
 mod recorded_directions;
+#[path = "review_axis_mint_f64_differential.rs"]
+mod review_axis_mint_f64_differential;
+#[path = "review_axis_mint_probes.rs"]
+mod review_axis_mint_probes;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
 #[path = "review_fillet_recourse_arm_r2_probes.rs"]
