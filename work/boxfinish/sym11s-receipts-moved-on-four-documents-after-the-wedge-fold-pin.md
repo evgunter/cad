@@ -33,6 +33,17 @@ contradiction fired and both dispute columns are zero on every document.
 GREEN re-pinned `PAST_THE_CEILING` at main's readings, so the row is
 green and reds on the next move. The pin is not a judgment.
 
+**Which merge: not bisected.** It is on BOXFINISH's slate on the
+strength of BOXFINISH's own log line (`work/green/log.md`, 2026-11-14):
+PR 6963 (`boxfinish/profile-directions`, merge `4642f0594`) "moves
+`sym11_exact_channel_rows`' symbolic call counts too, by the same mint
+readings it re-pins in five other files". That claim covers the
+symbolic column; the numeric column rose by the same amounts and the
+frozen column moved on two documents, which it does not speak to.
+GREEN's check at `967cca218` and `4642f0594` did not complete (its box
+ran out of memory building three targets at once). If the move is not
+PR 6963's, this row moves to the slate of the merge it is.
+
 **Owed.** Say which decisions were added (four more symbolic and four
 more numeric on the plate, sixteen and sixteen on the pad), why the
 pad's plain walks freeze eleven more nodes, and whether that is the

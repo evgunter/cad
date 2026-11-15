@@ -73,3 +73,23 @@ catch.
 its cause; and each unit's model-compare row carries the escape
 (`docs/MODEL-COMPARE-PROTOCOL.md` rule 10).
 
+
+## The thread-count line, pinned and still to confirm (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+The "PR 6946, to confirm" row above is one line of
+`crates/sweep/tests/thread-count-digest/eps-1e-12.txt`:
+`arc_loft_1e11eps`' pads. On main `3e7a8c93b` the one-thread and the
+four-thread walk read the same line, with the volume and area bits
+unmoved and both pads wider: `vpad` `3db30319374e81b6 -> 3db303198d26e97a`
+(1.7291407e-11 to 1.7291412e-11, 2.7 parts in 10⁷), `apad`
+`…d630 -> …d690` (2 parts in 10¹⁴). GREEN pinned the line at the serial
+reading and named this row in `expected`'s doc.
+
+**PR 6946 is NOT confirmed.** GREEN's two-commit check (the walk at
+`980a97ec9^1` and at `980a97ec9`, ε 1e-12, `opt-level = 2`) did not
+complete: the first build was killed for memory on the lane's box. The
+attribution stands as BOXFINISH's inference.
+
+Reproduce:
+`CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -E 'test(the_walk_matches_the_serial_golden_at_one_thread)'`
+at those two commits; the assertion prints the line.
