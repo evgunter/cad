@@ -2,7 +2,7 @@
 id: nightly-1115-residue-the-reds-no-lane-holds
 kind: unit
 title: Nightly 11-15: the reds no program's lane holds (two censuses, a moved pin, two 1e-12 rows, the probe rows, the render lanes)
-status: open
+status: dispatched
 opened: 2026-11-15
 priority: P1
 cost: M
