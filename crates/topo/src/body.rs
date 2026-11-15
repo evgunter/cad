@@ -368,7 +368,7 @@ impl<T: Real> Body<T> {
     /// Inserts surface geometry, returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises.
-    pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
+    pub fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
         self.surfaces.insert(surface)
     }
 

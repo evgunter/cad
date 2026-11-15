@@ -4505,6 +4505,14 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
             continue;
         }
+        if let (Gap::InBand(diag), Ok(path)) = (m.gap, std::env::var("CS_HITS")) {
+            if !crate::validate::in_band(&diag) {
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = writeln!(f, "STANDS\t{}\t{}\tcount {}\t{:?}", std::thread::current().name().unwrap_or("?"), std::any::type_name::<T>(), (sa + sb) / 2, diag.margin);
+                }
+            }
+        }
         // The ray crosses the edge's faces somewhere between where it
         // passes the edge and where it crosses their carriers, which on a
         // face it meets obliquely lie bands apart: the crossing spans them.

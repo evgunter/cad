@@ -71,6 +71,8 @@ enum Passes<T> {
     Clear,
     /// No reading here decides it.
     Undecided,
+    /// TEMP
+    Unread(T, geom_core::Indeterminate),
 }
 
 /// **Decides every edge between two faces that read their own crossings
@@ -154,10 +156,15 @@ pub(super) fn read<T: Decide>(
                 }
             }
             let mut found: Vec<(T, Gap)> = Vec::new();
+            let mut unread = None;
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
                 match passes(&span, ray, q + d * t, band) {
                     Passes::Met(s, gap) => found.push((s, gap)),
+                    Passes::Unread(s, diag) => {
+                        unread = Some(diag);
+                        found.push((s, Gap::InBand(diag)));
+                    }
                     Passes::End(s) => {
                         clear = false;
                         meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
@@ -199,6 +206,9 @@ pub(super) fn read<T: Decide>(
             if ray.ahead(lo, rows.advance(), band) == Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
                 continue;
+            }
+            if let Some(diag) = unread {
+                return Err(RayFault::InBand(PointInSolidError::Escalated { face, diag }));
             }
             let gap = found
                 .iter()
@@ -267,7 +277,7 @@ fn narrow<T: Decide>(
                         Passes::End(s) => {
                             meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
                         }
-                        Passes::Undecided => {
+                        Passes::Undecided | Passes::Unread(..) => {
                             meets.marks.push(RayHit::marked(m.faces, m.at, Mark::Graze));
                         }
                         Passes::Clear => {}
@@ -324,9 +334,32 @@ fn passes<T: Decide>(
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
         Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
-        Err(SpanRefusal::Carrier(refused)) => refused
-            .escalation()
-            .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
+        Err(SpanRefusal::Carrier(refused)) => {
+            if let Ok(path) = std::env::var("CS_HITS") {
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = writeln!(
+                        f,
+                        "ARM\t{}\t{}\t{:?}\t{:?}",
+                        std::thread::current().name().unwrap_or("?"),
+                        std::any::type_name::<T>(),
+                        refused.escalation().map(|d| crate::validate::in_band(&d)),
+                        refused
+                    );
+                }
+            }
+            match refused.escalation() {
+                Err(_) => Passes::Undecided,
+                Ok(diag) if !crate::validate::in_band(&diag) => {
+                    match std::fs::read_to_string(format!("/home/user/cs-logs/MODE.{}", std::process::id())).ok().as_deref() {
+                        Some("unread") => Passes::Unread(s, diag),
+                        Some("clear") => Passes::Clear,
+                        _ => Passes::Met(s, Gap::InBand(diag)),
+                    }
+                }
+                Ok(diag) => Passes::Met(s, Gap::InBand(diag)),
+            }
+        }
     }
 }
 
