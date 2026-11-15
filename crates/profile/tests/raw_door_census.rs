@@ -179,7 +179,13 @@ fn after_mod_keyword(trimmed: &str) -> Option<&str> {
 /// declared at, and does not take a gated item that is not a module.
 #[test]
 fn the_test_region_starts_at_a_gated_module_of_any_visibility() {
-    for vis in ["", "pub ", "pub(crate) ", "pub(super) ", "pub(in crate::a) "] {
+    for vis in [
+        "",
+        "pub ",
+        "pub(crate) ",
+        "pub(super) ",
+        "pub(in crate::a) ",
+    ] {
         let view = format!("fn shipped() {{}}\n#[cfg(test)]\n{vis}mod tests {{\n}}\n");
         assert_eq!(test_module_starts_at(&view), 2, "`{vis}mod tests`");
     }
@@ -204,7 +210,7 @@ fn test_module_starts_at(view: &str) -> usize {
             (after_mod_keyword(t).is_some()
                 && !t.ends_with(';')
                 && gates_on_test(&attributes_above(&lines, i)))
-                .then_some(i)
+            .then_some(i)
         })
         .unwrap_or(usize::MAX)
 }
