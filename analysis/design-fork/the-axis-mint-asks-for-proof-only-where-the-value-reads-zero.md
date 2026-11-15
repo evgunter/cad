@@ -490,3 +490,7 @@ What each scalar stands for, and so what it answers:
 - the `deferred.rs` "nothing else changes" claim, false at an exact witness (A, B);
 - the `literal_sign` ledger sentence contradicting audit row F43 (A);
 - the three-kind audit of `is_exact_zero`'s callers.
+
+## Round 2 (dispatched 16:06 UTC)
+
+Each designer was pointed at the three round-1 replies by label (`probe/fork-identity/round1/{A,B,C}.md` on the scratch branch, cut at `## For Ev`). The message was identical but for the label: what closed in round 1; the four things still open (the plain scalars and one door or two, with the three arguments on the table by label; the lint; the sign decision's escalation and whether it repeats vertex separation's; the two scope questions raised in round 1), each with a pointer to what the tree could settle; and the ask (what moved, whether its own argument is answered, its position now; where a difference remains, state it as a choice for Ev).
