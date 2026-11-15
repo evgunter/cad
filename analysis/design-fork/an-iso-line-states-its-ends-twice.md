@@ -585,3 +585,5 @@ Cache reads are about 95% of each sum. B and C each restarted their worker befor
 ## The `[ev]` PR
 
 Branch `boxfinish/ev-iso-image`; fork-log row 271 (three-designer table), recommendation half committed with the PR (labels only). Ev's decision, the mapping and the tokens go in the second commit, before merge.
+
+`[ev]` PR 6975 opened 02:33 UTC (2026-11-15), title "[ev] boxfinish: a row or column image stores the line it holds and one map, never its ends". Body: two decisions (what an image stores; the period by its ends), each with its rejected alternatives, then the three final (round 2) `For Ev` sections verbatim under A, B, C. The certificate change is dispatched without waiting (it touches no ratified text and all three say it is needed under any representation).
