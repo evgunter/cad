@@ -2,8 +2,9 @@
 id: the-freecad-montage-compose-dies-in-matplotlibs-tight-layout-under-python-3-14
 kind: issue
 title: The render's freecad lane dies composing its montage: matplotlib's tight_layout raises under the runner's Python 3.14, so no [render] publishes the kernel or freecad cells
-status: open
+status: closed
 opened: 2026-11-15
+closed: 2026-11-15
 priority: P2
 cost: E
 ---
@@ -30,3 +31,13 @@ What closes it: the render venv on a Python and matplotlib pair that
 composes (a matplotlib release that supports 3.14, or the venv on a
 pinned older interpreter), and a `[render]` that publishes both lanes.
 
+**Closed 2026-11-15: fixed on main before this row merged.** GREEN's
+PR 6985 (`6bca16622f`, `72201fd071`) builds both render jobs' venvs on
+a pinned Python 3.12 (`actions/setup-python@v5` in `render.yml`), the
+cause its own residue row names
+(`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`). With
+that merged into `boxfinish/sweep-frames`, `render (demos)` run
+43739282769 on `66d8de2a22` passed "render both lanes
+(demos/render.sh)" and re-baselined the kernel and freecad lanes. The
+claim above that matplotlib 3.10.3 predates 3.14's copy changes was
+never checked and is not needed: the pinned interpreter is the cure.
