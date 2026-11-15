@@ -5,7 +5,7 @@ title: A placement's arm omits its written slide values, so the least turn's pol
 status: open
 opened: 2026-11-15
 priority: P1
-cost: S
+cost: E
 ---
 
 
