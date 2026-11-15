@@ -1178,7 +1178,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         n,
         |j| struts[j].he_minus,
         |body, j, faces| {
-            let surface = side_surface(body, segs, joins, faces, j, qs, place, normal, sweep, tol);
+            let surface = side_surface(body, segs, joins, faces, j, qs, place, normal, sweep);
             let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
@@ -1320,7 +1320,6 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         place,
         normal,
         sweep,
-        tol,
     );
     let far = q + sweep.w;
     let back = Vec3::zero() - sweep.w;
@@ -1402,7 +1401,6 @@ fn side_surface<T: Real>(
     place: Affine3<T>,
     normal: Vec3<T>,
     sweep: Sweep<T>,
-    tol: Tol,
 ) -> FaceSurface<T> {
     let course = sweep.course;
     let sense = segs[j].wall_sense;
@@ -1439,10 +1437,6 @@ fn side_surface<T: Real>(
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
             let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
-            // The SAME rigidity the bottom rim carrier registers, about
-            // the same extruded centre through the same lamina vertex
-            // (`swept::register_rigidity`).
-            crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
             Surface::Cylinder {
                 origin: c_world,
                 axis: turn_axis(turn, normal),

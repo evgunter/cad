@@ -46,7 +46,7 @@ fn point_width(p: Point2<Interval>) -> f64 {
 /// splitters, lowered from its unit bulge. Its apothem is exactly zero
 /// and its center is exactly the chord midpoint.
 fn meridian() -> SketchSegment<Interval> {
-    lowered_arc(p2(0.0, -0.09), p2(0.0, 0.09), iv(1.0))
+    lowered_arc(p2(0.0, -0.09), p2(0.0, 0.09), iv(1.0), 1.0)
 }
 
 /// A short arc whose carrier is derived from its own chord: the 0.4 %
@@ -58,7 +58,7 @@ fn meridian() -> SketchSegment<Interval> {
 fn short_arc() -> SketchSegment<Interval> {
     let meridian = meridian();
     let (a, b) = (meridian.eval(iv(0.4)), meridian.eval(iv(0.404)));
-    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
+    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan(), 1.0)
 }
 
 /// A short arc's evaluated points stay at the scale of its own

@@ -59,7 +59,7 @@ fn width(x: I) -> f64 {
 }
 
 /// The closed quad `[x0, x1] × [y0, y1]` in its sketch plane.
-fn rect<T: Real>(x0: f64, x1: f64, y0: f64, y1: f64) -> Vec<ProfileLoop<T>> {
+fn rect<T: geom_core::Decide>(x0: f64, x1: f64, y0: f64, y1: f64) -> Vec<ProfileLoop<T>> {
     let corner = |x: f64, y: f64| (Point2::new(at(x), at(y)), T::zero());
     vec![bulge_loop(vec![
         corner(x0, y0),

@@ -98,6 +98,7 @@ fn family(w: f64) -> Vec<SketchSegment<Interval>> {
                 Point2::new(wide(0.0, w), wide(-0.09, w)),
                 Point2::new(wide(0.0, w), wide(0.09, w)),
                 iv(bl),
+                bl.signum(),
             )
         })
         .collect()
@@ -200,9 +201,10 @@ fn short_sub_arc() -> SketchSegment<Interval> {
         Point2::new(iv(0.0), iv(-0.09)),
         Point2::new(iv(0.0), iv(0.09)),
         iv(1.0),
+        1.0,
     );
     let (a, b) = (meridian.eval(iv(0.4)), meridian.eval(iv(0.404)));
-    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
+    lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan(), 1.0)
 }
 
 /// P2b: on the defect's own shape — a short sub-arc whose center is

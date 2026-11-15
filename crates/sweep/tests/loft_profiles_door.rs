@@ -20,7 +20,7 @@ use sweep::{LoftError, Lofted, loft_body, loft_profiles};
 
 /// The square `[−1, 1]²`, its right corner at `(r, ±1)` and its right
 /// side an arc of bulge `b`, run counterclockwise.
-fn section<T: Real>(r: T, b: T) -> Vec<ProfileLoop<T>> {
+fn section<T: geom_core::Decide>(r: T, b: T) -> Vec<ProfileLoop<T>> {
     let p = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
     vec![bulge_loop(vec![
         (p(-1.0, -1.0), T::zero()),

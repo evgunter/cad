@@ -19,7 +19,7 @@ use crate::{ArcData, ArcSide, ProfileLoop, Step, Target, TipState, Verb};
 /// and [`crate::Profile::validate`] decides what the table is. It records
 /// no direction: the table holds its points and bulges only, and
 /// validation decides each segment's directions from them.
-pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
+pub fn bulge_loop<T: geom_core::Decide>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
     ProfileLoop::from_chain(crate::lower_chain(&chain))
 }
 

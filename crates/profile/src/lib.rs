@@ -304,36 +304,31 @@ impl<T: Real> SegmentDirections<T> {
 /// **The bulge mode's lowering rule**: the canonical segment that the
 /// segment leaving `start` with `bulge` and ending at `end` lowers to —
 /// a [`Segment::Line`] exactly when the bulge is exactly zero (either
-/// sign), and otherwise the arc [`lower_arc`] builds.
+/// sign), and otherwise the arc [`bulge_leg`] stores, its turn read
+/// off the bulge as the `Bulge` leg reads it ([`seg::literal_sign`]).
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> Segment<T> {
-    if is_exact_zero(bulge) {
-        return Segment::Line;
-    }
-    Segment::Arc(lower_arc(start, end, bulge))
+pub(crate) fn lower_to<T: geom_core::Decide>(
+    start: Point2<T>,
+    bulge: T,
+    end: Point2<T>,
+) -> Segment<T> {
+    bulge_leg(start, end, bulge, seg::literal_sign(bulge))
+        .map_or(Segment::Line, |built| Segment::Arc(built.arc))
 }
 
 /// **The bulge mode's one conversion** in the lattice: `None`, a line,
 /// exactly at a zero bulge (either sign), and otherwise the arc
-/// [`lower_arc`] builds with its endpoint facts,
-/// [`BuiltArc::lowered`].
-///
-/// Its radials are the lowering's ([`Arc2::from_chord_radials`], whose
-/// doc carries their proof), signed by the bulge's sign where that reads
-/// exactly ([`seg::literal_sign`]); where it does not, the arc records
-/// none and validation decides them.
-pub(crate) fn bulge_leg<T: geom_core::Decide>(
+/// [`BuiltArc::lowered`] builds with its endpoint facts, turning as
+/// `turn` says: the literal ±1 of the bulge's sign, from whatever the
+/// caller holds that fixed it, or `None` where it holds nothing that
+/// did.
+pub(crate) fn bulge_leg<T: Real>(
     start: Point2<T>,
     end: Point2<T>,
     bulge: T,
+    turn: Option<T>,
 ) -> Option<BuiltArc<T>> {
-    (!is_exact_zero(bulge)).then(|| {
-        let built = BuiltArc::lowered(start, end, bulge);
-        match seg::literal_sign(bulge) {
-            Some(sign) => built.radial(Arc2::from_chord_radials(start, end, bulge, sign).1),
-            None => built,
-        }
-    })
+    (!is_exact_zero(bulge)).then(|| BuiltArc::lowered(start, end, bulge, turn))
 }
 
 /// The bulge mode's lowering over a whole chain: each (position,
@@ -342,7 +337,9 @@ pub(crate) fn bulge_leg<T: geom_core::Decide>(
 /// the first. Registers nothing: it is the fixture door's lowering, and
 /// a fixture holds no witness.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, Segment<T>)> {
+pub(crate) fn lower_chain<T: geom_core::Decide>(
+    chain: &[(Point2<T>, T)],
+) -> Vec<(Point2<T>, Segment<T>)> {
     let n = chain.len();
     (0..n)
         .map(|k| {
@@ -353,7 +350,8 @@ pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, 
 }
 
 /// **The arc lowering from a chord**: [`Arc2::from_chord`], the carrier
-/// on the chord `start → end` for `bulge` and the sweep Δθ = 4·atan(b).
+/// on the chord `start → end` for `bulge`, the sweep Δθ = 4·atan(b) and
+/// the radius signed by `turn`, the literal ±1 of the bulge's sign.
 /// Pure arithmetic over its inputs, so it is the same expression at
 /// every scalar. A bulge of exactly zero has no carrier
 /// (its centre is at infinity), and the lowering rule sends it to a
@@ -362,17 +360,16 @@ pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, 
 /// **Its endpoint facts are theorems** ([`Facts::Registered`]). With
 /// `L` the chord length, `mid` its midpoint and `n̂` its unit left
 /// normal, the carrier is `centre = mid + n̂·L(1 − b²)/(4b)` and
-/// `radius = |L(1 + b²)/(4b)|`. Each endpoint sits `L/2` from `mid`
+/// `radius = σ·L(1 + b²)/(4b)`. Each endpoint sits `L/2` from `mid`
 /// along the chord, so `‖q − centre‖² = (L/2)² + L²(1 − b²)²/(16b²) =
 /// L²(1 + b²)²/(16b²) = radius²`, an identity of rational functions at
-/// every `b ≠ 0`; both sides are non-negative, so the rim at each end
-/// IS the radius. The centre lies on the chord's perpendicular
+/// every `b ≠ 0`. The centre lies on the chord's perpendicular
 /// bisector, so the angle about it from `start` to `end` is the
 /// included angle θ whose quarter-tangent the bulge is by definition
 /// (crate docs), and `4·atan(b)` is that θ for every finite `b`
 /// (|θ| < 2π).
-pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
-    Arc2::from_chord(start, end, bulge)
+pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T, turn: T) -> Arc2<T> {
+    Arc2::from_chord(start, end, bulge, turn)
 }
 
 /// What a construction proved about the arc it built, beyond the arc
@@ -422,8 +419,9 @@ pub(crate) struct BuiltArc<T: Real> {
     /// door does not read it back.
     pub(crate) bulge_authored: bool,
     /// The unit radials at the arc's start and end its construction
-    /// holds, where it holds them; registered with the endpoint facts
-    /// ([`Arc2::register_radials`]).
+    /// holds, where it holds them: the centre plus the stored radius
+    /// along each is the vertex it points at, as a form
+    /// ([`Arc2::on_radial`]).
     pub(crate) radials: Option<[Vec2<T>; 2]>,
 }
 
@@ -441,26 +439,50 @@ impl<T: Real> BuiltArc<T> {
         }
     }
 
-    /// The arc [`lower_arc`] lowers from the chord `start → end` and
-    /// `x`, with its endpoint facts — theorems of that lowering.
-    pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
-        Self::new(lower_arc(start, end, x), Facts::Registered)
+    /// The arc the chord `start → end` and `x` lower to, with its
+    /// endpoint facts — theorems of that lowering.
+    ///
+    /// With `turn`, the literal ±1 of `x`'s sign, it is [`lower_arc`]'s
+    /// and records the lowering's radials
+    /// ([`Arc2::from_chord_radials`], whose doc carries their proof).
+    /// With none, nothing fixed the turn, so no sign is spelled: the
+    /// carrier is the lowering's, the radius is the start's measured
+    /// distance from its centre, and the arc records no radials, for
+    /// validation to decide.
+    pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T, turn: Option<T>) -> Self {
+        match turn {
+            Some(turn) => {
+                let (arc, radials) = Arc2::from_chord_radials(start, end, x, turn);
+                Self::new(arc, Facts::Registered).radial(radials)
+            }
+            None => {
+                let arc = lower_arc(start, end, x, T::one());
+                Self::new(
+                    Arc2 {
+                        radius: arc.rim(start),
+                        ..arc
+                    },
+                    Facts::Registered,
+                )
+            }
+        }
     }
 
     /// The same arc, with the unit radials at its two ends its
     /// construction holds.
     ///
-    /// **Only an arc whose facts are registered records radials**: a
-    /// constructed loop's directions are trusted at validate, and what
-    /// makes that sound is the registration of them beside the endpoint
-    /// facts ([`Arc2::register_radials`]). A construction that holds its
+    /// **Only an arc whose endpoint facts are theorems records
+    /// radials**: a constructed loop's directions are trusted at
+    /// validate, and what makes that sound is the construction's proof
+    /// that the centre plus the stored radius along each is its vertex
+    /// at every value of its inputs. A construction that holds its
     /// endpoints only to a decision has no radials to give, so asking
     /// for one is a kernel defect, refused here, live in release.
     pub(crate) fn radial(self, radials: [Vec2<T>; 2]) -> Self {
         assert_eq!(
             self.facts,
             Facts::Registered,
-            "an arc records radials only where its construction registers its facts"
+            "an arc records radials only where its construction proves its endpoint facts"
         );
         Self {
             radials: Some(radials),
@@ -509,11 +531,6 @@ impl<T: Real> BuiltArc<T> {
         if self.facts == Facts::Registered {
             for (fact, answer) in self.arc.register_endpoints(start, end, tol) {
                 answer.handle(fact);
-            }
-            if let Some(radials) = self.radials {
-                for (fact, answer) in self.arc.register_radials(start, end, radials, tol) {
-                    answer.handle(fact);
-                }
             }
         }
     }
@@ -1078,7 +1095,7 @@ mod lowering_tests {
     use geom_core::{Dual, Dual64, DualInterval, Interval};
 
     /// The kind `b` lowers to on a unit chord.
-    fn kind_of<T: Real>(b: T) -> &'static str {
+    fn kind_of<T: geom_core::Decide>(b: T) -> &'static str {
         match lower_to(
             Point2::new(T::zero(), T::zero()),
             b,

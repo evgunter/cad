@@ -629,7 +629,7 @@ fn check_carrier<T: Decide>(
     // input only where the scene's `f64` can read a difference that
     // small at the magnitude it was taken at ([`resolves`]).
     let scale = arc.radius.max(reach(arc.centre));
-    let on_carrier = arc.rim(a) - arc.radius;
+    let on_carrier = arc.off_carrier(a);
     let read = decide_reported(Gate::ArcStartOnCarrier, Margin::of(on_carrier), band)
         .map_err(SegIssue::escalated)?;
     match read.sign {
@@ -673,8 +673,8 @@ const DIRECTION_ULPS: f64 = 8.0;
 
 /// **The recorded directions of a table segment, against its vertices**
 /// ([`Consistency::Decide`]): a line's director walked the chord's
-/// length from its start, and an arc's radial walked its rim from the
-/// centre, each must land on the vertex it points at — the
+/// length from its start, and an arc's radial walked its stored radius
+/// from the centre, each must land on the vertex it points at — the
 /// **`segment_direction`** predicate, margin ‖o + ℓ·d − p‖ (meters,
 /// direct), which is Zero exactly when `d` is the unit `(p − o)/ℓ`. A
 /// definite miss is refused typed where the scene resolves it
@@ -699,7 +699,7 @@ pub(crate) fn check_directions<T: Decide>(
             check_direction(
                 c,
                 s.a,
-                g.arc.rim(s.a),
+                g.arc.radius,
                 start,
                 RecordedDirection::StartRadial,
                 band,
@@ -707,7 +707,7 @@ pub(crate) fn check_directions<T: Decide>(
             check_direction(
                 c,
                 s.b,
-                g.arc.rim(s.b),
+                g.arc.radius,
                 end,
                 RecordedDirection::EndRadial,
                 band,
@@ -876,7 +876,7 @@ pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
 /// are of the kind `s` reads as; otherwise decided here, once, from what
 /// the segment holds — a line's chord unit (`s.unit`, under the
 /// `vertex_separation` decision already taken), an arc's
-/// centre-to-vertex units over its rim at each end. An arc that reads
+/// centre-to-vertex offsets over its stored radius. An arc that reads
 /// as a line keeps no carrier, and its recorded radials go with it.
 pub(crate) fn validated_kind<T: Decide>(
     s: &Seg<T>,
@@ -905,12 +905,13 @@ pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T>
     axis_or(chord, unit)
 }
 
-/// **The radial at `p`, minted**: `p − centre` over the rim at `p`
-/// ([`Arc2::rim`]), or the axis it lies along ([`axis_or`]). The one
-/// mint of an arc's direction from its points.
+/// **The radial at `p`, minted**: `p − centre` over the stored radius,
+/// or the axis it lies along ([`axis_or`]). The one mint of an arc's
+/// direction from its points, for a vertex validation decided on the
+/// carrier.
 pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
     let w = p - arc.centre;
-    axis_or(w, w / arc.rim(p))
+    axis_or(w, w / arc.radius)
 }
 
 /// One read-back of a constructed arc against what was authored, past
@@ -998,9 +999,9 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 /// stored arc against what its construction authored, each read through
 /// [`read_back`].
 ///
-/// - **Start on the carrier** ([`ArcRead::Start`], ‖a − centre‖ − r,
-///   [`READ_BACK_RIM_ULPS`]): the stored radius against the vertex the
-///   arc leaves.
+/// - **Start on the carrier** ([`ArcRead::Start`], ‖a − centre‖ − r
+///   as [`Arc2::off_carrier`] spells it, [`READ_BACK_RIM_ULPS`]): the
+///   stored radius against the vertex the arc leaves.
 /// - **Landing** ([`ArcRead::Landing`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
 ///   For an arc whose end is on its carrier only to an inline
 ///   ε-decision the door made ([`crate::Facts::Decided`]), the landing
@@ -1056,7 +1057,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     let carrier = || arc.radius.max(reach(arc.centre));
     read_back(
         ArcRead::Start,
-        Reading::Difference(arc.rim(a) - arc.radius),
+        Reading::Difference(arc.off_carrier(a)),
         || reach(a),
         || carrier().max(reach(a)),
         READ_BACK_RIM_ULPS,
@@ -1084,7 +1085,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     if let Some(q) = built.through {
         read_back(
             ArcRead::ThroughPoint,
-            Reading::Difference(arc.rim(q) - arc.radius),
+            Reading::Difference(arc.off_carrier(q)),
             || reach(a).max(reach(b)).max(reach(q)),
             || carrier().max(reach(q)),
             READ_BACK_RIM_ULPS,

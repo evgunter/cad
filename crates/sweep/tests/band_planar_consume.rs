@@ -60,7 +60,7 @@ fn blend<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
 pub(crate) const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
 
 /// A closed polygonal profile loop through `pts`.
-pub(crate) fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
+pub(crate) fn poly<T: geom_core::Decide>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
     let f = T::from_f64;
     bulge_loop(
         pts.iter()
@@ -70,7 +70,7 @@ pub(crate) fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
 }
 
 /// A round profile loop of radius `a` about `(x, y)`: two semicircles.
-fn round<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
+fn round<T: geom_core::Decide>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
     let f = T::from_f64;
     bulge_loop(vec![
         (Point2::new(f(x + a), f(y)), f(1.0)),

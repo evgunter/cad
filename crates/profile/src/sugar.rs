@@ -1395,9 +1395,11 @@ impl<T: Real> Leg<T> {
         // at `Line2::circle_heights` would round it off by an ulp.
         let h = offset.side(arc.center);
         let foot = arc.center - normal * h;
+        // ρ as it stands: the enclosing-class gate decided it
+        // non-negative before this runs; `h` is a side no gate decided.
         match decide(
             Gate::FilletOffsetLineCircle,
-            Margin::of(rho.abs() - h.abs()),
+            Margin::of(rho - h.abs()),
             band,
         )
         .map_err(ArcTrimRefusal::Escalated)?
@@ -1563,8 +1565,9 @@ impl<T: Real> ArcCarrier<T> {
     {
         let rho1 = offset_radius(&self, sgn, radius);
         let rho2 = offset_radius(&other, sgn, radius);
-        let r1 = rho1.abs();
-        let r2 = rho2.abs();
+        // The offset circles' radii: each ρ as it stands, which the
+        // enclosing-class gate decided non-negative before this runs.
+        let (r1, r2) = (rho1, rho2);
         let link = other.center - self.center;
         let dist_squared = link.norm_squared();
         let dist = dist_squared.sqrt();

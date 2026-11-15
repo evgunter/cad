@@ -713,110 +713,6 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
-/// **A placed profile arc's rim IS its sketch rim** — the one fact the
-/// sweep registers about a profile arc, rigidity, stated where it is
-/// guaranteed ([`geom_core::Real::register_equal`]).
-///
-/// **The proof.** `rim` is `place(start) − place(centre)` for the arc's
-/// swept start and its stored centre, and a rigid placement's linear
-/// part is orthonormal, so `‖rim‖ = ‖start − centre‖` — the sketch rim
-/// [`Arc2::rim`] spells. Where a caller's placement is NOT rigid the
-/// door's own witness refuses the registration typed rather than
-/// believing this paragraph (`Disputed` at an inexact witness, and at
-/// [`geom_core::Interval`] the exact witness's `Contradicted`, which
-/// `SymRegistration::handle` turns into an assertion).
-///
-/// **What it does not state, and why it need not.** The sketch rim's
-/// own identity, `‖start − centre‖ = radius`, is the arc's
-/// construction's to register — the profile's lowering does, on the
-/// values it built (`Arc2::register_endpoints`) — and the tier's alias
-/// is transitive, so this record chains the placed rim through the
-/// sketch rim to the radius. A carrier the construction did not
-/// register (copied across scalars, or written by a fixture) claims
-/// nothing beyond rigidity, which is the ruling's point: nothing about
-/// an arc's consistency is stored on it or claimed by a copy of it.
-///
-/// **What it touches: nothing.** `rim.norm()` is built over the
-/// carrier's own centre and the placed start, and `arc.rim(start)` is
-/// the node the construction registered, so no value changes anywhere.
-pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Point2<T>, tol: Tol) {
-    rim.norm()
-        .register_equal(arc.rim(start), tol)
-        .handle("a placed arc's ‖q − c‖ from its sketch rim");
-}
-
-/// **A placed arc's carrier ends ARE its sketch carrier's ends, placed**
-/// — the second fact of rigidity the sweep registers about a profile
-/// arc ([`geom_core::Real::register_equal`]), per component, at the
-/// carrier's start and at its span.
-///
-/// **The proof.** The carrier is the circle about `place(centre)` with
-/// radius `radius`, reference direction `u_ref` the arc's recorded unit
-/// radial at its swept start, `radial`, carried by the spec's `radial`
-/// placing, and axis the turn-signed plane normal. At parameter 0 it is
-/// `place(centre) + radius·L·radial`, which is `place(centre +
-/// radius·radial)` for every affine placement with linear part `L`:
-/// [`Arc2::on_radial`]. A rigid placement maps the sketch plane's
-/// rotation about `centre` by the signed sweep onto the 3-space rotation
-/// about that axis by `|Δθ|`, so the carrier at its span is `place` of
-/// the sketch point the sweep turns `radial` to,
-/// [`Arc2::on_turned_radial`]. Neither reads whether `radial` points at
-/// a vertex or the stored centre and radius agree with one, so both hold
-/// for every carrier, a copied or table one included. Where the
-/// placement is not rigid, the door's own witness refuses typed, as at
-/// [`register_rigidity`].
-///
-/// `radial` is `place` everywhere but one site: a full revolve's sphere
-/// meridian whose start is pinned on the axis takes its `u_ref` from the
-/// unturned placement (`revolve::full`). That radial lies along the
-/// axis, which the half turn fixes, so the two placings carry it to the
-/// same direction over the reals and the identities registered here,
-/// against `place`, hold there too.
-///
-/// **What they chain through.** A construction that records radials
-/// registers the sketch facts at its vertices: `centre + radius·radial`
-/// IS the vertex each radial points at (`Arc2::register_radials`), and
-/// the turned start radial IS the far vertex where the radial is its
-/// start's own quotient (`Arc2::register_endpoints`, through
-/// [`Arc2::carrier_end`]). The tier's alias applies inside the early
-/// walk, so the placed carrier's ends take the placed vertices' forms.
-/// A carrier the construction did not register claims nothing past
-/// rigidity, and its ends discharge numerically or escalate.
-///
-/// **What it touches: nothing.** `Curve3::circle_at` over the spec's
-/// own carrier is the node the certifier evaluates; the placed sketch
-/// points are built here and thrown away.
-fn register_placed_carrier_ends<T: Real>(
-    carrier: &Curve3<T>,
-    param_end: T,
-    place: Placing<T>,
-    arc: Arc2<T>,
-    radial: Vec2<T>,
-    tol: Tol,
-) {
-    let Some(circle) = carrier.as_circle() else {
-        return;
-    };
-    for (param, sketch, fact) in [
-        (
-            T::zero(),
-            arc.on_radial(radial),
-            "a placed arc's carrier start from its placed sketch radial",
-        ),
-        (
-            param_end,
-            arc.on_turned_radial(radial),
-            "a placed arc's carrier end from its placed sketch carrier end",
-        ),
-    ] {
-        let built = Curve3::circle_at(&circle.frame, circle.radius, param);
-        let held = place.point(sketch);
-        for (b, h) in [(built.x, held.x), (built.y, held.y), (built.z, held.z)] {
-            b.register_equal(h, tol).handle(fact);
-        }
-    }
-}
-
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
@@ -829,9 +725,11 @@ fn register_placed_carrier_ends<T: Real>(
 /// [`Placing`] for a revolve's. `q_from` is the placed start vertex,
 /// where the carrier starts; its direction is the placement turning
 /// [`sketch_direction`], and a line's span is the sketch chord's
-/// length, which a rigid placement keeps. `tol` is the run's ε, carried
-/// through to the rigidity the arc arm states ([`register_rigidity`],
-/// [`register_placed_carrier_ends`]) and used for nothing else here.
+/// length, which a rigid placement keeps. An arc's carrier is the
+/// circle about the placed centre with the stored radius, from the
+/// placed radial at its swept start: its start is `place(centre +
+/// radius·radial)`, the placed vertex as a form, and nothing is
+/// registered.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: impl Into<Placing<T>>,
@@ -856,7 +754,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
     radial: Placing<T>,
     q_from: Point3<T>,
-    tol: Tol,
+    _tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let description =
         EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
@@ -879,35 +777,17 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                 param_end: line_span(seg, dir),
             }
         }
-        SegmentKind::Arc { arc, turn, .. } => {
-            let c_world = centre(arc.centre);
-            let rim = q_from - c_world;
-            // Rigidity, stated where it is guaranteed
-            // (`register_rigidity` carries the proof). Bound out of the
-            // expression below rather than spelled twice: one
-            // subtraction, one node, one set of bits.
-            register_rigidity(rim, arc, seg.a(), tol);
-            let start = sketch_direction(seg);
-            let carrier = Curve3::circle(
-                c_world,
+        SegmentKind::Arc { arc, turn, .. } => EdgeCurveSpec {
+            description,
+            carrier: Curve3::circle(
+                centre(arc.centre),
                 turn_axis(turn, normal),
                 arc.radius,
-                radial.direction(start).get(),
-            );
-            let param_end = arc_span(turn, arc);
-            // The carrier's ends, stated where they are guaranteed
-            // (`register_placed_carrier_ends` carries the proof), about
-            // the very carrier and span the spec carries.
-            if std::env::var("PROBE_NOREG").is_err() {
-                register_placed_carrier_ends(&carrier, param_end, place, arc, start.0, tol);
-            }
-            EdgeCurveSpec {
-                description,
-                carrier,
-                param_start: T::zero(),
-                param_end,
-            }
-        }
+                radial.direction(sketch_direction(seg)).get(),
+            ),
+            param_start: T::zero(),
+            param_end: arc_span(turn, arc),
+        },
     }
 }
 
@@ -1523,12 +1403,13 @@ mod tests {
     }
 
     /// An arc from `a` to `b` with the radials validation mints from its
-    /// points where no axis is proven: each vertex's offset over its rim.
+    /// points where no axis is proven: each vertex's offset over the
+    /// stored radius.
     fn arc_from<T: Real>(arc: Arc2<T>, turn: Sign, a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
         SegmentKind::Arc {
             arc,
             turn,
-            radials: [(a - arc.centre) / arc.rim(a), (b - arc.centre) / arc.rim(b)],
+            radials: [(a - arc.centre) / arc.radius, (b - arc.centre) / arc.radius],
         }
     }
 
@@ -1818,9 +1699,8 @@ mod tests {
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
-    /// **The placed line's far end folds to the far vertex**, so the
-    /// line arm registers nothing where the arc arm registers its
-    /// carrier end. Two directors, each under a quarter turn and a
+    /// **The placed line's far end folds to the far vertex**, with
+    /// nothing registered. Two directors, each under a quarter turn and a
     /// translation, `p` a box at `Sym<Interval>`, the carrier's end
     /// `q_from + L·d·span` against the far vertex `place(b)`:
     /// - an axis the profile proved, `(1, 0)` from `(0.3, 0.7)` to
@@ -1911,11 +1791,11 @@ mod tests {
 
     /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
     /// the chord `(0, 0) → (2, 0)`, lowered from the chord
-    /// ([`Arc2::from_chord`]) and through [`placed_segment_spec`] at the
-    /// identity placement, so the two registrants the arm runs state
-    /// true identities.
+    /// ([`Arc2::from_chord`], its radius signed by the turn) and through
+    /// [`placed_segment_spec`] at the identity placement.
     fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
         let lit = T::from_f64;
+        let sigma = lit(if turn_negates(turn) { -1.0 } else { 1.0 });
         let (a, b) = (
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),
@@ -1923,7 +1803,7 @@ mod tests {
         let seg = SweptSeg {
             a,
             b,
-            kind: Traversed::forward(arc_from(Arc2::from_chord(a, b, bulge), turn, a, b)),
+            kind: Traversed::forward(arc_from(Arc2::from_chord(a, b, bulge, sigma), turn, a, b)),
             canonical_vertex: 0,
             canonical_segment: 0,
         };

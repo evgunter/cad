@@ -31,7 +31,15 @@ use crate::{Real, Tol};
 pub struct Arc2<T: Real> {
     /// The carrier circle's centre.
     pub centre: Point2<T>,
-    /// The carrier circle's radius (positive).
+    /// The carrier circle's radius: positive in value, and spelled as
+    /// its construction decided it, with no magnitude taken. A radius
+    /// behind a gate that decided it positive is the authored `r`; one
+    /// derived as a signed offset `ρ` is `σ·ρ`, `σ` the literal ±1 of
+    /// the side or turn the construction decided; one measured from a
+    /// point is that distance's norm. So the centre plus the radius
+    /// along a recorded unit radial is the vertex as a form
+    /// ([`Arc2::on_radial`]), at every value of the construction's
+    /// inputs.
     pub radius: T,
     /// The signed sweep Δθ from the start to the end about `centre`,
     /// positive counterclockwise, with 0 < |Δθ| ≤ 2π (D1; a full turn
@@ -41,34 +49,36 @@ pub struct Arc2<T: Real> {
 
 impl<T: Real> Arc2<T> {
     /// **The arc on the chord `a → b` whose quarter-tangent is `x`**
-    /// (x = tan(Δθ/4), the bulge): the centre at apothem
+    /// (x = tan(Δθ/4), the bulge), `sign` the literal ±1 of `x`'s sign
+    /// as the caller decided the turn: the centre at apothem
     /// `L·(1 − x²)/(4x)` along the chord's unit left normal from its
-    /// midpoint, the radius `|L·(1 + x²)/(4x)|`, and Δθ = `4·atan(x)`.
-    /// The one spelling of the chord lowering, shared by the sketch
-    /// layers; pure arithmetic in a fixed order (D9), so it is the same
-    /// expression at every scalar. Total: `x = 0` puts the centre at
-    /// infinity and a zero chord poisons the normal, for the caller's
-    /// own rule to have kept out.
+    /// midpoint, the radius `sign·L·(1 + x²)/(4x)`, and Δθ =
+    /// `4·atan(x)`. The one spelling of the chord lowering, shared by
+    /// the sketch layers; pure arithmetic in a fixed order (D9), so it
+    /// is the same expression at every scalar. Total: `x = 0` puts the
+    /// centre at infinity and a zero chord poisons the normal, for the
+    /// caller's own rule to have kept out; a `sign` against `x`'s
+    /// stores a negative radius and negates both radials, which is the
+    /// caller's turn decision to have right.
     #[must_use]
-    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
-        Self::from_chord_radials(a, b, x, T::one()).0
+    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> Self {
+        Self::from_chord_radials(a, b, x, sign).0
     }
 
     /// [`Arc2::from_chord`], with the unit radials at its two ends that
     /// the lowering holds: with `û` the chord's unit direction, `n̂` its
-    /// left normal and `s` the literal ±1 of `x`'s sign, which the caller
-    /// reads (the radials are those of `sign · |…|`, so a wrong `sign`
-    /// negates both),
+    /// left normal and `s` the `sign`,
     ///
     /// - at `a`: `s·(−2x·û − (1 − x²)·n̂)/(1 + x²)`,
     /// - at `b`: `s·( 2x·û − (1 − x²)·n̂)/(1 + x²)`.
     ///
     /// **Why they are the radials.** `a − centre = −(L/2)·û −
-    /// n̂·L(1 − x²)/(4x)` and the radius is `L(1 + x²)/(4|x|)`, so
-    /// `(a − centre)/radius` is the first; `b` is the second by the
-    /// chord's reflection `û ↦ −û`. Each is unit over the reals:
-    /// `4x² + (1 − x²)² = (1 + x²)²`. Both are rational in `x` and the
-    /// chord's own unit, so no further length is read.
+    /// n̂·L(1 − x²)/(4x)` and the radius is `s·L(1 + x²)/(4x)`, so the
+    /// radius times the first is `a − centre` as rational functions of
+    /// `x`, by `s² = 1`; `b` is the second by the chord's reflection
+    /// `û ↦ −û`. Each is unit over the reals: `4x² + (1 − x²)² =
+    /// (1 + x²)²`. Both are rational in `x` and the chord's own unit, so
+    /// no further length is read.
     #[must_use]
     pub fn from_chord_radials(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> (Self, [Vec2<T>; 2]) {
         let len = a.distance(b);
@@ -78,10 +88,9 @@ impl<T: Real> Arc2<T> {
         let x2 = x.powi(2);
         let four_x = T::from_f64(4.0) * x;
         let apothem = len * (T::one() - x2) / four_x;
-        let signed_radius = len * (T::one() + x2) / four_x;
         let arc = Self {
             centre: mid + normal * apothem,
-            radius: signed_radius.abs(),
+            radius: sign * (len * (T::one() + x2) / four_x),
             sweep: T::from_f64(4.0) * x.atan(),
         };
         let scale = sign / (T::one() + x2);
@@ -93,7 +102,8 @@ impl<T: Real> Arc2<T> {
 
     /// **The carrier point along the unit `radial`**: `centre +
     /// radial·radius`, the one spelling of "the centre plus the radius
-    /// along a direction" ([`Arc2::register_radials`]).
+    /// along a direction". At a radial its construction recorded it is
+    /// the vertex that radial points at, as a form.
     pub fn on_radial(self, radial: Vec2<T>) -> Point2<T> {
         self.centre + radial * self.radius
     }
@@ -179,12 +189,23 @@ impl<T: Real> Arc2<T> {
     }
 
     /// The distance from `p` to the carrier's centre, `‖p − centre‖`:
-    /// the rim at `p`, which is `radius` exactly when `p` lies on the
-    /// carrier. The one spelling of it, so a consumer that asks about
-    /// an endpoint's rim builds the node a registrant stated
-    /// ([`Arc2::register_endpoints`]).
+    /// the rim at `p`, a measured distance. Whether `p` lies on the
+    /// carrier is [`Arc2::off_carrier`]'s to read, never this against
+    /// `radius`.
     pub fn rim(self, p: Point2<T>) -> T {
         (p - self.centre).norm()
+    }
+
+    /// **How far `p` stands off the carrier**, `‖p − centre‖ − radius`,
+    /// signed (positive outside), spelled `(‖w‖² − radius²)/(‖w‖ +
+    /// radius)` for `w = p − centre`: the same real wherever the
+    /// denominator is non-zero, with a numerator that is a polynomial
+    /// in the arc's and the point's data. For a point built at `centre
+    /// + radius·x`, `x` a unit direction, the numerator is the zero
+    /// form, and no root of `radius²` is asked to be `radius`.
+    pub fn off_carrier(self, p: Point2<T>) -> T {
+        let w = p - self.centre;
+        (w.norm_squared() - self.radius.powi(2)) / (w.norm() + self.radius)
     }
 
     /// Where this arc started at `a` ends: [`Arc2::point_from`] at
@@ -232,16 +253,13 @@ impl<T: Real> Arc2<T> {
     }
 
     /// The carrier's point at the end of the sweep, reached from the
-    /// direction of `a`: `centre + radius·R(sweep)·(a − centre)/‖a − centre‖`.
-    ///
-    /// It reads the carrier alone — `a` gives only the direction the
-    /// sweep starts from — so it is the point a carrier built from this
-    /// arc's centre, radius and sweep evaluates to at its span, whatever
-    /// `a` is. It is [`Arc2::landing`] exactly when `a` lies on the
-    /// carrier (`rim(a) = radius`), which is the construction's fact to
-    /// state, not this reading's.
+    /// start vertex `a`: `centre + radius·R(sweep)·(a − centre)/radius`,
+    /// [`Arc2::on_turned_radial`] at the radial a vertex makes with the
+    /// stored radius. It is the point a carrier built from this arc's
+    /// centre, radius and sweep about that radial evaluates to at its
+    /// span; over the reals it is [`Arc2::landing`] from `a`.
     pub fn carrier_end(self, a: Point2<T>) -> Point2<T> {
-        self.on_turned_radial((a - self.centre) / self.rim(a))
+        self.on_turned_radial((a - self.centre) / self.radius)
     }
 
     /// The carrier's point at the end of the sweep, reached from the
@@ -296,23 +314,31 @@ impl<T: Real> Arc2<T> {
     }
 
     /// **Registers the endpoint facts** of this arc between `a` and `b`
-    /// ([`Real::register_equal`]): the rim at each end is the radius,
-    /// the landing from `a` is `b` and the reversed arc's landing from
-    /// `b` is `a`, and the carrier's end from `a` is `b` and the
-    /// reversed carrier's end from `b` is `a` ([`Arc2::carrier_end`]) —
-    /// the points per component, which is what a consumer's `distance`
-    /// asks of them. Each derived node is registered against the held
-    /// one (`rim` against `radius`, a landing or carrier end against its
-    /// endpoint), and each answer is handed back with the fact it
-    /// states, for the caller to handle by arm.
+    /// ([`Real::register_equal`]): the landing from `a` is `b` and the
+    /// reversed arc's landing from `b` is `a`, and the carrier's end
+    /// from `a` is `b` and the reversed carrier's end from `b` is `a`
+    /// ([`Arc2::carrier_end`]) — the points per component, which is
+    /// what a consumer's `distance` asks of them. Each derived node is
+    /// registered against the endpoint it lands on, and each answer is
+    /// handed back with the fact it states, for the caller to handle by
+    /// arm.
+    ///
+    /// Every fact is the start's offset turned by the sweep: `a +
+    /// (R − I)·(a − centre)` for a landing, `centre + R·((a −
+    /// centre)/radius)·radius` for a carrier end. Neither takes a root,
+    /// so each is one function of the arc's data at every value of it,
+    /// the radius's sign included. That the rim at an end is the radius
+    /// is not among them: it is `√(radius²)` against `radius`, true only
+    /// where the radius is positive, and its readers ask
+    /// [`Arc2::off_carrier`] instead.
     ///
     /// **An axiom, not a check.** The door's witness cannot tell an
     /// identity from a coincidence, so this is sound only where the
     /// CALLER built the arc so that these facts hold over the reals
     /// at every value of its inputs, and its doc comment carries that
     /// proof. The type states the facts in its own spelling
-    /// ([`Arc2::rim`], [`Arc2::landing`], [`Arc2::reversed`]) and
-    /// proves none of them.
+    /// ([`Arc2::landing`], [`Arc2::carrier_end`], [`Arc2::reversed`])
+    /// and proves none of them.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_endpoints(
@@ -320,20 +346,12 @@ impl<T: Real> Arc2<T> {
         a: Point2<T>,
         b: Point2<T>,
         tol: Tol,
-    ) -> [(&'static str, SymRegistration); 10] {
+    ) -> [(&'static str, SymRegistration); 8] {
         let forward = self.landing(a);
         let backward = self.reversed().landing(b);
         let forward_end = self.carrier_end(a);
         let backward_end = self.reversed().carrier_end(b);
         [
-            (
-                "the rim at the start",
-                self.rim(a).register_equal(self.radius, tol),
-            ),
-            (
-                "the rim at the end",
-                self.rim(b).register_equal(self.radius, tol),
-            ),
             ("the landing's x", forward.x.register_equal(b.x, tol)),
             ("the landing's y", forward.y.register_equal(b.y, tol)),
             (
@@ -359,63 +377,6 @@ impl<T: Real> Arc2<T> {
             (
                 "the reversed carrier end's y",
                 backward_end.y.register_equal(a.y, tol),
-            ),
-        ]
-    }
-
-    /// **Registers the radial facts** of this arc between `a` and `b`
-    /// ([`Real::register_equal`]), per component: the carrier point
-    /// along the start radial is `a` and along the end radial is `b`
-    /// ([`Arc2::on_radial`]), and the start radial turned by the sweep
-    /// lands on `b` and the end radial turned back by it on `a`
-    /// ([`Arc2::on_turned_radial`], of this arc and of its reversal).
-    /// The fact states the radial's direction and its length at once,
-    /// since the radius is the rim at each end.
-    ///
-    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
-    /// sound only where the CALLER built both radials so that the first
-    /// two hold over the reals wherever its construction's decisions
-    /// hold (a radius decided positive is `|r|`), and its doc comment
-    /// carries that proof. The turned two follow from them and from the
-    /// endpoint facts the same construction registers: where
-    /// `centre + radius·start = a` with `radius > 0` and `start` a unit,
-    /// `start` is `(a − centre)/rim(a)`, so the start radial turned by
-    /// the sweep is [`Arc2::carrier_end`] from `a`, which is `b`; and
-    /// the same at `b` for the reversal.
-    #[must_use = "a registration can be REFUSED, and a refusal a caller \
-                  drops is a lie nobody sees"]
-    pub fn register_radials(
-        self,
-        a: Point2<T>,
-        b: Point2<T>,
-        [start, end]: [Vec2<T>; 2],
-        tol: Tol,
-    ) -> [(&'static str, SymRegistration); 8] {
-        let (from, to) = (self.on_radial(start), self.on_radial(end));
-        let (turned, back) = (
-            self.on_turned_radial(start),
-            self.reversed().on_turned_radial(end),
-        );
-        [
-            ("the start radial's x", from.x.register_equal(a.x, tol)),
-            ("the start radial's y", from.y.register_equal(a.y, tol)),
-            ("the end radial's x", to.x.register_equal(b.x, tol)),
-            ("the end radial's y", to.y.register_equal(b.y, tol)),
-            (
-                "the turned start radial's x",
-                turned.x.register_equal(b.x, tol),
-            ),
-            (
-                "the turned start radial's y",
-                turned.y.register_equal(b.y, tol),
-            ),
-            (
-                "the turned-back end radial's x",
-                back.x.register_equal(a.x, tol),
-            ),
-            (
-                "the turned-back end radial's y",
-                back.y.register_equal(a.y, tol),
             ),
         ]
     }
@@ -460,28 +421,35 @@ mod tests {
         }
     }
 
-    /// The carrier end reads the carrier, not the start's rim: a start
-    /// off the circle along the same ray ends where the on-circle start
-    /// does, and an on-circle start ends at its landing.
+    /// The carrier end is the landing in the carrier's spelling: the
+    /// two agree from a start on the carrier, and from one off it, where
+    /// neither projects the start.
     #[test]
-    fn the_carrier_end_is_the_landing_exactly_on_the_carrier() {
+    fn the_carrier_end_is_the_landing() {
         let arc = quarter();
-        let on = arc.centre + Vec2::new(0.6, 0.8) * arc.radius;
-        let off = arc.centre + Vec2::new(0.6, 0.8) * (arc.radius * 1.25);
-        let (end_on, end_off) = (arc.carrier_end(on), arc.carrier_end(off));
-        assert!(
-            end_on.distance(end_off) < 1e-15,
-            "{end_on:?} vs {end_off:?}"
-        );
-        assert!(
-            end_on.distance(arc.landing(on)) < 1e-15,
-            "on the carrier: {end_on:?} vs {:?}",
-            arc.landing(on)
-        );
-        assert!(
-            arc.landing(off).distance(end_off) > 0.1,
-            "off the carrier the landing leaves it"
-        );
+        for scale in [1.0, 1.25] {
+            let a = arc.centre + Vec2::new(0.6, 0.8) * (arc.radius * scale);
+            let (end, landing) = (arc.carrier_end(a), arc.landing(a));
+            assert!(
+                end.distance(landing) < 1e-15,
+                "start at {scale} radii: {end:?} vs {landing:?}"
+            );
+        }
+    }
+
+    /// The gap is the rim less the radius, outside positive, and zero to
+    /// rounding on the carrier.
+    #[test]
+    fn off_carrier_is_the_rim_less_the_radius() {
+        let arc = quarter();
+        for scale in [0.25, 1.0, 1.25, 7.0] {
+            let p = arc.centre + Vec2::new(0.6, 0.8) * (arc.radius * scale);
+            let (gap, want) = (arc.off_carrier(p), arc.rim(p) - arc.radius);
+            assert!(
+                (gap - want).abs() <= 4.0 * f64::EPSILON * arc.radius * scale.max(1.0),
+                "at {scale} radii: {gap:e} vs {want:e}"
+            );
+        }
     }
 
     #[test]
@@ -525,8 +493,8 @@ mod tests {
 
     /// **A planted lie is refused by the exact witness, typed.** The
     /// quarter circle's facts meet at `Interval`; a radius off by a half
-    /// is disjoint from both rims and nothing else, and swapping the
-    /// ends sends both landings to the wrong vertex.
+    /// leaves the landings alone and moves the carrier ends, and
+    /// swapping the ends sends both landings to the wrong vertex.
     #[test]
     fn register_endpoints_refuses_a_planted_lie_at_the_exact_witness() {
         let answers = |arc: Arc2<Interval>, a, b| {
@@ -540,59 +508,39 @@ mod tests {
                 .all(|&r| r == SymRegistration::Witnessed),
             "a consistent arc is witnessed on every fact"
         );
-        let wide = Arc2 {
-            radius: Interval::from_f64(1.5),
-            ..arc
-        };
-        let got = answers(wide, a, b);
-        assert_eq!(
-            got[..2],
-            [SymRegistration::Contradicted; 2],
-            "both rims against a planted radius"
-        );
-        assert!(
-            got[2..6].iter().all(|&r| r == SymRegistration::Witnessed),
-            "the landings never read the radius: {got:?}"
-        );
-        // The carrier ends do: (0, 1.5) against (0, 1), and (1.5, 0)
-        // against (1, 0), each off in one component.
-        assert_eq!(
-            [got[6], got[7], got[8], got[9]],
-            [
-                SymRegistration::Witnessed,
-                SymRegistration::Contradicted,
-                SymRegistration::Contradicted,
-                SymRegistration::Witnessed,
-            ],
-            "the carrier ends against a planted radius: {got:?}"
-        );
         // Swapped ends: the forward landing from (0, 1) is (−1, 0), off
         // the claimed (1, 0) in x; the reversed landing from (1, 0) is
-        // (0, −1), off the claimed (0, 1) in y. The other component of
-        // each meets.
+        // (0, −1), off the claimed (0, 1) in y; and the carrier ends
+        // with them. The other component of each meets.
         let got = answers(arc, b, a);
         assert_eq!(
-            [got[2], got[5], got[6], got[9]],
+            [got[0], got[3], got[4], got[7]],
             [SymRegistration::Contradicted; 4],
             "a sweep that turns the wrong end onto the other: {got:?}"
+        );
+        assert_eq!(
+            [got[1], got[2], got[5], got[6]],
+            [SymRegistration::Witnessed; 4],
+            "the components the swap leaves alone: {got:?}"
         );
     }
 
     /// **The chord lowering's radials are its arc's**: at every bulge
-    /// sign and size, each is `(end − centre)/radius` of the arc it
-    /// lowers to, within rounding, and unit; and the arc half is
-    /// [`Arc2::from_chord`] bit for bit.
+    /// sign and size, the radius is positive, each radial is `(end −
+    /// centre)/radius` of the arc it lowers to, within rounding, and
+    /// unit; and the arc half is [`Arc2::from_chord`] bit for bit.
     #[test]
     fn from_chord_radials_are_the_centre_to_vertex_units() {
         let (a, b) = (Point2::new(0.3, -0.7), Point2::new(1.9, 0.4));
         for x in [1e-3, 0.2, 0.5, 1.0, 3.0, -1e-3, -0.4, -1.0, -2.5] {
             let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x, x.signum());
-            let plain = Arc2::from_chord(a, b, x);
+            let plain = Arc2::from_chord(a, b, x, x.signum());
             assert_eq!(
                 [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
                 [plain.centre.x, plain.centre.y, plain.radius, plain.sweep].map(f64::to_bits),
                 "x = {x}: the arc is from_chord's"
             );
+            assert!(arc.radius > 0.0, "x = {x}: the radius {}", arc.radius);
             for (end, radial, what) in [(a, ra, "start"), (b, rb, "end")] {
                 let want = (end - arc.centre) / arc.radius;
                 assert!(
@@ -609,33 +557,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    /// **The radial facts, and a planted lie, at the exact witness.**
-    /// The quarter circle's radials (1, 0) and (0, 1) meet, as do they
-    /// turned by the sweep and back; swapped, each is refused in both
-    /// components.
-    #[test]
-    fn register_radials_refuses_a_planted_lie_at_the_exact_witness() {
-        let (arc, a, b) = quarter_circle::<Interval>();
-        let (x, y) = (
-            Vec2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
-            Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
-        );
-        let answers = |radials| {
-            arc.register_radials(a, b, radials, Tol::witness())
-                .map(|(_, r)| r)
-        };
-        assert_eq!(
-            answers([x, y]),
-            [SymRegistration::Witnessed; 8],
-            "the true radials"
-        );
-        assert_eq!(
-            answers([y, x]),
-            [SymRegistration::Contradicted; 8],
-            "the radials swapped"
-        );
     }
 
     /// **A tangency at a foot, and a planted lie, at the exact witness.**
@@ -665,10 +586,13 @@ mod tests {
         );
     }
 
-    /// **A registered rim discharges through the Sym tier**, as a
-    /// registered identity and inside a larger expression too.
+    /// **A vertex on a recorded radial is on its carrier as a form**,
+    /// with nothing registered: over a box on the radius, the gap at
+    /// `centre + radius·x` and the carrier point along `x` less the
+    /// vertex each decide Zero through the tier, while the rim less the
+    /// radius, `√(ρ²) − ρ`, does not.
     #[test]
-    fn a_registered_rim_decides_zero_through_the_tier() {
+    fn a_vertex_on_a_radial_reads_on_its_carrier_through_the_tier() {
         use crate::predicate::{Band, Sign};
         use crate::sym::with_session_rules;
         use crate::{Decide, ParamSymbol, Sym, SymBudget, SymRules};
@@ -677,35 +601,32 @@ mod tests {
             max_degree: 128,
         };
         let band = Band::linear(Tol::witness()).expect("the witness band");
-        let ((after, inside), counts) = with_session_rules(budget, SymRules::shipped(), || {
+        let ((gap, along, rim), counts) = with_session_rules(budget, SymRules::shipped(), || {
             let rho = Sym::param(
                 ParamSymbol::new(test_utils::symbol_id("rho")),
                 Interval::from_bounds(1.0, 1.25),
             );
-            let zero = <Sym<Interval> as Real>::zero();
+            let (zero, one) = (
+                <Sym<Interval> as Real>::zero(),
+                <Sym<Interval> as Real>::one(),
+            );
             let arc = Arc2 {
-                centre: Point2::new(zero, zero),
+                centre: Point2::new(one, zero),
                 radius: rho,
                 sweep: <Sym<Interval> as Real>::pi(),
             };
-            let (a, b) = (Point2::new(rho, zero), Point2::new(zero - rho, zero));
+            let x = Vec2::new(zero - one, zero);
+            let a = Point2::new(arc.centre.x - rho, arc.centre.y);
             let sign = |m: Sym<Interval>| m.sign_within(band).map(|d| d.sign).ok();
-            for (what, answer) in arc.register_endpoints(a, b, Tol::witness()) {
-                assert!(
-                    matches!(answer, SymRegistration::Recorded | SymRegistration::Already),
-                    "{what}: {answer:?}"
-                );
-            }
-            let after = sign(arc.rim(a) - arc.radius);
-            let inside = sign((arc.rim(a) + rho) * rho - (arc.radius + rho) * rho);
-            (after, inside)
+            (
+                sign(arc.off_carrier(a)),
+                sign(arc.on_radial(x).distance(a)),
+                sign(arc.rim(a) - arc.radius),
+            )
         });
-        assert_eq!(after, Some(Sign::Zero), "the registered rim: {counts:?}");
-        assert_eq!(
-            inside,
-            Some(Sign::Zero),
-            "inside a larger expression: {counts:?}"
-        );
-        assert!(counts.symbolic >= 2, "proven by the tier: {counts:?}");
+        assert_eq!(gap, Some(Sign::Zero), "the gap: {counts:?}");
+        assert_eq!(along, Some(Sign::Zero), "along the radial: {counts:?}");
+        assert_eq!(rim, None, "the rim less the radius is no form zero");
+        assert_eq!(counts.symbolic, 2, "two proven by the tier: {counts:?}");
     }
 }

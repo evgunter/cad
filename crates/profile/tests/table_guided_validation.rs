@@ -5,13 +5,13 @@
 //! their derivative.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Dual64, Point2, Real, Tol};
+use geom_core::{Dual64, Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 
 /// A square, its right side an arc of bulge `b`, written clockwise so
 /// that validation reverses it.
-fn square<T: Real>(b: T) -> Vec<ProfileLoop<T>> {
+fn square<T: geom_core::Decide>(b: T) -> Vec<ProfileLoop<T>> {
     let p = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
     vec![bulge_loop(vec![
         (p(-1.0, 1.0), T::zero()),

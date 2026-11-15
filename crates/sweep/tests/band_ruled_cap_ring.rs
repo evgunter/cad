@@ -63,7 +63,7 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
 }
 
 /// [`bore`] at any scalar.
-fn round_loop<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
+fn round_loop<T: geom_core::Decide>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
     let f = T::from_f64;
     bulge_loop(vec![
         (Point2::new(f(x + a), f(y)), f(1.0)),
@@ -519,7 +519,7 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
 }
 
 /// The D-rod's own outline.
-fn d_loop<T: Real>() -> ProfileLoop<T> {
+fn d_loop<T: geom_core::Decide>() -> ProfileLoop<T> {
     let (c, f) = (rod_chord_at(ROD_FLAT), T::from_f64);
     bulge_loop(vec![
         (Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),

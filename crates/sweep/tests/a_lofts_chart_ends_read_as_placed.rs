@@ -24,7 +24,7 @@ fn tol() -> Tol {
 
 /// The quadrilateral `(−1, −1), (1, −1), (h, 1), (−1, 1)`: every side a
 /// line, its area `2·(2 + (h + 1))/2`.
-fn quad<T: Real>(h: T) -> Vec<ProfileLoop<T>> {
+fn quad<T: geom_core::Decide>(h: T) -> Vec<ProfileLoop<T>> {
     let corner = |x: T, y: f64| (Point2::new(x, T::from_f64(y)), T::zero());
     vec![bulge_loop(vec![
         corner(T::from_f64(-1.0), -1.0),

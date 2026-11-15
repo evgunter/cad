@@ -1113,7 +1113,7 @@ fn bulge_carrier<T: geom_core::Decide>(
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
         Err(source) => return Err(PathError::escalated(source)),
     };
-    let arc = crate::lower_arc(at, p, b);
+    let arc = crate::lower_arc(at, p, b, winding.sign());
     let (start, _) = super::chord_tangents(p - at, arc.sweep);
     Ok((arc.centre, winding, start))
 }

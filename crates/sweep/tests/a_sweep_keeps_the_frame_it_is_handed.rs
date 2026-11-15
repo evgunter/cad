@@ -132,7 +132,7 @@ fn p<T: Real>(x: f64, y: f64) -> Point2<T> {
 
 /// The unit square, with corner `(1, 1)` at `(1, h)` and the edge
 /// leaving it bulged by `bulge` (zero: a line).
-fn quad<T: Real>(h: T, bulge: T) -> ProfileLoop<T> {
+fn quad<T: geom_core::Decide>(h: T, bulge: T) -> ProfileLoop<T> {
     let z = T::zero;
     bulge_loop(vec![
         (p(0.0, 0.0), z()),
@@ -205,7 +205,7 @@ fn a_slab_over_a_depth_box_stores_exact_caps_and_walls() {
 }
 
 /// A square of half-width `a` about the sketch origin.
-fn square<T: Real>(a: T) -> ProfileLoop<T> {
+fn square<T: geom_core::Decide>(a: T) -> ProfileLoop<T> {
     let z = T::zero;
     let m = T::zero() - a;
     bulge_loop(vec![
@@ -246,7 +246,7 @@ fn a_lofts_caps_over_a_section_box_are_its_end_frames() {
 }
 
 /// The rectangle `[1, 1 + a] × [0, 1]`.
-fn band<T: Real>(a: T) -> ProfileLoop<T> {
+fn band<T: geom_core::Decide>(a: T) -> ProfileLoop<T> {
     let z = T::zero;
     let far = T::one() + a;
     bulge_loop(vec![
@@ -501,7 +501,7 @@ fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direct
 }
 
 /// The rectangle `[0, w] × [0, 1]`.
-fn rect<T: Real>(w: T) -> ProfileLoop<T> {
+fn rect<T: geom_core::Decide>(w: T) -> ProfileLoop<T> {
     let z = T::zero;
     bulge_loop(vec![
         (p(0.0, 0.0), z()),
