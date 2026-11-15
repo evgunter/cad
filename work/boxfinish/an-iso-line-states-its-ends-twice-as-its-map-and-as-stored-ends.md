@@ -116,3 +116,22 @@ row was re-stated in three parts (the map bit for bit, the kept end,
 the cut's end as the map's value); with no ends to state, those three
 are one comparison again.
 
+**Readers that move onto the lift's joint point, when unit 2 lands**
+(named by PR 6982 and its review, 2026-11-15). PR 6982 builds
+`Lift::joint_point`: the meet where a row meets a column, the entering
+image's point everywhere else. It moves no other reader. These still
+read an image's end and are this row's:
+- `topo::chart_region::pcurve_entry`;
+- `topo::spline_trim::image_pieces`;
+- `topo::boolean::spline_known` (the shape exactly: an inexact corner
+  is not found as a corner);
+- `topo::replace_face::iso_image_row`.
+
+And the held line has more than one reader, which disagree on what
+they accept: `LiftedRow::held_line` (`IsoLine` and `IsoArc`, both
+axes), `geom_brep::description::row_of` (`IsoLine` both axes, `IsoArc`
+in `u` only) and `replace_face::iso_image_row` (`IsoLine` only). PR
+6982's fix pass gives the reading one home on `Pcurve`; whichever of
+the older two it cannot move without changing behaviour is this row's
+too.
+
