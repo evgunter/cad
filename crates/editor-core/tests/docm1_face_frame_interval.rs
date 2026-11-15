@@ -72,6 +72,11 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
 /// alone: read off the two placed vertices, the top cap's line rims took
 /// a z-slope as wide as the vertices' widths. At ε/6 the binding refusal
 /// is the top cap's `newell_plane_residual`, which main also has there.
+/// WIDENED height** (no frame anywhere): certifies at ε/4 and every
+/// narrower width, refuses at ε/2, at every ε row (it refused at ε/8
+/// while the extrude fitted its planes to the boxed corners, whose
+/// enclosures then widened its caps). The ladder is printed in full;
+/// the assertion is the floor.
 #[test]
 fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();
@@ -118,9 +123,9 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         fails.is_empty()
     };
-    for div in [6.0, 8.0, 10.0, 30.0, 100.0, 300.0, 1.0e3, 1.0e4, 1.0e6] {
+    for div in [2.0, 4.0, 10.0, 30.0, 100.0, 300.0, 1.0e3, 1.0e4, 1.0e6] {
         let green = at(e / div);
-        if div >= 8.0 {
+        if div >= 4.0 {
             assert!(
                 green,
                 "a widened extrude height of ε/{div} certifies on plain Interval"

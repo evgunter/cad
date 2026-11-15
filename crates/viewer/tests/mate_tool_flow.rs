@@ -500,12 +500,16 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     );
     assert_faces_rest(&session, &copy_one, &shelf_bottom, "the pattern copy");
     let (_, eval) = session.landed_pair().expect("landed");
+    // The face the solve read is copy 1's cap and not the master's: a
+    // cap's frame is its sketch frame carried with the body, so copy 1's
+    // stands one pattern step along from the master's corner. (The rest
+    // mate fixes only the plane; the shelf keeps its own authored `x`,
+    // so where the shelf stands in the plane tells the two apart only
+    // through this.)
     let cap = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let underside = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("underside");
     assert!(
-        ((underside.origin - cap.origin).x).abs() < asm::SHELF_LENGTH,
-        "the shelf stands over copy 1, not over the master: {:?} vs {:?}",
-        underside.origin,
+        (cap.origin.x - (asm::POST_B_AT[0] + PATTERN_STEP)).abs() < 1e-12,
+        "the mate read copy 1's cap, not the master's: {:?}",
         cap.origin
     );
     for row in session.tree_rows() {

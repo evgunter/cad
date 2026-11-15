@@ -1296,7 +1296,7 @@ fn a_revolve_result_is_matchable_through_the_prelude() {
 /// The case split, matched exhaustively with every field's type
 /// spelled from the prelude — the pin that a caller can read the
 /// handles out and not merely see which arm it got.
-fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+fn revolved_kind_is_matchable(kind: &RevolvedKind<f64>) -> &'static str {
     match kind {
         RevolvedKind::Partial {
             start_cap,
