@@ -97,7 +97,7 @@ use geom_core::Tol;
 use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
     Affine3, Arc2, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_LIMIT_RECOURSE, MOVE_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
+    KERNEL_LIMIT_RECOURSE, Lever, MOVE_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
     RigidMotion, Sign, TurnError, Turns, UnitVec3, UnitVec3Error, Vec3,
 };
 use profile::{
@@ -1841,10 +1841,9 @@ pub(crate) const SWEEP_PATH_TANGENT: &str = "sweep_path_tangent";
 /// station to the next decided into a direction witness.
 pub(crate) const SWEEP_PATH_CHORD: &str = "sweep_path_chord";
 
-/// The K funnel name of a path sweep's step turn: `1 + m·tᵢ₊₁`, for
-/// `m` the tangent `tᵢ` mirrored in the chord, the margin of the
-/// minimal rotation carrying `m` onto `tᵢ₊₁`
-/// ([`RigidMotion::turned_between`]).
+/// The K funnel name of a path sweep's step turn: the pole verdict of
+/// the least turn carrying `m`, the tangent `tᵢ` mirrored in the chord,
+/// onto `tᵢ₊₁` ([`RigidMotion::least_turn`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
 /// The K funnel name of a station's roll: the residual of the station's
@@ -1900,8 +1899,8 @@ impl PathCarry {
     /// product of the half turns about `tᵢ` and about `ĉ` (the two
     /// reflections' product with `H_tᵢ` inserted), followed by the
     /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
-    /// ([`RigidMotion::turned_between`]), whose one decision is the
-    /// second reflection's margin. A step whose two tangents are equal
+    /// ([`RigidMotion::least_turn`], over the session box's lever),
+    /// whose decisions are the second reflection's. A step whose two tangents are equal
     /// bit for bit is the identity with no rounding, as the exact law
     /// makes it (the second reflection is then the first). The carried
     /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
@@ -1916,7 +1915,9 @@ impl PathCarry {
     /// - **the chord** into each station after the first
     ///   (`sweep_path_chord`): coincident stations have no chord to
     ///   reflect in;
-    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
+    /// - **the fold-back** (`sweep_path_turn`): the chord `|m + tᵢ₊₁|`
+    ///   levered over the session box past the band, and its lever
+    ///   within the run's rounding reach (`least_turn_conditioning`).
     ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
     ///   chord (the path leaves along the chord and comes back against
     ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
@@ -1975,19 +1976,32 @@ impl PathCarry {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;
-                let step =
-                    RigidMotion::turned_between(mirror.turn(t), next, o, SWEEP_PATH_TURN, band)
-                        .map_err(|e| match e {
-                            TurnError::Opposed => SkinError::PathFoldsBack { station },
-                            TurnError::Undecided(source) => SkinError::PathUndecided {
-                                station,
-                                which: PathDecision::FoldBack,
-                                source,
-                            },
-                            TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
-                        })?
-                        .compose(mirror)
-                        .map_err(not_finite(station))?;
+                // The step is a selection at `f64` from the path alone (the
+                // station's roll crosses as data, never a claim), so no
+                // extent is in hand: the session box, which refuses widest.
+                let step = RigidMotion::least_turn(
+                    mirror.turn(t),
+                    next,
+                    o,
+                    Lever::session_box(),
+                    SWEEP_PATH_TURN,
+                    band,
+                )
+                .map_err(|e| match e {
+                    TurnError::Opposed | TurnError::IllConditioned { .. } => {
+                        SkinError::PathFoldsBack { station }
+                    }
+                    TurnError::Undecided(source) | TurnError::ConditioningUndecided(source) => {
+                        SkinError::PathUndecided {
+                            station,
+                            which: PathDecision::FoldBack,
+                            source,
+                        }
+                    }
+                    TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
+                })?
+                .compose(mirror)
+                .map_err(not_finite(station))?;
                 turn = Some(match turn {
                     None => step,
                     Some(c) => step.compose(c).map_err(not_finite(station))?,

@@ -313,7 +313,8 @@ pub(crate) fn draft_snap(
         });
     };
     let d = seat.dir.get();
-    let turned = turn_onto(r0 * seat.copy_dir.get(), d) * r0;
+    let band = pncad::geom_core::Band::linear(tol).ok()?;
+    let turned = turn_onto(r0 * seat.copy_dir.get(), d, band) * r0;
     let t = match point {
         Some((o, p)) => p - turned * o,
         None => {

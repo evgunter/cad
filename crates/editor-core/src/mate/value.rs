@@ -274,6 +274,18 @@ pub fn side_flipped<P>(doc: &crate::doc::Doc<P>, side: &crate::Operand) -> bool 
     }
 }
 
+/// **Why a chart refused** ([`Chart::charted`]): the least turn at or
+/// about its pole, which its caller names ([`MateFault::Backwards`] at a
+/// placement's evaluation, a freedom unread at a gesture's read-back), or
+/// a refusal the chart states itself.
+#[derive(Debug)]
+enum ChartRefusal {
+    /// The least turn's pole verdict or conditioning refused.
+    Pole,
+    /// The chart's own refusal.
+    Kind(NodeErrorKind),
+}
+
 impl<T: SolveScalar> Chart<T> {
     /// **The chart of `mate`, equating `on` with `to`**, both read in
     /// the target space, under its orientation. `None` for a point or a
@@ -295,13 +307,7 @@ impl<T: SolveScalar> Chart<T> {
         let Some((d, copy_d, seat)) = Self::sides(on, to) else {
             return Ok(None);
         };
-        let n = orient.apply(copy_d.get());
         let dv = d.get();
-        let one = T::one();
-        let least = super::turn::LeastTurn::between(n, dv);
-        // The chord from the pole: |n + d| = √(2(1 + c)), levered over
-        // the arm.
-        let chord = ((one + one) * least.one_plus_c()).sqrt();
         let backwards = || {
             let q = |v: Vec3<T>| Vec3::new(v.x.quoted(), v.y.quoted(), v.z.quoted());
             NodeErrorKind::Mate(Box::new(MateFault::Backwards {
@@ -310,21 +316,15 @@ impl<T: SolveScalar> Chart<T> {
                 write: orient.toward(q(copy_d.get()), q(dv)),
             }))
         };
-        let sign = geom_core::k_stats::decide(
-            "mate_chart_pole",
-            // Unsourced lever: the mate bundle's `Arm`, the copy's reach plus the poses'
-            // distances from their origins, an `f64` sum no extent read spells.
-            Margin::levered(
-                chord,
-                geom_core::Lever::unsourced(T::from_computed(arm.get())),
-            ),
-            band,
-        )
-        .map_err(|_| backwards())?;
-        if sign == Sign::Zero {
-            return Err(backwards());
-        }
-        Self::charted(d, copy_d, seat, to_flipped, orient, arm, band).map(Some)
+        // Unsourced lever: the mate bundle's `Arm`, the copy's reach plus the poses'
+        // distances from their origins, an `f64` sum no extent read spells.
+        let lever = geom_core::Lever::unsourced(T::from_computed(arm.get()));
+        Self::charted(d, copy_d, seat, to_flipped, orient, arm, lever, band)
+            .map(Some)
+            .map_err(|refusal| match refusal {
+                ChartRefusal::Pole => backwards(),
+                ChartRefusal::Kind(kind) => kind,
+            })
     }
 
     /// What a mate fixing a direction reads of its two poses
@@ -342,9 +342,12 @@ impl<T: SolveScalar> Chart<T> {
         Some((mated.dir, mated.copy_dir, seat))
     }
 
-    /// **The chart of the two directions**, once the pole's verdict is
-    /// taken: its caller has decided `orient` does not put the copy's
-    /// mated direction against `d`.
+    /// **The chart of the two directions**: the least turn carrying where
+    /// `orient` puts the copy's mated direction onto `d`, decided over
+    /// `lever` (its pole verdict and its conditioning,
+    /// [`RigidMotion::least_turn`]), refusing [`ChartRefusal::Pole`]
+    /// where either refuses.
+    #[allow(clippy::too_many_arguments)]
     fn charted(
         d: UnitVec3<T>,
         copy_d: UnitVec3<T>,
@@ -352,17 +355,16 @@ impl<T: SolveScalar> Chart<T> {
         to_flipped: bool,
         orient: Orientation,
         arm: Arm,
+        lever: geom_core::Lever<T>,
         band: Band,
-    ) -> Result<Self, NodeErrorKind> {
-        let unit = |v: Vec3<T>| {
-            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| {
-                NodeErrorKind::PoseDegenerate {
-                    construction: crate::pose::PoseConstruction::Chart,
-                }
+    ) -> Result<Self, ChartRefusal> {
+        let degenerate = || {
+            ChartRefusal::Kind(NodeErrorKind::PoseDegenerate {
+                construction: crate::pose::PoseConstruction::Chart,
             })
         };
-        let degenerate = || NodeErrorKind::PoseDegenerate {
-            construction: crate::pose::PoseConstruction::Chart,
+        let unit = |v: Vec3<T>| {
+            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| degenerate())
         };
         let from = copy_d
             .signed_permutation(orient.signed_permutation())
@@ -374,7 +376,20 @@ impl<T: SolveScalar> Chart<T> {
         let turn = if [n.x - dv.x, n.y - dv.y, n.z - dv.z].into_iter().all(zero) {
             RigidMotion::world()
         } else {
-            let least = RigidMotion::least_turn(from, d).map_err(|_| degenerate())?;
+            // The pole verdict and the conditioning, over the lever: the
+            // one decided least-turn mint (`[placement.values]`).
+            let least = RigidMotion::least_turn(
+                from,
+                d,
+                geom_core::linalg::Point3::origin(),
+                lever,
+                "mate_chart_pole",
+                band,
+            )
+            .map_err(|e| match e {
+                geom_core::TurnError::NonFinite(_) => degenerate(),
+                _ => ChartRefusal::Pole,
+            })?;
             // Each carried axis is a turn of a unit vector, so unit over
             // the reals at every point a box spans: a frame lane keeps each
             // as it is, which a normalization would widen by its own norm's
@@ -882,14 +897,11 @@ pub fn read_back<R>(
             })
             .collect();
     };
-    // The read is of a pose the caller stands the copy at, not a
-    // placement's verdict, so only the least turn's own pole refuses:
-    // the placement's evaluation decides the band about it.
+    // The read is of a pose the caller stands the copy at, with no
+    // bundle's arm in hand: the least turn is decided over the session
+    // box, which refuses widest, so a freedom read here is one the
+    // placement's evaluation, over its own arm, reads too.
     let read = Chart::<f64>::sides(charted.on, charted.to).and_then(|(d, copy_d, seat)| {
-        let n = charted.orient.apply(copy_d.get());
-        if super::turn::at_pole(&super::turn::LeastTurn::between(n, d.get())) {
-            return None;
-        }
         let arm = Arm::of(0.0, 0.0).ok()?;
         Chart::charted(
             d,
@@ -898,6 +910,7 @@ pub fn read_back<R>(
             charted.to_flipped,
             charted.orient,
             arm,
+            geom_core::Lever::session_box(),
             band,
         )
         .ok()
@@ -1430,6 +1443,7 @@ mod tests {
             false,
             Orientation::IDENTITY,
             Arm::of(0.5, 0.0).unwrap(),
+            geom_core::Lever::session_box(),
             band,
         )
         .expect("a chart off the pole");
@@ -1522,6 +1536,7 @@ mod tests {
             false,
             Orientation::IDENTITY,
             Arm::of(0.5, 0.0).unwrap(),
+            geom_core::Lever::session_box(),
             band,
         )
         .expect("a chart off the pole");

@@ -392,7 +392,12 @@ pub fn start_frame(point: Point3<f64>, tangent: Vec3<f64>) -> RigidMotion<f64> {
     let tangent = UnitVec3::new(tangent, "test_start_tangent", band)
         .unwrap_or_else(|e| panic!("the start tangent must have a direction: {e:?}"));
     RigidMotion::axes_xy(point)
-        .turned_onto(tangent, "test_start_turn", band)
+        .turned_onto(
+            tangent,
+            geom_core::Lever::session_box(),
+            "test_start_turn",
+            band,
+        )
         .unwrap_or_else(|e| panic!("the start tangent must be off the world -z: {e:?}"))
 }
 

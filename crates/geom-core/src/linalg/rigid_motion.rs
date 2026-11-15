@@ -125,11 +125,12 @@
 //! - [`RigidMotion::from_axis_and_reference`] — the same roles when
 //!   the axis is RAW: the axis is decided first and kept as `w`, the
 //!   reference yields to it.
-//! - [`RigidMotion::turned_between`] — the minimal rotation carrying
-//!   one direction witness onto another, as the matrix of the
-//!   quaternion `(1 + a·b, a × b)` with no normalized axis and no
-//!   angle. One decision, `1 + a·b > 0`: the opposed pair, where no
-//!   rotation is THE minimal one.
+//! - [`RigidMotion::least_turn`] — the least turn carrying one
+//!   direction witness onto another, as the matrix of the quaternion
+//!   `(1 + a·b, a × b)` with no normalized axis and no angle, decided
+//!   over the arm it is consumed over: its pole verdict (the chord from
+//!   the pole, levered) and its conditioning (its lever against the
+//!   run's rounding reach). The one least-turn mint (fork 270).
 //! - [`RigidMotion::turned_onto`] — a written frame turned about its
 //!   own origin by that minimal rotation, carrying its `w` onto a
 //!   direction: the frame across a direction with no stated reference.

@@ -1,33 +1,38 @@
-//! **The least turn's pole, and a direction across one**: what the value
-//! chart ([`super::value`]) and the viewer's snap both read beside the
-//! least turn, whose arithmetic is geom-core's ([`LeastTurn`], its one
-//! home), so the turn a gesture writes and the turn the chart reads it
-//! back by are the same arithmetic.
+//! **A turn onto a direction, and a direction across one**: what the
+//! viewer's snap reads beside the value chart ([`super::value`]), whose
+//! least turn, and this one, are geom-core's one decided mint
+//! ([`RigidMotion::least_turn`]), so the turn a gesture writes and the
+//! turn the chart reads it back by are the same arithmetic.
 
-use geom_core::linalg::{Mat3, Vec3};
+use geom_core::linalg::{Mat3, Point3, Vec3};
+use geom_core::{Band, Lever, RigidMotion, UnitVec3};
 
 use super::{SlideAxes, SolveScalar, TargetAxis};
 
-pub use geom_core::LeastTurn;
-
-/// **Whether `turn` is at its pole**, `from` against `to`, where it has
-/// no answer: its `1 + c` not above zero, quoted. A reader's own verdict
-/// about the band (the chart's, `Backwards`) is its own. The turn itself
-/// is geom-core's ([`LeastTurn`]), its one home.
-#[must_use]
-pub fn at_pole<T: SolveScalar>(turn: &LeastTurn<T>) -> bool {
-    turn.one_plus_c().quoted() <= 0.0
-}
+/// The decision name of the snap's least turn ([`turn_onto`]).
+pub const SNAP_TURN: &str = "mate_snap_turn";
 
 /// **A turn carrying the unit `from` onto the unit `to`**: the least
-/// turn ([`LeastTurn`]), or at its pole a half turn about a direction
-/// across `from` ([`across`]), so a direction standing backwards still
-/// turns onto `to`.
+/// turn ([`RigidMotion::least_turn`], over the session box's lever: a
+/// gesture has no extent in hand), or where that refuses, at and about
+/// its pole, a half turn about a direction across `from` ([`across`]),
+/// so a direction standing backwards still turns onto `to`.
 #[must_use]
-pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>) -> Mat3<f64> {
-    let turn = LeastTurn::between(from, to);
-    if !at_pole(&turn) {
-        return turn.matrix();
+pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>, band: Band) -> Mat3<f64> {
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, SNAP_TURN, band).ok();
+    let least = unit(from).zip(unit(to)).and_then(|(f, t)| {
+        RigidMotion::least_turn(
+            f,
+            t,
+            Point3::origin(),
+            Lever::session_box(),
+            SNAP_TURN,
+            band,
+        )
+        .ok()
+    });
+    if let Some(turn) = least {
+        return turn.linear();
     }
     let a = across(from).normalize();
     // A half turn about `a`: `2 a aᵀ − I`.

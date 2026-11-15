@@ -6833,23 +6833,33 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
             // The alignment turn and the seam spin, each MINTED as the
-            // turn between two unit witnesses (`RigidMotion::turned_between`,
+            // turn between two unit witnesses (`RigidMotion::least_turn`,
             // the quaternion of `(1 + a·b, a × b)`: algebraic, no
             // atan2/sin/cos, so under the Interval scalar exact zeros stay
             // exact), about the sphere's centre. Rigid by construction,
             // so no rigidity door is asked of twelve numbers (closing
             // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`);
-            // `1 + a·b > 0` is its one decision, which the alignment
-            // trilean above already settled for the axis pair and the
-            // seam's half-plane choice settles for the spin.
+            // its pole verdict and conditioning, over the radius, are what
+            // the alignment trilean above already settled for the axis
+            // pair and the seam's half-plane choice settles for the spin.
             const RECUT_TURN: &str = "bool_sphere_recut_turn";
             let unit = |v: Vec3<T>| {
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
+            // The turn is consumed over the sphere: every point it moves
+            // stands at the radius from the centre it turns about, the
+            // sphere's curvature arm.
             let turn = |a, b| {
-                geom_core::RigidMotion::turned_between(a, b, r.center, RECUT_TURN, band)
-                    .map_err(|_| corrupt("re-cut rotation does not mint a turn"))
+                geom_core::RigidMotion::least_turn(
+                    a,
+                    b,
+                    r.center,
+                    geom_core::Lever::curvature_radius(r.radius),
+                    RECUT_TURN,
+                    band,
+                )
+                .map_err(|_| corrupt("re-cut rotation does not mint a turn"))
             };
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to

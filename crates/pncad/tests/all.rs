@@ -6906,7 +6906,12 @@ mod unit_vector_witness_through_the_facade {
         // The least turn takes the witness itself, with no second
         // decision of the direction.
         let start = pncad::geom_core::RigidMotion::axes_xy(ao)
-            .turned_onto(dir, "facade_turned_onto", band)
+            .turned_onto(
+                dir,
+                pncad::geom_core::Lever::session_box(),
+                "facade_turned_onto",
+                band,
+            )
             .unwrap();
         assert!((start.w().get() - dir.get()).norm() < 1e-15);
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
