@@ -898,7 +898,9 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             // The carrier's ends, stated where they are guaranteed
             // (`register_placed_carrier_ends` carries the proof), about
             // the very carrier and span the spec carries.
-            register_placed_carrier_ends(&carrier, param_end, place, arc, start.0, tol);
+            if std::env::var("PROBE_NOREG").is_err() {
+                register_placed_carrier_ends(&carrier, param_end, place, arc, start.0, tol);
+            }
             EdgeCurveSpec {
                 description,
                 carrier,

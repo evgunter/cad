@@ -5455,11 +5455,14 @@ fn circle_loop<T: Decide>(
     verb: program::Verb,
 ) -> Result<ProfileLoop<T>, PathError<T>> {
     let n = on_carrier.len();
+    if std::env::var("PROBE_ABS").is_ok() {
+        radius.abs().register_equal(radius, tol).handle("PROBE |r| = r");
+    }
     let (vertices, radials): (Vec<_>, Vec<_>) = on_carrier.iter().copied().unzip();
     let arc = BuiltArc::new(
         Arc2 {
             centre,
-            radius: radius.abs(),
+            radius: if std::env::var("PROBE_R").is_ok() { radius } else { radius.abs() },
             sweep,
         },
         crate::Facts::Registered,

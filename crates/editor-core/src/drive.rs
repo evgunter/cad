@@ -1673,6 +1673,14 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
             NodeResult::Poisoned { .. } => continue,
         };
         // (1) The escalation log.
+        if std::env::var("PROBE_TRACE").is_ok() {
+            if let Some(first) = escalations.first() {
+                eprintln!("[probe-esc] node {node:?} first escalation {:?}", first);
+            }
+            if let Some(e) = failure {
+                eprintln!("[probe-fail] node {node:?} kind {:?}", e.kind);
+            }
+        }
         if let Some(verdict) = log_read(escalations) {
             return verdict;
         }

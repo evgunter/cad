@@ -5234,6 +5234,12 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                 // here.
                 if let StatedChart::None = chart_stated {
                     let q = chart.pcurve.eval(t);
+                    if std::env::var("PROBE_TRACE").is_ok() && i == 0 {
+                        eprintln!(
+                            "[probe-chart] t={:?}\n  carrier={:?}\n  surface={:?}\n  pcurve={:?}\n  p={:?}\n  S(q)={:?}",
+                            t, spec.carrier, surface, chart.pcurve, p, surface.eval(q.x, q.y)
+                        );
+                    }
                     check_residual(
                         "pcurve_map_residual",
                         CertCheck::ChartResidual,
