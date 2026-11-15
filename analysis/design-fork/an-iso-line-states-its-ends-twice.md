@@ -570,3 +570,18 @@ The period form gives the name's one useful identity, without the second kind. I
   - Whether the quadrature tolerates `hi` one ulp past the last knot, since `range_spans` would emit a sliver span outside the domain. The identity at the shift removes that case either way.
 ````
 
+## Tokens (from each session's `result` events, gathered 02:30 UTC)
+
+Served model, confirmed from `modelUsage`: A `claude-fable-5-2` only; B and C `claude-opus-5-5` only.
+
+| Label | First report: sum of input, output, cache read, cache creation | Total over three turns | Cost, first / total | Output, first / total |
+|---|---|---|---|---|
+| A | 3,629,502 | 7,481,674 | $4.87 / $7.24 | 44,940 / 65,686 |
+| B | 3,581,537 | 7,708,953 | $2.06 / $3.70 | 27,996 / 50,068 |
+| C | 3,608,882 | 6,750,514 | $2.05 / $3.37 | 24,413 / 43,623 |
+
+Cache reads are about 95% of each sum. B and C each restarted their worker before round 1 (a small between-turn request is in the cumulative counters and in no turn's own figures).
+
+## The `[ev]` PR
+
+Branch `boxfinish/ev-iso-image`; fork-log row 271 (three-designer table), recommendation half committed with the PR (labels only). Ev's decision, the mapping and the tokens go in the second commit, before merge.
