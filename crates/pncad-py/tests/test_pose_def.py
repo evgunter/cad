@@ -46,12 +46,14 @@ def standoff(plane, by):
 
 
 def face_at(ev, node, height):
-    """The cube's horizontal face at `height`, found by where it sits."""
+    """The cube's horizontal face at `height`, found by where it sits and
+    which way it faces (a wall's frame can sit at that height too)."""
     found = [
         f
         for f in ev.all_faces(node)
         if ev.face_carrier_kind(node, f) == SurfaceKind.Plane
-        and abs(ev.face_frame(node, f).origin[2].meters - height) < 1e-12
+        for frame in [ev.face_frame(node, f)]
+        if abs(abs(frame.axis[2]) - 1.0) < 1e-12 and abs(frame.origin[2].meters - height) < 1e-12
     ]
     assert len(found) == 1, found
     return found[0]

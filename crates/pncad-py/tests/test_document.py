@@ -1005,18 +1005,32 @@ class TestAPoseReadOffGeometry(unittest.TestCase):
     def test_a_selection_measures_its_signed_distance_from_a_face(self):
         """The downstream door: `GeomPred.plane_distance` is SIGNED
         along the face's outward normal, so the face measured from is
-        on its own plane and the opposite cap a metre behind it."""
+        on its own plane and the opposite cap a metre behind it.
+
+        A face is measured at its carrier frame's origin, which need
+        not be its middle: a wall's is the corner it was swept from, on
+        the floor, so the walls stand a metre behind the top as the
+        floor does, and nothing stands ahead of it."""
         doc = Doc()
         cube = unit_box(doc, 1 * m, 1 * m, 1 * m)
         ev = evaluate(doc)
-        (top,) = [f for f in ev.all_faces(cube) if ev.face_frame(cube, f).origin[2].meters == 1.0]
+        (top,) = [
+            f
+            for f in ev.all_faces(cube)
+            for frame in [ev.face_frame(cube, f)]
+            if frame.axis[2] == 1.0 and frame.origin[2].meters == 1.0
+        ]
         faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         on_it = ev.select_where(cube, faces, [GeomPred.plane_distance(top, Cmp.Approx, Formula.length_in(0, m))])
         behind = ev.select_where(cube, faces, [GeomPred.plane_distance(top, Cmp.Less, Formula.length_in(-0.9, m))])
         ahead = ev.select_where(cube, faces, [GeomPred.plane_distance(top, Cmp.Greater, Formula.length_in(0.1, m))])
         self.assertEqual(on_it, [top])
-        self.assertEqual(len(behind), 1)
-        self.assertNotEqual(on_it, behind)
+        self.assertEqual(
+            sorted(behind),
+            sorted(f for f in ev.all_faces(cube) if ev.face_frame(cube, f).origin[2].meters == 0.0),
+        )
+        self.assertEqual(len(behind), 5)
+        self.assertNotIn(top, behind)
         self.assertEqual(ahead, [])
 
     def test_a_body_placed_on_a_tilted_frame_stands_tilted(self):

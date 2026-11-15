@@ -126,12 +126,15 @@ def wall(ev, node):
 
 
 def face_at_height(ev, node, z):
-    """The one face of `node` whose carrier frame sits at height `z` —
-    read off the evaluation rather than transcribed as a role name."""
+    """The one face of `node` whose carrier is the horizontal plane at
+    height `z` — read off the evaluation rather than transcribed as a role
+    name. A wall's frame can sit at that height too (its origin is a
+    corner), so the plane's normal is read as well as its height."""
     found = [
         f
         for f in ev.all_faces(node)
-        if abs(ev.face_frame(node, f).origin[2].meters - z) < 1e-12
+        for frame in [ev.face_frame(node, f)]
+        if abs(abs(frame.axis[2]) - 1.0) < 1e-12 and abs(frame.origin[2].meters - z) < 1e-12
     ]
     assert len(found) == 1, f"one face at z = {z}, found {len(found)}"
     return found[0]

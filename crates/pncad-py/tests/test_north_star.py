@@ -623,7 +623,8 @@ class TestBracket(unittest.TestCase):
             f
             for f in ev.all_faces(bracket)
             if ev.face_carrier_kind(bracket, f) == SurfaceKind.Plane
-            and ev.face_frame(bracket, f).origin[0].meters == 3.0
+            for frame in [ev.face_frame(bracket, f)]
+            if abs(frame.axis[0]) == 1.0 and frame.origin[0].meters == 3.0
         ]
         corner = own_frame(doc, bracket, (3.0, 0.0, 0.0), (3.0, 1.0, 0.0))
         spun = PoseDef.spin(PoseDef.plane(bracket, end), RoleRead(corner, "z"), 45 * deg)
@@ -2049,11 +2050,15 @@ class TestRocker(unittest.TestCase):
         self.assertEqual(len(ev.select_where(plate, edges, kinds)), 8)
 
         def wall(at, axis):
+            # The plane facing along `axis` at `at`: another wall's frame
+            # can sit at that coordinate too (its origin is a corner).
             (face,) = [
                 f
                 for f in ev.all_faces(plate)
                 if ev.face_carrier_kind(plate, f) == SurfaceKind.Plane
-                and abs(ev.face_frame(plate, f).origin[axis].meters - at) < 1e-12
+                for frame in [ev.face_frame(plate, f)]
+                if abs(abs(frame.axis[axis]) - 1.0) < 1e-12
+                and abs(frame.origin[axis].meters - at) < 1e-12
             ]
             return face
 
