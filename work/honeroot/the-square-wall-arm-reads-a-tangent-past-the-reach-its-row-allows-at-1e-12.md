@@ -24,10 +24,15 @@ The arm answers `Tangent`, and the row allows a `Tangent` only within
 pose stands 8.4e-10 from it, about five times that. So the arm refuses
 a pair the row says it should resolve: a refusal wider than its stated
 reach, not a wrong section. Whether `ct_critical_gap` reads too wide at
-this ε or the row's `near` bound is too narrow is not settled here. The
-message does not carry the pose's frame, so a deterministic row needs
-`square_search::dump_line`'s line for this draw (the seed regenerates
-it).
+this ε or the row's `near` bound is too narrow is not settled here.
+
+**The pose, so the case does not depend on the row's draw order**
+(`square_search::dump_line`'s line for the draw, by replaying the seed;
+the form `scripts/oracles/torus_square_wall_mpmath.py` reads):
+
+`{"eps": 1e-12, "torus": {"c": [3.932433754465009e0, 9.939592900913814e-1, -3.8589947577850414e0], "a": [-2.4440949427088535e-1, -8.357531592149658e-1, 4.9171196443899345e-1], "b1": [8.954784135822432e-1, 0e0, 4.451049435899685e-1], "R": 4.637347047154025e0, "r": 2.3596463425345844e0}, "wall": {"o": [-4.386048683549949e0, 3.1920067891015e-1, -9.140639123497888e0], "d": [-9.692440759207577e-1, 1.954963843454262e-1, -1.4948941434222646e-1], "e1": [-1.9771807791516469e-1, -9.80258925828035e-1, 0e0], "rc": 2.3596463413519726e0}, "answer": {"kind": "Tangent('ct_critical_gap')"}}`
+
+Not pinned as a deterministic row here.
 
 **Owed.** Say which side is wrong, and pin the pose as a deterministic
 row beside the fix.
