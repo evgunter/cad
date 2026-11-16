@@ -521,7 +521,9 @@ pub enum JoinError {
     /// the wall's certified sections, and a ring re-homed on one where
     /// the new face's every edge is, on a net whose weights are constant
     /// along one parameter); on a
-    /// plane, a run on spiric ovals at a scalar that does not certify
+    /// plane, a run with an edge read by its enclosure alone (a spiric,
+    /// a rational spline, a non-rational one past the exact rule's
+    /// degrees) at a scalar that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {
@@ -5896,6 +5898,31 @@ pub(crate) fn ring_representative<T: Decide>(
         LoopBoundary::Empty { vertex } => vertex,
     };
     Ok(body.resolve_vertex_point(v, Proven))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol};
+
+    /// **A loop with a spline edge winds for the rim side's reading, by
+    /// its bulge**: a crescent that is counter-clockwise only by its
+    /// rational arc's bulge winds with a counter-clockwise triangle of
+    /// lines on the same plane, so its face does not hold the triangle's
+    /// loop as its outer, and the triangle's face does not hold the
+    /// crescent's. With the arc read as its chord, or its bulge negated,
+    /// the crescent winds against the triangle and both answers turn.
+    #[test]
+    fn a_loop_wound_by_its_spline_edge_reads_its_side() {
+        let tol = Tol::witness();
+        let (body, crescent, lines) = crate::merge_faces::winding_arm_tests::spline_crescent(tol);
+        let face = |l| body.get_loop(l).unwrap().face;
+        let band = Band::linear(tol).unwrap();
+        for (old, new) in [(lines, crescent), (crescent, lines)] {
+            let held = super::RimSide::Plane.holds_outer(&body, face(old), old, face(new), band);
+            assert!(matches!(held, Ok(false)), "{held:?}");
+        }
+    }
 }
 
 /// The side ladders' ranking ([`Rung::of_reading`]): where no reading
