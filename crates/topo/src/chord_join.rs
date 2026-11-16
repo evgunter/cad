@@ -5880,31 +5880,36 @@ pub(crate) fn ring_representative<T: Decide>(
     Ok(body.resolve_vertex_point(v, Proven))
 }
 
-/// The side ladders' ranking ([`Rung::of_reading`]): where no reading
-/// decides, a reading whose margin cannot be read refuses ahead of an
-/// in-band one read before it — `ladder::Evidence`'s order, where the
-/// hand-rolled search these ladders replace kept the first escalation,
-/// whichever it was.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_loop_row {
     use geom_core::{Band, Tol};
 
-    /// **A loop with a spline edge winds for the rim side's reading**:
-    /// asked whether a face holds its own outer loop, the triangle with a
-    /// rational quarter circle for one edge answers that the two
-    /// windings agree, where a loop with no winding refuses.
+    /// **A loop with a spline edge winds for the rim side's reading, by
+    /// its bulge**: a crescent that is counter-clockwise only by its
+    /// rational arc's bulge winds with a counter-clockwise triangle of
+    /// lines on the same plane, so its face does not hold the triangle's
+    /// loop as its outer, and the triangle's face does not hold the
+    /// crescent's. With the arc read as its chord, or its bulge negated,
+    /// the crescent winds against the triangle and both answers turn.
     #[test]
-    fn a_loop_with_a_spline_edge_reads_its_side() {
+    fn a_loop_wound_by_its_spline_edge_reads_its_side() {
         let tol = Tol::witness();
-        let (body, l) = crate::merge_faces::winding_arm_tests::spline_tri(tol);
-        let face = body.get_loop(l).unwrap().face;
-        let held =
-            super::RimSide::Plane.holds_outer(&body, face, l, face, Band::linear(tol).unwrap());
-        assert!(matches!(held, Ok(false)), "{held:?}");
+        let (body, crescent, lines) = crate::merge_faces::winding_arm_tests::spline_crescent(tol);
+        let face = |l| body.get_loop(l).unwrap().face;
+        let band = Band::linear(tol).unwrap();
+        for (old, new) in [(lines, crescent), (crescent, lines)] {
+            let held = super::RimSide::Plane.holds_outer(&body, face(old), old, face(new), band);
+            assert!(matches!(held, Ok(false)), "{held:?}");
+        }
     }
 }
 
+/// The side ladders' ranking ([`Rung::of_reading`]): where no reading
+/// decides, a reading whose margin cannot be read refuses ahead of an
+/// in-band one read before it — `ladder::Evidence`'s order, where the
+/// hand-rolled search these ladders replace kept the first escalation,
+/// whichever it was.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod side_ladder_rows {

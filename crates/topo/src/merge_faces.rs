@@ -5173,24 +5173,22 @@ pub(crate) mod winding_arm_tests {
         );
     }
 
-    /// **The Ellipse arm, and both of its constants.**
+    /// **The Ellipse arm: its area's two semi-axes, and its own arc's
+    /// length.**
     ///
-    /// The `Ellipse` match arm reads `(axis, major, minor)`, and that
-    /// tuple is used TWICE with different meanings: `sa·sb` is the
-    /// affine area factor of the bulge, and `sa` alone is the metering
-    /// bound. Two swaps therefore go undetected by any sign row —
-    /// `(axis, minor, major)` leaves `sa·sb` alone and silently turns
-    /// the metering bound into a LOWER bound, and `(axis, major,
-    /// major)` changes only the area. This row reds under both,
-    /// because both scale the margin by exactly `major/minor` (the
-    /// first through the denominator, the second through the
-    /// numerator) and the margin itself is what is asserted.
+    /// An ellipse arc's bulge takes `sa·sb`, the affine area factor, and
+    /// its length term is the arc's own: an upper bound within a few
+    /// percent of it, not the larger semi-axis times the span. The margin
+    /// itself is asserted, between the residue over a perimeter holding
+    /// the arc's length and one holding 4% more. A bulge on `major·major`
+    /// doubles it, and the larger semi-axis times the span, 30% over this
+    /// quarter's length, brings it under the bracket.
     ///
     /// Same construction as the mixed row: a chord triangle with its
     /// `a → b` side retyped, `d` placed so the chord area exceeds the
     /// arc's bite by `delta` and the verdict lands in the band.
     #[test]
-    fn an_ellipse_arc_uses_its_major_to_meter_and_both_semi_axes_for_area() {
+    fn an_ellipse_arc_is_metered_on_its_own_length_and_takes_both_semi_axes_for_area() {
         let tol = Tol::witness();
         const MAJOR: f64 = 1.0;
         const MINOR: f64 = 0.5;
@@ -5230,20 +5228,25 @@ pub(crate) mod winding_arm_tests {
             )
             .unwrap();
         let sides = (d - b).norm() + (a - d).norm();
-        let expected = delta / (core::f64::consts::FRAC_PI_2 * MAJOR + sides);
-        // What the two swaps would produce, and the proof that this
-        // row's tolerance separates them: BOTH scale the margin by
-        // `major/minor`, so one assertion covers both.
-        let swapped = expected * (MAJOR / MINOR);
+        // The quarter's length, as an inscribed polygon of 4096 chords.
+        let at = |k: u32| {
+            let t = core::f64::consts::FRAC_PI_2 * f64::from(k) / 4096.0;
+            Point3::new(MAJOR * t.cos(), MINOR * t.sin(), 0.0)
+        };
+        let arc: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
+        let (least, most) = (delta / (1.04 * arc + sides), delta / (arc + sides));
+        let on_major = delta / (core::f64::consts::FRAC_PI_2 * MAJOR + sides);
         assert!(
-            (swapped - expected).abs() > TOL_REL * expected,
-            "a major/minor swap must move the margin further than the tolerance below"
+            on_major < least * (1.0 - TOL_REL),
+            "the pin has teeth only if the larger semi-axis's lever reads under it: \
+             {on_major:e} against {least:e}"
         );
         let got = escalated_margin(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)));
         assert!(
-            (got - expected).abs() <= TOL_REL * expected,
-            "the ellipse meters on `major` and takes its area from `major·minor`: \
-             got {got:e}, expected {expected:e} (either swap gives {swapped:e})"
+            least <= got && got <= most * (1.0 + TOL_REL),
+            "the ellipse is metered on its own arc and takes its area from `major·minor`: \
+             got {got:e}, between {least:e} and {most:e} (an area on `major·major` gives {:e})",
+            most * (MAJOR / MINOR)
         );
     }
 
@@ -5297,18 +5300,25 @@ pub(crate) mod winding_arm_tests {
             .unwrap();
     }
 
-    /// [`tri`]'s triangle `(2,0) → (0,2) → (−1,−1)` with its first edge
-    /// the rational quarter circle ([`fit_a_nurbs_quarter`]): the body
-    /// and its front face's loop, counter-clockwise about `+z`.
-    pub(crate) fn spline_tri(tol: Tol) -> (Body<f64>, LoopKey) {
+    /// Two shells on `z = 0`: the crescent `(2,0) → (0,2) → (1.2,1.2)`
+    /// with its first edge the rational quarter circle
+    /// ([`fit_a_nurbs_quarter`]), and a triangle of lines beside it. The
+    /// crescent's third corner lies between the arc and its chord, so its
+    /// chord triangle is clockwise about `+z` and the loop is
+    /// counter-clockwise by the arc's bulge alone; the triangle is
+    /// counter-clockwise. The body, the crescent's loop and the
+    /// triangle's.
+    pub(crate) fn spline_crescent(tol: Tol) -> (Body<f64>, LoopKey, LoopKey) {
         let mut t = tri(
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(0.0, 2.0, 0.0),
-            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(1.2, 1.2, 0.0),
             tol,
         );
+        let lines = [(5.0, 0.0), (6.0, 0.0), (5.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
+        let (reference, _, _) = tri_into(&mut t.body, lines, tol);
         fit_a_nurbs_quarter(&mut t, tol);
-        (t.body, t.r#loop)
+        (t.body, t.r#loop, reference)
     }
 
     /// **A cycle carrying a spline edge winds by its own area, and every
@@ -5324,7 +5334,7 @@ pub(crate) mod winding_arm_tests {
     /// and tier 3's check 6 passes the front face and refuses the back
     /// one, whose stored sense has its loop clockwise about its outward
     /// normal. The splitter's `loop_sense` and the chord joiner's
-    /// `holds_outer` read [`spline_tri`] in rows beside them.
+    /// `holds_outer` read [`spline_crescent`] in rows beside them.
     #[test]
     fn a_spline_carrying_cycle_winds_alike_for_every_reader() {
         let tol = Tol::witness();
