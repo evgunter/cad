@@ -2,10 +2,11 @@
 id: the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data
 kind: issue
 title: editor-core's replay decides two cylinders' axis offset and radii on its own spelling, beside the kernel's cylinder data door
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-16
 ---
 
 
