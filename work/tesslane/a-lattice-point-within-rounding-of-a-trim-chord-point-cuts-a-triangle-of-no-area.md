@@ -2,11 +2,12 @@
 id: a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area
 kind: issue
 title: a trimmed face's lattice point within rounding of a boundary chord point cuts triangles of no area, on faces that mesh on main
-status: open
+status: parked
 opened: 2026-11-14
 priority: P1
 cost: M
 design: true
+blocked_on: [6966]
 ---
 
 
@@ -74,3 +75,5 @@ Whether a near-coincident candidate should be dropped, merged onto the
 boundary point, or kept off by laying the lattice against the polygon is
 this row's decision. A candidate within rounding of a side but away from
 its ends is the same class, unmeasured.
+
+- 2026-11-16 — **weighed and before Ev.** Three designers weighed it (`docs/DESIGN-FORK-LOG.md`, the row PR 6966 adds) and agreed after four rounds on two rules: the lattice keeps clear of the boundary, and every triangle's winding is resolved above the rounding of its own positions, checked where faces join the mesh. Both are text of `crates/mesh/README.md`, so they are PR 6966, which also carries the unit that builds them.
