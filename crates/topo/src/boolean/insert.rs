@@ -2399,7 +2399,7 @@ fn strut_facing(
 ///
 /// `body` and `vertex`, the corner's, are read only to tell a wrap
 /// edge's tip from a closed edge's lone vertex, where arrival and
-/// departure are one edge ([`strut_facing`]'s `tip`, [`wrap_tip_at`]).
+/// departure are one edge ([`strut_facing`]'s `tip`, [`crate::validate::wrap_tip_at`]).
 ///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
@@ -2412,7 +2412,7 @@ pub(super) fn strut_faces_first<T: Decide>(
     second: (Cut<T>, Cells),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let tip = arrival == departure && wrap_tip_at(body, vertex, arrival);
+    let tip = arrival == departure && crate::validate::wrap_tip_at(body, vertex, arrival);
     match strut_facing(
         (arrival, departure),
         tip,
@@ -2424,27 +2424,6 @@ pub(super) fn strut_faces_first<T: Decide>(
         StrutFacing::ClosedEdge => Ok(None),
         StrutFacing::Unnamed => walk_faces_first(sectors, first.0, second.0, band).map(Some),
     }
-}
-
-/// Whether `edge`, met at `vertex`, is a wrap edge's tip there
-/// ([`strut_faces_first`]'s `tip`): a wrap edge whose two ends differ,
-/// `vertex` one of them.
-///
-/// The tip is `validate::wrap_tips`' (a valence-1 end of a wrap edge),
-/// read at one corner. At rest that is the same set: a corner bounded
-/// both ways by one edge of two ends is that edge's halves following each
-/// other round `vertex`, so its orbit holds no other edge. Mid-run this
-/// is the reading that stands, where `wrap_tips`' valence would count the
-/// struts already minted at the vertex.
-fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
-    let e = proven(&body.edges, edge, EntityId::Edge);
-    let ends = [Some(e.he_plus), body.mate(e.he_plus)]
-        .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
-    let wraps = body
-        .get_curve_geom(e.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .is_some_and(|c| c.description().is_wrap());
-    wraps && ends[0] != ends[1] && ends.contains(&Some(vertex))
 }
 
 /// **Whether a strut's corner is a closed edge's lone vertex with a
@@ -2467,7 +2446,7 @@ pub(super) fn strut_at_closed_edge<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let facing = strut_facing(
         (arrival, departure),
-        arrival == departure && wrap_tip_at(body, vertex, arrival),
+        arrival == departure && crate::validate::wrap_tip_at(body, vertex, arrival),
         own_locus_edge(operand, first),
         own_locus_edge(operand, second),
     )?;
