@@ -141,6 +141,44 @@ pub(super) fn bound<T: Decide>(
     })
 }
 
+/// **The one-sided window's bound** at a polished pair held at an end of
+/// each span (`pose`'s module docs, "The one-sided window"): `u` and `v`
+/// are the tangents at `p` and `q` each turned to point into its own
+/// span, so every pair of the window lies at arc `α, β ≥ 0` along them,
+/// within `span` metres. The along term's sine is `g`, `sin φ` where
+/// `u·v > 0` and `1` where the half-tangents part by a right angle or
+/// more, written `√(1 − max(cos φ, 0)²)`; the slack is the whole gap
+/// `|q − p|`, since the window reads no across direction, and there is
+/// no floor (`−∞`). The basin, proved on `row`, and the move are
+/// [`bound`]'s with `g` for the sine. `None` where the basin is not
+/// proved.
+pub(super) fn bound_held<T: Decide>(
+    row: &'static str,
+    (p, u): (Point3<T>, Vec3<T>),
+    (q, v): (Point3<T>, Vec3<T>),
+    curvature: T,
+    (e, span): (T, T),
+) -> Option<WindowBound<T>> {
+    let cos = u.normalize().dot(v.normalize()).max(T::zero());
+    let g = (T::one() - cos.powi(2)).max(T::zero()).sqrt();
+    let sine = g - curvature * span;
+    if prove(row, Margin::of(sine - curvature * span)) != Ok(Sign::Positive) {
+        return None;
+    }
+    let excess = (q - p).norm() + e;
+    let two = T::from_f64(2.0);
+    let disc = sine.powi(2) - two * curvature * excess;
+    if prove(MOVE, Margin::of(disc)) != Ok(Sign::Positive) {
+        return Some(undecided());
+    }
+    let reach = two * excess / (sine + disc.sqrt());
+    Some(WindowBound {
+        floor: T::from_f64(f64::NEG_INFINITY),
+        reach,
+        bend: curvature * reach.powi(2) / two,
+    })
+}
+
 /// The bound of a window nothing bounds: no floor, and no reach or bend
 /// short of the whole carriers.
 pub(super) fn undecided<T: Decide>() -> WindowBound<T> {

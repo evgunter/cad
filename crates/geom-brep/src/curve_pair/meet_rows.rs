@@ -2338,6 +2338,69 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
     );
 }
 
+/// The verdicts `rec` holds on `predicate`, in order.
+fn verdicts_on(rec: &geom_core::k_stats::Detached, predicate: &str) -> Vec<geom_core::Sign> {
+    rec.recorded()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == predicate)
+        .map(|v| v.sign)
+        .collect()
+}
+
+/// **Two splines joined end to end read their joint's window one-sided.**
+/// Two straight degree-2 splines run along `y = 0`, the first from
+/// `(−0.3, 0, 0)` to the joint at the origin and the second on from there
+/// to `(0.3, 0, 0)`, each with its middle control point off the chord's
+/// middle so that its parameter is not arc length. At the joint the
+/// tangents are parallel, so the two-sided sine is zero and the basin
+/// (`curve_pair_walk_basin`) cannot prove. The polished pair is held at
+/// the first span's last end and the second's first, and the
+/// half-tangents pointing into the spans part by `180°`: the one-sided
+/// window's sine is `1`, and its basin (`curve_pair_walk_basin_held`)
+/// proves at every pair held so.
+#[test]
+fn two_splines_joined_end_to_end_read_their_joint_one_sided() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    let straight = |from: f64, to: f64| {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(
+                Knots::from(knots),
+                vec![
+                    Point3::new(from, 0.0, 0.0),
+                    Point3::new(from + (to - from) * 0.3, 0.0, 0.0),
+                    Point3::new(to, 0.0, 0.0),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ))
+    };
+    let (a, b) = (straight(-0.3, 0.0), straight(0.0, 0.3));
+    let (got, rec) = geom_core::k_stats::detached(|| {
+        super::walk::meet(
+            &Span::new(&a, (0.0, 1.0)),
+            &Span::new(&b, (0.0, 1.0)),
+            band(),
+        )
+    });
+    let Ok(m) = got else {
+        panic!("the walk reads the joint: {got:?}")
+    };
+    assert!(m.points.len() == 1, "one meeting, the joint: {m:?}");
+    let held = verdicts_on(&rec, "curve_pair_walk_basin_held");
+    assert!(
+        !held.is_empty() && held.iter().all(|&s| s == geom_core::Sign::Positive),
+        "every pair held at the joint proves its one-sided basin: {held:?}"
+    );
+    assert!(
+        !verdicts_on(&rec, "curve_pair_walk_basin").contains(&geom_core::Sign::Positive),
+        "the two-sided basin proves nowhere at the joint"
+    );
+}
+
 /// **Circles on one sphere meet at the certified scalar where they meet
 /// at `f64`**: the pair of [`circles_on_one_sphere_meet_on_both_at_any_tilt`]
 /// at every tilt `f64` decides above the basin floor (`1e-2`, `1e-3`,

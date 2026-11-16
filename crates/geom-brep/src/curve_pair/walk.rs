@@ -288,8 +288,13 @@ fn same<T: Decide>(s: T, t: T) -> bool {
 /// curvature is at most their bounds over the arcs within `span` of the
 /// pair (`Read::curvature_near`), the premise (P2) states. Where the
 /// sine at the pair, less the turn over `span` twice, is not proved
-/// positive (`curve_pair_walk_basin`) the premise fails and the window
-/// is undecided.
+/// positive (`curve_pair_walk_basin`) the premise fails. There, a pair
+/// held at an end of each span ([`held`]) reads the one-sided window
+/// (`pose`'s module docs, "The one-sided window"): every piece lies
+/// inside its span, so every pair of the window lies on the side of each
+/// end its span runs to, and the basin is read along the half-tangents
+/// pointing into the spans (`curve_pair_walk_basin_held`). Otherwise
+/// the window is undecided.
 fn window<T: Decide>(
     (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
     (rb, pb, t): (&Read<'_, '_, T>, Piece<T>, T),
@@ -300,14 +305,51 @@ fn window<T: Decide>(
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
     let curvature = ra.curvature_near(s, span) + rb.curvature_near(t, span);
+    let ((p, da), (q, db)) = (ra.curve().ders1(s), rb.curve().ders1(t));
+    let e = T::from_f64(band.escalate());
     super::polish::bound(
         ("curve_pair_walk_basin", None),
-        ra.curve().ders1(s),
-        rb.curve().ders1(t),
+        (p, da),
+        (q, db),
         curvature,
-        (T::from_f64(band.escalate()), span),
+        (e, span),
     )
+    .or_else(|| {
+        let (into_a, into_b) = (held(ra.span, s)?, held(rb.span, t)?);
+        super::polish::bound_held(
+            "curve_pair_walk_basin_held",
+            (p, da * into_a),
+            (q, db * into_b),
+            curvature,
+            (e, span),
+        )
+    })
     .unwrap_or_else(super::polish::undecided)
+}
+
+/// **Whether `u` is held at an end of `span`**: `u` is exactly one of
+/// the span's end parameters (`curve_pair_walk_held_end`), and the span
+/// has ends. Read as the sign, `±1`, that turns the carrier's tangent at
+/// that end to point into the span; `None` at no end, on an endless
+/// span, and where the span's two ends are not definitely ordered.
+fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<T> {
+    if !span.ended() {
+        return None;
+    }
+    let at = |end: T| super::compare("curve_pair_walk_held_end", u, end) == Some(Sign::Zero);
+    let (t0, t1) = span.params();
+    let rising = match super::compare("curve_pair_walk_held_end", t0, t1)? {
+        Sign::Negative => T::one(),
+        Sign::Positive => -T::one(),
+        Sign::Zero => return None,
+    };
+    if at(t0) {
+        Some(rising)
+    } else if at(t1) {
+        Some(-rising)
+    } else {
+        None
+    }
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
