@@ -141,7 +141,7 @@
 //! [`crate::eval::evaluate`] enforces the same invariant per run.
 
 mod canon;
-mod check;
+pub(crate) mod check;
 pub mod hexbytes;
 pub(crate) mod jsontext;
 pub(crate) mod nesting;

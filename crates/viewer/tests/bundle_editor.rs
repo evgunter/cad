@@ -376,9 +376,11 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     );
     let states = session.history().len();
     let placed = session.committed_doc().placements();
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(body),
-    });
+    let outcome = session.perform(common::place_named(
+        session.committed_doc(),
+        Operand::Node(body),
+        "bracket",
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -395,7 +397,7 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     assert!(
         matches!(doc.node(copy), Some(Node::Place { source, .. })
             if doc.operand_space(&Operand::Node(body)) == doc.node_space(copy)
-                && Some(source.read) == doc.outputs(body).first().copied()),
+                && Some(doc.through_sources(source.read).read) == doc.outputs(body).first().copied()),
         "a copy of the body in its own space: {:?}",
         doc.node(copy)
     );
@@ -501,11 +503,11 @@ fn a_second_place_of_a_placed_body_is_a_second_placement() {
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let place = SessionOp::Place {
-        body: Operand::Node(body),
-    };
-    let first = common::placed_by(&mut session, place.clone());
+    let place = common::place_named(session.committed_doc(), Operand::Node(body), "bracket");
+    let first = common::placed_by(&mut session, place);
     let states = session.history().len();
+    // The second shares the first's source, named as the person names it.
+    let place = common::place_named(session.committed_doc(), Operand::Node(body), "bracket");
     let second = common::placed_by(&mut session, place);
     assert_eq!(session.history().len(), states + 1, "one history state");
     assert_ne!(first, second);
@@ -513,7 +515,9 @@ fn a_second_place_of_a_placed_body_is_a_second_placement() {
     let copies: Vec<_> = doc
         .placements()
         .into_iter()
-        .filter(|&p| doc.copied_read(p) == doc.read_of_node(body))
+        .filter(|&p| {
+            doc.copied_read(p).map(|s| doc.through_sources(s).read) == doc.read_of_node(body)
+        })
         .collect();
     assert_eq!(copies, [first, second], "both copies place the body");
 }
@@ -710,4 +714,68 @@ fn a_value_row_in_properties_names_its_axis() {
         .expect("the slide along x has a row");
     assert_eq!(x.label, "slide along x value", "the slide along x's row");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A change the door judged lands on that judgement**: asked twice
+/// of one change the door solves it once, and the `SetBundle` it then
+/// commits stands its copies where that one solve did, not where a
+/// second solve of its own would.
+#[test]
+fn a_judged_change_lands_on_its_one_solve() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-one-solve", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let tool = seated(&session, &bench);
+    let op = common::proposed(&session, &tool, rest())
+        .expect("the rest proposes")
+        .op();
+    let judged = match session.bundle_judgement(&op) {
+        Ok(Some(stood)) => stood,
+        other => panic!("the rest moves the copy and stands: {other:?}"),
+    };
+    let again = session.bundle_judgement(&op);
+    assert!(
+        matches!(&again, Ok(Some(stood)) if std::sync::Arc::ptr_eq(stood, &judged)),
+        "the door asked again of one change answers its one solve: {again:?}"
+    );
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let landing = session
+        .bundle_landing()
+        .expect("the committed change has not landed yet");
+    assert!(
+        std::sync::Arc::ptr_eq(&landing, &judged),
+        "the change lands on the door's solve, not a second one"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A value field's text that does not parse is refused in the slot
+/// door's words**: the same text typed into a placement's value field
+/// and into that value's slot is said one way.
+#[test]
+fn a_typed_value_that_does_not_parse_says_the_slot_doors_refusal() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-typed-parse", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
+    let text = "5 mm +";
+    let typed =
+        viewer::matetool::typed_value(session.committed_doc(), Coord::slide(TargetAxis::X), text)
+            .expect_err("the text does not parse");
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: bench.post_b,
+        slot: SlotId::ValueSlide {
+            constraint: slide_x,
+        },
+        text: text.to_owned(),
+    });
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    let slot = outcome.refusal.expect("the slot door refuses the text");
+    assert!(matches!(slot, Refusal::Parse(_)), "{slot:?}");
+    assert_eq!(
+        typed.to_string(),
+        slot.to_string(),
+        "the value field and the slot say one refusal"
+    );
 }

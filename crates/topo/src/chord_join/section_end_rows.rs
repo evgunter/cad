@@ -97,7 +97,7 @@ fn read(
     spec: &EdgeCurveSpec<f64>,
     at: (Point3<f64>, Point3<f64>),
     refusal: EulerOpError,
-) -> SplitJoinError {
+) -> JoinError {
     section_pin_refusal(reading, FaceKey::default(), (spec, at), refusal, band())
 }
 
@@ -113,7 +113,7 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
             assert!(
                 matches!(
                     got,
-                    SplitJoinError::SectionEndEscalated { reading: r, diag, .. }
+                    JoinError::SectionEndEscalated { reading: r, diag, .. }
                         if r == reading && diag == cause()
                 ),
                 "{check:?}, {reading:?}: {got:?}"
@@ -129,7 +129,7 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
     assert!(
         matches!(
             got,
-            SplitJoinError::SectionEndEscalated {
+            JoinError::SectionEndEscalated {
                 reading: SectionEndReading::SquareToAxis,
                 ..
             }
@@ -166,7 +166,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
             );
             match (&got, unresolved) {
                 (
-                    SplitJoinError::SectionUnresolved {
+                    JoinError::SectionUnresolved {
                         miss:
                             SectionPinMiss::Undecided {
                                 check: CertCheck::EndpointStart,
@@ -190,7 +190,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                         "x {x:e}: {text}"
                     );
                 }
-                (SplitJoinError::SectionEndEscalated { reading: r, .. }, false) => {
+                (JoinError::SectionEndEscalated { reading: r, .. }, false) => {
                     assert_eq!(*r, reading, "x {x:e}");
                 }
                 _ => panic!("x {x:e}, {reading:?}, unresolved {unresolved}: {got:?}"),
@@ -229,7 +229,7 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
     assert!(
         matches!(
             got,
-            SplitJoinError::SectionUnresolved {
+            JoinError::SectionUnresolved {
                 miss: SectionPinMiss::Past {
                     check: CertCheck::EndpointEnd,
                     sample: 8,
@@ -250,7 +250,7 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
         ),
     ] {
         let got = read(SectionEndReading::OnPlane, &spec, at, past(20.0 * EPS));
-        assert!(matches!(got, SplitJoinError::Euler(_)), "{what}: {got:?}");
+        assert!(matches!(got, JoinError::Euler(_)), "{what}: {got:?}");
     }
 }
 
@@ -263,7 +263,7 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
 /// carrier with no bound (a spiric), keep the gate's.
 #[test]
 fn what_no_reading_explains_stays_the_gates() {
-    let gates = |got: &SplitJoinError| matches!(got, SplitJoinError::Euler(_));
+    let gates = |got: &JoinError| matches!(got, JoinError::Euler(_));
     let far = far_centre(1e6);
     for check in [residual(), CertCheck::WitnessMidpoint] {
         let got = read(
@@ -282,7 +282,7 @@ fn what_no_reading_explains_stays_the_gates() {
         assert!(
             matches!(
                 got,
-                SplitJoinError::SectionUnresolved {
+                JoinError::SectionUnresolved {
                     miss: SectionPinMiss::Undecided { check: c, .. },
                     ..
                 } if c == check

@@ -2,10 +2,11 @@
 id: a-corner-touch-verdict-moves-with-the-planes-stored-origin
 kind: issue
 title: The plane × spline classifier's corner-touch verdict moves with where the plane's origin is stored
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+closed: 2026-11-11
 ---
 
 Found by the frame-readings unit (ONECOPY, PR 6463) and diagnosed by its review. Filed on SECTARMS's slate, the plane × spline section lane in `crates/geom-brep/src/pair_section/spline_implicit`.
@@ -31,3 +32,19 @@ fn a_corner_touch_reads_alike_wherever_the_planes_origin_is_stored() {
 ```
 
 **Fix.** The corner touch reads one verdict for one plane wherever its origin is stored. Then `pivot` reads `geom::Frame::foot` and the inline unit-normal foot goes.
+
+**Closed.** Two of the boundary pass's decisions read the exact sign of
+φ on the plane read at its pivot, a sign far finer than the band: the
+corner's empty answer (`corner_class`), and the side's clear answer
+(`clears`, which the pass and limb 3's side arm both read). The pivot's
+shift padded the band, but these signs were never charged with it. Those
+decisions now read the stored plane's sign through the foot's certified
+height over it (`ImplicitForm::lifted`), and the pivot reads
+`Surface::foot`. The corner touch reads its `Corner` region from every
+origin, which is the reading the boundary-pass clause in
+`crates/geom-brep/README.md` gives a corner at distance 0. The probes
+row's `Apart` came from the pivot's rounding, pinned without a ruling;
+the row now wants the region. Rows:
+`a_corner_touch_reads_alike_wherever_the_planes_origin_is_stored` and
+`the_corners_exact_empty_answer_is_the_stored_planes` in
+`crates/geom-brep/src/pair_section/spline_implicit/sweep/rows.rs`.

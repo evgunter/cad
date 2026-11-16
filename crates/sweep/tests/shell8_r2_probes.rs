@@ -236,7 +236,6 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
         topo::transform_rigid(
             &block(0.5, 0.5, 0.5, Tol::witness()),
             &geom_core::RigidMotion::translation(at).unwrap(),
-            tol(),
         )
         .unwrap()
         .revert()
@@ -533,7 +532,6 @@ fn r2_e2e_consumer_seat() {
     let placed = topo::transform_rigid(
         &part_b,
         &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
-        tol(),
     )
     .unwrap();
     let b_solid = topo::graft_disjoint(&mut assembly, &placed).expect("placed");

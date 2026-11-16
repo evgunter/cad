@@ -843,12 +843,14 @@ symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
 # Authoring a measurement. The verb vocabulary is a value class over
-# its two references — each a node and a name, the pair `Node.mate`
-# already takes each of its two sides as — and its arithmetic is an
-# ordinary formula over the measures' outputs.
+# its two references — each a node or a member read `xs[i]`, and a
+# name, the body and face `PoseDef.plane` reads a mate side's face by —
+# and its arithmetic is an ordinary formula over the measures' outputs.
 reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[tuple[NodeId, str] | PoseDef | Var, tuple[NodeId, str] | PoseDef | Var] = reach.refs
+which_pair: tuple[
+    tuple[NodeId | IndexedRead, str] | PoseDef | Var, tuple[NodeId | IndexedRead, str] | PoseDef | Var
+] = reach.refs
 measured_kind: str = reach.dimension
 recorded: Measured = doc.measure([reach])
 spans: list[NodeId] = recorded.measures

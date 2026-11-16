@@ -2,10 +2,11 @@
 id: main-red-a-near-node-cap-at-1e-8-refuses-on-quadrature
 kind: issue
 title: main red: bisector_nodes::the_near_node_poses_at_the_witness_band, A's cap at δ = 1e-8 (B, A) ∩, refuses on an unwired quadrature where the rim's placement escalation is pinned
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-14
 ---
 
 
@@ -19,3 +20,7 @@ Found by `onecopy/foot-certificate` running sweep's full suite. It reproduces wi
 The row pins an escalation on the rim's placement for this cell. The operation now builds and fails the volume gate on a pcurve with no harmonic form, so whichever PR moved the operation past the placement also moved it onto an unwired quadrature lane. `touchrec/a-single-cap-near-a-rods-axis-fails-tier-3-prime-on-its-own-records` reads neighbouring cells of the same test, but not this failure.
 
 Reproduce: `cargo nextest run -p sweep -E 'test(=bisector_nodes::the_near_node_poses_at_the_witness_band)'`.
+
+## Closed (2026-11-14)
+
+Every test this row names passes at all three ε rows of nightly 43371638371 (main `e36675c1`, 2026-11-13), read from each leg's junit. Whether a fix or a pin greened each is not traced here.

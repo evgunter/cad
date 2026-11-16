@@ -62,3 +62,5 @@ Both rows are pinned at every ε to stop on their current panic
 
 The drive certifies its leaves again, with the rim decision kept, and
 the two pins are dropped.
+
+- 2026-11-15 — **Both pins are lifted by BOXFINISH's `boxfinish/sweep-frames` (PR 6972).** An extrude's cylinder and rim circles take their `u_ref` from the sketch frame turning the arc's sketch radial, where they took `rim.normalize()` over placed points, so the rim's axial decision holds over the box and `m10_3_driver_interval`'s `a_band_parameter_certifies_normally_and_prices_nothing` and `the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it` certify (the latter at ±0.16 with a 16-leaf budget, which that PR's body explains). The "Pinned red" section above is no longer true on that branch; "Done when" is met there, left for whoever closes it.

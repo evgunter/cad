@@ -558,7 +558,9 @@ mod tests {
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
-            C::Split => K::Split(topo::SplitError::Finish(topo::SplitFinishError::Corrupt)),
+            C::Split => K::Split(topo::SplitError::Finish(
+                topo::SplitFinishError::EmptyOperand,
+            )),
             C::ContactCarry => K::ContactCarry {
                 refusal: topo::CarryRefusal::Stale { record: 0 },
             },
@@ -631,6 +633,7 @@ mod tests {
             },
             C::UnfinishedLeaf => K::UnfinishedLeaf {
                 input: n(3),
+                into: None,
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::ScaffoldAtRest {
                         edge: topo::EdgeKey::default(),

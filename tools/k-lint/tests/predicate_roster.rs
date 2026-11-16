@@ -43,7 +43,7 @@
 //!   `EPS_COUPLED_UNRULED` (empty today): the ADDED direction, closed
 //!   for those spellings in these sources and for nothing wider;
 //! - **every funnel call in these sources is a parsed mint or the
-//!   function's own declaration** (`classify_len` in the lanes,
+//!   function's own declaration** (`classify_len_as` in the lanes,
 //!   `decide_reported` in topo's measurement door) — a site respelled
 //!   out of the parse reds rather than dropping quietly out of the
 //!   population every pin above quantifies over.
@@ -122,9 +122,9 @@ struct MintSpelling {
 /// The lanes' spelling: `props/quad/run.rs`'s funnel wrapper over
 /// `geom_core::k_stats::decide`.
 const LANE_MINTS: MintSpelling = MintSpelling {
-    call: "classify_len::<T>(",
-    bare: "classify_len",
-    decl: Some("fn classify_len"),
+    call: "classify_len_as::<T>(",
+    bare: "classify_len_as",
+    decl: Some("fn classify_len_as"),
     literal_names: true,
 };
 
@@ -219,7 +219,7 @@ fn mint_files() -> &'static [(usize, String, String)] {
 /// [`mint_sites`] parses a source's call exactly; its bare name and
 /// declaration head are what make that parse's COVERAGE checkable.
 /// Every occurrence of the bare name in a source must be a parsed call
-/// or the declaration itself, so a site respelled `classify_len:: <T>(`
+/// or the declaration itself, so a site respelled `classify_len_as:: <T>(`
 /// — still a call, no longer the spelling — reds rather than silently
 /// leaving the population the other pins quantify over.
 const MINT_CALL: &str = LANE_MINTS.call;
@@ -241,7 +241,7 @@ fn source_views(cache: &'static OnceLock<Vec<(String, String)>>) -> &'static [(S
 /// **The roster pins KERNEL mints.** A call inside the source file's
 /// own test module is a test's, and counting it would make the census
 /// depend on how tests are written: a test that calls the funnel at a
-/// concrete scalar (`classify_len::<f64>(`) is neither a [`MINT_CALL`]
+/// concrete scalar (`classify_len_as::<f64>(`) is neither a [`MINT_CALL`]
 /// site nor the declaration, and reds the coverage check over code the
 /// kernel never runs.
 ///
@@ -585,12 +585,12 @@ fn no_production_door_states_an_eps_derived_resolution() {
 #[test]
 fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     let decoyed = concat!(
-        "/// classify_len::<T>(\"decoy_doc\", Margin::of(target_len - w), band)\n",
-        "const Q: &str = \"classify_len::<T>(\\\"decoy_str\\\", Margin::of(x), band)\";\n",
-        "fn classify_len<T: Decide>(n: &str, m: Margin, b: Band) -> R { decide(n, m, b) }\n",
-        "    if classify_len::<T>(\n        \"props_quad_converged\",\n",
+        "/// classify_len_as::<T>(\"decoy_doc\", Margin::of(target_len - w), band)\n",
+        "const Q: &str = \"classify_len_as::<T>(\\\"decoy_str\\\", Margin::of(x), band)\";\n",
+        "fn classify_len_as<T: Decide>(n: &str, m: Margin, b: Band) -> R { decide(n, m, b) }\n",
+        "    if classify_len_as::<T>(\n        \"props_quad_converged\",\n",
         "        Margin::of(target_len - width_len),\n        band,\n    )? == Sign::Positive\n",
-        "    { classify_len::<T>(\"props_quad_face_extent\", Margin::over_lever(a, p), band)?; }\n"
+        "    { classify_len_as::<T>(\"props_quad_face_extent\", Margin::over_lever(a, p), band)?; }\n"
     );
     assert_eq!(
         decoyed.matches(MINT_CALL).count(),
@@ -617,7 +617,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     );
 
     // A call the parse cannot read is a refusal, not an absence.
-    let respelled = decoyed.replace("if classify_len::<T>(", "if classify_len:: <T>(");
+    let respelled = decoyed.replace("if classify_len_as::<T>(", "if classify_len_as:: <T>(");
     let refused = std::panic::catch_unwind(|| {
         mint_sites(
             LANE_MINTS,
@@ -638,7 +638,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     // A mint short a rostered name reds the roster check, and the
     // refusal names what WAS minted — so a fixture minting some other
     // name is not interchangeable with this one.
-    let short = "let x = classify_len::<T>(\"other_name\", Margin::of(m), b);";
+    let short = "let x = classify_len_as::<T>(\"other_name\", Margin::of(m), b);";
     let minted = mint_sites(
         LANE_MINTS,
         &source::code_only(short),
@@ -673,19 +673,19 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
 #[test]
 fn the_test_module_exclusion_blanks_the_module_and_no_kernel_mint() {
     let fixture = concat!(
-        "fn before<T: Decide>() { classify_len::<T>(\"before_tests\", Margin::of(a), band); }\n",
+        "fn before<T: Decide>() { classify_len_as::<T>(\"before_tests\", Margin::of(a), band); }\n",
         "fn hooked<T: Decide>() {\n",
         "    #[cfg(test)]\n",
         "    tests::HOOK.with(|h| h.set(true));\n",
-        "    classify_len::<T>(\"after_a_test_hook\", Margin::of(b), band);\n",
+        "    classify_len_as::<T>(\"after_a_test_hook\", Margin::of(b), band);\n",
         "}\n",
         "#[cfg(test)]\n",
         "#[allow(clippy::unwrap_used)]\n",
         "mod tests {\n",
-        "    fn pins() { classify_len::<f64>(\"a_test_call\", Margin::of(c), band); }\n",
-        "    fn nested() { if x { classify_len::<T>(\"in_tests\", Margin::of(d), band); } }\n",
+        "    fn pins() { classify_len_as::<f64>(\"a_test_call\", Margin::of(c), band); }\n",
+        "    fn nested() { if x { classify_len_as::<T>(\"in_tests\", Margin::of(d), band); } }\n",
         "}\n",
-        "fn after<T: Decide>() { classify_len::<T>(\"after_tests\", Margin::of(e), band); }\n",
+        "fn after<T: Decide>() { classify_len_as::<T>(\"after_tests\", Margin::of(e), band); }\n",
     );
 
     // Unexcluded, the test's concrete-scalar call is what reds the
@@ -698,12 +698,12 @@ fn the_test_module_exclusion_blanks_the_module_and_no_kernel_mint() {
             "the unexcluded fixture",
         )
     })
-    .expect_err("a test's `classify_len::<f64>(` is neither a parsed site nor the declaration");
+    .expect_err("a test's `classify_len_as::<f64>(` is neither a parsed site nor the declaration");
     let unexcluded = unexcluded
         .downcast_ref::<String>()
         .expect("the refusal carries its message");
     assert!(
-        unexcluded.contains("classify_len::<f64>("),
+        unexcluded.contains("classify_len_as::<f64>("),
         "the refusal quotes the test's spelling: {unexcluded}"
     );
 

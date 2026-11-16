@@ -180,7 +180,7 @@ fn the_one_face_ball_reads_the_whole_sphere() {
     // Its sense bit is the only side it has: flipped, it is a cavity's
     // wall, and the ball's volume comes back negative.
     let inverted = body
-        .flipped_face_sense_for_tests(face)
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .expect("the face resolves");
     let (flux, area) = measured(&inverted, "the inverted one-face ball");
     close(

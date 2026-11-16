@@ -335,6 +335,22 @@ fn decide_direction_by<T: Decide>(
 }
 
 impl<T: Real> UnitVec3<T> {
+    /// **Whether this is `other` exactly**: every component's difference
+    /// an exact zero of either sign in every channel the scalar carries
+    /// ([`Real::is_exact_zero_in_every_channel`]), so `+0` and `−0` agree,
+    /// and at the dual scalar a pair whose values agree while their
+    /// derivatives differ is not one direction. Structure read as
+    /// structure, not a tolerance decision: the least turn's identity
+    /// (`RigidMotion::least_turn`), the value chart's, and the path
+    /// sweep's still step all ask it.
+    #[must_use]
+    pub fn is_exactly(self, other: Self) -> bool {
+        let (a, b) = (self.0, other.0);
+        [a.x - b.x, a.y - b.y, a.z - b.z]
+            .into_iter()
+            .all(Real::is_exact_zero_in_every_channel)
+    }
+
     /// The direction itself, unit.
     #[must_use]
     pub fn get(self) -> Vec3<T> {
@@ -376,7 +392,8 @@ impl<T: Real> UnitVec3<T> {
     /// [`Self::cross_of_orthonormal`] it is not a "check that it is
     /// already unit" constructor: the premise is the construction, and
     /// its only callers are [`RigidMotion`](super::RigidMotion)'s mints
-    /// and the decided door, which has decided the column's norm.
+    /// and the `f64` door, which has read the column's norm within its
+    /// rounding.
     pub(in crate::linalg) fn by_construction(v: Vec3<T>) -> Self {
         Self(v)
     }
@@ -416,6 +433,27 @@ impl<T: Real> UnitVec3<T> {
     #[must_use]
     pub fn exact_z() -> Self {
         Self(Vec3::unit_z())
+    }
+
+    /// **This unit vector, its coordinates signed and permuted**: its
+    /// `k`th coordinate becomes coordinate `to[k].0`, negated where
+    /// `to[k].1` — an orientation of the coordinate axes applied, by
+    /// field shuffling and negation alone, so the result is unit exactly
+    /// as this one is. `None` unless the indices are a permutation of
+    /// `0, 1, 2`.
+    #[must_use]
+    pub fn signed_permutation(self, to: [(usize, bool); 3]) -> Option<Self> {
+        let from = [self.0.x, self.0.y, self.0.z];
+        let mut out = [T::zero(); 3];
+        let mut seen = [false; 3];
+        for (k, &(axis, negative)) in to.iter().enumerate() {
+            if axis > 2 || seen[axis] {
+                return None;
+            }
+            seen[axis] = true;
+            out[axis] = if negative { -from[k] } else { from[k] };
+        }
+        Some(Self(Vec3::new(out[0], out[1], out[2])))
     }
 }
 

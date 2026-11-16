@@ -308,7 +308,7 @@ fn r2_p5_the_pip_on_a_revolve_cap_builds() {
         tol(),
     );
     let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - dip, 0.0));
-    let placed = topo::transform_rigid(&ball, &geom_core::test_support::rigid(&map, tol()), tol())
+    let placed = topo::transform_rigid(&ball, &geom_core::test_support::rigid(&map, tol()))
         .expect("a rigid translate");
     let placed = finished("the placed ball", placed, tol());
     let out = subtract(&zone_body, &placed, tol())
