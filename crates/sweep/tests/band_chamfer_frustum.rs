@@ -24,7 +24,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Real, Tol};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::BlendError;
 use sweep::chamfer::{Chamfered, chamfer_edges};
 use sweep::test_support::{
     assert_naming_totality, at_rest, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, corners,
@@ -311,14 +311,14 @@ fn a_bored_plate_chamfers_all_round() {
     );
 }
 
-/// **The bracket, chamfered all round.** Its bore no longer refuses:
-/// "select all edges" reaches the mixed-convexity corner where the boss
-/// meets the plate
-/// (`work/band/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md`'s
-/// ground), and the bore's two rims chamfer inside the bracket at two
-/// frustum rings.
+/// **The bracket, chamfered all round.** Every edge, its bore's two rims
+/// among them: the bore-less bracket's `−24s² + 8s³`
+/// (`band_mixed_corner::the_bracket_without_its_bore_chamfers_all_round_at_its_closed_form`)
+/// and a frustum ring at each of the bore's rims. The request is every
+/// edge, the bore wall's two smooth seams among them, which the blend
+/// leaves as they are.
 #[test]
-fn the_bracket_chamfers_its_bore_and_all_round_reaches_only_its_mixed_corner() {
+fn the_bracket_with_its_bore_chamfers_all_round_at_its_closed_form() {
     let s = 0.05;
     let plate = prism_at(
         corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
@@ -341,29 +341,23 @@ fn the_bracket_chamfers_its_bore_and_all_round_reaches_only_its_mixed_corner() {
     );
     let mut all = topo::query::all_edges(&bracket);
     all.sort_unstable();
-    let got = chamfer(&bracket, &all, s);
-    assert!(
-        matches!(
-            got,
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            })
-        ),
-        "the bracket all round refuses at its mixed corner alone, got {got:?}"
-    );
-    let rims = [
-        z_rim(&bracket, 0.3, 0.0, true),
-        z_rim(&bracket, 0.3, 0.5, true),
-    ]
-    .concat();
+    let sharp: Vec<EdgeKey> = all
+        .iter()
+        .copied()
+        .filter(|&e| {
+            let (a, b) = topo::readback::edge_sides(&bracket, e).unwrap().surfaces();
+            a != b
+        })
+        .collect();
+    assert_eq!(all.len() - sharp.len(), 2, "the bore wall's two seams");
+    let want = -24.0 * s * s + 8.0 * s.powi(3) - 2.0 * ring(s, 0.3 + s / 3.0);
     built(
-        "the bracket's bore",
+        "the bracket all round",
         &bracket,
-        (&rims, &rims),
+        (&all, &sharp),
         s,
         2,
-        -2.0 * ring(s, 0.3 + s / 3.0),
+        want,
     );
 }
 
