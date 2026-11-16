@@ -23,6 +23,11 @@ crates/editor-core/src/trace.rs 4
 # (sphere_region_material_sign and pole_side climb their arcs; pose's
 # one_line reads one identity.)
 crates/geom-brep/src/props/curved.rs 1
+# pair_section CarriedSection::site's scan for a node box holding the
+# site (1): `PadBox::holds` widens each box by the band's escalation and
+# refuses only a site whose coordinate the scalar holds as no point, a
+# desync, no band reading: NOT A SEARCH.
+crates/geom-brep/src/pair_section.rs 1
 # quadrature rounds: each round's extent is the premise of its estimate:
 # NOT A SEARCH.
 crates/geom-brep/src/props/quad/patch.rs 1
