@@ -445,20 +445,17 @@ impl<T: Decide> Window<'_, T> {
         let Some(first) = outward.iter().position(|r| r.1 == Read::OffSpan) else {
             return true;
         };
+        let z = T::from_f64(band.zero());
         let mut from_off = false;
         for &&((l, r), read) in &outward[first..] {
             from_off = match read {
                 Read::Off => true,
-                Read::Recedes
-                    if from_off
-                        || self
-                            .off(if away { (l, l) } else { (r, r) }, T::from_f64(band.zero())) =>
-                {
+                Read::Recedes if from_off || self.off(if away { (l, l) } else { (r, r) }, z) => {
                     true
                 }
                 Read::OffSpan => false,
                 Read::On | Read::Recedes => {
-                    if !self.piece_off_span((l, r), band) {
+                    if !self.piece_off_span((l, r), z, band) {
                         return false;
                     }
                     false
@@ -468,10 +465,10 @@ impl<T: Decide> Window<'_, T> {
         true
     }
 
-    /// Whether the piece `(l, r)` reads off `b`'s span past the band's
+    /// Whether the piece `(l, r)` reads off `b`'s span past `z`, the band's
     /// zero, halved until each part does or one is narrower than the band.
-    fn piece_off_span(&self, (l, r): (T, T), band: Band) -> bool {
-        let (two, z) = (T::from_f64(2.0), T::from_f64(band.zero()));
+    fn piece_off_span(&self, (l, r): (T, T), z: T, band: Band) -> bool {
+        let two = T::from_f64(2.0);
         let speed = self.a.speed_hi();
         let walked = geom_core::bisect::bisect([(l, r)], |(pl, pr)| {
             let mid = (pl + pr) / two;
