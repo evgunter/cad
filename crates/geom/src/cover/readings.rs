@@ -88,15 +88,18 @@ impl<T: SpanLocate> Curve3<T> {
     ///
     /// As [`Curve3::cover_over`], and [`Unknown::Unbounded`] for a line.
     pub fn cover(&self) -> Covered<T> {
-        match self {
-            Curve3::Line(_) => Err(Uncovered::new(
+        // A spline is covered by its net; a carrier that repeats over its
+        // one period ([`Curve3::period`], which says which kinds repeat);
+        // any other, a line, bounds no region.
+        if let Curve3::Nurbs(spline) = self {
+            return net(Entity::Curve(self.kind()), spline.control());
+        }
+        match self.period() {
+            Some(turn) => self.cover_over(ParamWindow::new(T::zero(), turn.length())),
+            None => Err(Uncovered::new(
                 Entity::Curve(self.kind()),
                 Unknown::Unbounded,
             )),
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
-                self.cover_over(ParamWindow::new(T::zero(), T::tau()))
-            }
-            Curve3::Nurbs(spline) => net(Entity::Curve(self.kind()), spline.control()),
         }
     }
 

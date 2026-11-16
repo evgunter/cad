@@ -9,7 +9,7 @@ use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
-use crate::curve_pair::{Place, Span};
+use crate::curve_pair::{GapMeter, Place, Span, SpanEnd};
 use crate::edge_crossing::CrossingDecision;
 
 /// Which lane finds where a carrier's span crosses a plane
@@ -444,7 +444,7 @@ pub fn span_plane_meet<T: Decide>(
             if graze {
                 let touch = !roots.is_empty()
                     || near_span(candidates, (t0, t1)).any(|t| {
-                        graze_reaches_span(conic, (plane_origin, plane_normal), t, (t0, t1), band)
+                        graze_reaches_span(conic, &span, (plane_origin, plane_normal), t, band)
                     });
                 return Ok(Some(if touch {
                     SpanPlaneMeet::Touch
@@ -480,14 +480,6 @@ pub fn span_plane_meet<T: Decide>(
     Ok(Some(SpanPlaneMeet::Roots(found)))
 }
 
-/// **A conic's span meter** (radians → metres): the smaller semi-axis,
-/// in either stored order, an INF bound on the speed. A graze's reach
-/// ([`graze_reaches_span`]) reads it, where a reach short of definitely
-/// outside keeps the touch.
-fn conic_meter<T: Decide>(s_u: T, s_v: T) -> geom_core::InfSpeed<T> {
-    geom_core::InfSpeed::new(s_u.min(s_v))
-}
-
 /// **The carrier's roots named on the span**: each within half a turn
 /// of its middle, by `Period::near`'s span argument, so a root at either
 /// end of a closed edge's full-period span reads alike against both
@@ -511,28 +503,26 @@ fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl It
 /// is a reach, and the door answers a touch.
 fn graze_reaches_span<T: Decide>(
     conic: &dyn geom::Conic<T>,
+    span: &Span<'_, T>,
     (on, n): (geom_core::Point3<T>, geom_core::Vec3<T>),
     t: T,
-    (t0, t1): (T, T),
     band: Band,
 ) -> bool {
     let (_, a, b) = crate::curve_pair::pose::height(conic, on, n);
     let r = (a.powi(2) + b.powi(2)).sqrt();
     let z = T::from_f64(band.zero());
     let delta = (T::one() - z / r).max(T::zero() - T::one()).acos();
-    let (s_u, s_v) = conic.semi_axes();
-    let meter = conic_meter(s_u, s_v);
-    [
-        Margin::metered(t - (t0 - delta), meter),
-        Margin::metered((t1 + delta) - t, meter),
-    ]
-    .into_iter()
-    .all(|margin| {
-        !matches!(
-            decide("plane_crossing_graze_reach", margin, band),
-            Ok(Sign::Negative)
-        )
-    })
+    // Each widened end's gap at the inf over the gap: only a definite
+    // Negative (outside) is acted on, and the inf makes it sound.
+    let gap = |end| span.end_gap_widened(t, end, delta, GapMeter::Clear);
+    [gap(SpanEnd::Start), gap(SpanEnd::Stop)]
+        .into_iter()
+        .all(|margin| {
+            !matches!(
+                decide("plane_crossing_graze_reach", margin, band),
+                Ok(Sign::Negative)
+            )
+        })
 }
 
 /// **A parameter of a span's carrier against the span's ends**: the
