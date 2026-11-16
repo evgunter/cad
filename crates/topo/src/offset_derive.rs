@@ -26,7 +26,7 @@ use geom_brep::SectionReading;
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
-use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
+use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 
 use crate::SurfaceKey;
 use geom_core::k_stats::decide;
@@ -633,16 +633,12 @@ fn nearest<T: Decide>(
     };
     match argmin_decided(reached, cmp, FreeOf::Nothing) {
         Ok(best) => Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch)),
-        Err(Unpicked::Contested { in_band: None, .. }) => Ok(Err(SectionVerdict::BranchesTied)),
-        // One scalar's difference ranks in no cycle.
-        Err(Unpicked::Cyclic) => unreachable!("a branch's reach ranks in no cycle"),
-        Err(
-            Unpicked::Contested {
-                in_band: Some(diag),
-                ..
-            }
-            | Unpicked::Aborted(diag),
-        ) => Err(diag),
+        Err(unpicked) => match unpicked.carried() {
+            Ok(diag) => Err(diag),
+            Err(Uncarried::Tied(_)) => Ok(Err(SectionVerdict::BranchesTied)),
+            // One scalar's difference ranks in no cycle.
+            Err(Uncarried::Cyclic) => unreachable!("a branch's reach ranks in no cycle"),
+        },
     }
 }
 

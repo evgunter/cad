@@ -279,7 +279,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
+    flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -375,7 +376,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::census::SPAN_ORDER_CHARGED
         | crate::census::EE_OVERLAP_CHARGED
         | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
-        slit::PARTING_ORDER => BooleanDecision::PartingOrder.subject(),
+        slit::PARTING_ORDER | slit::PARTING_ONE_POINT | slit::PARTING_STRADDLE => {
+            BooleanDecision::PartingOrder.subject()
+        }
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -416,7 +419,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "bool_wall_root_in_span" => CrossingDecision::OnEdge.subject(),
         "plane_crossing_root_order"
         | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
@@ -8265,7 +8267,9 @@ fn verify_tangency<T: Decide>(
                 (
                     circle,
                     T::zero(),
-                    T::from_f64(core::f64::consts::TAU),
+                    // The rim's whole turn, its circle's period, read where
+                    // rim_wedge reads it.
+                    geom::conic_period::<T>().length(),
                     rim_wedge::Locus::Rim(rim),
                     identity,
                     None,

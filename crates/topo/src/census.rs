@@ -7954,21 +7954,30 @@ fn at_rest_fault(why: &crate::face_normal::NormalAtError) -> bool {
 }
 
 impl TouchUnread {
-    /// What arm 2 reads of a touch left unread: its reason, aborting by
-    /// the cause's own standing ([`Self::refusal`]), read here before
-    /// [`Self::undecided`] names it.
-    fn unrest<T: Real>(self) -> Unrest<T> {
+    /// **A touch left unread, as arm 2 keeps it**: its reason, aborting
+    /// by the cause's own standing ([`Self::refusal`]), read here before
+    /// [`Self::undecided`] names it. The one reading of that standing:
+    /// [`Self::unrest`] and [`Self::scan`] are this, carried.
+    fn backstop_standing(self) -> Kept {
         match self.refusal() {
-            Ok(_) => Unrest::Undecided(self.undecided()),
-            Err(Aborts) => Unrest::Aborts(self.undecided()),
+            Ok(_) => Kept::Waits(self.undecided()),
+            Err(Aborts) => Kept::Aborts(self.undecided()),
         }
     }
 
-    /// [`Self::unrest`] as [`blocked`] ranks it.
+    /// What arm 2 reads of a touch left unread ([`Self::backstop_standing`]).
+    fn unrest<T: Real>(self) -> Unrest<T> {
+        match self.backstop_standing() {
+            Kept::Waits(why) => Unrest::Undecided(why),
+            Kept::Aborts(why) => Unrest::Aborts(why),
+        }
+    }
+
+    /// [`Self::backstop_standing`] as [`blocked`] ranks it.
     fn scan<T: Real>(self) -> Scan<T> {
-        match self.refusal() {
-            Ok(_) => Scan::Undecided(self.undecided()),
-            Err(Aborts) => Scan::Aborts(self.undecided()),
+        match self.backstop_standing() {
+            Kept::Waits(why) => Scan::Undecided(why),
+            Kept::Aborts(why) => Scan::Aborts(why),
         }
     }
 
@@ -8235,6 +8244,15 @@ enum Blocked<T: Real> {
     Undecided(Undecided),
 }
 
+/// A reason a touch left unread keeps the pair undecided, with its
+/// standing ([`TouchUnread::backstop_standing`]): it waits for a decided reading, or
+/// it aborts the pair's reading at once.
+#[derive(Clone, Copy, Debug)]
+enum Kept {
+    Waits(Undecided),
+    Aborts(Undecided),
+}
+
 /// One reading [`blocked`] ranks: a touch read as a crossing at the point
 /// carried, a reason whose standing aborts ([`Unrest::Aborts`]), or a
 /// reason the pair stays undecided.
@@ -8296,6 +8314,31 @@ fn between_scan<T: Real>(
     Some(Scan::Undecided(why))
 }
 
+/// **What a recorded or shared site scans as** in [`blocked`], its touch
+/// read as `at`: a crossing wherever it stands; a fault that aborts
+/// (a kernel defect, or two readings of one fact that disagree)
+/// wherever it stands, since no declaration vouches for one; and a
+/// reason that waits, or a curved germ no reading here reaches
+/// ([`TouchUnread::curved_unread`]), only where the site is read
+/// `strict` (a shared key, or a record not taken on its word). Where a
+/// declaration vouches for the site, those are taken on its word: a
+/// designed curved contact is what one declares.
+fn site_scan<T: Real>(site: TouchSite, strict: bool, at: Option<Unrest<T>>) -> Option<Scan<T>> {
+    match at? {
+        Unrest::Crossing(at) => Some(Scan::Crossing(site, at)),
+        // A declaration vouches for a curved touch the analysis cannot
+        // read: that is what declaring a designed curved contact is for.
+        // It vouches for no fault.
+        Unrest::Aborts(why)
+            if !strict && matches!(why, Undecided::Touch(t) if t.curved_unread()) =>
+        {
+            None
+        }
+        Unrest::Aborts(why) => Some(Scan::Aborts(why)),
+        Unrest::Undecided(why) => strict.then_some(Scan::Undecided(why)),
+    }
+}
+
 /// **What blocks a solid pair, from its findings and then its sites**
 /// ([`blocked`]): a pair's standing findings are scanned ahead of its
 /// recorded and shared sites, so a finding that aborts ends the reading
@@ -8311,8 +8354,8 @@ fn pair_blocked<T: Real>(
 #[cfg(test)]
 mod blocked_rows {
     use super::{
-        Blocked, CurvedUnread, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest, between_scan,
-        blocked, pair_blocked,
+        Blocked, CurvedUnread, Kept, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest,
+        between_scan, blocked, pair_blocked, site_scan,
     };
     use crate::entity::{FaceKey, VertexKey};
     use geom_core::Point3;
@@ -8411,12 +8454,10 @@ mod blocked_rows {
                 .map(TouchUnread::NormalFault),
         );
         for why in causes {
-            let aborts = matches!(why.scan::<f64>(), Scan::Aborts(_));
-            assert_eq!(aborts, why.refusal().is_err(), "{why:?}");
             assert_eq!(
-                matches!(why.unrest::<f64>(), Unrest::Aborts(_)),
-                aborts,
-                "{why:?}: unrest and scan agree"
+                matches!(why.backstop_standing(), Kept::Aborts(_)),
+                why.refusal().is_err(),
+                "{why:?}"
             );
         }
         assert!(
@@ -8461,6 +8502,47 @@ mod blocked_rows {
             "a confirmed face pair scans as nothing"
         );
         assert_eq!(Undecided::CurvedTouch.what(), CURVED.what(), "one sentence");
+    }
+
+    /// **A site taken on a declaration's word still aborts on a fault**
+    /// ([`site_scan`]): a reading that waits, or a curved germ no reading
+    /// here reaches, is taken on the declaration's word, but a fault (a
+    /// kernel defect, or two readings that disagree), which no
+    /// declaration vouches for, ends the pair's reading as it does at a
+    /// site read strictly. Red against dropping every reading a
+    /// non-strict site does not decide.
+    #[test]
+    fn a_declared_site_still_aborts_on_a_fault() {
+        let corrupt = Some(Unrest::<f64>::Aborts(Undecided::CorruptInstance));
+        assert!(
+            matches!(
+                site_scan(site(), false, corrupt),
+                Some(Scan::Aborts(Undecided::CorruptInstance))
+            ),
+            "an abort on a declaration's word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Undecided(WAITS))).is_none(),
+            "a reason that waits, on its word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Aborts(CURVED))).is_none(),
+            "an unreadable curved germ, on its word: a designed curved contact"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Aborts(CURVED))),
+                Some(Scan::Aborts(_))
+            ),
+            "the same, read strictly, aborts"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Undecided(WAITS))),
+                Some(Scan::Undecided(_))
+            ),
+            "the same, read strictly"
+        );
     }
 
     /// **A pair's findings are scanned before its sites**
@@ -10583,7 +10665,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
     // decided crossing, and a record the analysis cannot read is taken
-    // on its word. A face-pair record is read by no analysis here: it
+    // on its word, except where the reading is a fault that aborts (a
+    // kernel defect, or two readings of one fact that disagree), which
+    // no declaration vouches for, and which ends the pair's reading at
+    // once as anywhere else ([`site_scan`]). A face-pair record is read by no analysis here: it
     // answers for its boundary's events only once confirmed, a rest,
     // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],
@@ -10639,12 +10724,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
-        let at_sites = sites.filter_map(|(site, strict)| match touch(site) {
-            Some(Unrest::Crossing(at)) => Some(Scan::Crossing(site, at)),
-            Some(Unrest::Aborts(why)) if strict => Some(Scan::Aborts(why)),
-            Some(Unrest::Undecided(why)) if strict => Some(Scan::Undecided(why)),
-            _ => None,
-        });
+        let at_sites = sites.filter_map(|(site, strict)| site_scan(site, strict, touch(site)));
         pair_blocked(findings, at_sites)
     };
     // ---- The material test of one ordering: every vertex of `inner`
@@ -12104,7 +12184,7 @@ fn shared_run<T: Decide>(
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
     let pairs = ea.iter().flat_map(|&a| eb.iter().map(move |&b| (a, b)));
-    meeting_found(climb(Answering::Any, pairs, |(a, b)| {
+    search_meeting(pairs, |(a, b)| {
         let before = read.len();
         meeting_rung(
             match curved::interiors_meeting(body, a, b, band, &mut read) {
@@ -12113,7 +12193,7 @@ fn shared_run<T: Decide>(
                 None => Err(escalated_since(&read, before)),
             },
         )
-    }))
+    })
 }
 
 /// Why [`planar_interiors_meet`] read no verdict.
@@ -12173,6 +12253,18 @@ fn meeting_rung(
     Rung::holds(reading, true, |why| why.refusal())
 }
 
+/// **The search for a meeting**, the one ladder [`shared_run`],
+/// [`planar_interiors_meet`] and [`shared_interior_witness`] read their
+/// probes through: any probe that meets answers, past a probe kept ahead
+/// of it ([`climb`], [`Answering::Any`]: one meeting is a meeting), and
+/// what it read is [`meeting_found`]'s.
+fn search_meeting<I>(
+    probes: impl IntoIterator<Item = I>,
+    read: impl FnMut(I) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread>,
+) -> Result<bool, InteriorsUnread> {
+    meeting_found(climb(Answering::Any, probes, read))
+}
+
 /// What a search for a meeting read: its answer (a meeting, or a
 /// refusal it stopped on), `Ok(false)` where every reading passed, and
 /// the ranked kept refusal ([`Evidence`]) otherwise.
@@ -12224,7 +12316,7 @@ fn planar_interiors_meet<T: Decide>(
         geo.sides_of(fb.key)
             .map(move |eb| PlanarProbe::Sides(ea, eb))
     });
-    meeting_found(climb(Answering::Any, corners.chain(sides), |probe| {
+    search_meeting(corners.chain(sides), |probe| {
         meeting_rung(match probe {
             PlanarProbe::Corner(x, y, v) => {
                 let Some(&p) = geo.vmap.get(&v) else {
@@ -12246,7 +12338,7 @@ fn planar_interiors_meet<T: Decide>(
                 None => Err(InteriorsUnread::Undecided),
             },
         })
-    }))
+    })
 }
 
 /// **Whether two faces on one carrier, facing as `facing` says
@@ -12345,7 +12437,7 @@ fn shared_interior_witness<T: Decide>(
             .flat_map(|&ea| edges_b.iter().map(move |&eb| WitnessProbe::Pair(ea, eb))),
     );
     // No witness found, and none kept, is no certificate either way.
-    let climbed = climb(Answering::Any, probes, |probe| {
+    let found = search_meeting(probes, |probe| {
         meeting_rung(match probe {
             WitnessProbe::At(x, at, y, q) => {
                 meets_at(body, geo, (x, at), (y, facing), q, band, &mut read)
@@ -12369,7 +12461,7 @@ fn shared_interior_witness<T: Decide>(
             }
         })
     });
-    match meeting_found(climbed) {
+    match found {
         Ok(true) => Ok(SharedInterior),
         Ok(false) => Err(InteriorsUnread::Unbuilt),
         Err(why) => Err(why),
@@ -22764,12 +22856,13 @@ mod link_faces_ranking {
 /// of one in band** ([`InteriorsUnread::refusal`], the ladder's
 /// [`Evidence`]): while a pair is unbuilt no tolerance certifies the
 /// interiors apart, so its refusal (`FLUSH_UNREAD`) is the one whose
-/// recourse frees the question. Fed the rungs directly, since no body a
-/// constructor builds keeps both kinds in one search; a fold that kept
-/// an undecided reading over a later unbuilt one reports `Undecided`.
+/// recourse frees the question. The rungs are fed to the search's ladder
+/// ([`search_meeting`]) directly, since no body a constructor builds keeps
+/// both kinds in one search; a fold that kept an undecided reading over a
+/// later unbuilt one reports `Undecided`. A meeting answers past both.
 #[cfg(test)]
 mod interiors_ranking {
-    use super::{Answering, InteriorsUnread, climb, meeting_found, meeting_rung};
+    use super::{InteriorsUnread, meeting_rung, search_meeting};
 
     #[test]
     fn an_unbuilt_reading_outranks_an_undecided_one_in_either_order() {
@@ -22779,22 +22872,21 @@ mod interiors_ranking {
             [Err(Unbuilt), Err(Undecided)],
         ] {
             assert_eq!(
-                meeting_found(climb(Answering::Any, order, meeting_rung)),
+                search_meeting(order, meeting_rung),
                 Err(Unbuilt),
                 "{order:?}: the limit is the refusal"
             );
         }
         assert_eq!(
-            meeting_found(climb(
-                Answering::Any,
+            search_meeting(
                 [Err(Undecided), Err(Unbuilt), Ok(false), Ok(true)],
                 meeting_rung
-            )),
+            ),
             Ok(true),
             "a later meeting answers past both"
         );
         assert_eq!(
-            meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
+            search_meeting([Ok(false), Ok(false)], meeting_rung),
             Ok(false),
             "every reading apart certifies apart"
         );

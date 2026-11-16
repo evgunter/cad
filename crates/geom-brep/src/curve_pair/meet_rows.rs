@@ -2278,7 +2278,12 @@ fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
 /// middle, then straight down through `y = 0` to `y = −0.008`; the line
 /// `y = 0` crosses that second span at `(0.012, 0, 0)`. Each span is
 /// straight, so a bound read span by span is zero, though the tangent
-/// turns a right angle at the knot: the crease bounds no `|C″|`.
+/// turns a right angle at the knot: the crease bounds no `|C″|` over the
+/// whole carrier. The walk's window reads the curvature over its own
+/// arcs (`walk::Read::curvature_near`), which lie inside the second span
+/// far from the crease, so every window the walk asks proves its basin
+/// (`curve_pair_walk_basin`). Read over the whole carrier, the basin
+/// proves nowhere on it.
 #[test]
 fn a_spline_with_a_corner_meets_a_line_past_it() {
     use geom::NurbsCurve3;
@@ -2297,17 +2302,39 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         .unwrap(),
     ));
     let b = line([-0.3, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let got = super::walk::meet(
-        &Span::new(&a, (0.0, 1.0)),
-        &Span::new(&b, (0.0, 0.6)),
-        band(),
-    );
+    let (got, rec) = geom_core::k_stats::detached(|| {
+        super::walk::meet(
+            &Span::new(&a, (0.0, 1.0)),
+            &Span::new(&b, (0.0, 0.6)),
+            band(),
+        )
+    });
     let Ok(m) = got else {
         panic!("the walk reads the crossing: {got:?}")
     };
     assert!(
         m.points.len() == 1 && interiors_meet(&m),
         "one meeting, on both interiors: {m:?}"
+    );
+    let basin = |p: &str| p == "curve_pair_walk_basin";
+    let signs: Vec<geom_core::Sign> = rec
+        .recorded()
+        .verdicts
+        .iter()
+        .filter(|v| basin(v.predicate))
+        .map(|v| v.sign)
+        .collect();
+    assert!(
+        !signs.is_empty() && signs.iter().all(|&s| s == geom_core::Sign::Positive),
+        "every window the walk asks proves its basin: {signs:?}"
+    );
+    assert!(
+        !rec.recorded()
+            .escalations
+            .iter()
+            .any(|e| basin(e.predicate())),
+        "no basin is left undecided: {:?}",
+        rec.recorded().escalations
     );
 }
 

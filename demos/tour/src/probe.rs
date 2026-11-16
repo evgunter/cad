@@ -405,8 +405,8 @@ pub fn run(out: Option<String>, tol: Tol) {
     );
     // Refusal-path samples again (the M2 K report's standing gap): the
     // lily's walls, run at the probe scalar, and their margins record
-    // here — wall 7's carve builds and its drawing is what refuses, so
-    // that wall records the decisions of a whole tilted sphere cut.
+    // here — wall 7's carve builds, so that wall records the decisions
+    // of a whole tilted sphere cut.
     let lily_walls = || {
         lily::wall_probes::<Probe>(tol);
         Vec::new()
