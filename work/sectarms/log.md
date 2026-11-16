@@ -847,3 +847,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Notes: the F4 audit is stale; the Interval label is not an enclosure; misplaced doc blocks; the `holds_outer` row cannot see a flip.
 - **Adjudicated: the whole union taken.** The lever goes piecewise, reusing `rational_rate_bound`; the P3 item lands with the PR; a fast `choose_roles` row; the audit is updated; the Interval path is labelled honestly; ladder and sign rows; style.
 - **Fix pass dispatched fresh on the implementer's arm (Fable),** because its agent was lost to the restart (`fix-7028.md`). The row records that the fix pass is a new agent.
+- 2026-11-16 — **Another container restart lost the PR 7028 fix pass** before it committed anything; the worktree was clean at `742695cb4e`. Re-dispatched fresh on the same arm (Fable) with the same brief, now told to push work in progress after each item. The row records both losses.
