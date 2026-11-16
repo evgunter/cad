@@ -837,3 +837,5 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Agreed:** the diagnosis (the join drops the trace's pcurve), one partner-blind rule, a break-list projection replacing the uniform climb for carriers with no traced image, one wall-chart minting rule for trace and rest, and the C2 at-rest sentences rewritten (agent-written in PR 6879, unratified).
   - **To file once Ev answers:** the docs of `carrier_span` and `general_image_lane` claim the certified image is the stored one, which is false on the plane lane.
   - Subscribed to PR 7032.
+- 2026-11-16 — **A container restart lost the planar unit's agent** after it had pushed [PR 7028](https://github.com/evgunter/cad/pull/7028) with a complete body. At the loss its head was `742695cb4e`, and it was waiting on CI after a gate fix (`cover-kind-match`). The worktree was clean and matched the remote, so I do not re-dispatch it: the work is done, and the frozen head goes to review. Its time and tokens were not reported; the row records the loss.
+- **PR 7028 review dispatched:** single FULL, as logged at dispatch. Reviewer byte drawn after this entry.
