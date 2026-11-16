@@ -11,11 +11,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{insert, len, slid, table};
+use crate::fixture::{in_space, insert, len, slid, table};
 use editor_core::{
-    Bodies, CancelToken, DocEdit, EntityKey, EntityKind, Entry, EvalOptions, Evaluation,
-    LoopProgram, Node, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId,
-    StableName, ValuePayload, apply, evaluate,
+    Bodies, BooleanValue, CancelToken, DocEdit, EntityKey, EntityKind, Entry, EvalOptions,
+    Evaluation, LoopProgram, Node, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    SlotId, StableName, ValuePayload, apply, evaluate,
 };
 use geom_core::{Point3, Tol};
 
@@ -140,7 +140,8 @@ fn the_brackets_mixed_corners_name_each_entity_once_and_keep_their_names() {
 /// The name of the edge of `id`'s body between two points.
 fn edge_named(ev: &Evaluation<f64>, id: RecipeNodeId, a: [f64; 3], b: [f64; 3]) -> StableName {
     let body = match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => b.body(),
+        ValuePayload::Body(b) => in_space(b),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => in_space(body),
         other => panic!("expected a body, got {other:?}"),
     };
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();

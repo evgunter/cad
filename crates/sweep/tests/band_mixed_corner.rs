@@ -31,7 +31,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, at_rest, corners, cylinder_of_arcs_at, prism_at, realized,
 };
-use topo::boolean::BooleanOp;
+use topo::boolean::{BooleanInputs, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, validate_geometric};
 
 pub(crate) fn tol() -> Tol {
@@ -96,6 +96,25 @@ fn point<T: Scalar>(body: &Body<T>, v: topo::VertexKey) -> P {
     let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let mid = |x: T| 0.5 * (x.lo() + x.hi());
     (mid(p.x), mid(p.y), mid(p.z))
+}
+
+/// [`realized`] at any scalar: the boolean `op` of `a` and `b`.
+fn realized_at<T: Scalar>(op: BooleanOp, a: &Body<T>, b: &Body<T>) -> Body<T> {
+    let finished = |what: &str, x: &Body<T>| sweep::test_support::finished(what, x.clone(), tol());
+    boolean_op_with(
+        op,
+        &finished("the fixture's operand A", a),
+        &finished("the fixture's operand B", b),
+        &BooleanInputs::default(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the fixture's {op:?} builds, got {e:?}"))
+    .body()
+    .expect("the fixture's boolean is a body")
+    .body
+    .clone()
+    .into_body()
 }
 
 /// The one edge between `a` and `b`, either way round.
@@ -201,7 +220,7 @@ pub(crate) fn inset_at<T: Scalar>(phi: f64) -> (Body<T>, [EdgeKey; 3]) {
         T::from_f64(1.5),
         tol(),
     );
-    let body = realized(BooleanOp::Union, &plate, &boss, tol());
+    let body = realized_at(BooleanOp::Union, &plate, &boss);
     let o = (0.0, 0.0, 0.0);
     let edges = [
         edge(&body, o, (0.0, 0.0, 1.0)),
@@ -250,7 +269,7 @@ pub(crate) fn inset<T: Scalar>() -> (Body<T>, [EdgeKey; 3]) {
         T::from_f64(1.5),
         tol(),
     );
-    let body = realized(BooleanOp::Union, &plate, &boss, tol());
+    let body = realized_at(BooleanOp::Union, &plate, &boss);
     let o = (0.0, 0.0, 0.0);
     let edges = [
         edge(&body, o, (0.0, 0.0, 1.0)),
@@ -274,7 +293,7 @@ pub(crate) fn boreless<T: Scalar>() -> Body<T> {
         T::from_f64(1.75),
         tol(),
     );
-    realized(BooleanOp::Union, &plate, &boss, tol())
+    realized_at(BooleanOp::Union, &plate, &boss)
 }
 
 /// **The bracket** of the row: a 6 × 4 × 0.5 plate, an upright

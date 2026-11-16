@@ -454,9 +454,8 @@ pub(super) fn record<T: Real>(
 }
 
 /// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction or a turn \
-     and its other end is shorter than its two ends' feet need: they cross or coincide on its \
-     trimline";
+pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a junction or a turn \
+     is shorter than its two ends' feet need: they cross or coincide on its trimline";
 
 /// **A straight link's feet in order, on each support, where one of its
 /// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,

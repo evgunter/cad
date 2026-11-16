@@ -2397,10 +2397,7 @@ pub fn pocket_of_arcs(n: usize, l: f64, r: f64, floor: f64, tol: Tol) -> Body<f6
 /// leaves no body — a fixture bug, louder as a panic than as an empty
 /// answer.
 #[must_use]
-pub fn realized<T>(op: BooleanOp, a: &Body<T>, b: &Body<T>, tol: Tol) -> Body<T>
-where
-    T: Decide + Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
-{
+pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f64> {
     boolean_op_with(
         op,
         &finished("the fixture's operand A", a.clone(), tol),

@@ -33,6 +33,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, corners, prism_at};
 use topo::{Body, EdgeKey, validate_geometric};
 
+use crate::band_closed_mixed_chain_shapes::tightest_interval;
 use crate::band_mixed_corner::{
     P, Scalar, at, boreless, edge, flush, flush_at, inset, inset_at, l_corner, l_prism, leaning,
     leaning_odd_and_one, tol, volume,
@@ -158,6 +159,22 @@ fn the_odd_edge_with_one_pair_edge_chamfers_at_its_closed_form() {
     right_angle_rows::<Interval>("Interval");
 }
 
+/// **What the inset corner at 120° does at `Interval` at ε 1e-12**: its
+/// second pair edge's trimline chord escalates its endpoint
+/// certificate, the enclosure of a coordinate read through the
+/// fixture's trigonometry being a hair wider than the band's zero. The
+/// same edge's pair mitre and all-three corner escalate there too, so
+/// it is the fixture's, not the rule's.
+fn assert_endpoint_escalation<T: Scalar>(what: &str, got: Result<Blended<T>, BlendError>) {
+    let text = format!("{:?}", got.as_ref().map(|_| ()));
+    assert!(
+        text.contains("trimline mef")
+            && text.contains("Escalated { check: EndpointEnd")
+            && text.contains("carrier_endpoint_end"),
+        "{what}: at Interval at ε 1e-12 the trimline's endpoint escalates, got {text}"
+    );
+}
+
 /// The flush and inset corners at plan angles 60° and 120°, each pair
 /// edge, at scalar `T`.
 fn plan_angle_rows<T: Scalar>(scalar: &str) {
@@ -170,6 +187,10 @@ fn plan_angle_rows<T: Scalar>(scalar: &str) {
             let truth = sign * flush_form(phi, S, (l, 1.0));
             for (pair, which) in [(y, "first"), (z, "second")] {
                 let what = format!("{kind} at {deg:.0}°, {which} pair edge, {scalar}");
+                if tightest_interval::<T>() && kind == "inset" && which == "second" && deg > 90.0 {
+                    assert_endpoint_escalation(&what, chamfer(&body, &[odd, pair], S));
+                    continue;
+                }
                 builds(&body, &[odd, pair], (S, truth, 1), &what);
             }
         }
