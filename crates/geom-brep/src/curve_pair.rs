@@ -500,6 +500,13 @@ fn both<T>(
 struct Found<T: geom_core::Real> {
     points: Vec<Meeting<T>>,
     held: Vec<(Point3<T>, MeetFault)>,
+    /// PROBE (ring width): whether the walk's piece pair for the next
+    /// candidate lies wholly inside the ringing meeting's ring; `None`
+    /// for a candidate the walk did not build.
+    probe_contained: Option<bool>,
+    /// PROBE: the refusal the "neither" class raises under
+    /// `CAD_RING_PROBE_REFUSE`.
+    probe_refused: Option<MeetFault>,
 }
 
 impl<T: geom_core::Real> Default for Found<T> {
@@ -507,6 +514,8 @@ impl<T: geom_core::Real> Default for Found<T> {
         Self {
             points: Vec::new(),
             held: Vec::new(),
+            probe_contained: None,
+            probe_refused: None,
         }
     }
 }
@@ -530,11 +539,56 @@ impl<T: Decide> Found<T> {
                 b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
             )
         };
+        let contained = self.probe_contained.take();
         let Some(bound) = c.bound else {
             self.offer(c.point, on_both, band);
             return;
         };
         if ringed(&self.points, c.point, band) {
+            let floor = geom_core::k_stats::decide(
+                "ring_probe_floor",
+                geom_core::Margin::of(bound.floor),
+                band,
+            );
+            let class = if floor == Ok(geom_core::Sign::Positive) {
+                "a-decided"
+            } else if contained == Some(true) {
+                "b-contained"
+            } else {
+                "neither"
+            };
+            let at_end = |span: &Span<'_, T>, t: T| {
+                let (lo, hi) = span.params();
+                span.ended()
+                    && [t - lo, hi - t].into_iter().any(|g| {
+                        geom_core::k_stats::decide("ring_probe_end", geom_core::Margin::of(g), band)
+                            == Ok(geom_core::Sign::Zero)
+                    })
+            };
+            let ((_, da), (_, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
+            let dot = da.dot(db) / (da.norm() * db.norm());
+            let line = format!(
+                "RINGPROBE\t{}\t{}\t{:?}\t{:?}\t{}\t{}\t{:?}\t{:?}\n",
+                std::thread::current().name().unwrap_or("?"),
+                class,
+                a.carrier().kind(),
+                b.carrier().kind(),
+                at_end(a, c.ta),
+                at_end(b, c.tb),
+                dot,
+                if contained.is_some() { "walk" } else { "pose" },
+            );
+            if let Some(path) = std::env::var_os("CAD_RING_PROBE_LOG") {
+                use std::io::Write;
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = f.write_all(line.as_bytes());
+                }
+            }
+            if class == "neither" && std::env::var_os("CAD_RING_PROBE_REFUSE").is_some() {
+                self.probe_refused.get_or_insert(MeetFault::Unsettled(Unsettled::Meter {
+                    row: "ring_probe_neither",
+                }));
+            }
             return;
         }
         let floor = geom_core::k_stats::decide_reported(
@@ -588,11 +642,12 @@ impl<T: Decide> Found<T> {
         shared: Option<Sense>,
         band: Band,
     ) -> Result<Meetings<T>, MeetRefusal<T>> {
-        let held = self
-            .held
-            .iter()
-            .find(|(q, _)| !ringed(&self.points, *q, band))
-            .map(|&(_, fault)| fault);
+        let held = self.probe_refused.or_else(|| {
+            self.held
+                .iter()
+                .find(|(q, _)| !ringed(&self.points, *q, band))
+                .map(|&(_, fault)| fault)
+        });
         let fault = match (held, shared) {
             (Some(fault), _) => Some(fault),
             (None, Some(_)) => None,

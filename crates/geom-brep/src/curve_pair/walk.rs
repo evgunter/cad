@@ -424,6 +424,23 @@ pub(super) fn meet<T: Decide>(
                     tb: t,
                     bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
                 };
+                // PROBE (ring width): both pieces inside the ringing
+                // meeting's ring, each its middle's distance plus reach
+                // below the band's escalation width.
+                let escalate = T::from_f64(band.escalate());
+                let contained = found.points.iter().any(|m| {
+                    super::ringed_by([m.point], candidate.point, band)
+                        && [(ra.curve().eval(ma), pa.reach(ra.hi())), (rb.curve().eval(mb), pb.reach(rb.hi()))]
+                            .into_iter()
+                            .all(|(mid, reach)| {
+                                geom_core::k_stats::decide(
+                                    "ring_probe_contained",
+                                    Margin::of((m.point - mid).norm() + reach - escalate),
+                                    band,
+                                ) == Ok(Sign::Negative)
+                            })
+                });
+                found.probe_contained = Some(contained);
                 found.read(a, b, candidate, band);
                 return Step::Settled;
             }
