@@ -96,7 +96,7 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
         "M10R2 gapped pieces: door {door:?}, flux {flux:?} vs control ({}, {})",
         ctl.flux, ctl.area
     );
-    let meet = PropsError::NotIsoRectangle {
+    let meet = PropsError::SpanUncertified {
         what: "props_meridian_pieces_meet",
     };
     assert_eq!(door, Err(meet.clone()));

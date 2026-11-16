@@ -510,7 +510,11 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
         );
         let early = |what: &str, got: Result<f64, PropsError>, names: &[&str]| {
             let named = match &got {
-                Err(PropsError::OffSurface { what } | PropsError::NotIsoRectangle { what }) => {
+                Err(
+                    PropsError::OffSurface { what }
+                    | PropsError::NotIsoRectangle { what }
+                    | PropsError::SpanUncertified { what },
+                ) => {
                     names.contains(what)
                 }
                 Err(PropsError::Escalated { cause, .. }) => {

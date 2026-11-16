@@ -105,7 +105,7 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
         require_iso_rectangle(&torus(), &gapped(0.7, 0.7), band()),
         Ok(())
     );
-    let meet = PropsError::NotIsoRectangle {
+    let meet = PropsError::SpanUncertified {
         what: "props_meridian_pieces_meet",
     };
     // The flux lane is the torus's chart Green form, which reads the

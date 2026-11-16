@@ -152,7 +152,7 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
     let winding = |r: &Result<(), PropsError>| {
         matches!(
             r,
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::SpanUncertified {
                 what: "props_meridian_span_winding"
             })
         )
