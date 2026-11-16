@@ -71,4 +71,4 @@ included (`ProfileEdit::read_drivers`, from `Drafts::sync_profile_edit`).
 The preview is drawn from the draft, so it follows. That holds for an
 untouched draft and for one holding edits, during a drag and after it
 (`pane::profile::tests::the_drawn_outline_follows_what_a_driven_argument_reads`,
-and the review's `app::properties_pane_tests::review_6144` rows).
+and the `app::properties_pane_tests::held_driven_profile` rows).

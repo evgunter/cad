@@ -355,9 +355,9 @@ struct EdgeGeo<T: Real> {
     /// The point keys `v0` and `v1` sit on; `None` for a segment no
     /// body holds.
     points: [Option<PointKey>; 2],
-    /// Unit direction v0 → v1.
+    /// The unit direction from `p0` to `p1`.
     dir: Vec3<T>,
-    /// Chord length (positive on tier-2 bodies).
+    /// The length from `p0` to `p1` (positive on tier-2 bodies).
     len: T,
     /// The two adjacent faces (structural-adjacency exclusions).
     f_plus: FaceKey,
@@ -2231,7 +2231,7 @@ enum OneCarrier {
 
 /// [`OneCarrier`] of `fx` and `fy`.
 fn one_carrier<T: Decide>(body: &Body<T>, fx: FaceKey, fy: FaceKey, band: Band) -> OneCarrier {
-    use crate::boolean::{CarrierEqError, CarrierRelation};
+    use geom_brep::{CarrierEqError, CarrierRelation};
     match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
         Ok(
             Ok(CarrierRelation::SameOpposite)
@@ -2346,11 +2346,21 @@ pub(crate) fn edge_line<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<geom::Line<T>> {
-    body.edges
+    edge_line_span(body, ek).map(|(line, _)| line)
+}
+
+/// [`edge_line`] with the edge's interval on it, `(t0, t1)` as its plus
+/// half walks it: the edge as its stored line holds it.
+fn edge_line_span<T: Real>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+) -> Option<(geom::Line<T>, (T, T))> {
+    let curve = body
+        .edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)
-        .and_then(|c| c.carrier().as_line())
+        .and_then(CurveGeom::certified)?;
+    Some((curve.carrier().as_line()?, curve.params()))
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -6518,7 +6528,7 @@ fn planar_face_pairs<T: Decide>(
                     _ => continue,
                 };
             match relation {
-                crate::boolean::CarrierRelation::SameOpposite => {
+                geom_brep::CarrierRelation::SameOpposite => {
                     let area = |x, y| {
                         matches!(
                             lane.declared_overlap(
@@ -6540,7 +6550,7 @@ fn planar_face_pairs<T: Decide>(
                         });
                     }
                 }
-                crate::boolean::CarrierRelation::SameOriented => {
+                geom_brep::CarrierRelation::SameOriented => {
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
@@ -6606,7 +6616,7 @@ fn curved_same_side_pairs<T: Decide>(
     let surface = |f: FaceKey| body.surfaces.get(body.get_face(f)?.surface);
     let kind = |f: FaceKey| {
         surface(f)
-            .filter(|s| crate::boolean::carrier_eq::exact_curved(s))
+            .filter(|s| geom_brep::carrier_eq::exact_curved(s))
             .map(geom::Surface::kind)
     };
     // A face's span along an axis: its boundary's, which on a cylinder
@@ -6656,7 +6666,7 @@ fn curved_same_side_pairs<T: Decide>(
                 Some(Ok(_)) => true,
                 Some(Err(_)) => continue,
             };
-            let Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) =
+            let Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) =
                 crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                     .map(|reading| reading.map(|verdict| verdict.one()))
             else {
@@ -6707,10 +6717,10 @@ fn in_band_reading<T: Decide>(
     geo: &Geo<T>,
     lane: RegionLane<T>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
-    door_one: crate::boolean::CarrierEqError,
+    door_one: geom_brep::CarrierEqError,
     band: Band,
 ) -> InBand {
-    use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    use geom_brep::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
     // A torus off its ring convention read no coincidence at all, in band
     // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
@@ -9028,7 +9038,7 @@ impl<T: Decide> FaceSector<T> {
             .ok_or(TouchUnread::Corrupt)?
             .vec();
         if !fg.polygon {
-            return Self::cleared(body, f, outward, p, holds);
+            return Self::cleared(body, f, outward, p, holds, band);
         }
         let rings = fg
             .loops
@@ -9381,7 +9391,7 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::face_reach::face_reach_from(body, f, p)
+        crate::cover::face_reach_from(body, f, p, band)
             .map(geom_core::Lever::length)
             .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))
     };
@@ -11094,21 +11104,21 @@ fn confirm_face_pair<T: Decide>(
     // A carrier the ladder calls one, or one within the band, is a
     // patch, which the patch door reads (and refuses in band).
     match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
-        Ok(Ok(crate::boolean::CarrierRelation::Distinct))
+        Ok(Ok(geom_brep::CarrierRelation::Distinct))
         | Err(crate::boolean::PairUnread::OutsideInventory) => {}
         // A torus off its ring convention is tier 3's finding; the
         // patch door reads the pair as it reads one in band.
         Ok(
             Ok(_)
             | Err(
-                crate::boolean::CarrierEqError::Undecided { .. }
-                | crate::boolean::CarrierEqError::OffRing { .. },
+                geom_brep::CarrierEqError::Undecided { .. }
+                | geom_brep::CarrierEqError::OffRing { .. },
             ),
         ) => {
             confirm_patch(body, a, b, band, region, errors);
             return;
         }
-        Ok(Err(crate::boolean::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             errors.push(ValidationError::CensusEscalated { cause: diag });
             return;
         }
@@ -11397,22 +11407,56 @@ fn interiors_meet<T: Decide>(
 fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     let chord = p1 - p0;
     EdgeGeo {
+        p1,
+        ..span_along(p0, chord.normalize(), chord.norm())
+    }
+}
+
+/// The census geometry of the span from `p0` along the unit `dir`, `len`
+/// long, which no body holds as an edge: its far end is `p0 + dir·len`.
+/// For a span given by where it starts and how it runs (a ray, an edge's
+/// stored line): its direction is the one given, where [`segment`]'s is
+/// read off two ends.
+fn span_along<T: Real>(p0: Point3<T>, dir: Vec3<T>, len: T) -> EdgeGeo<T> {
+    EdgeGeo {
         key: EdgeKey::default(),
         v0: VertexKey::default(),
         v1: VertexKey::default(),
         p0,
-        p1,
+        p1: p0 + dir * len,
         points: [None; 2],
-        dir: chord.normalize(),
-        len: chord.norm(),
+        dir,
+        len,
         f_plus: FaceKey::default(),
         f_minus: FaceKey::default(),
     }
 }
 
-/// **How a segment passes one of a body's line edges** — the
-/// edge-edge closest read ([`ee_lines_closest`]) with the segment as the
-/// first span: what a ray reads of the edges it passes
+/// **A line edge as its stored line holds it**: the span from the
+/// line's point at the start of the edge's interval, along the line's
+/// direction, to the interval's end, with `edge`'s keys and faces. A
+/// vertex is the body's cache of where an edge ends and the line is what
+/// the edge is (`[intent.stored]`), so a direction read off two vertices
+/// that share a boxed coordinate carries that box where the line holds
+/// none.
+fn on_its_line<T: Real>(
+    edge: &EdgeGeo<T>,
+    (line, (t0, t1)): (geom::Line<T>, (T, T)),
+) -> EdgeGeo<T> {
+    let (dir, speed) = line.dir.direction_and_length();
+    EdgeGeo {
+        key: edge.key,
+        v0: edge.v0,
+        v1: edge.v1,
+        f_plus: edge.f_plus,
+        f_minus: edge.f_minus,
+        ..span_along(line.at(t0), dir, (t1 - t0) * speed)
+    }
+}
+
+/// **How a ray's span passes one of a body's line edges** — the
+/// edge-edge closest read ([`ee_lines_closest`]) with the span as the
+/// first: what a ray reads of the edges it passes
 /// (`boolean::solid_contain::ray_crossings`).
 pub(crate) struct LinePass<T: Real> {
     /// The edge.
@@ -11423,8 +11467,8 @@ pub(crate) struct LinePass<T: Real> {
     pub(crate) ends: [VertexKey; 2],
     /// The lines' distance where they come closest, enclosed.
     pub(crate) gap: [T; 2],
-    /// How far along the segment from its start they come closest,
-    /// enclosed.
+    /// The advance along the span's direction, from its start, where
+    /// they come closest, enclosed.
     pub(crate) along: [T; 2],
     /// How far along the edge they come closest, from each of its ends,
     /// enclosed.
@@ -11432,18 +11476,33 @@ pub(crate) struct LinePass<T: Real> {
 }
 
 /// Every line edge of `body` that `keep` holds (asked of its key and two
-/// faces), as the segment `from → to` passes it ([`LinePass`]). The
-/// caller keeps only edges whose line is not parallel to the segment:
-/// the closed form divides by the sine of their angle.
+/// faces), as the span from `from` along the unit `dir` to advance `top`
+/// passes it ([`LinePass`]). Both spans are read as given: the ray's by
+/// its start and direction ([`span_along`]), each edge by its stored line
+/// ([`on_its_line`]), found once. The caller keeps only edges whose line
+/// is not parallel to the span: the closed form divides by the sine of
+/// their angle.
+///
+/// Reading the edge off its line and not off its two vertices changes a
+/// reading only where the two differ: by the body's tolerance at `f64`
+/// (`the_ray_passes_an_edges_stored_line_not_its_vertices_chord`), and
+/// over a box wherever the line was stored narrower than the chord. The
+/// sweep doors store a moving edge's line as wide as its chord today
+/// (`work/boxfinish/the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box.md`),
+/// so over their bodies it changes none yet.
 pub(crate) fn line_passes<T: Real>(
     body: &Body<T>,
-    (from, to): (Point3<T>, Point3<T>),
+    (from, dir, top): (Point3<T>, Vec3<T>, T),
     keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
 ) -> Vec<LinePass<T>> {
-    let ray = segment((from, to));
-    line_edges(body)
-        .into_iter()
-        .filter(|e| keep(e.key, e.f_plus, e.f_minus))
+    let ray = span_along(from, dir, top);
+    body.edges
+        .iter()
+        .filter_map(|(key, _)| {
+            let line = edge_line_span(body, key)?;
+            let edge = edge_geo(body, key)?;
+            keep(edge.key, edge.f_plus, edge.f_minus).then(|| on_its_line(&edge, line))
+        })
         .map(|e| {
             let closest = ee_lines_closest(&ray, &e);
             LinePass {
@@ -11937,7 +11996,7 @@ fn flush_pairs<T: Decide>(
             let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                 .map(|reading| reading.map(|verdict| verdict.one()))
             {
-                Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) => margin,
+                Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) => margin,
                 _ => continue,
             };
             let planar = planar_face(geo, fa).zip(planar_face(geo, fb));
@@ -12024,11 +12083,11 @@ fn flush_pairs<T: Decide>(
 }
 
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
-/// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
+/// decides exactly ([`geom_brep::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face(f)
         .map(|f| f.surface())
-        .is_some_and(crate::boolean::carrier_eq::exact_curved)
+        .is_some_and(geom_brep::carrier_eq::exact_curved)
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -15468,70 +15527,6 @@ mod tests {
         body
     }
 
-    /// A planar cap in the plane `x = offset`, bounded by one SPIRIC arc
-    /// — the section of the torus `(R, r)` about the `z` axis, over its
-    /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
-    fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-        let tol = Tol::witness();
-        let spiric = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-            major_radius: big_r,
-            minor_radius: r,
-            offset,
-        };
-        let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p0, true).expect("a seed");
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(offset, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        });
-        let torus = body.add_surface(Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: big_r,
-            minor_radius: r,
-            u_ref: Vec3::unit_x(),
-        });
-        let arc = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p1,
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        pair: SurfacePair::new(torus, plane),
-                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.5 * (v0 + v1))),
-                    },
-                    carrier: spiric,
-                    param_start: v0,
-                    param_end: v1,
-                },
-                tol,
-            )
-            .expect("the spiric arc");
-        body.mef(
-            MefSite::Chords {
-                he1: arc.he_minus,
-                he2: arc.he_plus,
-            },
-            EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-            tol,
-        )
-        .expect("the chord closes the cap");
-        body
-    }
-
     /// [`spiric_cap`] of the torus `R = 2, r = 1` in `x = 1/2`, over
     /// `[−π/2, π/2]`, with a cube grafted in beside it whose `x = 1/2`
     /// face lies in the cap's plane, outside the cap and inside the ball
@@ -15540,7 +15535,14 @@ mod tests {
     fn spiric_cap_and_near_cube() -> Body<f64> {
         use std::f64::consts::FRAC_PI_2;
         let tol = Tol::witness();
-        let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+        let mut body = crate::test_support_fixtures::spiric_cap(
+            2.0,
+            1.0,
+            0.5,
+            (-FRAC_PI_2, FRAC_PI_2),
+            Tol::witness(),
+        )
+        .0;
         let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
         crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
@@ -16295,7 +16297,8 @@ mod tests {
     fn just_past_a_spiric_arcs_end_the_cap_answers() {
         use std::f64::consts::FRAC_PI_2;
         let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
-        let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
+        let body =
+            crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -18590,7 +18593,14 @@ mod tests {
                 errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
                 "{cuts:?} {errors:?}"
             );
-            let mut across = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let mut across = crate::test_support_fixtures::spiric_cap(
+                2.0,
+                1.0,
+                0.5,
+                (-FRAC_PI_2, FRAC_PI_2),
+                Tol::witness(),
+            )
+            .0;
             let cube = cube_at(Vec3::new(0.5, 2.5, -0.5), tol);
             crate::instance::graft_disjoint(&mut across, &cube).unwrap();
             let (cap, edge) = in_plane(&across, -0.5);
@@ -23124,5 +23134,42 @@ mod corner_cause_rows {
         for (why, named) in causes {
             assert_eq!(corner_cause(&why), TouchUnread::Curved(named), "{why:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod line_pass_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::test_support_fixtures::brick;
+
+    /// **The ray's edge pass reads an edge off its stored line, not off
+    /// the chord of its vertices.** A unit brick with one vertex's point
+    /// moved a thousandth off the edges that end at it, their lines left
+    /// as built: a span through the middle of one such edge's line passes
+    /// it at no gap, and half a thousandth from its vertices' chord. Red
+    /// against a pass that reads the edge's two ends.
+    #[test]
+    fn the_ray_passes_an_edges_stored_line_not_its_vertices_chord() {
+        let tol = geom_core::Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (key, edge) = line_edges(&body)
+            .into_iter()
+            .map(|e| (e.key, e))
+            .find(|(_, e)| e.dir.z.abs() < 0.5 && e.p0.z > 0.5)
+            .expect("a brick has a top edge");
+        let moved = edge.points[1].expect("an edge of a body sits on points");
+        body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
+        let middle = edge.p0 + edge.dir * (0.5 * edge.len);
+        let across = edge.dir.cross(Vec3::new(0.0, 0.0, 1.0));
+        let passes = line_passes(&body, (middle - across, across, 2.0), |k, _, _| k == key);
+        let [pass] = &passes[..] else {
+            panic!("the one edge kept: {} passes", passes.len());
+        };
+        assert!(
+            pass.gap[1] < 1e-12,
+            "the span runs through the edge's stored line: gap {:?}",
+            pass.gap
+        );
     }
 }

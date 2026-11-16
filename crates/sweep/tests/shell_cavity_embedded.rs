@@ -3,7 +3,7 @@
 //! moved clone is asked the verdict door's question
 //! (`topo::clearance::embedded`) before it is inserted. At `f64` the
 //! shell does not ask yet, and the rows that will pin it there wait on
-//! `work/clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
+//! `work/embed/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
 //!
 //! - a vessel holding a coaxial void whose dilation reaches past the
 //!   eroded wall refuses `CavityCrosses` at `Interval` and at
@@ -215,16 +215,36 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
 /// `Interval` in the general offset door before the cavity is built, an
 /// escalation at `offset_corner_on_surface`. It waits on
 /// `work/shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
-/// whose fix turns this row into a `CavityCrosses` row.
+/// whose fix turns this row into a `CavityCrosses` row. At ε = 1e-6 it
+/// is that row already, since the extrude's caps and walls are its
+/// sketch frame: the door reaches the cavity gate, which refuses the
+/// neck, typed.
 #[test]
 fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
-    match shell(dumbbell::<Interval>(-0.2), 0.15) {
+    let at_1e6 = Tol::witness().eps() == 1e-6;
+    let operand: Body<Interval> = dumbbell(-0.2);
+    match shell(operand.clone(), 0.15) {
+        Err(ShellError::CavityCrosses {
+            face,
+            other,
+            stations,
+            distance,
+        }) if at_1e6 => {
+            // The neck: its two arc walls, eroded toward each other, meet.
+            assert!(
+                is_cylinder(&operand, face) && is_cylinder(&operand, other) && face != other,
+                "the witness is the neck's two arc walls: {face:?} {other:?}"
+            );
+            println!("[dumbbell 1e-6] stations {stations:?} distance {distance:e}");
+            assert!(distance <= 1e-6, "the witness pair coincides: {distance}");
+        }
         Err(ShellError::Face { error, .. })
-            if matches!(
-                &*error,
-                topo::ReplaceFaceError::Escalated { source }
-                    if source.predicate == Some("offset_corner_on_surface")
-            ) => {}
+            if !at_1e6
+                && matches!(
+                    &*error,
+                    topo::ReplaceFaceError::Escalated { source }
+                        if source.predicate == Some("offset_corner_on_surface")
+                ) => {}
         other => panic!(
             "the general offset door refuses the curved twin at Interval, typed; got {:?}",
             other.map(|_| ())
@@ -500,7 +520,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
 /// meeting along the full meridian, and the departure certificate does
 /// not discharge that pair, the refusal the operand itself has at both
 /// scalars. The row waits on
-/// `work/clear/one-face-torus-cut-refuses-across-its-meridian.md`; when
+/// `work/embed/one-face-torus-cut-refuses-across-its-meridian.md`; when
 /// that row is fixed this cavity certifies and the row moves to a body
 /// the engine still refuses.
 #[test]

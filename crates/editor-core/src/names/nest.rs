@@ -376,7 +376,8 @@ impl RoleSeg {
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::EndArc { vertex: a, edge: b } => {
+            | RoleSeg::EndArc { vertex: a, edge: b }
+            | RoleSeg::HostFoot { vertex: a, edge: b } => {
                 f(Shared(a));
                 f(Shared(b));
             }
@@ -435,7 +436,8 @@ impl RoleSeg {
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::EndArc { vertex: a, edge: b } => {
+            | RoleSeg::EndArc { vertex: a, edge: b }
+            | RoleSeg::HostFoot { vertex: a, edge: b } => {
                 f(Shared(a));
                 f(Shared(b));
             }
@@ -1954,6 +1956,10 @@ pub(super) mod tests {
                 R::Mitre { vertex: r(a) },
                 R::TurnFoot { vertex: r(b) },
                 R::BandSection { vertex: r(a) },
+                R::HostFoot {
+                    vertex: r(b),
+                    edge: r(a),
+                },
                 R::BandFace(vec![a.clone(), b.clone()]),
                 R::BandTrim {
                     edge: r(a),

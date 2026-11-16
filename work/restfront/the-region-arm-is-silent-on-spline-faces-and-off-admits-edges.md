@@ -20,7 +20,7 @@ face is exempt, silently, as validate's not-yet-checked list says
 
 - **A spline chart** (`Nurbs`, `Approx`): `cycle_side` answers `None`.
   The spline door reads a face's whole trim at once
-  (`boolean::spline_region`, `Trim::of` and `Trim::with_rings`): it lifts
+  (`topo::spline_trim`, `Trim::of` and `Trim::with_rings`): it lifts
   each loop, refuses a loop that winds, and places each ring in the outer
   loop's cover. A ring it cannot place inside makes the trim unreadable,
   so a spline face's ring outside its outer loop is unread rather than

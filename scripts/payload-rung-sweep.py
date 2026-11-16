@@ -1037,7 +1037,7 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
     #
     # BLIND SPOT (b), OPEN: a payload named only through a type ALIAS or an
     # associated type. A `pub use … as` rename on a curated list's chain is
-    # followed (the prelude's `PlaneRelation` resolves to `CarrierRelation`);
+    # followed (a `pub use X as Y` resolves `Y` to `X`'s declaration);
     # a `type` alias is not, so a list that carries a declaration under one
     # reads as carrying nothing, and the declaration reads as uncurated. The
     # `type` arm is mechanically closable and the associated-type arm is not.

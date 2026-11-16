@@ -228,7 +228,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerLinks, OpenBand, RequestedBoundary, StationKind};
 use super::arms::BallSection;
 use super::battery::{
-    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, blend_sense, face_clearance_margin,
     same_supports,
 };
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at, outward_of};
@@ -731,7 +731,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                  whose three edges are not all requested",
             ));
         }
-        corners.push(corner_plan(source, links, radius, kind)?);
+        let mixed = verdict.mixed.iter().find(|m| m.vertex == v).copied();
+        corners.push(corner_plan(source, links, mixed, radius, kind)?);
     }
 
     // ---- The support faces, admitted before anything is carved: each
@@ -877,7 +878,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
-        let sense = rim.chain.first().convexity.blend_sense();
+        let sense = blend_sense(rim.chain.first().convexity);
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
@@ -933,7 +934,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // outward whatever the convexity is, and reading the verdict here
     // would flip a face that was already right.
     let band_sense = |convexity: Convexity| match kind {
-        BlendKind::Fillet => convexity.blend_sense(),
+        BlendKind::Fillet => blend_sense(convexity),
         BlendKind::Chamfer => true,
     };
     for (o, fk, surface) in &blend_rows {
@@ -1130,7 +1131,7 @@ fn corner_shell(
 /// support strips between the rim and the trimlines and a concave rim's
 /// identical carve ADDS them; the one sense the band carries is its
 /// face bit, folded from the chain's stored verdict at the door
-/// ([`Convexity::blend_sense`]).
+/// ([`blend_sense`]).
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
@@ -2879,7 +2880,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             // on the same stored carrier — so `origin - mid` is purely
             // transverse by shared construction, never by cancellation.
             let frame = strip_frame(body, l, face)?;
-            let (origin, m, _) = frame;
+            let (origin, m, across) = frame;
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a link's support face"))?;
@@ -2914,15 +2915,34 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     continue;
                 }
                 let pieces = ring_pieces(body, ring, face, opens, rims)?;
-                let margins = pieces
+                let ranges = pieces
                     .into_iter()
                     .map(|(edge, carrier, window)| {
                         piece_along(&carrier, window, origin, m)
-                            .map(|(low, _)| (low, false))
                             .ok_or_else(|| ring_edge_unmetered(edge))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let Some((margin, bounded)) = margins.into_iter().reduce(worse) else {
+                // A support that wraps round the band's end (a plate's
+                // top round a boss flush with its side) can hold a ring
+                // wholly behind the sharp edge's line, which no strip
+                // between that line and the trimline reaches. Only a
+                // definite reading clears it: one in band falls through
+                // to the ring's low reading, which decides it.
+                if let Some(high) = ranges.iter().map(|(_, h)| *h).reduce(T::max) {
+                    let behind = Margin::of(T::zero() - across - high);
+                    let decision = BlendDecision::RingClearance;
+                    if matches!(
+                        classify(BlendSite::Chain, decision, behind, band),
+                        Ok(Sign::Positive)
+                    ) {
+                        continue;
+                    }
+                }
+                let Some((margin, bounded)) = ranges
+                    .into_iter()
+                    .map(|(low, _)| (low, false))
+                    .reduce(worse)
+                else {
                     unreachable!("ring_pieces: a ring carries at least its anchor edge")
                 };
                 ring_clearance(face, o.convexity(), margin, bounded, band)?;
@@ -6367,6 +6387,7 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         arcs,
         mitres,
         turn_feet,
+        host_feet,
         bands,
         rim_trims,
         rim_feet,
@@ -6403,7 +6424,8 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
                 .iter()
                 .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
         )
-        .chain(sections.iter().map(|(_, e, _)| e));
+        .chain(sections.iter().map(|(_, e, _)| e))
+        .chain(host_feet.iter().map(|(_, _, e)| e));
     for e in edge_sources {
         assert!(
             source.get_edge(*e).is_some(),
@@ -6418,6 +6440,7 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         .chain(arcs.iter().map(|(_, v, _)| v))
         .chain(mitres.iter().map(|(_, v)| v))
         .chain(turn_feet.iter().map(|(_, v)| v))
+        .chain(host_feet.iter().map(|(_, v, _)| v))
         .chain(rim_feet.iter().map(|(_, v)| v))
         .chain(sections.iter().map(|(_, _, v)| v));
     for v in vertex_sources {

@@ -50,3 +50,5 @@ and shells Ok at −0.2, `t = 0.05`. At `Interval` all three refuse here,
 1.3–1.6e-6. The row's finding holds for a real arc neck. Its exhibit,
 `shell_cavity_embedded`'s `the_curved_dumbbell_waits_on_the_offset_door_at_interval`,
 now builds the arc neck.
+
+- 2026-11-14 — **Gone at ε = 1e-6** (BOXFINISH `boxfinish/sweep-frames`): with the extrude's caps and walls its sketch frame, `shell_cavity_embedded::the_curved_dumbbell_waits_on_the_offset_door_at_interval` reaches the cavity gate at 1e-6 and refuses `CavityCrosses` (faces 5v1 and 11v1, distance 9.9e-15); at 1e-9 and 1e-12 it still escalates at `offset_corner_on_surface`. The row asserts both.

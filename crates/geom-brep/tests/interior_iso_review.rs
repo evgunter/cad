@@ -125,6 +125,7 @@ fn certify_line<T: Decide>(
         Pcurve::IsoLine {
             p0: Point2::new(f(p0.0), f(p0.1)),
             pl: Vec2::new(f(pl.0), f(pl.1)),
+            ends: None,
         },
         T::zero(),
         T::one(),
@@ -542,6 +543,7 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
             let pc = Pcurve::IsoLine {
                 p0: Point2::new(f(u), f(v0)),
                 pl: Vec2::new(T::zero(), f(v1 - v0)),
+                ends: None,
             };
             let r = PcurveCache::certify(
                 pc,

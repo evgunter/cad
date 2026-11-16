@@ -58,6 +58,8 @@ mod seam_region_common;
 
 #[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
 mod a_blend_leaves_a_smooth_edge_as_it_is;
+#[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
+mod a_blend_reads_the_wedge_through_the_one_fold;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
@@ -90,6 +92,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_groove_at_a_shafts_root_continues_its_wall.rs"]
+mod a_groove_at_a_shafts_root_continues_its_wall;
 #[path = "a_keel_on_a_bores_ruling.rs"]
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
@@ -100,6 +104,8 @@ mod a_keel_tree_in_the_plane;
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
 mod a_lofted_lens_blade_certifies_its_sign;
+#[path = "a_lofts_chart_ends_read_as_placed.rs"]
+mod a_lofts_chart_ends_read_as_placed;
 #[path = "a_long_bound_beside_a_short_arm.rs"]
 mod a_long_bound_beside_a_short_arm;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
@@ -124,6 +130,8 @@ mod a_plane_through_a_cones_apex;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside.rs"]
+mod a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
@@ -154,6 +162,8 @@ mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
+#[path = "a_split_and_reminted_loft_holds_its_volume.rs"]
+mod a_split_and_reminted_loft_holds_its_volume;
 #[path = "a_split_edge_joins_back_on_its_carrier.rs"]
 mod a_split_edge_joins_back_on_its_carrier;
 #[path = "a_split_operand_does_not_finish.rs"]
@@ -162,6 +172,8 @@ mod a_split_operand_does_not_finish;
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
+#[path = "a_sweep_keeps_the_frame_it_is_handed.rs"]
+mod a_sweep_keeps_the_frame_it_is_handed;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
@@ -214,6 +226,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
+#[path = "band_mixed_corner.rs"]
+mod band_mixed_corner;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
@@ -979,6 +993,8 @@ mod a_boolean_on_a_pole_touching_octant;
 mod a_ringed_wall_divided_by_a_carried_chord;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
+#[path = "far_walls_read_their_whole_turns.rs"]
+mod far_walls_read_their_whole_turns;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
@@ -1386,6 +1402,10 @@ mod a_revolved_wall_arc_join_reads_its_reach;
 mod a_seam_inside_a_face_is_no_boundary_of_it;
 #[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
 mod an_aimed_ray_from_far_reads_a_split_side_right;
+#[path = "an_aimed_ray_keeps_its_line_over_a_box.rs"]
+mod an_aimed_ray_keeps_its_line_over_a_box;
+#[path = "an_aimed_ray_over_boxed_door_bodies.rs"]
+mod an_aimed_ray_over_boxed_door_bodies;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
@@ -1433,7 +1453,11 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_loops_lift_runs_through_its_poles.rs"]
+mod a_loops_lift_runs_through_its_poles;
 #[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_station_frame_is_minted_to_its_floor.rs"]
+mod a_station_frame_is_minted_to_its_floor;

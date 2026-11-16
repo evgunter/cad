@@ -1371,6 +1371,15 @@ once per cap, two per body, and reads ±(half-perimeter) to within
 a `Negative` sample is a cap whose inscribed polygon winds against its
 region (a large convex arc) and is flipped.
 
+**Roster change (BOXFINISH `sweep-frames`, 2026-11-14): one name
+retired, one thinned.** A sweep's cap is its station's frame (`sweep`'s
+`cap_plane`: the frame's origin, first axis and normal, signed by the
+traversal and the cap's end), so `cap_plane_orientation` decides
+nothing and is retired. The sweeps no longer fit a Newell plane to a cap
+or a line wall, so `newell_plane_residual` loses every sweep sample;
+`geom_brep::newell_plane` is a test fixture's mint now
+(`test-support`).
+
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
 `decide`, which recorded a sample for every offset it was handed. It
@@ -3897,3 +3906,36 @@ tests. The phrase dates from when the row ran in two places: hosted
 local script is gone. The re-wording belongs with this report's other
 stale `ci.yml` sites, on
 `work/instr/k-report-still-names-ci-yml-for-the-k-lint-row.md`.
+
+## Census note (2026-11-13): the carrier ladder's plane rows take their modules' prefixes
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the carrier ladder (`carrier_eq.rs`) and its planar arm (`plane_eq.rs`)
+out of `topo::boolean` to `geom-brep`'s root, since neither takes a
+`Body` nor an arena key, and a K name's prefix is the module that
+decides the margin. The `bool_` prefix named the Boolean, which no
+longer decides these. Each name below is one site and one population,
+so each is renamed and nothing pools: margins, bands, outcomes and
+order are untouched, only the `predicate` column moves, and the census
+count is the same on both sides.
+
+| old | new | decided in |
+|---|---|---|
+| `bool_plane_parallel` | `plane_eq_parallel` | `geom_brep::plane_eq` |
+| `bool_plane_orient` | `plane_eq_orient` | `geom_brep::plane_eq` |
+| `bool_plane_offset` | `plane_eq_offset` | `geom_brep::plane_eq` |
+| `bool_plane_reach` | `carrier_plane_reach` | `geom_brep::carrier_eq` |
+| `bool_plane_reach_straddle` | `carrier_plane_reach_straddle` | `geom_brep::carrier_eq` |
+
+The plane reach rows take `carrier_eq`'s own prefix, which their
+siblings (`carrier_sphere_reach`, `carrier_cyl_reach`,
+`carrier_cone_reach` and their straddles) and the ladder's data rows
+(`carrier_sphere_center`, …) already carry. None of the five new
+spellings was decided anywhere at the merge base. Three of the old
+spellings are in committed snapshots, as the sweeps wrote them:
+`bool_plane_parallel` (10928 rows in each `m4-eps-*.csv.gz`, 10977 in
+each `m5-eps-*.csv.gz`, 10989 in each `m7-eps-*.csv.gz`), and
+`bool_plane_orient` and `bool_plane_offset` (353, 366 and 366 each).
+The two reach rows appear in no committed CSV. The committed CSVs and
+the addenda above keep the old spellings.

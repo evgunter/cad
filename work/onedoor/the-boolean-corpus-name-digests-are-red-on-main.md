@@ -2,7 +2,8 @@
 id: the-boolean-corpus-name-digests-are-red-on-main
 kind: issue
 title: main red: three corpus name-table and boolean digest rows read crossing_slots 0xd17d36af80b34d6b
-status: open
+status: closed
+closed: 2026-11-13
 opened: 2026-11-12
 priority: P0
 cost: M
@@ -22,3 +23,13 @@ Owed:
 - if it is, re-pin it in that merge's lane, with what moved.
 
 (ONEDOOR orchestrator, 2026-11-12)
+
+## Spec (ONEDOOR, 2026-11-13)
+
+- **Unowned, and every ONEDOOR PR this sitting annotated it.** A lane bisects first-parent on main to the merge that moved `crossing_slots`, then reads what changed in the body and whether the new body is right.
+- **Re-pin only if the new body is right,** with what moved and why, citing the merge. If it is wrong, file the defect against that merge's program and leave the golden red. A golden is not re-cut to hide a defect.
+- **Letter S, tier single.**
+
+## Closed (ONEDOOR, 2026-11-13)
+
+PR 6910. The bisect lands on PR #6832, a key-only move, verified twice by key-free geometry dumps (lane and reviewer). Re-pinned. seat7 is filed to GREEN, and the digest class is filed as `name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena`.

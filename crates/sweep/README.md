@@ -282,12 +282,32 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The carry is a function of the `f64` path and the station count.**
-  It is computed once, its decisions taken there, and every scalar lane
-  composes it onto its own start plane; station 0 is the start plane
-  itself, and a step whose two tangents are equal bit for bit is the
-  identity with no rounding (the exact law's answer: its second
-  reflection is its first).
+- **The roll is chosen at `f64`, because the path is a constant of
+  the model** (DESIGN `[scalars]`: what a lane scalar takes from `f64`
+  is a choice, never a claim). Each station's roll is a continuous
+  value that depends on none of the document's variables, so it is a
+  choice; each station's frame is a claim, so every lane builds it. The
+  carry runs once at `f64` and chooses each station's roll as a
+  reference vector; every scalar lane mints each station's frame from
+  the path's tangent read at that scalar and that vector, and composes
+  it onto its own start plane. So nothing claims where the `f64` step's
+  turn lands: the frame's axis is the tangent read at the lane, aimed
+  verbatim, and the step's rounding reaches only the roll it chooses.
+  The step's turn is therefore a selection (`[scalars]`: a choice,
+  never a claim): no claim consumes its lever, so it owes no
+  rounding-reach band under the geom-core README's "Float rounding",
+  and it decides the least turn's pole alone
+  (`RigidMotion::least_turn_selected`, its lever the session box's).
+  Station 0 is the start plane itself. A station on one span, straight by its data, with its predecessor is
+  still where its tangent is checked at the lane scalar to be its
+  predecessor's: it reuses its predecessor's rotation, one expression,
+  and every other station is minted alone. A station's tangent is the
+  path's derivative read through its hodograph, at `f64` and at every
+  lane alike, so a frame minted at a point path is about 3.3e-14 wide,
+  75–150 ulps of its order-1 coordinates. A path held at a lane
+  scalar has a roll that depends on the variables, and the selection no
+  longer stands
+  (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
@@ -303,8 +323,11 @@ and a fixed reference direction would read the world axes.
   sweeps with more stations; a kink that doubles back on itself (a
   hairpin corner) refuses at every station count, and only smoothing
   it cures it. Each is decided under the band, with its in-band twin
-  `SkinError::PathUndecided`. A path whose end tangent is its start
-  tangent reversed is not one of these: a planar U-turn sweeps, its
+  `SkinError::PathUndecided`. A station whose frame has no roll at the
+  lane scalar (its reference along its tangent read there) refuses as
+  `SkinError::PathRollAlongTangent`, its in-band twin
+  `SkinError::PathUndecided` naming the roll. A path whose end tangent
+  is its start tangent reversed is not one of these: a planar U-turn sweeps, its
   end frame the start frame turned a half turn about the plane's
   normal, and so does a semicircle between two stations.
 - **A section sits at its station's path parameter**: station `i` at
@@ -390,10 +413,10 @@ lentil's convex equator loses material to it, a two-sphere snowman's
 waist gains it, through one surgery.
 
 **A requested smooth edge is left as it is.** Predicate 5 reads each
-requested edge's dihedral through the kernel's one edge-wedge door,
-`geom_brep::classify_edge_wedge`: convex, concave, or a sign decided
-Zero read for its material side. Zero with the outward normals aligned
-is a smooth seam, wedge π (a bore's straight cut between its two
+requested edge's wedge whole through the kernel's one edge-wedge door,
+`topo::edge_wedge` (the fold tier 3 accepts a body by): a crease,
+convex or concave, or faces that meet smoothly, read for their material
+side. Smooth with the outward normals aligned is a smooth seam, wedge π (a bore's straight cut between its two
 half-cylinders, a chart seam, a profile fillet's tangent join): a ball
 resting on both faces touches them along the edge itself, so the blend
 of that edge is the edge, and requesting it is a silent no-op. The
@@ -402,12 +425,12 @@ from there on, so the result is the same request's with that edge left
 out; a request every edge of which is smooth returns the operand as it
 is, key for key.
 
-**A knife edge is filleted where its ball is defined.** Zero with the
+**A knife edge is filleted where its ball is defined.** Smooth with the
 normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
-the jet's question, not the dihedral's: `battery::knife_end` reads the
+the jet's question, not the dihedral's: the same fold reads the
 relative transverse curvature signed into the plus face's outward frame
-(`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
-the end with) under `fillet3_knife_end`. A cusp's ball rests in the
+(`geom_brep::material_kappa_rel`) under `material_cusp_side` at every
+station. A cusp's ball rests in the
 material crescent between the supports, the side a convex edge's takes;
 a slit's rests in the void crescent, as a concave edge's does; and the
 link carries that convexity, so every later predicate reads it as it
@@ -589,6 +612,43 @@ and the other two alone end as below.
   which it removes past a convex pair and fills past a concave one
   (`band_mixed_vertex`).
 
+**A mixed corner with all three edges requested** — the odd edge the
+one whose convexity differs, the pair the other two, `E` the face the
+odd edge does not lie in — cuts the odd band off in `E` and runs the
+pair on through a link resting on `E` and on the odd band: a fillet's
+torus about the odd band's axis, centred `r` off `E`, major radius
+`2r`; a chamfer's strip mitred onto the pair's strips. The rule fixes
+that geometry, not a carve order, so it is carved as a corner station
+in the one pass: the link is the corner's patch, on each face the odd
+edge lies in its foot is where that face's two trimlines cross, and on
+`E` each pair band's trimline ends at its own foot, the link's arc on
+`E` running between the two, so `E` takes two struts and that arc and
+the fusion four struts. The patch meets each band along that band's
+section, a row of both charts. It builds where every link is
+plane–plane and `E` is square to the odd edge (`cap_transverse`'s
+circle); an oblique `E` refuses, the fillet `SpineUnsupported` (its
+link would be a canal surface) and the chamfer
+`UnsupportedCorner { MixedConvexity }`
+(`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
+as does a curved link at the corner. Each link's feet at the corner are
+metered in order against its other end's along its trimlines, as a
+junction's are (`junction::feet_clear`): a pair edge too short for the
+corner's feet and a turn's at its far end refuses there. An odd edge
+shorter than the size is refused before that by the support screen
+(`FaceClearanceUncertified`), the pair's trimlines standing `r` up the
+faces it lies in. The reach meters the corner as a uniform corner's
+(`reach::corner_reach`), so a short edge or a face near the corner
+refuses `FaceClearance` where the corner would clear: a chamfer of `0.1`
+with its odd edge `0.25` long, the bracket's fillet from `r = 0.149`
+(`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`).
+The bracket of the row, a plate with a boss flush with one side,
+fillets all round, and without its bore chamfers all round, each at its
+closed form (`band_mixed_corner`). Naming: the patch is `CornerFace { vertex }`,
+the three sections `EndArc { vertex, edge }`, the feet on the odd
+edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
+`E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
+pair edge whose band ends there.
+
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
@@ -750,9 +810,10 @@ face (a short near edge at an obtuse shared-face angle, which refuses
 where the overrun itself fits); an end vertex of valence other than
 three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` where the request
-names its odd edge together with another of its edges, all three
-included: that wants the mixed corner's own rule, the odd band cut off
-and the other two carried through, which is not built.
+names its odd edge together with one other of its edges. The fillet
+refuses there for good: the other edge's band would have to stop where
+that edge runs smoothly into the odd band's cut-off arc. The chamfer,
+the other strip cut off in the odd strip's plane, is not built.
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the
@@ -881,6 +942,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full revolve emits each PLANAR wall as one face: a disc's centre is
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
+- **A sweep's carriers come from its frames** (`docs/DESIGN.md`
+  [intent.stored], nothing flows back toward the description; [scalars],
+  a frame is built from its own inputs). A cap is its station's frame:
+  its normal is ± the frame's normal, signed by the profile's winding,
+  its origin is the frame's origin moved by the sweep, and its
+  reference direction is the frame's first axis. A wall, a rim and a
+  strut each take the frame turning a direction the sketch holds
+  (`crates/profile/README.md`, the profile format). No sweep fits a
+  plane to vertices it placed, or divides the difference of two of them
+  by its own length.
 - **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
   extruded holes are cap-to-cap tunnels
   (one shell, genus); full-revolve holes, and the gaps between a full

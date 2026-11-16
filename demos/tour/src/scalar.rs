@@ -117,7 +117,13 @@ pub fn frame_across<S: Scalar>(
     let dir = pncad::geom_core::UnitVec3::new(dir, TOUR_FRAME_AXIS, band)
         .expect("the scene's direction has a length");
     pncad::geom_core::RigidMotion::axes_xy(origin)
-        .turned_onto(dir, TOUR_FRAME_AXIS, band)
+        .turned_onto(
+            dir,
+            pncad::geom_core::Lever::session_box(),
+            TOUR_FRAME_AXIS,
+            band,
+            tol,
+        )
         .expect("the scene's direction is off the world -z")
 }
 

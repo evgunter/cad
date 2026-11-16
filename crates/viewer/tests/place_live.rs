@@ -42,7 +42,9 @@ fn authored(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<Constrain
 fn copies_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
-        .filter(|&p| doc.copied_read(p) == doc.read_of_node(body))
+        .filter(|&p| {
+            doc.copied_read(p).map(|s| doc.through_sources(s).read) == doc.read_of_node(body)
+        })
         .collect()
 }
 
@@ -106,7 +108,7 @@ fn fed(session: &DocSession, tools: &mut Tools, pick: Selection) -> Option<Sessi
     let index = common::asm::index_of(session);
     let declined = tools.feed(session.doc(), Ok(&index), &[SessionOp::Select(pick)]);
     assert!(declined.is_empty(), "the pick is taken: {declined:?}");
-    tools.take_place()
+    tools.take_place(session.doc())
 }
 
 /// **Place a body, show it again, pick it, and get a second placement**:
@@ -126,8 +128,7 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
         .expect("a pick on an unplaced body asks for Place");
     assert_eq!(
         place,
-        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-            .expect("a body in a space")
+        common::place_named(session.committed_doc(), body, "bracket")
     );
     assert!(landed(&mut session, &mut tools, place), "Place lands");
     let first = tools
@@ -158,11 +159,28 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     assert_eq!(face.node, body, "premise: the ray meets the body as itself");
 
     tools.open(ToolKind::Mate);
-    let place = fed(&session, &mut tools, picked).expect("the body picked as itself is Place");
+    // Placing it again shares its anonymous source, so the editor asks
+    // for the name first, the field empty (VR2).
+    assert_eq!(
+        fed(&session, &mut tools, picked),
+        None,
+        "the name is asked first"
+    );
+    let editor = tools.mate_mut().expect("the editor");
+    assert!(
+        matches!(
+            editor.asking(),
+            Some(viewer::matetool::PlaceAsk::Name { text, .. }) if text.is_empty()
+        ),
+        "the name field opens empty: {:?}",
+        editor.asking()
+    );
+    let place = editor
+        .place_named(pncad::document::VarName::from_static("bracket"))
+        .expect("the named Place");
     assert_eq!(
         place,
-        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-            .expect("a body in a space")
+        common::place_named(session.committed_doc(), body, "bracket")
     );
     let states = session.history().len();
     assert!(

@@ -62,6 +62,9 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
         let s = inside_out.get_face(k).unwrap().sense;
         inside_out.set_face_sense(k, !s).unwrap();
     }
+    // A flipped face's rows are about its other side and go with the
+    // bit; the flipped ball is minted again as it now reads.
+    topo::mint_pcurves(&mut inside_out, Tol::witness()).expect("the inside-out ball mints");
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
     let mp = topo::test_support::measure_unvalidated(
         &inside_out,
@@ -85,6 +88,7 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let mut one_band = ball.clone();
     let s = one_band.get_face(keys[0]).unwrap().sense;
     one_band.set_face_sense(keys[0], !s).unwrap();
+    topo::mint_pcurves(&mut one_band, Tol::witness()).expect("the flipped band mints");
     // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
     let door = topo::test_support::measure_unvalidated(
         &one_band,

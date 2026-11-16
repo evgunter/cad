@@ -35,10 +35,14 @@ worst triangle, and takes the coarsest step that bound allows.
 - **Rim chords use the face's grid step.** A rim chord point that the
   grid did not place creates triangles the lattice theorem does not
   cover. So a lane whose theorem is about grid cells chords its rims
-  at its own grid step. The torus, sphere and cone do this through
-  `grid_boundary_step`, NURBS through `nurbs_tighten`, and the trimmed
-  sphere, whose tilted circles cross its lattice, through
-  `sphere_arm_tighten`.
+  at its own grid step. The chord pass states this once
+  (`chords::tighten`): on each chart axis, a boundary's chord count is
+  at least its image's speed along that axis times the parameter span,
+  over the face's lattice step on that axis. The image is the one the
+  face's lane reads: on the curved lane an iso circle, which moves at
+  unit speed along its own axis; on the trimmed lane's cone, sphere,
+  torus and spindle arms and the NURBS lane the stored row, whose speed
+  is `geom_brep::Pcurve::speed_bound`.
 - **A lane without its theorem yet** keeps an explicitly named
   `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
   is to write the theorem, not to tune the factor.
@@ -48,8 +52,7 @@ worst triangle, and takes the coarsest step that bound allows.
 These are not sizing, and each says which kind it is where it is
 defined:
 - **structural:** `MAX_ANGULAR_STEP` keeps angle unwrapping unambiguous;
-  `MAX_COUNT` caps allocation; `trimmed::MAX_POLE_JUNCTIONS` bounds
-  the search for where a trimmed sphere loop's runs between poles lie.
+  `MAX_COUNT` caps allocation.
 - **quality:** `ASPECT_CAP` (A = 16, `docs/TESS-BUDGET.md`) is a
   heuristic that keeps the NURBS split from choosing a long thin strip.
   It is not a promise about triangle shape, and it can be replaced by

@@ -159,6 +159,7 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::HostFoot { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandSection { .. }

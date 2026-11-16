@@ -302,7 +302,7 @@ fn a_recorded_pair_on_two_carriers_names_no_side_at_a_crossing() {
     assert!(
         matches!(
             topo::boolean::carrier_pair_relation(&body, top, &body, other_top, band),
-            Ok(Ok(topo::boolean::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "the premise: over the two faces the tops are two carriers"
     );
