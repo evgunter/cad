@@ -591,10 +591,10 @@ mod straddle_rows {
 #[allow(clippy::panic)]
 mod nearest_rows {
     use super::{Cross, Nearest, nearest};
-    use crate::solid_contain::{Mark, RayHit};
     use crate::entity::FaceKey;
     use crate::ray_walk::RayFault;
     use crate::side_reader::MarkKind;
+    use crate::solid_contain::{Mark, RayHit};
     use geom_core::Band;
 
     const ZERO: f64 = 1e-9;
