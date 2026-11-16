@@ -649,6 +649,29 @@ edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
 `E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
 pair edge whose band ends there.
 
+**A mixed corner's odd edge with one pair edge** chamfers: the pair
+strip is cut off in the odd strip's plane, and the odd strip in `E`.
+It is the turn's overrun, the odd band the far one: the pair band's
+trimline on `E` crosses the third edge's line behind the vertex, so the
+odd band's foot on the third edge is the further, the mitre lies in the
+odd strip's plane, and the odd strip's face runs on past the shared face
+to the pair strip's foot on `E`, a coplanar triangle, its cut-off chord
+in `E` one edge from that foot to the third edge. At plan angle `φ`,
+`t = tan(φ/2)`, the odd edge `L` and the pair edge `Y` long, each other
+end square, the flush corner changes the volume by
+`(s²/2)(L·sin φ − Y) + (s³/2)(1 + t/3)` and the inset by its negation
+(`band_mixed_corner_odd_plus_one`). It is admitted by the all-three
+corner's reading of `E` (`mixed_corner_square`), so an oblique `E` or a
+curved link at the corner refuses `MixedConvexity`. The pair band's
+foot on `E` stands `s(1 + t)` along the pair edge, past its crossing on
+the shared face, so its trimline there is metered in order against the
+far end's (`junction::feet_clear`, which reads a turn's foot as a
+junction's): at size `0.1` on a square corner a pair edge `0.19` long
+refuses as its feet cross, and one under `s` long, or an odd edge under
+`s`, as a foot lands inside a face. The fillet refuses, as above.
+Naming is the turn's: `Mitre { vertex }`, `TurnFoot { vertex }`, the
+overrun's `EndArc` and its `FootVertex` on `E`.
+
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
@@ -809,11 +832,11 @@ shared face reaches it, the other foot of `k`'s sliver landing inside a
 face (a short near edge at an obtuse shared-face angle, which refuses
 where the overrun itself fits); an end vertex of valence other than
 three. A vertex whose three edges do not round
-one way refuses `UnsupportedCorner { MixedConvexity }` where the request
-names its odd edge together with one other of its edges. The fillet
-refuses there for good: the other edge's band would have to stop where
-that edge runs smoothly into the odd band's cut-off arc. The chamfer,
-the other strip cut off in the odd strip's plane, is not built.
+one way refuses the fillet `UnsupportedCorner { MixedConvexity }` where
+the request names its odd edge together with one other of its edges,
+and for good: the other edge's band would have to stop where that edge
+runs smoothly into the odd band's cut-off arc. The chamfer builds there
+as a turn (below).
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the

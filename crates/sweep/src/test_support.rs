@@ -648,7 +648,7 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// corner**: the edge of `body` standing at plan point `(x, y)` and the
 /// edge in the floor `z = 0` from that corner along `y = const`, each
 /// matched within `1e-9`. The pair is the mixed corner's odd edge with
-/// one other, the request its rule does not build.
+/// one other, which the chamfer builds and the fillet refuses.
 ///
 /// # Panics
 ///
@@ -2397,7 +2397,10 @@ pub fn pocket_of_arcs(n: usize, l: f64, r: f64, floor: f64, tol: Tol) -> Body<f6
 /// leaves no body — a fixture bug, louder as a panic than as an empty
 /// answer.
 #[must_use]
-pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f64> {
+pub fn realized<T>(op: BooleanOp, a: &Body<T>, b: &Body<T>, tol: Tol) -> Body<T>
+where
+    T: Decide + Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+{
     boolean_op_with(
         op,
         &finished("the fixture's operand A", a.clone(), tol),

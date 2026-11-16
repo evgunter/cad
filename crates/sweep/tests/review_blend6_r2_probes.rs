@@ -375,17 +375,27 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
         .error,
     ));
 
+    // Square, a mixed corner's odd edge with one other chamfers; where
+    // the face the other two share leans off square to it, it refuses.
     let bracket = l_bracket();
     let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
+    chamfer_edges(
+        &sweep::test_support::at_rest(&bracket, t),
+        &odd_and_one,
+        D,
+        t,
+    )
+    .expect("a square mixed corner's odd edge with one other chamfers");
+    let leaning = crate::band_mixed_corner::leaning();
     out.push((
         "corner configuration",
         chamfer_edges(
-            &sweep::test_support::at_rest(&bracket, t),
-            &odd_and_one,
+            &sweep::test_support::at_rest(&leaning, t),
+            &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
             D,
             t,
         )
-        .expect_err("a mixed-convexity corner's odd edge with one other has no rule built")
+        .expect_err("an oblique mixed corner's odd edge with one other has no rule built")
         .error,
     ));
 

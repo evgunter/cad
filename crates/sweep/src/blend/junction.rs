@@ -454,11 +454,12 @@ pub(super) fn record<T: Real>(
 }
 
 /// The refusal when a straight link is too short for its two ends.
-pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction and its \
-     other end is shorter than its two ends' feet need: they cross or coincide on its trimline";
+pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction or a turn \
+     and its other end is shorter than its two ends' feet need: they cross or coincide on its \
+     trimline";
 
 /// **A straight link's feet in order, on each support, where one of its
-/// ends is a junction or a mixed corner** (`fillet3_cut_off_feet`,
+/// ends is a junction, a mixed corner or a turn's foot** (`fillet3_cut_off_feet`,
 /// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
 /// are). The trimline chord the carve `mef`s runs from the foot at one
 /// station to the foot at the other; the junction's foot sits square to
@@ -467,9 +468,13 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction
 /// short link the two would cross. A mixed corner's feet stand off its
 /// vertex too: a fillet's `r·cot(φ/2)` along a pair edge at the plan
 /// angle `φ` its pair makes in `E`, and `r` up the odd edge; a chamfer's
-/// host feet `(2 − √2)s` along a square corner's pair edges. So they are
-/// read the same way. A torus link's chords run between two junctions'
-/// feet, its own trim's window ends, so it is not read here.
+/// host feet `(2 − √2)s` along a square corner's pair edges. A turn's
+/// foot on a face of its third edge is, at an overrun on the near
+/// band's face, the mitre's end, which at a mixed corner's odd edge
+/// with one other stands `s(1 + tan(φ/2))` along the pair edge, past
+/// the trimlines' crossing on the shared face. So they are read the same
+/// way. A torus link's chords run between two junctions' feet, its own
+/// trim's window ends, so it is not read here.
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's
@@ -494,7 +499,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
     straight: impl Fn(EdgeKey) -> bool,
     band: Band,
 ) -> Result<(), BlendError> {
-    let junction = |s: &RequestedBoundary<T>, v: VertexKey| {
+    let metered = |s: &RequestedBoundary<T>, v: VertexKey| {
         s.stations().iter().any(|st| {
             st.vertex == v
                 && matches!(
@@ -503,13 +508,14 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
                         | StationKind::JunctionMate
                         | StationKind::MixedFoot
                         | StationKind::MixedHost
+                        | StationKind::TurnFoot
                 )
         })
     };
     for support in supports {
         for chord in support.chords() {
             if !straight(chord.edge)
-                || !(junction(support, chord.from) || junction(support, chord.to))
+                || !(metered(support, chord.from) || metered(support, chord.to))
             {
                 continue;
             }

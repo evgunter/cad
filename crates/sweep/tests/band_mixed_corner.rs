@@ -34,7 +34,7 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, validate_geometric};
 
-fn tol() -> Tol {
+pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
 
@@ -76,15 +76,30 @@ impl Verb {
     }
 }
 
-type P = (f64, f64, f64);
+pub(crate) type P = (f64, f64, f64);
 
-fn point(body: &Body<f64>, v: topo::VertexKey) -> P {
+/// The scalar every fixture is built at: [`Decide`] for its arithmetic,
+/// [`Bounds`] to read it back, and finishable for the blend and the
+/// boolean.
+pub(crate) trait Scalar:
+    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
+{
+}
+
+impl<T> Scalar for T where
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>
+{
+}
+
+/// A vertex's point, at its bounds' midpoint.
+fn point<T: Scalar>(body: &Body<T>, v: topo::VertexKey) -> P {
     let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    (p.x, p.y, p.z)
+    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    (mid(p.x), mid(p.y), mid(p.z))
 }
 
 /// The one edge between `a` and `b`, either way round.
-fn edge(body: &Body<f64>, a: P, b: P) -> EdgeKey {
+pub(crate) fn edge<T: Scalar>(body: &Body<T>, a: P, b: P) -> EdgeKey {
     let near = |p: P, q: P| (p.0 - q.0).hypot(p.1 - q.1).hypot(p.2 - q.2) < 1e-9;
     let found: Vec<EdgeKey> = topo::query::all_edges(body)
         .into_iter()
@@ -99,7 +114,7 @@ fn edge(body: &Body<f64>, a: P, b: P) -> EdgeKey {
 }
 
 /// The L `{y < 0} ∪ {x < 0}` over `[−1, 1]²`, up `z ∈ [0, h]`.
-fn l_prism(h: f64) -> Body<f64> {
+pub(crate) fn l_prism<T: Scalar>(h: f64) -> Body<T> {
     prism_at(
         corners(&[
             (-1.0, -1.0),
@@ -109,15 +124,15 @@ fn l_prism(h: f64) -> Body<f64> {
             (0.0, 1.0),
             (-1.0, 1.0),
         ]),
-        0.0,
-        h,
+        T::zero(),
+        T::from_f64(h),
         tol(),
     )
 }
 
 /// The edges of the L's flush corner: the reflex vertical at the origin,
 /// `h` long, and the floor's edges from the origin along `x` and `y`.
-fn l_corner(body: &Body<f64>, h: f64) -> [EdgeKey; 3] {
+pub(crate) fn l_corner<T: Scalar>(body: &Body<T>, h: f64) -> [EdgeKey; 3] {
     let o = (0.0, 0.0, 0.0);
     [
         edge(body, o, (0.0, 0.0, h)),
@@ -129,7 +144,7 @@ fn l_corner(body: &Body<f64>, h: f64) -> [EdgeKey; 3] {
 /// **The flush corner**: the L prism 2 tall. The odd edge is the reflex
 /// vertical at the origin, 2 long; `E` is the floor; the pair the
 /// floor's edges from the origin along `x` and `y`, each 1 long.
-fn flush() -> (Body<f64>, [EdgeKey; 3]) {
+pub(crate) fn flush<T: Scalar>() -> (Body<T>, [EdgeKey; 3]) {
     let body = l_prism(2.0);
     let edges = l_corner(&body, 2.0);
     (body, edges)
@@ -140,7 +155,7 @@ fn flush() -> (Body<f64>, [EdgeKey; 3]) {
 /// `z ∈ [0, 2]`. The odd edge is the wedge's vertical at the origin, 2
 /// long; `E` the floor; the pair the floor's edges along the wedge's
 /// sides, each 1 long and ending square at a side of the outline.
-fn flush_at(phi: f64) -> (Body<f64>, [EdgeKey; 3]) {
+pub(crate) fn flush_at<T: Scalar>(phi: f64) -> (Body<T>, [EdgeKey; 3]) {
     let a = (1.0, 0.0);
     let c = (phi.cos(), phi.sin());
     // Each pair edge's end side runs from its end away from the wedge.
@@ -148,8 +163,8 @@ fn flush_at(phi: f64) -> (Body<f64>, [EdgeKey; 3]) {
     let back = (-1.5 * (phi / 2.0).cos(), -1.5 * (phi / 2.0).sin());
     let body = prism_at(
         corners(&[back, a_out, a, (0.0, 0.0), c, c_out]),
-        0.0,
-        2.0,
+        T::zero(),
+        T::from_f64(2.0),
         tol(),
     );
     let o = (0.0, 0.0, 0.0);
@@ -167,7 +182,7 @@ fn flush_at(phi: f64) -> (Body<f64>, [EdgeKey; 3]) {
 /// plate whose sides run flush with the boss's two closing sides. The
 /// odd edge is the boss's vertical at the origin, 1 long; `E` the
 /// plate's top; the pair the boss's base edges from the origin.
-fn inset_at(phi: f64) -> (Body<f64>, [EdgeKey; 3]) {
+pub(crate) fn inset_at<T: Scalar>(phi: f64) -> (Body<T>, [EdgeKey; 3]) {
     let a = (0.0, -1.0);
     let c = (-phi.sin(), -phi.cos());
     // The far corner, square to both sides: `b·a = b·c = 1`.
@@ -176,11 +191,16 @@ fn inset_at(phi: f64) -> (Body<f64>, [EdgeKey; 3]) {
     let (a3, c3) = (far(a, 3.0), far(c, 3.0));
     let plate = prism_at(
         corners(&[b, a3, (a3.0 + c3.0 - b.0, a3.1 + c3.1 - b.1), c3]),
-        -1.0,
-        1.0,
+        T::from_f64(-1.0),
+        T::one(),
         tol(),
     );
-    let boss = prism_at(corners(&[b, a, (0.0, 0.0), c]), -0.5, 1.5, tol());
+    let boss = prism_at(
+        corners(&[b, a, (0.0, 0.0), c]),
+        T::from_f64(-0.5),
+        T::from_f64(1.5),
+        tol(),
+    );
     let body = realized(BooleanOp::Union, &plate, &boss, tol());
     let o = (0.0, 0.0, 0.0);
     let edges = [
@@ -217,17 +237,17 @@ fn chamfer_flush(phi: f64, s: f64, (l, y, z): (f64, f64, f64)) -> f64 {
 /// long; `E` is the plate's top; the pair the boss's base edges from the
 /// origin, each 1 long, ending at the flush sides where each is cut off
 /// alone.
-fn inset() -> (Body<f64>, [EdgeKey; 3]) {
+pub(crate) fn inset<T: Scalar>() -> (Body<T>, [EdgeKey; 3]) {
     let plate = prism_at(
         corners(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        -1.0,
-        1.0,
+        T::from_f64(-1.0),
+        T::one(),
         tol(),
     );
     let boss = prism_at(
         corners(&[(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)]),
-        -0.5,
-        1.5,
+        T::from_f64(-0.5),
+        T::from_f64(1.5),
         tol(),
     );
     let body = realized(BooleanOp::Union, &plate, &boss, tol());
@@ -240,24 +260,29 @@ fn inset() -> (Body<f64>, [EdgeKey; 3]) {
     (body, edges)
 }
 
+/// **The bracket without its bore**, at any scalar ([`bracket`]).
+pub(crate) fn boreless<T: Scalar>() -> Body<T> {
+    let plate = prism_at(
+        corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
+        T::zero(),
+        T::from_f64(0.5),
+        tol(),
+    );
+    let boss = prism_at(
+        corners(&[(0.0, 0.5), (0.5, 0.5), (0.5, 3.5), (0.0, 3.5)]),
+        T::from_f64(0.25),
+        T::from_f64(1.75),
+        tol(),
+    );
+    realized(BooleanOp::Union, &plate, &boss, tol())
+}
+
 /// **The bracket** of the row: a 6 × 4 × 0.5 plate, an upright
 /// 0.5 × 3 boss flush with its `x = 0` side standing to `z = 2`, and a
 /// two-arc bore of radius 0.3 through the plate at (3, 2). Two flush
 /// mixed corners (two of three edges convex) and two inset ones (one).
 fn bracket(bore: bool) -> Body<f64> {
-    let plate = prism_at(
-        corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
-        0.0,
-        0.5,
-        tol(),
-    );
-    let boss = prism_at(
-        corners(&[(0.0, 0.5), (0.5, 0.5), (0.5, 3.5), (0.0, 3.5)]),
-        0.25,
-        1.75,
-        tol(),
-    );
-    let body = realized(BooleanOp::Union, &plate, &boss, tol());
+    let body = boreless();
     if !bore {
         return body;
     }
@@ -265,17 +290,13 @@ fn bracket(bore: bool) -> Body<f64> {
     realized(BooleanOp::Subtract, &body, &bore, tol())
 }
 
-fn every_edge(body: &Body<f64>) -> Vec<EdgeKey> {
+pub(crate) fn every_edge<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
     let mut all = topo::query::all_edges(body);
     all.sort_unstable();
     all
 }
 
-fn volume<
-    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
->(
-    body: &Body<T>,
-) -> (f64, f64) {
+pub(crate) fn volume<T: Scalar>(body: &Body<T>) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
@@ -509,7 +530,7 @@ fn the_bracket_without_its_bore_chamfers_all_round_at_its_closed_form() {
 }
 
 /// The edges with an end at `p`.
-fn at(body: &Body<f64>, p: P) -> Vec<EdgeKey> {
+pub(crate) fn at<T: Scalar>(body: &Body<T>, p: P) -> Vec<EdgeKey> {
     let near = |q: P| (p.0 - q.0).hypot(p.1 - q.1).hypot(p.2 - q.2) < 1e-9;
     every_edge(body)
         .into_iter()
@@ -518,6 +539,37 @@ fn at(body: &Body<f64>, p: P) -> Vec<EdgeKey> {
             near(point(body, s)) || near(point(body, t))
         })
         .collect()
+}
+
+/// **An L-step whose `E` leans off square to the odd edge**: a plate
+/// `z ∈ [−1, 0]` whose side through `(0, −1)` and `(1, 1)` leans, and a
+/// boss on it flush with that side, standing to `z = 1`. At its flush
+/// corner `(0.5, 0, 0)` the odd edge is the boss's root along `+x`, 2
+/// long, and `E` the leaning side.
+pub(crate) fn leaning() -> Body<f64> {
+    let boss = prism_at(
+        corners(&[(0.0, -1.0), (2.0, -1.0), (2.5, 0.0), (0.5, 0.0)]),
+        -0.5,
+        1.5,
+        tol(),
+    );
+    let plate = prism_at(
+        corners(&[(0.0, -1.0), (2.0, -1.0), (3.0, 1.0), (1.0, 1.0)]),
+        -1.0,
+        1.0,
+        tol(),
+    );
+    realized(BooleanOp::Union, &plate, &boss, tol())
+}
+
+/// The leaning corner's odd edge, the root along `+x`, with the boss's
+/// vertical there: a chamfer request refused on its oblique `E`.
+pub(crate) fn leaning_odd_and_one(body: &Body<f64>) -> [EdgeKey; 2] {
+    let o = (0.5, 0.0, 0.0);
+    [
+        edge(body, o, (2.5, 0.0, 0.0)),
+        edge(body, o, (0.5, 0.0, 1.0)),
+    ]
 }
 
 /// **What the mixed corner does not build refuses typed**: a curved link
@@ -586,15 +638,7 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
         "a chamfer's curved pair link, got {got:?}"
     );
 
-    // An L-step whose end face `E` leans off square to the odd edge.
-    let boss = prism_at(
-        corners(&[(0.0, -1.0), (2.0, -1.0), (2.5, 0.0), (0.5, 0.0)]),
-        -0.5,
-        1.5,
-        tol(),
-    );
-    let lean = [(0.0, -1.0), (2.0, -1.0), (3.0, 1.0), (1.0, 1.0)];
-    let body = realized(BooleanOp::Union, &plate(&lean), &boss, tol());
+    let body = leaning();
     let edges = at(&body, (0.5, 0.0, 0.0));
     assert_eq!(edges.len(), 3, "the leaning corner's three edges");
     let got = Verb::Fillet.run(&body, &edges, R);

@@ -1274,18 +1274,18 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
      or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
      operation";
 /// The recourse at a mixed-convexity corner requested in a way that does
-/// not build ([`CornerConfig::MixedConvexity`]). It names the three
-/// requests there that build, one edge alone (the cut-off), the two
-/// edges that round alike (the mitre) and all three between flat faces
-/// square at the corner (the mixed corner), and says why the odd edge
-/// with one other refuses: the fillet's (a rounded band) for good, its
-/// partner's band having to stop where its edge runs smoothly into the
-/// cut-off arc, and the chamfer's (a flat one) until its rule is built.
+/// not build ([`CornerConfig::MixedConvexity`]). It names the requests
+/// there that build: one edge alone (the cut-off), the two edges that
+/// round alike (the mitre), and, between flat faces square at the
+/// corner, all three (the mixed corner) or a bevel of the odd edge with
+/// one other (the other strip cut off in the odd strip's plane). It says
+/// why the odd edge with one other cannot round: its partner's band
+/// would have to stop where its edge runs smoothly into the cut-off arc.
 /// It names neither verb, being the shared arm both doors render.
-pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one edge, the two that round alike, or \
-     all three where the faces are flat and the face the two share is square to the third; the \
-     edge that rounds the other way, with one other, cannot round (a band would stop mid-run) nor \
-     yet bevel";
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one edge, or the two that round alike; \
+     where the faces are flat and the face those two share is square to the edge that rounds the \
+     other way, also blend all three, or bevel that edge with one other; it cannot round with one \
+     other (a band would stop mid-run)";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third

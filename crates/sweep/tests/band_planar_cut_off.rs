@@ -582,7 +582,10 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     }
 
     // Mixed convexity: an L prism's concave inner edge ends where two
-    // convex outline edges meet it.
+    // convex outline edges meet it. With one of them it chamfers
+    // (`band_mixed_corner_odd_plus_one`) and refuses the fillet; the
+    // chamfer refuses where the face the two share leans off square to
+    // the odd edge.
     let l_prism = prism(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -597,8 +600,16 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     );
     let inner = edge(&l_prism, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
     let top = edge(&l_prism, [1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&l_prism, &[inner, top]) {
+    Verb::Chamfer
+        .run(&l_prism, &[inner, top])
+        .unwrap_or_else(|e| panic!("a square mixed end chamfers, got {e:?}"));
+    let leaning = crate::band_mixed_corner::leaning();
+    let oblique = crate::band_mixed_corner::leaning_odd_and_one(&leaning);
+    for (verb, body, edges) in [
+        (Verb::Fillet, &l_prism, [inner, top]),
+        (Verb::Chamfer, &leaning, oblique),
+    ] {
+        match verb.run(body, &edges) {
             Err(BlendError::UnsupportedCorner {
                 corner: CornerConfig::MixedConvexity { .. },
                 ..

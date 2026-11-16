@@ -779,7 +779,7 @@ fn a_short_link_leaning_back_refuses_as_its_feet_cross() {
     let got = fillet_edges(&at_rest(&body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
     assert!(
         matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. })
-            if detail.contains("between a junction and its other end")),
+            if detail.contains("between a junction or a turn and its other end")),
         "the short arm's feet cross, got {got:?}"
     );
 }
