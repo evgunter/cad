@@ -383,7 +383,3 @@ LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`).
   at corpus scale). The §L3 commitment is unchanged: the switch
   still precedes U9, and Python never ships the opaque-profile
   intermediate state.
-- **A/B protocol**: library-program implementation dispatches
-  draw from their own LIB-labeled block series in
-  `docs/MODEL-AB-LOG.md`, so the two concurrent orchestrators
-  never consume the same draw.

@@ -26,7 +26,7 @@ mesh of nothing. Pinned by
 
 **For a refusal at `tessellate`'s door.** "This body has no faces" is
 STRUCTURAL and available before the walk, so it satisfies TESS-1's rule
-that a refusal reads no count (`work/tess/TESS-1.md`, `## Closed`) — it
+that a refusal reads no count (`work/tesslane/TESS-1.md`, `## Closed`) — it
 is a fact about the arena, not about what was emitted. `step-import`
 has the precedent and the name: a file that declares no usable shape
 refuses `StepImportError::NothingToImport` rather than hand back an

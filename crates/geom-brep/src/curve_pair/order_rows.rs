@@ -1086,7 +1086,12 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
 /// escalates, or where a piece of the window whose distance grows away
 /// from its near end is not read off by that end: turned `10⁻⁵` and moved
 /// `10⁻⁶` (`1.9·10⁻¹²` past the escalation), or moved `10⁻⁵` with the
-/// foot inside the long ellipse's span.
+/// foot inside the long ellipse's span. Moved less, at turned `−10⁻⁵` by
+/// `10⁻⁶` or at either tilt by `3·10⁻⁷`, the spans part within the band's
+/// gap, and each pose escalates in both orders: the near-miss is the band's
+/// question, which no reading of the window may decide apart. Its window
+/// holds a piece about the near-miss that neither recedes nor reads off,
+/// so the pin holds the outcome, not a particular reading.
 #[test]
 fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
     let [(a, sa), (b0, sb)] = needle_pair();
@@ -1096,27 +1101,48 @@ fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
     let tangent = tangent.normalize();
     let normal = a.conic().unwrap().frame().axis;
     let cross = tangent.cross(normal).normalize();
-    let mut bad = Vec::new();
-    let far = [-1e-6, 3e-6, 1e-5, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3];
-    for (t, near) in [(1e-5, &[1e-6][..]), (-1e-5, &[][..])] {
+    let posed = |t: f64, d: f64| {
         let turned = spun(&b0, vertex, cross, t);
         let shared = normal
             .cross(turned.conic().unwrap().frame().axis)
             .normalize();
+        let b = turned.translated(shared * d).unwrap();
+        let gap = span_gap(&a, sa, &b, sb);
+        (b, gap, format!("turned {t:e}, moved {d:e}, gap {gap:e}"))
+    };
+    let both = |b: &Curve3<f64>| {
+        [
+            ("first first", read((&a, sa), (b, sb), at)),
+            ("second first", read((b, sb), (&a, sa), at)),
+        ]
+    };
+    let mut bad = Vec::new();
+    let far = [-1e-6, 3e-6, 1e-5, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3];
+    for (t, near) in [(1e-5, &[1e-6][..]), (-1e-5, &[][..])] {
         for &d in near.iter().chain(&far) {
-            let b = turned.translated(shared * d).unwrap();
-            let gap = span_gap(&a, sa, &b, sb);
-            let label = format!("turned {t:e}, moved {d:e}, gap {gap:e}");
+            let (b, gap, label) = posed(t, d);
             if gap <= at.escalate() {
                 bad.push(format!("{label}: the oracle's gap is not past the band"));
             }
-            for (order, r) in [
-                ("first first", read((&a, sa), (&b, sb), at)),
-                ("second first", read((&b, sb), (&a, sa), at)),
-            ] {
+            for (order, r) in both(&b) {
                 if !matches!(&r, Ok(m) if m.points.is_empty()) {
                     bad.push(format!("{label}, {order}: not apart: {r:?}"));
                 }
+            }
+        }
+    }
+    // In the band's gap the near-miss is the band's question: it
+    // escalates, in both orders, rather than reading apart.
+    for (t, d) in [(-1e-5, 1e-6), (1e-5, 3e-7), (-1e-5, 3e-7)] {
+        let (b, gap, label) = posed(t, d);
+        if gap <= at.zero() || gap > at.escalate() {
+            bad.push(format!(
+                "{label}: the oracle's gap is not in the band's gap"
+            ));
+        }
+        for (order, r) in both(&b) {
+            if !matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_))) {
+                bad.push(format!("{label}, {order}: not escalated: {r:?}"));
             }
         }
     }

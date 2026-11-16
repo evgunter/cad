@@ -325,7 +325,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x65eb_bbab_cafb_9a51, 0x9b10_f464_7b5b_b905),
+        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -342,6 +342,13 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 /// `die_pips`; every node's outcome and kind held, and the `f64` fence
 /// above did not move. The pin it replaced was already stale on that
 /// base (it read `(0x14da…, 0xdf66…)`, not the pin).
+///
+/// RE-TAKEN when the extrudes' caps and walls became their sketch
+/// frames (BOXFINISH's `boxfinish/sweep-frames`). Against its merge
+/// base every node's outcome held and 30 enclosure bounds moved, in 11
+/// points of `boss_union` (6 bounds) and `reshaped_rod` (24), each by
+/// at most `1.33e-15`, and every one of those points narrower; the
+/// `f64` fence above did not move.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -360,7 +367,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xe42f_30c8_1790_5fab, 0x303f_78a3_da5f_4a77),
+        (0x072e_0826_da21_3bae, 0x5b70_9bf7_7591_f7c2),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -384,7 +391,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x65eb_bbab_cafb_9a51, 0x9b10_f464_7b5b_b905),
+        (0x9391_711d_3fce_042c, 0x283e_b2e7_b94a_9c38),
         "the corpus's Probe evaluation moved"
     );
 }

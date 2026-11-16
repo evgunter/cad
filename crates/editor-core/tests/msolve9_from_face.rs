@@ -780,10 +780,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
     );
     assert!(!reused(&second, &third), "the block's value was recomputed");
     assert_eq!(
-        crate::fixture::seat::map_gap(
-            &placed(&s.doc, &s.opts).affine::<f64>(),
-            &grown.affine::<f64>()
-        ),
+        crate::fixture::seat::map_gap(&placed(&s.doc, &s.opts).affine(), &grown.affine()),
         0.0,
         "to the same pose"
     );

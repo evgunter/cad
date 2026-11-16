@@ -21,7 +21,11 @@
 //!   point-on-span reading ([`geom_brep::curve_pair::Span::read`]): on the
 //!   carrier (zero in the band, off only past it on a lower bound), and
 //!   where its foot sits against the span's ends. On the carrier, or in
-//!   the band's gap, inside the span, the ray meets the edge. In band of
+//!   the band's gap, inside the span, the ray meets the edge. Inside the
+//!   span where the carrier's reading escalates past the band's edge (a
+//!   box's enclosure, a straddle), the gap is unplaced: nothing says
+//!   whether the ray meets the edge, and it is set aside
+//!   ([`super::edge_gap`]). In band of
 //!   an end, or where the place refuses, it is marked a graze; past the
 //!   span its nearest point is that end, read as a vertex. Off the carrier from every crossing,
 //!   it passes clear, and each face reads its own crossing.
@@ -45,16 +49,16 @@
 //! its face holds that the ray reaches from there in band of the face's
 //! carrier.
 
+use super::edge_gap::{Gap, Reach, Start};
 use super::{
-    Cross, EdgeMeets, FaceGeo, Gap, Mark, Met, PlaneCross, PointInSolidError, RayHit, RayRows,
-    RootCross,
+    Cross, EdgeMeets, FaceGeo, Mark, Met, PlaneCross, PointInSolidError, RayHit, RayRows, RootCross,
 };
 use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::ray_walk::RayFault;
 use crate::side_reader::MarkKind;
 use crate::validate::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 
 /// The alternate feet that carry a crossing's point to the ray's closest
 /// approach to an edge's carrier. Each foot is never farther than the one
@@ -64,14 +68,79 @@ const FEET: usize = 8;
 
 /// What the ray reads against an edge from one crossing's point.
 enum Passes<T> {
-    /// It meets the edge at advance `s`.
-    Met(T, Gap),
+    /// It passes the edge inside its span at advance `s`, by the gap the
+    /// door sorted ([`super::edge_gap`]): within the band, where it
+    /// meets the edge, or unplaced (`Err`), which sets the ray aside.
+    Inside(T, Result<Gap, Indeterminate>),
     /// It passes within the band of an end of the edge at advance `s`.
     End(T),
     /// It passes clear of the edge there.
     Clear,
-    /// No reading here decides it.
-    Undecided,
+    /// The carrier's walk could not run (a spline's): the edge is left
+    /// unread, and each of its faces reads its own crossing.
+    Unwalked,
+}
+
+/// What an edge's passages along the ray come to ([`fold`]).
+enum Folded<T> {
+    /// Nothing to read: no passage, or every one behind the ray's start.
+    Nothing,
+    /// Read nowhere: a graze marked at each of these advances.
+    Grazes(Vec<T>),
+    /// A passage whose gap nothing placed: the ray is set aside.
+    SetAside(Indeterminate),
+    /// The edge is met over `span`, at `at`, by `gap`.
+    Meets { at: T, span: (T, T), gap: Gap },
+}
+
+/// **One edge's passages, folded** (module docs, "Whether it meets it"):
+/// every passage inside the span, met or unplaced, takes part alike in
+/// where the edge is passed, so an unplaced one is never read past.
+/// Passages definitely apart are met at two places, a graze at each; a
+/// span wholly behind the ray's start reads nothing, and one straddling
+/// it is a graze ([`super::edge_gap::start`]); else an unplaced gap sets
+/// the ray aside, and the edge is met by a gap decided Zero where one
+/// is, or the first.
+fn fold<T: Decide>(
+    found: &[(T, Result<Gap, Indeterminate>)],
+    ray: &geom::Ray<T>,
+    band: Band,
+    rows: RayRows,
+) -> Folded<T> {
+    let Some(&(first, _)) = found.first() else {
+        return Folded::Nothing;
+    };
+    let (lo, hi) = found
+        .iter()
+        .fold((first, first), |(lo, hi), &(s, _)| (lo.min(s), hi.max(s)));
+    if geom_core::k_stats::decide_magnitude(rows.order(), Margin::of(hi - lo), band)
+        == Ok(geom_core::k_stats::Magnitude::Positive)
+    {
+        return Folded::Grazes(vec![lo, hi]);
+    }
+    let at = geom::mid_param(lo, hi);
+    match super::edge_gap::start(ray, (lo, hi), rows, band) {
+        Start::Behind => return Folded::Nothing,
+        Start::Straddles => return Folded::Grazes(vec![at]),
+        Start::Ahead => {}
+    }
+    let mut gaps = Vec::with_capacity(found.len());
+    for &(_, gap) in found {
+        match gap {
+            Ok(gap) => gaps.push(gap),
+            Err(diag) => return Folded::SetAside(diag),
+        }
+    }
+    let gap = gaps
+        .iter()
+        .copied()
+        .find(|g| g.is_zero())
+        .unwrap_or(gaps[0]);
+    Folded::Meets {
+        at,
+        span: (lo, hi),
+        gap,
+    }
 }
 
 /// **Decides every edge between two faces that read their own crossings
@@ -94,7 +163,7 @@ pub(super) fn read<T: Decide>(
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
@@ -151,20 +220,20 @@ pub(super) fn read<T: Decide>(
             let faces = [face, other];
             for v in fe.ends {
                 if !crate::boolean::is_conventional_vertex(body, v) {
-                    meets.vertex(body, v, faces, (q, top), d, band, rows)?;
+                    meets.vertex(body, v, faces, (ray, top), band, rows)?;
                 }
             }
-            let mut found: Vec<(T, Gap)> = Vec::new();
+            let mut found: Vec<(T, Result<Gap, Indeterminate>)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
                 match passes(&span, ray, q + d * t, band) {
-                    Passes::Met(s, gap) => found.push((s, gap)),
+                    Passes::Inside(s, gap) => found.push((s, gap)),
                     Passes::End(s) => {
                         clear = false;
                         meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
                     }
                     Passes::Clear => {}
-                    Passes::Undecided => decided = false,
+                    Passes::Unwalked => decided = false,
                 }
             }
             if decided {
@@ -173,44 +242,25 @@ pub(super) fn read<T: Decide>(
                     meets.clear.insert(e);
                 }
             }
-            let Some(&(first, _)) = found.first() else {
-                continue;
-            };
-            let (lo, hi) = found
-                .iter()
-                .fold((first, first), |(lo, hi), &(s, _)| (lo.min(s), hi.max(s)));
-            // Met at two places along the ray, definitely apart: no one
-            // half crossing stands for both.
-            if geom_core::k_stats::decide_magnitude(rows.order(), Margin::of(hi - lo), band)
-                == Ok(geom_core::k_stats::Magnitude::Positive)
-            {
-                for s in [lo, hi] {
-                    meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
+            let (at, (lo, hi), gap) = match fold(&found, ray, band, rows) {
+                Folded::Nothing => continue,
+                Folded::Grazes(at) => {
+                    for s in at {
+                        meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
+                    }
+                    continue;
                 }
-                continue;
-            }
-            let at = geom::mid_param(lo, hi);
-            // Where the ray comes closest to the edge behind `q`, it is
-            // nearest the edge at `q`, which the boundary pre-pass holds
-            // clear of both its faces; a passage whose span straddles `q`
-            // is read nowhere.
-            if ray.ahead(hi, rows.advance(), band) == Ok(Sign::Negative) {
-                continue;
-            }
-            if ray.ahead(lo, rows.advance(), band) == Ok(Sign::Negative) {
-                meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
-                continue;
-            }
-            let gap = found
-                .iter()
-                .map(|f| f.1)
-                .find(|g| matches!(g, Gap::Zero))
-                .unwrap_or(found[0].1);
+                Folded::SetAside(diag) => return Err(super::edge_gap::set_aside(face, diag)),
+                Folded::Meets { at, span, gap } => (at, span, gap),
+            };
             let (xa, xb) = match (
                 nearest(&ca, (lo, hi), band, rows),
                 nearest(&cb, (lo, hi), band, rows),
             ) {
                 (Nearest::Cross(xa), Nearest::Cross(xb)) => (xa, xb),
+                (Nearest::Unplaced(diag), _) | (_, Nearest::Unplaced(diag)) => {
+                    return Err(super::edge_gap::set_aside(face, diag));
+                }
                 (Nearest::Order(gap), _) | (_, Nearest::Order(gap)) => {
                     meets.marks.push(RayHit::marked(
                         faces,
@@ -252,7 +302,7 @@ fn narrow<T: Decide>(
     band: Band,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
@@ -271,15 +321,18 @@ fn narrow<T: Decide>(
                 let faces = [face, fe.across];
                 for seed in [m.span.0, m.span.1] {
                     match passes(&span, ray, q + d * seed, band) {
-                        Passes::Met(s, gap) => {
-                            let mark = gap.mark(m.gap);
+                        Passes::Inside(s, gap) => {
+                            // A second edge by a gap nothing placed is no
+                            // wedge shown: both are marked where no
+                            // reading places the crossing.
+                            let mark = gap.map_or(Mark::Graze, |gap| gap.mark(m.gap));
                             meets.marks.push(RayHit::marked(faces, s, mark));
                             meets.marks.push(RayHit::marked(m.faces, m.at, mark));
                         }
                         Passes::End(s) => {
                             meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
                         }
-                        Passes::Undecided => {
+                        Passes::Unwalked => {
                             meets.marks.push(RayHit::marked(m.faces, m.at, Mark::Graze));
                         }
                         Passes::Clear => {}
@@ -318,7 +371,7 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
-    let ray = ray.line;
+    let ray = ray.line();
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).seed();
@@ -326,8 +379,10 @@ fn passes<T: Decide>(
     }
     let s = ray.param(r);
     use geom_brep::curve_pair::{Reading, SpanRefusal};
+    let inside =
+        |read| Reach::on_carrier(read).map_or(Passes::Unwalked, |gap| Passes::Inside(s, gap));
     match span.span().read(r, near, band) {
-        Ok(Reading::On { .. }) => Passes::Met(s, Gap::Zero),
+        Ok(Reading::On { margin, .. }) => inside(Ok(margin)),
         // Off the carrier, or past the span clear of both ends, whatever
         // the carrier refused there (an escalation or a walk that could
         // not run): no reading of the carrier puts the point on the edge.
@@ -336,9 +391,7 @@ fn passes<T: Decide>(
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
         Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
-        Err(SpanRefusal::Carrier(refused)) => refused
-            .escalation()
-            .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
+        Err(SpanRefusal::Carrier(refused)) => inside(Err(refused)),
     }
 }
 
@@ -349,11 +402,14 @@ enum Nearest {
     /// No one is decided nearer than every other, on decided readings (a
     /// tie, or two crossings the span's ends order apart): the ray grazes.
     Graze,
-    /// An in-band reading is left in contention, or a reading aborted (a
-    /// poison, an enclosure straddling the band's edge): the ray is set
-    /// aside in band, keeping the margin ([`MarkKind::Order`]), as the
-    /// module's every escalation on a ray is, and another ray may answer.
+    /// An in-band reading is left in contention: the ray grazes, keeping
+    /// the margin ([`MarkKind::Order`]).
     Order(geom_core::Indeterminate),
+    /// A reading aborted (a poison, an enclosure straddling the band's
+    /// edge): no reading places the crossings, so the ray is set aside
+    /// in band through the module's one door for an unplaced distance
+    /// ([`super::edge_gap::set_aside`]), and another ray may answer.
+    Unplaced(geom_core::Indeterminate),
 }
 
 /// The crossing of `cs` nearest the passage spanning `(lo, hi)` along
@@ -383,6 +439,7 @@ fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: Ray
     match argmin_decided(cs.iter().copied(), cmp, FreeOf::Nothing) {
         Ok(Some((c, _))) => Nearest::Cross(c),
         Ok(None) => Nearest::Graze,
+        Err(geom_core::ladder::Unpicked::Aborted(diag)) => Nearest::Unplaced(diag),
         Err(unpicked) => match unpicked.carried() {
             Ok(gap) => Nearest::Order(gap),
             Err(Uncarried::Tied(_)) => Nearest::Graze,
@@ -396,23 +453,29 @@ fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: Ray
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod straddle_rows {
-    use super::{Gap, Passes, passes};
+    use super::{Passes, passes};
     use crate::census::EdgeSpan;
     use geom_core::{Band, Point3, Vec3};
 
     const ZERO: f64 = 1e-9;
 
-    /// **A straddle is in band, and past the span it is clear.** An
-    /// ellipse bending tighter than the band (`b²/a = ε/100`) and a ray
-    /// across its major axis `20ε` beyond the vertex, where the gap is
-    /// past the band and the lower bound inside it (`geom`'s
-    /// `a_gap_past_the_band_with_the_bound_inside_it_straddles`). An arc
-    /// through the vertex meets the ray in band, a wedge's gap; an arc
-    /// whose span lies past the closest approach is clear of it, a
-    /// placement decided on the span's own ends. Red when a straddle
-    /// reads undecided, or its `Past` is read anything but clear.
+    /// **A straddle inside the span is unplaced, and past the span it is
+    /// clear.** An ellipse bending tighter than the band (`b²/a = ε/100`)
+    /// and a ray across its major axis `20ε` beyond the vertex, where
+    /// the gap is past the band and the lower bound inside it (`geom`'s
+    /// `a_gap_past_the_band_with_the_bound_inside_it_straddles`). The
+    /// two bounds bracket the ray's distance from the carrier across the
+    /// band's edge, so on an arc through the vertex no reading says the
+    /// ray meets the edge, and none that it passes clear: the gap is
+    /// unplaced, which sets the ray aside ([`super::super::edge_gap`]).
+    /// An arc whose span lies past the closest approach is clear of it, a
+    /// placement decided on the span's own ends. Red where a straddle
+    /// reads as the edge met (`edge_gap::Reach::escalated` sorting every
+    /// escalation within the band, or `passes` handing the door a forged
+    /// `Ok` for a carrier that refused), or its `Past` is read anything
+    /// but clear.
     #[test]
-    fn a_straddle_is_in_band_and_past_the_span_is_clear() {
+    fn a_straddle_inside_the_span_is_unplaced_and_past_the_span_is_clear() {
         let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
         let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -425,7 +488,7 @@ mod straddle_rows {
         assert!(
             matches!(
                 passes(&through, &geom::Ray::new(q, d), at, band),
-                Passes::Met(_, Gap::InBand(_))
+                Passes::Inside(_, Err(diag)) if diag.predicate == Some("curve_carrier_straddle")
             ),
             "an arc through the vertex"
         );
@@ -450,6 +513,45 @@ mod straddle_rows {
             ),
             "an arc past the closest approach"
         );
+    }
+
+    /// **An unplaced passage takes part in the fold as a met one does.**
+    /// Two seeds of one edge, stated: a passage a metre behind the ray's
+    /// start whose gap nothing placed, and one a metre ahead met on a
+    /// gap decided Zero. They are two places definitely apart, a graze at
+    /// each, never the edge met at the one ahead; no fixture drives two
+    /// such seeds through a body, so the fold is read directly. Alone,
+    /// the unplaced passage sets the ray aside ahead of the start and
+    /// reads nothing behind it; beside a met passage in band of it,
+    /// ahead, it sets the ray aside. Red where `fold` passes over an
+    /// unplaced passage behind the start before folding (the first two
+    /// read `Meets`).
+    #[test]
+    fn an_unplaced_passage_is_folded_as_a_met_one_is() {
+        use super::{Folded, fold};
+        use geom_core::k_stats::Magnitude;
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
+        let rows = crate::rows::AIMED_RAY;
+        let ray = geom::Ray::new(Point3::origin(), Vec3::unit_x());
+        let met = super::Reach::of(Ok(Magnitude::Zero)).met().unwrap();
+        let unplaced = Err(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::enclosure(0.0, 0.4),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        });
+        let folded = |found: &[(f64, _)]| match fold(found, &ray, band, rows) {
+            Folded::Nothing => "nothing",
+            Folded::Grazes(_) => "grazes",
+            Folded::SetAside(_) => "set aside",
+            Folded::Meets { .. } => "meets",
+        };
+        assert_eq!(folded(&[(-1.0, unplaced), (1.0, met)]), "grazes");
+        assert_eq!(folded(&[(1.0, met), (-1.0, unplaced)]), "grazes");
+        assert_eq!(folded(&[(1.0, unplaced)]), "set aside");
+        assert_eq!(folded(&[(-1.0, unplaced)]), "nothing");
+        assert_eq!(folded(&[(1.0, met), (1.0 + ZERO, unplaced)]), "set aside");
+        assert_eq!(folded(&[(1.0, met)]), "meets");
     }
 
     /// **A place refusal at the door is a graze at the edge's end**: a
@@ -509,11 +611,12 @@ mod nearest_rows {
 
     /// **A passage's nearest crossing is the one decided nearer from both
     /// ends of its span**, and anything short of that sets the ray aside:
-    /// a decided tie grazes; a reading in band, or one that aborts (a
-    /// poisoned advance), keeps its margin as [`MarkKind::Order`] rather
-    /// than refusing the query, as every escalation on a ray in this
-    /// module does. Red if an aborted reading refuses the query, or an
-    /// in-band one reads as a plain graze.
+    /// a decided tie grazes; a reading in band keeps its margin as
+    /// [`MarkKind::Order`]; and one that aborts (a poisoned advance) is
+    /// unplaced, which sets the ray aside in band through
+    /// `edge_gap::set_aside`, never refusing the query. Red if an
+    /// aborted reading reads as a mark, or an in-band one as a plain
+    /// graze.
     #[test]
     fn a_passages_nearest_crossing_is_decided_from_both_ends() {
         let span = (1.0, 1.0);
@@ -540,8 +643,8 @@ mod nearest_rows {
             "a reading in band keeps its margin"
         );
         assert!(
-            matches!(read(&[1.0, f64::NAN], span), Nearest::Order(_)),
-            "a poisoned reading sets the ray aside, not the query"
+            matches!(read(&[1.0, f64::NAN], span), Nearest::Unplaced(_)),
+            "a poisoned reading is unplaced: the ray, not the query"
         );
     }
 

@@ -45,12 +45,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// +Z-poled ball at c (pole toward +z, like the die's top-face pips).
@@ -66,15 +61,9 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(
-        &rot,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&rot, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, topo::BooleanError> {
@@ -559,7 +548,6 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
                 ),
                 Tol::witness(),
             ),
-            Tol::witness(),
         )
         .unwrap();
         let pipped = subtract(&cube0, &ball).expect("pip cuts");
@@ -678,11 +666,9 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         for &m in &meridians {
             let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "radius {r}: {margin} is not structural zero"
+                margin, None,
+                "radius {r}: a co-surface meridian is read by identity, no margin read"
             );
         }
     }
@@ -695,7 +681,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         RIM_R,
         Tol::witness(),
     );
-    println!("P7: meridian margins bit-zero at all radii; every-edge builds");
+    println!("P7: meridians read smooth by identity at all radii; every-edge builds");
 }
 
 /// P8: a duplicated edge in the request refuses before the battery.

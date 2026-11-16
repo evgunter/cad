@@ -1,10 +1,12 @@
-//! **[`ConicArc::distance_floor`] reads a floor under every point of a
-//! box.** The containment touch gate and the clearance cell door read it
-//! through `splitting::containment::arc_distance_floor`, and a segment's
-//! miss of a loop arc (`segment_misses`) reads it directly: each takes
-//! it as a lower bound on the distance from the arc of every point the
-//! reading's box holds, so a reading above one of them is a wrong
-//! answer, not a refusal.
+//! **A conic arc's floors read a floor under every point of a box**:
+//! [`ConicArc::distance_floor`], which a segment's miss of a loop arc
+//! (`segment_misses`) reads, and the arc's cover's nearest distance
+//! (`crate::cover::arc_cover`), which the containment touch gate and the
+//! clearance cell door read through
+//! `splitting::containment::arc_distance_floor`. Each is taken as a
+//! lower bound on the distance from the arc of every point the reading's
+//! box holds, so a reading above one of them is a wrong answer, not a
+//! refusal.
 //!
 //! The oracle walks the arc at a dense step. A walk's least distance is
 //! at or above the true one, so a floor above it is above the true
@@ -310,9 +312,9 @@ fn a_point_against_an_arc_of_more_than_a_turn_reads_the_circles_clearance() {
 /// ellipses over any span (a gap short of a turn, and a turn or more,
 /// among them), a third of the boxes placed about the antipode of the
 /// arc's middle and a third near the axis, where an azimuth would be cut
-/// or wide. A circle's
-/// box is read by `geom::Curve3::distance_within` too, the closed form
-/// geom keeps for the same question.
+/// or wide. Each box is read by the arc's cover too, the floor the
+/// containment reads, and a circle's by `geom::Curve3::distance_within`,
+/// the closed form geom keeps for the same question.
 #[test]
 fn every_box_reads_a_floor_under_each_of_its_points() {
     let mut rng = start("a conic arc's distance floor at Interval");
@@ -383,6 +385,17 @@ fn every_box_reads_a_floor_under_each_of_its_points() {
         let q = boxed(centre, w);
         let least = least_over_box(&point, span, centre, w, 3, 1024);
         let got = floor(&boxed_carrier, span, q);
+        let cover = crate::cover::arc_cover(&boxed_carrier, (iv(span.0), iv(span.1)))
+            .expect("a finite conic arc has a cover")
+            .distance_range(&geom::cover::Site::Point(q))
+            .0;
+        assert!(
+            cover.lo() <= least,
+            "case {case}: the cover's nearest {} is above a box point's walked distance {least}: \
+             semi-axes ({su}, {sv}), span {span:?}, box {w} about {centre:?}, frame {frame:?}; {}",
+            cover.lo(),
+            replay()
+        );
         assert!(
             got.lo() <= least,
             "case {case}: the floor {} is above a box point's walked distance {least}: \

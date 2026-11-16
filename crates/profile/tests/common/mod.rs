@@ -251,14 +251,14 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
 }
 
 /// **An `f64` fixture plane minted at `T`**: its placement's twelve
-/// entries, as point values at `T`, admitted at the decided door
-/// ([`geom_core::RigidMotion::check_rigid`]). A frame crosses no
-/// scalar upward; a fixture holding one as numbers mints it again.
+/// entries, as point values at `T`, admitted by the suites' own door
+/// ([`geom_core::test_support::rigid`]). A frame crosses no scalar
+/// upward; a fixture holding one as numbers mints it again.
 pub fn plane_at<T: geom_core::Decide>(plane: SketchPlane<f64>) -> SketchPlane<T> {
-    let band = geom_core::Band::linear(tol()).expect("the suite tolerance forms a band");
-    let frame = geom_core::RigidMotion::check_rigid(&plane.placement().map(T::from_f64), band)
-        .unwrap_or_else(|e| panic!("the fixture plane is rigid at the lane scalar: {e}"));
-    SketchPlane::from_frame(frame)
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &plane.placement().map(T::from_f64),
+        tol(),
+    ))
 }
 
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
