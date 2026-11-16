@@ -798,3 +798,92 @@ fn a_box_astride_a_near_full_arcs_gap_is_not_read_past() {
     let got = span.place(q, mid, band());
     assert!(matches!(got, Ok(Place::Past)), "a box in the gap: {got:?}");
 }
+
+/// **A gap from a span's end is metered over the gap**
+/// ([`Span::end_gap`], [`Span::end_gap_widened`]): on a thin ellipse,
+/// where the speed moves most between a parameter and an end, the `Clear`
+/// reading never exceeds the arc over the gap and the `Within` reading
+/// never falls short of it, against a Simpson quadrature of `|C′|` (the
+/// oracle). Each row reads both ends, the bare end and one widened by a
+/// hundredth of a radian, at `f64` and at `Interval`, where the whole
+/// `Clear` enclosure is at most the arc and the whole `Within` one at
+/// least. The speed at the parameter alone, the meter the door replaces,
+/// over-reads the arc on one side of a vertex and under-reads it on the
+/// other: the row counts both, so it is red against that meter.
+#[test]
+fn a_gap_from_a_spans_end_is_metered_over_the_gap() {
+    use super::GapMeter;
+    use geom_core::{Bounds, Interval, Real};
+    let thin = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        3.0,
+        0.05,
+    ));
+    let thin_iv: Curve3<Interval> = thin.map_scalar(Interval::from_f64);
+    let speed = |t: f64| thin.ders1(t).1.norm();
+    let arc = |a: f64, b: f64| {
+        let n = 4000;
+        let h = (b - a) / f64::from(n);
+        let mut sum = speed(a) + speed(b);
+        for i in 1..n {
+            sum += speed(a + h * f64::from(i)) * if i % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    };
+    let iv = Interval::from_f64;
+    let (mut over, mut under, mut rows) = (0, 0, 0);
+    for k in 0..40 {
+        let (t0, t1) = (0.1 + 0.03 * f64::from(k), 0.2 + 0.07 * f64::from(k));
+        let span = Span::new(&thin, (t0, t1));
+        let span_iv = Span::new(&thin_iv, (iv(t0), iv(t1)));
+        for end in [SpanEnd::Start, SpanEnd::Stop] {
+            for by in [0.0, 1e-2] {
+                for g in [1e-3, 1e-2, 0.1, -1e-2] {
+                    // `g` inside the (widened) end, negative past it.
+                    let (at, t) = match end {
+                        SpanEnd::Start => (t0 - by, t0 - by + g),
+                        SpanEnd::Stop => (t1 + by, t1 + by - g),
+                    };
+                    let true_arc = arc(t.min(at), t.max(at)).copysign(g);
+                    let tol = 1e-12 * (1.0 + true_arc.abs());
+                    let at_f64 = |meter| span.end_gap_widened(t, end, by, meter).value();
+                    let at_iv = |meter| span_iv.end_gap_widened(iv(t), end, iv(by), meter).value();
+                    let (clear, within) = (at_f64(GapMeter::Clear), at_f64(GapMeter::Within));
+                    let (clear_iv, within_iv) = (at_iv(GapMeter::Clear), at_iv(GapMeter::Within));
+                    let row = format!("{end:?} by {by} at t0 {t0}, t1 {t1}, gap {g}");
+                    assert!(
+                        clear.abs() <= true_arc.abs() + tol,
+                        "clear over-reads: {row}"
+                    );
+                    assert!(
+                        within.abs() + tol >= true_arc.abs(),
+                        "within under-reads: {row}"
+                    );
+                    assert!(
+                        clear_iv.lo().abs().max(clear_iv.hi().abs()) <= true_arc.abs() + tol,
+                        "Interval clear over-reads: {row}"
+                    );
+                    assert!(
+                        within_iv.lo().abs().min(within_iv.hi().abs()) + tol >= true_arc.abs()
+                            && within_iv.lo().signum() == within_iv.hi().signum(),
+                        "Interval within under-reads: {row}"
+                    );
+                    assert_eq!(clear.signum(), g.signum(), "{row}");
+                    let pointwise = g * speed(t);
+                    if pointwise.abs() > true_arc.abs() + tol {
+                        over += 1;
+                    }
+                    if pointwise.abs() + tol < true_arc.abs() {
+                        under += 1;
+                    }
+                    rows += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(rows, 40 * 2 * 2 * 4);
+    assert!(
+        over > 0 && under > 0,
+        "the pointwise meter errs both ways: {over} over, {under} under"
+    );
+}
