@@ -1,7 +1,7 @@
 ---
 id: boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length
 kind: issue
-title: boolean: bool_wall_root_in_span (line × cylinder or sphere) and bool_carrier_cross_in_span read a near-graze root's span by arc length, with no root-slack bound
+title: boolean: a wall root (line × cylinder or sphere, read by wall_crossing through Span::place_param) and bool_carrier_cross_in_span read a near-graze root's span with no root-slack bound
 status: open
 opened: 2026-10-08
 priority: P2
@@ -21,7 +21,7 @@ decided while the root lies within its own error of the span's end.
 PR 4246 found and fixed this shape in the ring lane
 (`split_ring_path_in_span`). The sweep for it here:
 
-- **`bool_wall_root_in_span`** (`crates/topo/src/boolean/reduce.rs:3431`)
+- **A wall root against its span** (`crates/topo/src/boolean/reduce.rs`, `wall_crossing`, through `geom_brep::curve_pair::Span::place_param` since `onecopy/in-span-end-gap`; once `bool_wall_root_in_span`)
   reads `gap · speed_at(end)`, which is arc length.
   - **The conic doors are covered.** Circle and ellipse against a
     sphere, wall or cone, circle and ellipse against a torus, and line

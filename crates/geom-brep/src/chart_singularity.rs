@@ -66,6 +66,7 @@ use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
+use crate::curve_pair::{GapMeter, Span, SpanEnd};
 use crate::ladder::{Answering, Climb, Refusal, Rung, climb};
 use crate::props::{LoopEdge, PoleLeft, sphere_pole_left};
 use crate::recourse::{ReadAt, RefusedArm, RefusedSide, SizedDecision};
@@ -587,9 +588,9 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let span = crate::curve_pair::Span::new(&e.carrier, (t0, t1));
-    let inside = |end| strictly_inside(span.end_gap(t, end, crate::curve_pair::GapMeter::Clear));
-    if !(inside(crate::curve_pair::SpanEnd::Start) && inside(crate::curve_pair::SpanEnd::Stop)) {
+    let span = Span::new(&e.carrier, (t0, t1));
+    let inside = |end| strictly_inside(span.end_gap(t, end, GapMeter::Clear));
+    if !(inside(SpanEnd::Start) && inside(SpanEnd::Stop)) {
         return Near::Off;
     }
     decide_near(t, (e.carrier.eval(t) - x).norm(), band)
@@ -597,17 +598,10 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
 
 /// **A gap from an edge's end is strictly positive**, an exact order
 /// (`chart_singularity_in_span`): the edge's interval ends at its
-/// vertices, read before it. The gap is the span's
-/// ([`crate::curve_pair::Span::end_gap`]), metered at the least speed
-/// over it, under which a decided `Positive` is sound.
-///
-/// It reads no period, and needs none. [`foot`] names the parameter at or
-/// past the edge's first end, a turn on at most (`Period::at_or_above`),
-/// not about the edge's middle, so the one place an enclosure can lie
-/// astride two copies is that end, a vertex [`locate`] reads before the
-/// edge. Off it, a box is named whole on the copy the edge's interval
-/// runs from, and its other copy lies a full turn on, past any edge's
-/// last end.
+/// vertices, read before it ([`locate`]). The gap is the span's
+/// ([`Span::end_gap`]), metered at the least speed over it, under which a
+/// decided `Positive` is sound. [`foot`] names the parameter at or past
+/// the edge's first end, the door's premise for reading no period.
 fn strictly_inside<T: Decide>(gap: Margin<T>) -> bool {
     matches!(
         geom_core::k_stats::prove("chart_singularity_in_span", gap),
