@@ -219,17 +219,19 @@ class TestBenchLayout(BenchWorkspace):
     def test_every_patterned_post_answers_to_an_instance_qualified_name(self):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
-                doc, family, _, _ = self.layout(posts)
+                doc, family, post_i, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
-                caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Member])
-                )
-                # One per member, and the name NESTS rather than
-                # concatenating: the member's index, then the part's
-                # own cap. Distinct names are the
-                # structural claim the volume cannot make.
-                self.assertEqual(len(caps), PATTERN_COUNT)
-                self.assertEqual(len(set(caps)), PATTERN_COUNT)
+                # The family's table holds every member's faces, each
+                # under its member's index: distinct names are the
+                # structural claim the volume cannot make. One member,
+                # read by index, answers its part's own cap.
+                faces = ev.all_faces(family)
+                self.assertEqual(len(set(faces)), len(faces))
+                part_cap = one(ev.select(post_i, cap_selector(CapEnd.End, PART_FACE)))
+                for i in range(PATTERN_COUNT):
+                    self.assertEqual(
+                        one(ev.select(family[i], cap_selector(CapEnd.End, PART_FACE))), part_cap
+                    )
 
     def test_the_disjoint_layout_has_nothing_at_rest_to_report(self):
         for name, posts in SPELLINGS.items():
@@ -378,12 +380,15 @@ class TestBenchLayout(BenchWorkspace):
                     for i in range(PATTERN_COUNT)
                 ]
 
-                caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Member])
-                )
                 read = sorted(
-                    tuple(c.meters for c in ev.face_frame(family, cap).origin)
-                    for cap in caps
+                    tuple(
+                        c.meters
+                        for c in ev.face_frame(
+                            family[i],
+                            one(ev.select(family[i], cap_selector(CapEnd.End, PART_FACE))),
+                        ).origin
+                    )
+                    for i in range(PATTERN_COUNT)
                 )
                 self.assertEqual(len(read), PATTERN_COUNT)
                 for got, want in zip(read, sorted(expected), strict=True):
@@ -410,11 +415,9 @@ class TestBenchLayout(BenchWorkspace):
             with self.subTest(posts=name):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
-                caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Member])
-                )
-                for cap in caps:
-                    denotation = ev.denotation(family, cap)
+                for i in range(PATTERN_COUNT):
+                    cap = one(ev.select(family[i], cap_selector(CapEnd.End, PART_FACE)))
+                    denotation = ev.denotation(family[i], cap)
                     self.assertFalse(denotation.tied)
                     self.assertEqual(denotation.candidates, 1)
 

@@ -120,7 +120,25 @@ pub fn basis_funs_in<T: Real>(span: KnotSpan<'_, T>, t: T) -> Vec<T> {
 /// The triangle's level `p`, read through `k` (the recursion of
 /// [`basis_funs`]).
 fn basis_row<T: Real>(k: &impl KnotRead<T>, t: T) -> Vec<T> {
-    let p = k.span().degree();
+    basis_level(k, t, k.span().degree())
+}
+
+/// [`basis_funs_in`]'s triangle stopped at level `degree ≤ p`: the
+/// `degree + 1` nonzero degree-`degree` basis functions at `t` over the
+/// same knots, `N_{span − degree, degree} … N_{span, degree}` (a curve's
+/// derivative is the degree `p − 1` row against its control net's
+/// differences, The NURBS Book Eq. 3.3–3.4). `None` past the span's own
+/// degree.
+pub fn basis_funs_to_degree_in<T: Real>(
+    span: KnotSpan<'_, T>,
+    t: T,
+    degree: usize,
+) -> Option<Vec<T>> {
+    (degree <= span.span().degree()).then(|| basis_level(&span, t, degree))
+}
+
+/// The triangle of [`basis_funs`] to level `p`, read through `k`.
+fn basis_level<T: Real>(k: &impl KnotRead<T>, t: T, p: usize) -> Vec<T> {
     // The index, once — the recursion below reads knots around it. Its
     // range facts (`span ≥ p`, `span + 1 < len`) are the `Span`'s own
     // construction invariants, about these very knots.

@@ -412,12 +412,8 @@ fn co_surface_seams_read_smooth_while_transverse_rims_do_not() {
         );
         let margin = sweep::test_support::smooth_reading(&ball, seam, r * 0.05, tol());
         assert_eq!(
-            (
-                margin.predicate,
-                margin.reading.diagnostic_f64_for_error_text().value()
-            ),
-            ("fillet3_convexity_sign", Some(0.0)),
-            "a co-surface seam's dihedral sine is structurally zero (r={r})"
+            margin, None,
+            "a co-surface seam is read by identity, no margin read (r={r})"
         );
 
         let transverse = dome(

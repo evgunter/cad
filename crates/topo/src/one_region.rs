@@ -915,7 +915,7 @@ mod tests {
             u,
             ..Deck::IDENTITY
         };
-        (Vec::new(), Some(Winding { deck, reset: false }))
+        (Vec::new(), Some(Winding { deck }))
     }
 
     /// **The torus readings**: on a band with an essential pair (cycles

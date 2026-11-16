@@ -18,8 +18,10 @@ parked on the D10 hold until INTENT's stage 4 E and F released them
 the glue door now meets: a box corner on a tangent ruling, a Zero glue
 crossing a tight volume bound, the maximal-faces gate's curved arm,
 the fallback extent's aligned continuations, an uncovered point touch
-and the covered endpoint arms. Beside them are the door census (P0,
-parked on RESTREAD) and the plate document (parked on TALLY's tie).
+and the covered endpoint arms. Beside them are the census chain
+(four P0s, 2026-11-14: RESTREAD's cross-solid touching half, the door
+census, and FLUSH's two rows parked on it) and the plate document
+(parked on TALLY's tie).
 REACHTAIL's P4 tail folded in on 2026-10-26: copied preambles and
 forms, a long function, a full-turn question with several spellings,
 and an unpinned split arm.

@@ -60,9 +60,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    EdgeDescription, LeverRung, MustCarryEscalation, MustCarryVerdict, must_carry_over_edge,
-};
+use geom_brep::{EdgeDescription, MustCarryRung, MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
@@ -415,12 +413,11 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
 #[test]
 fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
     match bored_ring(free_length_for(in_band_margin())) {
-        Err(sweep::RevolveError::SliverJoin {
-            reading, source, ..
-        }) => {
+        Err(sweep::RevolveError::SliverJoin { escalation, .. }) => {
+            let source = escalation.diag();
             assert_eq!(
-                reading,
-                topo::DihedralReading::Bend,
+                escalation.rung(),
+                geom_brep::WedgeRung::Bend,
                 "the latitude join's in-band station is the second-order bend's"
             );
             assert_in_band_payload(source);
@@ -642,10 +639,10 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
     for (order, verdict) in [("flat first", a), ("tilted first", b)] {
         match verdict {
-            MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
+            MustCarryVerdict::InBand(escalation) => {
                 assert_eq!(
                     escalation.rung(),
-                    LeverRung::Reading,
+                    MustCarryRung::Wedge,
                     "{order}: the sliver is the wedge's rung, not the arm's"
                 );
                 assert_eq!(
@@ -694,15 +691,14 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
     for extent in [in_band_margin(), definite_zero_margin()] {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
-            let MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) = verdict
-            else {
+            let MustCarryVerdict::InBand(escalation) = verdict else {
                 panic!(
                     "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
                 );
             };
             assert_eq!(
                 escalation.rung(),
-                LeverRung::Arm,
+                MustCarryRung::Arm,
                 "{order}, extent {extent:e}: a collapsed arm escalates at the arm rung"
             );
             let source = escalation.diag();

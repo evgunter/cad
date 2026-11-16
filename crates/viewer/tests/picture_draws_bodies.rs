@@ -624,7 +624,7 @@ fn a_gesture_reads_a_copy_through_one_door() {
         row,
         "a pick on the row seats it"
     );
-    assert_eq!(world::placed_var(&doc, row), Some(w_out));
+    assert_eq!(placed_whole(&doc, row), Some(w_out));
     assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
 
     // A copy of member 1 of a family, placed into the world.
@@ -641,7 +641,7 @@ fn a_gesture_reads_a_copy_through_one_door() {
     let source = world::copy_source(&doc, member, 0).expect("a copy");
     assert_eq!((source.operation, source.body), (xs, 1), "member 1, not 0");
     assert_eq!(world::original_of(&doc, member), body, "through the family");
-    assert_eq!(world::placed_var(&doc, member), None);
+    assert_eq!(placed_whole(&doc, member), None);
 
     // A copy of the body into its own space.
     let own = doc.node_space(body).expect("its own space");
@@ -662,4 +662,12 @@ fn a_gesture_reads_a_copy_through_one_door() {
     );
     assert_eq!(world::original_of(&doc, inside), body);
     assert!(world::is_placed(&doc, body), "the body is badged placed");
+}
+
+/// The body `copy` places whole, through its source; `None` for a copy
+/// of a member.
+fn placed_whole(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> Option<VarId> {
+    world::copy_source(doc, copy, 0)
+        .filter(|source| !source.member)
+        .map(|source| source.body_var)
 }

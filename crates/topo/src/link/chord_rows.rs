@@ -613,3 +613,150 @@ fn an_edge_tilted_in_the_tangent_plane_refuses() {
         }
     }
 }
+
+/// **A chord's outward normal points the way its carrier's does.** The
+/// pairing of two coplanar sectors reads the sectors' own outward normals
+/// ([`pairing`]), where it once read the faces' carriers at the point, so
+/// the one sector the link mints off a carrier rather than a face's plane
+/// has to agree in sign with that carrier's outward gradient at the
+/// point. Every chord the edge rows read, on a cylinder and a cone, the
+/// face bending either way, tangent and across the face, near the origin
+/// and a kilometre off it: the chord's normal against the carrier's outward
+/// normal at `p` decides positive at the run band. Red if a chord's normal
+/// is turned against its face's material.
+#[test]
+fn a_chords_outward_normal_agrees_with_its_carriers() {
+    let band = band();
+    let mut read = 0;
+    for p in AT {
+        for (what, carrier) in CARRIERS {
+            for into in [true, false] {
+                for a in [0.0, -0.3, FRAC_PI_3, 2.0 * FRAC_PI_3, PI - 0.2] {
+                    for up in [true, false] {
+                        let h = dir(a);
+                        let outward = -(Z.cross(h));
+                        let bend = if into { -outward } else { outward };
+                        let surface = carrier.surface(p, bend, 1.0);
+                        let m = geom_brep::implicit_outward_normal(&surface, into, p).vec();
+                        let ruled = Ruled {
+                            surface,
+                            sense: into,
+                            outward: m,
+                            along: -Z,
+                            ends: [p - Z * 2.0, p + Z * 2.0],
+                            clear: 1.0,
+                        };
+                        let floor = v(0.0, if up { 1.0 } else { -1.0 }, 0.0);
+                        let Ok(chord) = FaceSector::chord(&ruled, p, floor, band) else {
+                            continue;
+                        };
+                        read += 1;
+                        let n = chord.sector.sector.outward;
+                        assert_eq!(
+                            metric::sign_as(LINK_NORMAL, Distance::of(p + n, p, m), band),
+                            Some(Sign::Positive),
+                            "{what}, bending into the wedge {into}, tangent at {a}, \
+                             floor up {up}, at {p:?}: chord normal {n:?}, carrier's {m:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(read >= 16, "the rows read chords: {read}");
+}
+
+/// **A cylinder face too tight to lever a side over, lying on a plate,
+/// reads by its sector.** An edge along `x` between a face on the plane
+/// `z = 0`, its material above (`y > 0`), and a wall up `y = 0`: the
+/// face's carrier a cylinder about the line `z = r` along `x`, of a radius
+/// `r` at the band's geometric middle, so the face leaves the plate at
+/// once. Its sector is the half-plane on the plate, outward `−z`. Against
+/// a plate whose material is below, the two sectors face each other and
+/// the touch rests; against one whose material is above, they overlap and
+/// cross. The carriers' normals at the point levered over the folded arm,
+/// `r`, are in band, which is where a reading of the carriers refused.
+/// Red if the pairing is read off the carriers at the folded arm (both
+/// readings in band), or turned the wrong way.
+#[test]
+fn a_tight_cylinder_face_on_a_plate_reads_by_its_sector() {
+    let band = band();
+    let r = (band.zero() * band.escalate()).sqrt();
+    let x = v(1.0, 0.0, 0.0);
+    let y = v(0.0, 1.0, 0.0);
+    for p in AT {
+        let cylinder = geom::Surface::Cylinder {
+            origin: p + Z * r,
+            axis: x,
+            radius: r,
+            u_ref: -Z,
+        };
+        let m = geom_brep::implicit_outward_normal(&cylinder, true, p).vec();
+        assert!(
+            m.dot(-Z) > 0.99,
+            "the cylinder's outward normal at {p:?}: {m:?}"
+        );
+        let folded = geom_brep::folded_lever_arm(
+            &cylinder,
+            &plane(-y, p),
+            p,
+            // Unsourced lever: the fan's own reach.
+            geom_core::Lever::unsourced(2.0),
+        );
+        assert!(
+            geom_core::k_stats::decide("t", geom_core::Margin::levered(-1.0, folded), band)
+                .is_err(),
+            "the carriers' cosine over the folded arm {folded:?} is in band at {p:?}"
+        );
+        let face = FaceSector {
+            sector: Sector {
+                outward: -Z,
+                apex: p,
+                wedges: fan(p, -Z, -x, 2.0, true),
+                closed: false,
+            },
+            face: LinkFace {
+                surface: cylinder,
+                sense: true,
+                clear: None,
+                tangent: None,
+            },
+        };
+        let edge = Link::of(p, vec![face, sheet(p, -y, x, true)]).expect("the edge's link");
+        for (material_below, verdict) in [(true, "rests"), (false, "crosses")] {
+            let n = if material_below { Z } else { -Z };
+            let plate = FaceSector {
+                sector: Sector {
+                    outward: n,
+                    apex: p,
+                    wedges: fan(p, n, x, 2.0, false),
+                    closed: true,
+                },
+                face: LinkFace {
+                    surface: geom::Surface::Plane {
+                        origin: p,
+                        normal: n,
+                        u_ref: x,
+                    },
+                    sense: true,
+                    clear: None,
+                    tangent: None,
+                },
+            };
+            let plate = Link::of(p, vec![plate]).expect("the plate's link");
+            for (order, got) in [
+                ("edge first", rest::judge(&edge, &plate, band)),
+                ("plate first", rest::judge(&plate, &edge, band)),
+            ] {
+                assert!(
+                    if material_below {
+                        rests(&got)
+                    } else {
+                        got == TouchVerdict::Crossing
+                    },
+                    "{verdict} at {p:?}, {order}: {got:?}"
+                );
+            }
+        }
+    }
+}

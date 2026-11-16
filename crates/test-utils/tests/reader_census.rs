@@ -333,6 +333,13 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // caller's re-description door call census, code view
     },
     Entry {
+        path: "crates/sweep/tests/a_blend_reads_the_wedge_through_the_one_fold.rs",
+        disposition: Shared, // the blend's wedge reads outside its one fold, code and
+                             // literal views with the inline test modules blanked
+                             // (`every_site_that_reads_rust_source_is_in_the_ledger`
+                             // named this file on arrival)
+    },
+    Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -378,13 +385,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
-        path: "crates/topo/src/boxes.rs",
-        disposition: Unconverted(
-            "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
-             topo's handle on it; the direct call is Track Q's to make",
-        ),
-    },
-    Entry {
         path: "crates/topo/src/boolean/join.rs",
         disposition: Shared, // the join's one face-to-surface walk, code view
     },
@@ -422,6 +422,24 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/live.rs",
         disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
+    },
+    Entry {
+        path: "crates/topo/src/pcurves/lift_agreement_rows.rs",
+        disposition: Unconverted(
+            "unowned by a code-quality track (the file is CHARTTAIL's) — the maker \
+             census counts `JointElement(` over raw lines with `//` skipped by prefix, \
+             beside two reads that do go through the shared lexer \
+             (work/charttail/the-ring-promotion-posture-row-reads-euler-kill-rs-by-hand.md)",
+        ),
+    },
+    Entry {
+        path: "crates/topo/src/pcurves/staleness_posture.rs",
+        disposition: Unconverted(
+            "unowned by a code-quality track (the file is CHARTTAIL's) — the \
+             ring-promotion posture row reads `euler_kill.rs` as raw lines and skips \
+             `//` by prefix, no reader \
+             (work/charttail/the-ring-promotion-posture-row-reads-euler-kill-rs-by-hand.md)",
+        ),
     },
     Entry {
         path: "crates/topo/src/policy_lane.rs",
@@ -966,7 +984,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 4;
+const UNCONVERTED_TODAY: usize = 5;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

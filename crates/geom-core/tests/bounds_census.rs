@@ -176,6 +176,17 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-brep/src/edge_nurbs.rs",
+        subject: "knot_lines",
+        why: Payload(
+            "each interior knot run's bracket midpoint becomes the f64 line at which \
+             `general_chart_image`'s climb breaks its f64 path; the breaks are nodes of an \
+             image lifted back through `from_computed`, evidence its certificate decides. \
+             Which runs are lines is read off the held structure's multiplicities, never off \
+             the bracket",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),

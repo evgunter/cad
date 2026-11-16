@@ -242,14 +242,36 @@ pub fn start(label: &str) -> Rng {
         "[fuzz] {label}: seed=0x{s:016x} effort={} — replay with CAD_FUZZ_SEED=0x{s:016x}",
         effort()
     );
-    // Mix the label in so streams differ per sweep while one env var
-    // still pins them all.
+    Rng::from_seed(s ^ label_mix(label))
+}
+
+/// The label mixed into a sweep's seed, so streams differ per sweep
+/// while one env var still pins them all.
+fn label_mix(label: &str) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     for b in label.as_bytes() {
         h ^= u64::from(*b);
         h = h.wrapping_mul(0x100_0000_01b3);
     }
-    Rng::from_seed(s ^ h)
+    h
+}
+
+/// **The stream [`start`] opens for `label` at `seed`, pinned**: a draw
+/// a sweep found, replayed as a fixture by the seed its log printed.
+/// Overridden by `CAD_FUZZ_SEED` as [`pinned`] is, and logged the same.
+pub fn pinned_sweep(label: &str, seed: u64) -> Rng {
+    let overridden = std::env::var_os("CAD_FUZZ_SEED").is_some();
+    let s = if overridden { self::seed() } else { seed };
+    println!(
+        "[fuzz] {label}: seed=0x{s:016x} effort={} ({})",
+        effort(),
+        if overridden {
+            "OVERRIDDEN by CAD_FUZZ_SEED — exploring, not the pinned gate"
+        } else {
+            "pinned sweep seed"
+        }
+    );
+    Rng::from_seed(s ^ label_mix(label))
 }
 
 /// Open a PINNED stream for a shape-3 coverage claim — a witness you

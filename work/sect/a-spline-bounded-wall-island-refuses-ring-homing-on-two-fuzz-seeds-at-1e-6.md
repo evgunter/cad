@@ -49,3 +49,5 @@ Find why the re-homing cannot place the ring at these two poses, where
 the ball's membership gives the bystander's side. Then either decide it
 or refuse with a type the search accepts. By the discipline's fuzzer rule, each seed becomes a
 pinned deterministic row beside the fix.
+
+- 2026-11-12 — a third seed, drawn by SEAL's lane during the topo slow set at ε 1e-6 (PR 6860), fails the same way on main (`aaae2da977`) and on the branch: `0x270ce19b23e2b871`, "asked 12, escalated 0: centre `(0.5, 0, 0)`, cuts `[0.46190321403604023, 0.9222495061976722]`: `RingHomingAmbiguous { ring: LoopKey(6v1) }`". (SEAL lane)

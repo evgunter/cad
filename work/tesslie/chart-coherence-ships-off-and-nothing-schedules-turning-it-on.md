@@ -89,7 +89,7 @@ gets a shape door — which together decide whether `CheckId::ChartCoherence`
 stops defaulting `Off`.
 
 **Why TESS.** `crates/topo/src/coherence.rs`, the examination this resident runs, is **owned
-by tess** (`work/tess/program.md`'s `paths`). Both measurements are about that
+by tess** (`work/tesslane/program.md`'s `paths`). Both measurements are about that
 examination: what it costs to run over every face of every rest body, and
 whether `Unexaminable::NonIsoCarrier` (two loops per ordinary trimmed cylinder)
 can be narrowed by a shape door.

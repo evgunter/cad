@@ -49,7 +49,7 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_across, slides_left_along, turn_onto};
+pub use turn::{SNAP_TURN, slides_across, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::{
     ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
@@ -223,10 +223,11 @@ pub(crate) fn copies_of<P>(
         let Some(crate::Node::Place { source, .. }) = doc.node(p) else {
             continue;
         };
-        if source.read == body {
+        let read = doc.through_sources(source.read);
+        if read.read == body {
             out.push((
                 p,
-                if source.is_indexed() {
+                if source.is_indexed() || read.is_indexed() {
                     Copying::Member
                 } else {
                     Copying::Whole
@@ -1113,9 +1114,8 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "mate_axis_point_offset",
         "whether a mate's point lies on its axis",
     ),
-    // The decided door's rigidity margins (`geom_core::RigidMotion::
-    // check_rigid`), asked of a solved placement's map and of a
-    // pattern's listed frames.
+    // The `f64` door's rigidity margins (`geom_core::RigidMotion::
+    // check_rigid`), asked of a frame a layout or a gesture hands in.
     (
         "transform_rigid_col0_unit",
         "whether the map keeps its first axis's length",
@@ -1143,10 +1143,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (
         "transform_rigid_det_plus_one",
         "whether the map keeps its handedness",
-    ),
-    (
-        solve::SOLVE_MAP_REWITNESS,
-        "whether a solved placement's map holds a frame of its own",
     ),
     (
         "mate_chart_pole",

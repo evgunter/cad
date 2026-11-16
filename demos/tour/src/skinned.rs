@@ -657,7 +657,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         &nonuniform_at_origin,
         &pncad::geom_core::RigidMotion::translation(Vec3::new(LOFT_PAIR_GAP, 0.0, 0.0))
             .expect("a finite translation"),
-        tol,
     )
     .expect("the non-uniform loft is placed beside its twin");
     // The third body: the prism's sections at the prism's placements,
@@ -744,7 +743,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         &twisted_at_origin,
         &pncad::geom_core::RigidMotion::translation(Vec3::new(2.0 * LOFT_PAIR_GAP, 0.0, 0.0))
             .expect("a finite translation"),
-        tol,
     )
     .expect("the twisted loft is placed beside the pair");
     // ONE CELL, BOTH BODIES (montage-v3 curation, Ev 2026-08-30).

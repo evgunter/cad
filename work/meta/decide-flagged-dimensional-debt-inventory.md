@@ -46,14 +46,35 @@ outside comments and the census, at `bb25fa4f`:
 
 | family | site |
 | --- | --- |
-| F10 | `crates/geom-core/src/linalg/rigid_motion.rs` (~:828, the rigid-check loop — `transform.rs`'s former home) |
 | F13 | `crates/geom-brep/src/pcurve_cache.rs` (~:8287, `pcurve_cone_chart_nappe`) |
 | F14 | `crates/editor-core/src/eval/wire.rs` (~:4297), plus a `decide_flagged_reported` site in `eval/wire/stepped.rs` (~:105) |
 | F16 | `crates/editor-core/src/measure.rs` (~:747) — new since this register |
-| F22 | `crates/geom-core/src/linalg/rigid_motion.rs` (~:1058) — new since this register |
 
 **F2 (×4, `validate.rs`) and F15 are gone.** The census
 (`crates/geom-core/tests/flagged_census.rs`, `LEDGER_FLAGGED_SITES = 6`)
 is the tripwire and agrees on six `decide_flagged` call sites. The
 owners above are whoever holds each file's ground today; this register
 routes, it does not execute.
+
+## F10 retired (2026-11-10, ONEHOME rigid-motion unit)
+
+`RigidMotion::check_rigid` now exists at `f64` alone. It admits a map
+as given when each of its seven rigidity residuals is within its own
+rounding (`rounding_charge` of its term bound), and refuses any other.
+It decides nothing, against no band. Every motion at a box scalar is
+minted by its construction, so no residual there is decided at all.
+That is fork 256's decision, revised by PR 6717's review into fork 258's
+final state, on PR 6589 and the row
+`work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`.
+The F10 row has left the table above. `LEDGER_FLAGGED_SITES` is 4: F13,
+F14, F16 and F22.
+
+## F22 retired (2026-11-15, ONEHOME least-turn mint)
+
+`RigidMotion::turned_between`, `least_turn` and `LeastTurn` are one
+mint, `RigidMotion::least_turn` (fork 270, PR 6964's decision,
+`onehome/least-turn-mint`). It decides its pole through `k_stats::decide`
+over `Margin::levered(|a + b|, arm)`, the arm a `Lever` its caller
+sources, and its conditioning through `Band::enclosure_sign`; nothing
+there is flagged. The F22 row has left the table above, and the census
+on that branch reads one site fewer than main's (5 → 4).

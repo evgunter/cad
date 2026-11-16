@@ -70,8 +70,12 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
             volume += props.volume;
             pad += props.volume_pad;
         }
+        // Each half's pad holds its own enclosure; the sum of the two
+        // midpoints and `π` itself each round by half an ulp, which no
+        // pad holds.
+        let rounding = 2.0 * f64::EPSILON * core::f64::consts::PI;
         assert!(
-            (volume - core::f64::consts::PI).abs() <= pad,
+            (volume - core::f64::consts::PI).abs() <= pad + rounding,
             "d = {d:e}: the halves sum to {volume} ± {pad}, not π"
         );
     }

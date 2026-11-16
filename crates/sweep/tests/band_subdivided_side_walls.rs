@@ -399,8 +399,10 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
 
 /// **Loft: one key per segment, so nothing merges.** Two copies of the
 /// subdivided square stacked 2 apart: every wall is its own NURBS
-/// surface, the structural rung finds no run, and the boolean refuses
-/// the body's spline edges before its maximal-faces gate is reached.
+/// surface, and the structural rung finds no run. The boolean reads the
+/// cube's planes against the walls on their section values and stops
+/// at the inside/outside test, which cannot cross a spline face, before
+/// its maximal-faces gate is reached.
 #[test]
 fn lofted_continuation_walls_carry_one_key_per_segment() {
     let t = Tol::witness();
@@ -422,8 +424,14 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     let loft = finished("the subdivided loft", l.body.clone(), t);
     let err = union(&loft, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();
     assert!(
-        !matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "refused before the gate: {err:?}"
+        matches!(
+            err,
+            BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                kind: geom::SurfaceKind::Nurbs,
+                ..
+            })
+        ),
+        "refused at the containment test, before the gate: {err:?}"
     );
 }
 

@@ -19,11 +19,11 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
-use super::ruling::{self, RuledCylinders, SweepRefusal};
+use super::ruling::{self, RuledCylinders};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, ZeroVerdict,
+    NodeLine, PairPose, PairSection, PairSide, RaySense, SectionComponent, SectionDecision,
+    SectionNode, ZeroVerdict, node_joined,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -161,7 +161,7 @@ pub enum CcNode {
 pub enum CcStance<T: Real> {
     /// Parallel axes: the section is rulings, or nothing.
     Parallel {
-        /// The region centre's foot on the first axis.
+        /// The reach's pivot on the first axis ([`Reach::foot_on`]).
         foot: Point3<T>,
         /// From `foot` to the second axis, square to it.
         across: Vec3<T>,
@@ -357,11 +357,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let (a1, a2) = (l1.dir, l2.dir);
         let cross = a1.cross(a2);
         let (normal, sin) = cross.direction_and_length();
-        let w = reach.foot_on(l2) - reach.foot_on(l1);
+        let f1 = reach.foot_on(l1);
+        let w = reach.foot_on(l2) - f1;
         let gap = w.dot(normal);
         // The common perpendicular's foot on the first axis, from the
-        // region centre's foot.
-        let f1 = reach.foot_on(l1);
+        // reach's pivot there.
         let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
         let e = gap.abs();
         let reach_d = read(CcDecision::CrossingGap, e - (r1 + r2), band)?;
@@ -948,8 +948,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     ];
                     let mut listed = Vec::new();
                     for ((curve, span), at) in arcs.into_iter().zip(ends) {
-                        let placed = ExtentBall::of_conic(curve)
-                            .map_or(RegionPlacement::Straddles, &against);
+                        let placed = against(ExtentBall::of_covered(curve.cover().as_ref().ok()));
                         if placed == RegionPlacement::Outside {
                             continue;
                         }
@@ -1008,12 +1007,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     let ruled = pose.ruled().unwrap_or_else(|| {
                         unreachable!("a crossing stance's pose reads its ruled side")
                     });
-                    let swept = ruling::sweep(&ruled, pose.region, band).map_err(|e| match e {
-                        SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
-                        SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
-                            cause: cause.to_owned(),
-                        },
-                    })?;
+                    let swept = ruling::sweep(&ruled, pose.region, band)?;
                     debug_assert_eq!(
                         swept.loops,
                         if nest.map(|n| n.sign) == Some(Sign::Positive) {
@@ -1067,37 +1061,4 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         decided,
         components,
     })
-}
-
-/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
-/// they share a node, each set claiming `winds`.
-fn node_joined<T: Real>(
-    listed: &[SectionComponent<T>],
-    nodes: usize,
-    winds: [bool; 2],
-) -> Vec<NodeSet> {
-    let ends = |c: &SectionComponent<T>| match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.nodes(),
-        ComponentShape::Loop | ComponentShape::Point => [None, None],
-    };
-    let mut sets: Vec<NodeSet> = Vec::new();
-    for node in 0..nodes {
-        let arcs: Vec<usize> = (0..listed.len())
-            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
-            .collect();
-        if arcs.is_empty() {
-            continue;
-        }
-        // Merge every set already holding one of these arcs.
-        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
-            .into_iter()
-            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
-        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
-        all.extend(arcs);
-        all.sort_unstable();
-        all.dedup();
-        sets = rest;
-        sets.push(NodeSet { arcs: all, winds });
-    }
-    sets
 }

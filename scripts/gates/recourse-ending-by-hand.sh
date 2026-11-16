@@ -99,8 +99,10 @@ stems() {
   local consts
   consts=$(grep -rhoE 'pub const [A-Z_]+_(RECOURSE|ENDING): &str' crates/geom-core/src 2>/dev/null \
     | sed -E 's/pub const ([A-Z_]+): &str/\1/' | sort -u) || true
+  local -a names=()
+  [ -n "$consts" ] && mapfile -t names <<<"$consts"
   printf '%s\n' "$consts" | sed -nE 's/^([A-Z_]+)_ENDING$/\1/p' | while read -r s; do
-    if printf '%s\n' "$consts" | grep -qx "${s}_RECOURSE"; then printf '%s\n' "$s"; fi
+    if gate_contains "${s}_RECOURSE" ${names[@]+"${names[@]}"}; then printf '%s\n' "$s"; fi
   done
 }
 

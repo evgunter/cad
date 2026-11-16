@@ -201,6 +201,17 @@ impl Orientation {
             .collect()
     }
 
+    /// **The orientation as a signed permutation of coordinates**: entry
+    /// `k` the target axis the source's axis `k` lies along, and whether
+    /// reversed ([`geom_core::UnitVec3::signed_permutation`]).
+    #[must_use]
+    pub fn signed_permutation(self) -> [(usize, bool); 3] {
+        [0, 1, 2].map(|k| {
+            let axis = self.column(k);
+            (axis.index(), axis.negative())
+        })
+    }
+
     /// Where the source's axis `index` lies.
     fn column(self, index: usize) -> SignedAxis {
         match index {

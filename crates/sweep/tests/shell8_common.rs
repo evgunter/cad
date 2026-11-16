@@ -36,12 +36,8 @@ pub(crate) fn beside_raw(
     by: Vec3<f64>,
 ) -> (Body<f64>, SolidKey) {
     let mut out = body.clone();
-    let placed = topo::transform_rigid(
-        other,
-        &geom_core::RigidMotion::translation(by).unwrap(),
-        tol(),
-    )
-    .expect("a rigid map");
+    let placed = topo::transform_rigid(other, &geom_core::RigidMotion::translation(by).unwrap())
+        .expect("a rigid map");
     let key = topo::graft_disjoint(&mut out, &placed).expect("the placed copy grafts");
     (out, key)
 }
