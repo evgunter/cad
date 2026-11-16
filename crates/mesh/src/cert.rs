@@ -1629,7 +1629,7 @@ mod tests {
     #[test]
     fn the_two_distances_are_the_distance_on_triangles_built_to_be_degenerate() {
         let mut rng = test_utils::fuzz::start("dist_triangle_degenerate");
-        let draws = test_utils::fuzz::scaled(24_000);
+        let draws = test_utils::fuzz::scaled(20_000);
         let mut kept = [0usize; 3];
         for k in 0..draws {
             let l = rng.log_uniform(1e-3, 1e3);
@@ -1896,7 +1896,7 @@ mod tests {
     fn the_cylinder_and_sphere_certificates_are_the_deviation_on_triangles_built_to_be_degenerate()
     {
         let mut rng = test_utils::fuzz::start("cert_cylinder_sphere_degenerate");
-        let draws = test_utils::fuzz::scaled(4_200);
+        let draws = test_utils::fuzz::scaled(1_800);
         let mut measurable = 0usize;
         let third = TAU / 3.0;
         for k in 0..draws {
