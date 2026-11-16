@@ -148,8 +148,8 @@
 //!   whose polygon point would share a CDT vertex with one at another UV
 //!   location refuses `SphereTrimShape { DevelopedMerge }` before its
 //!   first attempt ([`developed_merge`]) rather than merge two mesh
-//!   vertices, and a grid candidate that would is dropped, as a candidate
-//!   on a polygon point is in the chart ([`TrimmedFace::insert_points`]).
+//!   vertices. A lattice node is laid clear of every polygon point
+//!   ([`lay`]), the apex among them, so none shares a vertex with one.
 //!   [`crate::cdt::ids_at_two_uvs`] still reads UV locations, so it names
 //!   the apex's id; the census of identified-vertex fan edges then counts
 //!   the apex's one fan, whose edges a single vertex's fan uses twice at
@@ -180,33 +180,66 @@
 //! has one per sub-arc joint. No triangle may cross one
 //! (`NurbsCellGrid::cert` answers `+∞` for a box that does), so the
 //! lane cuts its triangulation along each (`Creases`): boundary points
-//! within rounding of a crease snap onto it, the grid gains a point on
-//! the crease at every grid line across it, and the points on a crease
-//! are chained into constraints. A boundary chord can only meet a
+//! within rounding of a crease snap onto it, the lattice lays no node
+//! within its clearance of one and gains a point on the crease at every
+//! grid line across it, and the points on a crease are chained into
+//! constraints. A boundary chord can only meet a
 //! crease at a chord point, which an arc rim's schedule places
 //! (`crate::chords`); any other boundary crossing one refuses typed, as
 //! do creases in both directions.
 //!
-//! # The grid-on-constraint retry (the T-junction attack)
+//! # The lattice keeps clear of the boundary
 //!
-//! An interior grid point landing EXACTLY on a boundary constraint
-//! would split it inside spade, leaving this face triangulated against
-//! a sub-segment its neighbour does not share — a T-junction. The
-//! constraint pass therefore classifies every intermediate vertex of
-//! a realised constraint: GRID points are dropped and the pass
-//! rebuilds (deterministic, ≤ [`MAX_GRID_RETRIES`] rounds, then a
-//! typed [`TessellateError::Triangulation`]) — dropping a grid point
-//! only coarsens triangles, and the per-triangle certificates remain
-//! the guarantee. Since TESS-SPAN the NURBS lane's grid is
-//! NON-UNIFORM (per-knot-span-cell lines), and the ladder is argued
-//! for it explicitly: candidates are generated, DEDUPLICATED by
-//! location before the first attempt (the refinement arm may APPEND
-//! later rounds' candidates — indices only grow), and a drop removes
-//! a candidate INDEX — so a cell-boundary point minted by two
-//! adjacent cells is one candidate, one drop actually removes the
-//! offending location, every retry strictly shrinks the candidate
-//! set, and the ≤ [`MAX_GRID_RETRIES`] bound terminates exactly as it
-//! did for the uniform grid.
+//! A lattice node is laid only where the box [`BOUNDARY_CLEARANCE`] of
+//! its own step each way, per chart axis, meets no side or point of the
+//! trim polygon and no crease line ([`lay`]; `crates/mesh/README.md`
+//! `[mesh.sizing]`). A node on a side would split it inside spade,
+//! leaving this face triangulated against a sub-segment its neighbour
+//! does not share (a T-junction), and a node within rounding of a side
+//! or of a chord point makes a triangle with no area between them. The
+//! lattice is laid without regard to the boundary, so both happen where
+//! a boundary point sits on a lattice line; the clearance is what keeps
+//! them from the triangulation, decided once, before the first attempt.
+//! Nothing is merged or moved and nothing asks whether two points are
+//! the same: the boundary point already there serves.
+//!
+//! - **The step is the node's own**: the uniform lattice's realized
+//!   steps on an analytic chart, its band's on a spline chart, where a
+//!   node on a cut line is laid by each band beside it at that band's
+//!   steps.
+//! - **Every loop is read**, a ring's sides as the outer loop's. A
+//!   period seam the loop runs along and a singular row
+//!   ([`singular_row_shape`]) are sides of the polygon like any other:
+//!   the column nearest a seam ruling, or the row nearest a pole, is
+//!   laid when it is a clearance away and not otherwise.
+//! - **The plane is the one the CDT runs in** ([`Side`]): a flat triangle
+//!   is a node on the line of a side where the triangulation holds that
+//!   side straight. In the chart that is the chart segment against the
+//!   node's chart rectangle, which the lattice metric scales together.
+//!   In the cone's development it is the segment between the ends'
+//!   developed points, which bows from the chart's chord toward the
+//!   apex, against the image of the node's chart rectangle: the annular
+//!   sector of its azimuths and slant lengths.
+//! - **A face may lay no node.** A strip under two clearances wide loses
+//!   every one; its triangles then stand on its boundary points, and the
+//!   per-triangle certificate bounds each as it does any other.
+//!
+//! A point the lane places later (an ear's or a refinement's, below) is
+//! strictly inside a kept triangle and is not held to the clearance. A
+//! point of the mesher's that still enters at an existing vertex, or
+//! that a side or a crease link is realised through, refuses typed
+//! ([`TessellateError::Triangulation`]): it is not dropped and the face
+//! is not rebuilt around it.
+//!
+//! # The retry loop
+//!
+//! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
+//! three causes: a triangle folded over the chord beside it drops its
+//! lattice corners, an ear of the boundary is split by a point inside
+//! it, and (below) a triangle certified above δ is refined. Lattice
+//! nodes are a fixed, (v, u)-sorted list computed once, before the
+//! loop; a fold drops a node by its index, and the ear and refinement
+//! arms append, so indices only grow.
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
 //! refinement**: after the emit pass, any NURBS triangle whose
@@ -262,9 +295,9 @@ use crate::types::{SphereTrimCause, TessellateError};
 
 /// Retry budget for the rebuild loop (module docs). **Termination.**
 ///
-/// One round budget covers all four retry kinds — the grid-on-constraint
-/// drops, the certificate-driven refinement, the fold drops and the ear
-/// splits — and it is a typed-refusal backstop rather than a tuning
+/// One round budget covers all three retry kinds — the
+/// certificate-driven refinement, the fold drops and the ear splits —
+/// and it is a typed-refusal backstop rather than a tuning
 /// knob: exhausting it raises [`TessellateError`], it never coarsens or
 /// accepts a mesh. The loop reads it through [`last_attempt`].
 const MAX_GRID_RETRIES: usize = 6;
@@ -322,6 +355,27 @@ pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 /// (which asks fewer chords) never refuses where a finer one meshes. A
 /// circle far from the poles reaches it only at a δ about `10⁻⁹·r`.
 pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
+
+/// **How far a lattice node keeps from the face's boundary**, in its own
+/// steps: a node is laid only where the box this share of its step each
+/// way, per chart axis, meets no side or point of the trim polygon and no
+/// crease line ([`TrimmedFace::lay`]; `crates/mesh/README.md`
+/// `[mesh.sizing]`). **Quality, and a debt**: the value nobody has to
+/// choose is 1/2, a node not laid where the boundary crosses its own
+/// cell, and that waits on the bound for a boundary run
+/// (`work/tesslane/the-boundary-clearance-goes-to-half-a-step-with-the-boundary-run-bound.md`).
+/// Read through [`boundary_clearance`], in [`TrimmedFace::lay`] alone.
+pub(crate) const BOUNDARY_CLEARANCE: f64 = 0.25;
+
+/// [`BOUNDARY_CLEARANCE`], or under `cfg(test)` an override a row sets to
+/// lay the lattice some other way (`tests::CLEARANCE`).
+fn boundary_clearance() -> f64 {
+    #[cfg(test)]
+    if let Some(c) = tests::CLEARANCE.with(std::cell::Cell::get) {
+        return c;
+    }
+    BOUNDARY_CLEARANCE
+}
 
 /// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
 /// this lane meshes on an analytic chart (one whose surface has no spline
@@ -499,7 +553,7 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_stats, metric) = match row {
+    let (lattice, nurbs_stats, metric) = match row {
         ChartRow::Analytic(ref a) => {
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
@@ -553,12 +607,9 @@ pub(crate) fn tessellate_trimmed(
             (cand, Some(stats), stats.metric)
         }
     };
-    // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
-    // computed ONCE (above the retry loop): mesh ids mint row-major on
-    // the FINAL kept set, and a retry drops candidates by INDEX — with
-    // per-cell generation a cell-boundary line is shared by adjacent
-    // cells, and dropping a location rather than one cell's copy of it
-    // is what keeps the retry ladder strictly shrinking (module docs).
+    // The lattice nodes a fold has dropped, by index into the candidates
+    // (module docs, "The retry loop"): mesh ids mint row-major on the
+    // FINAL kept set.
     let mut dropped: HashSet<usize> = HashSet::new();
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
@@ -610,6 +661,10 @@ pub(crate) fn tessellate_trimmed(
             cause: SphereTrimCause::DevelopedMerge,
         });
     }
+    // The lattice the face lays: every node clear of the boundary
+    // (`TrimmedFace::lay`), decided once, here. The retry loop appends
+    // ear and refinement points, each strictly inside a kept triangle.
+    let mut candidates = trimmed.lay(&lattice);
     for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
@@ -877,6 +932,18 @@ impl TrimmedFace<'_> {
         }
     }
 
+    /// The lattice the face lays ([`lay`]) at [`BOUNDARY_CLEARANCE`].
+    fn lay(&self, nodes: &[Node]) -> Vec<(f64, f64)> {
+        lay(
+            nodes,
+            boundary_clearance(),
+            self.plane(),
+            self.polygon,
+            self.singular,
+            self.creases,
+        )
+    }
+
     /// The face's outward normal at the foot of `p` on its carrier, on
     /// an analytic arm (`geom_brep::implicit_outward_normal`); poison
     /// where the foot is not one point (the cylinder's axis, the
@@ -904,14 +971,8 @@ impl TrimmedFace<'_> {
     ) -> Result<Next, TessellateError> {
         let fk = self.fk;
         let mut at = self.insert_points(candidates, dropped)?;
-        let (crossings, mut split_offender) = self.constrain_boundary(&mut at, dropped)?;
-        split_offender |= self.chain_crease_lines(&mut at, dropped)?;
-        if split_offender {
-            if attempt == last_attempt() {
-                return Err(TessellateError::Triangulation { face: fk });
-            }
-            return Ok(Next::Rebuild);
-        }
+        let crossings = self.constrain_boundary(&mut at)?;
+        self.chain_crease_lines(&mut at)?;
         let Emitted {
             interior,
             triangles,
@@ -967,9 +1028,7 @@ impl TrimmedFace<'_> {
         // still anisotropic where the CDT runs (measured — anchors and
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
-        // set stays valid); a refinement point landing exactly on a
-        // constraint is caught by the same intermediate-vertex
-        // classification as any candidate.
+        // set stays valid).
         if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
@@ -1059,9 +1118,8 @@ impl TrimmedFace<'_> {
         // point on purpose: there the copies of the singular vertex share
         // one, and a face whose polygon points would share one apart from
         // those has refused before its first attempt ([`developed_merge`]),
-        // so no two mesh vertices merge that the chart keeps apart. A grid
-        // candidate landing on an earlier point is dropped, as in the
-        // chart: it is no mesh vertex yet.
+        // so no two mesh vertices merge that the chart keeps apart. A
+        // point of the mesher's landing on an earlier point refuses below.
         let plane = self.plane();
         let inputs: Vec<(f64, f64, bool)> = self
             .polygon
@@ -1111,9 +1169,13 @@ impl TrimmedFace<'_> {
             .enumerate()
             .filter(|(k, _)| !dropped.contains(k));
         for ((k, &(u, v)), &h) in kept.zip(&handle_of[self.polygon.points.len()..]) {
-            if h.index() == meta.len() {
-                meta.push((u, v, Slot::Grid(k)));
+            // A point of the mesher's at an existing vertex. Nothing is
+            // merged: the lattice keeps clear of the polygon (`lay`), and
+            // an ear's or a refinement's point is inside its triangle.
+            if h.index() != meta.len() {
+                return Err(TessellateError::Triangulation { face: fk });
             }
+            meta.push((u, v, Slot::Grid(k)));
             if let Some(c) = self.creases {
                 c.note(&mut on_crease, (u, v), h);
             }
@@ -1128,13 +1190,8 @@ impl TrimmedFace<'_> {
     }
 
     /// The trim polygon's sides as constraints, with crossing counts
-    /// (the planar #116 pattern); answers the counts and whether a grid
-    /// point dropped.
-    fn constrain_boundary(
-        &self,
-        at: &mut Cdt,
-        dropped: &mut HashSet<usize>,
-    ) -> Result<(Crossings, bool), TessellateError> {
+    /// (the planar #116 pattern).
+    fn constrain_boundary(&self, at: &mut Cdt) -> Result<Crossings, TessellateError> {
         let fk = self.fk;
         let Cdt {
             cdt,
@@ -1143,11 +1200,7 @@ impl TrimmedFace<'_> {
             pinches,
             ..
         } = at;
-        // Constraints with crossing counts (the planar #116 pattern);
-        // a constraint realised through an intermediate vertex means a
-        // grid point sits exactly on it — drop and rebuild.
         let mut crossings: Crossings = HashMap::new();
-        let mut split_offender = false;
         for i in 0..handles.len() {
             let j = self.polygon.next(i);
             let (a, b) = (handles[i], handles[j]);
@@ -1159,16 +1212,16 @@ impl TrimmedFace<'_> {
                 return Err(TessellateError::Triangulation { face: fk });
             }
             if realised.len() > 1 {
-                // Classify every intermediate vertex (a vertex of a
-                // realised sub-edge that is neither endpoint of THIS
-                // segment): a grid point drops and the pass rebuilds;
-                // a BOUNDARY point means the trim loop touches itself
-                // exactly on this segment — no rebuild can repair
-                // that, and silently keeping it would emit a 3-D
-                // T-junction (this face triangulated against a
-                // sub-segment its neighbour does not share). Refused
-                // TYPED (review MIN-1: the advertised watertightness
-                // backstop must not have a silent arm).
+                // An intermediate vertex (a vertex of a realised
+                // sub-edge that is neither endpoint of THIS segment)
+                // splits the side, and keeping it would emit a 3-D
+                // T-junction: this face triangulated against a
+                // sub-segment its neighbour does not share. A BOUNDARY
+                // point there is the trim loop touching itself on this
+                // segment. A point of the mesher's there is refused, not
+                // moved: the lattice keeps clear of every side (`lay`),
+                // and an ear's or a refinement's point is inside its
+                // triangle.
                 for e in &realised {
                     let e = cdt.directed_edge(*e);
                     for vh in [e.from(), e.to()] {
@@ -1178,9 +1231,8 @@ impl TrimmedFace<'_> {
                         }
                         let idx = h.index();
                         match meta[idx].2 {
-                            Slot::Grid(k) => {
-                                dropped.insert(k);
-                                split_offender = true;
+                            Slot::Grid(_) => {
+                                return Err(TessellateError::Triangulation { face: fk });
                             }
                             Slot::Boundary(_) => {
                                 return Err(TessellateError::SelfTouchingTrimLoop { face: fk });
@@ -1195,40 +1247,23 @@ impl TrimmedFace<'_> {
                 *crossings.entry(edge_key(e)).or_insert(0) += 1;
             }
         }
-        Ok((crossings, split_offender))
+        Ok(crossings)
     }
 
     /// THE CREASE LINES (`Creases`): each crease is a chain of
     /// constraints through its vertices in order along it, so no
     /// triangle crosses it. Boundary crossings of a crease are
     /// vertices of the chain (`trim_polygon` refuses any other), so
-    /// a link never crosses a boundary constraint. A link through an
-    /// intermediate vertex has a grid point exactly on it, which
-    /// drops as on a boundary segment. The links stay out of
-    /// `crossings`: a crease is not a side of the face. Answers whether
-    /// a grid point dropped.
-    fn chain_crease_lines(
-        &self,
-        at: &mut Cdt,
-        dropped: &mut HashSet<usize>,
-    ) -> Result<bool, TessellateError> {
-        let fk = self.fk;
-        let mut split_offender = false;
-        let Some(through) = chain_creases(&mut at.cdt, &mut at.on_crease) else {
-            return Err(TessellateError::Triangulation { face: fk });
-        };
-        for h in through {
-            match at.meta[h.index()].2 {
-                Slot::Grid(k) => {
-                    dropped.insert(k);
-                    split_offender = true;
-                }
-                Slot::Boundary(_) => {
-                    return Err(TessellateError::Triangulation { face: fk });
-                }
-            }
+    /// a link never crosses a boundary constraint, and the lattice lays
+    /// no node within its clearance of a crease but the crease's own
+    /// (`lay`), so a link runs through no vertex: one that does refuses.
+    /// The links stay out of `crossings`: a crease is not a side of the
+    /// face.
+    fn chain_crease_lines(&self, at: &mut Cdt) -> Result<(), TessellateError> {
+        match chain_creases(&mut at.cdt, &mut at.on_crease) {
+            Some(through) if through.is_empty() => Ok(()),
+            Some(_) | None => Err(TessellateError::Triangulation { face: self.fk }),
         }
-        Ok(split_offender)
     }
 
     /// The emit pass: even-odd interior flags, the kept grid points
@@ -1384,8 +1419,7 @@ impl TrimmedFace<'_> {
                 ids[2].position(shared, &interior),
             ];
             // Wound as emitted below: reversed under `flip`.
-            let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]);
-            let normal = if flip { -normal } else { normal };
+            let wound = if flip { [tri[0], tri[2], tri[1]] } else { tri };
             let centroid = Point3::new(
                 (tri[0].x + tri[1].x + tri[2].x) / 3.0,
                 (tri[0].y + tri[1].y + tri[2].y) / 3.0,
@@ -1414,11 +1448,12 @@ impl TrimmedFace<'_> {
                     ears.push(Self::inside_point(plane, &uv, developed, singular));
                 }
             }
-            // Folded unless wound outward: a zero dot, or NaN where
-            // `outward` is poison, is a fold.
+            // Folded where its winding is resolved and not outward
+            // (`validate::winding`): a zero dot, or NaN where `outward` is
+            // poison, is a fold. A triangle f64 cannot wind is no fold to
+            // cure here: the face refuses where its patch joins the mesh.
             if self.outward(centroid).is_some_and(|n| {
-                let wound_outward = normal.dot(n.vec()) > 0.0;
-                !wound_outward
+                crate::validate::winding(wound, n.vec()) == crate::validate::Winding::Folded
             }) {
                 let grid: Vec<usize> = vs
                     .iter()
@@ -1567,6 +1602,243 @@ fn cdt_point(plane: CdtPlane, u: f64, v: f64, singular: bool) -> SpadePoint<f64>
             crate::cdt::spade_point(x, y)
         }
     }
+}
+
+/// **The lattice the face lays**: the nodes of `nodes` (row-major,
+/// [`sort_nodes`]) whose clearance box meets no side of the trim
+/// polygon and no crease line, as chart points, row-major, each
+/// location once (`crates/mesh/README.md` `[mesh.sizing]`, "The
+/// lattice keeps clear of the boundary"). A node's box is `c`
+/// ([`BOUNDARY_CLEARANCE`]) of its own step each way, per chart axis
+/// ([`Side::meets`] says in which plane it is read). Every loop's
+/// sides are read, a ring's, a period seam's and a singular row's as
+/// any other. A node exactly on a crease is the crease's own point on
+/// its grid line ([`Creases::cut_candidates`]) and is held clear of
+/// the polygon alone.
+///
+/// Nothing is merged or moved: a node is laid or it is not, and the
+/// decision is made before the first attempt.
+fn lay(
+    nodes: &[Node],
+    c: f64,
+    plane: CdtPlane,
+    polygon: &TrimPolygon,
+    singular: &HashSet<u32>,
+    creases: Option<&Creases>,
+) -> Vec<(f64, f64)> {
+    let mut near = vec![false; nodes.len()];
+    // Each row's run of `nodes`, and the widest window a side's
+    // search has to open either way.
+    let mut rows: Vec<(usize, usize)> = Vec::new();
+    let (mut reach_u, mut reach_v) = (0.0f64, 0.0f64);
+    for (k, n) in nodes.iter().enumerate() {
+        match rows.last_mut() {
+            Some((start, end)) if nodes[*start].v == n.v => *end = k + 1,
+            _ => rows.push((k, k + 1)),
+        }
+        reach_u = reach_u.max(c * n.step.0);
+        reach_v = reach_v.max(c * n.step.1);
+    }
+    let points = &polygon.points;
+    for i in 0..points.len() {
+        let side = Side::of(plane, points[i], points[polygon.next(i)], singular);
+        let ((u_lo, u_hi), (v_lo, v_hi)) = side.window();
+        let first = rows.partition_point(|&(start, _)| nodes[start].v < v_lo - reach_v);
+        for &(start, end) in &rows[first..] {
+            if nodes[start].v > v_hi + reach_v {
+                break;
+            }
+            let from = start + nodes[start..end].partition_point(|n| n.u < u_lo - reach_u);
+            for k in from..end {
+                if nodes[k].u > u_hi + reach_u {
+                    break;
+                }
+                near[k] = near[k] || side.meets(&nodes[k], c);
+            }
+        }
+    }
+    if let Some(creases) = creases {
+        for (n, near) in nodes.iter().zip(&mut near) {
+            let (x, h) = if creases.axis == 0 {
+                (n.u, n.step.0)
+            } else {
+                (n.v, n.step.1)
+            };
+            *near = *near || !creases.on(x) && creases.at.iter().any(|&at| (x - at).abs() <= c * h);
+        }
+    }
+    let mut laid: Vec<(f64, f64)> = nodes
+        .iter()
+        .zip(&near)
+        .filter(|&(_, &near)| !near)
+        .map(|(n, _)| (n.u, n.v))
+        .collect();
+    laid.dedup();
+    laid
+}
+
+/// **One side of the trim polygon, where the triangulation holds it
+/// straight**, for [`TrimmedFace::lay`]'s clearance: a flat triangle is a
+/// node on the line of a side in the plane the CDT runs in, so that is
+/// the plane a node's box is read in.
+///
+/// - **In the chart** ([`CdtPlane::Lattice`]) the side is the chart
+///   segment and the box the chart rectangle about the node. The lattice
+///   metric scales one axis, and a box against a segment reads the same
+///   under it.
+/// - **In the cone's development** ([`CdtPlane::Development`]) the side
+///   is the segment between its ends' developed points, which bows from
+///   the chart's toward the apex, and the box is the image of the node's
+///   chart rectangle: the annular sector of its azimuths and slant
+///   lengths.
+#[derive(Clone, Copy, Debug)]
+enum Side {
+    Chart {
+        a: (f64, f64),
+        b: (f64, f64),
+    },
+    Developed {
+        a: SpadePoint<f64>,
+        b: SpadePoint<f64>,
+        /// The developed angle per chart `u`, `σ·sin α`, and the nappe
+        /// `σ` ([`developed`]).
+        turn: f64,
+        nappe: f64,
+        /// The side's extent in the chart ([`Self::window`]).
+        window: ((f64, f64), (f64, f64)),
+    },
+}
+
+impl Side {
+    /// The side from polygon point `a` to `b` on `plane`.
+    fn of(
+        plane: CdtPlane,
+        a: (f64, f64, u32),
+        b: (f64, f64, u32),
+        singular: &HashSet<u32>,
+    ) -> Self {
+        match plane {
+            CdtPlane::Lattice { .. } => Self::Chart {
+                a: (a.0, a.1),
+                b: (b.0, b.1),
+            },
+            CdtPlane::Development { sin_alpha, nappe } => {
+                let apex = (singular.contains(&a.2), singular.contains(&b.2));
+                let (pa, pb) = (
+                    cdt_point(plane, a.0, a.1, apex.0),
+                    cdt_point(plane, b.0, b.1, apex.1),
+                );
+                // A developed segment's azimuth runs monotonically between
+                // its ends', and the apex has none: a side from it runs
+                // along its other end's ruling.
+                let u = match apex {
+                    (true, true) => (f64::NEG_INFINITY, f64::INFINITY),
+                    (true, false) => (b.0, b.0),
+                    (false, true) => (a.0, a.0),
+                    (false, false) => (a.0.min(b.0), a.0.max(b.0)),
+                };
+                let (near, far) = radii_sq(pa, pb, (0.0, 1.0));
+                let (near, far) = (near.sqrt(), far.sqrt());
+                let v = if nappe > 0.0 {
+                    (near, far)
+                } else {
+                    (-far, -near)
+                };
+                Self::Developed {
+                    a: pa,
+                    b: pb,
+                    turn: nappe * sin_alpha,
+                    nappe,
+                    window: (u, v),
+                }
+            }
+        }
+    }
+
+    /// The side's extent in the chart, `((u_lo, u_hi), (v_lo, v_hi))`: no
+    /// node whose box lies wholly outside it meets the side.
+    fn window(&self) -> ((f64, f64), (f64, f64)) {
+        match *self {
+            Self::Chart { a, b } => ((a.0.min(b.0), a.0.max(b.0)), (a.1.min(b.1), a.1.max(b.1))),
+            Self::Developed { window, .. } => window,
+        }
+    }
+
+    /// Whether the box `c` of `node`'s own step each way, per chart axis,
+    /// meets the side (both closed).
+    fn meets(&self, node: &Node, c: f64) -> bool {
+        let half = (c * node.step.0, c * node.step.1);
+        match *self {
+            Self::Chart { a, b } => {
+                // Separating axes of a segment and a rectangle: the two
+                // chart axes, and the segment's normal.
+                let ((u_lo, u_hi), (v_lo, v_hi)) = self.window();
+                if u_lo > node.u + half.0
+                    || u_hi < node.u - half.0
+                    || v_lo > node.v + half.1
+                    || v_hi < node.v - half.1
+                {
+                    return false;
+                }
+                let d = (b.0 - a.0, b.1 - a.1);
+                let cross = d.0 * (node.v - a.1) - d.1 * (node.u - a.0);
+                cross.abs() <= half.0 * d.1.abs() + half.1 * d.0.abs()
+            }
+            Self::Developed {
+                a, b, turn, nappe, ..
+            } => {
+                // The sector: azimuths between the box's two, a wedge
+                // narrower than a half turn and so two half-planes; slant
+                // lengths between the box's two.
+                let (t0, t1) = (turn * (node.u - half.0), turn * (node.u + half.0));
+                let (lo, hi) = (t0.min(t1), t0.max(t1));
+                let rho = nappe * node.v;
+                let (r0, r1) = ((rho - half.1).max(0.0), rho + half.1);
+                // The developed point at angle `θ` is `r·(sin θ, cos θ)`,
+                // so `(cos θ, −sin θ)` points the way `θ` grows.
+                let past = |p: SpadePoint<f64>, theta: f64| {
+                    let (sin, cos) = <f64 as geom_core::Real>::sin_cos(theta);
+                    p.x * cos - p.y * sin
+                };
+                let Some(span) = clip(past(a, lo), past(b, lo), (0.0, 1.0))
+                    .and_then(|span| clip(-past(a, hi), -past(b, hi), span))
+                else {
+                    return false;
+                };
+                let (near, far) = radii_sq(a, b, span);
+                near <= r1 * r1 && far >= r0 * r0
+            }
+        }
+    }
+}
+
+/// The part of `(t0, t1)` where the linear function running from `ga` at
+/// `t = 0` to `gb` at `t = 1` is not negative.
+fn clip(ga: f64, gb: f64, (t0, t1): (f64, f64)) -> Option<(f64, f64)> {
+    let (lo, hi) = match (ga >= 0.0, gb >= 0.0) {
+        (true, true) => (t0, t1),
+        (false, false) => return None,
+        (true, false) => (t0, t1.min(ga / (ga - gb))),
+        (false, true) => (t0.max(ga / (ga - gb)), t1),
+    };
+    (lo <= hi).then_some((lo, hi))
+}
+
+/// The least and greatest squared distance from the origin of the
+/// segment `a`–`b` over its parameters `(t0, t1)`.
+fn radii_sq(a: SpadePoint<f64>, b: SpadePoint<f64>, (t0, t1): (f64, f64)) -> (f64, f64) {
+    let d = (b.x - a.x, b.y - a.y);
+    let at = |t: f64| {
+        let (x, y) = (a.x + t * d.0, a.y + t * d.1);
+        x * x + y * y
+    };
+    let len = d.0 * d.0 + d.1 * d.1;
+    let foot = if len > 0.0 {
+        (-(a.x * d.0 + a.y * d.1) / len).clamp(t0, t1)
+    } else {
+        t0
+    };
+    (at(foot), at(t0).max(at(t1)))
 }
 
 /// The plane a trimmed face's CDT runs in ([`cdt_point`]).
@@ -1854,7 +2126,9 @@ fn pole_side_columns(
 /// `curved::grid_counts`' doc records (issue 685 decided only the
 /// cone's `nu == 1` case; here the candidates are heuristic seeds and
 /// the per-triangle certificate is the stated guarantee).
-fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec<(f64, f64)> {
+fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec<Node> {
+    #[allow(clippy::cast_precision_loss)]
+    let step = ((u.1 - u.0) / nu as f64, (v.1 - v.0) / nv as f64);
     let mut cand = Vec::new();
     for j in 1..nv {
         for i in 1..nu {
@@ -1862,10 +2136,10 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
             let uu = u.0 + (u.1 - u.0) * (i as f64 / nu as f64);
             #[allow(clippy::cast_precision_loss)]
             let vv = v.0 + (v.1 - v.0) * (j as f64 / nv as f64);
-            cand.push((uu, vv));
+            cand.push(Node { u: uu, v: vv, step });
         }
     }
-    sort_candidates(&mut cand);
+    sort_nodes(&mut cand);
     cand
 }
 
@@ -1899,8 +2173,8 @@ fn per_cell_candidates(
     u: (f64, f64),
     v: (f64, f64),
     budget: f64,
-) -> Result<(Vec<(f64, f64)>, ScheduleStats), TessellateError> {
-    let mut cand: Vec<(f64, f64)> = Vec::new();
+) -> Result<(Vec<Node>, ScheduleStats), TessellateError> {
+    let mut cand: Vec<Node> = Vec::new();
     let mut stats = ScheduleStats {
         grid_cells: 0,
         bands: 0,
@@ -1939,6 +2213,10 @@ fn per_cell_candidates(
                 }
             }
         };
+        // The band's own steps: a node on a cut line is laid by each
+        // band beside it, at that band's.
+        #[allow(clippy::cast_precision_loss)]
+        let step = (du / b.nuc as f64, (b.vb - b.va) / b.nvc as f64);
         for j in 0..=b.nvc {
             let vv = at(b.va, b.vb, j, b.nvc);
             if !(vv > v.0 && vv < v.1) {
@@ -1947,12 +2225,11 @@ fn per_cell_candidates(
             for i in 1..b.nuc {
                 #[allow(clippy::cast_precision_loss)]
                 let uu = u.0 + (u.1 - u.0) * (i as f64 / b.nuc as f64);
-                cand.push((uu, vv));
+                cand.push(Node { u: uu, v: vv, step });
             }
         }
     }
-    sort_candidates(&mut cand);
-    cand.dedup();
+    sort_nodes(&mut cand);
     Ok((cand, stats))
 }
 
@@ -1978,11 +2255,27 @@ struct ScheduleStats {
     metric: f64,
 }
 
-/// Row-major candidate order: by `v`, then `u` (total order — the
-/// values are finite by construction, and `total_cmp` keeps the sort
-/// deterministic without a partial-compare unwrap).
-fn sort_candidates(cand: &mut [(f64, f64)]) {
-    cand.sort_unstable_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)));
+/// **A lattice node, with the steps of the lattice that lays it**
+/// `(h_u, h_v)`: the uniform lattice's realized steps on an analytic
+/// chart, its band's on a spline chart. The steps are what
+/// [`TrimmedFace::lay`] measures the node's clearance in.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Node {
+    u: f64,
+    v: f64,
+    step: (f64, f64),
+}
+
+/// Row-major node order: by `v`, then `u`, then by step where two bands
+/// lay one location. A total order (`total_cmp`), so the sort is
+/// deterministic.
+fn sort_nodes(nodes: &mut [Node]) {
+    nodes.sort_unstable_by(|a, b| {
+        a.v.total_cmp(&b.v)
+            .then(a.u.total_cmp(&b.u))
+            .then(a.step.0.total_cmp(&b.step.0))
+            .then(a.step.1.total_cmp(&b.step.1))
+    });
 }
 
 /// The orientation the outer loop's polygon HAS in the chart, which the
@@ -2419,9 +2712,9 @@ fn chain_creases(
 ///   ([`Self::snap`]); an arc rim has one at each joint, by its chord
 ///   schedule, and a boundary chord crossing a crease anywhere else
 ///   refuses typed ([`Self::straddled`]);
-/// - the grid candidates within rounding of a crease are moved onto
-///   it, and each grid row gains a point where it meets the crease
-///   ([`Self::cut_candidates`]);
+/// - no lattice node is laid within its clearance of a crease
+///   ([`lay`]), and each grid line across a crease gains a point where
+///   it meets it ([`Self::cut_candidates`]);
 /// - the points exactly on a crease are chained into constraints in
 ///   order along it.
 ///
@@ -2441,8 +2734,7 @@ struct Creases {
 /// The merge band, as a fraction of the chart's extent across the
 /// creases: `2⁻⁴⁰`, about 9e-13, or 4096 ulps of an extent. An arc
 /// rim's joint point evaluates its chart image to a few ulps of the
-/// crease; a grid point any nearer than this would only cut a sliver
-/// beside the crease line.
+/// crease, and is the one point this band moves ([`Creases::snap`]).
 const CREASE_MERGE: f64 = 1.0 / 1_099_511_627_776.0;
 
 impl Creases {
@@ -2530,27 +2822,31 @@ impl Creases {
         self.at.iter().any(|&c| lo < c && c < hi)
     }
 
-    /// The grid candidates cut at the creases: each within rounding of
-    /// a crease moved onto it, and a point on each crease at every
-    /// grid line across it (a row for a `u` crease, a column for a
-    /// `v` one). Sorted and deduplicated again, as the lane takes them.
-    fn cut_candidates(&self, cand: &mut Vec<(f64, f64)>) {
-        for p in cand.iter_mut() {
-            *p = self.snap(*p);
-        }
-        let mut lines: Vec<f64> = cand
-            .iter()
-            .map(|p| if self.axis == 0 { p.1 } else { p.0 })
-            .collect();
-        lines.sort_unstable_by(f64::total_cmp);
-        lines.dedup();
+    /// The lattice with its crease points: a node on each crease at every
+    /// grid line across it (a row for a `u` crease, a column for a `v`
+    /// one), at the step of that line's first node. No node is moved: one
+    /// near a crease is not laid ([`TrimmedFace::lay`]), and the crease's
+    /// own point on its line serves.
+    fn cut_candidates(&self, cand: &mut Vec<Node>) {
+        let line = |n: &Node| if self.axis == 0 { n.v } else { n.u };
+        let mut lines: Vec<Node> = cand.clone();
+        lines.sort_by(|a, b| line(a).total_cmp(&line(b)));
+        lines.dedup_by(|b, a| line(a) == line(b));
         for &c in &self.at {
-            for &l in &lines {
-                cand.push(if self.axis == 0 { (c, l) } else { (l, c) });
+            for n in &lines {
+                cand.push(if self.axis == 0 {
+                    Node { u: c, ..*n }
+                } else {
+                    Node { v: c, ..*n }
+                });
             }
         }
-        sort_candidates(cand);
-        cand.dedup();
+        sort_nodes(cand);
+    }
+
+    /// Whether `x`, a coordinate across the creases, is exactly on one.
+    fn on(&self, x: f64) -> bool {
+        self.at.contains(&x)
     }
 
     /// Records `h` at `p` in `on`, as `(crease, position along it,
@@ -2571,7 +2867,7 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(super) mod tests {
     use super::{
-        ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError, chain_creases,
+        ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, chain_creases,
         id_repeats_apart, trim_polygon,
     };
     use crate::chart_table::SingularPoint;
@@ -2596,6 +2892,10 @@ pub(super) mod tests {
         /// The retry loop's last attempt, when a row sets it
         /// (`super::last_attempt`). `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
+            const { std::cell::Cell::new(None) };
+        /// The boundary clearance, when a row sets it
+        /// (`super::boundary_clearance`). `cfg(test)` only.
+        pub(crate) static CLEARANCE: std::cell::Cell<Option<f64>> =
             const { std::cell::Cell::new(None) };
     }
 
@@ -2689,11 +2989,13 @@ pub(super) mod tests {
     /// when `cut`, the candidates cut at the creases and the crease
     /// lines chained. Answers the inner triangles' boxes along
     /// `c.axis`.
-    fn triangulate(c: &Creases, mut cand: Vec<(f64, f64)>, cut: bool) -> Vec<(f64, f64)> {
+    fn triangulate(c: &Creases, cand: Vec<(f64, f64)>, cut: bool) -> Vec<(f64, f64)> {
         let boundary = square(c, 7);
-        if cut {
-            c.cut_candidates(&mut cand);
-        }
+        let cand = if cut {
+            cut_and_laid(c, &boundary, &cand)
+        } else {
+            cand
+        };
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
         let mut on: Vec<(f64, f64, FixedVertexHandle)> = Vec::new();
@@ -2722,6 +3024,36 @@ pub(super) mod tests {
             })
             .collect()
     }
+
+    /// `cand` as the lane lays it inside `boundary`: nodes of the step
+    /// `STEP`, cut at the creases (`Creases::cut_candidates`) and kept
+    /// clear of the boundary and the crease lines (`super::lay`).
+    fn cut_and_laid(c: &Creases, boundary: &[(f64, f64)], cand: &[(f64, f64)]) -> Vec<(f64, f64)> {
+        let mut nodes: Vec<Node> = cand
+            .iter()
+            .map(|&(u, v)| Node { u, v, step: STEP })
+            .collect();
+        super::sort_nodes(&mut nodes);
+        c.cut_candidates(&mut nodes);
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<(f64, f64, u32)> = boundary
+            .iter()
+            .enumerate()
+            .map(|(i, &(u, v))| (u, v, i as u32))
+            .collect();
+        super::lay(
+            &nodes,
+            super::BOUNDARY_CLEARANCE,
+            super::CdtPlane::Lattice { metric: 1.0 },
+            &super::TrimPolygon::of_loops(&outer, &[]),
+            &HashSet::new(),
+            Some(c),
+        )
+    }
+
+    /// The step the crease rows give their nodes: finer than any grid
+    /// they lay, so a node is dropped only where it crowds a crease.
+    const STEP: (f64, f64) = (1e-3, 1e-3);
 
     /// A uniform interior grid `nu × nv`, offset from the creases.
     fn grid(nu: usize, nv: usize) -> Vec<(f64, f64)> {
@@ -2837,12 +3169,12 @@ pub(super) mod tests {
         }
     }
 
-    /// A grid point and a boundary point one ulp off a crease merge
-    /// onto it, on either side: neither survives beside the crease line
-    /// to cut a sliver, and the triangulation still keeps every
-    /// triangle on one side.
+    /// A boundary point one ulp off a crease snaps onto it, on either
+    /// side, and a node one ulp off it is not laid: neither survives
+    /// beside the crease line to cut a sliver, and the triangulation
+    /// still keeps every triangle on one side.
     #[test]
-    fn a_point_an_ulp_off_a_crease_merges_onto_it() {
+    fn a_node_beside_a_crease_is_not_laid_and_a_boundary_point_snaps() {
         let x = 0.37f64;
         let (below, above) = (
             f64::from_bits(x.to_bits() - 1),
@@ -2856,7 +3188,7 @@ pub(super) mod tests {
             assert_eq!(along(c.snap(at(above))), x, "axis {axis}: above");
             let mut cand = grid(9, 6);
             cand.extend([at(below), at(above)]);
-            c.cut_candidates(&mut cand);
+            let cand = cut_and_laid(&c, &square(&c, 7), &cand);
             assert!(
                 cand.iter()
                     .all(|&p| along(p) == x || (along(p) - x).abs() > 1e-6),
@@ -3904,6 +4236,212 @@ pub(super) mod tests {
         assert_eq!(refused, meshed);
     }
 
+    /// Whether the closed rectangle about `c`, `half` each way, meets the
+    /// segment `a`–`b`, by clipping the segment to the rectangle's four
+    /// sides in turn: the reference [`super::Side::meets`] is held to.
+    fn clipped(c: (f64, f64), half: (f64, f64), a: (f64, f64), b: (f64, f64)) -> bool {
+        let (mut t0, mut t1) = (0.0f64, 1.0f64);
+        for (p, d, lo, hi) in [
+            (a.0, b.0 - a.0, c.0 - half.0, c.0 + half.0),
+            (a.1, b.1 - a.1, c.1 - half.1, c.1 + half.1),
+        ] {
+            if d == 0.0 {
+                if p < lo || p > hi {
+                    return false;
+                }
+                continue;
+            }
+            let (ta, tb) = ((lo - p) / d, (hi - p) / d);
+            t0 = t0.max(ta.min(tb));
+            t1 = t1.min(ta.max(tb));
+        }
+        t0 <= t1
+    }
+
+    /// **A node is laid exactly where its box meets no side of any loop**
+    /// ([`super::lay`], `crates/mesh/README.md` `[mesh.sizing]`): on an
+    /// oblique quadrilateral holding a triangular ring, under a lattice
+    /// whose steps differ by axis, the nodes laid are those whose box of
+    /// `c` own steps each way no side clips, at the shipped clearance and
+    /// either side of it. Every loop is read (a ring's sides drop nodes),
+    /// the box is per axis (the steps differ), and a wider clearance lays
+    /// no node a narrower one does not.
+    #[test]
+    fn a_node_is_laid_exactly_where_its_box_meets_no_side() {
+        let outer = [(0.0, 0.0, 0), (4.0, 0.6, 1), (3.1, 3.0, 2), (0.4, 2.2, 3)];
+        let ring = [(1.5, 1.0, 4), (2.5, 1.9, 5), (1.4, 1.7, 6)];
+        let trim = super::TrimPolygon::of_loops(&outer, &[&ring]);
+        let sides: Vec<((f64, f64), (f64, f64))> = (0..trim.points.len())
+            .map(|i| (trim.points[i], trim.points[trim.next(i)]))
+            .map(|(a, b)| ((a.0, a.1), (b.0, b.1)))
+            .collect();
+        let nodes = super::uniform_candidates((0.0, 4.0), (0.0, 3.0), 37, 23);
+        let plane = super::CdtPlane::Lattice { metric: 1.0 };
+        let mut before: Option<Vec<(f64, f64)>> = None;
+        for c in [0.5, super::BOUNDARY_CLEARANCE, 0.0625] {
+            let laid = super::lay(&nodes, c, plane, &trim, &HashSet::new(), None);
+            let (mut near_outer, mut near_ring) = (0, 0);
+            for n in &nodes {
+                let half = (c * n.step.0, c * n.step.1);
+                let near: Vec<bool> = sides
+                    .iter()
+                    .map(|&(a, b)| clipped((n.u, n.v), half, a, b))
+                    .collect();
+                near_outer += usize::from(near[..4].iter().any(|&x| x));
+                near_ring += usize::from(near[4..].iter().any(|&x| x));
+                assert_eq!(
+                    laid.contains(&(n.u, n.v)),
+                    !near.iter().any(|&x| x),
+                    "clearance {c}: the node ({}, {}) is laid exactly when no side clips its box",
+                    n.u,
+                    n.v
+                );
+            }
+            assert!(
+                near_outer > 0 && near_ring > 0 && laid.len() > nodes.len() / 2,
+                "clearance {c}: nodes are dropped beside the outer loop ({near_outer}) and \
+                 beside the ring ({near_ring}), and most are laid ({})",
+                laid.len()
+            );
+            if let Some(before) = &before {
+                assert!(
+                    before.iter().all(|p| laid.contains(p)) && before.len() < laid.len(),
+                    "clearance {c}: a narrower clearance lays every node a wider one does, and more"
+                );
+            }
+            before = Some(laid);
+        }
+    }
+
+    /// **In the cone's development a node's box is its sector**
+    /// ([`super::Side::meets`]): the side is the straight segment between
+    /// its ends' developed points, and the box the image of the node's
+    /// chart rectangle. Held to the side sampled along its length and read
+    /// back to the chart, over a lattice about it: a node whose rectangle
+    /// holds a sample is not laid, and one not laid has a sample in its
+    /// rectangle grown by a thousandth. The chart's own chord between the
+    /// same ends is a different line (the developed side bows toward the
+    /// apex), and a node between the two is read against the developed one.
+    #[test]
+    fn in_the_development_a_nodes_box_is_its_sector() {
+        let (sin_alpha, nappe) = (0.5f64.sin(), 1.0);
+        let plane = super::CdtPlane::Development { sin_alpha, nappe };
+        let (a, b) = ((0.2, 1.0, 0u32), (2.6, 1.4, 1u32));
+        let side = super::Side::of(plane, a, b, &HashSet::new());
+        let (pa, pb) = (
+            super::cdt_point(plane, a.0, a.1, false),
+            super::cdt_point(plane, b.0, b.1, false),
+        );
+        const SAMPLES: usize = 20_000;
+        #[allow(clippy::cast_precision_loss)]
+        let samples: Vec<(f64, f64)> = (0..=SAMPLES)
+            .map(|k| k as f64 / SAMPLES as f64)
+            .map(|t| (pa.x + t * (pb.x - pa.x), pa.y + t * (pb.y - pa.y)))
+            .map(|(x, y)| (x.atan2(y) / sin_alpha, x.hypot(y)))
+            .collect();
+        let c = super::BOUNDARY_CLEARANCE;
+        let step = (0.11, 0.03);
+        let holds = |n: &Node, grow: f64| {
+            let half = (c * step.0 * grow, c * step.1 * grow);
+            samples
+                .iter()
+                .any(|&(u, v)| (u - n.u).abs() <= half.0 && (v - n.v).abs() <= half.1)
+        };
+        let (mut met, mut bowed) = (0, 0);
+        for j in 0..40 {
+            for i in 0..30 {
+                let n = Node {
+                    u: 0.0 + f64::from(i) * step.0,
+                    v: 0.8 + f64::from(j) * step.1 * 0.7,
+                    step,
+                };
+                let meets = side.meets(&n, c);
+                assert!(
+                    !holds(&n, 1.0) || meets,
+                    "the node ({}, {}) holds a point of the developed side and is laid",
+                    n.u,
+                    n.v
+                );
+                assert!(
+                    !meets || holds(&n, 1.001),
+                    "the node ({}, {}) is not laid and holds no point of the developed side",
+                    n.u,
+                    n.v
+                );
+                met += usize::from(meets);
+                let chart = clipped((n.u, n.v), (c * step.0, c * step.1), (a.0, a.1), (b.0, b.1));
+                bowed += usize::from(chart != meets);
+            }
+        }
+        assert!(
+            met > 10,
+            "the side passes through the lattice ({met} nodes)"
+        );
+        assert!(
+            bowed > 0,
+            "some node tells the developed side from the chart's chord, so the row holds which \
+             one is read"
+        );
+    }
+
+    /// The `y`-poled unit ball united with the box over `x ∈ (0.5, 3)`,
+    /// `z ∈ (0, 2)`: at `δ = 0.04` the section circle meets the equator
+    /// at azimuth `π/3`, a lattice column of the sphere face, and a node
+    /// of an unconditioned lattice lies `3·10⁻¹⁶` from the loop's vertex
+    /// there
+    /// (`work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md`).
+    fn ball_under_a_box_face() -> topo::Body<f64> {
+        use geom_core::{Tol, Vec3};
+        let tol = Tol::witness();
+        let finished = sweep::test_support::finished;
+        let ball = sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol);
+        let brick = sweep::test_support::brick::<f64>((0.5, 3.0), (-2.0, 2.0), (0.0, 2.0), tol);
+        topo::boolean::union(
+            &finished("the box", brick, tol),
+            &finished("the ball", ball, tol),
+            tol,
+        )
+        .expect("the pair unions")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+        .into_body()
+    }
+
+    /// **The clearance is what keeps a node off the boundary.** The ball
+    /// under a box face at `δ = 0.04` meshes with every winding resolved.
+    /// With the clearance at zero (`CLEARANCE`, test-only) a node is kept
+    /// off a side only where it lies on it exactly, the node within
+    /// rounding of the loop's vertex is laid, and the triangle between
+    /// the two has no winding f64 can read: the face refuses
+    /// `UnresolvedWinding` where its patch joins the mesh. Set on a
+    /// one-thread pool's worker, which runs the faces.
+    #[test]
+    fn a_lattice_laid_without_clearance_cuts_a_triangle_the_join_refuses() {
+        use geom_core::Tol;
+        let body = ball_under_a_box_face();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let (bare, shipped) = pool.install(|| {
+            CLEARANCE.with(|c| c.set(Some(0.0)));
+            let bare = crate::tessellate(&body, 0.04, Tol::witness());
+            CLEARANCE.with(|c| c.set(None));
+            (bare, crate::tessellate(&body, 0.04, Tol::witness()))
+        });
+        let sphere = |fk| matches!(body.face_surface(fk), Some(geom::Surface::Sphere { .. }));
+        assert!(
+            matches!(bare, Err(TessellateError::UnresolvedWinding { face }) if sphere(face)),
+            "clearance zero: the sphere face refuses at the join, got {:?}",
+            bare.map(|m| m.patches.len())
+        );
+        let mesh = shipped.expect("at the shipped clearance the body meshes");
+        crate::validate::check_mesh(&mesh).expect("and the mesh checks");
+        crate::validate::check_winding(&mesh).expect("and every winding is resolved");
+    }
+
     /// Twelve distinct edge keys (a brick's), for rows that check which
     /// edge a refusal names.
     pub(super) fn twelve_edge_keys() -> Vec<topo::EdgeKey> {
@@ -4095,7 +4633,10 @@ pub(super) mod tests {
         ///   point (its development under spade's floor) is found before the
         ///   first attempt (`developed_merge`), where the face refuses typed
         ///   rather than merge two mesh vertices the chart keeps apart;
-        /// - a grid candidate landing there is dropped: it is no mesh vertex.
+        /// - a lattice node there is not laid (`lay`: the apex is a point of
+        ///   the polygon, and the node's sector holds it), and a point of the
+        ///   mesher's entering at an existing vertex refuses: nothing is
+        ///   merged.
         ///
         /// **The exactness cut is pinned here alone.** `developed` returning
         /// the plain `r·sin θ, r·cos θ` reds this row and no mesh row: the
@@ -4156,13 +4697,27 @@ pub(super) mod tests {
                     );
                 }
             }
+            let step = (0.1, 0.1);
+            let nodes = [(0.5, 0.0), (0.5, 0.5)].map(|(u, v)| super::super::Node { u, v, step });
+            assert_eq!(
+                wedge.lay(&nodes),
+                [(0.5, 0.5)],
+                "a node on the apex row is not laid: its sector holds the apex"
+            );
             let at = wedge
-                .insert_points(&[(0.5, 0.0), (0.5, 0.5)], &HashSet::new())
+                .insert_points(&[(0.5, 0.5)], &HashSet::new())
                 .expect("the wedge's points enter the CDT");
             assert_eq!(
                 at.meta.len(),
                 3 + 1,
-                "the apex and the two polygon points off it, and the one grid candidate off the apex"
+                "the apex and the two polygon points off it, and the one node off the apex"
+            );
+            assert!(
+                matches!(
+                    wedge.insert_points(&[(0.5, 0.0), (0.5, 0.5)], &HashSet::new()),
+                    Err(TessellateError::Triangulation { .. })
+                ),
+                "a point of the mesher's at the apex's CDT point refuses: it is not merged"
             );
             let crushed = super::super::TrimPolygon::of_loops(
                 &[

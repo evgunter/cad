@@ -116,6 +116,7 @@ test_utils::f6_variants! {
         Band,
         TrimLoopOrientation,
         FoldedTriangle,
+        UnresolvedWinding,
         BoundaryEar,
         SphereTrimShape,
     ];
@@ -314,6 +315,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::FoldedTriangle { face },
             vec!["folds over", "wound against"],
+        ),
+        (
+            TessellateError::UnresolvedWinding { face },
+            vec!["winding", "rounding of its own corner positions"],
         ),
         (
             TessellateError::BoundaryEar { face },
