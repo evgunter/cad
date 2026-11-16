@@ -16,3 +16,5 @@ Filed from the review of #6793 (census-tables): findings S5, S6 and S8. That PR 
 - **S8. `CLOSED_TYPE` reasons are not checked against the declared tables.** editor-core's, geom-brep's and topo's rosters list `CLOSED_TYPE` sites (`decision.name()`, `row.predicate()`, …) whose reason says the census reads the names at the type's declared table. Nothing ties a listed site to a declared `Table`, so a site whose type is not declared, or whose table was dropped, still reads as answered.
 
 **Done** when a table's impl match is by its self type, a declared table's non-literal arm is reported or pinned in every declaring roster, and each `CLOSED_TYPE` entry names the declared table that answers it, held by `roster_violations`.
+
+**Also (6793 delta review):** a call handed two separate top-level tuples, `two_as(("tup_lit", m), (name, n))`, reads `tup_lit` and drops `name` with no site. That is the cost of "a value pair beside a literal is no batch". No such call exists today; every funnel takes one tuple or an array.
