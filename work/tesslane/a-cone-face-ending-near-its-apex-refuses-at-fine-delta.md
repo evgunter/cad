@@ -73,3 +73,5 @@ at `s = 0.01` at all three. The ringless ops of `s = 0.1` mesh at every
 δ. At `s = 10⁻³` the door answers `Undecided` (the ring within the band
 of the outer loop). Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+- 2026-11-16 — **A cell that meshes refuses once its lattice keeps clear of the boundary** (the clearance unit, `the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved`, measured on its base before PR 6965). The funnel cut at `h = 2·10⁻²`, the half above, δ `5·10⁻⁵`: both cone faces mesh with main's lattice at 1.31 of the face's cell bound (the headroom allows 2) and refuse `CertificateExceeded` under the clearance at every value tried, at 2.33 with 15 of 15,252 nodes not laid (1/16), 5.53 with 33 (1/8) and 11.28 with 58 (1/4). Which triangles carry the excess is unmeasured; that the certificate's charge and not the mesh's deviation is what grows is this row's finding (above), not re-taken here. `reach_probes::a_cone_face_ending_near_its_apex_refuses_at_fine_delta` holds the cell (`h = 2·10⁻²`, above, δ `5·10⁻⁵`), red on that unit's branch until it is re-measured on the certificate that cures this row.
