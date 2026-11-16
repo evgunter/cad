@@ -425,10 +425,12 @@ curve pairs.
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
-  any K ≥ 2. Below 2, two pieces decided more than K·ε apart can both
+  any K > 2. At K ≤ 2, two pieces decided at least K·ε apart can both
   lie within ε of one point, so a reading that names which piece a point
   lies on (a foot's branch of its carrier, a cut's parameter) would not
-  be unique; at K ≥ 2 the band alone makes it so. K = 10, per-run
+  be unique. Above 2 the band alone makes it so, however many pieces the
+  boundary chains together: the two pieces a point is near are compared
+  with each other, never through a third ([intrinsic.absolute]). K = 10, per-run
   configuration like ε (`Tolerance.k`).
   K's headroom absorbs f64 rounding by the run's admission rule
   ([simple.conditioned]): a formula whose error is amplified by a vanishing
