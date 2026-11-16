@@ -51,15 +51,53 @@ const MOVE: &str = "curve_pair_pose_move";
 pub(super) fn pair<T: Decide>(
     a: impl Fn(T) -> (Point3<T>, Vec3<T>),
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    (mut s, mut t): (T, T),
+    start: (T, T),
     keep: impl Fn(T) -> bool,
 ) -> (T, T) {
+    pair_held(a, b, start, keep, (None, None))
+}
+
+/// [`pair`], **held** to the parameter runs `hold` names, one per
+/// carrier (`None` holds nothing): each iterate is clamped into its run,
+/// so a step that would leave it stops exactly at the run's end and the
+/// next step starts there. A held end is the run's own parameter,
+/// bit for bit, which the walk's one-sided window reads
+/// (`walk::held`).
+pub(super) fn pair_held<T: Decide>(
+    a: impl Fn(T) -> (Point3<T>, Vec3<T>),
+    b: impl Fn(T) -> (Point3<T>, Vec3<T>),
+    (mut s, mut t): (T, T),
+    keep: impl Fn(T) -> bool,
+    (hold_a, hold_b): (Option<(T, T)>, Option<(T, T)>),
+) -> (T, T) {
+    let clamp =
+        |x: T, hold: Option<(T, T)>| hold.map_or(x, |(lo, hi)| x.max(lo.min(hi)).min(lo.max(hi)));
     let mut structure = false;
     for _ in 0..STEPS {
         let ((pa, da), (pb, db)) = (a(s), b(t));
         let (w, n) = (pb - pa, da.cross(db));
         let nn = n.dot(n);
         let (ds, dt) = (w.cross(db).dot(n) / nn, w.cross(da).dot(n) / nn);
+        let (ds, dt) = if mid(ds).is_some() && mid(dt).is_some() {
+            (ds, dt)
+        } else {
+            least_norm(w, da, db)
+        };
+        // A side whose step would leave its run is held at the run's end,
+        // and the other side steps alone against it: projected
+        // Gauss–Newton, so a pair closing on a held end is not left
+        // halving the gap on the free side.
+        let (ds, dt) = match (outside(s + ds, hold_a), outside(t + dt, hold_b)) {
+            (true, false) => {
+                let s1 = clamp(s + ds, hold_a);
+                (s1 - s, (a(s1).0 - pb).dot(db) / db.dot(db))
+            }
+            (false, true) => {
+                let t1 = clamp(t + dt, hold_b);
+                ((b(t1).0 - pa).dot(da) / da.dot(da), t1 - t)
+            }
+            _ => (ds, dt),
+        };
         let moved = da.norm() * ds.abs() + db.norm() * dt.abs();
         let (Some(ms), Some(mt)) = (mid(ds), mid(dt)) else {
             break;
@@ -76,8 +114,38 @@ pub(super) fn pair<T: Decide>(
         } else {
             (s, t) = (s + ds, t + dt);
         }
+        (s, t) = (clamp(s, hold_a), clamp(t, hold_b));
     }
     (s, t)
+}
+
+/// Whether `x` reaches past the run `hold` holds it to, read on
+/// brackets; `false` where nothing holds it or a bracket is poison.
+fn outside<T: Decide>(x: T, hold: Option<(T, T)>) -> bool {
+    let Some((lo, hi)) = hold else {
+        return false;
+    };
+    match (
+        x.structure_bracket(),
+        lo.min(hi).structure_bracket(),
+        lo.max(hi).structure_bracket(),
+    ) {
+        (Some((x_lo, x_hi)), Some((lo, _)), Some((_, hi))) => x_lo < lo || x_hi > hi,
+        _ => false,
+    }
+}
+
+/// **The least-norm step where the tangents are parallel**: the step
+/// `(ds, dt)` of least length with `da·ds − db·dt = û(û·w)`, `û` along
+/// `da`, which is Gauss–Newton's where its normal system is singular.
+/// It moves the pair along the common tangent to close the gap's part
+/// along it, `(da·û, −db·û)·(û·w)/((da·û)² + (db·û)²)`. A place to
+/// read like every step, never a decision.
+fn least_norm<T: Decide>(w: Vec3<T>, da: Vec3<T>, db: Vec3<T>) -> (T, T) {
+    let u = da.normalize();
+    let (ka, kb) = (da.dot(u), db.dot(u));
+    let k = w.dot(u) / (ka * ka + kb * kb);
+    (ka * k, -kb * k)
 }
 
 /// Whether `x`'s bracket is one point.

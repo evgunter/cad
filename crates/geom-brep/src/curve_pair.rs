@@ -495,6 +495,37 @@ fn both<T>(
     }
 }
 
+/// **A pair read on both spans**: the gap between `c.point`, the first
+/// carrier's point at `c.ta`, and the second's at `c.tb`, decided against
+/// the band (`curve_pair_walk_pair_gap`), and each parameter's place on
+/// its own span ([`Span::place_param`]). A gap in the band is a meeting,
+/// its side on each span the parameter's place: inside, on the branch
+/// about the span's middle with the gap's margin, or at an end; a
+/// parameter past its span is off it. A gap decided positive is no
+/// meeting at the pair. No foot is read: the parameters are the pair's
+/// own.
+fn pair_both<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) -> Both<T> {
+    let gap = geom_core::k_stats::decide_reported(
+        "curve_pair_walk_pair_gap",
+        geom_core::Margin::norm3(b.carrier().eval(c.tb) - c.point),
+        band,
+    )?;
+    if gap.sign != geom_core::Sign::Zero {
+        return Ok(None);
+    }
+    let side = |span: &Span<'_, T>, t: T| -> Result<Option<Hit<T>>, geom::CarrierRefusal> {
+        Ok(match span.place_param(t, band)? {
+            span::Place::Inside => Some(Hit::On {
+                t: span.branch(t),
+                margin: gap.margin,
+            }),
+            span::Place::End(which) => Some(Hit::End(which)),
+            span::Place::Past => None,
+        })
+    };
+    both(side(a, c.ta), side(b, c.tb))
+}
+
 /// **The meetings a reader has found, and the refusals it holds**, read
 /// candidate by candidate under C5's stretch rule.
 struct Found<T: geom_core::Real> {
@@ -530,6 +561,28 @@ impl<T: Decide> Found<T> {
                 b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
             )
         };
+        self.read_with(a, b, c, on_both, band);
+    }
+
+    /// **A polished pair read as that pair** (the curve-pair rule in
+    /// `crates/geom-brep/README.md`): `c` names a parameter on each span,
+    /// `c.ta` on `a` with `c.point` its point and `c.tb` on `b`, and is
+    /// read by [`pair_both`], with no foot; its window as [`Self::read`]
+    /// reads one.
+    fn read_pair(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
+        self.read_with(a, b, c, || pair_both(a, b, c, band), band);
+    }
+
+    /// [`Self::read`] and [`Self::read_pair`]'s one composition, `on_both`
+    /// the candidate's reading on both spans.
+    fn read_with(
+        &mut self,
+        a: &Span<'_, T>,
+        b: &Span<'_, T>,
+        c: Candidate<T>,
+        on_both: impl Fn() -> Both<T>,
+        band: Band,
+    ) {
         let Some(bound) = c.bound else {
             self.offer(c.point, on_both, band);
             return;

@@ -31,9 +31,11 @@
 //! floor certifies nothing) the floor is zero, poison, or at `Interval`
 //! an enclosure reaching zero, and a piece stops only once its reach is
 //! within the band. A pair that
-//! stops is polished toward the meeting by Gauss–Newton, each carrier's
-//! foot of the other's point is polished, and the point is read on both
-//! spans ([`Span::contact`]) with the window the pieces make: the pair's
+//! stops is polished toward the meeting by Gauss–Newton held to the two
+//! spans (`polish::pair_held`; an endless span holds nothing), and the
+//! polished pair is read as that pair (`Found::read_pair`): its own gap
+//! and each parameter's place on its span, with no foot, under the
+//! window the pieces make: the pair's
 //! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
 //! every pair of the pieces within the pieces' reach and the polish's
 //! run of it, and the curvature at most the carriers' bounds. An Off at
@@ -327,6 +329,22 @@ fn window<T: Decide>(
     .unwrap_or_else(super::polish::undecided)
 }
 
+/// **A polished parameter at its span's end is that end**: where the
+/// carrier's point at `u` is within the band of an end's point
+/// ([`Span::place_param`], the place the pair read reads), the polish is
+/// held there and `u` is the end's own parameter, so the pair names the
+/// end the pair read finds and the window reads one-sided from it
+/// ([`held`]). Otherwise, and where the place is not decided, `u` as
+/// polished. A place to read, never a decision of its own.
+fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> T {
+    let (t0, t1) = span.params();
+    match span.place_param(u, band) {
+        Ok(super::Place::End(super::SpanEnd::Start)) => t0,
+        Ok(super::Place::End(super::SpanEnd::Stop)) => t1,
+        _ => u,
+    }
+}
+
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
 /// the span's end parameters (`curve_pair_walk_held_end`), and the span
 /// has ends. Read as the sign, `±1`, that turns the carrier's tangent at
@@ -469,21 +487,22 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
-                let (s, t) = super::polish::pair(
+                let hold = |span: &Span<'_, T>| span.ended().then(|| span.params());
+                let (s, t) = super::polish::pair_held(
                     |s| ra.curve().ders1(s),
                     |t| rb.curve().ders1(t),
                     (ma, mb),
                     |m| step_taken(m, slack),
+                    (hold(a), hold(b)),
                 );
-                let t = rb.curve().foot(ra.curve().eval(s), t).seed();
-                let s = ra.curve().foot(rb.curve().eval(t), s).seed();
+                let (s, t) = (at_end(a, s, band), at_end(b, t, band));
                 let candidate = super::Candidate {
                     point: ra.curve().eval(s),
                     ta: s,
                     tb: t,
                     bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
                 };
-                found.read(a, b, candidate, band);
+                found.read_pair(a, b, candidate, band);
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {
