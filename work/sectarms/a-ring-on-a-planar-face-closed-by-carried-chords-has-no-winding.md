@@ -92,10 +92,14 @@ and refined by piece count (`SegmentQ`), at the interval scalar
 `Unwound` keeps `Uncertified` alone.
 
 `choose_roles` hands a plane's `RingClosure::Chord` to the planar ring
-lane, and `run_spline_edge`'s pre-refusal covers a wall's and a
-quadric's closing only (the P3 item
-`a-quadric-or-wall-ring-closing-refuses-a-spline-run-edge-it-may-read`
-holds those).
+lane.
+
+**Deferred, not done here.** The decision says `run_spline_edge`'s
+pre-refusal goes. It went for the planar closing only. A wall's and a
+quadric's closing still refuse a spline run edge before any winding is
+read, and removing that is deferred to
+`work/sectarms/a-quadric-or-wall-ring-closing-refuses-a-spline-run-edge-it-may-read.md`
+(P3, open).
 
 The slab's five runs pass the join and stop at the inside/outside test
 (`work/inside/point-containments-ray-test-has-no-spline-arm.md`),

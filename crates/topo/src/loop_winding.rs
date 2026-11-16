@@ -79,11 +79,15 @@
 //! a CORRECTION on a chord polygon and a mixed Line+Circle cycle needs
 //! no case split beyond the per-edge carrier match.
 //!
-//! The perimeter lever moves with the area: a conic edge contributes
-//! `|Δ|·max(|sa|, |sb|)` — the circle's exact arc length, the ellipse's
-//! upper bound; a spline its speed sup times its span, a spiric its
-//! piecewise length bound. An over-large `P` understates the width,
-//! i.e. escalates rather than decides.
+//! The perimeter lever moves with the area: each curved edge contributes
+//! an upper bound on its length over its own stretch
+//! (`geom::carrier_speed::length_hi`) — a circle's exact arc length; an
+//! ellipse's and a spline's speed bounds summed piece by piece over the
+//! edge's interval; a spiric's piecewise length bound. An over-large `P`
+//! understates the width, and that is not a safe side: a margin it
+//! brings under ε is decided `Zero`, a region read as having no area,
+//! and one it leaves in the band escalates. So no edge is charged for
+//! its whole carrier's fastest stretch.
 //!
 //! A LINE-ONLY cycle is decided with exactly the chord arithmetic and
 //! accumulation order: the correction block is structurally skipped,
