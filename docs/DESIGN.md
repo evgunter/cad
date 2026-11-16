@@ -278,7 +278,7 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
-| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it | [edges] |
+| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it, and every joint's chart point: where a row meets a column, the meet of the two lines they hold fixed, and elsewhere the image's value there. An image stores the line it holds and its map along it, never its ends | [edges] |
 | Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
@@ -1578,8 +1578,12 @@ the axisless spin does. Where the mated direction is opposite to where the
 orientation puts it (the orientation written backwards) the least
 turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
-a construction refuses at its degenerate values; so no edit that keeps
-the face short of a half turn from where the orientation puts it
+a construction refuses at its degenerate values. The band is where the
+least turn's answer is not determined at ε: its chord from the pole,
+levered by the bundle's arm (written slides included), is within the
+run's band, or its lever on its own two directions, twice the arm over
+that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
+"Float rounding"). So no edit that keeps the face outside that band
 moves a held value's meaning, or the copy's place on the face. The
 orientation and a mate's `Flip` are two facts, the copy's attitude and
 the contact's sense; only the pole band refuses. Where no direction is

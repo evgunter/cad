@@ -2,12 +2,14 @@
 id: the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box
 kind: issue
 title: The extrude mints its plane normals and a cylinder's u_ref through arithmetic over the box, so tier 3 reads a tilt and a length the geometry does not have
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: H
 refs: [6371]
 branch: boxfinish/sweep-frames
+closed: 2026-11-15
+pr: 6972
 ---
 
 
@@ -144,3 +146,65 @@ case only. The frame gives this unit the caps and the fixed-direction
 walls; the moving wall's tilt comes from a line direction recomputed
 from boxed ends, which is
 `the-profile-drops-the-unit-directions-its-verbs-made`.
+
+## Measured (2026-11-14, the aimed-ray unit's fix pass, PR 6958): the edges' lines too
+
+The extrude door's slab over a depth of 1 ± 0.05, `Sym<Interval>`,
+switch on (the leaf as the door hands it on), each line edge's stored
+carrier:
+
+- the four bottom edges: direction exact, interval `[0, 1]`;
+- the four upright edges: direction `(0, 0, [0.9048, 1.1053])`,
+  interval `[0, [0.95, 1.05]]`;
+- the four top edges: direction `([0.995, 1], 0, [−0.1, 0.1])` (and its
+  three turns), interval `[0, [1, 1.005]]`.
+
+A top edge's true direction is the bottom edge's, exact at every
+depth; the stored one carries the depth's box in `z`. The side
+reader's edge pass now reads each edge off this line
+(`census::line_passes`), and sets a ray aside where its gap from an
+edge is undecided inside the edge's span, so this width is what stops
+most of the slab's rays: at ± 0.025 only the bottom cap's ray reads.
+The reader's residue is
+`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`.
+
+## Closed (2026-11-15, PR 6972)
+
+A sweep door keeps the frame it is handed. A cap's plane is its
+station's frame (`swept::cap_plane`); the depth extrude's strut is the
+sketch normal; a line wall's normal, an arc wall's `u_ref` and every
+rim's direction are the station's frame turning a sketch direction
+(`Placing::direction`, with `Unit2` / `Unit3` carrying "unit" to the
+carriers' seam); a revolve's latitude carriers read the frame's axis
+and register nothing. Newell's fitted cap plane and its refusals have
+no sweep caller. Over a box, caps, struts, revolve latitudes and every
+wall and rim whose sketch direction does not carry the box are exact
+(`crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs`).
+
+A line wall's origin is the wall's middle from construction data
+(ruled in review: readers of a face's point, `GeomPred::PlaneDistance`
+among them, keep their answers).
+
+What it leaves, each with its own row:
+
+- a segment's sketch direction is still derived from its ends
+  (`swept::sketch_direction`, `swept::sketch_chord`), so a wall whose
+  ends carry the box holds the box's width in-plane:
+  `the-sweep-doors-read-the-profiles-recorded-directions`, in flight;
+- the vector arm normalizes the user's vector, so a boxed vector's
+  walls carry its width:
+  `a-boxed-vector-extrusions-walls-carry-the-vectors-width`;
+- loft struts and the hole bridge:
+  `loft-struts-and-the-hole-bridge-divide-a-placed-difference-by-its-length`;
+- a sketch origin far from its profile spends the placement's rounding
+  (`work/onehome/a-sketch-origin-far-from-its-profile-spends-the-placements-rounding.md`);
+- an arc on a turned plane misses its own vertex at check 3 over the
+  box (`work/onehome/an-arc-on-a-turned-plane-misses-its-own-vertex-at-check-3-over-the-box.md`);
+- a partial revolve's joint centre is contingent on the loop's cuts
+  (`work/lathe/a-partial-revolves-joint-centre-is-contingent-on-the-loops-cuts.md`).
+
+The slow set, head against merge base, was run whole before the last
+merges of main (2187 of 2195 green, the 8 reds red on the base) and on
+the touched and main-changed modules after them; the five
+`revalue_corpus` rows red on both sides are PR 6963's, repaired by
+PR 6990.

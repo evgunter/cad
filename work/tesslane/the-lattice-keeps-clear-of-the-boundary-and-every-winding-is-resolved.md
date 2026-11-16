@@ -10,7 +10,7 @@ blocked_on: [6966]
 ---
 
 
-Waits on Ev's answer to PR 6966, which puts `crates/mesh/README.md` `[mesh.winding]` and the clearance bullet of `[mesh.sizing]` to them (`docs/DESIGN-FORK-LOG.md` row 269). Specced when the answer is in; what follows is what the three designers agreed an implementer needs.
+Waits on Ev's answer to PR 6966, which puts `crates/mesh/README.md` `[mesh.winding]` and the clearance bullet of `[mesh.sizing]` to them (`docs/DESIGN-FORK-LOG.md` row 275). Specced when the answer is in; what follows is what the three designers agreed an implementer needs.
 
 ## What it is
 

@@ -2,10 +2,12 @@
 id: cover-kind-match-gate
 kind: unit
 title: A tree gate: no per-kind Surface or Curve3 match that builds a box, support, reach or ball outside the cover modules
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
+pr: 6957
+closed: 2026-11-14
 ---
 
 
@@ -22,3 +24,13 @@ A `scripts/gates/` check that fails when a file outside the cover modules matche
 - **`containment::arc_distance_floor`'s conic annulus floor**, which `cover-levers` left: a per-kind tightening of a nearest distance. It belongs in the cover's arc near reading (`geom::cover` `Arc::point_near`), and moves the clearance and touch gates' verdicts, which need re-measuring. (`cover-levers` fixed `pcurve_cache`'s `R + r` angular arm. It showed that `rho_sum`, a Lipschitz factor, and `chart_region`'s `R + r·cos v`, a chart metric, are not region bounds.)
 
 The gate's job is to make every such site red. Its shape needs to see inline arms, `speed_lo()` annuli and literal `R + r` sums. Name-keyed greps missed each of these. (BOXES orchestrator)
+
+## Closed (2026-11-14, PR 6957)
+
+The gate is `scripts/gates/cover-kind-match.sh`. `arm`, `ball` and `whole` are pinned and only shrink. Readers are registered in `cover-kind-match.readers`, keyed on (file, fn, door), each with a direction. The door census was retired into the gate. The conic annulus moved into `Arc::near`, and `arcs_along` reads its edge's cover from the vertex.
+
+What the scheduled sweep left is filed as its own rows:
+- `foot_on`'s pivot: `a-reachs-pivot-is-chosen-per-kind` (the design fork, `[ev]` PR 6968);
+- `levers-read-a-whole-carriers-cover-where-a-span-is-consumed`;
+- `ring-paths-conic-arc-floor-is-a-second-spelling-of-the-covers-near`;
+- `arc-distance-floor-picks-its-follow-up-reading-by-kind`.

@@ -409,6 +409,40 @@ pub mod test_support {
         1024.0 * tol.eps()
     }
 
+    /// **A body's wrap tips as each of its two readings has them**
+    /// (`validate::wraps`' docs say why they stay two): every
+    /// `(vertex, edge)` at which either reads a tip, with the corner
+    /// reading (`validate::wrap_tip_at`, asked at each loop
+    /// corner that arrives and departs by one edge, as the strut's
+    /// facing asks it) and the valence one (`validate::wrap_tips`, the
+    /// edge of the half-edge leaving the tip), in that order. A row reads
+    /// at rest that the two agree on every entry.
+    #[must_use]
+    pub fn wrap_tip_readings<T: geom_core::Decide>(
+        body: &Body<T>,
+    ) -> Vec<(crate::VertexKey, crate::EdgeKey, bool, bool)> {
+        let by_valence: Vec<_> = crate::validate::wrap_tips(body)
+            .iter()
+            .filter_map(|(v, &he)| Some((v, body.half_edges.get(he)?.edge)))
+            .collect();
+        let mut at = by_valence.clone();
+        for (_, he) in body.half_edges.iter() {
+            let Some(next) = body.half_edges.get(he.next) else {
+                continue;
+            };
+            if he.edge == next.edge && !at.contains(&(next.start, he.edge)) {
+                at.push((next.start, he.edge));
+            }
+        }
+        at.into_iter()
+            .map(|(v, e)| {
+                let corner = crate::validate::wrap_tip_at(body, v, e);
+                (v, e, corner, by_valence.contains(&(v, e)))
+            })
+            .filter(|&(_, _, corner, valence)| corner || valence)
+            .collect()
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
@@ -550,7 +584,7 @@ pub mod test_support {
 
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
-    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn aimed_rays<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
@@ -568,11 +602,11 @@ pub mod test_support {
 
     /// One aimed ray at `aim` on `face`, at the aimed incidence to
     /// `normal` (`side_reader`): the probes aim it at and about an edge.
-    pub fn ray_at(
-        body: &Body<f64>,
+    pub fn ray_at<T: geom_core::Decide>(
+        body: &Body<T>,
         face: crate::FaceKey,
-        aim: geom_core::Point3<f64>,
-        normal: geom_core::Vec3<f64>,
+        aim: geom_core::Point3<T>,
+        normal: geom_core::Vec3<T>,
         band: geom_core::Band,
     ) -> String {
         crate::side_reader::ray_at_report(body, face, aim, normal, band)
@@ -1489,7 +1523,7 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, CurveSelector, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
-    Structural, SurfacePair,
+    StoredSpan, Structural, SurfacePair,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{

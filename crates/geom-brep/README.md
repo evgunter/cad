@@ -25,7 +25,7 @@ escalated typed refusal, never a raw comparison.
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
-| C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
+| C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
@@ -2043,14 +2043,20 @@ intensional description largely *is* the provenance.
 
 ## Parameterization conventions
 
-Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
-  complete loci; an edge's bounds derive from its vertices via the
-  `he_plus`-forward contract (certification enforces forward, nonzero,
-  ≤ one-period spans, the stored interval a certified cache reconciled
-  against vertex authority). Shared azimuthal frame for all revolution
+  complete loci; a construction states an edge's bounds from the
+  quantity that defines them (for example a segment's length, an arc's
+  span, an extrusion distance, a knot domain, a split's certified
+  parameter), and the vertices certify them: certification's endpoint
+  pinning (check 3) reads the carrier at the stored bounds against the
+  `he_plus`-forward vertices, and its interval-span check (check 2)
+  enforces forward, nonzero, ≤ one-period spans. The vertices are the authority the bounds are
+  certified against, not their source; where the vertices are the only
+  definition (a line between two computed points), their distance is
+  the definition. Shared azimuthal frame for all revolution
   surfaces (axis = +a₃, v_ref = axis × u_ref, seam at u_ref — for
   revolved bodies u = 0 IS the profile half-plane); sphere uses
   latitude; cone v = slant length with the apex a true chart

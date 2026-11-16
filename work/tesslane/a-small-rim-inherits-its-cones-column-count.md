@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-Found by a designer of the flat-triangle fork (`docs/DESIGN-FORK-LOG.md` row 269), who built it; two others reproduced it.
+Found by a designer of the flat-triangle fork (`docs/DESIGN-FORK-LOG.md` row 275), who built it; two others reproduced it.
 
 ## What
 

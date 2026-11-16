@@ -2,11 +2,12 @@
 id: main-red-a-round-keel-in-the-plane-reads-off-annuli-at-1e-6
 kind: issue
 title: main red (slow set, eps 1e-6): a_round_keel_in_the_plane_reads_two_annuli_today reads regions off the annuli by about 1.5e-6, since 11-02..11-03
-status: open
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: E
 parent: nightly-reds-the-1e-6-rows
+closed: 2026-11-14
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), job `full suite (eps 1E-06, slow set)`: `crates/sweep/tests/a_curved_keel_in_the_plane.rs` `a_round_keel_in_the_plane_reads_two_annuli_today` reads `the V's tip 0.6 ε off the plane, the plane's normal -1 y: the section's regions hold [11.780973958926847, 15.707964775914], not the annuli [11.780972450961723, 15.707963267948966]`. The regions are about 1.5e-6 off the annuli.
@@ -18,3 +19,9 @@ Bisected by BOXES (sweep built with `--all-features`, row run at `CAD_TOLERANCE_
 So it arrived between PR 6336 and PR 6383's first parent (`98aa78e74f`). The only BOXES merge there is PR 6334, which touches docs and `work/` only. Not BOXES'. The semantic question this row pins is `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`; this one is the 1e-6 drift only.
 
 (BOXES nightly-reds triage, 2026-11-09)
+
+## Closed (2026-11-14)
+
+Greened by a pin, not a fix: the witness is under `test_utils::pinned_red::row` at ε 1e-6 on its message (`green/eps-1e-6`). Correction to the bisect above: the witness is absent at PR 6336, not green. It arrives in PR 6365 (`onehome/small-bundle`, `e2be742e3`) and is red at ε 1e-6 from that merge on (absent at its first parent `0ba834a0e`), as the nightly's 1e-6 row shows from the first night it ran the test, 11-03.
+
+The fix row is the witness's own, `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`, which now carries this drift, the window and what is owed under "The witness at ε 1e-6".

@@ -150,7 +150,7 @@ fn r1_read_back_at_the_chains_pole_turns_as_the_rotation_does() {
         Coord::Spin(Some(TargetAxis::Z)),
     ];
     let band = pncad::geom_core::Band::linear(Tol::witness()).expect("a band");
-    let read = editor_core::mate::read_back(None, &at, &coords, band);
+    let read = editor_core::mate::read_back(None, &at, &coords, band, Tol::witness());
     let [Some(x), Some(y), Some(z)] = read[..] else {
         panic!("the chain reads: {read:?}")
     };

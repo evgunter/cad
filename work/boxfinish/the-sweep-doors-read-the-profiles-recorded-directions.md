@@ -2,11 +2,11 @@
 id: the-sweep-doors-read-the-profiles-recorded-directions
 kind: issue
 title: The sweep doors read the profile's recorded directions where they derive one from a segment's ends, so the tour's stop and the cut plate certify
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-profile-drops-the-unit-directions-its-verbs-made]
+branch: boxfinish/doors-read
 ---
 
 
@@ -40,3 +40,81 @@ the door owes the same of its placed carrier's start.
   its share (`demo-tour certified`,
   `eps_regression::certified_cells_run_green_at_default_eps`).
 - A width-boxed slab's moving wall stores an exact normal.
+
+## Added from PR 6963's review (2026-11-14)
+
+The profile half's review (approve-with-fixes, no MAJOR) leaves three
+things to this unit, because each needs a door that reads a direction.
+
+- **The directions move into `SegmentKind`'s arms.** PR 6963 holds
+  `ValidatedSegment.directions` beside `kind` as a second enum, so a
+  line with radials can be written and four sites handle that
+  impossible pair. This unit rewrites every door's match anyway: each
+  door binds the direction in the arm it reads (`Line { director }`,
+  `Arc { arc, turn, start, end }`), and the parallel field goes.
+- **The axis rule's two lanes, driven.** Where two different variables
+  are equal at the nominal, the `f64` witness stores the axis and the
+  box lane the quotient's enclosure (audit row F43). The review held
+  that sound by inspection and did not build it. Build it through a
+  door: the leaf the driver certifies is true of every member of the
+  box.
+- **The door owes the placed start's rigidity.** Reading the recorded
+  radial, the placed carrier's start no longer contains the sketch
+  node the profile's registration names;
+  `swept::register_placed_carrier_end` builds its sketch end through
+  `Arc2::carrier_end`, which divides by the rim, and should read the
+  radial too.
+
+- **A table's director is unit only at its chord's lever.** The profile
+  accepts a written direction `d` where ‖o + ℓ·d − p‖ is within the
+  band, which bounds its turn and `(|d| − 1)·ℓ`: check 1's measure for
+  a `u_ref` at radius ℓ. Check 1 length-reads no plane, so a door that
+  stores a table's director as a wall's normal stores one that may be
+  off unit by band/ℓ (measured in the review: 3% on a 30ε side).
+  Only fixtures and `into_loop` write such a table today. The door
+  either takes its normal from the frame turning the director and says
+  what reads its length, or this is RESTDATUM's
+  `unlevered-frame-conventions-are-uncertified-at-rest`; say which.
+
+- **A minted direction lies along an axis only where its zero is
+  proven** (`boxfinish/profile-directions-revalue`, after the nightly's
+  five `revalue_corpus` reds): validation mints the axis for a segment
+  that recorded no direction only where a component is an identity of
+  the parameters, never where it reads zero by coincidence. What each
+  scalar stores:
+  - `f64`: the quotient, which is the axis but for the sign of a zero:
+    where one end of a side, or a radial's vertex against its centre,
+    holds `−0.0` and the other `+0.0`, the zero component is the
+    difference's own signed zero where PR 6963's axis stored `+0`
+    (`at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign`).
+  - plain `Interval`: nothing is proven either, so an axis-aligned
+    literal rectangle's hop directors, exact `(0, ±1)` from PR 6963 to
+    that fix, are ulp-wide again (`[0, 0]` over the length is exact;
+    `y/√(y²)` carries rounding).
+  - `Sym`: where an identity mints its axis, session by session, is
+    audit row F43 (`docs/predicate-dimension-audit.md`); a hop between
+    two different variables that agree at the nominal takes the quotient
+    with its width, and so does an identity the tier was not asked about
+    (`work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`).
+  Verb-recorded directions are untouched. Nothing reads a direction
+  yet; a door that reads a hop's director at plain `Interval` meets this
+  rounding width.
+
+**What this unit will not finish:** profiles whose directions are not
+recorded (`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
+Its closing tests say whether the tour's stop is among them.
+
+**Carried from PR 6979's review (2026-11-15): a row that goes red on a
+wrong side through the curved edge arm.** That PR sets a curved edge's
+straddle aside over a box, and no test in it has power over the class:
+with the rule's gates opened by mutation nothing reads a wrong side,
+because every curved body buildable over a box today closes each cap on
+a whole-turn circle that the loop walker refuses first
+(`work/inside/a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers.md`).
+This unit is the first to finish a curved body over a box through a
+sweep door, with two-arc caps. Its closing tests include one that reads
+a wrong side or a wrong containment answer under the old rule
+(`Ok(Err(_)) => Passes::Met(..)` in `curved_edges::passes`) and under
+`reaches_root_in_band` opened, on such a body. The searches PR 6979
+adopts from its review are the tripwires to run first.
+

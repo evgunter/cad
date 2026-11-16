@@ -76,8 +76,8 @@ pub enum TangentLocusError {
 /// the section classifiers' verdict, read through their own rows:
 ///
 /// - **plane×cylinder** is [`crate::plane_cylinder_section`]'s
-///   axis-in-plane lane at `reach`, read at the foot of its centre on
-///   the axis and levered from there: `pc_axis_plane_parallel` (a
+///   axis-in-plane lane at `reach`, read at its pivot on the axis
+///   ([`Reach::foot_on`]) and levered from there: `pc_axis_plane_parallel` (a
 ///   definite tilt is `Unsupported`) then `pc_parallel_gap`
 ///   (`TangentLine` mints its ruling, `ParallelLines` crosses, `Empty`
 ///   clears). A tilt moves

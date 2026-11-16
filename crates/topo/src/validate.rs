@@ -5857,13 +5857,50 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
     incidence
 }
 
+/// **Whether `edge` is a wrap edge**: its stored certified carrier is
+/// described as its face's wrap edge (`EdgeDescription::is_wrap`), so
+/// the reading is structural and takes no ε. `false` for an edge key or
+/// curve the body does not hold, or a carrier not yet certified.
+///
+/// This is the one home of the wrap flag both tip readings take:
+/// [`wrap_tips`] (a valence-1 end of a wrap edge) and [`wrap_tip_at`]
+/// (a wrap edge whose two ends differ, met at one of them by a corner
+/// it bounds both ways). Their vertex
+/// readings stay two, because valence counts every half-edge at the
+/// vertex: mid-run, while the Boolean mints struts at a tip, the struts
+/// already minted there raise its valence past 1 and [`wrap_tips`] stops
+/// reading it, where the corner still reads it. At rest the two agree on
+/// every tip, which the sweep suite's
+/// `the_two_tip_readings_agree_on_every_wrap_bearing_body` checks.
+pub(crate) fn wraps<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
+    body.edges
+        .get(edge)
+        .and_then(|edge| body.curves.get(edge.curve))
+        .and_then(CurveGeom::certified)
+        .is_some_and(|curve| curve.description().is_wrap())
+}
+
+/// **Whether `edge`, met at `vertex`, is a wrap edge's tip there**, read
+/// at one corner (the Boolean's strut facing asks it,
+/// `boolean::insert::strut_faces_first`'s `tip`): a wrap edge ([`wraps`])
+/// whose two ends differ, `vertex` one of them. At rest it is
+/// [`wrap_tips`]' set: a corner bounded both ways by one edge of two
+/// ends is that edge's halves following each other round `vertex`, so
+/// its orbit holds no other edge. Why the two readings stay two is
+/// [`wraps`]'.
+pub(crate) fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
+    let e = crate::live::proven(&body.edges, edge, EntityId::Edge);
+    let ends = [Some(e.he_plus), body.mate(e.he_plus)]
+        .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
+    wraps(body, edge) && ends[0] != ends[1] && ends.contains(&Some(vertex))
+}
+
 /// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
 /// keyed to the one half-edge leaving it: a tip is any valence-1 end
 /// ([`valences`]) of a wrap edge, the face's seam kept to its end, where
 /// the face's loop walks the edge out and straight back. Both ends of a
 /// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
-/// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
-/// reading is structural and takes no ε. Where a tip lies is tier 3's
+/// The wrap flag is [`wraps`]'. Where a tip lies is tier 3's
 /// (`crate::pcurves::pcurve_pass`). The valence-1 end is the vertex
 /// [`crate::surface_boundary::tips`] reads off a loop (a half-edge its
 /// loop follows by its own mate), counted here so that a body whose
@@ -5872,13 +5909,7 @@ pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, Half
     let valence = valences(body);
     let mut tips = SecondaryMap::new();
     for (he_key, he) in body.half_edges.iter() {
-        let wraps = body
-            .edges
-            .get(he.edge)
-            .and_then(|edge| body.curves.get(edge.curve))
-            .and_then(CurveGeom::certified)
-            .is_some_and(|curve| curve.description().is_wrap());
-        if wraps && valence.get(he.start) == Some(&1) {
+        if wraps(body, he.edge) && valence.get(he.start) == Some(&1) {
             tips.insert(he.start, he_key);
         }
     }
@@ -10929,9 +10960,13 @@ fn pseudomanifold_certificate_via<
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = linear_band(tol)?;
-    // The tier-3 local battery, verbatim: it reads no contact record,
-    // so with empty records 3′ is tier 3 exactly. The records are the
-    // census's.
+    // Tier 3's gate, then its local battery, verbatim: neither reads a
+    // contact record, so with empty records 3′ is tier 3 exactly. The
+    // records are the census's. The session box is tier 3's first
+    // predicate ([`structural_via`]), so a body past it refuses here as
+    // there, and a tier-3′ pass records the one decision a finish then a
+    // census over a kept verdict records.
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);

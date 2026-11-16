@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-side-reader-cannot-read-a-solids-orientation-over-a-box, the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box, the-sweep-doors-read-the-profiles-recorded-directions, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends]
+blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, an-iso-arc-rims-end-reads-through-its-map-at-interval]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -75,3 +75,41 @@ count (`corpus_finish_count`) falls to the switch-free figure, about
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
 - 2026-11-10 — the twist, the mirror and `ReadIn` left the list: a finished body moved by an isometry stays finished (fork 256, the rigid-motion unit). (ONEHOME rigid-motion lane)
 - 2026-11-14 — `blocked_on` gains `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`: M1 measured the slab, the derived-frame cube and the tour's stop as that row's, not the side reader's alone. The boxed-motion sweep test joins the list. (BOXFINISH orchestrator)
+- 2026-11-14 — one more pin moves with the deletion: `sweep` `a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge` reads 22 symbolic Zeros against its pinned 11 with the switch off, because the finish runs at the door (measured by PR 6959's review, on that PR's head with the probe's switch-off edit). (BOXFINISH orchestrator)
+- 2026-11-14 — the quadrature row closed (PR 6959) and leaves `blocked_on`. Two `Interval` loft walls it left are not blockers by measurement, only by inference, so the deletion's own run with the switch off is where they show: `an-iso-arc-rims-end-reads-through-its-map-at-interval` and `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`. (BOXFINISH orchestrator)
+- 2026-11-15 — the curved twin closed (PR 6979) and leaves `blocked_on`. Its rule is first exercised on a body a sweep door finishes over a box, so the doors' unit carries the row that goes red on a wrong side. (BOXFINISH orchestrator)
+
+## What stands between the tree and the deletion (2026-11-15, M4)
+
+Measured with the box arm off on the frames' head
+(`boxfinish/probe-switch-off`, `probe/M4-REPORT.md`):
+
+1. **An arc wall's and a rim circle's `u_ref`:** the tour certifies 0
+   (94.9% with the switch on), two m10_3 rows red, 2108 refusing
+   finishes.
+   `a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
+2. **Rays on a slab boxed wider than ± 0.215 of its depth, and the
+   loose volume behind them:** two red rows.
+   `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`.
+   (M6, the same day: the slab's volume gives out before its rays do,
+   so `check-7s-volume-reading-is-loose-over-a-box` is not in the way
+   once the rays read.)
+3. **The `Interval` quadrature on an arc-rimmed wall:** one red sweep
+   row (`a_seam_in_the_band_takes_its_general_image_at_interval`).
+   `an-iso-arc-rims-end-reads-through-its-map-at-interval` (inferred,
+   not checked against the row's fixture).
+4. **What a finish costs when nothing refuses:**
+   `tier-3-at-every-box-replay-leaf-multiplies-the-decisions`.
+5. **A line wall that truly turns over the box** (a moving vertex): 4
+   refusing finishes, no red row. Not a defect: its normal has the
+   width the geometry has, and the drive bisects.
+
+**What the deletion itself re-baselines:** m10_8's decision pins; the
+derived-frame row's `frozen == 0` (192 as built); the largest-form pin
+(17 terms against 4); the washer's `(501, 461)`; the far-placement
+table in `sym11_far_placement_rows.rs` (with the leaf finished at the
+door the session box answers first: `OutsideSessionBox` where the
+table says `built`, at `Sym<f64>` too); the `UnfinishedLeaf` fixture
+(`a_turned_discs_union_names_its_unfinished_member`); and two sweep
+files that name `topo::Replay` as the leaf
+(`an_aimed_ray_keeps_its_line_over_a_box.rs` among them).

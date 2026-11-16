@@ -309,11 +309,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/UncoveredFace",
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
-    "Extrude/CapPlane",
-    "Extrude/SidePlane",
-    "Loft/CapPlane",
     "Loft/SectionStructure",
-    "Revolve/CapPlane",
     "Revolve/FullRangeAngle",
     "Revolve/VoidInsertion",
     "Skin/BadDegree",
@@ -621,10 +617,6 @@ mod payloads {
             face: topo::FaceKey::default(),
         }
     }
-
-    pub(super) fn newell() -> geom_brep::NewellError {
-        geom_brep::NewellError::NotPlanar { vertex: 3 }
-    }
 }
 
 /// The chains that carry an operator's refusal out of a kernel
@@ -694,6 +686,20 @@ fn every_node_refusal_renders_within_the_budget() {
     // no declaration and a Boolean does, so the same arm offers
     // "declare" under the one and not under the other.
     for (name, text) in &rows {
+        // A direction the scene cannot read is a line's or an arc's, and
+        // only an arc's recourse is a smaller radius.
+        if name.ends_with("Profile/DirectionBelowSceneResolution") {
+            assert!(
+                !text.contains("radius") && text.contains("record no direction"),
+                "{name}: a line's director owes a line's recourse: {text}"
+            );
+        }
+        if name.ends_with("Profile/DirectionBelowSceneResolution(radial)") {
+            assert!(
+                text.contains("smaller radius") && text.contains("record no direction"),
+                "{name}: an arc's radial owes an arc's recourse: {text}"
+            );
+        }
         if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
             assert!(!text.contains("declare"), "{name}: {text}");
         }
@@ -817,7 +823,7 @@ mod kernel {
         pub(super) const EXTRUDE_ERROR: ExtrudeError = [
             Band, EmptyProfile, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
             ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
-            SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve, NotFinished,
+            SmoothJoinRefuted, Op, Pcurve, NotFinished,
         ];
     }
 
@@ -829,7 +835,7 @@ mod kernel {
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, ApexEndOffSheet,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
-            PinnedRunStation, CapPlane, Op, Pcurve, NotFinished,
+            PinnedRunStation, Op, Pcurve, NotFinished,
         ];
     }
 
@@ -856,7 +862,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `LoftError`'s arms, for the `Loft/` rows.
         pub(super) const LOFT_ERROR: LoftError = [
-            Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
+            Band, Skin, Euler, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
@@ -881,7 +887,8 @@ mod kernel {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
             Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
-            NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
+            NearFullArc, InconsistentArc, ArcBelowSceneResolution, InconsistentDirection,
+            DirectionBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
             RayCastingExhausted, Escalated, Structure,
@@ -945,7 +952,8 @@ mod kernel {
         /// `SplitReduceError`'s arms, for the `Split/Reduce/` rows.
         pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
-            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSector, SectionGermsEscalated,
+            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSection, SliverSector,
+            SectionGermsEscalated,
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
@@ -1000,7 +1008,8 @@ mod kernel {
             Band, StaleFace, Offset, Fit, ApproxLaneUnsupported, SharedSurfaceKey,
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
-            NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
+            NeighborPoseUnroutable, EdgeUncovered, FittedBoundaryUnsupported,
+            CarrierLaneUnsupported,
             IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
@@ -1768,9 +1777,22 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "UnfinishedLeaf/read into another's frame",
+            NodeErrorKind::UnfinishedLeaf {
+                input: RecipeNodeId::new(0, tagged(3)),
+                into: Some(RecipeNodeId::new(0, tagged(4))),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
+        row(
             "UnfinishedLeaf/NegativeVolume",
             NodeErrorKind::UnfinishedLeaf {
                 input: RecipeNodeId::new(0, tagged(3)),
+                into: None,
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
                         solid: topo::SolidKey::default(),
@@ -2029,32 +2051,6 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "CapPlane",
-            E::CapPlane {
-                source: sweep::CapPlaneError::Newell(newell()),
-            },
-        ),
-        (
-            "CapPlane(Orientation)",
-            E::CapPlane {
-                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
-            },
-        ),
-        (
-            "CapPlane(EdgeOn)",
-            E::CapPlane {
-                source: sweep::CapPlaneError::EdgeOn,
-            },
-        ),
-        (
-            "SidePlane",
-            E::SidePlane {
-                loop_index: 0,
-                segment_index: 3,
-                source: newell(),
-            },
-        ),
-        (
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
@@ -2211,24 +2207,6 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             },
         ),
         (
-            "CapPlane",
-            E::CapPlane {
-                source: sweep::CapPlaneError::Newell(newell()),
-            },
-        ),
-        (
-            "CapPlane(Orientation)",
-            E::CapPlane {
-                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
-            },
-        ),
-        (
-            "CapPlane(EdgeOn)",
-            E::CapPlane {
-                source: sweep::CapPlaneError::EdgeOn,
-            },
-        ),
-        (
             "Turn",
             E::Turn(geom_core::RigidMotionError::NonFinite(
                 geom_core::MotionPart::Angle,
@@ -2346,6 +2324,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "SliverVertex",
             R::SliverVertex {
+                vertex,
+                diag: diag(),
+            },
+        ),
+        (
+            "SliverSection",
+            R::SliverSection {
                 vertex,
                 diag: diag(),
             },
@@ -3607,20 +3592,6 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         ),
         ("Euler", E::Euler(euler())),
-        (
-            "CapPlane",
-            E::CapPlane(sweep::CapPlaneError::Newell(newell())),
-        ),
-        (
-            "CapPlane(Orientation)",
-            E::CapPlane(sweep::CapPlaneError::Orientation(named(
-                "cap_plane_orientation",
-            ))),
-        ),
-        (
-            "CapPlane(EdgeOn)",
-            E::CapPlane(sweep::CapPlaneError::EdgeOn),
-        ),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",
@@ -4105,6 +4076,31 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             E::InconsistentArc {
                 at: a,
                 check: profile::ArcCheck::OnCarrier,
+            },
+        ),
+        (
+            "InconsistentDirection",
+            E::InconsistentDirection {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::Director,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
+            },
+        ),
+        (
+            "DirectionBelowSceneResolution(radial)",
+            E::DirectionBelowSceneResolution {
+                at: a,
+                which: profile::RecordedDirection::StartRadial,
+                margin: geom_core::MarginDiag::value(3.0e-10),
+                headroom: geom_core::MarginDiag::value(1.0e-9),
             },
         ),
         ("NearFullArc", E::NearFullArc(a)),
@@ -6018,6 +6014,16 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     kind: Plane,
                     other_kind: Cone,
                     why: "the plane no longer passes through the cone's apex",
+                },
+            ),
+            (
+                "EdgeUncovered",
+                R::EdgeUncovered {
+                    edge,
+                    source: topo::EdgeUncovered::Carrier(geom::cover::Uncovered::new(
+                        geom::cover::Entity::Curve(geom::CurveKind::Nurbs),
+                        geom::cover::Unknown::PoisonedNet,
+                    )),
                 },
             ),
             (

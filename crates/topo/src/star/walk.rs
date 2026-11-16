@@ -6,15 +6,16 @@ use geom_brep::OutwardNormal;
 use geom_brep::sector_shape::{
     CornerShape, SectorFault, SectorShape, TurnOrder, corner_shape, metering_arm,
 };
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Real, Vec3};
 
 use crate::body::Body;
 use crate::bound_side::{BoundSupport, ConicArc, FaceBend};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{SlitTips, apex_corner_shape, apex_extrema_inside, apex_over_half_turn};
-use crate::validate::decide;
+use crate::sector_shape::{
+    SlitTips, apex_corner_shape, apex_extrema_inside, apex_over_half_turn, tangent_extrema_inside,
+};
 
 /// One bound out of the star's vertex: an edge of its orbit, or a
 /// divider the walk cut a sector at.
@@ -383,7 +384,9 @@ impl<T: Decide> Star<T> {
     }
 
     /// The first extremum of `datum`'s side strictly inside sector `k`,
-    /// nearest its own bound, if any.
+    /// nearest its own bound, if any: one reading per sector kind, at the
+    /// apex [`apex_extrema_inside`] and in a tangent plane
+    /// [`tangent_extrema_inside`] (whose docs say why they are two).
     fn extremum_inside(
         &self,
         k: usize,
@@ -408,36 +411,8 @@ impl<T: Decide> Star<T> {
                 )
             }
             (StarFace::Tangent(normal), Datum::Cone(other)) => {
-                let n = normal.vec();
-                let cut = |diag| StarFault::Cut(s.face, diag);
-                let tilt = other.axis - n * other.axis.dot(n);
-                if decide(
-                    "bool_sector_partner_tilt",
-                    Margin::levered(tilt.norm(), s.arm),
-                    band,
-                )
-                .map_err(cut)?
-                    != Sign::Positive
-                {
-                    return Ok(None);
-                }
-                let extrema = geom_brep::cone_plane_apex_extrema(&other.surface(), n)
-                    .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"));
-                for d in extrema {
-                    let d = d.normalize();
-                    let inside = |a: Vec3<T>, b: Vec3<T>| {
-                        decide(
-                            "bool_sector_within",
-                            Margin::levered(a.cross(b).dot(n), s.arm),
-                            band,
-                        )
-                        .map_err(cut)
-                    };
-                    if inside(start, d)? == Sign::Positive && inside(d, end)? == Sign::Positive {
-                        return Ok(Some(d));
-                    }
-                }
-                Ok(None)
+                tangent_extrema_inside(normal.vec(), (start, end), other, s.arm, band)
+                    .map_err(|diag| StarFault::Cut(s.face, diag))
             }
         }
     }
