@@ -47,3 +47,18 @@ asked.
 
 The vertex–vertex planner keeps `strut_faces_first`. `Cut::apart`, which only
 the pierce's read built, is now test-only.
+
+## Note (2026-11-16, PR 7008's review)
+
+The geometric read the pierce no longer takes carried refusal arms of its
+own, and they left the pierce with it: `strut_facing`'s contradictory-votes
+`ClassificationInvariant` (`crates/topo/src/boolean/insert.rs:2381`) and
+`walk_faces_first`'s coincidence and tie refusals. The reviewer counted 0
+of them fired across the 241 strut reads. The follow-up PR makes
+`strut_at_closed_edge` propagate `strut_facing`'s refusal instead of
+swallowing it, so the contradictory-votes arm is read at the pierce again
+(fail loud); the walk's refusals stay out. The follow-ups are
+`two-spellings-of-a-wrap-edges-tip`,
+`the-planner-walks-a-closed-edge-pose-the-pierce-refuses` and
+`a-strut-pose-row-with-an-oracle-independent-of-the-tip`.
+

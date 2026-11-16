@@ -2341,8 +2341,9 @@ enum StrutFacing {
 /// classification mints: refused. A germ inside a face casts none
 /// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
 /// edge's lone vertex the edge key cannot say which end a germ along it
-/// runs from ([`StrutFacing::ClosedEdge`]); each caller of
-/// [`strut_faces_first`] states what it does then.
+/// runs from ([`StrutFacing::ClosedEdge`]): [`strut_faces_first`] answers
+/// `None` there and the vertex–vertex planner walks the germs, while the
+/// pierce asks [`strut_at_closed_edge`] and refuses.
 ///
 /// At a wrap edge's tip (`tip`, [`strut_faces_first`] reads it) the
 /// corner's two edges are the one edge too, walked out and back, and the
@@ -2398,14 +2399,7 @@ fn strut_facing(
 ///
 /// `body` and `vertex`, the corner's, are read only to tell a wrap
 /// edge's tip from a closed edge's lone vertex, where arrival and
-/// departure are one edge ([`strut_facing`]'s `tip`). The tip is
-/// `validate::wrap_tips`' (a valence-1 end of a wrap edge), read at this
-/// corner: its one edge is a wrap edge whose two ends differ, and
-/// `vertex` is one of them. At rest that is the same set: a corner
-/// bounded both ways by one edge of two ends is that edge's halves
-/// following each other round `vertex`, so its orbit holds no other
-/// edge. Mid-run it is the reading that stands, where `wrap_tips`'
-/// valence would count the struts already minted at the vertex.
+/// departure are one edge ([`strut_facing`]'s `tip`, [`wrap_tip_at`]).
 ///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
@@ -2435,6 +2429,13 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// Whether `edge`, met at `vertex`, is a wrap edge's tip there
 /// ([`strut_faces_first`]'s `tip`): a wrap edge whose two ends differ,
 /// `vertex` one of them.
+///
+/// The tip is `validate::wrap_tips`' (a valence-1 end of a wrap edge),
+/// read at one corner. At rest that is the same set: a corner bounded
+/// both ways by one edge of two ends is that edge's halves following each
+/// other round `vertex`, so its orbit holds no other edge. Mid-run this
+/// is the reading that stands, where `wrap_tips`' valence would count the
+/// struts already minted at the vertex.
 fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
     let e = proven(&body.edges, edge, EntityId::Edge);
     let ends = [Some(e.he_plus), body.mate(e.he_plus)]
@@ -2452,23 +2453,25 @@ fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> b
 /// one edge that is no wrap edge's tip, and a germ of `operand` runs
 /// along it, so the edge key names no half. The pierce asks this alone
 /// of the corner it mints a strut at, and refuses there.
+///
+/// # Errors
+///
+/// [`strut_facing`]'s: germs along the corner's two edges voting
+/// opposite facings, a strut the classification does not mint.
 pub(super) fn strut_at_closed_edge<T: Decide>(
     (body, vertex): (&Body<T>, VertexKey),
     operand: Operand,
     (arrival, departure): (EdgeKey, EdgeKey),
     first: Cells,
     second: Cells,
-) -> bool {
-    arrival == departure
-        && matches!(
-            strut_facing(
-                (arrival, departure),
-                wrap_tip_at(body, vertex, arrival),
-                own_locus_edge(operand, first),
-                own_locus_edge(operand, second),
-            ),
-            Ok(StrutFacing::ClosedEdge)
-        )
+) -> Result<bool, BooleanError> {
+    let facing = strut_facing(
+        (arrival, departure),
+        arrival == departure && wrap_tip_at(body, vertex, arrival),
+        own_locus_edge(operand, first),
+        own_locus_edge(operand, second),
+    )?;
+    Ok(facing == StrutFacing::ClosedEdge)
 }
 
 /// Whether the corner meets germ `first` before `second`, walking its

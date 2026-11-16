@@ -1387,7 +1387,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // refused. An answer needs a row that reaches it, with an oracle
         // independent of the tip.
         let strut = site.and_then(|site| strut_at(piercing_body, site));
-        if let (Some(_), Some((corner, arrival))) = (site, strut) {
+        if let Some((corner, arrival)) = strut {
             let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
             if super::insert::strut_at_closed_edge(
                 (orbit_body, vertex),
@@ -1395,7 +1395,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 (arrival, corner_half.edge),
                 start_germ.0,
                 end_germ.0,
-            ) {
+            )? {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand: pierced_op,
                     face: contact.face,
