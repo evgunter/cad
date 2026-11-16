@@ -2,9 +2,10 @@
 id: main-red-seat7-corner-table-moved-at-6832-and-kitchen-sink-after-it
 kind: issue
 title: main red: seat7's sweep digests moved again: corner_table at PR 6832 by arena keys alone, kitchen_sink in a later merge
-status: open
+status: closed
 opened: 2026-11-13
 parent: nightly-reds-editor-core-digests-and-goldens
+closed: 2026-11-14
 ---
 
 
@@ -46,3 +47,13 @@ judge that move before the row is re-pinned.
 
 This row and `work/green/seat7-sweep-digest-drifted-on-main.md` are one
 red test. Fold them when either is worked, so the test has one row.
+
+## Closed (GREEN, `green/goldens`, 2026-11-14)
+
+Greened with the rest of `the_sweep_documents_evaluate_to_their_committed_digests`:
+
+- `kitchen_sink`: **bisected and re-blessed.** First-parent at ε 1e-9 over `9a256348..e36675c1`: green at `f162f739d`, `0x9e357534965a74a4` at `3d3fe2311`, the merge of PR 6820 (`onehome/rigid-motion`), the next first-parent commit. PR 6820 re-blessed this document to this value in `seat8_split_lowering`, off the same feed (`fixture::digest`), with its reason: a placed copy carries its source's edge certificates rather than re-deriving them, so each edge's `max_residual` in the `Debug` the digest feeds is the source's. It missed seat7's copy of the pin.
+- `corner_table`: **pinned.** PR 6832's move is keys alone, as this row found, but PR 5848's move under it is still unjudged. Fix row: `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`.
+- `boss_union`: pinned, still unbisected, on `work/green/seat7-sweep-digest-drifted-on-main.md`.
+
+Every row then moved again at PR 6856 (`a9df07339`, mint ids alone), which the same PR re-blesses.

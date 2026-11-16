@@ -62,3 +62,8 @@ Then the three sites go back to the typed door at every ε.
   at ε = 1e-12 (`[0, 2.63e-12]` at 300, `[0, 1.71e-11]` at 1100).
   Measurements and the row that carries the fix:
   `work/boxfinish/cylinder-and-torus-edge-misses-are-read-back-about-the-axis.md`.
+- **After the edge-turns unit** (branch `boxfinish/edge-turns`) the
+  unreachable major-1300 arms are gone from `verbs_tubewall_r1_probes.rs`,
+  and the in-box tube builds through major 750 at ε = 1e-12; from about
+  800 m it refuses on the whole-turn parallels' carried misses:
+  `work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`.

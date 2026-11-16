@@ -4,6 +4,7 @@ crates/bvh/tests/proximity.rs	test	1	oracle
 crates/bvh/tests/proximity_r2.rs	test	1	oracle
 crates/bvh/tests/ray_r2.rs	test	2	oracle
 crates/editor-core/src/mate/value.rs	prod	1	pose
+crates/editor-core/src/mate/value.rs	test	2	oracle
 crates/editor-core/src/placement.rs	test	1	oracle
 crates/editor-core/src/range.rs	test	5	oracle
 crates/editor-core/src/resolve/pick.rs	prod	6	re-pose
@@ -31,7 +32,7 @@ crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
 crates/geom-brep/src/curve_pair/pose.rs	prod	4	re-pose,far-centre
 crates/geom-brep/src/curve_pair/pose/window.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
-crates/geom-brep/src/extent.rs	test	4	oracle
+crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	test	1	oracle
 crates/geom-brep/src/implicit.rs	prod	68	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
@@ -149,11 +150,12 @@ crates/sweep/examples/conic_past_band_probe.rs	test	1	oracle
 crates/sweep/examples/near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/examples/split_near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/src/blend/reach.rs	test	4	oracle
-crates/sweep/src/swept.rs	test	1	oracle
+crates/sweep/src/swept.rs	test	3	oracle
 crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs	test	1	oracle
 crates/sweep/tests/a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle
+crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs	test	2	oracle
 crates/sweep/tests/a_thin_cap_keeps_its_digits.rs	test	2	oracle
 crates/sweep/tests/a_vertex_on_a_grazing_plane.rs	test	3	oracle
 crates/sweep/tests/blend2_r2_probes.rs	test	3	oracle
@@ -209,8 +211,7 @@ crates/topo/src/link.rs	test	2	oracle
 crates/topo/src/offset_axial.rs	test	1	oracle
 crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle
-crates/topo/src/props/quad_lane.rs	prod	1	re-pose
-crates/topo/src/props/quad_lane.rs	test	2	oracle
+crates/topo/src/props/quad_lane.rs	test	1	oracle
 crates/topo/src/ring_path.rs	prod	2	far-centre
 crates/topo/src/ring_path.rs	test	3	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle

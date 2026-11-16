@@ -121,8 +121,8 @@ use crate::skin::{
     skin_validated, validate_at_t, validate_guided, validate_loft,
 };
 use crate::swept::{
-    CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
-    face_surface_key, placed_segment_spec, swept_segments,
+    CapEnd, SweptSeg, cap_plane, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
+    swept_segments,
 };
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
@@ -233,9 +233,6 @@ pub enum LoftError {
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
     Euler(EulerOpError),
-    /// A cap plane could not be certified or oriented from its boundary
-    /// points.
-    CapPlane(CapPlaneError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
     Pcurve(PcurveMintError),
@@ -342,7 +339,7 @@ pub enum LoftError {
     /// a face's loop walk resets a joint only on a sphere's pole or a
     /// cone's apex (`geom_brep::chart_singularity::singular_points`),
     /// and reads a spline chart's joint by its chart-space gap
-    /// (`topo` `pcurves.rs`, `decide_joint`), which a collapsed column
+    /// (`topo` `pcurves/decision.rs`, `decide_joint`), which a collapsed column
     /// is (`work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md`).
     /// A limit of the kernel, not a fault in the sections.
     PinnedCornerUnsupported {
@@ -531,7 +528,6 @@ impl LoftError {
                 "an Euler operation of the assembly refused: {}",
                 geom_brep::recourse::read_at(e, at)
             ),
-            Self::CapPlane(e) => write!(f, "{e}"),
             Self::Pcurve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::SeamStructure { source } => write!(
                 f,
@@ -1199,13 +1195,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
             section,
             source: None,
         })?,
-        _ => {
-            let slope = T::one() / (t1 - t0);
-            geom_brep::Pcurve::IsoLine {
-                p0: Point2::new(-slope * t0, T::one()),
-                pl: geom_core::Vec2::new(slope, T::zero()),
-            }
-        }
+        _ => geom_brep::Pcurve::iso_row(T::one(), (T::zero(), T::one()), (t0, t1)),
     };
     body.restate_stored_edge(
         edge,
@@ -1277,17 +1267,15 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 .collect()
         })
         .collect();
-    let (bloops, tloops) = (&loops_at[0], &loops_at[k - 1]);
+    let bloops = &loops_at[0];
     let (bq, tq) = (&q_at[0], &q_at[k - 1]);
-    // Loop `li`'s segment `j` placed at section `i`, from `q_from` to
-    // `q_to`.
-    let rim_spec = |i: usize, li: usize, j: usize, q_from, q_to| {
+    // Loop `li`'s segment `j` placed at section `i`, from `q_from`.
+    let rim_spec = |i: usize, li: usize, j: usize, q_from| {
         placed_segment_spec(
             &loops_at[i][li][j],
             places[i].placement(),
             places[i].normal().get(),
             q_from,
-            q_to,
             tol,
         )
     };
@@ -1310,16 +1298,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // (`topo::surgery`), and the tier-2 check below subsumes it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let bottom_plane = cap_plane(
-        &cap_points(outer, qs, bplace),
-        bplace,
-        false,
-        CapEnd::Start,
-        band,
-    )
-    .map_err(LoftError::CapPlane)?;
     let bottom_cap = FaceSurface::New {
-        surface: bottom_plane,
+        surface: cap_plane(bplace, false, CapEnd::Start),
         sense: true,
     };
     // A one-segment loop (D1's full turn) is swept whole in phases 1–2:
@@ -1341,10 +1321,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             body,
             r#loop,
             near,
-            rim_spec(at(slabs), li, 0, far, far),
+            rim_spec(at(slabs), li, 0, far),
             wall_surface(li, 0, top),
             EdgeCurveSpec::line_between(far, near),
-            rim_spec(at(top), li, 0, near, near),
+            rim_spec(at(top), li, 0, near),
             below(top),
             tol,
         )?;
@@ -1369,7 +1349,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he1: strut.he_minus,
                     he2: strut.he_minus,
                 },
-                rim_spec(at(s), li, 0, lower, lower),
+                rim_spec(at(s), li, 0, lower),
                 below(s),
                 tol,
             )?;
@@ -1407,7 +1387,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             qs[1],
-            rim_spec(0, 0, 0, qs[0], qs[1]),
+            rim_spec(0, 0, 0, qs[0]),
             tol,
         )?;
         hes.push(first.he_plus);
@@ -1419,7 +1399,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 qs[j],
-                rim_spec(0, 0, j - 1, qs[j - 1], qs[j]),
+                rim_spec(0, 0, j - 1, qs[j - 1]),
                 tol,
             )?;
             hes.push(m.he_plus);
@@ -1430,7 +1410,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            rim_spec(0, 0, n - 1, qs[n - 1], qs[0]),
+            rim_spec(0, 0, n - 1, qs[n - 1]),
             bottom_cap,
             tol,
         )?;
@@ -1468,7 +1448,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1],
-            rim_spec(0, li, 0, hq[0], hq[1]),
+            rim_spec(0, li, 0, hq[0]),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -1480,7 +1460,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                rim_spec(0, li, j - 1, hq[j - 1], hq[j]),
+                rim_spec(0, li, j - 1, hq[j - 1]),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -1491,7 +1471,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            rim_spec(0, li, m - 1, hq[m - 1], hq[0]),
+            rim_spec(0, li, m - 1, hq[m - 1]),
             crate::swept::transient_disc(bottom_surface),
             tol,
         )?;
@@ -1552,7 +1532,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                         he1: struts[j].he_minus,
                         he2,
                     },
-                    rim_spec(at(s + 1), li, j, far[j], far[(j + 1) % n]),
+                    rim_spec(at(s + 1), li, j, far[j]),
                     wall_surface(li, j, s),
                     tol,
                 )?;
@@ -1574,18 +1554,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 5: the swept seed face survives as the top cap. ----
-    let top_plane = cap_plane(
-        &cap_points(&tloops[0], &tq[0], tplace),
-        tplace,
-        false,
-        CapEnd::End,
-        band,
-    )
-    .map_err(LoftError::CapPlane)?;
     body.set_face_surface(
         top_face,
         FaceSurface::New {
-            surface: top_plane,
+            surface: cap_plane(tplace, false, CapEnd::End),
             sense: true,
         },
     )?;

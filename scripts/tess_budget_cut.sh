@@ -180,7 +180,7 @@ selftest() {
     if [ "$status" != "$2" ]; then
       echo "SELFTEST FAILED: $1: exit $status, wanted $2 — $out" >&2
       rc=1
-    elif ! printf '%s\n' "$out" | grep -Eq "$3"; then
+    elif ! grep -Eq "$3" <<<"$out"; then
       echo "SELFTEST FAILED: $1: no output line matches '$3' — $out" >&2
       rc=1
     fi

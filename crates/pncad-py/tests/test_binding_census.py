@@ -2789,8 +2789,11 @@ NOT_BOUND = {
     # `inconsistent_arc` with its check left behind. `Gate`,
     # `EscalatedAt` and `ArcRead` are the same footing: the escalation
     # arms' gate and site, and the read-back arms' read, crossing as
-    # the arm's word with the field left behind.
+    # the arm's word with the field left behind. `RecordedDirection`
+    # is `InconsistentDirection`'s and `DirectionBelowSceneResolution`'s,
+    # on `ArcCheck`'s footing.
     "ArcCheck": INTERIOR,
+    "RecordedDirection": INTERIOR,
     "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalatedAt": INTERIOR,

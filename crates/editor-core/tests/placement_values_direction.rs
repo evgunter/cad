@@ -197,7 +197,13 @@ fn the_read_back_beside_a_spin_about_a_read_axis_reads_no_slide() {
         geom_core::linalg::Mat3::identity(),
         geom_core::linalg::Vec3::new(t[0], t[1], t[2]),
     );
-    let read = editor_core::mate::read_back(None, &affine, &coords, fixture::band());
+    let read = editor_core::mate::read_back(
+        None,
+        &affine,
+        &coords,
+        fixture::band(),
+        geom_core::Tol::witness(),
+    );
     for (coord, read) in coords.iter().zip(&read) {
         if coord.is_slide() {
             assert_eq!(*read, None, "{} reads no number: {read:?}", coord.name());

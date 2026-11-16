@@ -1137,7 +1137,9 @@ impl KeyWriter {
                 self.u8(2);
                 self.nurbs2(c);
             }
-            Pcurve::IsoLine { p0, pl } => {
+            // No mesh lane reads a stated end: the chord pass reads the
+            // map ([`Pcurve::eval`]), so the key holds the map alone.
+            Pcurve::IsoLine { p0, pl, .. } => {
                 self.u8(3);
                 self.p2(*p0);
                 self.v2(*pl);
@@ -1313,6 +1315,7 @@ mod tests {
             pcurve: Some(Pcurve::IsoLine {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             }),
             lineage: Some(ids[0]),
         }
@@ -1462,6 +1465,7 @@ mod tests {
                 f.loops[0][1].pcurve = Some(Pcurve::IsoLine {
                     p0: Point2::new(3.0, 0.0),
                     pl: Vec2::new(0.0, 1.0),
+                    ends: None,
                 })
             },
             [false, false, true],

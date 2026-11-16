@@ -493,6 +493,7 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - (ONEDOOR orchestrator)
 - **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
 - **22:25 — wedge stage 3 reported** (head `bb433c4d`, $18.23). The blend reads `topo::edge_wedge`, and the blend's own composition plus `classify_edge_wedge`/`EdgeWedge`/`PositiveArm` and the second `Convexity` are retired. **Guard by the compiler:** `Corner::convexity` and `Tangency::pairing` are crate-private to geom-brep, read only inside the fold. Refusals change: `NeverOpens` becomes `Lamina`, and a Mixed edge now refuses. No STOP; all reds are main's by text. PR [#6913](https://github.com/evgunter/cad/pull/6913) is opened with its head **frozen at `bb433c4d`**. First reviewer byte 236 (Opus), dispatched 22:58 (M, sequential).
+- 2026-11-14 — from GREEN's `green/goldens` lane: `sym11_exact_channel_rows`' numeric and frozen columns rose on all five documents at PR 6869's merge `3b59315dc` (the plate `[1015, 670, 191]` to `[1015, 1050, 299]`), bisected first-parent. Recorded on `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`, where the table is now pinned at main's readings; the account of that move is ONEDOOR's.
 - 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6939 splits `crates/topo/src/pcurves.rs` while a BOXFINISH lane on `boxfinish/chart-ends` is changing how `side_image_of` (and `sweep::loft::describe_section_rim`) mint an `IsoLine`'s ends, so that a chart end that is an exact 0 or 1 is stored as one and read through `span_ends`. The two are coupled only by where the function lives: whichever lands second merges main and re-applies its edit at the new home. The lane is told. (BOXFINISH orchestrator)
 - 2026-11-14 — **PR [#6927](https://github.com/evgunter/cad/pull/6927) (`SectionError::Corrupt` panics, D2) accepted.**
   - One reviewer (Opus): MERGEABLE-AFTER-MINORS, and the reachability argument holds. The fix pass took every item.
@@ -527,4 +528,11 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, so no R2.
   - The fix pass took every item and folded census's `spiric_cap` twin.
   - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
+  - (ONEDOOR orchestrator)
+- 2026-11-14 (GREEN, PR 6934): a P0 row on this slate, `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`: since PR 6505 four sweep rows build bodies at ε 1e-6 whose volume lies outside its own enclosure of the closed form; the tests are pinned, not fixed. Same merge: `a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505` (arriving with PR 6931) and `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`, whose first move is ONEDOOR's.
+- 2026-11-14 — **PR [#6939](https://github.com/evgunter/cad/pull/6939) (the `pcurves.rs` split) accepted.**
+  - One reviewer (Opus): MERGEABLE, proven a pure move by an item-multiset comparison.
+  - The style pass took the guard's census, the walk in one file, the file map and the README pointers.
+  - Filed: `chart-facts-are-a-sixth-concern-inside-pcurves-mint` (P4).
+  - Model-compare row `docs/model-compare-log/rows/PR-6939.md`.
   - (ONEDOOR orchestrator)

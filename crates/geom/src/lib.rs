@@ -37,8 +37,10 @@
 //!   infinite line or full circle — never a segment or arc; a
 //!   [`Surface`] is the whole infinite plane, the full cylinder, both
 //!   cone nappes. Bounds are the *topology's*: an edge bounds a
-//!   carrier curve by its **vertices**, and a face bounds a carrier
-//!   surface by its loops.
+//!   carrier curve by a parameter interval its construction states from
+//!   what defines it, certified against its **vertices** (the
+//!   [`curves`] module docs), and a face bounds a carrier surface by its
+//!   loops.
 //! - **Evaluators do not range-reduce.** `sin_cos` is total on ℝ and
 //!   evaluation is the same fixed formula at every parameter — no
 //!   comparison, no seam special-case. As loci the azimuthal kinds are

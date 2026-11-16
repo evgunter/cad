@@ -709,6 +709,21 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
 /// germs take; this pose reaches it through the torus frame.
 #[test]
 fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name() {
+    // Pinned red at 1e-6, where the tie lies in band: `T ∪ P`, the first
+    // op the row runs, builds where the row wants `bool_join_nearest`
+    // escalated
+    // (`work/onecopy/main-red-a-nearest-tie-in-band-on-a-bar-across-the-hole-no-longer-escalates-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the nearest tie in band",
+        &["T ∪ P: the tie escalates the ranking: None"],
+        a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name_row,
+    );
+}
+
+/// The row [`a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name`] runs, under its pin.
+fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name_row() {
     let d = donut();
     let (x, w) = (0.0053, 0.277);
     let p = bar((x - w, x + w), (-w, w), (-2.0, 2.0));
