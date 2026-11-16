@@ -658,6 +658,7 @@ mod nearest_rows {
         let gap = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(5.0 * ZERO),
             band,
+            // UNDECIDED-NAME: a fixture's label; the row reads the mark's kind and margin, not the name
             predicate: Some("ray_order"),
             terminal_sliver: false,
         };
