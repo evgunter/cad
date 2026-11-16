@@ -94,16 +94,16 @@ defined:
   heuristic that keeps the NURBS split from choosing a long thin strip.
   It is not a promise about triangle shape, and it can be replaced by
   the criterion it stands in for.
-- **quality, and a debt:** `trimmed::BOUNDARY_CLEARANCE` (1/4) is how
+- **quality, and a debt:** `trimmed::BOUNDARY_CLEARANCE` (1/16) is how
   far a lattice node keeps from the boundary, in its own steps. It is
-  its own constant: it does not read `ASPECT_CAP`. The value nobody
-  has to choose is 1/2, a node not laid where the boundary crosses its
-  own cell, and that is where this constant goes: at 1/2 the worst
-  triangle beside the boundary passes the headroom and faces refuse, so
-  it waits on the bound for a boundary run, as `UNPROVED_HEADROOM`
-  does. Its measurement over 486 trimmed faces, the worst certificate
-  in cell bounds where the headroom allows 2: 1.06 with no clearance,
-  1.22 at 1/16, 1.39 at 1/8, 1.66 at 1/4, 1.98 at 3/8, 2.21 at 1/2.
+  its own constant: it does not read `ASPECT_CAP`. The value is
+  temporary. The worst triangle beside the boundary grows with the
+  clearance, and the value is small enough that a face which meshes
+  with no clearance still does. The value nobody has to choose is 1/2,
+  a node not laid where the boundary crosses its own cell, and that is
+  where this constant goes: at 1/2 the worst triangle beside the
+  boundary passes the headroom and faces refuse, so it waits on the
+  bound for a boundary run, as `UNPROVED_HEADROOM` does.
 - **termination:** `trimmed::MAX_GRID_RETRIES` decides when to stop and
   refuse, and never changes a mesh's shape.
 - **work:** `trimmed::MAX_SPHERE_EDGE_CHORDS` (2¹⁶) is the chords the
