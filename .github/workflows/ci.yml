@@ -247,6 +247,8 @@ jobs:
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
+      - name: nightly attribution self-test
+        run: python3 scripts/nightly-attribute.py --selftest
       - name: change filter self-test
         if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest

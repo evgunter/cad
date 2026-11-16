@@ -702,6 +702,134 @@ jobs:
         run: |
           scripts/full-suite-coverage.py "$RUNNER_TEMP/test-list.json" "$RUNNER_TEMP/junit" \
             default 1E-06 1E-12-1of3 1E-12-2of3 1E-12-3of3
+  attribute:
+    # THE NIGHTLY ATTRIBUTION (work/ciw/dependents-slow-sets-skip-a-kernel-pr.md,
+    # the policy Ev ruled on PR 6731): a slow test red tonight and green last
+    # night is bisected over the first-parent commits between the two nightly
+    # heads, alone, at this workflow's build profile, and the first red merge
+    # is filed under work/ (scripts/nightly-attribute.py says what it writes).
+    # At most five tests a night; the rest are listed in the summary. It
+    # prevents nothing and costs no PR anything.
+    #
+    # Only on a run that records: a dispatch at a ref writes nothing, and
+    # without last night's sha (`gate.base`) nothing is "newly" red. Not in
+    # `record`'s needs, so the tag does not wait on the bisects.
+    name: attribute newly red slow tests to their merge
+    runs-on: ubuntu-latest
+    needs: [gate, full-suite]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && needs.gate.outputs.base != '' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
+    timeout-minutes: 300
+    permissions:
+      contents: write
+      actions: read
+    # The full suite's build profile, so a probe answers what the row did.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # The full suite's cache, restored and never saved: the probes build
+      # old trees, which are no cache for tomorrow's head.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-opt2
+          save-if: false
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      - name: tonight's junit reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: full-suite-junit-*
+          path: ${{ runner.temp }}/tonight
+      - name: last night's junit reports (the run that recorded gate.base)
+        id: last
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ needs.gate.outputs.base }}
+        run: |
+          set -euo pipefail
+          ids="$(gh run list -R "$REPO" --workflow nightly.yml --branch main --commit "$BASE" \
+            --limit 20 --json databaseId --jq '.[].databaseId')"
+          for id in $ids; do
+            if gh run download "$id" -R "$REPO" -p 'full-suite-junit-*' -D "$RUNNER_TEMP/last"; then
+              echo "last night's reports: run $id at $BASE"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::warning title=nightly attribution::no junit reports from the nightly at $BASE, so no test can be called newly red tonight"
+          echo "found=false" >> "$GITHUB_OUTPUT"
+      - name: the newly red slow tests
+        if: steps.last.outputs.found == 'true'
+        run: |
+          scripts/nightly-attribute.py newly-red --tonight "$RUNNER_TEMP/tonight" \
+            --last "$RUNNER_TEMP/last" --out "$RUNNER_TEMP/newly-red.json"
+      # One worktree for every probe, so this checkout keeps main's script;
+      # one target dir, so a probe rebuilds only what its commit changed.
+      - name: bisect each, alone, over the merges since last night
+        if: steps.last.outputs.found == 'true'
+        timeout-minutes: 280
+        env:
+          BASE: ${{ needs.gate.outputs.base }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/probe" "$BASE"
+          scripts/nightly-attribute.py bisect --tests "$RUNNER_TEMP/newly-red.json" \
+            --base "$BASE" --head "$GITHUB_SHA" --worktree "$RUNNER_TEMP/probe" \
+            --out "$RUNNER_TEMP/attribution.json" --minutes 260
+      # As work-status.yml lands its render: a rejected push re-syncs to the
+      # new main and writes again on top. Tracker-only, [skip ci], and a
+      # push from the Actions token starts no workflow.
+      - name: file each attributed test under work/ and push
+        if: steps.last.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          [ -s "$RUNNER_TEMP/attribution.json" ] || { echo "nothing was bisected"; exit 0; }
+          cp "$RUNNER_TEMP/attribution.json" "$RUNNER_TEMP/attribution.orig.json"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp "$RUNNER_TEMP/attribution.orig.json" "$RUNNER_TEMP/attribution.json"
+            python3 scripts/nightly-attribute.py write --results "$RUNNER_TEMP/attribution.json"
+            if [ -z "$(git status --porcelain -- work)" ]; then
+              echo "no test was attributed: nothing to file"
+              exit 0
+            fi
+            python3 scripts/work.py lint
+            git add work
+            git commit -m "work: nightly attribution for ${GITHUB_SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the nightly attribution after 4 attempts" >&2
+          exit 1
+      - name: the attribution, in the run summary
+        if: always() && steps.last.outputs.found == 'true'
+        run: |
+          [ -s "$RUNNER_TEMP/attribution.json" ] || exit 0
+          scripts/nightly-attribute.py summary --results "$RUNNER_TEMP/attribution.json" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
   all-features:
     # The suite with every workspace feature on at once: the probe-gated
     # suites, the test-only meters and payload features, which no other

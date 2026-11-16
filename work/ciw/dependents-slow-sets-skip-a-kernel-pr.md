@@ -31,6 +31,10 @@ cost: M
 
 This row stays open until the nightly attribution runs.
 
+**Where it runs:** `nightly.yml`'s `attribute` job and `scripts/nightly-attribute.py`. Two readings the policy left open are settled there:
+- "names the test's id" means a **live** row (not closed) that names the test's full path, or its leaf as a whole word when the leaf is at least 20 characters. A closed row is not reopened by a mention: a red it once fixed comes back as a new row.
+- A commit whose own diff is `TIER=docs` (`scripts/ci-filter.py`) cannot move a test, so it is not probed. A commit that does not build, or no longer holds the test, is skipped, and the row then names a range.
+
 The measurements behind this are in `log.md`, 2026-11-10.
 
 ## Ev's ruling (2026-11-12, PR 6731)
