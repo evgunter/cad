@@ -700,7 +700,7 @@ mod tests {
         let (o, z, x) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let (r, span) = (2.5, (0.3, 1.7));
         let SegmentTerm { length, .. } =
-            closed_segment_term((&Curve3::circle(o, z, r, x), span), true).expect("a conic");
+            closed_segment_term((&Curve3::circle(o, z, r, x), span), true).unwrap();
         assert_eq!(length.to_bits(), (r * (span.1 - span.0)).to_bits());
         let (a, b) = (100.0, 1.0);
         let flat = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), a, b));
@@ -709,8 +709,7 @@ mod tests {
             ((3.1, 3.2), 1.1),
             ((0.0, core::f64::consts::TAU), 1.2),
         ] {
-            let SegmentTerm { length, .. } =
-                closed_segment_term((&flat, (t0, t1)), false).expect("a conic");
+            let SegmentTerm { length, .. } = closed_segment_term((&flat, (t0, t1)), false).unwrap();
             let at = |k: u32| flat.eval(t0 + (t1 - t0) * f64::from(k) / 4096.0);
             let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
             assert!(
