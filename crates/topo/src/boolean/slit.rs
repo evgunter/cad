@@ -1222,7 +1222,13 @@ fn cuts<T: Decide>(
                 face: f,
                 gap: EdgeInFaceGap::AtACrossing,
             };
-            match slot_from_far_end(at.iter().copied(), crossing.at, at_one_point, band) {
+            match slot_from_far_end(
+                along.carrier(),
+                at.iter().copied(),
+                crossing.at,
+                at_one_point,
+                band,
+            ) {
                 Ok(slot) => at.insert(slot, crossing.at),
                 Err(BooleanError::EdgeInFace { .. }) => {}
                 Err(other) => return Err(other),
@@ -2417,7 +2423,8 @@ struct Division {
 /// [`EdgeInFaceGap::AtACrossing`], and [`EdgeInFaceGap::EndOnBoundary`]
 /// where a crossing is the edge's own end ([`crossing_named`]);
 /// [`BooleanError::Escalated`] where a meeting, a vertex on an edge, or
-/// an order along one is in band; the splits' refusals.
+/// an order along one is in band, or where an order's two bounds disagree
+/// ([`parting_order`]'s straddle); the splits' refusals.
 fn divide<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     records: &mut ContactRecords,
@@ -2433,7 +2440,6 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&f| (f, body.proven_face(f).edge_set()))
         .collect();
-    // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
     // the edge itself lies in all of them, and is named against the
     // first.
@@ -2483,6 +2489,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     };
     for crossing in crossings {
         let slot = slot_from_far_end(
+            &carrier,
             ordered.iter().map(|c| c.at),
             crossing.at,
             || refused_at(crossed_cell(crossing.crossed), EdgeInFaceGap::AtACrossing),
@@ -2494,7 +2501,9 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     for (k, crossing) in ordered.iter().enumerate() {
         if let Crossed::Edge(g, at) = crossing.crossed {
             let on_g = crossed_edges.entry(g).or_default();
+            let (g_carrier, _) = span_of(body, g).ok_or_else(desync)?;
             let slot = slot_from_far_end(
+                &g_carrier,
                 on_g.iter().map(|&(t, _)| t),
                 at,
                 || refused_at(Cell::Edge(g), EdgeInFaceGap::AtACrossing),
@@ -2524,10 +2533,11 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         match row.record.kind() {
             ContactKind::VertexEdge(vertex, on) if divided(on) => {
                 let point = crate::readback::vertex_point(body, vertex).map_err(|_| desync())?;
-                let (t, crossings): (T, Vec<T>) = if on == edge {
+                let (t, crossings, on_carrier): (T, Vec<T>, geom::Curve3<T>) = if on == edge {
                     (
                         on_span(&along, point, band, refused(EdgeInFaceGap::Unplaced))?,
                         ordered.iter().map(|c| c.at).collect(),
+                        carrier.clone(),
                     )
                 } else {
                     let (other, other_span) = span_of(body, on).ok_or_else(desync)?;
@@ -2544,11 +2554,12 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
                             .iter()
                             .map(|&(at, _)| at)
                             .collect(),
+                        other,
                     )
                 };
                 let mut past = 0;
                 for at in crossings {
-                    past += usize::from(parting_order(t, at, band, || {
+                    past += usize::from(parting_order(&on_carrier, (t, at), band, || {
                         refused_at(Cell::Edge(on), EdgeInFaceGap::AtACrossing)
                     })?);
                 }
@@ -2728,8 +2739,10 @@ fn crossing_named<T: Decide>(
 /// # Errors
 ///
 /// `at_one_point()` where `t` is one of them; [`BooleanError::Escalated`]
-/// where an order is in band.
+/// where an order is in band, or where its two bounds disagree (in band at
+/// the inf, apart at the sup: [`parting_order`]'s straddle).
 fn slot_from_far_end<T: Decide>(
+    carrier: &geom::Curve3<T>,
     placed: impl Iterator<Item = T>,
     t: T,
     at_one_point: impl Fn() -> BooleanError,
@@ -2737,7 +2750,7 @@ fn slot_from_far_end<T: Decide>(
 ) -> Result<usize, BooleanError> {
     let mut count = 0;
     for (k, at) in placed.enumerate() {
-        if parting_order(t, at, band, &at_one_point)? {
+        if parting_order(carrier, (t, at), band, &at_one_point)? {
             return Ok(k);
         }
         count = k + 1;
@@ -2808,31 +2821,68 @@ fn on_span<T: Decide>(
 }
 
 /// Whether `a` lies past `b` along an edge [`divide`] divides
-/// ([`BooleanDecision::PartingOrder`]), two parameters of its carrier.
+/// ([`BooleanDecision::PartingOrder`]), two parameters of its `carrier`.
+/// A parameter is no length (D4 (iii)): their gap is metered at the
+/// carrier's speed ([`geom::carrier_speed::speed_range`]), each acted-on
+/// side under the bound that makes it sound:
+/// - the order (`bool_parting_order`) at the inf, which under-reads the
+///   arc, so a decided side is two points apart by more than the band;
+/// - one point (`bool_parting_one_point`), read where the order is in
+///   band, at the sup, which over-reads it, so a Zero is within the band
+///   in arc and so in chord;
+/// - where the two disagree (an order in band at the inf, apart at the
+///   sup), it escalates on both bounds (`bool_parting_straddle`).
+///
+/// A spline's floor may read zero, below or poison: no certified inf is
+/// in hand there, so its order rides the finding lane on the parameter's
+/// own sign (`decide_flagged`, ledger row F45), and its Zero is read at
+/// the sup as above.
 ///
 /// # Errors
 ///
 /// `at_one_point()` ([`EdgeInFaceGap::AtACrossing`]) where the two are one
 /// point; [`BooleanError::Escalated`] where the order is in band.
 fn parting_order<T: Decide>(
-    a: T,
-    b: T,
+    carrier: &geom::Curve3<T>,
+    (a, b): (T, T),
     band: Band,
     at_one_point: impl FnOnce() -> BooleanError,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide(PARTING_ORDER, Margin::of(a - b), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => Err(at_one_point()),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::PartingOrder,
-            diag,
-        }),
+    use geom_core::k_stats::{decide_flagged_reported, decide_reported, straddle};
+    let escalated = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::PartingOrder,
+        diag,
+    };
+    let (inf, sup) = geom::carrier_speed::speed_range(carrier);
+    let order = if geom_core::structure_ascends(T::zero(), inf.get()) {
+        decide_reported(PARTING_ORDER, Margin::metered(a - b, inf), band)
+    } else {
+        decide_flagged_reported(PARTING_ORDER, a - b, band, "F45")
+    }
+    .map_err(escalated)?;
+    match order.sign {
+        Sign::Positive => return Ok(true),
+        Sign::Negative => return Ok(false),
+        Sign::Zero => {}
+    }
+    let one = decide_reported(PARTING_ONE_POINT, Margin::metered_sup(a - b, sup), band)
+        .map_err(escalated)?;
+    match one.sign {
+        Sign::Zero => Err(at_one_point()),
+        Sign::Positive => Err(escalated(straddle(PARTING_STRADDLE, order, one, band))),
+        Sign::Negative => Err(escalated(straddle(PARTING_STRADDLE, one, order, band))),
     }
 }
 
-/// The site [`parting_order`] decides under.
+/// The site [`parting_order`] decides the order under.
 pub(super) const PARTING_ORDER: &str = "bool_parting_order";
+
+/// The site [`parting_order`] reads an in-band order as one point under.
+pub(super) const PARTING_ONE_POINT: &str = "bool_parting_one_point";
+
+/// An order in band at the inf and apart at the sup: [`parting_order`]'s
+/// two bounds of one undecided gap.
+pub(super) const PARTING_STRADDLE: &str = "bool_parting_straddle";
 
 /// An in-band reading of where a crossing lies on an edge, or where two
 /// edges meet.
@@ -4201,5 +4251,125 @@ mod piece_rung_rows {
             unread,
         );
         assert!(matches!(got, Climb::Answered { at: 1, .. }), "{got:?}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod parting_order_rows {
+    use super::parting_order;
+    use crate::boolean::{BooleanDecision, BooleanError};
+    use geom_core::{Band, Point3, Vec3};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The one-point refusal the rows tell apart from an escalation.
+    fn one_point() -> BooleanError {
+        BooleanError::Band(Band::new(-1.0, 1.0).unwrap_err())
+    }
+
+    fn read(c: &geom::Curve3<f64>, gap: f64) -> Result<bool, BooleanError> {
+        parting_order(c, (0.5 + gap, 0.5), band(), one_point)
+    }
+
+    fn is_one_point(r: &Result<bool, BooleanError>) -> bool {
+        matches!(r, Err(BooleanError::Band(_)))
+    }
+
+    fn is_escalated(r: &Result<bool, BooleanError>) -> bool {
+        matches!(
+            r,
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::PartingOrder,
+                ..
+            })
+        )
+    }
+
+    /// **Each acted-on side of a parting order is read at its own bound**
+    /// (`parting_order`'s docs). On a line the two bounds are one speed:
+    /// apart past the band orders, a gap within it is one point. On a
+    /// thin ellipse (semi-axes 3 and 0.05) a gap of `1e-8` reads within
+    /// the zero at the inf (`5e-10` m) and past the escalation at the sup
+    /// (`3e-8` m): the order is not sound and neither is one point, so it
+    /// escalates on both bounds. Ten times that gap is apart at the inf
+    /// and orders.
+    #[test]
+    fn a_parting_order_is_read_at_the_inf_and_one_point_at_the_sup() {
+        let line = geom::Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.6, 0.8));
+        assert!(read(&line, 1e-6).unwrap());
+        assert!(!read(&line, -1e-6).unwrap());
+        assert!(is_one_point(&read(&line, 1e-10)));
+        let thin = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            3.0,
+            0.05,
+        ));
+        assert!(is_escalated(&read(&thin, 1e-8)), "{:?}", read(&thin, 1e-8));
+        assert!(is_escalated(&read(&thin, -1e-8)));
+        assert!(read(&thin, 1e-6).unwrap());
+        assert!(is_one_point(&read(&thin, 1e-11)));
+    }
+
+    /// A quadratic that runs out to `(reach, 0, 0)` and back (`P0 = P2`):
+    /// its hodograph passes through the origin, so its speed floor is not
+    /// decided positive, and its sup is about `2·reach`.
+    fn there_and_back(reach: f64) -> geom::Curve3<f64> {
+        let c = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::origin(),
+                    Point3::new(reach, 0.0, 0.0),
+                    Point3::origin(),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let floor = geom::carrier_speed::speed_range(&c).0.get();
+        assert!(
+            !geom_core::structure_ascends(0.0, floor),
+            "the premise: floor {floor}"
+        );
+        c
+    }
+
+    /// **A spline whose speed floor certifies nothing orders on the
+    /// parameter's own sign** (ledger row F45), and reads its Zero again
+    /// at the sup. Two scales tell the lane apart from a metered order:
+    /// - a slow one (sup about `2e-3`), where a gap of `1e-7` is past the
+    ///   escalation in parameter but within the zero in metres at the
+    ///   sup: the flagged lane orders it, a sup-metered order would read
+    ///   one point;
+    /// - a fast one (sup about `200`), where a gap of `5e-10` is within
+    ///   the zero in parameter and `1e-7` m at the sup: the flagged lane's
+    ///   Zero is read at the sup and escalates on both bounds, where a
+    ///   sup-metered order would order it and a raw Zero taken as one
+    ///   point would refuse as one point.
+    ///
+    /// The lane's own spelling (`decide_flagged` rather than
+    /// `Margin::of`, which classifies the same value) is the census's to
+    /// pin, not a reading's.
+    #[test]
+    fn a_spline_with_no_certified_floor_orders_on_the_flagged_lane() {
+        let unit = there_and_back(1.0);
+        assert!(read(&unit, 1e-6).unwrap());
+        assert!(!read(&unit, -1e-6).unwrap());
+        assert!(is_one_point(&read(&unit, 1e-11)));
+        let slow = there_and_back(1e-3);
+        assert!(read(&slow, 1e-7).unwrap(), "{:?}", read(&slow, 1e-7));
+        assert!(!read(&slow, -1e-7).unwrap());
+        let fast = there_and_back(100.0);
+        assert!(
+            is_escalated(&read(&fast, 5e-10)),
+            "{:?}",
+            read(&fast, 5e-10)
+        );
+        assert!(is_escalated(&read(&fast, -5e-10)));
+        assert!(is_one_point(&read(&fast, 1e-12)));
     }
 }
