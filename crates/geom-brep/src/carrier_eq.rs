@@ -670,14 +670,17 @@ fn cylinder_data<T: Decide>(
 pub struct CylinderPairData<T> {
     /// The axes' tilt `|a1 × a2|`, levered at the pair's arm.
     pub tilt: Margin<T>,
-    /// The second axis point's distance from the first axis, the point
-    /// the foot the pair's extent puts it at.
+    /// The second axis's distance from the first axis, read at the
+    /// second axis's point nearest the pair's extent (the foot of the
+    /// extent's centre on it).
     pub offset: Margin<T>,
     /// The radii's difference.
     pub radius: Margin<T>,
 }
 
-/// The one computation of [`CylinderPairData`].
+/// The one computation of [`CylinderPairData`]. Its offset and radius
+/// are [`cylinder_offset`] and [`cylinder_radius`], which the pair's
+/// displacement over its extent ([`reading`]) reads too.
 fn cylinder_datum<T: Decide>(
     (p1, a1, r1): (Point3<T>, Vec3<T>, T),
     (p2, a2, r2): (Point3<T>, Vec3<T>, T),
@@ -685,9 +688,20 @@ fn cylinder_datum<T: Decide>(
 ) -> CylinderPairData<T> {
     CylinderPairData {
         tilt: Margin::levered(a1.cross(a2).norm(), arm),
-        offset: Margin::norm3(perpendicular(p2 - p1, a1)),
-        radius: Margin::of(r1 - r2),
+        offset: cylinder_offset(p1, a1, p2),
+        radius: cylinder_radius(r1, r2),
     }
+}
+
+/// A second cylinder axis's distance from the first (`p1`, `a1`), read
+/// at its point `p2`.
+fn cylinder_offset<T: Decide>(p1: Point3<T>, a1: Vec3<T>, p2: Point3<T>) -> Margin<T> {
+    Margin::norm3(perpendicular(p2 - p1, a1))
+}
+
+/// Two cylinders' radii's difference.
+fn cylinder_radius<T: Decide>(r1: T, r2: T) -> Margin<T> {
+    Margin::of(r1 - r2)
 }
 
 /// **Two cylinders' data over `reach`**, as [`ladder_reading`] reads
@@ -943,10 +957,13 @@ fn reading<T: Decide>(
                 origin: o2,
                 dir: a2,
             });
-            let apart = perpendicular(pivot - o1, a1).norm();
+            // The datum's offset and radius ([`cylinder_offset`],
+            // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at
+            // the reach widened by that offset, not the datum's sine.
+            let apart = cylinder_offset(o1, a1, pivot).value();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            (CYL_REACH, (r1 - r2).abs() + core)
+            (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
         }
         (
             CarrierDesc::Cone {

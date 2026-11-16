@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-16
+refs: [7030, the-cylinder-data-doors-leave-a-test-only-arm-two-paths-and-a-wide-surface]
 ---
 
 
@@ -28,17 +29,20 @@ The offset is the one that differs in kind: three projections at the axes' share
 ## Resolution (`onecopy/replay-cylinder-data`)
 
 **One computation, two readers.** `geom_brep::carrier_eq`'s
-`cylinder_datum` now makes the three data once (the tilt `|a1 × a2|`
-levered at the arm, `Margin::norm3` of the second axis point's offset at
-the extent's foot, and `Margin::of(r1 − r2)`). `cylinder_data` names them
-for the ladder. `cylinder_data_at` reads them over a pair's extent, and
-topo's public `topo::boolean::cylinder_pair_data` hands them to the
-replay. `one_cylinder` decides the tilt, the offset and the radius
-difference on those margins under its own names. The rims and the sense
-stay the replay's. An extent that does not read leaves the axis
-unestablished (the radius, where the axis is stated), with the pair
-door's reason. Audit F40 says so. `carrier_pair_arm` stays the public
-reading of the arm, and its pin holds.
+`cylinder_datum` makes the three data once (the tilt `|a1 × a2|`
+levered at the arm, `Margin::norm3` of the second axis's offset at the
+extent's foot, and `Margin::of(r1 − r2)`), its offset and radius through
+`cylinder_offset` and `cylinder_radius`. The pair's displacement over its
+extent (`reading`, the over-extent sum) reads those two as well, and
+keeps its own chord tilt at its own widened arm. `cylinder_data` names
+the data for the ladder. `cylinder_data_at` reads them over a pair's
+extent, and topo's public `topo::boolean::cylinder_pair_data` hands them
+to the replay. Where the axis is decided, `one_cylinder` decides the
+tilt, the offset and the radius difference on those margins under its
+own names; an extent that does not read leaves the axis unestablished,
+with the pair door's reason. Where the mates state the axis, it reads
+the radius difference as it stands, with no extent. The rims and the
+sense stay the replay's. Audit F40 says so.
 
 **What pins it.**
 - editor-core `coincide::replay::tests::the_axis_offset_is_one_distance_not_three_projections`:
@@ -47,22 +51,32 @@ reading of the arm, and its pin holds.
   `1.2·zero` (in band), and the replay escalates on exactly that margin.
   The old three-component reading put back records a Zero and fails it.
 - topo `carrier_pair::lever_rows::the_cylinder_pair_data_are_the_ladders`:
-  on the same kind of pose, `carrier_pair_decided` escalates on
-  `carrier_cyl_axis_offset` with exactly the door's `offset`, and the
-  door's `tilt` and `radius` are exactly 0.
+  a twin differing in every datum (tilted `0.3·zero / arm`, slid
+  `1.2·zero`, radius `0.4·zero` larger). `carrier_pair_decided` escalates
+  on `carrier_cyl_axis_offset` with exactly the door's `offset`. The
+  door's tilt is `|a1 × a2|` at the door's arm and its radius the radii's
+  difference, both nonzero, so another arm or extent reads other numbers.
 
-**The 6773 review notes, folded in.**
-- N3: the kinds no premise check reads are one predicate,
-  `geom_brep::has_implicit_form`, read through `held::premise_reads` by
-  `Held::check` and by `cell_region`'s held door.
-- N1: `cell_region`'s spline `OffCarrier → None` arm is a
-  `debug_assert!` in debug builds, so a regression of the spline search
-  goes red in the suites while release keeps the cell.
+**The 6773 review notes, and 7030's review.**
+- The kinds no premise check reads are `geom_brep::is_analytic`'s
+  (`edge_nurbs.rs`, already exported, with six callers), which
+  `Held::check` and `cell_region`'s held door now read. The inline copies
+  in `injective.rs`, `replace_face.rs` and step-import's `chart.rs` read
+  it too. `implicit.rs`'s exhaustive match arms are filed.
+- `cell_region`'s spline `OffCarrier → None` arm stays silent (7030's
+  review ruled the earlier debug assertion out): a spline's off-carrier
+  answer is a search the door could not settle, and a debug panic would
+  crash a debug consumer on a marginal body.
+  `spline_region::rows::a_spline_faces_stations_read_on_its_own_chart`
+  is the evidence it is not reached on a chart's own stations.
+
+**Left:** `work/onecopy/the-cylinder-data-doors-leave-a-test-only-arm-two-paths-and-a-wide-surface.md`.
 
 **Measurement.** A probe recorded each `one_cylinder` outcome over the
 799 editor-core door and corpus slow tests (`--ignore-default-filter`):
 once on the code before the port (63cecf86), and once on the port with
-N1 and N3 (8bdc704d). The probe was reverted in 8d9a7790.
+6773's notes (8bdc704d), before 7030's review. The probe was reverted
+in 8d9a7790.
 
 | ε | before | after |
 |---|---|---|

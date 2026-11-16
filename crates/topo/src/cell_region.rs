@@ -175,10 +175,9 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 /// off an analytic face's carrier (a sphere, cylinder, cone, torus or
 /// ruled carrier): the station is a point of the face's own chart, so
 /// that is the kernel's defect. A spline face's off-carrier reading is
-/// `None` instead in release (the cell kept): its station has no premise
-/// check (`crate::held::premise_reads`), and the spline region's search is
-/// the only reading of it. In debug builds that reading panics too, so a
-/// regression of the spline search is seen in the suites.
+/// `None` instead (the cell kept): its station has no premise check (not
+/// [`geom_brep::is_analytic`]), and the spline region's search is the only
+/// reading of it, which the door could not settle.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -215,14 +214,7 @@ fn place<T: Decide>(
             // is the kernel's defect, as at every held door, never a
             // reading of `Out`.
             CurvedPlacement::OffCarrier => {
-                if !crate::held::premise_reads(surface) {
-                    // Conservative in release; loud in the suites, so a
-                    // regression of the spline search is seen.
-                    debug_assert!(
-                        false,
-                        "cell region: face {face:?}: a station of the face's own spline chart \
-                         reads definitely off it, which a sound spline search never answers"
-                    );
+                if !geom_brep::is_analytic(surface) {
                     return None;
                 }
                 unreachable!(

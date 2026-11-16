@@ -308,8 +308,7 @@ pub fn carrier_pair_arm<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<geom_core::Lever<T>, PairUnread> {
-    let ca = face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?;
-    let cb = face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let (ca, cb) = carriers_of(a, fa, b, fb)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     Ok(geom_brep::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
 }
@@ -332,8 +331,7 @@ pub fn cylinder_pair_data<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<geom_brep::CylinderPairData<T>>, PairUnread> {
-    let ca = face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?;
-    let cb = face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let (ca, cb) = carriers_of(a, fa, b, fb)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     Ok(geom_brep::carrier_eq::cylinder_data_at(
         &ca,
@@ -656,32 +654,68 @@ mod lever_rows {
     }
 
     /// **The data the door hands out are the ladder's**
-    /// ([`cylinder_pair_data`]). A 1 m wall against its parallel twin slid
-    /// `1.2·zero` along the diagonal of `x` and `y`: the tilt is exactly
-    /// 0, so the ladder reads the offset next, finds it in band and
-    /// escalates on it. The refusal's margin is the door's `offset`, bit
-    /// for bit, and its `tilt` and `radius` are exactly 0.
+    /// ([`cylinder_pair_data`]). A 1 m wall against a twin that differs in
+    /// every datum: its axis tilted by `0.3·zero / arm` about `y`, slid
+    /// `1.2·zero` along the diagonal of `x` and `y`, its radius `0.4·zero`
+    /// larger. The tilt and the radius decide Zero, so the ladder reads
+    /// the offset, finds it in band, and escalates on it: the refusal's
+    /// margin is the door's `offset`, bit for bit. The door's `tilt` is
+    /// `|a1 × a2|` at the door's own arm ([`carrier_pair_arm`]), and its
+    /// `radius` is the radii's difference, both nonzero, so a door read at
+    /// another arm or another extent reads other numbers here.
     #[test]
     fn the_cylinder_pair_data_are_the_ladders() {
         use geom_brep::CoincidenceMeasure;
         use geom_brep::carrier_eq::CARRIER_CYL_AXIS_OFFSET;
         let tol = Tol::witness();
-        let d = 1.2 * band().zero();
+        let e = band().zero();
         let (u, v) = ((0.2, 1.6), (0.0, 1.0));
         let mut a = Body::<f64>::new();
         let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), u, v, tol);
-        let slid = CylFrame {
-            origin: Point3::new(d / 2f64.sqrt(), d / 2f64.sqrt(), 0.0),
-            ..CylFrame::canonical(1.0)
-        };
-        let mut b = Body::<f64>::new();
-        let fb = cyl_wall_sheet(&mut b, slid, u, v, tol);
         let sense = a.get_face(fa).unwrap().sense;
-        b.set_face_sense(fb, !sense).unwrap();
+        let twin = |theta: f64| {
+            let tilted = CylFrame::tilted(1.0 + 0.4 * e, theta);
+            let mut b = Body::<f64>::new();
+            let frame = CylFrame {
+                origin: Point3::new(1.2 * e / 2f64.sqrt(), 1.2 * e / 2f64.sqrt(), 0.0),
+                ..tilted
+            };
+            let fb = cyl_wall_sheet(&mut b, frame, u, v, tol);
+            b.set_face_sense(fb, !sense).unwrap();
+            (b, fb)
+        };
+        let (b, fb) = twin(0.0);
+        let level = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let (b, fb) = twin(0.3 * e / level);
+        let arm = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
         let data = cylinder_pair_data(&a, fa, &b, fb, band())
             .unwrap()
             .expect("two cylinder walls");
-        assert_eq!((data.tilt.value(), data.radius.value()), (0.0, 0.0));
+        let (
+            Some(CarrierDesc::Cylinder {
+                axis: a1,
+                radius: r1,
+                ..
+            }),
+            Some(CarrierDesc::Cylinder {
+                axis: a2,
+                radius: r2,
+                ..
+            }),
+        ) = (face_carrier_desc(&a, fa), face_carrier_desc(&b, fb))
+        else {
+            panic!("two cylinder walls read as cylinders")
+        };
+        assert_eq!(
+            data.tilt.value(),
+            a1.cross(a2).norm() * arm,
+            "the tilt at the arm"
+        );
+        assert_eq!(data.radius.value(), r1 - r2, "the radii's difference");
+        assert!(
+            data.tilt.value() != 0.0 && data.radius.value() != 0.0,
+            "every datum nonzero: {data:?}"
+        );
         match carrier_pair_decided(&a, fa, &b, fb, band()) {
             Ok(Err(CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Undecided(diag),

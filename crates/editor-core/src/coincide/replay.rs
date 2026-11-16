@@ -390,15 +390,15 @@ enum CarrierFail {
 enum Unestablished {
     /// Its Zero is not discharged, or its datum is not Zero.
     Undischarged(deferred::Undischarged),
-    /// The two faces' extent, the axes' tilt is levered over, does not
-    /// read ([`topo::boolean::carrier_pair_arm`]), for the pair door's
-    /// own reason.
+    /// The two faces' extent, which the axes' data are read over, does
+    /// not read ([`topo::boolean::cylinder_pair_data`]), for the pair
+    /// door's own reason.
     ExtentUnread(topo::boolean::PairUnread),
 }
 
 /// What a component [`one_cylinder`] did not establish leaves the row:
-/// a coincidence of values ([`numeric`]), or the extent the tilt is
-/// levered over unread, with its reason.
+/// a coincidence of values ([`numeric`]), or the extent the axes' data
+/// are read over unread, with its reason.
 fn unestablished(why: Unestablished) -> Left {
     match why {
         Unestablished::Undischarged(why) => numeric(why),
@@ -476,12 +476,13 @@ const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 /// not established and why; `None` where either face is not on a
 /// cylinder.
 ///
-/// The axis's tilt and offset and the radii's difference are the kernel's
-/// own data (`topo::boolean::cylinder_pair_data`), decided under the
-/// replay's names; the rims and the sense are the replay's. Those data
-/// are read over the pair's extent, so an extent that does not read
-/// leaves the axis unestablished (the radius, where the axis is stated),
-/// with the pair door's reason.
+/// Where the axis is decided, its tilt and offset and the radii's
+/// difference are the kernel's own data (`topo::boolean::cylinder_pair_data`),
+/// read over the pair's extent and decided under the replay's names; an
+/// extent that does not read leaves the axis unestablished, with the pair
+/// door's reason. Where the mates state the axis, the radii's difference
+/// is read as it stands, with no extent. The rims and the sense are the
+/// replay's.
 fn one_cylinder(
     (a, fa): (&topo::Body<Lane>, FaceKey),
     (b, fb): (&topo::Body<Lane>, FaceKey),
@@ -515,29 +516,28 @@ fn one_cylinder(
             })
             .map_err(Unestablished::Undischarged)
     };
-    // The pair's data, as the kernel's ladder reads them
-    // (`topo::boolean::cylinder_pair_data`): the tilt `|da × db|` levered
-    // at the pair's reach, the second axis's offset at the foot of that
-    // extent, and the radii's difference, so the replay and the kernel
-    // decide one cylinder's data alike.
-    let data = topo::boolean::cylinder_pair_data(a, fa, b, fb, band);
     let established = || {
-        let data = match data {
-            Ok(Some(data)) => data,
-            Ok(None) => unreachable!("two faces on cylinders read a cylinder pair's data"),
-            Err(unread) => {
-                let at = if stated {
-                    Component::Radius
-                } else {
-                    Component::Axis
-                };
-                return Err((at, Unestablished::ExtentUnread(unread)));
-            }
-        };
-        if !stated {
+        // Where the axis is decided, the pair's data as the kernel's
+        // ladder reads them (`topo::boolean::cylinder_pair_data`): the
+        // tilt `|da × db|` levered at the pair's reach, the second axis's
+        // offset at the foot of that extent, and the radii's difference,
+        // so the replay and the kernel decide one cylinder's data alike.
+        // Where the mates state the axis, nothing is read over the
+        // extent, and the radii's difference is read as it stands.
+        let radii = if stated {
+            geom_core::Margin::of(ra - rb)
+        } else {
+            let data = match topo::boolean::cylinder_pair_data(a, fa, b, fb, band) {
+                Ok(Some(data)) => data,
+                Ok(None) => unreachable!("two faces on cylinders read a cylinder pair's data"),
+                Err(unread) => {
+                    return Err((Component::Axis, Unestablished::ExtentUnread(unread)));
+                }
+            };
             zero_as(ONE_CYLINDER_AXIS, data.tilt).map_err(|why| (Component::Axis, why))?;
             zero_as(ONE_CYLINDER, data.offset).map_err(|why| (Component::Axis, why))?;
-        }
+            data.radius
+        };
         let radius = |why| (Component::Radius, why);
         for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
             let rims = rim_radii(body, face);
@@ -550,7 +550,7 @@ fn one_cylinder(
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
             }
         }
-        zero_as(ONE_CYLINDER, data.radius).map_err(radius)?;
+        zero_as(ONE_CYLINDER, radii).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((
                 Component::Sense,

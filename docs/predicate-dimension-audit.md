@@ -1797,17 +1797,19 @@ Flagged, NOT fixed here (dispositions):
   or not; Zero discharges it, anything else keeps the row deferred
   (`deferred::discharge_or_why`). It was a raw `sign_within` until this
   unit, so its samples reached the K sink `<unnamed>`.
-  Its tilt, offset and radius difference are the kernel's own data
-  (`topo::boolean::cylinder_pair_data`, one computation with `carrier_eq`'s
-  `cylinder_data`, over the pair's extent), decided under the replay's
-  names. `replay_one_cylinder` takes the metre data: the second axis's
+  Where the axis is decided, its tilt, offset and radius difference
+  are the kernel's own data (`topo::boolean::cylinder_pair_data`, one
+  computation with `geom_brep::carrier_eq`'s `cylinder_data`, over the
+  pair's extent), decided under the replay's names. Where the mates
+  state the axis, the radius difference is read as it stands, with no
+  extent. `replay_one_cylinder` takes the metre data: the second axis's
   distance from the first at the foot of the extent (`Margin::norm3`),
   the radius difference, and each rim's radius less its cylinder's (the
   replay's own reading). `replay_one_cylinder_axis` takes the axes' tilt
   `|da × db|`, a sine of two unit directions, **dimensionless**, through
-  `Margin::levered` at the arm the kernel's pair door levers the same
-  datum at (the reach of the ball enclosing both faces from the foot of
-  its centre on the second axis, `topo::boolean::carrier_pair_arm`).
+  `Margin::levered` at the arm the ladder levers the same datum at (the
+  reach of the ball enclosing both faces from the foot of its centre on
+  the second axis), which `cylinder_pair_data` hands over levered.
   Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
   the tilt was each component of the cross product at
   `Lever::unsourced(1 m)`, and until
