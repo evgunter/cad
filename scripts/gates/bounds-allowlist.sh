@@ -711,7 +711,15 @@ BOUNDS_ALLOWLIST=(
   # (`geom_brep::props::quad::trig_at_limit`) and reads no vertex, and
   # the carrier-kind refusals they carried are `harmonic_carrier`'s, at
   # plain `Decide`.
-  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # 14 -> 18 (BOXFINISH, the rectangle runs): `trim_rectangle` and
+  # `joint_defect` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences each) are the rectangle certificate `nurbs_face` reads
+  # off its loop's lift: the held values crossed into exact structure
+  # and the joint gaps into certification arithmetic, both through
+  # `Interval::from_certified`. They are reached only from `nurbs_face`,
+  # under `QuadLane::certified`'s first field, so they are the same
+  # plumbing at the same door and are never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # The clearance engine's door, under the same seam and for the same
   # reason as `QuadLane::certified` (its own ledger paragraph in
   # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any

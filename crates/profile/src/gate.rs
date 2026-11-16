@@ -229,7 +229,7 @@ gates! {
     RayAdvance => "ray_advance", Sized(COINCIDENCE_RECOURSE), "whether a crossing lies ahead on a containment ray";
     /// Which side of a containment ray a point falls on.
     RaySide => "ray_side", Sized(COINCIDENCE_RECOURSE), "which side of a containment ray a point lies on";
-    /// The sign of one component of a chord or rim a direction is minted from, read exactly and outside the log (audit row F43): exactly zero, with the other definite, mints the axis.
+    /// The sign of one component of a chord or rim a direction is minted from, read exactly and outside the log (audit row F43): a PROVEN zero, with the other definite, mints the axis; every other answer is dropped and the quotient minted.
     SegmentDirectionAxis => "segment_direction_axis", Lever(COINCIDENCE_RECOURSE), "whether a direction minted from two points lies along an axis";
     /// The sign of a bulge, which signs its lowering's radials, read exactly and outside the log (audit row F43).
     SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";

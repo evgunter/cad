@@ -75,12 +75,25 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `Terms` freeze classes down, the pad's `Coefficient` classes down
 /// (`Powi` 1885 → 1467). No dispute fired and no registration was
 /// contradicted, at any document.
+///
+/// **Then moved by the decided least-turn mint** (fork 270, PR 6988): a
+/// pair that is one direction exactly turns by the identity with no pole
+/// verdict (its chord is 2), so each mate chart whose mated directions
+/// agree exactly logs no `mate_chart_pole` row. Numeric only: the plate
+/// `1048 → 1046`, the annulus `549 → 548`, the link `944 → 943`, the
+/// bracket `1547 → 1545` and the pad `1710 → 1709`; no symbolic or frozen
+/// count moves. Measured by deciding the pole at the identity again,
+/// which puts back every receipt above
+/// (`sym11_the_exact_channel_never_contradicts_past_the_ceiling` reads
+/// them). (PR 6988's gate did not run this
+/// slow row:
+/// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1048, 54]),
-    ("r1_annulus", [511, 549, 54]),
-    ("r2_link", [786, 944, 2738]),
-    ("r2_filleted_bracket", [1367, 1547, 84]),
-    ("r2_rounded_pad", [1483, 1710, 2773]),
+    ("two_hole_plate", [979, 1046, 54]),
+    ("r1_annulus", [511, 548, 54]),
+    ("r2_link", [786, 943, 2738]),
+    ("r2_filleted_bracket", [1367, 1545, 84]),
+    ("r2_rounded_pad", [1483, 1709, 2773]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

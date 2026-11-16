@@ -447,8 +447,9 @@ fn vase() -> Body<f64> {
 /// lane reads their vector area (`geom_brep::props::rational_rim`), and
 /// its area and flux hold the disc's, while the structural door, which
 /// has no quadrature lane, keeps the closed form's typed refusal. Tier 3
-/// then refuses at a wall, whose trim rows are the cap's to rounding and
-/// not its chart's exact rectangle.
+/// then passes, and the volume holds the turned solid's: the walls' trim
+/// rows are the cap's to rounding, and a wall's rectangle is the lines its
+/// rows hold.
 #[test]
 fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row() {
     let body = vase();
@@ -606,25 +607,49 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         "the moved cap's area bracket widened to ± {}",
         reading.area_pad
     );
-    // Tier 3 now passes the cap and refuses at a wall: the moved cap's
-    // rims are the walls' rows to rounding, not exactly, and a NURBS
-    // wall's patch lane reads only an exact rectangle of its chart
-    // (`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
-    let refusals = topo::validate_geometric(&alone, Tol::witness())
-        .expect_err("a wall trimmed off its exact rectangle has no volume");
+    // Tier 3 passes the moved cap and the walls. Each wall's rim is the
+    // cap's rim on the wall's row to rounding: held at
+    // `v = 0.024999999999974973`, 2.5e-14 (some 7,200 ulps) under the exact
+    // row `v = 0.025`, while its seams start at `0.024999999999999998`. The
+    // patch lane reads the rectangle its rows hold, `[0, 1] ×
+    // [0.024999999999974973, 1]`, and pads the corners' gap. The vase is
+    // turned, `r(z) = 1 + 0.6·z − 0.3·z²` for `z ∈ [0, 2]`, so its volume
+    // above the moved cap is `π ∫ r² dz` over `[z, 2]`, and the certified
+    // volume holds it within its own bracket. That bracket's half-width is
+    // some 4e-6, so the row cannot tell the rows' rectangle from the exact
+    // row's (their slabs differ by 1.7e-13); what it pins is a gross misread,
+    // such as the wall's rectangle taken from `v = 0`, which moves the volume
+    // by 0.16.
+    use geom_core::Bounds as _;
+    topo::validate_geometric(&alone, Tol::witness())
+        .expect("the vase with its cap moved alone validates");
+    let measured = topo::mass_properties(
+        &finished("the moved vase", alone.clone(), Tol::witness()),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the moved vase measures")
+    .enclosure;
+    let (a, b) = (0.6, -0.3);
+    let antiderivative = |z: f64| {
+        z + a * z.powi(2)
+            + (a * a + 2.0 * b) * z.powi(3) / 3.0
+            + a * b * z.powi(4) / 2.0
+            + b * b * z.powi(5) / 5.0
+    };
+    let turned = core::f64::consts::PI * (antiderivative(2.0) - antiderivative(z));
+    let (lo, hi) = (
+        measured.volume.lo() - measured.volume_pad,
+        measured.volume.hi() + measured.volume_pad,
+    );
     assert!(
-        matches!(
-            refusals.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    face,
-                    source: geom_brep::PropsError::QuadratureUnsupported { .. },
-                    ..
-                },
-                ..
-            }] if is_spline_wall(&walls, *face)
-        ),
-        "expected only a wall's volume refusal, got {refusals:?}"
+        lo <= turned && turned <= hi,
+        "the moved vase's volume [{lo}, {hi}] holds the turned solid's {turned}"
+    );
+    assert!(
+        hi - lo < 0.01,
+        "the bracket [{lo}, {hi}] is narrow enough to refuse a rectangle read from v = 0 \
+         (a volume 0.16 larger)"
     );
     // The structural door has no quadrature lane: the moved cap keeps
     // the closed form's typed refusal there.

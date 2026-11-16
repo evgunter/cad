@@ -952,7 +952,8 @@ mod kernel {
         /// `SplitReduceError`'s arms, for the `Split/Reduce/` rows.
         pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
-            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSector, SectionGermsEscalated,
+            TangencyUnsupported, KnifeEdge, SliverVertex, SliverSection, SliverSector,
+            SectionGermsEscalated,
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
@@ -1776,9 +1777,22 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "UnfinishedLeaf/read into another's frame",
+            NodeErrorKind::UnfinishedLeaf {
+                input: RecipeNodeId::new(0, tagged(3)),
+                into: Some(RecipeNodeId::new(0, tagged(4))),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
+        row(
             "UnfinishedLeaf/NegativeVolume",
             NodeErrorKind::UnfinishedLeaf {
                 input: RecipeNodeId::new(0, tagged(3)),
+                into: None,
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
                         solid: topo::SolidKey::default(),
@@ -2310,6 +2324,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "SliverVertex",
             R::SliverVertex {
+                vertex,
+                diag: diag(),
+            },
+        ),
+        (
+            "SliverSection",
+            R::SliverSection {
                 vertex,
                 diag: diag(),
             },

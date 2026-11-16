@@ -2,11 +2,13 @@
 id: main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap
 kind: issue
 title: Main red: BOXFINISH's merged PRs left slow rows red, which the PR gate never ran: five revalue rows (6963), two iso-image rows (6959), one thread-count golden (6946, to confirm)
-status: open
+status: closed
 opened: 2026-11-15
 priority: P0
 cost: M
 refs: [6946, 6959, 6963, 6958]
+closed: 2026-11-15
+pr: 6990
 ---
 
 Found on 2026-11-15, two ways: a reviewer of PR 6972 ran the sweep slow
@@ -111,3 +113,28 @@ commits did not complete and measured nothing.
 Reproduce:
 `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -E 'test(the_walk_matches_the_serial_golden_at_one_thread)'`
 at those two commits; the assertion prints the line.
+
+## Closed (2026-11-15, PR 6990): every slow row this program's merges left red is repaired
+
+- **PR 6959's** two iso-image sweep rows: re-stated by PR 6984. Its
+  1e-12 thread-count golden: re-cut by PR 6987 (check 4's `off_map`
+  term widened one line's pads).
+- **PR 6946:** none.
+- **PR 6963's** five `revalue_corpus` rows (`boss_union_apart`,
+  `declared_tangency`, `die_chamfer`, `measured_web`,
+  `plate_param_apart`): green with PR 6990. The profile's direction
+  mint stored a constant axis wherever a chord component READ zero, so
+  two different variables that agree at the nominal stored a constant
+  and the re-valued document stored the quotient. PR 6990 mints the
+  axis only where the tier PROVED the zero. It is a narrowing, not the
+  end state: one identity can still take two branches at two
+  valuations
+  (`the-axis-mint-asks-for-proof-only-where-the-value-reads-zero`,
+  whose design is with Ev on `[ev]` PR 6993).
+
+**What the gate still does not run:** a PR's slow-set step selects only
+slow rows whose names sit on added lines
+(`work/ciw/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`).
+Until that changes, this program runs the slow set, head against merge
+base, on every unit that moves stored data or a decision, and again
+here when a merge of main brings pins a lane never ran.

@@ -56,3 +56,27 @@ holds; neither needs a new stored datum.
   an `r`-scaled vector), each hit classed as an identity reader on a
   certified path or a real margin, and filed where it is not this
   unit's.
+
+## Measured by the unit's lane (2026-11-15), and its scope widened
+
+On `boxfinish/doors-read-arcs` (`95b1e397`) with the circle verb
+storing `r`, the tour's study box, `Sym<Interval>`, one leaf:
+
+- **Both re-posings fold**, with and without the doors' registrations:
+  `chart_distance`'s cylinder and sphere arms through the existing
+  `norm_gap` (numerator from `q·q`), and the ruling's phase as
+  `Azimuth::of(w_r·cv / R, w_r·u_ref / R)`. The hole's extrude then
+  passes every check. No fold is missing in the tier.
+- **The uncut plate** has no geometry refusal.
+- **The cut plate** refuses at its first `Subtract`: the hole is
+  unfinished, `VolumeUncomputable { Escalated { "props_meridian_on_surface",
+  [0, 3.2e-4] } }`, raised in `geom-brep` `props/curved.rs`
+  `cylinder_boundary`'s line arm: `q.norm() − radius`, the same shape in
+  the volume reading's incidence premise.
+
+**Widened (the orchestrator's call):** the closing test is the cut
+plate, so an identity reader of this shape that the probe meets on the
+cut plate's path is this unit's wherever in `geom-brep` or `topo` it
+lives, re-posed through the one gap function, until the plate stops
+refusing on a `|r| − r` shape or refuses on something else (reported
+and filed). Real margins are left; the rest of the audit is filed.

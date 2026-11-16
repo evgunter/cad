@@ -103,8 +103,9 @@
 //!    anti-correlation. Insertion mints attributes to this rule
 //!    (struts included — their facing swap swaps the labels with it),
 //!    so the attributes ARE the discipline; nothing rebinds later.
-//!    A strut faces its germs by one rule
-//!    (`insert::strut_faces_first`): a germ along the splice corner's
+//!    A pierce's strut faces as its star site names it (`star::Site::tip`,
+//!    read off the orbit); a vertex–vertex strut faces its germs by one
+//!    rule (`insert::strut_faces_first`): a germ along the splice corner's
 //!    edge names its half; otherwise the corner's walk orders them,
 //!    by their sector entries, and two in one entry by their angle
 //!    (`insert::strut_order`), read as distances: a germ's half-turn

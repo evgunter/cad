@@ -59,6 +59,15 @@ not give. A lane's local `--profile ci` run excludes the slow set too.
     `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
     reads, left both red on main at every ε;
   - the gate ran neither.
+- **PR 6982** (`boxfinish/rectangle-runs`): its change to check 7's
+  rectangle certificate flipped two slow rows' pins in their bodies
+  (`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
+  from a refusal to a validated body holding its turned volume) and moved
+  what six faces of
+  `one_segment_loop::a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut`
+  read (refused to certified). The gate's slow-set step selected 0
+  tests on that head; only the lane's local slow-set differential ran
+  them.
 
 **What would close it.** One of, or both: the slow-set step selects by
 the crates a diff's changed SOURCE reaches (a `src` change to a crate

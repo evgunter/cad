@@ -60,3 +60,28 @@ geometry (the P1 row's measured cost).
 
 ## Re-banded P1 (2026-11-11)
 By SPIRICARM's orchestrator, under the blocker rule (`work/README.md`, Priority): `spiricarm/a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` (P1, about 10 s per ordinary cylinder boolean in release) is parked on this row and ONEHOME's/PCERT's sibling, which are the remainder of its cost after PCERT's chord hulls (re-measured there).
+
+## Parked (2026-11-16) on the foot design row
+
+Parked on `work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md`
+(P1, design). Every cut left here changes which foot the search returns, the
+stop's 0.85 s and the ends' and witnesses' 0.28 s alike.
+
+**A pruned span search is not bit-identical.** The obvious cost cut would skip
+a knot span whose lower bound on its distance exceeds the best sample so far.
+That bound can be made sound, but the cut does not keep the foot.
+`Curve3::foot` on a spline (`crates/geom/src/curves/on_carrier.rs:450-482`)
+samples every knot span. It then polishes from every start `spline_starts`
+picks: the domain's ends, each local minimum of the sampled gaps, and the few
+least gaps. It keeps the smallest polished gap. The polish is Gauss–Newton held
+to the domain, not to the start's span. So:
+
+- a local minimum inside a skipped span is a polish start, and its polish can
+  leave the span and descend below the current foot's gap, where it wins;
+- dropping a span's samples changes which of its neighbours read as local
+  minima, so the start set itself changes.
+
+A span's distance bound says nothing about where the polish from its minima
+ends. Confining each polish to its start's piece would make a pruned search
+exact, but that changes which foot the search returns, which is the design
+row's question. That row's answer decides this row's whole remainder.
