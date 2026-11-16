@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: 25 of 53 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
+title: 26 of 54 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
