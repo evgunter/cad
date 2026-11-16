@@ -27,9 +27,6 @@ use geom::Curve3;
 
 use crate::chart::Chart;
 
-/// Full turn — the period of the azimuth these functions unwrap on.
-pub const TAU: f64 = core::f64::consts::TAU;
-
 /// The iso classification of a boundary edge on a curved face.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TravKind {

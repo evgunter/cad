@@ -783,13 +783,23 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
             }
             let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
             match k {
+                // The wall root's own escalation: its chord to the rim,
+                // `√2·0.9·zero` along the meridian at 45°, not the shared
+                // predicate alone, which another reader could escalate.
                 0.9 | -0.9 => assert!(
                     matches!(
                         &e,
                         BooleanError::Escalated { diag, .. }
-                            if diag.predicate == Some("bool_wall_root_in_span")
+                            if diag.predicate == Some("curve_pair_span_end_chord")
+                                && matches!(
+                                    diag.margin.diagnostic_f64_for_error_text(),
+                                    geom_core::ErrorTextReading::Value(m)
+                                        if (m.abs() - 0.9 * 2f64.sqrt() * band.zero()).abs()
+                                            <= 1e-3 * band.zero()
+                                )
                     ),
-                    "{label}: the meridian's root, by arc length: {e:?}"
+                    "{label}: the meridian's root, by its chord to the span's end, \
+                     √2·0.9·zero: {e:?}"
                 ),
                 _ => assert!(
                     matches!(e, BooleanError::Escalated { .. }),

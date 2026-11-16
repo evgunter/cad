@@ -4,7 +4,7 @@
 # `# from OLD_PATH` at the end of each of its lines.
 # kind count file
 arm 2 crates/editor-core/src/eval/measure.rs
-arm 2 crates/geom-brep/src/certify.rs
+arm 1 crates/geom-brep/src/certify.rs
 ball 1 crates/geom-brep/src/chart_singularity.rs
 arm 2 crates/geom-brep/src/conic_bend.rs
 arm 1 crates/geom-brep/src/curve_face/circle_torus.rs
