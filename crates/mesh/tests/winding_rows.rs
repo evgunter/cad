@@ -51,22 +51,32 @@ fn least_height(mesh: &mesh::Mesh, t: [u32; 3]) -> f64 {
     (b - a).cross(c - a).norm() / longest
 }
 
-/// **The whole frustum refuses `UnresolvedWinding` in its window and
-/// meshes outside it.** At [`unresolved_delta`] the cap inside the small
-/// rim holds triangles on three boundary chord points whose winding is
-/// inside the rounding of their coordinates (0.64 of an allowance at the
-/// least): `tessellate` refuses the cap, a plane face, where its patch
-/// joins the mesh, so the planar lane's own checks are not what catches
-/// it. At twice that δ the least height is 1.27 allowances and the body
+/// **The whole frustum refuses `UnresolvedWinding` in its window, from
+/// its lanes and from the memo alike, and meshes outside it.** At
+/// [`unresolved_delta`] the cap inside the small rim holds triangles on
+/// three boundary chord points whose winding is inside the rounding of
+/// their coordinates (0.64 of an allowance at the least): `tessellate`
+/// refuses the cap, a plane face, where its patch joins the mesh, so the
+/// trimmed lane's own winding census is not what catches it. No lattice
+/// node is involved and no ε is read: the cap's corners are the chord
+/// pass's own points.
+///
+/// The refusal is taken through `tessellate_with`, twice. The first run's
+/// lanes fill the memo, the cap's patch among them, and it refuses at the
+/// join; the second answers every face through the cap from the memo and
+/// refuses the same face. A join that read only a lane's own patch would
+/// return the second mesh.
+///
+/// At twice that δ the least height is 1.27 allowances and the body
 /// meshes, with every winding resolved; at a hundred times it meshes
-/// too. No lattice node is involved and no ε is read: the cap's corners
-/// are the chord pass's own points.
+/// too.
 ///
 /// **By ε.** The rim is twenty ε wide, so the window moves with ε as
 /// `1/ε`: `10⁻⁸` at the default, `10⁻⁵` at ε `10⁻¹²`. At ε `10⁻⁶` it is
 /// `10⁻¹¹`, where the cone face's lattice is past what a row meshes
-/// (about `10⁶` columns): the refusal cell is printed and skipped there,
-/// and the mesh cells run at every ε.
+/// (about `10⁶` columns): the refusal cells are printed and skipped
+/// there, and the body is meshed at δ `10⁻³` and `10⁻⁵`, far outside
+/// its window.
 #[test]
 fn the_whole_frustum_refuses_in_its_window_and_meshes_outside_it() {
     let body = needle_frustum();
@@ -74,64 +84,48 @@ fn the_whole_frustum_refuses_in_its_window_and_meshes_outside_it() {
     if tol().eps() > 1e-8 {
         eprintln!(
             "the whole frustum at ε {:e}: its window is δ {window:e}, past what this row \
-             meshes; the refusal cell is skipped",
+             meshes; the refusal cells are skipped",
             tol().eps()
         );
     } else {
+        let mut memo = mesh::PatchMemo::new();
+        let refused =
+            |memo: &mut mesh::PatchMemo| match mesh::tessellate_with(&body, window, tol(), memo) {
+                Err(TessellateError::UnresolvedWinding { face }) => face,
+                other => panic!(
+                    "the whole frustum at δ = {window:e} refuses UnresolvedWinding, got {:?}",
+                    other.map(|t| t.mesh.patches.len())
+                ),
+            };
+        let first = refused(&mut memo);
+        assert_eq!(kind_of(&body, first), SurfaceKind::Plane);
+        let (hits, misses) = (memo.hits(), memo.misses());
+        assert!(
+            hits == 0 && misses > 0,
+            "the first run runs its lanes: {hits} hits, {misses} misses"
+        );
         assert_eq!(
-            got(&body, window),
-            Got::Unresolved(SurfaceKind::Plane),
-            "the whole frustum at δ = {window:e}"
+            refused(&mut memo),
+            first,
+            "the same face refuses from the memo"
+        );
+        assert_eq!(
+            (memo.hits(), memo.misses()),
+            (misses, misses),
+            "the second run answers every face through the refusing one from the memo"
         );
     }
-    for delta in [2.0 * window, 100.0 * window, 1e-3] {
+    let outside = if tol().eps() > 1e-8 {
+        vec![1e-3, 1e-5]
+    } else {
+        vec![2.0 * window, 100.0 * window, 1e-3]
+    };
+    for delta in outside {
         let mesh = mesh::tessellate(&body, delta, tol())
             .unwrap_or_else(|e| panic!("the whole frustum at δ = {delta:e} meshes, got {e:?}"));
         mesh::validate::check_mesh(&mesh).expect("a closed mesh");
         mesh::validate::check_winding(&mesh).expect("every winding resolved");
     }
-}
-
-/// **A memo hit is read at the join too.** `tessellate_with` on the
-/// whole frustum in its window refuses twice: the first run's lanes fill
-/// the memo, the cap's patch among them, and refuse at the join; the
-/// second answers every face through the cap from the memo and refuses
-/// the same face. A join that read only a lane's own patch would return
-/// the second mesh.
-#[test]
-fn a_patch_from_the_memo_is_read_at_the_join() {
-    if tol().eps() > 1e-8 {
-        eprintln!(
-            "the whole frustum at ε {:e}: no refusal cell this row meshes; skipped",
-            tol().eps()
-        );
-        return;
-    }
-    let body = needle_frustum();
-    let window = unresolved_delta();
-    let mut memo = mesh::PatchMemo::new();
-    let refused =
-        |memo: &mut mesh::PatchMemo| match mesh::tessellate_with(&body, window, tol(), memo) {
-            Err(TessellateError::UnresolvedWinding { face }) => face,
-            other => panic!(
-                "the whole frustum at δ = {window:e} refuses UnresolvedWinding, got {:?}",
-                other.map(|t| t.mesh.patches.len())
-            ),
-        };
-    let first = refused(&mut memo);
-    let (hits, misses) = (memo.hits(), memo.misses());
-    assert!(
-        hits == 0 && misses > 0,
-        "the first run runs its lanes: {hits} hits, {misses} misses"
-    );
-    let second = refused(&mut memo);
-    assert_eq!(first, second, "the same face refuses from the memo");
-    assert_eq!(kind_of(&body, second), SurfaceKind::Plane);
-    assert_eq!(
-        (memo.hits(), memo.misses()),
-        (misses, misses),
-        "the second run answers every face through the refusing one from the memo"
-    );
 }
 
 /// **The cut frustum does not refuse: a triangle may be thin, and small
