@@ -43,4 +43,4 @@ Build order:
 2. The junction carry-through: `a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses`, then `an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve`.
 3. This row: the link resting on another band, the all-three rule, the odd-plus-one chamfer, and the vocabulary.
 
-Step 3's status: the all-three rule and the link resting on the odd band are built (cut 1, PR 6873); the odd-plus-one chamfer is built (cut 2), as a turn's overrun with the odd band the far one (`crates/sweep/tests/band_mixed_corner_odd_plus_one.rs`). The vocabulary (cut 3) remains.
+Step 3's status: the all-three rule and the link resting on the odd band are built (cut 1, PR 6873); the odd-plus-one chamfer is built (cut 2, PR 7038), as a turn's overrun with the odd band the far one (`crates/sweep/tests/band_mixed_corner_odd_plus_one.rs`). The vocabulary (cut 3) remains.
