@@ -4,7 +4,7 @@ kind: unit
 title: A boundary run on a chart iso line gets a lattice line through it, and a face bounded by such runs alone sizes at δ
 status: parked
 opened: 2026-11-16
-priority: P2
+priority: P1
 cost: M
 blocked_on: [6966]
 ---
