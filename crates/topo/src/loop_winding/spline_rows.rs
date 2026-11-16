@@ -470,3 +470,168 @@ fn a_wide_weight_arc_past_a_fast_start_is_decided() {
         );
     }
 }
+
+/// The quarter-circle lens: [`quarter`] of radius 2 out, and back along
+/// the conic through the same ends and tangents whose middle weight is
+/// `delta` more.
+fn weight_lens(delta: f64) -> [Curve3<f64>; 2] {
+    let fatter = spline(
+        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        2,
+        &[[2.0, 0.0, 0.0], [2.0, 2.0, 0.0], [0.0, 2.0, 0.0]],
+        vec![1.0, FRAC_1_SQRT_2 + delta, 1.0],
+    );
+    [quarter(2.0), fatter]
+}
+
+/// The lens's margin at `pieces` per span, at the interval scalar.
+fn lens_margin([out, back]: &[Curve3<f64>; 2], pieces: usize) -> Margin<Interval> {
+    let span = (0.0, 1.0);
+    let point = |p: Point3<f64>| p.map(Interval::from_certified);
+    let term = |c: &Curve3<f64>, forward| {
+        let (c, span) = lifted(c, span);
+        SegmentQ::of((&c, span), forward)
+            .expect("the enclosure builds")
+            .term(pieces)
+            .unwrap()
+    };
+    let (p, q) = (point(out.eval(0.0)), point(out.eval(1.0)));
+    let points = [(p, term(out, true)), (q, term(back, false))];
+    let (area, perimeter) = winding_sum(
+        &points,
+        p,
+        None,
+        false,
+        Vec3::<f64>::unit_z().map(Interval::from_certified),
+    );
+    Margin::over_lever(area, perimeter)
+}
+
+/// **The refinement ladder reads past its first count on a spline**: a
+/// lens between two rational arcs a millionth apart in their middle
+/// weight has a margin of about `2.5·10⁻⁷` m, which the first count's
+/// enclosure straddles zero on and the second decides at `ε = 10⁻⁹`.
+#[test]
+fn a_thin_rational_lens_is_decided_at_a_finer_count() {
+    let band = geom_core::Band::linear_at(geom_core::Tol::witness(), 1e-9).unwrap();
+    let lens = weight_lens(1e-6);
+    let decided = |pieces| {
+        crate::validate::decide(
+            "planar_winding_enclosure_refine",
+            lens_margin(&lens, pieces),
+            band,
+        )
+    };
+    assert!(
+        decided(ENCLOSURE_PIECES[0]).is_err(),
+        "the premise, a first count that does not decide: {:?}",
+        lens_margin(&lens, ENCLOSURE_PIECES[0])
+    );
+    assert_eq!(decided(ENCLOSURE_PIECES[1]), Ok(Sign::Negative));
+    let [out, back] = &lens;
+    let (span, p) = ((0.0, 1.0), out.eval(0.0));
+    let wound = Body::<f64>::winding_of_steps(
+        &[
+            (p, Some(((out, span), true))),
+            (out.eval(1.0), Some(((back, span), false))),
+        ],
+        p,
+        None,
+        false,
+        Vec3::unit_z(),
+        band,
+    );
+    assert!(
+        matches!(
+            wound,
+            Ok(Ok(Decided {
+                sign: Sign::Negative,
+                ..
+            }))
+        ),
+        "{wound:?}"
+    );
+}
+
+/// A clamped non-rational carrier of `degree` over `interior` knots,
+/// its control points a wavy arch `scale` times the unit one and
+/// `offset` along each axis, standing off the plane `z = offset`.
+fn wavy(degree: usize, interior: &[f64], scale: f64, offset: f64) -> Curve3<f64> {
+    let n = degree + 1 + interior.len();
+    let mut knots = vec![0.0; degree + 1];
+    knots.extend_from_slice(interior);
+    knots.extend(vec![1.0; degree + 1]);
+    #[allow(clippy::cast_precision_loss)]
+    let pts: Vec<[f64; 3]> = (0..n)
+        .map(|i| {
+            let x = i as f64 / (n - 1) as f64;
+            let y = (7.0 * x).sin() + 2.0 * x * (1.0 - x);
+            let z = 0.05 * (3.0 * x).cos();
+            [x, y, z].map(|c| offset + scale * c)
+        })
+        .collect();
+    spline(knots, degree, &pts, vec![1.0; n])
+}
+
+/// **The closed form is the area a dense polygon converges to, and the
+/// enclosure holds it, at every scale**: over a multi-span carrier of
+/// `degree` with the non-uniform `interior` knots, on arcs that cross
+/// knots, lie inside a span and are a hundredth of the domain, at 1 m at
+/// the origin and at 1 cm and 100 m a thousand sizes off it. The closed
+/// bulge along the normal is the Richardson limit of two inscribed
+/// polygons' to `10⁻⁹` of the scale squared, negated for the reversed
+/// traversal to the bit; the enclosure at the first count holds it and is
+/// under `10⁻⁵` of the scale squared wide; and neither length term is
+/// under the polygon's.
+fn closed_form_and_enclosure_agree_with_a_polygon(degree: usize, interior: &[f64]) {
+    let spans = [(0.0, 1.0), (0.1, 0.52), (0.6, 0.75), (0.5, 0.51)];
+    for (scale, offset) in [(0.01, 10.0), (1.0, 0.0), (100.0, 1e5)] {
+        let carrier = wavy(degree, interior, scale, offset);
+        assert_eq!(segment_kind(&carrier), SegmentKind::Closed);
+        for span in spans {
+            let name = format!("degree {degree} at {scale} m off {offset}, {span:?}");
+            let (bulge, length) = closed_segment_term((&carrier, span), true).unwrap();
+            let (back, _) = closed_segment_term((&carrier, span), false).unwrap();
+            assert_eq!(back.z.to_bits(), (-bulge.z).to_bits(), "{name}: reversed");
+            let ((coarse, _), (fine, polygon)) =
+                (polygon(&carrier, span, 512), polygon(&carrier, span, 1024));
+            let limit = (4.0 * fine - coarse) / 3.0;
+            let unit = scale * scale;
+            assert!(
+                (bulge.z - limit).abs() <= 1e-9 * unit,
+                "{name}: the closed form {} against the polygons' limit {limit}",
+                bulge.z
+            );
+            let (c, lifted_span) = lifted(&carrier, span);
+            let (enclosed, bound) = SegmentQ::of((&c, lifted_span), true)
+                .expect("the enclosure builds")
+                .term(ENCLOSURE_PIECES[0])
+                .unwrap()
+                .expect("a spline has a term");
+            let (lo, hi) = (enclosed.z.lo(), enclosed.z.hi());
+            // The closed form is rounded: a part in 10¹¹ of the area's
+            // scale covers it a thousand sizes off the origin.
+            let rounding = 1e-11 * unit;
+            assert!(
+                lo - rounding <= bulge.z && bulge.z <= hi + rounding && hi - lo < 1e-5 * unit,
+                "{name}: the enclosure [{lo}, {hi}] against the closed form {}",
+                bulge.z
+            );
+            assert!(
+                polygon <= length && polygon <= bound.lo(),
+                "{name}: the length terms {length} and {} against the polygon's {polygon}",
+                bound.lo()
+            );
+        }
+    }
+}
+
+#[test]
+fn a_cubics_closed_form_and_enclosure_agree_with_a_polygon_at_every_scale() {
+    closed_form_and_enclosure_agree_with_a_polygon(3, &[0.2, 0.5, 0.55]);
+}
+
+#[test]
+fn a_quintics_closed_form_and_enclosure_agree_with_a_polygon_at_every_scale() {
+    closed_form_and_enclosure_agree_with_a_polygon(5, &[0.3, 0.8]);
+}
