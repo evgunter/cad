@@ -178,8 +178,9 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
 
 /// **Off the axis the reach counts the loops**: none short of the wall,
 /// one past its nearest ruling, two past its farthest, each loop on the
-/// general rung and two winding about the cylinder; the lone loop's
-/// witness lies on both surfaces.
+/// general rung and two winding about the cylinder; each loop's witness,
+/// the ruling sweep's, lies on both surfaces, the two loops' on opposite
+/// sides of the centre's height.
 #[test]
 fn off_the_axis_the_reach_counts_the_loops() {
     let none = built(&cylinder(0.5), &sphere(2.0, 0.5));
@@ -201,10 +202,19 @@ fn off_the_axis_the_reach_counts_the_loops() {
         2,
         "two loops"
     );
+    let (cyl, sph) = (cylinder(0.5), sphere(0.1, 0.7));
+    let mut heights = Vec::new();
     for c in two.counted().expect("a counted section") {
         assert_eq!(c.winds, [true, false], "each winds about the cylinder");
         assert!(matches!(c.carrier, ClassCarrier::General));
+        let w = c.witness.expect("each loop witnessed");
+        on_both(w, &cyl, &sph, "a ring's witness");
+        heights.push(w.z - 0.2);
     }
+    assert!(
+        heights[0] * heights[1] < 0.0,
+        "one witness on each ring: {heights:?} about the centre's height"
+    );
 }
 
 /// **An axis offset in the band escalates** (`cs_coaxial`), and a reach
@@ -588,6 +598,54 @@ fn decided_offset(e: f64) -> f64 {
     }
 }
 
+/// **The escalation widths past the escalate edge within which the
+/// value's ruling sweep may escalate an extreme of `Δ`.** The sweep reads
+/// `Δ = R − ρ` along the wall's rulings; its extremes are the near reach
+/// `R − |e − r|` (at the near ruling) and the far reach `R − (e + r)` (at
+/// the far one). Where an extreme stands `x` widths past the edge, the
+/// ruling angle about it reads in the band (`|Δ| <` escalate) between
+/// `φ_a`, where `Δ` has fallen `x` widths, and `φ_b`, where it has fallen
+/// `2 + x`. The cell from the extreme's ruling is never monotone, so the
+/// sweep must cut it at a decided angle short of `φ_a`, and its cuts are
+/// the middle and ±⅛, ±¼ of a cell's width, a ratio of three end to end.
+/// It finds one wherever `φ_b / φ_a` is under three. `Δ` falls from an
+/// extreme at least linearly in the angle (a kink, where the near ruling
+/// runs through the centre) and at most quadratically (a smooth extreme),
+/// so `φ_b / φ_a` lies between `√((2 + x)/x)` and `(2 + x)/x`, under three
+/// once `x` is past a quarter (smooth) or one (kink). Measured
+/// (2026-11-04): over 46 614 poses, one or the other extreme swept through
+/// four widths past the edge at ε 1e-6, 1e-9 and 1e-12, every ruling
+/// escalation stood within 0.29 of a width of the edge.
+const SWEEP_ZONE_WIDTHS: f64 = 1.0;
+
+/// **Whether the value's ruling sweep may escalate a crossing the retired
+/// formulas count**: an extreme of `Δ` within [`SWEEP_ZONE_WIDTHS`] past the
+/// escalate edge.
+fn sweep_may_escalate(e: f64, r: f64, big: f64) -> bool {
+    let k = band().escalate();
+    [big - (e - r).abs(), big - (e + r)]
+        .iter()
+        .any(|m| m.abs() <= k * (1.0 + SWEEP_ZONE_WIDTHS))
+}
+
+/// Whether the value's `new` reading stands against the retired `old`:
+/// the same, or the ruling sweep's escalation of a crossing
+/// [`sweep_may_escalate`] names, counted in `escalated`.
+fn reads_as_retired(
+    new: (Class, bool),
+    old: (Class, bool),
+    (e, r, big): (f64, f64, f64),
+    escalated: &mut usize,
+) -> bool {
+    if new == old {
+        return true;
+    }
+    let crossing = matches!(old, (Class::Lone | Class::Pair, false));
+    let escalates = new == (Class::Tangent, false) && crossing && sweep_may_escalate(e, r, big);
+    *escalated += usize::from(escalates);
+    escalates
+}
+
 /// The value's reading of a pair: its guard class, and whether it
 /// records a coincidence.
 fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
@@ -660,7 +718,7 @@ fn the_pose_reads_the_retired_formulas_at_every_boundary() {
         0.05,
         -0.05,
     ];
-    let (mut n, mut in_band) = (0, 0);
+    let (mut n, mut in_band, mut escalated) = (0, 0, 0);
     for e in offsets {
         let sph_centre = Point3::new(e, 0.0, 0.2);
         for base in [(e - r).abs(), e + r, r, 0.3, 0.9] {
@@ -687,15 +745,19 @@ fn the_pose_reads_the_retired_formulas_at_every_boundary() {
                         in_band += 1;
                         assert_eq!(new, (Class::Tangent, false), "in the band: {what}");
                     } else {
-                        assert_eq!(new, old, "off the band: {what}");
+                        assert!(
+                            reads_as_retired(new, old, (e, r, big), &mut escalated),
+                            "off the band: {what}: {new:?} against {old:?}"
+                        );
                     }
                 }
             }
         }
     }
+    println!("{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep");
     assert!(
         n > 1000 && in_band > 100,
-        "{n} readings, {in_band} in the band"
+        "{n} readings, {in_band} in the band, {escalated} escalated by the ruling sweep"
     );
 }
 
@@ -708,7 +770,7 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
     use test_utils::fuzz;
     let mut g = fuzz::start("pair_section::retired_formulas");
     let b = band();
-    let (mut rows, mut checked) = (0, 0);
+    let (mut rows, mut checked, mut escalated, mut zone_exact) = (0, 0, 0, 0);
     let poses = fuzz::scaled(5_000);
     for k in 0..poses {
         let origin = Point3::new(g.unit() - 0.5, g.unit() - 0.5, g.unit() - 0.5);
@@ -725,11 +787,19 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             1 => b.escalate() * 3.0 * g.unit(),
             _ => 1.5 * g.unit(),
         };
-        let big = match k % 7 {
+        // Two arms put one extreme of the sweep's `Δ` up to twice
+        // [`SWEEP_ZONE_WIDTHS`] past the escalate edge, the other where the
+        // offset puts it: the zone where the sweep may escalate, and past
+        // it, where it must answer as the retired formulas do.
+        let zone = b.escalate() * (1.0 + 2.0 * SWEEP_ZONE_WIDTHS * g.unit());
+        let big = match k % 9 {
             0 => r,
             1 => (off - r).abs(),
             2 => off + r,
             3 => (off - r).abs() + b.zero() * 0.5,
+            // `k % 3`: 4 near the axis, 5 and 8 anywhere off it.
+            4 | 5 => (off - r).abs() + zone,
+            8 => off + r + if g.unit() < 0.5 { zone } else { -zone },
             _ => 0.05 + 2.0 * g.unit(),
         };
         // The retired formulas read a radius decided positive; one in the
@@ -747,21 +817,28 @@ fn no_pose_off_the_band_moves_from_the_retired_formulas() {
             retired_guard(decided_offset(e), r, big),
             retired_row(e, r, big),
         );
+        let past_the_zone = matches!(k % 9, 4 | 5 | 8)
+            && matches!(old.0, Class::Lone | Class::Pair)
+            && !sweep_may_escalate(e, r, big);
         for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
             let new = read_class(x, y);
-            assert_eq!(
-                new,
-                old,
-                "pose {k} (off {off:e}, r {r}, R {big}); {}",
+            zone_exact += usize::from(past_the_zone);
+            assert!(
+                reads_as_retired(new, old, (e, r, big), &mut escalated),
+                "pose {k} (off {off:e}, r {r}, R {big}): {new:?} against {old:?}; {}",
                 fuzz::replay()
             );
             rows += usize::from(new.1);
             checked += 1;
         }
     }
+    println!(
+        "{checked} readings, {escalated} escalated by the ruling sweep, {zone_exact} crossings \
+         just past its zone read exactly"
+    );
     assert!(
-        rows > poses / 10 && checked > poses,
-        "{rows} rows, {checked} readings; {}",
+        rows > poses / 10 && checked > poses && zone_exact > poses / 40,
+        "{rows} rows, {checked} readings, {escalated} escalated by the ruling sweep; {}",
         fuzz::replay()
     );
 }

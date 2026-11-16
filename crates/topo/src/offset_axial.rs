@@ -593,13 +593,21 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         }
         // The edge stage refuses a moved edge with no carrier in these
         // words too; it is refused here so that it never reaches a solve.
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        if body
+            .edge_curve_linked(edge, edge_data)
+            .certified()
+            .is_none()
+        {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
             });
-        };
-        let section = cone_cap_section(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
+        }
+        let region = crate::replace_face::region_reach(
+            edge,
+            crate::cover::edge_cover_linked(body, edge, edge_data),
+        )?;
+        let section = cone_cap_section(edge, cone, cap, &region, band)?;
         cone_sections.insert(edge, section);
     }
 
@@ -2273,11 +2281,9 @@ fn mint_carrier<T: Decide>(
     // middle stands nearer, run the old way; beside the apex it is a
     // hyperbola, and the edge is its arc between the moved corners on
     // the branch the old edge's middle stands beside, minted exactly. ----
-    if let Some((cone, cap)) = cone_and_cap(ca, cb) {
-        let section = match cone_section {
-            Some(section) => section.clone(),
-            None => cone_cap_section(edge, cone, cap, (old, old_span), band)?,
-        };
+    // The gate read this section for every moved cone/cap edge, and
+    // hands it here; its presence is the arm's condition.
+    if let Some(section) = cone_section.cloned() {
         let (l1, l2) = match section {
             ConeCapSection::Generators(l1, l2) => (l1, l2),
             ConeCapSection::Conic(section) => {
@@ -2560,7 +2566,7 @@ fn cone_and_cap<'c, T: Real>(
 }
 
 /// **The moved cone wall's section with its moved cap**, read over the
-/// old edge's span.
+/// old edge's region.
 #[derive(Clone)]
 enum ConeCapSection<T: Real> {
     /// The generator pair the moved cap cuts where it holds the moved
@@ -2573,7 +2579,7 @@ enum ConeCapSection<T: Real> {
 }
 
 /// The moved cone wall's section with its moved cap, read over the old
-/// edge's span.
+/// edge's region.
 ///
 /// # Errors
 ///
@@ -2584,28 +2590,22 @@ fn cone_cap_section<T: Decide>(
     edge: EdgeKey,
     cone: &MovedChart<T>,
     cap: &MovedChart<T>,
-    (old, (t0, t1)): (&Curve3<T>, (T, T)),
+    reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<ConeCapSection<T>, ReplaceFaceError<T>> {
-    let reach = geom_brep::Reach::Span {
-        carrier: old.clone(),
-        t0,
-        t1,
-    };
-    let section =
-        geom_brep::plane_cone_section(&cap.new, &cone.new, &reach, band).map_err(|error| {
-            match error {
-                geom_brep::SectionError::Escalated(source)
-                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
-                    ReplaceFaceError::Escalated { source }
-                }
-                _ => ReplaceFaceError::TogetherAxialEdge {
-                    edge,
-                    what: "an edge between a cone wall and an axis-parallel cap whose moved \
-                           cone the section refuses as an operand",
-                },
+    let section = geom_brep::plane_cone_section(&cap.new, &cone.new, reach, band).map_err(
+        |error| match error {
+            geom_brep::SectionError::Escalated(source)
+            | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
+                ReplaceFaceError::Escalated { source }
             }
-        })?;
+            _ => ReplaceFaceError::TogetherAxialEdge {
+                edge,
+                what: "an edge between a cone wall and an axis-parallel cap whose moved \
+                           cone the section refuses as an operand",
+            },
+        },
+    )?;
     Ok(match section {
         geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => ConeCapSection::Generators(l1, l2),
         geom_brep::PlaneConeSection::OpenConic(section) => ConeCapSection::Conic(section),
@@ -3157,7 +3157,7 @@ fn reauthor<T: Decide>(
                 })
             };
             let turn_as = |name, theta: Option<T>, s: T, moved: Point3<T>| {
-                azimuth_turn(
+                azimuth_turn_as(
                     name,
                     read(theta, moved).z,
                     axis,
@@ -3215,7 +3215,7 @@ fn reauthor<T: Decide>(
 /// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
-fn azimuth_turn<T: Decide>(
+fn azimuth_turn_as<T: Decide>(
     name: &'static str,
     off: T,
     geom::Line { origin, dir }: geom::Line<T>,

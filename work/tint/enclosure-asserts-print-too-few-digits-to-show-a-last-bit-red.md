@@ -20,7 +20,7 @@ shows a 2-ULP gap at magnitude ~1 as a one-digit difference in the last
 place and shows a 1-ULP gap, or a 2-ULP gap at magnitude >= 5, not at all —
 and in every case the reader cannot read off the margin, and is not told
 which end failed, without reproducing by hand. That is what cost
-`work/tess/nurbs-face-bound-unsound-on-a-random-rational.md` two weeks (its
+`work/tesslane/nurbs-face-bound-unsound-on-a-random-rational.md` two weeks (its
 "CORRECTION" section): a `{:.3e}` message on a 2-ULP red.
 
 Hits, all in `crates/geom-brep/tests/`:

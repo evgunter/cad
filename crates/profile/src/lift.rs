@@ -584,19 +584,21 @@ fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
 // ------------------------------------------------------------------
 
 /// The source loop re-seamed at `rotation`, with its tangent junctions:
-/// its (vertex, segment) chain reindexed, every stored bit carried
-/// verbatim, and each junction carried to its new index.
+/// its (vertex, segment, recorded directions) chain reindexed, every
+/// stored bit carried verbatim (a re-seam turns nothing, so a director
+/// and a radial are carried as they are), and each junction carried to
+/// its new index.
 fn rotated(loop_: &ProfileLoop<f64>, tangent: &[usize], rotation: usize) -> Source {
     let n = loop_.vertices.len();
     let r = if n == 0 { 0 } else { rotation % n };
     let chain = (0..n).map(|k| {
         let i = (r + k) % n;
-        (loop_.vertices[i], loop_.segments[i])
+        (loop_.vertices[i], loop_.segments[i], loop_.directions[i])
     });
     let mut tangent: Vec<usize> = tangent.iter().map(|&j| (j % n + n - r) % n).collect();
     tangent.sort_unstable();
     Source {
-        loop_: ProfileLoop::from_chain(chain),
+        loop_: ProfileLoop::from_directed_chain(chain),
         tangent,
     }
 }

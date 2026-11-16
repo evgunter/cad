@@ -4,6 +4,8 @@ kind: issue
 title: the sphere recut's mapped-source escalation arm (RECUT_MAPPED_ENCLOSURE_HI) is reached by no gated eps row
 status: open
 opened: 2026-09-25
+priority: P4
+cost: E
 ---
 
 

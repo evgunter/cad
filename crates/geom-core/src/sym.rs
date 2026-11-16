@@ -115,7 +115,7 @@
 //! discharge by PROVENANCE — and [`Sym::register_equal`] is it: a
 //! session-level record that two DAG nodes denote one function of the
 //! parameters, made by the site that GUARANTEES it
-//! (`sweep::swept::register_rim_identity`, whose doc comment carries
+//! (`sweep::swept::register_rigidity`, whose doc comment carries
 //! the proof), verified in the lane scalar at the moment it is made,
 //! refused typed when it lies, and consulted by a THIRD normal-form
 //! walk beside the plain one and the early one.
@@ -149,12 +149,9 @@
 //! states the identity about is the node the certifier asks about.
 //!
 //! The revolve's latitude carriers (`sweep::revolve::surfaces` and
-//! `::full`) mint the same circle under the same guarantee and state
-//! the RIM identity too — the same rule applied to the second
-//! constructor, not to the second identity
-//! (`sweep::swept::register_rim_identity`). Rim only: neither builder
-//! is handed the far endpoint, so a far-end identity has nothing to be
-//! stated about (`work/blend/revolve-carriers-state-only-the-rim`).
+//! `::full`) state nothing: their `u_ref` is the revolve's seam
+//! direction, so a latitude through its point is an identity the plain
+//! form proves.
 //!
 //! **Where the door may be called is an ALLOWLIST**, not a
 //! convention: `scripts/gates/register-equal-allowlist.sh` names the
@@ -961,7 +958,7 @@
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
 //! `Indeterminate` carrying `MarginKind::Invalid`
-//! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
+//! (`geom-brep/src/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
 //! **EXPLICIT — 93.** Closed forms in the parameters over analytic
@@ -3255,6 +3252,52 @@ pub fn session_installed() -> bool {
     SESSION.with(|s| s.borrow().is_some())
 }
 
+/// **A run whose decision logs can be set aside**: `work`'s value, and
+/// a mark of this thread's per-decision `Sym` logs as they stood before
+/// it (the shape report's decisions, and under `sym-revalue-testing`
+/// the re-valuation recorder's). [`Aside::discard`] cuts both back to
+/// the mark, so a reading its caller drops leaves no decision in them;
+/// [`Aside::keep`] keeps what `work` recorded. The k_stats
+/// channels have their own door (`k_stats::detached`).
+///
+/// The profile (`sym-profile-testing`) is not a decision log: it charges
+/// the forms walked and the time spent, and a dropped reading's work was
+/// done, so it keeps it. Two per-decision records are not set aside
+/// either: the session's [`SymCounts::symbolic`] count (the E12 receipt)
+/// and the deferring session's list of undischarged Zeros
+/// ([`deferred::with_deferred_session`]) keep a dropped reading's
+/// decisions.
+pub fn aside<R>(work: impl FnOnce() -> R) -> (R, Aside) {
+    let mark = Aside {
+        shapes: report::mark(),
+        #[cfg(feature = "sym-revalue-testing")]
+        decisions: revalue::mark(),
+    };
+    (work(), mark)
+}
+
+/// [`aside`]'s mark of the per-decision logs.
+#[must_use = "an aside that is neither discarded nor dropped on purpose keeps its decisions"]
+pub struct Aside {
+    shapes: usize,
+    #[cfg(feature = "sym-revalue-testing")]
+    decisions: Option<usize>,
+}
+
+impl Aside {
+    /// Keeps every decision the set-aside run recorded: the reading is
+    /// the caller's.
+    pub fn keep(self) {}
+
+    /// Cuts the per-decision logs back to the mark: every decision the
+    /// set-aside run recorded is gone from them, and none before it is.
+    pub fn discard(self) {
+        report::truncate(self.shapes);
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::truncate(self.decisions);
+    }
+}
+
 /// Records `node` in the installed session and answers its id. Outside a
 /// session the id is still computed — it is a pure function of the node
 /// — and nothing is stored.
@@ -5282,6 +5325,14 @@ impl<T: Real> Real for Sym<T> {
 
     fn is_bounded(self) -> bool {
         self.value.is_bounded()
+    }
+
+    /// Its numeric channel's every channel: at `Sym<Dual<_>>` the dual's
+    /// derivative too. The symbolic scalar's own exact zero
+    /// ([`crate::real::is_exact_zero`]) reads its poison off that channel
+    /// alone, so the channel's answer already holds it.
+    fn is_exact_zero_in_every_channel(self) -> bool {
+        self.value.is_exact_zero_in_every_channel()
     }
 
     /// **The one scalar that RECORDS** rather than only witnessing —

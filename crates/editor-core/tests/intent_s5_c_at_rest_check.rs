@@ -936,25 +936,23 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
     assert!(refused, "a loud overlap a Gap covers refuses at Error");
 }
 
-// ---- One reading answers for a pair only where it is constant ----
+// ---- One reading answers for a pair: the pose its gap is read in ----
 
-/// **Two shafts side by side stay loud at every bearing** (the quieting
+/// **Two shafts side by side quiet under a holding `Gap` at every
+/// bearing, and are loud and refuse at `Error` with none** (the quieting
 /// rule's opposed test, D10 `[assertions.quiet]`). A shaft of radius 1
-/// and one of 0.3 stand 1.2 apart, clashing 0.1 deep, under a holding
-/// `Gap(A, B) ≤ −0.01` (it reads −0.1). Neither wall is a socket for
-/// the other, and two cylinders off one axis pair their materials
-/// differently from point to point, so no reading at one point answers
-/// for the pair: it is not opposed, and the finding is loud wherever B
-/// stands about A.
+/// and one of 0.3 stand 1.2 apart, clashing 0.1 deep. The `Gap` reads the
+/// two walls in one pose, apart, each facing the other's material: an
+/// opposed pair in CONTACT-DESIGN C5's own sense, whose `g < 0` is the
+/// clash depth (it reads −0.1). So a holding `Gap(A, B) ≤ −0.01` quiets
+/// the finding wherever B stands about A, and with no assertion the
+/// finding is loud, quietable, and refuses at `Error`.
 ///
-/// No assertion the quieting rule accepts can quiet such a finding, so
-/// it is not quietable and refuses at no severity, `Error` included: a
-/// finding refuses only where an assertion could have quieted it.
-///
-/// *Breaks if* `opposed` reads such a pair at one point, which quieted
-/// it at one bearing in eight, or the pair counts as quietable.
+/// *Breaks if* `opposed` reads such a pair at one point of a face, which
+/// quieted it at one bearing in eight, or reads anything but the pose the
+/// `Gap` itself was read in.
 #[test]
-fn shafts_side_by_side_stay_loud_at_every_bearing() {
+fn shafts_side_by_side_quiet_under_a_holding_gap_at_every_bearing() {
     use editor_core::{Formula, LoopProgram, ProfileProgram};
     let rod = |doc: ProfileDoc, (cx, cy): (f64, f64), r: f64, h: f64| {
         let (doc, profile) = insert(
@@ -979,7 +977,11 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
             RoleSeg::Lateral(crate::fixture::piece(doc, node, 0, 0).into()),
         )
     };
-    let mut quiet_at = Vec::new();
+    let error = ChecksConfig {
+        at_rest: Severity::Error,
+        ..ChecksConfig::default()
+    };
+    let mut loud_at = Vec::new();
     let mut found = 0;
     for k in 0..8u32 {
         let bearing = f64::from(k) * std::f64::consts::FRAC_PI_4;
@@ -989,6 +991,20 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
         let (doc, p) = place(doc, a);
         let (doc, q) = in_world(doc, b, &Frame::translation([0.0, 0.0, 0.25]));
         let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
+        // With no assertion: loud, quietable, and refused at `Error`.
+        let bare = crate::fixture::interference(
+            &crate::fixture::at_rest(&doc, &corpus::eval::<f64>(&doc)).expect("runs"),
+        );
+        found += bare.len();
+        assert!(
+            bare.iter().all(|f| f.is_loud() && f.quietable),
+            "bearing {k}/8, no assertion: loud and quietable: {bare:?}"
+        );
+        assert_eq!(
+            enforce_checks(&checks(&doc), &error).is_err(),
+            !bare.is_empty(),
+            "bearing {k}/8, no assertion: refused at Error where it is found"
+        );
         let (doc, assertion) = gap(
             &doc,
             &SitedRef::new(p, fa),
@@ -1006,31 +1022,19 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
         );
         let interference =
             crate::fixture::interference(&crate::fixture::at_rest(&doc, &run).expect("runs"));
-        found += interference.len();
-        if interference.iter().any(|f| !f.is_loud()) {
-            quiet_at.push(k);
+        if interference.iter().any(|f| f.is_loud()) {
+            loud_at.push(k);
         }
-        // `Gap` reads the two walls (parallel axes), but no reading
-        // answers for their pairing, so no assertion the quieting rule
-        // accepts exists, and nothing refuses at `Error`.
-        assert!(
-            interference.iter().all(|f| !f.quietable),
-            "bearing {k}/8: not quietable: {interference:?}"
-        );
-        let error = ChecksConfig {
-            at_rest: Severity::Error,
-            ..ChecksConfig::default()
-        };
         assert!(
             enforce_checks(&checks(&doc), &error).is_ok(),
-            "bearing {k}/8: refused at Error"
+            "bearing {k}/8, asserted: refused at Error"
         );
     }
     assert!(found > 0, "the premise: an overlap at some bearing");
     assert_eq!(
-        quiet_at,
+        loud_at,
         Vec::<u32>::new(),
-        "quiet at these eighths of a turn"
+        "loud under the holding Gap at these eighths of a turn"
     );
 }
 

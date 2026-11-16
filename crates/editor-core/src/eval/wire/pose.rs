@@ -234,6 +234,7 @@ fn eval_pose_as<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         | VarDef::Defined(_)
         | VarDef::Select(_)
         | VarDef::Pick(_)
+        | VarDef::Source(_)
         | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
@@ -325,9 +326,9 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     // other into it.
     let in_frame = |frame: Frame<T>, value| Posed { value, frame };
     Ok(match def {
-        PoseDef::Plane { face } => read_off(doc, results, slot, *face, K::Plane, b)?,
-        PoseDef::Axis { of } => read_off(doc, results, slot, *of, K::Axis, b)?,
-        PoseDef::Point { of } => read_off(doc, results, slot, *of, K::Point, b)?,
+        PoseDef::Plane { face } => read_off(doc, (results, env), slot, *face, K::Plane, b)?,
+        PoseDef::Axis { of } => read_off(doc, (results, env), slot, *of, K::Axis, b)?,
+        PoseDef::Point { of } => read_off(doc, (results, env), slot, *of, K::Point, b)?,
         // Positions moved along the direction, directions kept.
         PoseDef::Slide {
             pose: read,
@@ -542,22 +543,18 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
 /// carrier without the pose refuses typed.
 fn read_off<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
+    (results, params): (&Results<T>, &VarEnv<T>),
     slot: OperandSlot,
     of: VarId,
     pose: VarKind,
     band: geom_core::Band,
 ) -> Result<Posed<T>, NodeErrorKind> {
-    // The half of a split a selection reads is projected here, for the
-    // pose's own reads: `results` are its reader's, unprojected.
-    let body_var = doc.selection(of).map_or(of, |select| select.body);
-    let projected = super::project_ports(&[body_var], doc, results)?;
+    // The body a selection reads is projected here, for the pose's own
+    // reads: `results` are its reader's, unprojected.
+    let projected = super::project_selection(doc, slot, of, results, params)?;
     let results = projected.as_ref().unwrap_or(results);
-    let (at, ent) = select_one(doc, results, slot, of)?;
-    let whole = doc
-        .selection(of)
-        .is_some_and(|select| crate::repetition::names_members(doc, select));
-    let framed = super::read_named_body(results, at, ent.body, whole)?;
+    let (at, ent) = select_one(doc, results, slot, of, params)?;
+    let framed = super::read_named_body(results, at, ent.body)?;
     // In the coordinates of the body it is read off.
     Ok(Posed {
         value: read_off_body(framed.body(), ent.key, pose, band)?,
@@ -726,7 +723,13 @@ pub(crate) fn key_words<T: Decide>(
     let mut out = Vec::new();
     for (place, (seat, var)) in node.operand_rows().into_iter().enumerate() {
         let role = node.seat_role(seat);
-        if role.is_none() && doc.var(var).and_then(|held| held.def().pose()).is_none() {
+        // A plain read's and a plain selection's key is upstream's and
+        // the names'; a pose's reads, a role and a member read say more.
+        let member = doc
+            .selection(var)
+            .is_some_and(|select| doc.selected_body(select).is_indexed())
+            || doc.through_sources(var).is_indexed();
+        if role.is_none() && !member && doc.var(var).and_then(|held| held.def().pose()).is_none() {
             continue;
         }
         // The read's ports are the node's upstream for this read, each
@@ -738,14 +741,14 @@ pub(crate) fn key_words<T: Decide>(
         out.push(PoseWord::Count(place as u64));
         out.push(PoseWord::Tag(role_word(role)));
         out.push(PoseWord::Count(ports.len() as u64));
-        walk(doc, var, &ports, env, nominal, &mut out)?;
+        walk(doc, (seat, var), &ports, env, nominal, &mut out)?;
     }
     Ok((!out.is_empty()).then_some(out))
 }
 
 fn walk<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
-    var: VarId,
+    (seat, var): (OperandSlot, VarId),
     ports: &[(crate::RecipeNodeId, u8)],
     env: &VarEnv<T>,
     nominal: &VarEnv<f64>,
@@ -763,9 +766,25 @@ fn walk<T: Decide>(
     match def {
         Some(VarDef::Select(select)) => {
             out.push(PoseWord::Tag(w::SELECTION));
-            out.push(port_word(doc.read_ports(select.body).first().copied()));
+            out.push(port_word(doc.read_ports(select.body.read).first().copied()));
+            // A member read is that member: its index values key it, a
+            // selection of a source of a member as that member's.
+            let body = match select.body.is_indexed() {
+                true => select.body.clone(),
+                false => doc.through_sources(select.body.read),
+            };
+            out.push(PoseWord::Count(body.at.len() as u64));
+            for (k, &index) in body.at.iter().enumerate() {
+                let value = crate::expr::eval_var_count(index, env).map_err(|source| {
+                    NodeErrorKind::Expr {
+                        slot: crate::SlotId::Index { seat, k },
+                        source,
+                    }
+                })?;
+                out.push(PoseWord::Count(value as u64));
+            }
             // A selection in a pick is in that piece: its path keys it.
-            if let Some(pick) = doc.pick(select.body) {
+            if let Some(pick) = doc.pick(body.read) {
                 out.push(PoseWord::Count(pick.of.len() as u64));
                 out.extend(pick.of.iter().map(|step| PoseWord::Count(step.0.digest())));
             }
@@ -787,7 +806,7 @@ fn walk<T: Decide>(
             }));
             for (_, &read, role, _) in def.reads() {
                 out.push(PoseWord::Tag(role_word(role)));
-                walk(doc, read, ports, env, nominal, out)?;
+                walk(doc, (seat, read), ports, env, nominal, out)?;
             }
             for (slot, &scalar) in def.scalars() {
                 let dim = slot.dimension();
@@ -802,13 +821,35 @@ fn walk<T: Decide>(
                 ));
             }
         }
+        // A source of a member is that member: its index values key it.
+        Some(VarDef::Source(_)) if doc.through_sources(var).is_indexed() => {
+            let body = doc.through_sources(var);
+            out.push(PoseWord::Tag(w::SOURCE));
+            out.push(PoseWord::Count(body.at.len() as u64));
+            for (k, &index) in body.at.iter().enumerate() {
+                let value = crate::expr::eval_var_count(index, env).map_err(|source| {
+                    NodeErrorKind::Expr {
+                        slot: crate::SlotId::Index { seat, k },
+                        source,
+                    }
+                })?;
+                out.push(PoseWord::Count(value as u64));
+            }
+        }
         // An output, whose key the upstream list carries at the place
         // this word names, or a read the door admits at no pose seat.
         Some(VarDef::Output { node, port }) => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
+        Some(
+            VarDef::Free(_)
+            | VarDef::Defined(_)
+            | VarDef::Pick(_)
+            | VarDef::Source(_)
+            | VarDef::Index(_),
+        )
+        | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

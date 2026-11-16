@@ -6,7 +6,7 @@
 //! `Δsin`/`Δcos` against the Euclidean chord `√(Δs² + Δc²)`), the lever
 //! arm on the torus (`major` against `minor`), and the direction a
 //! structurally impossible input fails in. What remains of it is
-//! `level_coincides`, at the arm the level's own dimension names; no
+//! `level_coincides_as`, at the arm the level's own dimension names; no
 //! flux arm groups rims any longer.
 //!
 //! **Which arm won: `minor`, the exact one.** A `RimLevel::Unit` pair

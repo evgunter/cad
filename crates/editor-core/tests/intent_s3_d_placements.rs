@@ -590,7 +590,7 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
     let boss = fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)]);
     let sketched = editor_core::sketch_on_face(
         &doc,
-        Operand::from(b),
+        Operand::from(b).into(),
         top,
         boss,
         len(0.5),
