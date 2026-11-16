@@ -1813,7 +1813,7 @@ fn period_fold_as<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, C
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
             };
-            match crate::pcurves::branches_astride_as(name, gap, period.length(), meter, band) {
+            match crate::pcurves::branches_astride_as(name, gap, period, meter, band) {
                 Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
                 Err(_) => Err(decline),
             }

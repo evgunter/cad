@@ -2,11 +2,13 @@
 id: a-curved-faces-domain-is-read-from-every-loop
 kind: unit
 title: a curved face's domain is its outer loop's lift less its rings', and the lane triangulates that
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: H
 branch: tesslane/domain-loops
+closed: 2026-11-16
+pr: 6960
 ---
 
 
@@ -53,3 +55,22 @@ Branch `tesslane/domain-loops`, cut from `tesslane/chart-table` (unit 2, in revi
 - **Nothing that meshes on main moves.** D9 goldens, `docs/tess-budget-data` and the tour pins pass unedited. A byte that moves there is a stop: report it, do not re-baseline it.
 - **Closes** `valid-ringed-torus-faces-build-but-cannot-be-meshed` and the ring half of `a-notched-or-ringed-cylinder-wall-does-not-tessellate` (the notch stays unit 4's; say so on that row).
 - **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, topo and `demos/tour`; `cargo nextest run -p mesh` whole; the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well (a row that builds bodies across scales or probes near a boundary states what it expects at each); sweep's rows over the bodies you touch. A test costing 0.5 s or more goes in the slow set with its measured time.
+
+## Closed (2026-11-16, PR 6960)
+
+A curved face's domain is one value, `topo::Body::face_lift`'s answer: the outer loop's lift and every ring placed in its sheet. `mesh::trimmed::face_domain` reads it once per trimmed face, and the memo key and the lane take that one value. The polygon is the outer lift less the rings (`TrimPolygon`: points, edges, loop ends), inside or outside is the planar lane's even-odd reading, a ring's edges are chorded like any boundary, and `lane_of` sends a ringed curved face to this lane. `TessellateError::RingOnCurvedFace` is gone; a miss of the door is `DomainUnread` with the door's cause, each cause with its own sentence and one name.
+
+Rings on a cylinder, a cone, a sphere and a torus mesh and pass `reach_probes::geometry`; the ball less the tube, a turned torus bar and a turned cylinder bar, whose rings are stored a period away, mesh where the door moves them, and a mutant that meshes them where they are stored goes red on all three.
+
+What the sections above did not foresee, from the review:
+
+- **A ring of one vertex, and an outer loop of one vertex beside a ring, are valid at tier 1** and reached the door. The door answers each typed (`RingEmpty`, `OuterEmpty`); a ringless face whose outer loop is empty keeps the lane's `EmptyLoop`.
+- **"No singular point lies inside a polygon behind the door"** is held by the door's winding refusal and the lane's `PastPole` and `BothNappes`, so `SphereTrimCause::PoleInside` is retired as unreachable, argued and not only unbuilt.
+- **A memo hit pays one read of the door**, since the placed images are part of the key: 3 to 8 % of an all-hit run on a body of four curved faces, measured in a debug build only.
+
+Left for others, each filed or on its row:
+
+- The torus ring at δ = 10⁻³ emits two triangles of no area, a class main has on an outer loop (`a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area`, weighed by three designers and before Ev as PR 6966).
+- Ringed faces that still refuse, pinned per eps in `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`: a ring toward a cone's apex (`a-cone-face-ending-near-its-apex-refuses-at-fine-delta`'s class), a ringed torus face whose outer loop holds a spiric (the never-tighten row), a sphere ring 0.006 rad from a pole (`a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm`).
+- A wrong mesh that is not this unit's, found by a reviewer on main and the head alike: a ringless cone face cut near its apex returns `Ok` with an edge of four triangles. Pinned, and filed on TESSLIE as `a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles`; the cone arm's part is cured in PR 6965.
+- The notch (`a-curved-face-is-routed-by-its-domain-not-its-carriers`, dispatched).
