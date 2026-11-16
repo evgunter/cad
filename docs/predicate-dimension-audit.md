@@ -92,7 +92,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1,
-F42 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
+F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -1810,19 +1810,25 @@ Flagged, NOT fixed here (dispositions):
   or not; Zero discharges it, anything else keeps the row deferred
   (`deferred::discharge_or_why`). It was a raw `sign_within` until this
   unit, so its samples reached the K sink `<unnamed>`.
-  `replay_one_cylinder` takes the metre data through `Margin::of`: the
-  second axis's offset from the first, crossed with its unit direction
-  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
-  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
-  the axes' tilt `|da × db|`, a sine of two unit directions,
-  **dimensionless**, through `Margin::levered` at the arm the kernel's
-  pair door levers the same datum at (`topo::boolean::carrier_pair_arm`:
-  the reach of the ball enclosing both faces from the foot of its centre
-  on the second axis, as `carrier_eq`'s `carrier_cyl_axis_parallel`).
+  Where the axis is decided, its tilt, offset and radius difference
+  are the kernel's own data (`topo::boolean::cylinder_pair_data`, one
+  computation with `geom_brep::carrier_eq`'s `cylinder_data`, over the
+  pair's extent), decided under the replay's names. Where the mates
+  state the axis, the radius difference is read as it stands, with no
+  extent. `replay_one_cylinder` takes the metre data: the second axis's
+  distance from the first at the foot of the extent (`Margin::norm3`),
+  the radius difference, and each rim's radius less its cylinder's (the
+  replay's own reading). `replay_one_cylinder_axis` takes the axes' tilt
+  `|da × db|`, a sine of two unit directions, **dimensionless**, through
+  `Margin::levered` at the arm the ladder levers the same datum at (the
+  reach of the ball enclosing both faces from the foot of its centre on
+  the second axis), which `cylinder_pair_data` hands over levered.
   Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
-  it read each component of the cross product apart at
-  `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
-  read on the replay's corpus was exactly zero, so no decision moved.
+  the tilt was each component of the cross product at
+  `Lever::unsourced(1 m)`, and until
+  `work/onecopy/the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data.md`
+  the offset was each component of `(ob − oa) × db` at the axes' stated
+  origins.
 
 - **F41** (added by CLEAR's verdict-door unit) `topo/src/clearance.rs`
   `Sweep::run` and `min_separation`: the clearance engine's two entry
@@ -1940,6 +1946,38 @@ Flagged, NOT fixed here (dispositions):
   **Both outcomes of each are the direction**, and neither is ever a
   refusal. Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not
   move.
+
+- **F44** (added by ONECOPY's param-difference unit)
+  `iso_row_runs_against` — `topo/src/replace_face.rs`, the iso-row lane:
+  whether an edge's span `(s0, s1)` along a fit's boundary row runs
+  against the row (`s1 − s0` Negative), so its carrier is the reflected
+  column. The comparand is a **parameter difference** along the row, no
+  length, and it was read through `Margin::of` against the band. D4
+  (iii) meters a parameter through a per-kind metric door, but only an
+  INF rate makes a definite Negative sound here, and a fit's stretch
+  floor along the row (`NurbsSurface::stretch_floor`) is signed and can
+  read zero or below, so no certified inf is in hand. **FLAG**: it
+  rides `decide_flagged(.., "F44")`, its sign the parameter's own.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class; the row's span is certified forward on the OLD
+  carrier, so a sign on the row that is not the old one is a reflection,
+  never a degenerate span, which is why the raw sign has served.
+
+- **F45** (added by ONECOPY's param-difference unit)
+  `bool_parting_order` — `topo/src/boolean/slit.rs` `parting_order`, the
+  order of two crossings along an edge `divide` divides (`a − b`). The
+  comparand is a **parameter difference** along the edge's carrier. D4
+  (iii) meters it at the carrier's speed, and the order (a decided side)
+  is sound only at an INF rate: it reads `Margin::metered` at
+  `speed_range`'s floor wherever that floor is decided positive
+  (`structure_ascends(0, floor)`). A spline's floor
+  (`NurbsCurve3::speed_lower_bound`) may read zero, below zero or poison,
+  so no certified inf is in hand there. **FLAG**: that arm rides
+  `decide_flagged(.., "F45")`, its sign the parameter's own. Its Zero is
+  read again at the sup (`bool_parting_one_point`), as on every arm, so
+  "one point" stays sound in metres.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
