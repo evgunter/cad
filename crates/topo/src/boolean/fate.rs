@@ -484,6 +484,13 @@ pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Le
 /// `secant` along the unit chord from `he`'s start to its edge's
 /// midpoint, which tells apart two curves leaving one point tangent to
 /// each other, with none. `None` for null scaffolding.
+///
+/// The tangent and its bend are the star's one reading of where a
+/// half-edge leaves its vertex ([`crate::star::departure`]): a line's
+/// chord, a curved edge's departure tangent with its bend. What is the
+/// cut's own is the secant and the reach, a [`LeverBounds`] off the
+/// edge's cover ([`crate::cover::edge_reach_bounds`]) where the star
+/// levers at the edge's extent from below.
 fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaving<T>> {
     let h = body.get_half_edge(he)?;
     let edge = body.get_edge(h.edge)?;
@@ -496,19 +503,24 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         }
         _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
-    let (dir, bend) = match curve.carrier() {
+    // The edge's curve is certified (above), so the star's one refusal
+    // here, a null edge, does not arise.
+    let (tangent, support) = crate::star::departure(body, h.start, he).ok()?;
+    let (dir, bend) = match support {
         _ if secant => (curve.mid_point() - base, None),
-        geom::Curve3::Line(_) => (end - base, Some(Vec3::new(T::zero(), T::zero(), T::zero()))),
-        geom::Curve3::Circle(..)
-        | geom::Curve3::Ellipse(..)
-        | geom::Curve3::Spiric { .. }
-        | geom::Curve3::Nurbs(_) => {
-            let departure = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (end, base));
-            let bend = match departure.bend.bounds {
-                geom_brep::BendBounds::Planar { .. } => Some(departure.bend.curvature),
+        crate::bound_side::BoundSupport::Chord { .. } => {
+            (tangent, Some(Vec3::new(T::zero(), T::zero(), T::zero())))
+        }
+        crate::bound_side::BoundSupport::Conic { bend, .. } => (
+            tangent,
+            match bend.bounds {
+                geom_brep::BendBounds::Planar { .. } => Some(bend.curvature),
                 geom_brep::BendBounds::Unbounded => None,
-            };
-            (departure.dir, bend)
+            },
+        ),
+        crate::bound_side::BoundSupport::Extent(_)
+        | crate::bound_side::BoundSupport::Bisector { .. } => {
+            unreachable!("the star's departure reads an edge, a chord or a curve, never a probe")
         }
     };
     Some(Leaving {
