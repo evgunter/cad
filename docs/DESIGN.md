@@ -439,7 +439,13 @@ curve pairs.
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
-  any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  any K > 2. At K ≤ 2, two pieces decided at least K·ε apart can both
+  lie within ε of one point, so a reading that names which piece a point
+  lies on (a foot's branch of its carrier, a cut's parameter) would not
+  be unique. Above 2 the band alone makes it so, however many pieces the
+  boundary chains together: the two pieces a point is near are compared
+  with each other, never through a third ([intrinsic.absolute]). K = 10, per-run
+  configuration like ε (`Tolerance.k`).
   K's headroom absorbs f64 rounding by the run's admission rule
   ([simple.conditioned]): a formula whose error is amplified by a vanishing
   quantity (a division by sin θ, |n|², a near-zero determinant) is a
@@ -1767,8 +1773,9 @@ one fixed operand's description for a merged face (chosen by
 a fixed rule that reads keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band. A solid's only shell is its outer
-shell and poses no role question; a shell's role among several is read
+whose one census number lies in band. A finished solid's only shell is its outer
+shell and poses no role question to a door (the at-rest gate reads it:
+that reading is the orientation invariant's); a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
 certified sign of its volume where no ray reads. A ray that passes
 within the band of an edge meets it, half a crossing for each face the
