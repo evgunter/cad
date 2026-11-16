@@ -7,6 +7,7 @@ opened: 2026-11-15
 priority: P0
 cost: E
 closed: 2026-11-16
+pr: 7016
 branch: onehome/sym11-least-turn
 ---
 
