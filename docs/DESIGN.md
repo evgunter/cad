@@ -264,7 +264,6 @@ of them is a defect.
 | What | Its one place | Clause |
 |---|---|---|
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
-| That a direction is unit and a frame orthonormal | its mint: a carrier holds its directions and frame as the witness types (`geom_core::UnitVec3`, `RigidMotion`), and no gate reads the fact back from the entries | [scalars] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
 | The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
@@ -274,7 +273,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finished body moved by a rigid motion keeps its data in the coordinates it was finished in and holds the motion as its placement, so it stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -416,13 +415,12 @@ curve pairs.
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
   that it is a rotation; a certificate; a verdict) is built at the
-  lane scalar, from its own inputs and those choices. A continuous
+  lane scalar, from its own inputs and those choices, and is held as
+  the claim it is (a frame as a `RigidMotion` or `UnitVec3`, never as
+  its entries), so no gate reads it back from entries that, at a box
+  scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it.
-  A claim is carried from its mint by its type, and no gate reads it
-  back from the entries: at a box scalar each entry is its own
-  bracket, and their product holds values the claim excludes (a
-  frame turned over a box reads non-unit at first order).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -875,13 +873,7 @@ tiers".
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
   body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. A move is not applied to a body's data: the
-  body keeps its carriers in the coordinates it was finished in and
-  holds the motion as its placement (a `RigidMotion`), and a result
-  holds one placement for each rigid part it keeps. A reading within
-  one part is made in that part's coordinates; a reading between two
-  parts goes once through their relative motion, whose width is the
-  real uncertainty of their relative pose. Its refusal is the list of what it found, every finding
+  shape up to isometry. Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
   one text and one recourse, the decision's ([tolerance.recourse]). A
@@ -1668,7 +1660,11 @@ in their space moves none of its bits ([determinism]). The frame is no
 part of the operation's meaning: the body up to that rigid map, its
 names and every verdict outside the sliver band are the same in any
 frame, and a minted reference direction is a function of the inputs,
-not of the axes. Where conditioning does not decide, a construction
+not of the axes. An operand in another frame is read into it through
+their relative placement, which moves where the operand stands and
+none of its data: a reading within one operand is made in its own
+coordinates, and only a reading between two goes through their
+relative motion. Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
