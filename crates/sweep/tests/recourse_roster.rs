@@ -45,6 +45,11 @@ use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
 /// The carriers that hand a name to the funnel from somewhere other
 /// than the call.
 const CARRIERS: &[NameCarrier] = &[
+    // The closed decision types' name tables (`fn predicate`), read as
+    // the census reads them.
+    NameCarrier::Table("BlendDecision"),
+    NameCarrier::Table("ClearanceDecision"),
+    NameCarrier::Table("TubeDecision"),
     // The cosurface decision reports under the row names its caller's
     // table supplies, so the extrude's side walls and the revolve's
     // walls are separate rows of the K inventory.
@@ -257,6 +262,63 @@ fn census() -> PredicateCensus {
     )
 }
 
+/// [`census`] without the declared tables: the names decided at a site,
+/// which is what a row about where a name is decided reads.
+fn site_census() -> PredicateCensus {
+    let sites: Vec<NameCarrier> = CARRIERS
+        .iter()
+        .copied()
+        .filter(|c| !matches!(c, NameCarrier::Table(_)))
+        .collect();
+    predicate_census(
+        &test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &sites,
+    )
+}
+
+/// **The census reads the closed decision tables as the types do**: the
+/// names the declared `Table` carriers add to the census, with the arms
+/// spelled through a `geom_brep` const ([`GEOM_BREP_ARMS`]), are exactly
+/// the three types' `ALL` predicates, so the coverage row resolves a
+/// reference to one against the table itself or geom-brep's census.
+#[test]
+fn the_census_reads_the_decision_tables_as_the_types_do() {
+    let tables: Vec<NameCarrier> = CARRIERS
+        .iter()
+        .copied()
+        .filter(|c| matches!(c, NameCarrier::Table(_)))
+        .collect();
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let bare = predicate_census(&src, &[]).names;
+    let read: BTreeSet<String> = predicate_census(&src, &tables)
+        .names
+        .difference(&bare)
+        .cloned()
+        .collect();
+    let want: BTreeSet<String> = BlendDecision::ALL
+        .iter()
+        .map(|d| d.predicate())
+        .chain(ClearanceDecision::ALL.iter().map(|d| d.predicate()))
+        .chain(TubeDecision::ALL.iter().map(|d| d.predicate()))
+        .map(str::to_string)
+        .collect();
+    let elsewhere: BTreeSet<String> = GEOM_BREP_ARMS.iter().map(|n| (*n).to_string()).collect();
+    assert_eq!(
+        read.union(&elsewhere).cloned().collect::<BTreeSet<_>>(),
+        want,
+        "a table arm that spells no literal must be one of GEOM_BREP_ARMS"
+    );
+    assert!(
+        read.is_disjoint(&elsewhere),
+        "a GEOM_BREP_ARMS name is spelled as a literal in a table now — drop it from the list"
+    );
+}
+
+/// The blend table's arms that spell a `geom_brep` const rather than a
+/// literal: geom-brep's roster reads those consts as declared carriers,
+/// so the name is in the census union through it, not through this table.
+const GEOM_BREP_ARMS: &[&str] = &[geom_brep::DIHEDRAL_WEDGE, geom_brep::TANGENT_SECOND_ORDER];
+
 /// **Decisions that word one question `geom_brep` decides**, under its
 /// one name: the second-order separation of two faces meeting smoothly,
 /// at a contact edge the surgery describes and at a requested edge the
@@ -302,7 +364,7 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
 /// ([`SHARED_QUESTIONS`]).
 #[test]
 fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
-    let census = census();
+    let census = site_census();
     assert!(
         census.names.contains("loft_stacking"),
         "the reader found no funnel calls it should have: {:?}",
