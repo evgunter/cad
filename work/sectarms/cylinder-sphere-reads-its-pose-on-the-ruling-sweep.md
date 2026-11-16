@@ -2,11 +2,12 @@
 id: cylinder-sphere-reads-its-pose-on-the-ruling-sweep
 kind: issue
 title: Cylinder x sphere is a ruled pair still read by the 3-D seeding and accounting sweeps: it reads its pose on the ruling sweep next
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [a-near-parallel-pairs-accounting-grows-with-the-operation-region]
+closed: 2026-11-04
 ---
 
 

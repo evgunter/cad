@@ -9,7 +9,7 @@
 //! assemble them twice". **The reviewer instrumented it and the claim
 //! was false**, and the mechanism is structural rather than incidental:
 //! `tessellate()` runs `compute_chords` BEFORE the per-face dispatch,
-//! and the chord pass's `nurbs_tighten` calls `face_bound` on every
+//! and the chord pass's `tighten` calls `face_bound` on every
 //! described NURBS face adjacent to an edge. With a memo of the
 //! WHOLE-PATCH bound, the trimmed lane's later ask was therefore always
 //! a hit — on a value it could not refine into cells — so

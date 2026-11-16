@@ -48,7 +48,7 @@ fn rested_names(
 ) -> Option<((RecipeNodeId, StableName), (RecipeNodeId, StableName))> {
     let face = |pose| match fixture::face_reads(doc, pose)[..] {
         [one] => Some((
-            doc.operation_of(doc.selection(one)?.body)?,
+            doc.operation_of(doc.selection(one)?.body.read)?,
             fixture::side_name(doc, one),
         )),
         _ => None,

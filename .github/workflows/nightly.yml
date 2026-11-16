@@ -153,9 +153,19 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
+      # The ci profile for its junit report and fail-fast = false; its default
+      # filter (the slow set) is ignored, so every viewer test runs.
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
         if: '!cancelled()'
-        run: cargo nextest run -p viewer --features app
+        run: |
+          rc=0
+          cargo nextest run --profile ci --ignore-default-filter -p viewer --features app \
+            --no-fail-fast || rc=$?
+          scripts/nextest-failures.py "viewer app" "$rc"
+          exit "$rc"
+      - name: failing tests (name, panic, seed)
+        if: failure()
+        run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
   rustdoc-roots:
     name: rustdoc (gate, every root)
     runs-on: ubuntu-latest
@@ -209,6 +219,14 @@ jobs:
       - name: change filter self-test
         if: '!cancelled()'
         run: python3 scripts/ci-filter.py --selftest
+      # The nightly's own scripts: a full-suite-coverage that stopped seeing a
+      # short row, or a probe sweep that stopped on its first red, reads green.
+      - name: full suite coverage self-test
+        if: '!cancelled()'
+        run: python3 scripts/full-suite-coverage.py --selftest
+      - name: probe sweep self-test
+        if: '!cancelled()'
+        run: scripts/k_probe_sweep_selftest.sh
   any-first-mutant:
     # Every pin scripts/gates/any-climb-pins.counts names, run under the
     # first-refusal mutant (`--cfg any_first_mutant`): a pin that stays
@@ -299,6 +317,8 @@ jobs:
       fail-fast: false
       matrix:
         row: [dev-default, release-default, release-budget, dev-budget, dev-probe]
+    # A row's steps run past an earlier red (`!cancelled()`); only a step that
+    # reads an earlier step's output waits on it, and says so when it is absent.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -317,59 +337,86 @@ jobs:
             tools/tess-lint
             tools/tess-meter
       - name: demos tour fmt + clippy
-        if: matrix.row == 'dev-default'
-        run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+        if: '!cancelled() && matrix.row == ''dev-default'''
+        run: |
+          cd demos/tour
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: demos wild fmt + clippy
-        if: matrix.row == 'dev-default'
-        run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+        if: '!cancelled() && matrix.row == ''dev-default'''
+        run: |
+          cd demos/wild
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: install cargo-nextest (pinned, official prebuilt)
         if: matrix.row == 'release-default'
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: cd demos/tour && cargo nextest run --release --no-fail-fast
       # The per-PR `eps_regression` runs `demo-tour certified` at the default
       # ε only (#3291: minutes per run, almost never red at one ε alone), so
       # the other two rows are re-taken here, once a day. The cells assert
       # their captions inside the narration, so exit 0 is the check.
       - name: the tour's certified cells at the other ε rows
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd demos/tour
+          red=""
           for eps in 1e-6 1e-12; do
             echo "== demo-tour certified at eps = $eps"
-            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified
+            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified || red="$red $eps"
           done
+          if [ -n "$red" ]; then
+            echo "::error title=demo-tour certified::red at eps$red"
+            exit 1
+          fi
       - name: the tour die corpus is regenerable byte-for-byte
-        if: matrix.row == 'release-default'
+        if: '!cancelled() && matrix.row == ''release-default'''
         run: |
           cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
           diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
-        if: matrix.row == 'dev-default'
-        run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+        if: '!cancelled() && matrix.row == ''dev-default'''
+        run: |
+          cd tools/k-lint
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-lint
-          cargo fmt --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: tess-meter tool fmt + clippy + tests
-        if: matrix.row == 'dev-default'
+        if: '!cancelled() && matrix.row == ''dev-default'''
         run: |
           cd tools/tess-meter
-          cargo fmt --check
-          cargo clippy --all-targets -- -D warnings
-          cargo test
+          rc=0
+          cargo fmt --check || rc=1
+          cargo clippy --all-targets -- -D warnings || rc=1
+          cargo test --no-fail-fast || rc=1
+          exit $rc
       - name: mesh budget meter + certificate falsifier (feature = budget)
         if: matrix.row == 'dev-budget'
         run: |
-          cargo clippy -p mesh --all-targets --features budget -- -D warnings
-          cargo test -p mesh --features budget
+          rc=0
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings || rc=1
+          cargo test -p mesh --features budget --no-fail-fast || rc=1
+          exit $rc
       - name: tessellation-budget sweep (every tour scene, per face)
         if: matrix.row == 'release-budget'
         run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
@@ -396,13 +443,15 @@ jobs:
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
+        env:
+          K_SWEEP_DUMPED: target/k-fresh-dumped
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         run: cd demos/tour && cargo test --features probe --test all k_probe_brackets
       - name: large-K lint (pinned red — the gate must still fail, and reports its counts)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         # Pinned at main's verdict while
         # work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md
         # stays open: the gate must fail (exit 2). A pass means that row's
@@ -412,6 +461,7 @@ jobs:
           # +e: the runner's `bash -e` would exit on the pinned exit 2
           # before the case below reads it.
           set +e -uo pipefail
+          [ -e target/k-fresh-dumped ] || { echo "::error title=large-K lint not run::the probe sweep did not finish its dumps"; exit 1; }
           cd tools/k-lint
           cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
@@ -435,9 +485,10 @@ jobs:
               ;;
           esac
       - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
-        if: matrix.row == 'dev-probe'
+        if: '!cancelled() && matrix.row == ''dev-probe'''
         run: |
           set +e -uo pipefail
+          [ -e target/k-fresh-dumped ] || { echo "::error title=driver K-telemetry lint not run::the probe sweep did not finish its dumps"; exit 1; }
           cd tools/k-lint
           status=0
           cargo run -- --gate-rule-1-only \
@@ -515,13 +566,24 @@ jobs:
         run: rm -f "$RUNNER_TEMP/full-suite.tar.zst"
       - name: doc-tests
         if: '!cancelled()'
-        run: cargo test --doc --workspace
+        run: cargo test --doc --workspace --no-fail-fast
+      # The listing is also what full-suite-coverage expects every eps row to
+      # report: it comes from this build, not from the legs it audits.
       - name: the slow set names only tests that exist (the whole workspace)
         if: '!cancelled() && steps.build.outcome == ''success'''
         run: |
           set -o pipefail
           cargo nextest list --workspace --ignore-default-filter --message-format json \
+            | tee "$RUNNER_TEMP/test-list.json" \
             | python3 scripts/check-slow-set-names.py --complete
+      - name: upload the test listing for full-suite-coverage
+        if: '!cancelled() && steps.build.outcome == ''success'''
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-test-list
+          path: ${{ runner.temp }}/test-list.json
+          if-no-files-found: error
+          retention-days: 1
       - name: the per-op postcondition scalpel (topo)
         if: '!cancelled()'
         run: |
@@ -532,17 +594,24 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
   full-suite:
-    name: full suite (eps ${{ matrix.eps }}, slow set included)
+    name: full suite (eps ${{ matrix.eps }}${{ matrix.part && format(', shard {0}', matrix.part) || '' }}, slow set included)
     runs-on: ubuntu-latest
     needs: full-suite-build
     # Not `success()`: a red step after the upload says nothing about the
     # archive, and the rows still run from it.
     if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'''
     timeout-minutes: 120
+    # The 1e-12 row is about six hours of test time, so it runs as three
+    # `--partition hash:k/3` shards. `full-suite-coverage` lists the legs too.
     strategy:
       fail-fast: false
       matrix:
-        eps: [default, 1e-6, 1e-12]
+        include:
+          - eps: default
+          - eps: 1e-6
+          - {eps: 1e-12, partition: 'hash:1/3', part: 1of3}
+          - {eps: 1e-12, partition: 'hash:2/3', part: 2of3}
+          - {eps: 1e-12, partition: 'hash:3/3', part: 3of3}
     steps:
       # The archive holds the test binaries only; `--workspace-remap` points
       # them at this checkout for `.config/nextest.toml`, each test's cwd and
@@ -564,30 +633,75 @@ jobs:
         with:
           name: full-suite-archive
           path: ${{ runner.temp }}/archive
+      # nextest is interrupted at BUDGET_MIN, so it records the tests it was
+      # running as failed and writes its junit report for the steps below;
+      # one that ignores the interrupt is killed GRACE_MIN later. Their sum
+      # stays under this step's timeout-minutes, which kills with no report.
       - name: the whole suite at this eps (the ci profile with its slow-set filter ignored)
+        timeout-minutes: 115
         env:
           EPS: ${{ matrix.eps }}
+          PARTITION: ${{ matrix.partition }}
+          LABEL: eps ${{ matrix.eps }}${{ matrix.part && format(' {0}', matrix.part) || '' }}
+          BUDGET_MIN: 105
+          GRACE_MIN: 5
         run: |
           [ "$EPS" = default ] || export CAD_TOLERANCE_EPS="$EPS"
           rc=0
-          cargo nextest run --archive-file "$RUNNER_TEMP/archive/full-suite.tar.zst" \
+          timeout --signal=INT --kill-after="${GRACE_MIN}m" "${BUDGET_MIN}m" \
+            cargo nextest run --archive-file "$RUNNER_TEMP/archive/full-suite.tar.zst" \
             --workspace-remap "$GITHUB_WORKSPACE" \
-            --profile ci --ignore-default-filter --no-fail-fast || rc=$?
+            --profile ci --ignore-default-filter --no-fail-fast \
+            ${PARTITION:+--partition "$PARTITION"} || rc=$?
           # Before nextest-failures.py, which deletes the junit report.
           cp target/nextest/ci/junit.xml "$RUNNER_TEMP/junit.xml" 2>/dev/null || true
-          scripts/nextest-failures.py "eps $EPS" "$rc"
+          scripts/nextest-failures.py "$LABEL" "$rc"
+          case "$rc" in
+            124) msg="$LABEL stopped at its ${BUDGET_MIN}-minute budget: the tests it was running are reported failed, and those it had not started are in no report (full suite coverage names them)" ;;
+            137) msg="$LABEL did not stop at its ${BUDGET_MIN}-minute budget and was killed ${GRACE_MIN} minutes later, so it wrote no report (full suite coverage names every test)" ;;
+            *) msg= ;;
+          esac
+          if [ -n "$msg" ]; then
+            echo "::error title=$LABEL ran out of time::$msg"
+            echo "FAIL [$LABEL] $msg" >> "$RUNNER_TEMP/nextest-failures.txt"
+          fi
           exit $rc
       - name: upload this row's junit report (per-test times)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-suite-junit-${{ matrix.eps }}
+          name: full-suite-junit-${{ matrix.eps }}${{ matrix.part && format('-{0}', matrix.part) || '' }}
           path: ${{ runner.temp }}/junit.xml
           if-no-files-found: warn
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed)
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
+  full-suite-coverage:
+    # Each eps row must report every test the build's listing holds: this
+    # names what a leg that ran out of time or died never reported, and
+    # checks that the shards add up.
+    name: full suite coverage (every row reported every listed test)
+    runs-on: ubuntu-latest
+    needs: [full-suite-build, full-suite]
+    if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'''
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: full-suite-test-list
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: full-suite-junit-*
+          path: ${{ runner.temp }}/junit
+      - name: every eps row reported every listed test
+        run: |
+          scripts/full-suite-coverage.py "$RUNNER_TEMP/test-list.json" "$RUNNER_TEMP/junit" \
+            default 1E-06 1E-12-1of3 1E-12-2of3 1E-12-3of3
   all-features:
     # The suite with every workspace feature on at once: the probe-gated
     # suites, the test-only meters and payload features, which no other
@@ -667,17 +781,46 @@ jobs:
           ')
           echo "features: $features"
           echo "list=$features" >> "$GITHUB_OUTPUT"
+      # `cargo test --no-run` is the build nextest itself asks cargo for, so
+      # the suite step rebuilds nothing; `nextest run --no-run` would also
+      # list every binary, and a listing that blocks would read as the build.
       - name: build
         timeout-minutes: 60
-        run: cargo nextest run --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" --no-run
+        run: |
+          cargo test --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" \
+            --no-run --message-format json-render-diagnostics > "$RUNNER_TEMP/build.json"
+      # nextest's own listing, bounded: a listing that blocks or fails is red
+      # here rather than inside the build or the suite, and the per-binary
+      # pass names the binary where it can.
+      - name: nextest lists every test binary
+        timeout-minutes: 15
+        env:
+          FEATURES: ${{ steps.features.outputs.list }}
+        run: |
+          rc=0
+          timeout --kill-after=1m 10m cargo nextest list --profile ci --workspace --exclude viewer \
+            --features "$FEATURES" --message-format json > /dev/null || rc=$?
+          [ "$rc" -eq 0 ] && exit 0
+          echo "::error title=nextest's listing failed::cargo nextest list exited $rc (124 or 137: it did not finish in 10 minutes)"
+          scripts/list-test-binaries.py "$RUNNER_TEMP/build.json"
+      # nextest is interrupted at BUDGET_MIN and killed GRACE_MIN later if it
+      # ignores that; their sum stays under this step's timeout-minutes.
       - name: the suite, every feature on
         timeout-minutes: 30
+        env:
+          FEATURES: ${{ steps.features.outputs.list }}
+          BUDGET_MIN: 25
+          GRACE_MIN: 2
         run: |
           r=0
-          cargo nextest run --profile ci --workspace --exclude viewer \
-            --features "${{ steps.features.outputs.list }}" \
-            --no-fail-fast || r=$?
+          timeout --signal=INT --kill-after="${GRACE_MIN}m" "${BUDGET_MIN}m" \
+            cargo nextest run --profile ci --workspace --exclude viewer \
+            --features "$FEATURES" --no-fail-fast || r=$?
           scripts/nextest-failures.py "all-features" "$r"
+          case "$r" in
+            124) echo "::error title=all-features ran out of time::the suite stopped at its ${BUDGET_MIN}-minute budget: any test it was running is reported failed above, and the tests it had not started ran nowhere; with none reported, it stopped while listing" ;;
+            137) echo "::error title=all-features ran out of time::the suite ignored its ${BUDGET_MIN}-minute budget and was killed ${GRACE_MIN} minutes later, so it wrote no report" ;;
+          esac
           exit "$r"
       - name: failing tests (name, panic, seed)
         if: failure()
@@ -703,12 +846,15 @@ jobs:
       - name: clippy (pncad-py, python feature)
         run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: build and install the wheel
+        id: wheel
+        if: '!cancelled()'
         run: |
           curl -LsSf --retry 5 "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
           maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
           python -m venv --clear "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/python" -m pip install target/wheels/pncad-*.whl "ty==$TY_VERSION"
       - name: run the Python suite
+        if: '!cancelled() && steps.wheel.outcome == ''success'''
         env:
           PNCAD_TY: ${{ runner.temp }}/venv/bin/ty
         run: |
@@ -918,7 +1064,9 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, all-features, k-lint, python, topo-release, step-import, interval, renders]
+    # Every test row, so the tag is written once each has finished; ci-latency
+    # is the per-PR gate's latency alarm, not a row of the nightly's own.
+    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write

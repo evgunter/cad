@@ -132,7 +132,7 @@ impl DraftSnap {
             to_flipped: *to_flipped,
             orient: orient.or(self.orient).unwrap_or(Orientation::IDENTITY),
         });
-        read_back(chart, &self.at, coords, band)
+        read_back(chart, &self.at, coords, band, tol)
     }
 
     /// **The new chart's spin as a link of the loaded chain `chain`**,
@@ -207,40 +207,26 @@ pub(crate) fn loaded_chain_turn<R>(
     )
 }
 
-/// **A draft's copy snapped onto `mates`**, read off `ev`, the landed
-/// evaluation of `doc`: the copy where `placement` stands it now, moved
-/// the least way that makes the mates hold (module docs). `None` where
-/// the copy stands nowhere, or the mates do not write as a bundle: the
-/// door then says why.
+/// **A draft's copy snapped onto `mates`** placed into `target`, read
+/// off `ev`, the landed evaluation of `doc`: the copy where `placement`
+/// stands it now, moved the least way that makes the mates hold (module
+/// docs). Where `target` is not the placement's, the copy is read where
+/// it stood in the space it leaves, those numbers charted on the new
+/// target's axes (the target edit keeps every value's number). `None`
+/// where the copy stands nowhere, or the mates do not write as a bundle:
+/// the door then says why.
 pub(crate) fn draft_snap(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     placement: RecipeNodeId,
+    target: &super::PlaceTarget,
     mates: &[Mate<Formula>],
     tol: pncad::geom_core::Tol,
 ) -> Option<DraftSnap> {
     let bundle = Placed::of(doc, mates.to_vec(), Vec::new()).bundle();
     let mut run = Recording::start(doc, tol);
-    // Where the copy stands before the draft: where its placement is
-    // solved. A mate reading another space than the copy's is applied
-    // with the copy moved there by name (`SessionOp::SetBundle`'s
-    // `into_target_space`): a bundle holding a mate is first stood at the
-    // identity, and one of values alone stands on the new space's axes
-    // as it stood on the old's.
-    let into = mates
-        .first()
-        .and_then(|m| doc.operand_space(&m.to))
-        .filter(|&space| Some(space) != doc.node_space(placement));
-    let mated = super::held_bundle(doc, placement)
-        .iter()
-        .any(|c| c.mate().is_some());
-    let before = if into.is_some() && mated {
-        Frame::IDENTITY
-    } else {
-        pncad::document::SolvedPoses::of(doc, ev).relative(placement)?
-    };
-    let moved = into.is_none_or(|space| super::into_space(&mut run, placement, space).is_ok());
-    let written = moved
+    let before = pncad::document::SolvedPoses::of(doc, ev).relative(placement)?;
+    let written = super::retarget(&mut run, placement, target).is_ok()
         && run
             .apply(DocEdit::SetConstraints {
                 placement,
@@ -327,7 +313,13 @@ pub(crate) fn draft_snap(
         });
     };
     let d = seat.dir.get();
-    let turned = turn_onto(r0 * seat.copy_dir.get(), d) * r0;
+    let band = pncad::geom_core::Band::linear(tol).ok()?;
+    // No turn seats the copy's direction (it or the target's is no
+    // direction the band mints): nothing is snapped.
+    let Some(turn) = turn_onto(r0 * seat.copy_dir.get(), d, band, tol) else {
+        return Some(unsnapped);
+    };
+    let turned = turn * r0;
     let t = match point {
         Some((o, p)) => p - turned * o,
         None => {

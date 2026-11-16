@@ -94,7 +94,7 @@ use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, Ver
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
-    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward, same_supports,
 };
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
@@ -949,7 +949,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
-    (request, taken): (&[VertexKey], &[LoopKey]),
+    (request, taken, sections): (&[VertexKey], &[LoopKey], &[VertexKey]),
     chain: usize,
     band: Band,
 ) -> Result<Stretch<T>, BlendError> {
@@ -1025,6 +1025,23 @@ fn straight_reach<T: Decide + Bounds>(
     let mut skip = Vec::new();
     for v in [link.start, link.end] {
         let pv = point_of(body, v)?;
+        // At a junction onto a link on other supports the band runs on
+        // into that link's: this link's material ends in the section
+        // plane through the vertex, normal to the spine, which the two
+        // bands share.
+        if sections.contains(&v) {
+            let cap = half_space(pv, tau, q);
+            core.push(cap.clone());
+            caps.push((Role::Other, cap));
+            for f in faces_at(body, v)? {
+                if f != link.face_a && f != link.face_b {
+                    skip.push(f);
+                }
+            }
+            let sv = (pv - start).dot(tau);
+            ends.push((sv, sv, sv, sv));
+            continue;
+        }
         let patch = corners.iter().find(|(cv, _)| *cv == v);
         let mut pad = T::zero();
         for f in faces_at(body, v)? {
@@ -1210,15 +1227,18 @@ fn straight_reach<T: Decide + Bounds>(
 }
 
 /// **The reach of one link about a circular spine**, over the whole
-/// turn, every bound a function of the torus's own meridian sheet.
+/// turn, every bound a function of the torus's own meridian sheet — or,
+/// for an arc between two sections, one reach per piece of the arc, each
+/// over its own wedge ([`super::surgery::arc_pieces`]), whose union is
+/// the arc's window.
 fn circular_reach<T: Decide + Bounds>(
     body: &Body<T>,
     link: &Link<T>,
     st: &Station<T>,
-    request: &[VertexKey],
+    (request, sections): (&[VertexKey], &[VertexKey]),
     chain: usize,
     band: Band,
-) -> Result<Stretch<T>, BlendError> {
+) -> Result<Vec<Stretch<T>>, BlendError> {
     let Surface::Torus {
         center,
         axis,
@@ -1294,60 +1314,84 @@ fn circular_reach<T: Decide + Bounds>(
         };
         bounds.push((role, in_sheet(circle, T::zero())));
     }
-    // Per support, the disk of the chord about the rim in the meridian
-    // sheet: a closed rim bounds its planar support, so the face lies on
-    // one side of the rim alone.
-    let mut replaces = Vec::new();
-    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
-        let chord = (foot - st.p).norm();
-        let ring = in_sheet(
-            SheetFn::Circle {
-                p: ps.0,
-                q: ps.1,
-                r: chord,
-                sigma: T::one(),
-            },
-            T::zero(),
-        );
-        let gap = |p: Point3<T>| ring.at(p) + chord;
-        // The disk has no one-sided form to narrow to: `screened`
-        // refuses a vertex in it, and its vacancy changes nothing here.
-        let _vacant = screened(
-            body,
-            (request, &[]),
-            f,
-            core::slice::from_ref(&ring),
-            None,
-            gap,
-            band,
-        )?;
-        replaces.push((f, vec![ring]));
+    // An arc running between two sections of a mixed chain is taken over
+    // its own window: one wedge per piece of it, each the half-spaces
+    // through the axis behind the piece's start and ahead of its end, on
+    // the side of its middle, which hold the band's material and its
+    // strips there. An arc whose pieces do not read certainly under a
+    // half turn keeps the whole circle.
+    let mut wedges: Vec<Vec<Bound<T>>> = Vec::new();
+    if sections.contains(&link.start) && sections.contains(&link.end) {
+        let (c, t0, t1) = carrier_of(body, link.edge)?;
+        if let (Some(circle), Some(pieces)) = (c.as_circle(), super::surgery::arc_pieces(t0, t1)) {
+            let o = circle.frame.origin;
+            for (ta, tb) in pieces {
+                let mid = c.eval(geom::mid_param(ta, tb));
+                wedges.push(vec![
+                    half_space(o, c.deriv(ta), mid),
+                    half_space(o, c.deriv(tb), mid),
+                ]);
+            }
+        }
     }
-    // Over line traces (a plane, a cylinder) a whole closed rim's bounds
-    // are its band's own cross-section revolved, and `at_strict` takes
-    // the slack the other way; a cone is read on both nappes and a
-    // sphere's or a torus's trace is a circle, so those stay bounds.
-    Ok(Stretch {
-        core: if exact {
-            bounds.iter().map(|(_, b)| b.clone()).collect()
-        } else {
-            Vec::new()
-        },
-        bounds,
-        lo,
-        hi,
-        chain,
-        sheet: Some(meridian),
-        sides,
-        surface: link.blend.surface.clone(),
-        replaces,
-        confine: None,
-        chains: vec![chain],
-        skip: Vec::new(),
-        width: reach,
-        spine: None,
-        strips: Vec::new(),
-    })
+    if wedges.is_empty() {
+        wedges.push(Vec::new());
+    }
+    let mut stretches = Vec::with_capacity(wedges.len());
+    for wedge in wedges {
+        let mut bounds = bounds.clone();
+        bounds.extend(wedge.iter().map(|b| (Role::Other, b.clone())));
+        // Per support, the disk of the chord about the rim in the meridian
+        // sheet: a closed rim bounds its planar support, so the face lies on
+        // one side of the rim alone; within the wedge, where there is one.
+        let mut replaces = Vec::new();
+        for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+            let chord = (foot - st.p).norm();
+            let ring = in_sheet(
+                SheetFn::Circle {
+                    p: ps.0,
+                    q: ps.1,
+                    r: chord,
+                    sigma: T::one(),
+                },
+                T::zero(),
+            );
+            let gap = |p: Point3<T>| ring.at(p) + chord;
+            // The disk has no one-sided form to narrow to: `screened`
+            // refuses a vertex in it, and its vacancy changes nothing here.
+            let mut region = vec![ring.clone()];
+            region.extend(wedge.iter().cloned());
+            let _vacant = screened(body, (request, &[]), f, &region, None, gap, band)?;
+            replaces.push((f, region));
+        }
+        // Over line traces (a plane, a cylinder) a whole closed rim's
+        // bounds are its band's own cross-section revolved, and
+        // `at_strict` takes the slack the other way; a cone is read on
+        // both nappes and a sphere's or a torus's trace is a circle, so
+        // those stay bounds.
+        stretches.push(Stretch {
+            core: if exact {
+                bounds.iter().map(|(_, b)| b.clone()).collect()
+            } else {
+                Vec::new()
+            },
+            bounds,
+            lo,
+            hi,
+            chain,
+            sheet: Some(meridian),
+            sides: sides.clone(),
+            surface: link.blend.surface.clone(),
+            replaces,
+            confine: None,
+            chains: vec![chain],
+            skip: Vec::new(),
+            width: reach,
+            spine: None,
+            strips: Vec::new(),
+        });
+    }
+    Ok(stretches)
 }
 
 /// **An axis's canonical frame**: the same line through the point of it
@@ -1455,7 +1499,7 @@ fn corner_reach<T: Decide + Bounds>(
                 feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
-            let patch = chamfer_corner_patch(feet, normals);
+            let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
             let Surface::Plane { origin, normal, .. } = patch else {
                 return Ok(None);
             };
@@ -2380,17 +2424,38 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         .iter()
         .map(|c| c.links().flat_map(|l| [l.face_a, l.face_b]).collect())
         .collect();
+    // The junctions onto a link on other supports, where a band runs
+    // on into the next link's through their shared section.
+    let mut sections: Vec<VertexKey> = Vec::new();
+    for c in chains {
+        let links: Vec<&Link<T>> = c.links().collect();
+        for j in &c.junctions {
+            if !same_supports(body, links[j.arriving], links[j.leaving])? {
+                sections.push(j.vertex);
+            }
+        }
+    }
     for (ci, link) in &all {
         let st = station(body, link)?;
-        let mut r = if link.arm.is_coaxial_torus() {
-            circular_reach(body, link, &st, &ends_all, *ci, band)?
+        let pieces = if link.arm.is_coaxial_torus() {
+            circular_reach(body, link, &st, (&ends_all, &sections), *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, (&ends_all, &taken), *ci, band)?
+            vec![straight_reach(
+                body,
+                link,
+                &st,
+                &corners,
+                (&ends_all, &taken, &sections),
+                *ci,
+                band,
+            )?]
         };
-        r.skip.extend(&supports[*ci]);
-        r.skip.sort_unstable();
-        r.skip.dedup();
-        reaches.push(r);
+        for mut r in pieces {
+            r.skip.extend(&supports[*ci]);
+            r.skip.sort_unstable();
+            r.skip.dedup();
+            reaches.push(r);
+        }
     }
     let boxes = FaceBoxes::of(body, band);
     // Two chains that share a vertex meet there in a corner or a turn,

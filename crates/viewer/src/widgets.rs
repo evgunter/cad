@@ -101,11 +101,7 @@ pub(crate) fn commit_row(
     between: impl FnOnce(&mut egui::Ui),
 ) -> Closing {
     ui.horizontal(|ui| {
-        let button = ui.add_enabled(blocked.is_none(), egui::Button::new(commit));
-        let commit = match blocked {
-            Some(why) => button.on_disabled_hover_text(why).clicked(),
-            None => button.clicked(),
-        };
+        let commit = gated_button(ui, egui::Button::new(commit), blocked, None);
         between(ui);
         Closing {
             commit,
@@ -1835,24 +1831,64 @@ pub(crate) fn pick_unit(
     picked
 }
 
+/// **A button gated on a reason**: disabled while `blocked` holds one,
+/// which it says on the hover a disabled button still shows; `live` is
+/// the hover it shows while enabled. Whether it was clicked.
+pub(crate) fn gated_button(
+    ui: &mut egui::Ui,
+    button: egui::Button<'_>,
+    blocked: Option<&str>,
+    live: Option<&str>,
+) -> bool {
+    let response = ui.add_enabled(blocked.is_none(), button);
+    match (blocked, live) {
+        (Some(why), _) => response.on_disabled_hover_text(why).clicked(),
+        (None, Some(text)) => response.on_hover_text(text).clicked(),
+        (None, None) => response.clicked(),
+    }
+}
+
 /// The delete button: a renderer for [`DocSession::delete_affordance`]
 /// and [`DocSession::delete_refusal`] and nothing else, so the places a
 /// delete is reachable from (a node selection, and a face or edge
 /// selection) cannot state different costs for the same operation or
 /// offer it where it refuses, and the sentences themselves are testable
-/// without a window.
+/// without a window. Drawn disabled where the op would refuse
+/// ([`gated_button`]).
 pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: RecipeNodeId) -> bool {
     let affordance = session.delete_affordance(node);
-    // Drawn disabled where the op would refuse, with the refusal's own
-    // sentence on the hover a disabled button still shows.
-    let refusal = session.delete_refusal(node);
-    let button = ui.add_enabled(refusal.is_none(), egui::Button::new(affordance.label));
-    match (refusal, affordance.hover) {
-        (Some(refusal), _) => button
-            .on_disabled_hover_text(crate::shown(&refusal))
-            .clicked(),
-        (None, Some(text)) => button.on_hover_text(text).clicked(),
-        (None, None) => button.clicked(),
+    let refusal = session
+        .delete_refusal(node)
+        .map(|refusal| crate::shown(&refusal));
+    gated_button(
+        ui,
+        egui::Button::new(affordance.label),
+        refusal.as_deref(),
+        affordance.hover.as_deref(),
+    )
+}
+
+/// What an enabled re-point button says on hover.
+const REPOINT_HOVER: &str = "every placement reading this source copies the selected body";
+
+/// **A re-point button** ([`crate::frame::RepointButton`]): a named
+/// source's row and a placement's "copy of" row both draw it, and it is
+/// enabled exactly where the value holds an op, so neither row can draw
+/// it live past the check the value asked ([`gated_button`]).
+pub(crate) fn repoint_button(
+    ui: &mut egui::Ui,
+    button: crate::frame::RepointButton,
+    ops: &mut Vec<SessionOp>,
+) {
+    let crate::frame::RepointButton { label, op } = button;
+    let clicked = gated_button(
+        ui,
+        egui::Button::new(label).small(),
+        op.as_ref().err().map(String::as_str),
+        Some(REPOINT_HOVER),
+    );
+    if clicked && let Ok(op) = op {
+        ops.push(op);
     }
 }
 
@@ -4854,5 +4890,64 @@ mod value_field_tests {
         );
         assert_eq!(row.session.history().len(), before + 1);
         assert_eq!(row.showing().0, 12.0);
+    }
+}
+
+#[cfg(test)]
+mod repoint_button_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::{REPOINT_HOVER, repoint_button};
+    use crate::frame::RepointButton;
+    use crate::pane::headless::{painted_after_clicking, painted_while_hovering};
+    use crate::session::SessionOp;
+
+    const LABEL: &str = "Re-point bracket onto U";
+    const WHY: &str = "the recipe graph would cycle";
+
+    fn button(op: Result<SessionOp, String>) -> RepointButton {
+        RepointButton {
+            label: LABEL.to_owned(),
+            op,
+        }
+    }
+
+    /// **The button is enabled exactly where its value holds an op**:
+    /// one holding a refusal is drawn disabled, saying the refusal on
+    /// the hover only a disabled button shows, and a click pushes
+    /// nothing; one holding an op shows the live hover, and a click
+    /// pushes it.
+    ///
+    /// *Breaks if* the widget draws the button enabled past an `Err`
+    /// (its reason is then never shown) or disabled past an `Ok`.
+    #[test]
+    fn a_refused_re_point_is_a_disabled_button_saying_why() {
+        let hovered = painted_while_hovering(LABEL, 0, |ui| {
+            repoint_button(ui, button(Err(WHY.to_owned())), &mut Vec::new());
+        });
+        assert!(
+            hovered.contains(WHY),
+            "the refusal on the disabled hover: {hovered}"
+        );
+        assert!(
+            !hovered.contains(REPOINT_HOVER),
+            "and no live hover: {hovered}"
+        );
+        let mut ops = Vec::new();
+        painted_after_clicking(LABEL, |ui| {
+            repoint_button(ui, button(Err(WHY.to_owned())), &mut ops);
+        });
+        assert!(ops.is_empty(), "a disabled button pushes nothing: {ops:?}");
+
+        let hovered = painted_while_hovering(LABEL, 0, |ui| {
+            repoint_button(ui, button(Ok(SessionOp::Reevaluate)), &mut Vec::new());
+        });
+        assert!(hovered.contains(REPOINT_HOVER), "the live hover: {hovered}");
+        let mut ops = Vec::new();
+        painted_after_clicking(LABEL, |ui| {
+            repoint_button(ui, button(Ok(SessionOp::Reevaluate)), &mut ops);
+        });
+        assert_eq!(ops, [SessionOp::Reevaluate], "a live click pushes the op");
     }
 }

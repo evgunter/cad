@@ -48,7 +48,6 @@ fn turned() -> Body<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap()
 }
@@ -147,7 +146,6 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     let spun = finished("the spun cylinder", spun, Tol::witness());

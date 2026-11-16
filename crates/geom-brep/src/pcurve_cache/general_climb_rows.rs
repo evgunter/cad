@@ -1,0 +1,426 @@
+//! **The mint's `General` image climbs on its measured miss** (D3), not on
+//! its carrier's class: `general_image_lane` takes the degree-1 image the
+//! edge certificate reads, reads its miss midway between feet, and climbs
+//! `edge_nurbs::general_chart_image`'s rungs where that miss exceeds the
+//! rung's share of the band. A refusal of the image the mint produced is
+//! the lane's gap ([`super::minted_refusal`]), never a tolerance offer.
+//!
+//! - A curved spline carrier, the rational one-span arc of a ring's
+//!   circle on that ring, and a line on a flat wall whose `v` is not
+//!   affine in height (control rows at `z = 0, 0.1, 1`) bend on their
+//!   walls and climb: each certifies at `f64` and at `Interval`.
+//! - A line and a degree-1 spline on a flat bilinear wall follow their
+//!   degree-1 images and keep them: no climb. Nor does a line a few ε
+//!   off that wall, whose feet's miss is its standoff, which no finer
+//!   image lowers.
+//! - The threshold: a line on the uneven wall whose chord miss is 0.6 of
+//!   the rung's share keeps degree 1, one at 1.6 of it climbs.
+//! - A chord miss beside a standoff across the wall climbs: the standoff
+//!   is subtracted as a vector, not a norm.
+//!
+//! The `general-image-class-gate` mutant (the climb and the relabel keyed
+//! on a curved carrier with no net) reds every row whose carrier is a
+//! line or a spline that should climb: each takes the degree-1 image, and
+//! a refusal keeps its own term.
+
+use std::sync::Arc;
+
+use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+use geom_core::spline::KnotVector;
+use geom_core::{Decide, Interval, Point3, Vec3};
+
+use super::spline_door_rows::band;
+use super::{LaneGap, Pcurve, PcurveCache, PcurveCertifyError, minted_refusal};
+use crate::FittedLane;
+use crate::edge_nurbs::{GENERAL_IMAGE_DEGREE, PXN_FIT_SAMPLES, PXN_IMAGE_DEGREE};
+use crate::recourse::Reading;
+
+/// The unit cylinder over `z ∈ [−½, ½]` through `1.2` rad from `x̂`, in
+/// two rational quadratic sub-arcs: its `u = ½` knot line is the joint.
+fn ring_wall() -> NurbsSurface<f64> {
+    let h = 0.6_f64;
+    let mut ku = vec![0.0; 3];
+    ku.extend([0.5; 2]);
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=4 {
+        let theta = f64::from(j) * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for z in [-0.5, 0.5] {
+            control.push(Point3::new(reach * theta.cos(), reach * theta.sin(), z));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+/// The ring's circle at `z = 0` through its whole `1.2` rad, as the
+/// rational one-span quadratic arc: a spline carrier that bends.
+fn ring_arc() -> Curve3<f64> {
+    let h = 0.6_f64;
+    Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, h.tan(), 0.0),
+                Point3::new((2.0 * h).cos(), (2.0 * h).sin(), 0.0),
+            ],
+            vec![1.0, h.cos(), 1.0],
+        )
+        .unwrap(),
+    ))
+}
+
+/// The plane `y = 0` over `x ∈ [0, 1]`, its `v` quadratic in height:
+/// control rows at `z = 0, 0.1, 1`, so `z(v) = 0.2v − 0.1v² + … ` is
+/// not affine and a straight line's feet bend in the chart.
+fn uneven_wall() -> NurbsSurface<f64> {
+    let mut control = Vec::new();
+    for x in [0.0, 1.0] {
+        for z in [0.0, 0.1, 1.0] {
+            control.push(Point3::new(x, 0.0, z));
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        control,
+        vec![1.0; 6],
+    )
+    .unwrap()
+}
+
+/// A diagonal line across [`uneven_wall`], over `t ∈ [0, 1.2]`.
+fn uneven_line() -> Curve3<f64> {
+    let r = core::f64::consts::FRAC_1_SQRT_2;
+    Curve3::line(Point3::new(0.05, 0.0, 0.05), Vec3::new(r, 0.0, r))
+}
+
+/// The plane `y = 0` over `[0, 1]²` as a bilinear wall: its chart is
+/// affine, so every line's feet are straight in it.
+fn flat_wall() -> NurbsSurface<f64> {
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        k(),
+        k(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap()
+}
+
+/// What the mint does with `carrier` on `wall` over `span` at `T`: the
+/// image `general_image_lane` derives, and its certificate's refusal as
+/// the mint ends it ([`minted_refusal`]).
+struct Minted<T: geom_core::Real> {
+    image: NurbsCurve2<T>,
+    certified: Result<(), PcurveCertifyError>,
+}
+
+fn mint<T: Decide>(
+    lane: FittedLane<T>,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) -> Minted<T> {
+    let lift = |x: f64| T::from_f64(x);
+    let carrier = carrier.map_scalar(lift);
+    let wall = wall.map_scalar(lift);
+    let (t0, t1) = (lift(span.0), lift(span.1));
+    let image = lane
+        .general_image(&carrier, (t0, t1), &wall, band())
+        .unwrap_or_else(|e| panic!("the producer images the carrier at {}: {e:?}", T::NAME));
+    let surface = Surface::Nurbs(Arc::new(wall));
+    let certified = PcurveCache::certify_general(
+        Arc::new(image.clone()),
+        t0,
+        t1,
+        &carrier,
+        &surface,
+        band(),
+        Some(lane),
+    )
+    .map(|_| ())
+    .map_err(|e| {
+        minted_refusal(
+            e,
+            &Pcurve::General(Arc::new(image.clone())),
+            &carrier,
+            &surface,
+        )
+    });
+    Minted { image, certified }
+}
+
+/// Whether `image` is the degree-1 image of [`PXN_FIT_SAMPLES`] feet.
+fn degree_one<T: geom_core::Real>(image: &NurbsCurve2<T>) -> bool {
+    image.degree() == PXN_IMAGE_DEGREE && image.control().len() == PXN_FIT_SAMPLES as usize
+}
+
+/// A carrier whose feet bend on its wall climbs past the degree-1 image.
+/// Where `certifies`, the climbed image certifies; anywhere else its
+/// refusal ends the lane's gap, "not yet" ([`LaneGap::Image`], or the
+/// same check escalated in band), never a tolerance offer.
+/// It climbs to the curved rung of `rung` nodes.
+fn bends_and_climbs<T: Decide>(name: &str, minted: &Minted<T>, rung: usize, certifies: bool) {
+    if let Err(got) = &minted.certified {
+        let ending = got.ending(Reading::Build);
+        assert!(
+            matches!(
+                got,
+                PcurveCertifyError::NoGeneralLane {
+                    gap: LaneGap::Image,
+                    ..
+                } | PcurveCertifyError::Escalated {
+                    check: super::PcurveCheck::GeneralLane,
+                    ..
+                }
+            ) && ending.contains(geom_core::NOT_YET_ENDING)
+                && !ending.contains("loosen"),
+            "{name} at {}: a refused climb is the lane's gap: {got:?} :: {ending}",
+            T::NAME
+        );
+    }
+    assert!(
+        !certifies || minted.certified.is_ok(),
+        "{name} at {}: the climbed image certifies: {:?}",
+        T::NAME,
+        minted.certified
+    );
+    assert!(
+        minted.image.degree() == GENERAL_IMAGE_DEGREE && minted.image.control().len() == rung,
+        "{name} at {}: the feet bend, so the image climbs to the rung of {rung} nodes \
+         (degree {}, {} control points)",
+        T::NAME,
+        minted.image.degree(),
+        minted.image.control().len()
+    );
+}
+
+fn the_bending_carriers_climb<T: Decide>(lane: FittedLane<T>) {
+    // The rung each reaches at the ε rows the suite runs: a finer band
+    // asks a finer one.
+    let zero = band().zero();
+    bends_and_climbs(
+        "the ring's spline arc",
+        &mint::<T>(lane, &ring_arc(), (0.0, 1.0), &ring_wall()),
+        if zero >= 1e-9 { 33 } else { 65 },
+        true,
+    );
+    // Below `ε = 1e-10` the hull over-reads the climbed image's miss on
+    // this stretched chart (`a-climbed-general-image-on-a-stretched-chart-
+    // reads-its-hull-wide-at-fine-eps`), which ends the lane's gap.
+    bends_and_climbs(
+        "a line on the uneven wall",
+        &mint::<T>(lane, &uneven_line(), (0.0, 1.2), &uneven_wall()),
+        if zero >= 1e-6 { 129 } else { 257 },
+        zero >= 1e-10,
+    );
+}
+
+#[test]
+fn the_bending_carriers_climb_at_f64() {
+    the_bending_carriers_climb(FittedLane::<f64>::certified());
+}
+
+#[test]
+fn the_bending_carriers_climb_at_interval() {
+    the_bending_carriers_climb(FittedLane::<Interval>::certified());
+}
+
+/// A carrier whose degree-1 image follows it keeps that image, the one
+/// its edge certificate reads, and certifies.
+fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
+    let line = Curve3::line(Point3::new(0.1, 0.0, 0.2), Vec3::new(0.6, 0.0, 0.8));
+    let spline = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::new(0.1, 0.0, 0.2), Point3::new(0.7, 0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap(),
+    ));
+    for (name, carrier) in [("the line", line), ("the degree-1 spline", spline)] {
+        let minted = mint::<T>(lane, &carrier, (0.0, 1.0), &flat_wall());
+        assert!(
+            degree_one(&minted.image) && minted.certified.is_ok(),
+            "{name} at {}: the degree-1 image, certified (degree {}, {} control points): {:?}",
+            T::NAME,
+            minted.image.degree(),
+            minted.image.control().len(),
+            minted.certified
+        );
+    }
+    // In band of the wall: its certificate is the incidence read's, but
+    // its image is the degree-1 one.
+    let standoff = 3.0 * band().zero();
+    let off = Curve3::line(Point3::new(0.1, standoff, 0.2), Vec3::new(0.6, 0.0, 0.8));
+    let image = lane
+        .general_image(
+            &off.map_scalar(|x: f64| T::from_f64(x)),
+            (T::from_f64(0.0), T::from_f64(1.0)),
+            &flat_wall().map_scalar(|x: f64| T::from_f64(x)),
+            band(),
+        )
+        .unwrap();
+    assert!(
+        degree_one(&image),
+        "a line {standoff:e} m off the wall at {}: its standoff is no bend (degree {}, {} \
+         control points)",
+        T::NAME,
+        image.degree(),
+        image.control().len()
+    );
+}
+
+#[test]
+fn straight_feet_keep_degree_one_at_f64() {
+    straight_feet_keep_degree_one(FittedLane::<f64>::certified());
+}
+
+#[test]
+fn straight_feet_keep_degree_one_at_interval() {
+    straight_feet_keep_degree_one(FittedLane::<Interval>::certified());
+}
+
+/// The largest miss of the degree-1 image of `carrier` on `wall` over
+/// `(0, l)`, midway between its feet and net of the standoff its feet
+/// carry, as the producer reads it, at `f64`: the image taken under a
+/// band too wide for any rung to climb past it.
+fn chord_miss(carrier: &Curve3<f64>, l: f64, wall: &NurbsSurface<f64>) -> f64 {
+    let wide = geom_core::Band::new(1e3, 2e3).unwrap();
+    let image = FittedLane::<f64>::certified()
+        .general_image(carrier, (0.0, l), wall, wide)
+        .unwrap();
+    assert!(degree_one(&image), "a band of a kilometre keeps degree 1");
+    let gap = |t: f64| {
+        let p = image.eval(t);
+        wall.eval(p.x, p.y) - carrier.eval(t)
+    };
+    let steps = f64::from(PXN_FIT_SAMPLES - 1);
+    (0..PXN_FIT_SAMPLES - 1)
+        .map(|i| {
+            let at = |f: f64| l * f / steps;
+            let (a, m, b) = (
+                at(f64::from(i)),
+                at(f64::from(i) + 0.5),
+                at(f64::from(i) + 1.0),
+            );
+            (gap(m) - (gap(a) + gap(b)) * 0.5).norm()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The length of [`uneven_line`] whose degree-1 chord miss is `share` of
+/// the band: the miss grows as the square of the length, read again
+/// until it lands within 2% of the share.
+fn uneven_line_at(share: f64) -> f64 {
+    let target = share * band().zero();
+    let mut l = 0.3_f64;
+    for _ in 0..8 {
+        let miss = chord_miss(&uneven_line(), l, &uneven_wall());
+        if (miss / target - 1.0).abs() <= 0.02 {
+            return l;
+        }
+        l *= (target / miss).sqrt();
+    }
+    panic!("no length of the uneven line reads {share} of the band");
+}
+
+/// **The threshold**: the climb stops where the degree-1 image's miss is
+/// within `GENERAL_IMAGE_MISS` of the band. A line on the uneven wall
+/// whose chord miss is 0.6 of that share keeps degree 1, and one at 1.6
+/// of it climbs: halving the share reds the first, doubling it the
+/// second.
+fn the_threshold_is_the_rungs_share<T: Decide>(lane: FittedLane<T>) {
+    // `GENERAL_IMAGE_MISS`, pinned here as a value: a row that read the
+    // constant would move with it.
+    let share = 1.0 / 16.0;
+    for (r, climbs) in [(0.6, false), (1.6, true)] {
+        let l = uneven_line_at(r * share);
+        let lift = |x: f64| T::from_f64(x);
+        let image = lane
+            .general_image(
+                &uneven_line().map_scalar(lift),
+                (lift(0.0), lift(l)),
+                &uneven_wall().map_scalar(lift),
+                band(),
+            )
+            .unwrap();
+        assert!(
+            degree_one(&image) != climbs,
+            "a line {l:e} m long whose chord miss is {r} of the share at {}: climbs {climbs} \
+             (degree {}, {} control points)",
+            T::NAME,
+            image.degree(),
+            image.control().len()
+        );
+    }
+}
+
+#[test]
+fn the_threshold_is_the_rungs_share_at_f64() {
+    the_threshold_is_the_rungs_share(FittedLane::<f64>::certified());
+}
+
+#[test]
+fn the_threshold_is_the_rungs_share_at_interval() {
+    the_threshold_is_the_rungs_share(FittedLane::<Interval>::certified());
+}
+
+/// **The standoff is read out as a vector.** A line 0.9 ε off the uneven
+/// wall, across it, whose chord misses its path by 0.3 ε along it: read as
+/// norms the excess is `√(0.9² + 0.3²) − 0.9 ≈ 0.05` ε, under the share,
+/// and the image would keep degree 1; read as vectors it is the chord's
+/// 0.3 ε, and the image climbs.
+fn a_chord_miss_beside_a_standoff_climbs<T: Decide>(lane: FittedLane<T>) {
+    let l = uneven_line_at(0.3);
+    let r = core::f64::consts::FRAC_1_SQRT_2;
+    let off = Curve3::line(
+        Point3::new(0.05, 0.9 * band().zero(), 0.05),
+        Vec3::new(r, 0.0, r),
+    );
+    let lift = |x: f64| T::from_f64(x);
+    let image = lane
+        .general_image(
+            &off.map_scalar(lift),
+            (lift(0.0), lift(l)),
+            &uneven_wall().map_scalar(lift),
+            band(),
+        )
+        .unwrap();
+    assert!(
+        !degree_one(&image),
+        "a chord miss of 0.3 ε beside a standoff of 0.9 ε climbs at {} (degree {}, {} control \
+         points)",
+        T::NAME,
+        image.degree(),
+        image.control().len()
+    );
+}
+
+#[test]
+fn a_chord_miss_beside_a_standoff_climbs_at_f64() {
+    a_chord_miss_beside_a_standoff_climbs(FittedLane::<f64>::certified());
+}
+
+#[test]
+fn a_chord_miss_beside_a_standoff_climbs_at_interval() {
+    a_chord_miss_beside_a_standoff_climbs(FittedLane::<Interval>::certified());
+}

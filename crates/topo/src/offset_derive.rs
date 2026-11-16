@@ -667,8 +667,8 @@ fn nearest<T: Decide>(
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
-    old: &Curve3<T>,
-    span: (T, T),
+    (old, span): (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
@@ -710,36 +710,27 @@ pub(crate) fn section_closed<T: Decide>(
             }));
         }
     };
-    // The old edge's span, which the plane×cylinder and plane×cone arms
-    // read the pose over, as `route_pose` did. A line pair through a
-    // cone's apex is read again over the new edge's span once its ends
-    // are known (`replace_face`'s `pair_over_its_span`).
-    let span_reach = || geom_brep::Reach::Span {
-        carrier: old.clone(),
-        t0: span.0,
-        t1: span.1,
-    };
+    // `region` is the old edge's, which the plane×cylinder and
+    // plane×cone arms read the pose over, as `route_pose` did. A line
+    // pair through a cone's apex is read again over the new edge's span
+    // once its ends are known (`replace_face`'s `pair_over_its_span`).
     let candidates: Vec<Curve3<T>> = match other {
         Surface::Plane { .. } => match plane_plane(plane, other, old, span, extent, band)? {
             Ok(line) => vec![line],
             Err(v) => return Ok(Err(v)),
         },
-        Surface::Cylinder { .. } => {
-            match c5::plane_cylinder_section(plane, other, &span_reach(), band) {
-                Ok(
-                    c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c),
-                ) => {
-                    vec![c]
-                }
-                Ok(c5::PlaneCylinderSection::ParallelLines { l1, l2 }) => vec![l1, l2],
-                Ok(c5::PlaneCylinderSection::TangentLine(_)) => {
-                    return Ok(Err(SectionVerdict::Tangent));
-                }
-                Ok(c5::PlaneCylinderSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
-                Err(e) => return closed(e),
+        Surface::Cylinder { .. } => match c5::plane_cylinder_section(plane, other, region, band) {
+            Ok(c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c)) => {
+                vec![c]
             }
-        }
-        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, &span_reach(), band) {
+            Ok(c5::PlaneCylinderSection::ParallelLines { l1, l2 }) => vec![l1, l2],
+            Ok(c5::PlaneCylinderSection::TangentLine(_)) => {
+                return Ok(Err(SectionVerdict::Tangent));
+            }
+            Ok(c5::PlaneCylinderSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+            Err(e) => return closed(e),
+        },
+        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, region, band) {
             Ok(c5::PlaneConeSection::ApexLinePair { l1, l2 }) => vec![l1, l2],
             Ok(
                 c5::PlaneConeSection::AxisNormalCircle(c) | c5::PlaneConeSection::TiltedEllipse(c),
@@ -1536,11 +1527,7 @@ mod square {
                 holds_the_move(&moved, &held, None, 0.1, band),
                 "{name}: holds"
             );
-            let reach = geom_brep::Reach::Span {
-                carrier: carrier.clone(),
-                t0,
-                t1,
-            };
+            let reach = geom_brep::Reach::of_span(&carrier, (t0, t1)).expect("the span is covered");
             let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
                 .expect("the pose is decided");
             assert!(route.implemented, "{name}: {}", route.note);

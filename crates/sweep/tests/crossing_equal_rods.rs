@@ -34,7 +34,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use crate::common::differential::{VOLUME_PAD_BUDGET, Verdict, judged_within, outcome};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
-use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
+use topo::{AtRestBody, BooleanError, BooleanResult, JoinError};
 
 /// A rod of radius 1 about `z` over `z ∈ [z0, z1]`, spun `spin` about
 /// `z`.
@@ -50,7 +50,7 @@ fn rod(spin: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
     let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), spin);
     finished(
         "the spun rod",
-        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol)).unwrap(),
         tol,
     )
 }
@@ -62,7 +62,7 @@ fn mitred(spin: f64) -> AtRestBody<f64> {
     let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
     let under = finished(
         "the half-space under z = x",
-        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol)).unwrap(),
         tol,
     );
     match topo::subtract(&rod(spin, (-3.0, 3.0)), &under, tol) {
@@ -80,7 +80,6 @@ fn crossing(spin: f64, x0: f64) -> AtRestBody<f64> {
         topo::transform_rigid(
             &rod(spin, (x0, 3.0)),
             &geom_core::test_support::rigid(&m, tol),
-            tol,
         )
         .unwrap(),
         tol,
@@ -121,7 +120,7 @@ fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
     ] {
         let loose = matches!(
             &r,
-            Err(BooleanError::Join(j)) if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. })
+            Err(BooleanError::Join(j)) if matches!(j.error(), JoinError::UnpairedLooseEnds { .. })
         );
         let (ending, line) = if loose {
             (Some(Ending::LooseEnds), outcome(r, volume, tol))
@@ -275,7 +274,7 @@ fn a_rod_cut_obliquely_and_glued_back_is_the_rod() {
     let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
     let under = finished(
         "the half-space under z = x",
-        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol)).unwrap(),
         tol,
     );
     let mut bad = Vec::new();

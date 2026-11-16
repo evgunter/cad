@@ -59,6 +59,10 @@ fn carried(kind: CarryRefusalKind) -> Vec<(String, SectionUnbuilt)> {
             LoopTubeRefusal::VARIANTS,
             CarryRefusal::TubeUnread,
         ),
+        CarryRefusalKind::PadsMeet => one(CarryRefusal::PadsMeet {
+            pads: [0.05, 0.06],
+            gap: 0.09,
+        }),
         CarryRefusalKind::Unwalked => each(
             "Unwalked",
             PieceWalkRefusal::VARIANTS,

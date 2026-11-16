@@ -41,6 +41,11 @@ probe = ["geom-core/probe"]
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
+# `test-support` for `geom_core::test_support::rigid`, the suites' door a
+# fixture plane held as numbers is minted at a lane scalar through.
+# `sym-revalue-testing` for `recorded_directions`' two-lanes row, which
+# records every decision a `Sym` lane takes at two valuations.
+geom-core = { path = "../geom-core", features = ["test-support", "sym-revalue-testing"] }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
 # integration tests without exposing it to production dependents. Same
 # shape and same argument as sweep's, written out there: a

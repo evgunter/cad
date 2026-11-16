@@ -2,10 +2,11 @@
 id: both-sphere-witnesses-under-every-boolean-run-at-the-fast-sets-one-second-bound
 kind: issue
 title: sweep spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean runs at the fast set's 1.0 s bound, so an unrelated PR's gate goes red on runner variance
-status: open
+status: closed
 opened: 2026-11-04
 priority: P4
 cost: E
+closed: 2026-11-14
 ---
 
 
@@ -22,3 +23,7 @@ The same PR's previous head (`241c3f34`, run 41740089217) was green on the same 
 ## What closing it takes
 
 Measure the row's time on main across a few hosted runs. If it sits near 1.0 s, either make it faster or add it to the slow set (`.config/nextest.toml`), per the fast-set rule. Do not raise the bound.
+
+## Closed (2026-11-14, tracker review)
+
+`spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean` is in the slow set (`.config/nextest.toml`'s `ci` filter, the `sweep::all` list), so the fast set's bound no longer reads it.

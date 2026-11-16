@@ -164,7 +164,6 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
             ),
             tol,
         ),
-        tol,
     )
     .unwrap();
     let a_tall = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
@@ -368,12 +367,10 @@ fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
         Vec3::new(0.0, 1.0, 0.0),
         PI / 2.0,
     );
-    let lie =
-        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let lie = topo::transform_rigid(&rod, &geom_core::test_support::rigid(&turn, tol)).unwrap();
     let b = topo::transform_rigid(
         &lie,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 1.5, 5.0)).unwrap(),
-        tol,
     )
     .unwrap();
     (a, b)
