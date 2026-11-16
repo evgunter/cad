@@ -5,7 +5,7 @@ title: quad_lane's length_bound charges an ellipse and a spline edge for the who
 status: open
 opened: 2026-11-16
 priority: P3
-cost: S
+cost: E
 ---
 
 

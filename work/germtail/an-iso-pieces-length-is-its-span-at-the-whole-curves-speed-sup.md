@@ -5,7 +5,7 @@ title: A ring path's iso piece is metered at its span times the whole curve's sp
 status: open
 opened: 2026-11-16
 priority: P4
-cost: S
+cost: E
 ---
 
 
