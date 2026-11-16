@@ -861,7 +861,19 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 Some(Err(_)) | None => return,
             },
         };
-        if let Some(value) = prior.and_then(|p| p.rows.get(&key)) {
+        // A prior's row is reused as the record's build of the part only
+        // where it read the content the record's build did: a resolver
+        // that answered the pin otherwise would hand the record and the
+        // prior two documents under one key.
+        let paired = |value: &PartValue<T>| {
+            record.as_ref().is_none_or(|tree| {
+                super::content_pairing(&tree.doc, &value.refused.doc, tol).is_ok()
+            })
+        };
+        if let Some(value) = prior
+            .and_then(|p| p.rows.get(&key))
+            .filter(|value| paired(value))
+        {
             self.carried.insert(key, value.clone());
             self.rows.insert(key, Ok(value.clone()));
             return;

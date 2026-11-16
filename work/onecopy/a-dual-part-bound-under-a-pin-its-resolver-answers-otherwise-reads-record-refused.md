@@ -32,3 +32,7 @@ Filed from PR 6735's re-review (N1). In 6735, a dual's descent binds each part's
 The cost is one canonicalization per part per dual run. The other route is the kernel checking A4 itself at `Entered::enter`, for every scalar, which would also make `ReferenceCycle` unreachable. That is the broader question, and it is not this row's to decide.
 
 **Resolved (PR 6790).** A part's `Refusals` tree carries the document its build read. `RecordBinding::of_part` compares the run's document against it by content pin and refuses the part's every node as `RecordMispaired(Revision)` on a mismatch. On main the flat case (other content under the pin, no nested parts) did not mislabel but built, from a document the record never read.
+
+**Not taken (6790 review S3).** Evaluating the record's own `Refusals::doc` in the dual's descent, in place of the document the run's resolver answers, would make a content mismatch unconstructible rather than refused. It would also change which document a dual run reads, so it is left to whichever route takes A4 up.
+
+**Left open:** the node memo's half, filed as `a-dual-instance-memo-hits-a-prior-built-from-content-the-record-never-read` (P3).

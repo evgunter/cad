@@ -3959,9 +3959,10 @@ impl core::fmt::Display for RecordMispairing {
                 "the build of record carries no content pin to say which version of the \
                  document it read",
             ),
-            Self::Revision => {
-                f.write_str("the build of record read another version of the document")
-            }
+            Self::Revision => f.write_str(
+                "the build of record read another version of the document, or of a part, \
+                 another document under the part's pin",
+            ),
             Self::Tolerance => f.write_str("the build of record decided at another tolerance"),
             Self::Options => f.write_str(
                 "the build of record was built over other options (a parameter box, symbols, \
@@ -4113,6 +4114,39 @@ pub(crate) fn record_pairing<B: topo::AtRestPolicy + Decide>(
     RecordBinding::of(doc, record, opts, tol).map(|_| ())
 }
 
+/// **Whether the content the record read is the run's**, by content pin:
+/// `theirs` is the record's pin (none where it was not pinned), `ours`
+/// the run's document's. The one spelling, for a whole evaluation's
+/// pairing ([`RecordBinding::of`]) and a part's ([`content_pairing`]).
+fn pin_pairing(
+    theirs: Option<&Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    ours: Result<crate::ident::ContentPin, crate::persist::PersistError>,
+) -> Result<(), RecordMispairing> {
+    match (theirs, ours) {
+        (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => Ok(()),
+        (Some(Ok(_)), Ok(_)) => Err(RecordMispairing::Revision),
+        _ => Err(RecordMispairing::Unpinned),
+    }
+}
+
+/// **Whether two runs of a part read one content**: `theirs` the
+/// document the record's build read, `ours` the document this run
+/// resolved under the same key ([`pin_pairing`]). One document is one
+/// content without a canonicalization.
+pub(crate) fn content_pairing(
+    theirs: &Arc<Doc<ProfileProgram>>,
+    ours: &Arc<Doc<ProfileProgram>>,
+    tol: Tol,
+) -> Result<(), RecordMispairing> {
+    if Arc::ptr_eq(theirs, ours) {
+        return Ok(());
+    }
+    pin_pairing(
+        Some(&crate::persist::content_pin(theirs, tol)),
+        crate::persist::content_pin(ours, tol),
+    )
+}
+
 /// **What a dual evaluation reads of its build of record**: the nodes
 /// it built no value at, and its build of each part, which the run's
 /// part store binds each part's own run to.
@@ -4139,11 +4173,7 @@ impl RecordBinding {
         if record.whole_refusal {
             return Err(RecordMispairing::NotABuild);
         }
-        match (&record.pin, crate::persist::content_pin(doc, tol)) {
-            (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => {}
-            (Some(Ok(_)), Ok(_)) => return Err(RecordMispairing::Revision),
-            _ => return Err(RecordMispairing::Unpinned),
-        }
+        pin_pairing(record.pin.as_ref(), crate::persist::content_pin(doc, tol))?;
         let ours = tolerance_of(tol);
         if (record.tolerance.eps.to_bits(), record.tolerance.k.to_bits())
             != (ours.eps.to_bits(), ours.k.to_bits())
@@ -4197,16 +4227,7 @@ impl RecordBinding {
         tree: &parts::Refusals,
         tol: Tol,
     ) -> Result<Self, RecordMispairing> {
-        if !Arc::ptr_eq(doc, &tree.doc) {
-            match (
-                crate::persist::content_pin(&tree.doc, tol),
-                crate::persist::content_pin(doc, tol),
-            ) {
-                (Ok(theirs), Ok(ours)) if theirs == ours => {}
-                (Ok(_), Ok(_)) => return Err(RecordMispairing::Revision),
-                _ => return Err(RecordMispairing::Unpinned),
-            }
-        }
+        content_pairing(&tree.doc, doc, tol)?;
         let refused = tree
             .nodes
             .iter()

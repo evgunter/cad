@@ -452,6 +452,73 @@ fn a_dual_part_whose_resolver_answers_the_pin_with_other_content_is_mispaired() 
     );
 }
 
+/// **A prior's row of a part is reused only where it read the content
+/// the record's build of the part did** (DUAL-DESIGN DL3, the memo's
+/// transparency): a dual run whose instance re-runs (its placement
+/// moved), under a record whose resolver answered the part's pin with
+/// other content, refuses the instance as mispaired with or without a
+/// prior that built the part from the content the run's resolver answers.
+#[test]
+fn a_prior_part_row_of_other_content_than_the_records_is_not_reused() {
+    let label = "asm2a-dual-prior-other-content";
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part(label, 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = placed_assembly("asm2a-dual-prior-other-content-asm", &[doc_ref], &opts);
+    let cancel = CancelToken::new();
+    let dual = |doc: &ProfileDoc,
+                prior: Option<&Evaluation<geom_core::Dual64>>,
+                record: &Evaluation<f64>| {
+        editor_core::evaluate_recorded::<geom_core::Dual64>(
+            doc,
+            prior,
+            record,
+            &cancel,
+            &opts,
+            Tol::witness(),
+        )
+    };
+    let honest = evaluate::<f64>(&doc, None, &cancel, &opts.of_record(), Tol::witness());
+    let prior = dual(&doc, None, &honest);
+    assert!(
+        matches!(prior.result(ids[0]), Some(NodeResult::Ok(_))),
+        "the prior builds the part"
+    );
+    let moved = repinned(
+        doc.clone(),
+        ids[0],
+        &Frame::translation([5.0, 0.0, 0.0]),
+        &opts,
+    );
+    let other = part(label, 0.0, 2.0);
+    let blind = EvalOptions {
+        resolver: Some(Arc::new(PinBlind(BTreeMap::from([(other.id(), other)])))),
+        ..EvalOptions::default()
+    };
+    let other_record = evaluate::<f64>(&moved, None, &cancel, &blind.of_record(), Tol::witness());
+    let mispaired = |ev: &Evaluation<geom_core::Dual64>| match ev.result(ids[0]) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::Part { fault, .. } => fault.carried().is_some_and(|(_, refusal)| {
+                matches!(
+                    refusal.kind(),
+                    NodeErrorKind::RecordMispaired(RecordMispairing::Revision)
+                )
+            }),
+            _ => false,
+        },
+        _ => false,
+    };
+    let fresh = dual(&moved, None, &other_record);
+    assert!(mispaired(&fresh), "{:?}", fresh.result(ids[0]));
+    let memo = dual(&moved, Some(&prior), &other_record);
+    assert_eq!(memo.reused, 0, "the moved instance re-runs");
+    assert!(
+        mispaired(&memo),
+        "the prior's row is not the record's build: {:?}",
+        memo.result(ids[0])
+    );
+}
+
 // ---- Row 1: two instances at different frames ----
 
 /// Row 1 (kernel half) — an assembly of TWO instances of one part at
