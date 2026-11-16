@@ -28,7 +28,7 @@
 
 use core::f64::consts::SQRT_2;
 
-use geom_core::{Point2, Point3, Sign, Tol};
+use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
@@ -428,12 +428,9 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
         tol(),
     );
     let margin = sweep::test_support::smooth_reading(&body, seam, 0.05, tol());
-    assert_eq!(margin.predicate, "fillet3_convexity_sign");
-    assert_eq!(margin.sign, Sign::Zero);
     assert_eq!(
-        margin.reading.diagnostic_f64_for_error_text().value(),
-        Some(0.0),
-        "a co-surface seam is tangential exactly"
+        margin, None,
+        "a co-surface seam is read by identity, no margin read"
     );
 }
 

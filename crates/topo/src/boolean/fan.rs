@@ -168,7 +168,7 @@ pub(super) type Side<'a, T> = (Operand, Option<(&'a Body<T>, VertexKey)>, &'a Bo
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Coincident {
     /// The glue door glued the pair one carrier: its relation, recorded.
-    Glued(super::PlaneRelation),
+    Glued(geom_brep::CarrierRelation),
     /// A curved face, or two fans of one cone, the door did not glue one
     /// carrier: C8's frontier, named by the operand whose face it is.
     Frontier(Operand),
@@ -234,7 +234,7 @@ impl<'s, T: geom_core::Real> Fan<'s, T> {
 pub(super) fn meeting<T: Decide>(
     (a_op, a_site, a): Side<'_, T>,
     (b_op, b_site, b): Side<'_, T>,
-    glued: Option<super::PlaneRelation>,
+    glued: Option<geom_brep::CarrierRelation>,
     band: Band,
 ) -> Result<Meeting<T>, BooleanError> {
     use crate::bound_side::FaceShape;
@@ -498,7 +498,7 @@ fn plane_fan<T: Decide>(
             | geom_brep::PlaneConeSection::TiltedEllipse(_)
             | geom_brep::PlaneConeSection::OpenConic(_),
         ) => return Ok(Meeting::Rays(Vec::new())),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
+        Err(crate::chord_join::JoinError::Escalated { diag, .. }) => {
             return Err(BooleanError::coincidence(
                 Coincide::Sectors,
                 DeclarationRead::Moot,
@@ -763,14 +763,14 @@ mod rows {
     /// band, every pair meets along a line.
     #[test]
     fn only_a_glued_pair_opens_the_coplanar_branch() {
-        use crate::boolean::PlaneRelation;
+        use geom_brep::CarrierRelation;
         let b = band();
         let arm = 1e-3;
         let up = Vec3::new(0.0, 0.0, 1.0);
         let tilted = |rise: f64| Vec3::new(rise / arm, 0.0, 1.0).normalize();
         let plane = crate::bound_side::FaceBend::Plane;
         let fitted = crate::bound_side::FaceBend::Fitted;
-        let rest = Some(PlaneRelation::SameOpposite);
+        let rest = Some(CarrierRelation::SameOpposite);
         let meet = |rise: f64, bend, glued| {
             meeting(
                 (
@@ -803,7 +803,7 @@ mod rows {
             matches!(
                 meet(zero, plane, rest),
                 Ok(Meeting::Coincident(Coincident::Glued(
-                    PlaneRelation::SameOpposite
+                    CarrierRelation::SameOpposite
                 )))
             ),
             "glued planes"

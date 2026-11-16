@@ -39,7 +39,6 @@ fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
     let moved = topo::transform_rigid(
         &torus,
         &geom_core::test_support::rigid(&Affine3::translation(Vec3::new(0.0, 300.0, 0.0)), tol),
-        tol,
     )
     .unwrap();
     let torus = finished("the torus", moved, tol);

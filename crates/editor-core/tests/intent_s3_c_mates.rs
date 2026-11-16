@@ -163,15 +163,15 @@ fn every_pair_of_families_sharing_a_pose_meets_only_where_transverse() {
         let h2 = element(g2, &mut d);
         let held = Coset {
             subgroup: g1,
-            representative: h1.inverse() * x,
+            representative: geom_core::test_support::rigid(&(h1.inverse() * x), Tol::witness()),
         };
         let added = Coset {
             subgroup: g2,
-            representative: h2.inverse() * x,
+            representative: geom_core::test_support::rigid(&(h2.inverse() * x), Tol::witness()),
         };
         let at = format!("pair {i}: {} against {}", g1.name(), g2.name());
         let transverse = g1.family().transverse(g2.family());
-        let Some(met) = intersect(held, added) else {
+        let Some(met) = intersect(held, added).expect("a met origin is finite") else {
             assert!(transverse.is_none(), "{at}: a transverse pair was not met");
             continue;
         };
@@ -180,7 +180,7 @@ fn every_pair_of_families_sharing_a_pose_meets_only_where_transverse() {
         // subgroup — for a ball and a direction's revolute one fixing
         // its point and its direction, for a ball and the translations'
         // trivial group the identity.
-        let h = x * met.representative.inverse();
+        let h = x * met.representative.to_affine().inverse();
         match met.subgroup {
             Subgroup::Revolute { point, direction } => {
                 assert!(

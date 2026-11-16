@@ -74,7 +74,7 @@ Both were found by the FULL review of PR 6688 (S5, S6).
   `CertifyError::ChartImageUnavailable { chart, carrier }`
   (`crates/geom-brep/src/certify.rs:459`) name the kinds too. A test reads them only by
   matching the variant: the "not yet" pin in
-  `a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form`, and
+  `a_circle_no_row_holds_ends_alike_in_every_form`, and
   `a_wall_row_read_in_band_takes_the_lane_a_miss_takes`'s `not_yet`.
   `IncidenceRead::kinds_of` covers the incidence refusal alone. The
   typed payload would give the kinds one accessor across every refusal

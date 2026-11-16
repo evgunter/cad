@@ -76,7 +76,6 @@ fn a_rod_and_a_drilled_plate_read_their_side_by_turns_alone() {
         let m = topo::transform_rigid(
             &b,
             &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, c)).expect("a translation"),
-            tol,
         )
         .expect("the move");
         finished("moved ball", m, tol)

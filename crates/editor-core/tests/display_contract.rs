@@ -995,6 +995,9 @@ test_utils::f6_variants! {
     const SNAPSHOT_ERROR: SnapshotError = [
         NodeNotMinted,
         OperandUnminted,
+        PlacementReadsNoSource,
+        SourceReadKind,
+        SourceReadRank,
         SlotVarKind,
         SelectionShape,
         SelectionBody,
@@ -1088,6 +1091,35 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::NodeNotMinted { id: node() },
             vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
+        ),
+        (
+            SnapshotError::PlacementReadsNoSource {
+                node: node(),
+                read: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
+            },
+            vec![
+                "Extrude \"base plate\" (000000000005) reads #9:",
+                "as its source directly",
+                "through a source",
+            ],
+        ),
+        (
+            SnapshotError::SourceReadKind {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
+                found: editor_core::VarKind::Profile,
+            },
+            vec!["is a source reading a profile", "a source reads one body"],
+        ),
+        (
+            SnapshotError::SourceReadRank {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
+                found: 1,
+                rank: 2,
+            },
+            vec![
+                "a member by 1 index, where its family has 2",
+                "read at its family's rank",
+            ],
         ),
         (
             SnapshotError::OperandUnminted {

@@ -474,6 +474,24 @@ impl SurfaceKind {
         }
     }
 
+    /// The kind as the noun a person reads in a refusal ("a spline
+    /// (NURBS) face"). It is not [`Self::name`]: that one is a stable
+    /// key other tools join on, so it cannot be reworded for a reader,
+    /// and the two spline kinds read differently here.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Nurbs => "spline (NURBS)",
+            Self::Approx => "approximated spline",
+            Self::Plane
+            | Self::Cylinder
+            | Self::Cone
+            | Self::Sphere
+            | Self::Torus
+            | Self::Spindle => self.name(),
+        }
+    }
+
     /// The kind as an adjective for a face or its surface, for prose
     /// ("a cylindrical face").
     #[must_use]

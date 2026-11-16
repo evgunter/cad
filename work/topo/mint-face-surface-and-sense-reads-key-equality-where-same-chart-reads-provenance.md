@@ -175,5 +175,5 @@ restatements down to pointers and corrected the stale prose.
 
 Filed:
 - `work/zip/slit-zip-band-run-across-two-loops-is-reached-by-no-row.md`
-- `work/tess/mesh-docs-say-every-face-mints-sense-true.md`
+- `work/tesslane/mesh-docs-say-every-face-mints-sense-true.md`
 - `work/wire/emit-topo-says-every-face-mints-sense-true.md`

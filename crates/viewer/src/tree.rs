@@ -688,7 +688,7 @@ fn cleared(
             doc.defined_by(var)
                 .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
                 .filter(|source| !source.member)
-                .map_or(var, |source| source.var),
+                .map_or(var, |source| source.body_var),
         ),
     };
     Cleared {

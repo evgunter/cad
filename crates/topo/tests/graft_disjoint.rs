@@ -29,12 +29,8 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
     describe_as_intersections(&mut dst, Tol::witness());
     // 10 mm clear of the unit cube: disjoint, so the union is a body.
     let map = Affine3::translation(Vec3::new(10.0, 0.0, 0.0));
-    let placed = topo::transform_rigid(
-        &src,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("a rigid map");
+    let placed = topo::transform_rigid(&src, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("a rigid map");
     let key = topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
 
     assert_eq!(dst.solids().count(), 2, "two solids, not one fused");
@@ -95,7 +91,6 @@ fn two_placed_copies_of_one_source_are_two_independent_solids() {
         let placed = topo::transform_rigid(
             &src,
             &geom_core::RigidMotion::translation(Vec3::new(dx, 0.0, 0.0)).unwrap(),
-            Tol::witness(),
         )
         .expect("a rigid map");
         topo::graft_disjoint(&mut dst, &placed).expect("a graft");
@@ -130,7 +125,6 @@ fn two_solid_source(dx: f64) -> topo::Body<f64> {
     let b = topo::transform_rigid(
         &b,
         &geom_core::RigidMotion::translation(Vec3::new(dx, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a rigid map");
     topo::graft_disjoint(&mut a, &b).expect("a two-solid source");
@@ -190,7 +184,6 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
         let second = topo::transform_rigid(
             &second,
             &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
-            Tol::witness(),
         )
         .expect("a rigid map");
         vec![first, second]
@@ -282,7 +275,6 @@ fn two_grafts_of_one_multi_solid_source_share_no_key() {
     let far = topo::transform_rigid(
         &multi,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 30.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a rigid map");
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
@@ -329,7 +321,6 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     let raw = topo::transform_rigid(
         &geometric_cube::<f64>(Tol::witness()).body,
         &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a rigid map");
     let pieces = [good.clone(), raw.clone()];
@@ -362,14 +353,12 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     let far = topo::transform_rigid(
         &good,
         &geom_core::RigidMotion::translation(Vec3::new(20.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a rigid map");
     topo::graft_disjoint(&mut clean, &far).expect("a graft");
     let clean = topo::transform_rigid(
         &clean,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 40.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("a rigid map");
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;

@@ -1,0 +1,62 @@
+---
+id: nightly-reds-the-1e-12-rows
+kind: unit
+title: Nightly reds: the rows red at ε 1e-12
+status: closed
+opened: 2026-11-14
+priority: P1
+cost: M
+branch: green/eps-1e-12
+pr: 6967
+closed: 2026-11-14
+---
+
+From nightly 43371638371 (main `e36675c1`, 2026-11-13), each leg's junit read whole. GREEN's rule holds (`work/green/program.md`): a red is greened here, not fixed. A move a merge explains is re-blessed, naming the merge; anything else is pinned at what main produces, or `#[ignore]`d naming the row it waits on, and the fix row goes on the program that owns the code.
+
+**Difficulty letter:** M. **Review tier:** single review, STYLE — A pin can be read against what main produces. Both logged before any draw (2026-11-14).
+
+## What is red
+
+1e-12 only:
+- `editor-core::all coincidence_door::the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
+- `editor-core::all union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line`
+- `topo euler::tests::a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it`
+- `sweep::all bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order` and `::slanted_bores_build_every_operation_one_difference_pinched_to_itself`
+- `sweep::all encl_curved_loft_shell::a_moved_curved_fitted_cap_builds_where_its_fit_certifies` and `::shelling_the_curved_loft_refuses_at_a_walls_fit`; `saddle_wall_offset_fit::a_saddle_wall_fits_at_the_runs_eps_or_stops_at_the_cap`; `shell_general_door::a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold` (all four new on 11-13; fit stopped at 1.39e-10 on (62, 35))
+- `sweep::all self_intersection_proves_injectivity::a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone` (the union builds)
+- `sweep::all spheres_crossing_off_every_edge::the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`
+- five with `VolumeUncomputable … Escalated { Indeterminate`: `sweep::all full_turn_wall::both_doors_answer_the_bead_by_its_height_window`, `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds` and `::a_turned_near_square_split_of_a_rod_validates_its_halves`, `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`
+
+This slate's row: `main-red-a-carrier-whose-origin-stands-far-off-leaves-the-union-unevaluated`. Elsewhere (unchecked): `work/germ/coaxial-unions-with-a-torus-or-a-sphere-and-a-ta…`, `work/pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-i…`, `work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-pr…`, `work/flush/main-red-slanted-bores-a-union-b-census-ray-exha…`, `work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-…`, `work/lathe/a-full-turn-bead-reads-its-volume-uncomputable-a…`, `work/germ/main-red-the-meeting-axes-pose-refuses-its-endpo…`, `work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-rule…`, `work/clear/departure-reads-no-curved-corner-off-its-shared-…`.
+
+## The "elsewhere" rows, checked (2026-11-14)
+
+- **`germ/coaxial-unions-with-a-torus-or-a-sphere-and-a-tangent-cone-refuse`:**
+  not this red. The coaxial row's 1e-12 clause was wrong from PR 6795 on,
+  and was re-blessed.
+- **`pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12`:**
+  owns the fan-mev pin; amended with PR 6532.
+- **`tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`**
+  and **`flush/main-red-slanted-bores-a-union-b-census-ray-exhausted-at-1e-12`:**
+  neither is what main produces. Every 3° cell refuses its volume since
+  PR 6466, and both are amended. The pin cites NEARPOINT's new row.
+- **`shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`:**
+  owns both cap pins, whose strings PR 6820 moved; amended.
+- **`lathe/a-full-turn-bead-reads-its-volume-uncomputable-at-eps-1e-12`:**
+  now `boxfinish/`. It owns four pins, and is amended with PR 6505.
+- **`germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`:**
+  owns the meeting-axes stop behind BOXFINISH's, and is cited by its pin.
+- **`charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`:**
+  its default-ε finding is not this red.
+- **`clear/departure-reads-no-curved-corner-off-its-shared-edge`:** now
+  `embed/`. It owns the tee's injectivity verdict, not its Interval
+  union, which now builds.
+
+Rows filed:
+- `nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`
+- `sectarms/a-glued-rod-escalates-a-section-straddle-at-1e-12-since-the-cylinder-node-listing`
+- `onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
+
+## Closed (2026-11-14, PR 6967)
+
+The sixteen are green at ε 1e-12 on the lane's and the reviewer's local runs; no PR run executes a slow test at 1e-12, so the next nightly is the hosted record. Four re-blessed: two offset-fit rows whose floor PR 6820 tightened, and two rows that asserted a refusal where the Interval union now builds and is checked against a closed form or the f64 body (the cylinder–cylinder tee after PR 6516; the coaxial rounded mouth, whose 1e-12 clause was never true). Twelve pinned on typed refusals or escalations, none a wrong answer, with rows on NEARPOINT, BOXFINISH, GERM, SECTARMS, ONEHOME, PCERT and SHELL. BOXFINISH's row now carries a plain, rigidly turned rod that does not finish at 1e-12 in the f64 lane; its band is its owner's, and turns on whether 1e-12 counts as a normal setting.

@@ -56,12 +56,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let placed = topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let placed =
+        topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", placed, Tol::witness())
 }
 
@@ -77,15 +73,10 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let placed = topo::transform_rigid(
         &ball,
         &geom_core::test_support::rigid(&turn, Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
-    let placed = topo::transform_rigid(
-        &placed,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let placed =
+        topo::transform_rigid(&placed, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the z-poled ball", placed, Tol::witness())
 }
 
