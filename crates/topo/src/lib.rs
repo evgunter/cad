@@ -412,7 +412,7 @@ pub mod test_support {
     /// **A body's wrap tips as each of its two readings has them**
     /// (`validate::wraps`' docs say why they stay two): every
     /// `(vertex, edge)` at which either reads a tip, with the corner
-    /// reading (`boolean::insert`'s `wrap_tip_at`, asked at each loop
+    /// reading (`validate::wrap_tip_at`, asked at each loop
     /// corner that arrives and departs by one edge, as the strut's
     /// facing asks it) and the valence one (`validate::wrap_tips`, the
     /// edge of the half-edge leaving the tip), in that order. A row reads
@@ -436,7 +436,7 @@ pub mod test_support {
         }
         at.into_iter()
             .map(|(v, e)| {
-                let corner = crate::boolean::insert::wrap_tip_at(body, v, e);
+                let corner = crate::validate::wrap_tip_at(body, v, e);
                 (v, e, corner, by_valence.contains(&(v, e)))
             })
             .filter(|&(_, _, corner, valence)| corner || valence)

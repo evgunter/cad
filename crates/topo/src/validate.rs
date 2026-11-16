@@ -5863,9 +5863,9 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 /// curve the body does not hold, or a carrier not yet certified.
 ///
 /// This is the one home of the wrap flag both tip readings take:
-/// [`wrap_tips`] (a valence-1 end of a wrap edge) and
-/// `boolean::insert::wrap_tip_at` (a wrap edge whose two ends differ,
-/// met at one of them by a corner it bounds both ways). Their vertex
+/// [`wrap_tips`] (a valence-1 end of a wrap edge) and [`wrap_tip_at`]
+/// (a wrap edge whose two ends differ, met at one of them by a corner
+/// it bounds both ways). Their vertex
 /// readings stay two, because valence counts every half-edge at the
 /// vertex: mid-run, while the Boolean mints struts at a tip, the struts
 /// already minted there raise its valence past 1 and [`wrap_tips`] stops
@@ -5878,6 +5878,21 @@ pub(crate) fn wraps<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
         .and_then(|edge| body.curves.get(edge.curve))
         .and_then(CurveGeom::certified)
         .is_some_and(|curve| curve.description().is_wrap())
+}
+
+/// **Whether `edge`, met at `vertex`, is a wrap edge's tip there**, read
+/// at one corner (the Boolean's strut facing asks it,
+/// `boolean::insert::strut_faces_first`'s `tip`): a wrap edge ([`wraps`])
+/// whose two ends differ, `vertex` one of them. At rest it is
+/// [`wrap_tips`]' set: a corner bounded both ways by one edge of two
+/// ends is that edge's halves following each other round `vertex`, so
+/// its orbit holds no other edge. Why the two readings stay two is
+/// [`wraps`]'.
+pub(crate) fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
+    let e = crate::live::proven(&body.edges, edge, EntityId::Edge);
+    let ends = [Some(e.he_plus), body.mate(e.he_plus)]
+        .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
+    wraps(body, edge) && ends[0] != ends[1] && ends.contains(&Some(vertex))
 }
 
 /// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
