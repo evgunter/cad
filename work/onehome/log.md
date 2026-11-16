@@ -135,3 +135,10 @@
     - `carrier_cross.rs` 351–371, the frontier door.
     - `spline_subtract_intersect_census` accepts any typed refusal and pins no census, which is a coverage gap.
   - **Cost.** About 1–1.9 s saved per unequal-radius cylinder operation, from 6–7 s.
+- 2026-11-16 — **Fork 275 decided** (PR 7025). Ev approved the C5 change with the fork's answer (i): walked tangent touches escalate until a second-order arm exists, because (ii) is unsound. The `[one-way.readings]` rule was withdrawn, and C5 alone carries the instance. The build is owed, in this order:
+  1. the per-piece curvature bound (`work/onehome/a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece.md`, in progress);
+  2. the one-sided window at a held span end;
+  3. the pair read, with the polish held to the spans and the sampled whole-carrier foot retired;
+  4. the ring rule, which lands last.
+
+  The residue that rule turns red is 5 to 11 sweep rows of tangent touches, which escalate by design. The demo measurement is still pending.
