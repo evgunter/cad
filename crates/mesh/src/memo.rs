@@ -761,8 +761,7 @@ impl FaceInputs {
         // reads. The other lanes read no image, so there is none.
         let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = domain
             .map(|lift| {
-                crate::trimmed::domain_loops(lift)
-                    .into_iter()
+                crate::trimmed::every_loop(lift)
                     .flat_map(|l| l.rows().iter())
                     .map(|row| (row.half_edge, row.pcurve.clone()))
                     .collect()

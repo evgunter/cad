@@ -555,8 +555,9 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
         (
             R::RingEmpty { ring },
             "ring_empty",
-            "one vertex with no edge",
+            "a ring of it is one vertex",
         ),
+        (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
         (R::NoShift { ring }, "no_shift", "no whole number"),
         (R::Shifts { ring }, "shifts", "more than one whole number"),
         (
@@ -578,6 +579,24 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
             "spline face with a ring",
         ),
     ];
+    // Every variant, numbered by a match with no wildcard: a cause added
+    // to the enum stops this row compiling until it is numbered here, and
+    // then reds until it has a case above.
+    let variant = |c: &R| match c {
+        R::Gap(_) => 0,
+        R::OuterOpen { .. } => 1,
+        R::RingOpen { .. } => 2,
+        R::OuterEmpty => 3,
+        R::RingEmpty { .. } => 4,
+        R::NoShift { .. } => 5,
+        R::Shifts { .. } => 6,
+        R::Copies { .. } => 7,
+        R::Undecided { .. } => 8,
+        R::SplineTrimUnread { .. } => 9,
+    };
+    let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
+    numbered.sort_unstable();
+    assert_eq!(numbered, (0..10).collect::<Vec<_>>(), "one case per cause");
     let mut sentences = Vec::new();
     for (cause, word, says) in cases {
         let text = TessellateError::DomainUnread {

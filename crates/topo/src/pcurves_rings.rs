@@ -148,6 +148,11 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
+    /// The outer loop is one vertex (`LoopBoundary::Empty`) and the face
+    /// holds rings: there is no region to place them in. Tier 2 admits
+    /// one at rest. A face with no ring is answered its empty lift, which
+    /// a reader walks and finds empty.
+    OuterEmpty,
     /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
     /// no lift and no place in the chart, and it bounds no region of the
     /// face. Tier 2 admits one at rest, as a lone vertex inside a face.
@@ -204,6 +209,7 @@ impl RingPlacementError {
             Self::Gap(_) => "gap",
             Self::OuterOpen { .. } => "outer_open",
             Self::RingOpen { .. } => "ring_open",
+            Self::OuterEmpty => "outer_empty",
             Self::RingEmpty { .. } => "ring_empty",
             Self::NoShift { .. } => "no_shift",
             Self::Shifts { .. } => "shifts",
@@ -370,6 +376,9 @@ pub(crate) fn face_lift<T: Decide>(
     };
     let rings: Vec<LoopKey> = loops.collect();
     let outer = Lift::read(body, outer_loop).map_err(RingPlacementError::Gap)?;
+    if outer.is_empty() && !rings.is_empty() {
+        return Err(RingPlacementError::OuterEmpty);
+    }
     let winding = outer
         .winding()
         .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));

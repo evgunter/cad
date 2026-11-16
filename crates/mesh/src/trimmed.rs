@@ -442,7 +442,6 @@ pub(crate) fn tessellate_trimmed(
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let loops = domain_loops(lift);
     // The face's chart row (`crate::chart_table`). A spline face's is the
     // cell table under this FACE's key, which the chord pass assembled
     // from the same `Surface::spline_chart()` this lane reads: the memo
@@ -462,7 +461,7 @@ pub(crate) fn tessellate_trimmed(
     // module docs). Each vertex's mesh id is its edges' end chord id.
     let singular = match row {
         ChartRow::Analytic(ref a) if !a.singular_points().is_empty() => {
-            singular_vertices(body, fk, &loops, chords, shared, a, tol.band)?
+            singular_vertices(body, fk, lift, chords, shared, a, tol.band)?
         }
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
     };
@@ -1688,14 +1687,14 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 fn singular_vertices(
     body: &Body<f64>,
     fk: FaceKey,
-    loops: &[&Lift<f64>],
+    lift: &FaceLift<f64>,
     chords: &ChordPass,
     shared: &[Point3<f64>],
     row: &AnalyticRow<'_>,
     band: geom_core::predicate::Band,
 ) -> Result<HashSet<u32>, TessellateError> {
     let mut out = HashSet::new();
-    for lifted in loops.iter().flat_map(|l| l.rows()) {
+    for lifted in every_loop(lift).flat_map(Lift::rows) {
         let ek = body
             .get_half_edge(lifted.half_edge)
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
@@ -2036,12 +2035,22 @@ fn trim_orientation(
     Ok(orientation)
 }
 
-/// The loops of a face's domain, outer loop first: the outer loop's lift
-/// and each ring's as the door placed it ([`topo::Body::face_lift`]).
-pub(crate) fn domain_loops(lift: &FaceLift<f64>) -> Vec<&Lift<f64>> {
-    let mut loops = vec![lift.outer()];
-    loops.extend(lift.rings().iter().map(topo::pcurves::PlacedRing::lift));
-    loops
+/// **The one way a face's domain is walked**: the outer loop's lift, and
+/// each ring's as the door placed it ([`topo::Body::face_lift`]), in the
+/// face's order.
+pub(crate) fn domain_loops(
+    lift: &FaceLift<f64>,
+) -> (&Lift<f64>, impl Iterator<Item = &Lift<f64>> + '_) {
+    (
+        lift.outer(),
+        lift.rings().iter().map(topo::pcurves::PlacedRing::lift),
+    )
+}
+
+/// Every loop of a face's domain, outer loop first ([`domain_loops`]).
+pub(crate) fn every_loop(lift: &FaceLift<f64>) -> impl Iterator<Item = &Lift<f64>> + '_ {
+    let (outer, rings) = domain_loops(lift);
+    core::iter::once(outer).chain(rings)
 }
 
 /// The pcurve-driven UV polygon of the face's domain, every loop of it,
@@ -2072,9 +2081,10 @@ fn trim_polygon(
 ) -> Result<TrimPolygon, TessellateError> {
     let read =
         |lift: &Lift<f64>| loop_polygon(body, fk, lift, chords, nurbs_chart, creases, singular);
-    let mut trim = TrimPolygon::new(read(lift.outer())?);
-    for ring in lift.rings() {
-        trim.push_ring(read(ring.lift())?);
+    let (outer, rings) = domain_loops(lift);
+    let mut trim = TrimPolygon::new(read(outer)?);
+    for ring in rings {
+        trim.push_ring(read(ring)?);
     }
     Ok(trim)
 }
@@ -3681,9 +3691,8 @@ pub(super) mod tests {
                 panic!("a sphere face has an analytic row");
             };
             let lift = body.face_lift(fk, band()).unwrap();
-            let loops = super::domain_loops(&lift);
             let singular =
-                super::singular_vertices(&body, fk, &loops, &chords, &positions, &row, band())
+                super::singular_vertices(&body, fk, &lift, &chords, &positions, &row, band())
                     .unwrap();
             let polygon = super::trim_polygon(&body, fk, &lift, &chords, false, None, &singular)
                 .unwrap()

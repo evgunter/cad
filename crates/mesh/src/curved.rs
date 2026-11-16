@@ -169,6 +169,12 @@ use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 
+/// What [`tessellate_curved`] refuses a ringed face with: the router's
+/// defect, since `tessellate::lane_of` sends a ringed face to the trimmed
+/// lane.
+pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
+    "a ringed face reached the curved lane, which reads the outer loop only (router defect)";
+
 /// Tessellates one curved face into a [`Patch`]: the interior grid
 /// points the face mints for itself, and its outward-wound triangles.
 ///
@@ -191,8 +197,7 @@ pub(crate) fn tessellate_curved(
     // (`tessellate::lane_of`), and one here is the router's defect.
     if !face.rings.is_empty() {
         return Err(TessellateError::MissingEntity {
-            what: "a ringed face reached the curved lane, which reads the outer loop only \
-                   (router defect)",
+            what: RINGED_FACE_ROUTED_HERE,
         });
     }
     // THE SHAPE DOOR AND THE BRANCH DOOR, before the walk (module
@@ -1212,7 +1217,7 @@ mod tests {
         assert!(
             matches!(
                 tessellate_curved(&body, fk, surface, &HashMap::new(), &[], &tol),
-                Err(TessellateError::MissingEntity { what }) if what.contains("router defect")
+                Err(TessellateError::MissingEntity { what }) if what == RINGED_FACE_ROUTED_HERE
             ),
             "a ringed face refuses at the curved lane's door"
         );

@@ -1619,11 +1619,20 @@ fn assert_ops(
     }
 }
 
+/// The ε rows the suite runs a pose at: the default, `10⁻⁶`, `10⁻¹²`.
+const EPS_ROWS: [f64; 3] = [geom_core::tolerance::DEFAULT_EPS, 1e-6, 1e-12];
+
 /// The boolean's refusal of a pose at this run's ε, by variant name,
-/// from `by_eps`'s `(ε, variant)` rows; `None` where it builds.
-fn refused_at(by_eps: &[(f64, &'static str)]) -> Option<&'static str> {
+/// from `refuses`' `(ε, variant)` rows; `None` where it builds, at every
+/// other row of [`EPS_ROWS`]. A run at an ε that is not one of those rows
+/// fails loud: the pose has not been read there.
+fn refused_at(refuses: &[(f64, &'static str)]) -> Option<&'static str> {
     let eps = tol().eps();
-    by_eps.iter().find(|(e, _)| *e == eps).map(|&(_, v)| v)
+    assert!(
+        EPS_ROWS.contains(&eps),
+        "ε {eps:e} is not one of the rows this pose is stated at, {EPS_ROWS:?}"
+    );
+    refuses.iter().find(|(e, _)| *e == eps).map(|&(_, v)| v)
 }
 
 /// The deck translation the door moves each ring of each curved face of
@@ -1715,8 +1724,10 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 ///   cone face's ring; its outer rim's chart certificate reads the
 ///   development's triangles near the apex at full width, as on that
 ///   row's funnel, and refuses `CertificateExceeded` at the finer δ, at
-///   every δ by `s = 0.01`; at `s = 10⁻³` the ring is within the band of
-///   the outer loop and the door answers `undecided`.
+///   every δ by `s = 0.01`; at `s = 10⁻³` the door answers
+///   `Undecided { cause: None }`: no in-band decision stopped it, so the
+///   reading of the outer loop ran past its work bounds or found no
+///   window with lever arms round the ring's point.
 /// - **A torus outer loop the ring reader cannot read**
 ///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`):
 ///   the donut less a slab has spirics on its torus faces' outer loops,
@@ -1822,7 +1833,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
         "the near-pole tube on the ball (A the tube)",
         &tube,
         &ball,
-        None,
+        refused_at(&[]),
         &want,
     );
 }

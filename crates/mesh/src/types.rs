@@ -726,6 +726,10 @@ impl TessellateError {
                         "a ring of it does not close in the face's chart: it winds the \
                          chart's period"
                     }
+                    R::OuterEmpty => {
+                        "its outer loop is one vertex with no edge while the face holds \
+                         rings, so there is no region to place them in"
+                    }
                     R::RingEmpty { .. } => {
                         "a ring of it is one vertex with no edge, which bounds no region \
                          and has no place in the chart; remove the lone vertex"
@@ -740,7 +744,8 @@ impl TessellateError {
                     }
                     R::Copies { .. } => {
                         "its outer loop spans more of the chart's periods than the ring \
-                         placement tries"
+                         placement tries, or a ring of it lies more periods away than a \
+                         32-bit count holds"
                     }
                     R::Undecided { .. } => {
                         "where a ring of it lies against its outer loop is undecided: a \

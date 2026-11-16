@@ -1901,3 +1901,76 @@ fn a_ring_that_is_one_vertex_answers_typed() {
         ),
     }
 }
+
+/// **An outer loop that is one vertex, with a ring, answers typed.** The
+/// pipe's wall and the strut of
+/// [`a_ring_that_is_one_vertex_answers_typed`], killed the other way
+/// round (`kemr(he_minus, he_plus)`), leave the wall's outer loop the lone
+/// vertex and its old outer loop a ring; with the old outer loop's rows
+/// put back, `topo::validate` passes it. `Body::face_lift` answers
+/// `OuterEmpty` before placing anything, and the mesh refuses the face
+/// `DomainUnread` with it: a vertex bounds no region to place a ring in.
+#[test]
+fn an_outer_loop_that_is_one_vertex_with_a_ring_answers_typed() {
+    let mut body = rod(1.0, -2.0, 4.0);
+    let (fk, _) = body
+        .faces()
+        .find(|(fk, _)| kind_of(&body, *fk) == SurfaceKind::Cylinder)
+        .expect("the pipe's wall");
+    let outer = body.get_face(fk).expect("the wall").outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).expect("its loop").boundary
+    else {
+        panic!("the wall's outer loop has half-edges");
+    };
+    let saved: Vec<_> = body
+        .loop_cycle(first)
+        .expect("its cycle")
+        .into_iter()
+        .map(|h| (h, body.joint(h), body.pcurve(h).cloned()))
+        .collect();
+    let at = Point3::new(0.6f64.cos(), 0.6f64.sin(), 0.3);
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            at,
+            tol(),
+        )
+        .expect("the strut");
+    body.kemr(strut.he_minus, strut.he_plus).expect("the ring");
+    for (h, joint, image) in saved {
+        if let Some(j) = joint.filter(|_| body.joint(h).is_none()) {
+            body.attach_joint(h, j);
+        }
+        if let Some(c) = image.filter(|_| body.pcurve(h).is_none()) {
+            body.attach_pcurve(h, c);
+        }
+    }
+    let face = body.get_face(fk).expect("the wall");
+    assert!(
+        matches!(
+            body.get_loop(face.outer).expect("the outer loop").boundary,
+            topo::LoopBoundary::Empty { .. }
+        ) && face.rings.len() == 1
+            && topo::validate(&body).is_ok(),
+        "the wall's outer loop is one vertex, it holds one ring, and the body validates"
+    );
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    assert_eq!(
+        body.face_lift(fk, band).err(),
+        Some(topo::pcurves::RingPlacementError::OuterEmpty),
+        "the door names the empty outer loop"
+    );
+    match mesh::tessellate(&body, 1e-2, tol()) {
+        Err(mesh::TessellateError::DomainUnread { face, cause }) => assert!(
+            face == fk && *cause == topo::pcurves::RingPlacementError::OuterEmpty,
+            "the mesh refuses the wall with the door's cause, got {face:?} {cause:?}"
+        ),
+        other => panic!(
+            "expected DomainUnread, got {:?}",
+            other.map(|m| m.patches.len())
+        ),
+    }
+}

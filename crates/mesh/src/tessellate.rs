@@ -274,6 +274,26 @@ fn has_ring(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
         .ok_or(TessellateError::MissingEntity { what: "face" })
 }
 
+/// A face's lane with what it runs on: the trimmed lane carries the
+/// face's domain, read once (`trimmed::face_domain`), which the memo key
+/// folds and the lane triangulates.
+enum Route {
+    Planar,
+    Curved,
+    Trimmed(topo::pcurves::FaceLift<f64>),
+}
+
+impl Route {
+    /// The trimmed lane's domain; `None` on the other lanes, which read
+    /// none.
+    fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
+        match self {
+            Self::Trimmed(lift) => Some(lift),
+            Self::Planar | Self::Curved => None,
+        }
+    }
+}
+
 /// A face's surface ([`Body::face_surface`]), a stale face key named as
 /// the tessellator names it.
 pub(crate) fn face_surface(
@@ -460,12 +480,13 @@ fn tessellate_impl(
                         // here, and handed to the memo key and the lane
                         // alike (`trimmed::face_domain`); its miss is the
                         // lane's refusal.
-                        let domain = match lane {
+                        let route = match lane {
                             Lane::Trimmed => match crate::trimmed::face_domain(body, fk, &tol) {
-                                Ok(lift) => Some(lift),
+                                Ok(lift) => Route::Trimmed(lift),
                                 Err(error) => return (None, Err(error)),
                             },
-                            Lane::Planar | Lane::Curved => None,
+                            Lane::Planar => Route::Planar,
+                            Lane::Curved => Route::Curved,
                         };
                         // The lanes, each over `shared` — the whole of what
                         // a face reads from outside itself.
@@ -476,15 +497,12 @@ fn tessellate_impl(
                         // passed: imported axes carry translator noise that
                         // projects valid boundaries below spade's
                         // coordinate domain.
-                        let run = || match (lane, &domain) {
-                            (Lane::Trimmed, Some(lift)) => crate::trimmed::tessellate_trimmed(
+                        let run = || match &route {
+                            Route::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
                                 body, fk, surface, &chords, shared, &tol, &bounds, lift,
                             ),
-                            (Lane::Trimmed, None) => {
-                                unreachable!("the trimmed lane's domain is read above")
-                            }
-                            (Lane::Planar, _) => tessellate_planar(body, fk, &chords.ids, shared),
-                            (Lane::Curved, _) => {
+                            Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                            Route::Curved => {
                                 tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
                             }
                         };
@@ -500,7 +518,7 @@ fn tessellate_impl(
                             shared,
                             chordal,
                             ambient,
-                            domain.as_ref(),
+                            route.domain(),
                         ) {
                             Ok(inputs) => inputs,
                             Err(error) => return (None, Err(error)),
