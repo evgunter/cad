@@ -500,7 +500,6 @@ pub(crate) fn tessellate_trimmed(
             let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol.delta)?);
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
-            let nv = rows.len() + 1;
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column
             // between two boundary entries that share a mesh vertex,
@@ -526,13 +525,20 @@ pub(crate) fn tessellate_trimmed(
                     || nu != 2
                     || !id_repeats_apart(&polygon),
                 "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
-                 with a single interior column (nu = 2, nv = {nv}) — the shape \
-                 #678's non-manifold fan needs (curved::pole_columns)"
+                 with a single interior column (nu = 2, {} rows) — the shape \
+                 #678's non-manifold fan needs (curved::pole_columns)",
+                rows.len()
             );
             (
                 lattice_candidates((u0, u1), nu, &rows),
                 None,
-                a.metric((u0, u1), (v0, v1), (nu, nv)),
+                // The cone's CDT runs in its development and reads no
+                // metric; every other arm's rows are uniform, one fewer
+                // than their gaps.
+                match a.development() {
+                    Some(_) => 1.0,
+                    None => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
+                },
             )
         }
         ChartRow::Spline { grid } => {

@@ -116,14 +116,27 @@ pub fn dist_line_triangle(
     dist_point_triangle(Point3::origin(), proj(a), proj(b), proj(c))
 }
 
-/// Cylinder certificate: `r − dist(axis, T)`, clamped at 0.
+/// Cylinder certificate: `r − dist(axis, T)`, clamped at 0; NaN where
+/// that is not finite ([`inward_gap`]).
 pub fn cert_cylinder(origin: Point3<f64>, axis: Vec3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    (r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2])).max(0.0)
+    inward_gap(r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2]))
 }
 
-/// Sphere certificate: `r − dist(center, T)`, clamped at 0.
+/// `gap` clamped at 0, and NaN where it is not finite: a corner that is
+/// NaN or at infinity makes the distance NaN or infinite, and a bare
+/// `max(0.0)` would read either as a triangle on the surface.
+fn inward_gap(gap: f64) -> f64 {
+    if gap.is_finite() {
+        gap.max(0.0)
+    } else {
+        f64::NAN
+    }
+}
+
+/// Sphere certificate: `r − dist(center, T)`, clamped at 0; NaN where
+/// that is not finite ([`inward_gap`]).
 pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    (r - dist_point_triangle(center, tri[0], tri[1], tri[2])).max(0.0)
+    inward_gap(r - dist_point_triangle(center, tri[0], tri[1], tri[2]))
 }
 
 /// **Cone certificate: the deviation of a flat triangle with its corners
@@ -1236,13 +1249,16 @@ mod tests {
         );
     }
 
-    /// **An input that is not finite poisons the certificate**: a NaN or
-    /// an infinity in the half-angle or in any corner, an apex corner's
-    /// unread azimuth included, answers NaN, and slants whose product is
-    /// past `f64`'s range answer NaN too. None certifies
-    /// ([`verdict`] reads NaN as exceeded).
+    /// **An input that is not finite poisons a certificate.** The cone's:
+    /// a NaN or an infinity in the half-angle or in any corner, an apex
+    /// corner's unread azimuth included, answers NaN, and slants whose
+    /// product is past `f64`'s range answer NaN too; the verdict reads NaN
+    /// as exceeded. The cylinder's and the sphere's answer NaN for a
+    /// corner that is NaN or at infinity, where a bare `max(0.0)` on
+    /// `r − dist` answered 0. The torus's and the spindle's answer NaN or
+    /// `+∞`.
     #[test]
-    fn cert_cone_is_poisoned_by_an_input_that_is_not_finite() {
+    fn no_certificate_reads_an_input_that_is_not_finite_as_a_bound() {
         let (inf, nan) = (f64::INFINITY, f64::NAN);
         let off = [false; 3];
         let cases = [
@@ -1272,6 +1288,41 @@ mod tests {
                 verdict(cert, 1.0, 1.0, Eps::exactly(1e-9)),
                 Verdict::Exceeded
             );
+        }
+        // The cylinder's and the sphere's: a corner that is NaN or at
+        // infinity poisons them too.
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let on = [
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+        ];
+        assert!(cert_sphere(o, 1.0, on) > 0.0 && cert_sphere(o, 1.0, on) < 1.0);
+        for bad in [nan, inf, -inf] {
+            let tri = [Point3::new(bad, 0.0, 0.0), on[1], on[2]];
+            assert!(
+                cert_sphere(o, 1.0, tri).is_nan(),
+                "sphere, a corner at {bad}"
+            );
+            assert!(
+                cert_cylinder(o, Vec3::new(0.0, 0.0, 1.0), 1.0, tri).is_nan(),
+                "cylinder, a corner at {bad}"
+            );
+        }
+        // The torus's and the spindle's answer no finite bound either.
+        let flat = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
+        for bad in [nan, inf, -inf] {
+            for slot in 0..2 {
+                let mut uv = flat;
+                uv[1][slot] = bad;
+                assert!(!cert_torus(1.0, 0.2, uv).is_finite(), "torus, {uv:?}");
+                assert!(
+                    !cert_spindle(0.2, 1.0, uv, [false; 3]).is_finite(),
+                    "spindle, {uv:?}"
+                );
+            }
+            assert!(!cert_torus(bad, 0.2, flat).is_finite(), "torus, R = {bad}");
+            assert!(!cert_torus(1.0, bad, flat).is_finite(), "torus, r = {bad}");
         }
         assert!(cone_chord_sag(0.3, f64::NAN, 1.0, 0.1).is_nan());
         assert!(cone_chord_sag(0.3, 1.0, 1.0, f64::NAN).is_nan());
