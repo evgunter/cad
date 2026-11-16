@@ -2390,25 +2390,24 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::UnfinishedLeaf {
                 input,
-                into: None,
+                into,
                 findings,
-            } => write!(
-                f,
-                "{} does not finish where this operation takes it: {}",
-                by.node_as(*input, "input"),
-                findings.render(geom_brep::recourse::Reading::AtRest)
-            ),
-            Self::UnfinishedLeaf {
-                input,
-                into: Some(into),
-                findings,
-            } => write!(
-                f,
-                "{}, read into {}'s frame, does not finish there: {}",
-                by.node_as(*input, "input"),
-                by.node(*into),
-                findings.render(geom_brep::recourse::Reading::AtRest)
-            ),
+            } => {
+                let input = by.node_as(*input, "input");
+                match into {
+                    None => write!(f, "{input} does not finish where this operation takes it: ")?,
+                    Some(into) => write!(
+                        f,
+                        "{input}, read into {}'s frame, does not finish there: ",
+                        by.node(*into)
+                    )?,
+                }
+                write!(
+                    f,
+                    "{}",
+                    findings.render(geom_brep::recourse::Reading::AtRest)
+                )
+            }
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "the split's {} half ({}) holds no material",
