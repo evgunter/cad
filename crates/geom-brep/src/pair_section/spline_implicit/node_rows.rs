@@ -834,9 +834,10 @@ fn an_arc_carried_to_its_node_reads_its_sites_box_by_box() {
 /// **An edge through or short of a node is no node's at rest** (C2's
 /// node end, re-read about the edge's end vertex): straight edges along
 /// the cross's line `y = ½` from its rim, at the edge certificate's
-/// door, each ending a centimetre, a millimetre or a micron past the
-/// node, refuse: none is read as ending at the node, whose box would
-/// waive the transverse enclosure over the stretch where it straddles.
+/// door, each ending a centimetre, a millimetre or twenty band
+/// escalations past the node, refuse: none is read as ending at the
+/// node, whose box would waive the transverse enclosure over the stretch
+/// where it straddles.
 /// One ending a millimetre short of it certifies, an arc's end and no
 /// node's.
 ///
@@ -852,7 +853,10 @@ fn an_edge_through_or_short_of_a_node_is_no_nodes_at_rest() {
     for (what, x_end) in [
         ("past by a centimetre", 0.51),
         ("past by a millimetre", 0.501),
-        ("past by a micron", 0.500_001),
+        (
+            "past by twenty band escalations",
+            0.5 + 20.0 * band().escalate(),
+        ),
     ] {
         let carrier = Curve3::Nurbs(std::sync::Arc::new(
             NurbsCurve3::new(
@@ -1071,15 +1075,15 @@ fn a_node_box_is_its_settle_reach() {
 
 /// **The node reading decides a node and nothing else** (C5, C2's node
 /// end; [`crate::ssi::node::decide`]): over a box about the cross's
-/// centre it reads a node; with the plane a micron off the node's level
-/// the saddle point's value is past the band, and with it half the band
-/// off, within it, the reading a node; over the bowl's top a touch; and
+/// centre it reads a node; with the plane a hundred band escalations off
+/// the node's level the saddle point's value is past the band, and with
+/// it half the band off, within it, the reading a node; over the bowl's top a touch; and
 /// over a box a micron from the node holding no critical point, or one
 /// whose edge holds the node, where the operator never proves the zero
 /// alone, nothing.
 ///
 /// Red against: the Hessian's determinant's sign dropped (the bowl reads
-/// a node), the value's decision dropped (the plane a micron off reads a
+/// a node), the value's decision dropped (the plane off its level reads a
 /// node), and the Krawczyk proof dropped (the box with the node on its
 /// edge reads a node).
 #[test]
@@ -1102,9 +1106,9 @@ fn the_node_reading_decides_a_node_and_nothing_else() {
     let cases: [Case; 6] = [
         ("the node", cross(), 0.0, about(off, 1e-4), Some(Kind::Node)),
         (
-            "a micron off its level",
+            "a hundred escalations off its level",
             cross(),
-            1e-6,
+            100.0 * band().escalate(),
             about(off, 1e-4),
             None,
         ),

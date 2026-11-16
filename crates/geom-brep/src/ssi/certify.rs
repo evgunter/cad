@@ -4613,9 +4613,9 @@ mod node_end_rows {
     /// within the band of the end, and its box is the node's settle reach,
     /// not the end span's. A chain along `v = ½` halving toward the node
     /// and ending on it certifies, its end the node's. The same chain
-    /// carried on past the node by a micron or a centimetre, turning onto
-    /// `u = ½` within its last span, or ending on the node with one span
-    /// of a twentieth of the wall's width, refuses: limb 3's transverse
+    /// carried on past the node by twenty band escalations or a
+    /// centimetre, turning onto `u = ½` within its last span, or ending on
+    /// the node with one span of a twentieth of the wall's width, refuses: limb 3's transverse
     /// enclosure straddles at the node, which no node box waives. Ending
     /// short of it by a centimetre, it is an arc's end and no node's.
     ///
@@ -4641,7 +4641,10 @@ mod node_end_rows {
         let mut turn = halving(14);
         turn.extend([(0.5, 0.5), (0.5, 0.5 + 5e-5)]);
         let refusals = [
-            ("past by a micron", past(1e-6)),
+            (
+                "past by twenty band escalations",
+                past(20.0 * band().escalate()),
+            ),
             ("past by a centimetre", past(1e-2)),
             ("turning onto the other line", turn),
             (
