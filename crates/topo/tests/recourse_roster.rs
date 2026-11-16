@@ -33,10 +33,12 @@
 //! entry by name**: an indirect site is keyed by its enclosing `fn`, so a
 //! new forwarder that reuses a parameter name another already spells
 //! (`name`, `predicate`) reds until it is declared, here or as a
-//! carrier. What this row still cannot see is a name spelled in a closed
-//! type's `predicate()` match or chosen by a `match` before it reaches a
-//! funnel ([`CLOSED_TYPE`]), which is
-//! `the-census-reads-no-closed-type-name-table`.
+//! carrier. A closed type's `predicate()` table is read where the type
+//! spells it, as a declared `NameCarrier::Table` (`TangentRow`) or as the
+//! `Const` carriers its arms return (`ClearanceBound`); the sites that
+//! hand on such a value stay listed ([`CLOSED_TYPE`]). What this row
+//! still cannot see is a name chosen by a `match` on something else
+//! before it reaches a funnel.
 //!
 //! **When it runs.** The walk takes seconds, so this row is in the slow
 //! set: a PR runs it only when the PR names it, and the nightly runs it

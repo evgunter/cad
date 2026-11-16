@@ -40,8 +40,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("tube_half_as"),
     NameCarrier::Call("read_as"),
     // `geom_core::k_stats::straddle`, the straddle door: it records under
-    // the name it is handed as `decide*` does, and the census reads no
-    // door but `decide*` (`work/onecopy/the-census-reads-no-prove-or-choose-call.md`).
+    // the name it is handed as `decide*` does, so its literal is a name,
+    // declared here as every roster whose crate calls it declares it.
     NameCarrier::Call("straddle"),
 ];
 

@@ -1568,8 +1568,11 @@ pub enum NameCarrier {
     /// A tuple among them (`("name", value)`), or an array of such
     /// tuples (`[("a", x), ("b", y)]`, behind an `&` or not), is opened
     /// to its FIRST element: the `(name, value)` pairs a funnel takes a
-    /// batch of. A tuple whose first element is not a literal is not
-    /// read, and the call stays a site for what it does not spell.
+    /// batch of. A tuple whose first element is neither a literal nor a
+    /// declared const is not read, and the call stays a site for what it
+    /// does not spell, whether or not the batch's other tuples spell
+    /// names: a mixed batch is read and listed, as a part-literal
+    /// `decide*` group is.
     Call(&'static str),
     /// A `const NAME: &str = "…";` whose value is the name.
     Const(&'static str),
@@ -1795,12 +1798,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             }
                         }
                         literals.extend(heads);
+                        // A tuple head that is neither a literal nor a
+                        // declared const is a name handed on from elsewhere:
+                        // in a batch that also spells names, the call stays a
+                        // site for it, as a part-literal `decide*` group does.
+                        let unread_head = head_idents
+                            .iter()
+                            .any(|head| !names_a_const(head, &declared));
                         let consts: Vec<String> = arguments(&bare[open + 1..end])
                             .into_iter()
                             .map(|arg| arg.trim_start_matches('&').trim().to_string())
                             .chain(head_idents)
                             .filter(|arg| names_a_const(arg, &declared))
                             .collect();
+                        let spells = !literals.is_empty() || !consts.is_empty();
+                        if spells && unread_head {
+                            let head = first_argument(&bare[open + 1..end], &code[open + 1..end]);
+                            out.indirect
+                                .insert(format!("{rel}: {}: {head}", enclosing(open)));
+                        }
                         if !literals.is_empty() {
                             out.names.extend(literals);
                         } else if !consts.is_empty() {
@@ -3715,6 +3731,7 @@ mod tests {
                  signs_as(&[(\"behind_ref\", m)], band);\n\
                  one_as((\"lone_tuple\", side), band);\n\
                  one_as((x, \"not_first\"), band);\n\
+                 signs_as([(\"mixed_lit\", m), (name, n)], band);\n\
              }\n",
         )
         .expect("write");
@@ -3733,8 +3750,19 @@ mod tests {
                 "gate_row",
                 "lone_tuple",
                 "macro_row",
+                "mixed_lit",
                 "tuple_a",
                 "tuple_b"
+            ],
+            "{census:?}"
+        );
+        // A batch mixing a literal head with one handed on stays a site
+        // for the one it does not spell; a wholly literal batch is none.
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            [
+                "a.rs: f: (x, \"not_first\")",
+                "a.rs: f: [(\"mixed_lit\", m), (name, n)]"
             ],
             "{census:?}"
         );
