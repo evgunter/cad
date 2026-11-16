@@ -129,6 +129,25 @@ mod tests {
         }
     }
 
+    /// **Tier 3′ asks the box as tier 3 does**: with no contact record
+    /// tier 3′ is tier 3 exactly, so the same brick 2 km out is refused
+    /// by tier 3′'s own path, alone and by name, and one at the origin is
+    /// not. *Breaks if* tier 3′'s battery skips tier 3's gate, which
+    /// passes the far brick.
+    #[test]
+    fn tier_3_prime_refuses_a_body_past_the_session_box_as_tier_3_does() {
+        let tol = Tol::witness();
+        let records = crate::boolean::ContactRecords::default();
+        let far = brick::<f64>((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let errors = crate::validate::validate_pseudomanifold(&far, &records, tol).unwrap_err();
+        assert!(
+            matches!(&errors[..], [ValidationError::OutsideSessionBox { .. }]),
+            "the box refusal, alone: {errors:?}"
+        );
+        let near = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert!(crate::validate::validate_pseudomanifold(&near, &records, tol).is_ok());
+    }
+
     /// **The box is a cube, not a ball**: a brick in the box's corner,
     /// every coordinate within `[900, 999]` m, lies `≈ 1.73` km from the
     /// origin and is in the box; pushed one metre past it along one axis,

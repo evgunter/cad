@@ -10929,9 +10929,13 @@ fn pseudomanifold_certificate_via<
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = linear_band(tol)?;
-    // The tier-3 local battery, verbatim: it reads no contact record,
-    // so with empty records 3′ is tier 3 exactly. The records are the
-    // census's.
+    // Tier 3's gate, then its local battery, verbatim: neither reads a
+    // contact record, so with empty records 3′ is tier 3 exactly. The
+    // records are the census's. The session box is tier 3's first
+    // predicate ([`structural_via`]), so a body past it refuses here as
+    // there, and a tier-3′ pass records the one decision a finish then a
+    // census over a kept verdict records.
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
