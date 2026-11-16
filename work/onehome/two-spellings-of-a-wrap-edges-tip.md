@@ -33,7 +33,7 @@ difference stated where the corner reading is kept.
 ## Closed
 
 The wrap flag has one home, `validate::wraps`, which both readers take:
-`validate::wrap_tips` and `insert::wrap_tip_at`. The door's doc says why the
+`validate::wrap_tips` and `validate::wrap_tip_at` (moved out of the boolean engine, `[topo.homes]`). The door's doc says why the
 two vertex readings stay two: mid-run, valence counts the struts already
 minted at the tip, and the corner reading does not. The sweep row
 `the_two_tip_readings_agree_on_every_wrap_bearing_body`
