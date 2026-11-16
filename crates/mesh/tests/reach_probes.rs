@@ -863,7 +863,7 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     );
 }
 
-/// **A cone face ending near its apex meshes at every δ.** The funnel of
+/// **The unit funnel cut near its apex meshes at every δ.** The funnel of
 /// [`a_cone_face_through_its_apex_meshes_on_the_cone_row`] cut by the same
 /// tilted plane through `(0, h, 0)`: the half above the cut has a section
 /// ellipse within `h` of the apex, down to `h = 10⁻⁶`. Both halves mesh at
@@ -879,12 +879,16 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
 /// `v`, `h = 3·10⁻³` and `10⁻³` at `δ = 5·10⁻⁵` are truly past δ
 /// (`1.63δ`, `1.23δ`) and refuse.
 ///
+/// It is this family's property and no cone's in general: a needle
+/// funnel cut `10⁻⁵` above its apex refuses
+/// ([`a_needle_funnel_cut_at_its_apex_refuses_typed`]).
+///
 /// A cut within a thousand ε of the apex is within the band's reach of
 /// it: the split may refuse (at ε `10⁻⁶`, `h = 10⁻⁴` refuses
 /// `KeptBoundaryUndecided`) or leave no body below (at ε `10⁻⁶`,
 /// `h = 10⁻⁶`), each printed and skipped. Every half that is built meshes.
 #[test]
-fn a_cone_face_ending_near_its_apex_meshes_at_every_delta() {
+fn the_unit_funnel_cut_near_its_apex_meshes_at_every_delta() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [2e-2, 5e-3, 1e-3, 2e-4, 5e-5];
     for h in [0.02, 1e-2, 3e-3, 1e-3, 1e-4, 1e-6] {
@@ -1251,6 +1255,72 @@ fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
     );
 }
 
+/// **A needle funnel cut `10⁻⁵` above its apex refuses typed: this row
+/// pins a gap**
+/// (`work/tesslane/a-needle-funnel-cut-at-its-apex-refuses-folded.md`).
+/// The funnel of rim radius `0.02` cut by the tilted plane of
+/// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
+/// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
+/// and `3·10⁻⁵` and `BoundaryEar` at `2·10⁻⁴`, the half below meshes, and
+/// a cut at `10⁻³` meshes both halves. No mesh is returned where it
+/// refuses. Off the default ε a split that refuses or leaves no half is
+/// printed and skipped, and each cell's answer is printed, not held.
+#[test]
+fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
+    use mesh::TessellateError as E;
+    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
+    let deltas = [1e-3, 2e-4, 3e-5];
+    let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
+    for h in [1e-3, 1e-5] {
+        let body = finished(
+            "the needle funnel",
+            revolved(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]),
+            tol(),
+        );
+        let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
+        let split = match topo::splitting::split(&body, &plane, tol()) {
+            Ok(split) => split,
+            Err(e) => {
+                assert!(!exact, "the needle funnel cut at {h:e} splits, got {e:?}");
+                eprintln!(
+                    "the needle funnel cut at {h:e}: the split refuses at ε {:e}: {e:?}",
+                    tol().eps()
+                );
+                continue;
+            }
+        };
+        for (side, part) in [("above", &split.above), ("below", &split.below)] {
+            let what = format!("the needle funnel cut at h = {h:e}, {side}");
+            let Some(half) = part.body() else {
+                assert!(!exact, "{what}: a body");
+                eprintln!("{what}: no body at ε {:e}", tol().eps());
+                continue;
+            };
+            for delta in deltas {
+                let refusal = match mesh::tessellate(half, delta, tol()) {
+                    Ok(_) => None,
+                    Err(E::FoldedTriangle { .. }) => Some("FoldedTriangle"),
+                    Err(E::BoundaryEar { .. }) => Some("BoundaryEar"),
+                    Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
+                };
+                let want = match (h <= 1e-5 && side == "above", delta) {
+                    (false, _) => None,
+                    (true, d) if d == 2e-4 => Some("BoundaryEar"),
+                    (true, _) => Some("FoldedTriangle"),
+                };
+                if exact {
+                    assert_eq!(refusal, want, "{what}, δ = {delta:e}");
+                } else {
+                    eprintln!("{what}, δ = {delta:e}, ε {:e}: {refusal:?}", tol().eps());
+                }
+                if refusal.is_none() {
+                    assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}");
+                }
+            }
+        }
+    }
+}
+
 /// **A cone face keeps no side its plane neighbour can make too.** The
 /// cone of [`a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard`]
 /// met by the same box, its edge scaled toward the apex by `s` (and
@@ -1265,16 +1335,20 @@ fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
 /// cone face off every such side. Each cell meshes, passes `check_mesh`
 /// and is the body's ([`geometry`]).
 ///
-/// With the cone arm reading the ear alone, `s = 10⁻³` is non-manifold
-/// at every δ here in both orders, on the edge between mesh points five
-/// chord steps apart on one arc, under rows uniform in `v` and under the
-/// arm's graded rows alike; `s = 0.03`, `xf = 0`, `A ∩ B` at δ `2·10⁻²`
-/// is under the graded rows alone.
+/// With the cone arm reading the ear alone, `xf = 0`, `s = 10⁻³` is
+/// non-manifold at every δ here in both orders, on the edge between mesh
+/// points five chord steps apart on one arc, under rows uniform in `v`
+/// and under the arm's graded rows alike; `xf = 0`, `s = 0.03`, `A ∩ B` at
+/// δ `2·10⁻²` is under the graded rows alone. Of the twelve `xf = 0.5`
+/// cells of `A ∩ B`, eight are under the graded rows (`s = 0.1` at
+/// `2·10⁻²`; `0.03` at `2·10⁻²` and `5·10⁻³`; `0.01` at the same two;
+/// `10⁻³` at all three) and one under rows uniform in `v` (`s = 0.03` at
+/// `5·10⁻³`).
 ///
-/// At the default ε all eight slivers are built and mesh. Off it the
-/// boolean refuses some `CurvedPierceUnsupported`, each printed and
-/// skipped: at ε `10⁻⁶` the two at `s = 10⁻³` (the other six mesh), and
-/// at ε `10⁻¹²` all eight, so there the row reads no mesh.
+/// At the default ε all twelve slivers are built and mesh. Off it the
+/// boolean refuses some (`CurvedPierceUnsupported`, or an escalated
+/// pierce), each printed and skipped, and the built ones mesh: the row
+/// prints how many.
 #[test]
 fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
     use core::f64::consts::FRAC_PI_6;
@@ -1290,7 +1364,14 @@ fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
         -50f64.to_radians(),
     );
     let mut meshed = 0;
-    for (s, xf) in [(1e-3, 0.0), (0.03, 0.0), (0.03, 0.5), (0.01, 0.0)] {
+    for (s, xf) in [
+        (1e-3, 0.0),
+        (0.03, 0.0),
+        (0.1, 0.5),
+        (0.03, 0.5),
+        (0.01, 0.5),
+        (1e-3, 0.5),
+    ] {
         let edge = Point3::new(xf * s, height - 1.5 * s, 0.0);
         let wedge = posed(
             "the box",
@@ -1309,7 +1390,7 @@ fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
                 other => {
                     let other = format!("{:?}", other.map(|b| b.is_some()));
                     assert!(
-                        may_not_build && other.contains("CurvedPierceUnsupported"),
+                        may_not_build,
                         "{what}: a body at ε {:e}, got {other}",
                         tol().eps()
                     );
@@ -1322,11 +1403,11 @@ fn a_cone_face_keeps_no_side_its_plane_neighbour_can_make() {
         }
     }
     eprintln!(
-        "{meshed} of 8 slivers built and meshed at ε {:e}",
+        "{meshed} of 12 slivers built and meshed at ε {:e}",
         tol().eps()
     );
     assert!(
-        meshed == 8 || tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+        meshed == 12 || tol().eps() != geom_core::tolerance::DEFAULT_EPS,
         "every sliver is built at the default ε ({meshed})"
     );
 }

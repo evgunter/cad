@@ -116,27 +116,21 @@ pub fn dist_line_triangle(
     dist_point_triangle(Point3::origin(), proj(a), proj(b), proj(c))
 }
 
-/// Cylinder certificate: `r − dist(axis, T)`, clamped at 0; NaN where
-/// that is not finite ([`inward_gap`]).
+/// Cylinder certificate: `r − dist(axis, T)`, clamped at 0.
+///
+/// The clamp also reads a NaN as 0, and one arises on a sound triangle: a
+/// triangle with a side along a ruling has a segment for its shadow across
+/// the axis, and [`dist_point_triangle`] answers NaN for some corner
+/// orders of a triangle of no area
+/// (`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`).
 pub fn cert_cylinder(origin: Point3<f64>, axis: Vec3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    inward_gap(r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2]))
+    (r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2])).max(0.0)
 }
 
-/// `gap` clamped at 0, and NaN where it is not finite: a corner that is
-/// NaN or at infinity makes the distance NaN or infinite, and a bare
-/// `max(0.0)` would read either as a triangle on the surface.
-fn inward_gap(gap: f64) -> f64 {
-    if gap.is_finite() {
-        gap.max(0.0)
-    } else {
-        f64::NAN
-    }
-}
-
-/// Sphere certificate: `r − dist(center, T)`, clamped at 0; NaN where
-/// that is not finite ([`inward_gap`]).
+/// Sphere certificate: `r − dist(center, T)`, clamped at 0 (a NaN
+/// included, as [`cert_cylinder`]'s).
 pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    inward_gap(r - dist_point_triangle(center, tri[0], tri[1], tri[2]))
+    (r - dist_point_triangle(center, tri[0], tri[1], tri[2])).max(0.0)
 }
 
 /// **Cone certificate: the deviation of a flat triangle with its corners
@@ -1253,10 +1247,10 @@ mod tests {
     /// a NaN or an infinity in the half-angle or in any corner, an apex
     /// corner's unread azimuth included, answers NaN, and slants whose
     /// product is past `f64`'s range answer NaN too; the verdict reads NaN
-    /// as exceeded. The cylinder's and the sphere's answer NaN for a
-    /// corner that is NaN or at infinity, where a bare `max(0.0)` on
-    /// `r − dist` answered 0. The torus's and the spindle's answer NaN or
-    /// `+∞`.
+    /// as exceeded. The torus's and the spindle's answer NaN or `+∞`. The
+    /// cylinder's and the sphere's do not: their clamp reads a NaN as 0,
+    /// pinned here as today's answer with the sound triangle it also
+    /// reads so.
     #[test]
     fn no_certificate_reads_an_input_that_is_not_finite_as_a_bound() {
         let (inf, nan) = (f64::INFINITY, f64::NAN);
@@ -1289,26 +1283,25 @@ mod tests {
                 Verdict::Exceeded
             );
         }
-        // The cylinder's and the sphere's: a corner that is NaN or at
-        // infinity poisons them too.
+        // The cylinder's and the sphere's clamp a NaN to 0 today
+        // (`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`):
+        // a poisoned corner, and a sound triangle with a side on a ruling
+        // across a twelfth of a turn, which deviates by the chord's
+        // sagitta and whose sibling half-cell reads it.
         let o = Point3::new(0.0, 0.0, 0.0);
-        let on = [
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let ruled = [
+            Point3::new(1.0, 1.0, 0.0),
             Point3::new(1.0, 0.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.866_025_403_784_438_6, 0.0, -0.5),
         ];
-        assert!(cert_sphere(o, 1.0, on) > 0.0 && cert_sphere(o, 1.0, on) < 1.0);
-        for bad in [nan, inf, -inf] {
-            let tri = [Point3::new(bad, 0.0, 0.0), on[1], on[2]];
-            assert!(
-                cert_sphere(o, 1.0, tri).is_nan(),
-                "sphere, a corner at {bad}"
-            );
-            assert!(
-                cert_cylinder(o, Vec3::new(0.0, 0.0, 1.0), 1.0, tri).is_nan(),
-                "cylinder, a corner at {bad}"
-            );
-        }
+        let sagitta = 1.0 - (PI / 12.0).cos();
+        assert_eq!(cert_cylinder(o, y, 1.0, ruled), 0.0);
+        let sibling = [ruled[0], ruled[2], Point3::new(ruled[2].x, 1.0, ruled[2].z)];
+        assert!((cert_cylinder(o, y, 1.0, sibling) - sagitta).abs() < 1e-15);
+        let poisoned = [Point3::new(nan, 0.0, 0.0), ruled[1], ruled[2]];
+        assert_eq!(cert_cylinder(o, y, 1.0, poisoned), 0.0);
+        assert_eq!(cert_sphere(o, 1.0, poisoned), 0.0);
         // The torus's and the spindle's answer no finite bound either.
         let flat = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
         for bad in [nan, inf, -inf] {
