@@ -7,6 +7,8 @@ opened: 2026-11-12
 priority: P1
 cost: M
 closed: 2026-11-13
+pr: 7028
+branch: sectarms/planar-spline-winding
 ---
 
 
