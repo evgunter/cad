@@ -503,24 +503,32 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         }
         _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
-    // The edge's curve is certified (above), so the star's one refusal
-    // here, a null edge, does not arise.
-    let (tangent, support) = crate::star::departure(body, h.start, he).ok()?;
-    let (dir, bend) = match support {
-        _ if secant => (curve.mid_point() - base, None),
-        crate::bound_side::BoundSupport::Chord { .. } => {
-            (tangent, Some(Vec3::new(T::zero(), T::zero(), T::zero())))
-        }
-        crate::bound_side::BoundSupport::Conic { bend, .. } => (
-            tangent,
-            match bend.bounds {
-                geom_brep::BendBounds::Planar { .. } => Some(bend.curvature),
-                geom_brep::BendBounds::Unbounded => None,
-            },
-        ),
-        crate::bound_side::BoundSupport::Extent(_)
-        | crate::bound_side::BoundSupport::Bisector { .. } => {
-            unreachable!("the star's departure reads an edge, a chord or a curve, never a probe")
+    let (dir, bend) = if secant {
+        (curve.mid_point() - base, None)
+    } else {
+        // The edge's curve is certified (above), so the star's one refusal
+        // here, a null edge, does not arise: a refusal is no scaffolding,
+        // and must not read as this door's `None`.
+        let (tangent, support) = crate::star::departure(body, h.start, he).unwrap_or_else(|e| {
+            unreachable!("the star refused a certified edge's departure: {e:?}")
+        });
+        match support {
+            crate::bound_side::BoundSupport::Chord { .. } => {
+                (tangent, Some(Vec3::new(T::zero(), T::zero(), T::zero())))
+            }
+            crate::bound_side::BoundSupport::Conic { bend, .. } => (
+                tangent,
+                match bend.bounds {
+                    geom_brep::BendBounds::Planar { .. } => Some(bend.curvature),
+                    geom_brep::BendBounds::Unbounded => None,
+                },
+            ),
+            crate::bound_side::BoundSupport::Extent(_)
+            | crate::bound_side::BoundSupport::Bisector { .. } => {
+                unreachable!(
+                    "the star's departure reads an edge, a chord or a curve, never a probe"
+                )
+            }
         }
     };
     Some(Leaving {
