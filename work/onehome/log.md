@@ -117,3 +117,28 @@
     - an audit of `topo::vertex_section`'s `sin ψ` as a second reader of the door.
 - 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6953 (`onehome/rim-span`) states a line rim's span from its segment's length. A BOXFINISH lane on `boxfinish/sweep-frames` (the sweep doors keep the frames they are handed; `work/boxfinish/the-extrude-mints-its-plane-normals-…`) is rewriting the same sites in `crates/sweep/src/extrude.rs` and `swept.rs`: each line rim's director and span come from the sketch frame turning a 2-D direction, never from two placed points. Its last pushed commit before an outage read "the line rim's and strut's spans are the sketch's". The two look like one statement reached twice; the lane is told to read 6953 and say so, or to send both readings if they differ. (BOXFINISH orchestrator)
 - 2026-11-15 — (BOXFINISH orchestrator) Main is red on `sym11_exact_channel_rows` after PR 6988 merged: the numeric column fell by one or two on five documents. Filed on this slate as `main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint` (P0, E), with the receipts and the attribution. The gate's slow-set step did not run the row. PR 6990 merges over it as an inherited red.
+- 2026-11-16 — **Fork 275, the walk stop's foot** (`work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md`), to Ev on the `onehome/walk-stop-ev` `[ev]` PR. There were three designers and three rounds, and they converged. The production width was measured by the ring probe (`onehome/ring-width-probe`, never merged). The probe classifies every ringed skip in `Found::read`, and an env switch refuses the unlicensed ones.
+  - **Topo whole: 31,251 skips.**
+    - 1,583 are pose skips the window certifies, and 21,580 are walk skips it certifies.
+    - 8,089 are unlicensed, in 2 tests. Containment licensed 0.
+    - Under refuse, one row flips: `ring_path::spline_wall_rows::an_island_across_a_closed_walls_seam_is_read_but_not_from_just_below_the_seam`. It is a transverse crossing at sine ≈ 1. Its window fails only because `NurbsCurve3::accel_upper_bound` is whole-domain and +∞ on a crease (`work/onehome/a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece.md`).
+    - The geom-brep row `a_spline_with_a_corner_meets_a_line_past_it` has 312 skips. All of them lie in one straight knot span, so a per-span bound proves them.
+  - **Sweep whole: 27 of 3,760 rows red under refuse**, the same 27 whichever kind the refusal takes.
+    - Bucketed by the outgoing-oriented angle at a held end, assuming the per-span bound and the one-sided arm are both built:
+      - 9 creased-transverse rows clear.
+      - 7 rows are joints (φ = 180°) and clear.
+      - 6 rows keep 2–5 skips each, tangent against an interior 1e-5–1e-4 m from an end.
+      - 5 rows keep a real residue of interior tangent touches. One of them is the ringed wall, with its 6 end-touches.
+    - So at most 5 to 11 rows stay red, all on tangent touches.
+  - **Absorption.** The refusals in the rows that stay green are absorbed by documented rules, not swallowed:
+    - `ring_path.rs` 1629, the `Answering::Any` climb;
+    - `carrier_cross.rs` 351–371, the frontier door.
+    - `spline_subtract_intersect_census` accepts any typed refusal and pins no census, which is a coverage gap.
+  - **Cost.** About 1–1.9 s saved per unequal-radius cylinder operation, from 6–7 s.
+- 2026-11-16 — **Fork 275 decided** (PR 7025). Ev approved the C5 change with the fork's answer (i): walked tangent touches escalate until a second-order arm exists, because (ii) is unsound. The `[one-way.readings]` rule was withdrawn, and C5 alone carries the instance. The build is owed, in this order:
+  1. the per-piece curvature bound (`work/onehome/a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece.md`, in progress);
+  2. the one-sided window at a held span end;
+  3. the pair read, with the polish held to the spans and the sampled whole-carrier foot retired;
+  4. the ring rule, which lands last.
+
+  The residue that rule turns red is 5 to 11 sweep rows of tangent touches, which escalate by design. The demo measurement is still pending.

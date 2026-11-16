@@ -924,12 +924,14 @@ conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
-table, and every candidate it proposes is settled against each span by
+table. A candidate that names a point is settled against each span by
 the point-on-span reading, which composes geom's one-carrier readings
-(the point's foot, and whether it lies on the carrier) with the span's
-reading of its ends, and decides nothing of its own; a point is decided
-off a carrier only on a lower bound on its distance to the whole
-carrier.
+(the point's foot over the span, and whether it lies on the carrier)
+with the span's reading of its ends, and decides nothing of its own; a
+point is decided off a carrier only on a lower bound on its distance to
+the whole carrier. A candidate that names a parameter on each span (a
+polished pair, its polish held to the two spans) is read as that pair:
+its own gap, and each parameter's place on its span, with no foot.
 Line, circle and ellipse pairs are closed forms that solve in one conic's
 angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
@@ -950,6 +952,10 @@ cross any number of times, and each crossing in a stretch of its own is
 its own meeting; a candidate nearer a found meeting than the band's
 escalation width cannot be decided distinct from it, so it is not read
 again.
+Its pieces are not thereby cleared: they are cleared by the
+candidate's own window, two-sided or one-sided at a span end the polish
+is held at, with its curvature bound read over the pieces themselves,
+and otherwise the stretch escalates.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
