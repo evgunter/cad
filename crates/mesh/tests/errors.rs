@@ -311,7 +311,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 edge,
                 cause: mesh::types::SphereTrimCause::PoleInside,
             },
-            vec!["sphere arm", "pole inside"],
+            vec!["trimmed lane", "pole or apex inside"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

@@ -129,7 +129,7 @@ use geom_core::NonzeroSign;
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
+use crate::implicit::{curvature_lever_arm, implicit_gradient};
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
@@ -500,25 +500,48 @@ fn signed_wedge<T: Real>(
     Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
 }
 
-/// The name a corner's sign is decided under ([`Corner::convexity`]).
+/// The name a corner's sign is decided under when the reading is of the
+/// body's shape ([`crate::edge_wedge_over`]).
 ///
 /// **What its verdicts are.** Each records which way one corner turns at
-/// one station: a reading of the body's shape, taken by tier 3's check 4,
-/// the boolean's shared-rim routing and the constructors that describe an
-/// edge by its whole wedge (`topo::edge_wedge`). Its population is the
-/// body's mix of convex and concave stations, so an edit that trades
-/// corners of one turn for corners of the other (a through slot becoming
-/// a blind pocket) moves the population across signs although no corner turned, and a population
-/// diff cannot tell the two apart. A flip among them changes whether a
-/// body is accepted (a sign that turns along one edge, or reads in band),
-/// never which body was built, since a crease of either turn is described
-/// alike: `editor_core::resolve`'s flip lane passes over it, as it does
-/// over the side reader's family.
+/// one station, taken by tier 3's check 4, the boolean's shared-rim
+/// routing, and the extrude and revolve upgrades that describe an edge by
+/// its whole wedge (`topo::edge_wedge`, `topo::edge_wedge_description`).
+/// Its population is the body's mix of convex and concave stations, so
+/// an edit that trades corners of one turn for corners of the other (a
+/// through slot becoming a blind pocket) moves the population across
+/// signs although no corner turned, and a population diff cannot tell
+/// the two apart. A flip among them changes whether a body is accepted (a
+/// sign that turns along one edge, or reads in band), never which body
+/// was built, since a crease of either turn is described alike:
+/// `editor_core::resolve`'s flip lane passes over it, as it does over the
+/// side reader's family.
+///
+/// **A reader whose side builds records it under its own name.** The
+/// blend reads the same fold through [`crate::edge_wedge_over_as`] with
+/// its own [`crate::FoldNames`], `fillet3_convexity_sign` for a corner's
+/// sign and `fillet3_knife_end` for a tangency's end, since either picks
+/// the side its ball rolls on and so which body it builds; the split
+/// rule's sign stays on its own reading for the same reason. Neither is
+/// in this population, so the flip lane sees their flips.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
+/// The name a dihedral's class is decided under ([`classify_dihedral`]):
+/// the unsigned first-order wedge `sin θ · arm`.
+pub const DIHEDRAL_WEDGE: &str = "dihedral_wedge";
+
+/// The name two smoothly meeting faces' second-order separation is
+/// decided under ([`tangent_second_order`]).
+pub const TANGENT_SECOND_ORDER: &str = "tangent_second_order";
+
+/// The name which end of the wedge, 0 or 2π, opposed tangent faces make
+/// is decided under ([`crate::WedgeVerdict::End`]).
+pub const MATERIAL_CUSP_SIDE: &str = "material_cusp_side";
+
 impl<T: Decide> Corner<T> {
-    /// **`dihedral_sign`** ([`DIHEDRAL_SIGN`]) — the corner's convexity
-    /// at `station`: the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
+    /// **The corner's convexity** at `station`, decided as `name` (the
+    /// fold's reader's: [`DIHEDRAL_SIGN`] for a reading of the body's
+    /// shape, the blend's own name for its building decision): the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
     /// token's normals, each turned outward by its face's `Face::sense`
     /// bit (`senses`, the plus face's first), with `τ̂` the station's
     /// direction, under [`Convexity`]'s convention: the plus face is the
@@ -534,24 +557,35 @@ impl<T: Decide> Corner<T> {
     /// stations are built together ([`WedgeWalk`](crate::WedgeWalk)) and read only through
     /// the fold.
     ///
+    /// **Read only inside the fold** ([`crate::edge_wedge_over`]), so no
+    /// reader outside it composes a class with a sign: an edge's sign is
+    /// its whole wedge's (`topo::edge_wedge`).
+    ///
+    /// Returns the margin the sign was decided on beside it: the record
+    /// a crease's verdict carries ([`crate::WedgeVerdict::Crease`]).
+    ///
     /// # Errors
     ///
     /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
-    pub fn convexity(
+    pub(crate) fn convexity(
         &self,
+        name: &'static str,
         station: &Station<T>,
         senses: [bool; 2],
         band: Band,
-    ) -> Result<Convexity, WedgeEscalation> {
+    ) -> Result<(Convexity, geom_core::MarginDiag), WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
-        decide_nonzero(
-            DIHEDRAL_SIGN,
-            signed_wedge(n_plus, n_minus, station.tau, self.0.arm),
+        decide_nonzero_reported(
+            name,
+            signed_wedge(n_plus.vec(), n_minus.vec(), station.tau, self.0.arm),
             band,
         )
-        .map(|sign| match sign {
-            NonzeroSign::Positive => Convexity::Convex,
-            NonzeroSign::Negative => Convexity::Concave,
+        .map(|(sign, margin)| {
+            let convexity = match sign {
+                NonzeroSign::Positive => Convexity::Convex,
+                NonzeroSign::Negative => Convexity::Concave,
+            };
+            (convexity, margin)
         })
         .map_err(|diag| WedgeEscalation::at(WedgeRung::Sign, diag))
     }
@@ -562,10 +596,8 @@ impl<T: Decide> Tangency<T> {
     /// whether the faces' outward normals (the token's normals, each
     /// turned by its face's `Face::sense` bit, `senses` in the faces'
     /// order) are aligned, the π seam, or opposed, the cusp or the slit.
-    /// Metered as `cos θ · arm` over the arm the class was read on. This
-    /// is the C1 lemma the declared-contact verifier decides between
-    /// bodies (`contact_tangent_opposed`), read edge-locally between two
-    /// faces of one body.
+    /// Read by [`normals_alignment`], `cos θ · arm` over the arm the class
+    /// was read on, as [`AlignmentReading::pairing`].
     ///
     /// # Errors
     ///
@@ -576,29 +608,28 @@ impl<T: Decide> Tangency<T> {
     /// tolerance it would offer leaves the class's wedge in band, the
     /// refusal quotes the wedge instead, under `"material_pairing_wedge"`
     /// (`pairing_at_wedge`).
-    pub fn pairing(
+    ///
+    /// **Read only inside the fold** ([`crate::edge_wedge_over`]), as
+    /// [`Corner::convexity`] is: an edge's pairing is its whole wedge's.
+    pub(crate) fn pairing(
         &self,
         senses: [bool; 2],
         band: Band,
     ) -> Result<MaterialPairing, WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
-        let arm = self.0.arm;
-        let (pairing, cos_theta, sin_theta) =
-            pairing_of_normals("material_wedge_side", n_plus, n_minus, arm, band);
-        pairing
-            .map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
+        smooth_pairing(n_plus, n_minus, self.0.arm, band)
             .map_err(|diag| WedgeEscalation::at(WedgeRung::Pairing, diag))
     }
 }
 
 impl<T: Real> Reading<T> {
     /// The two unit normals turned outward by their faces' sense bits,
-    /// as [`implicit_outward_normal`] reads each.
-    fn outward(&self, [plus, minus]: [bool; 2]) -> [geom_core::Vec3<T>; 2] {
+    /// as [`crate::implicit::implicit_outward_normal`] reads each.
+    fn outward(&self, [plus, minus]: [bool; 2]) -> [OutwardNormal<T>; 2] {
         let [a, b] = self.gradients;
         [
-            OutwardNormal::from_chart(a.normalize(), plus).vec(),
-            OutwardNormal::from_chart(b.normalize(), minus).vec(),
+            OutwardNormal::from_chart(a.normalize(), plus),
+            OutwardNormal::from_chart(b.normalize(), minus),
         ]
     }
 }
@@ -949,7 +980,8 @@ fn seam_face_reading<T: Decide>(
     // Where the chart's normal is defined is the chart's own question,
     // read over its control net's reach as the sector walk reads it; the
     // seam's reach is the arm's alone.
-    let net_reach = crate::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let net_reach = crate::ExtentBall::of_cover_from(net.as_ref(), p).lever();
     let jet =
         crate::regular_jet(chart, uv, net_reach.length(), band).map_err(SeamEscalation::Crease)?;
     let (normal, _) = crate::chart_normal_at(chart, true, &jet, uv, net_reach, band)
@@ -1039,7 +1071,7 @@ fn wedge_of<T: Decide>(
     // over the enclosure. Poison is a structure question
     // (`Real::is_poison`), not a decision on the value.
     let Decided { sign, margin } =
-        decide_reported("dihedral_wedge", margin, band).map_err(|diag| {
+        decide_reported(DIHEDRAL_WEDGE, margin, band).map_err(|diag| {
             if diag.margin.is_invalid() && !magnitudes.is_poison() {
                 FirstOrderEscalation::NoTangentPlane(diag)
             } else {
@@ -1144,11 +1176,10 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// point decisions do not read it: their arm is
 /// `crate::ssi::point_arm`'s, from the surfaces' largest principal
 /// curvature, which this fold's [`curvature_lever_arm`] is not on a
-/// cone or a torus. Nor does `contact_verify`'s
-/// `contact_tangent_opposed`, the same C1 lemma as
-/// [`Tangency::pairing`] between bodies: it levers its normals'
-/// dot by the faces' extent, as `crate::certify`'s
-/// `tangent_gap_orientation` does.
+/// cone or a torus. Nor do the two readers of [`gradient_alignment`]
+/// before tangency, `contact_verify`'s `contact_tangent_opposed` and
+/// `crate::certify`'s `tangent_gap_orientation`: they lever the
+/// normals' cosine by the faces' extent.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(
@@ -1242,7 +1273,7 @@ fn second_order_verdict<T: Decide>(
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
-        "tangent_second_order",
+        TANGENT_SECOND_ORDER,
         Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
         band,
     )
@@ -2097,184 +2128,160 @@ pub enum MaterialPairing {
     Opposed,
 }
 
-/// **An edge's material wedge, signed**: what [`classify_edge_wedge`]
-/// decides of the dihedral between an edge's two faces.
+/// **How two faces' outward normals stand at a point** ([`normals_alignment`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EdgeWedge {
-    /// Material wedge below π.
-    Convex,
-    /// Material wedge above π.
-    Concave,
-    /// The sign decided zero with the outward normals aligned: wedge
-    /// π, the two faces continuing one another (the seam,
-    /// [`crate::WedgeVerdict::Seam`]).
-    Smooth,
-    /// The sign decided zero with the outward normals opposed: wedge 0
-    /// or 2π, a cusp or a knife slit ([`WedgeEnd::Cusp`],
-    /// [`WedgeEnd::Slit`]; which end is the jet's question, not
-    /// this door's).
-    Knife,
+pub enum GradientAlignment {
+    /// The cosine decided positive: the normals point one way.
+    Same,
+    /// The cosine decided negative: they point opposite ways.
+    Reversed,
+    /// The cosine decided zero past a lever decided positive: the normals
+    /// stand so near square that their cosine, metered at the lever, is
+    /// inside the band's zero (`|cos θ| < zero / lever`).
+    Perpendicular,
 }
 
-/// Which read of [`classify_edge_wedge`] escalated.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EdgeWedgeEscalation {
-    /// The signed dihedral landed in band or was poisoned.
-    Sign(Indeterminate),
-    /// The sign decided zero and the material pairing
-    /// ([`Tangency::pairing`]) refused.
-    Side(Indeterminate),
-}
-
-/// **A lever arm decided definitely positive**: the only form
-/// [`classify_edge_wedge`] takes its arm in, so the door's "past a
-/// definitely positive arm" is a fact of the type and not of the caller.
-/// Minted by [`PositiveArm::gate`], under the caller's own predicate name
-/// (the blend's `fillet3_chain_arm`), so the gate keeps its population in
-/// the K report.
+/// **Two normals' alignment, with the reading that decided it**
+/// ([`normals_alignment`]). The material pairing of the two faces is read
+/// off it ([`AlignmentReading::pairing`]), never off the cosine again.
 #[derive(Clone, Copy, Debug)]
-pub struct PositiveArm<T: Real>(geom_core::Lever<T>);
+pub struct AlignmentReading {
+    alignment: GradientAlignment,
+    decided: Decided,
+    name: &'static str,
+    band: Band,
+}
 
-impl<T: Real> PositiveArm<T> {
-    /// `arm` decided positive as `name`.
+impl AlignmentReading {
+    /// The verdict.
+    #[must_use]
+    pub const fn alignment(&self) -> GradientAlignment {
+        self.alignment
+    }
+
+    /// The reading the cosine was decided on.
+    #[must_use]
+    pub const fn decided(&self) -> Decided {
+        self.decided
+    }
+
+    /// **The two faces' material pairing**: one material side where their
+    /// outward normals point one way, facing each other where they point
+    /// opposite ways. That it is a pairing at all, the faces' tangent
+    /// planes coinciding, is the caller's proof, not this reading's.
     ///
     /// # Errors
     ///
-    /// [`Indeterminate`] under `name`: the arm in band, poisoned, or
-    /// decided zero or negative.
-    pub fn gate(
-        name: &'static str,
-        arm: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<Self, Indeterminate>
-    where
-        T: Decide,
-    {
-        decide_positive(name, Margin::of(arm.length()), band).map(|()| Self(arm))
-    }
-
-    /// The arm.
-    #[must_use]
-    pub fn get(self) -> geom_core::Lever<T> {
-        self.0
-    }
-}
-
-/// **The one door that classifies an edge's dihedral with its material
-/// side**: [`EdgeWedge`] from the two faces' outward normals at one
-/// on-edge point.
-///
-/// The sign is `((n₊ × n₋)·τ̂)·arm` in meters, decided as `name`: `n₊`,
-/// `n₋` the two faces' outward normals there (an [`OutwardNormal`] is
-/// folded by its face's `Face::sense` bit by construction), `τ̂` the
-/// edge's direction as the plus face's loop walks it, `arm` the folded
-/// lever arm ([`folded_lever_arm`]) gated positive ([`PositiveArm`]).
-/// Swapping the faces also reverses the walk, so the sign is the edge's
-/// and not the order's: positive is convex, negative concave. The caller
-/// computes the normals once and reads them for whatever else it asks of
-/// the point; the door and its pairing read the same two.
-///
-/// Both normals are perpendicular to the edge, so their cross product
-/// lies along `τ̂`, and a sign decided zero says the normals are
-/// parallel to within the band: which way is the material pairing
-/// ([`Tangency::pairing`]'s decision, on these normals at the
-/// same arm), aligned ([`EdgeWedge::Smooth`]) or opposed
-/// ([`EdgeWedge::Knife`]). Returns the signed margin it decided beside
-/// the class.
-///
-/// # Errors
-///
-/// [`EdgeWedgeEscalation::Sign`] in band or on poison;
-/// [`EdgeWedgeEscalation::Side`] where the pairing refuses, which past
-/// a definitely positive arm a decided-zero sign leaves only in band.
-pub fn classify_edge_wedge<T: Decide>(
-    name: &'static str,
-    n_plus: OutwardNormal<T>,
-    n_minus: OutwardNormal<T>,
-    tau: geom_core::Vec3<T>,
-    arm: PositiveArm<T>,
-    band: Band,
-) -> Result<(EdgeWedge, Margin<T>), EdgeWedgeEscalation> {
-    let (n_plus, n_minus, arm) = (n_plus.vec(), n_minus.vec(), arm.get());
-    let margin = signed_wedge(n_plus, n_minus, tau, arm);
-    let wedge = match decide(name, margin, band).map_err(EdgeWedgeEscalation::Sign)? {
-        Sign::Positive => EdgeWedge::Convex,
-        Sign::Negative => EdgeWedge::Concave,
-        Sign::Zero => {
-            let (pairing, cos_theta, sin_theta) =
-                pairing_of_normals("material_wedge_side", n_plus, n_minus, arm, band);
-            match pairing
-                .map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
-                .map_err(EdgeWedgeEscalation::Side)?
-            {
-                MaterialPairing::Aligned => EdgeWedge::Smooth,
-                MaterialPairing::Opposed => EdgeWedge::Knife,
-            }
+    /// A [`GradientAlignment::Perpendicular`] reading names no side: it is
+    /// refused under the reading's name as the nonzero gate refuses a
+    /// decided zero.
+    pub fn pairing(&self) -> Result<MaterialPairing, Indeterminate> {
+        match self.alignment {
+            GradientAlignment::Same => Ok(MaterialPairing::Aligned),
+            GradientAlignment::Reversed => Ok(MaterialPairing::Opposed),
+            GradientAlignment::Perpendicular => Err(geom_core::k_stats::gate_rejection(
+                self.name,
+                self.decided,
+                self.band,
+                SizedPass::NonZero,
+            )),
         }
-    };
-    Ok((wedge, margin))
+    }
 }
 
-/// The pairing's construction and margin, decided as `name`, for a
-/// caller asking it about a pair of planes it reached by no dihedral (an
-/// on-plane face against a candidate plane), which keeps its own
-/// population in the K report instead of joining `material_wedge_side`'s.
-/// No wedge was read there, so a refusal keeps the pairing's own margin.
+/// The K name of the lever gate a [`GradientAlignment::Perpendicular`]
+/// verdict stands behind: a cosine read zero over a lever that is not
+/// decided positive is a collapsed lever, not a square pair.
+pub const GRADIENT_ALIGNMENT_LEVER: &str = "gradient_alignment_lever";
+
+/// **`gradient_alignment`** — [`normals_alignment`] of `s1`'s and `s2`'s
+/// implicit gradients at `p`, each turned outward by its face's
+/// `Face::sense` bit (`senses`, in the surfaces' order; `[true, true]`
+/// reads the carriers' own gradients).
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] under `name`: in band, poisoned, or decided zero.
-#[allow(clippy::too_many_arguments)] // two faces read at a point, the arm and the name
-pub fn classify_material_pairing_as<T: Decide>(
+/// As [`normals_alignment`].
+#[allow(clippy::too_many_arguments)] // two faces read at a point, the lever and the name
+pub fn gradient_alignment<T: Decide>(
     name: &'static str,
-    s_plus: &Surface<T>,
-    sense_plus: bool,
-    s_minus: &Surface<T>,
-    sense_minus: bool,
+    s1: &Surface<T>,
+    s2: &Surface<T>,
     p: Point3<T>,
-    arm: geom_core::Lever<T>,
+    [sense1, sense2]: [bool; 2],
+    lever: geom_core::Lever<T>,
     band: Band,
-) -> Result<MaterialPairing, Indeterminate> {
-    pairing_reading_as(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
-}
-
-/// The pairing decided as `name`, with the `cos θ` it decided on and the
-/// `sin θ` of the same normals.
-#[allow(clippy::too_many_arguments)]
-fn pairing_reading_as<T: Decide>(
-    name: &'static str,
-    s_plus: &Surface<T>,
-    sense_plus: bool,
-    s_minus: &Surface<T>,
-    sense_minus: bool,
-    p: Point3<T>,
-    arm: geom_core::Lever<T>,
-    band: Band,
-) -> (Result<MaterialPairing, Indeterminate>, T, T) {
-    pairing_of_normals(
+) -> Result<AlignmentReading, Indeterminate> {
+    normals_alignment(
         name,
-        implicit_outward_normal(s_plus, sense_plus, p).vec(),
-        implicit_outward_normal(s_minus, sense_minus, p).vec(),
-        arm,
+        OutwardNormal::from_chart(implicit_gradient(s1, p).normalize(), sense1),
+        OutwardNormal::from_chart(implicit_gradient(s2, p).normalize(), sense2),
+        lever,
         band,
     )
 }
 
-/// [`pairing_reading_as`] on two outward normals already read.
-fn pairing_of_normals<T: Decide>(
+/// **The one reading of two faces' outward normals against each other**:
+/// their cosine levered at `lever`, decided as `name`. Every pairing of
+/// two faces at a point is read here: a tangency's
+/// ([`Tangency::pairing`]), two parallel planes'
+/// ([`crate::carrier_pose()`]), and a contact's or a certificate's
+/// orientation before tangency ([`gradient_alignment`]). The normals are
+/// [`OutwardNormal`]s, so the faces' senses were folded in where they
+/// were minted.
+///
+/// A cosine decided zero is [`GradientAlignment::Perpendicular`] only
+/// once `lever` is decided positive ([`GRADIENT_ALIGNMENT_LEVER`]): a
+/// collapsed lever reads every pair zero, and refuses here.
+///
+/// The lever is the caller's, as [`classify_dihedral`]'s reach is: a
+/// reader before tangency meters the cosine over the faces' extent, and
+/// a tangency over the arm its class was decided on.
+///
+/// # Errors
+///
+/// [`Indeterminate`] under `name` in band or poisoned, or under
+/// [`GRADIENT_ALIGNMENT_LEVER`] where the cosine decided zero over a
+/// lever not decided positive.
+pub(crate) fn normals_alignment<T: Decide>(
     name: &'static str,
-    n_plus: geom_core::Vec3<T>,
-    n_minus: geom_core::Vec3<T>,
+    n1: OutwardNormal<T>,
+    n2: OutwardNormal<T>,
+    lever: geom_core::Lever<T>,
+    band: Band,
+) -> Result<AlignmentReading, Indeterminate> {
+    let decided = decide_reported(name, Margin::levered(n1.vec().dot(n2.vec()), lever), band)?;
+    let alignment = match decided.sign {
+        Sign::Positive => GradientAlignment::Same,
+        Sign::Negative => GradientAlignment::Reversed,
+        Sign::Zero => {
+            decide_positive(GRADIENT_ALIGNMENT_LEVER, Margin::of(lever.length()), band)?;
+            GradientAlignment::Perpendicular
+        }
+    };
+    Ok(AlignmentReading {
+        alignment,
+        decided,
+        name,
+        band,
+    })
+}
+
+/// **A smooth point's material pairing** ([`normals_alignment`] as a
+/// pairing): the refusal quoted at the wedge where its tolerance would
+/// not decide the wedge ([`pairing_at_wedge`]).
+fn smooth_pairing<T: Decide>(
+    n_plus: OutwardNormal<T>,
+    n_minus: OutwardNormal<T>,
     arm: geom_core::Lever<T>,
     band: Band,
-) -> (Result<MaterialPairing, Indeterminate>, T, T) {
-    let cos_theta = n_plus.dot(n_minus);
-    let pairing = match decide_nonzero(name, Margin::levered(cos_theta, arm), band) {
-        Ok(NonzeroSign::Positive) => Ok(MaterialPairing::Aligned),
-        Ok(NonzeroSign::Negative) => Ok(MaterialPairing::Opposed),
-        Err(refusal) => Err(refusal),
-    };
-    (pairing, cos_theta, n_plus.cross(n_minus).norm())
+) -> Result<MaterialPairing, Indeterminate> {
+    normals_alignment("material_wedge_side", n_plus, n_minus, arm, band)
+        .and_then(|reading| reading.pairing())
+        .map_err(|refusal| {
+            let (a, b) = (n_plus.vec(), n_minus.vec());
+            pairing_at_wedge(refusal, a.dot(b), a.cross(b).norm(), arm, band)
+        })
 }
 
 /// **The pairing's refusal, quoted at the wedge where its tolerance would
@@ -3201,6 +3208,89 @@ mod tests {
             origin: Point3::origin(),
             normal,
             u_ref,
+        }
+    }
+
+    /// **Two faces' outward normals read one way, opposite ways or
+    /// square, the square verdict only past a lever decided positive, and
+    /// the pairing only off a side.** Two planes through the origin, their
+    /// normals at 0°, 180° and 90°, over a lever of 2, the faces' senses
+    /// each way: `Same` where the outward normals point one way (the
+    /// gradients one way and the senses equal, or opposite and the senses
+    /// differing), `Reversed` otherwise, `Perpendicular` at 90° whatever
+    /// the senses; the pairing `Aligned`, `Opposed`, and refused at square
+    /// under the reading's own name. The square pair over a lever at the
+    /// band's geometric middle refuses on the lever's gate, and over a
+    /// lever under the band's zero too: a collapsed lever reads every
+    /// cosine zero. Red if a collapsed lever reads a pair perpendicular, a
+    /// sense bit turns the wrong way, or a square pair names a side.
+    #[test]
+    fn outward_normals_align_reverse_or_stand_square_past_a_positive_lever() {
+        use GradientAlignment::{Perpendicular, Reversed, Same};
+        use MaterialPairing::{Aligned, Opposed};
+        let b = band();
+        let up = plane(Vec3::unit_z(), Vec3::unit_x());
+        let down = plane(-Vec3::unit_z(), Vec3::unit_x());
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        let at = |s2: &Surface<f64>, senses: [bool; 2], lever: f64| {
+            gradient_alignment(
+                "t",
+                &up,
+                s2,
+                Point3::origin(),
+                senses,
+                fixture_lever(lever),
+                b,
+            )
+        };
+        for (what, s2, senses, alignment, pairing) in [
+            ("one way", &up, [true, true], Same, Some(Aligned)),
+            (
+                "one way, both reversed",
+                &up,
+                [false, false],
+                Same,
+                Some(Aligned),
+            ),
+            (
+                "one way, one reversed",
+                &up,
+                [true, false],
+                Reversed,
+                Some(Opposed),
+            ),
+            ("opposite", &down, [true, true], Reversed, Some(Opposed)),
+            (
+                "opposite, one reversed",
+                &down,
+                [false, true],
+                Same,
+                Some(Aligned),
+            ),
+            ("square", &wall, [true, true], Perpendicular, None),
+            (
+                "square, one reversed",
+                &wall,
+                [true, false],
+                Perpendicular,
+                None,
+            ),
+        ] {
+            let reading = at(s2, senses, 2.0).expect("a lever of 2 decides");
+            assert_eq!(reading.alignment(), alignment, "{what}");
+            match (reading.pairing(), pairing) {
+                (Ok(got), Some(want)) => assert_eq!(got, want, "{what}"),
+                (Err(refused), None) => assert_eq!(refused.predicate, Some("t"), "{what}"),
+                (got, want) => panic!("{what}: {got:?}, not {want:?}"),
+            }
+        }
+        for lever in [(b.zero() * b.escalate()).sqrt(), b.zero() * 0.5] {
+            let refused = at(&wall, [true, true], lever).expect_err("a lever not decided positive");
+            assert_eq!(
+                refused.predicate,
+                Some(GRADIENT_ALIGNMENT_LEVER),
+                "the lever {lever:e} refuses on its gate"
+            );
         }
     }
 

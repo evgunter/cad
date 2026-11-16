@@ -91,7 +91,7 @@ enum Want {
     Draws,
     /// `SOUND`, and the mesher refuses a triangle folded over the chord
     /// beside it near a chart pole
-    /// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+    /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     Folds,
     /// `SOUND`, and the mesher refuses at once: the tilted circle passes
     /// so near a chart pole that its uniform chord schedule asks one edge
@@ -238,6 +238,23 @@ fn both_witnesses_build_under_every_boolean() {
 /// inputs and each op builds, its volume bracketing the oracle's.
 #[test]
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
+    // Pinned red at ε 1e-12: the Interval union escalates a pcurve envelope
+    // (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the plain witness",
+        &[
+            "Interval a ∪ b: wanted a body",
+            "EnvelopeTerm(Radius)",
+            "pcurve_envelope",
+        ],
+        the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row,
+    );
+}
+
+/// The row [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`] runs, under its pin.
+fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row() {
     use crate::common::interval::iv;
     use geom_core::Bounds;
     let tol = Tol::witness();

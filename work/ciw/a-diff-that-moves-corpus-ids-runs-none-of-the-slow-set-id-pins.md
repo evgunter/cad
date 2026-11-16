@@ -72,3 +72,11 @@ bisect blamed the merge
 `## Closed`). So a diff to how a boolean records its naming rows
 (`boolean/discard.rs`, `fate.rs`, `ops.rs`) should select the slow
 rows that count them, by the same mechanism this row asks for ids.
+
+## Instance (2026-11-13, PR 6856; recorded by GREEN's `green/goldens` lane)
+
+PR 6856 (`placing/named-source`, merge `a9df07339`) made a placement mint the source it reads its body through, so every id minted after one moved. Its gate ran none of the slow-set rows that pin those ids, and it merged with them red: every row of `lib_g16_corpus_name_digests` and `perf2_name_keying_differential` (34 documents each), five rows each of `seat4_verb_lowering` and `seat7_sweep_lowering`, `seat8_split_lowering`'s three, and `m10_p_fence`'s f64 and interval rows. It re-pinned the id-bearing constants its gate did run (`m4_pr4_ci`'s diagnosis digest, `m10_6_certifying_keys.txt`, one seat4 constant), each with the right reason. Measured first-parent: the rows above read the same from `e36675c1` through `d8e1c86d6` and all move at `a9df07339`.
+
+The same mechanism hid PR 6820's `kitchen_sink` move in `seat7_sweep_lowering` (it re-blessed `seat8_split_lowering`'s copy of the same pin and its gate did not run seat7's), PR 6902's in `m10_5_clearance_interval`, and PR 6908's in step-export's `ball.step`, `die_pips.step` and `lily_lantern.step`.
+
+It also cuts the other way: a PR that only re-cuts a golden file or a constant adds no line spelling the test's name, so `slow_set.py --new-expr` selects `none()` and the gate is green having run none of the rows it re-cut. `green/goldens` had to name each test in a doc line beside its table to be selected.

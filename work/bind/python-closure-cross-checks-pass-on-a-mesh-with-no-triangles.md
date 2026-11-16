@@ -45,7 +45,7 @@ are what a reader is taught to write, so the vacuity is being taught.
 **Reach.** The producer is real from Python: `Body.tessellate` goes
 through `mesh::tessellate`, which answers `Ok` with a mesh of nothing
 for a body with no faces and has no face-count guard (TESS has the
-open question — `work/tess/should-tessellate-refuse-a-body-with-no-faces.md`).
+open question — `work/tesslane/should-tessellate-refuse-a-body-with-no-faces.md`).
 Neither site can be reached by the shapes it actually meshes (a box, a
 cylinder, a washer), so this is a teaching defect and a latent one, not
 a live failure.

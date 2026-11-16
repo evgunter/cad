@@ -173,7 +173,8 @@ fn reach_clears<T: Decide>(
 /// the plane ends at it ([`crate::vertex_section`]), its walk reading
 /// the far vertices' offset verdicts. One offset evaluation per vertex
 /// (the book recomputes per incident edge). In-band ⇒ typed
-/// [`SplitReduceError::SliverVertex`], never a snap.
+/// [`SplitReduceError::SliverVertex`] (the offset) or
+/// [`SplitReduceError::SliverSection`] (the section), never a snap.
 pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -201,11 +202,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<MarginedSides, SplitReduceError> {
-    let side_of = |sign| match sign {
-        Sign::Negative => PlaneSide::Below,
-        Sign::Positive => PlaneSide::Above,
-        Sign::Zero => PlaneSide::On,
-    };
+    let side_of = PlaneSide::of_sign;
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
@@ -256,12 +253,14 @@ pub(super) fn classify_vertices_margined<T: Decide>(
             band,
         )
         .map_err(|refusal| match refusal {
-            VertexRefusal::Offset(diag) | VertexRefusal::Section(diag) => {
-                SplitReduceError::SliverVertex {
-                    vertex: vertex_key,
-                    diag,
-                }
-            }
+            VertexRefusal::Offset(diag) => SplitReduceError::SliverVertex {
+                vertex: vertex_key,
+                diag,
+            },
+            VertexRefusal::Section(diag) => SplitReduceError::SliverSection {
+                vertex: vertex_key,
+                diag,
+            },
             VertexRefusal::Walk(e) => e,
             VertexRefusal::Star(fault) => fault.split_refusal(vertex_key, band),
             VertexRefusal::Side { face, diag } => SplitReduceError::SliverSector {

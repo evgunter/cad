@@ -1829,7 +1829,7 @@ pub enum ValidationError {
     /// chart singularity** — a meridian walked out and back that stops
     /// short of the pole. Read
     /// at the joint between the edge's two halves by the incidence the
-    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// loop walk decides that joint's turn by (`crate::pcurves::pcurve_pass`,
     /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
     /// a distance of its own.
     WrapTipOffChartSingularity {
@@ -4147,6 +4147,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         }
         // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
+        M::SingularTurn { .. } => (
+            "a corner of the face on its surface's pole or apex names no one side of the point",
+            crate::pcurves::SINGULAR_TURN_RECOURSE,
+        ),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -4457,6 +4461,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
+        ChartRegionError::FaceUncovered(_) => (
+            "a face's region cannot be bounded (its carrier or a boundary edge has no cover)",
+            DEFECT,
+        ),
         // A plane trim edge's incidence read: its reason from the one
         // table, its ending by the one map, at rest.
         ChartRegionError::TrimOffFace { read, .. } => {
@@ -5849,13 +5857,50 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
     incidence
 }
 
+/// **Whether `edge` is a wrap edge**: its stored certified carrier is
+/// described as its face's wrap edge (`EdgeDescription::is_wrap`), so
+/// the reading is structural and takes no ε. `false` for an edge key or
+/// curve the body does not hold, or a carrier not yet certified.
+///
+/// This is the one home of the wrap flag both tip readings take:
+/// [`wrap_tips`] (a valence-1 end of a wrap edge) and [`wrap_tip_at`]
+/// (a wrap edge whose two ends differ, met at one of them by a corner
+/// it bounds both ways). Their vertex
+/// readings stay two, because valence counts every half-edge at the
+/// vertex: mid-run, while the Boolean mints struts at a tip, the struts
+/// already minted there raise its valence past 1 and [`wrap_tips`] stops
+/// reading it, where the corner still reads it. At rest the two agree on
+/// every tip, which the sweep suite's
+/// `the_two_tip_readings_agree_on_every_wrap_bearing_body` checks.
+pub(crate) fn wraps<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
+    body.edges
+        .get(edge)
+        .and_then(|edge| body.curves.get(edge.curve))
+        .and_then(CurveGeom::certified)
+        .is_some_and(|curve| curve.description().is_wrap())
+}
+
+/// **Whether `edge`, met at `vertex`, is a wrap edge's tip there**, read
+/// at one corner (the Boolean's strut facing asks it,
+/// `boolean::insert::strut_faces_first`'s `tip`): a wrap edge ([`wraps`])
+/// whose two ends differ, `vertex` one of them. At rest it is
+/// [`wrap_tips`]' set: a corner bounded both ways by one edge of two
+/// ends is that edge's halves following each other round `vertex`, so
+/// its orbit holds no other edge. Why the two readings stay two is
+/// [`wraps`]'.
+pub(crate) fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
+    let e = crate::live::proven(&body.edges, edge, EntityId::Edge);
+    let ends = [Some(e.he_plus), body.mate(e.he_plus)]
+        .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
+    wraps(body, edge) && ends[0] != ends[1] && ends.contains(&Some(vertex))
+}
+
 /// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
 /// keyed to the one half-edge leaving it: a tip is any valence-1 end
 /// ([`valences`]) of a wrap edge, the face's seam kept to its end, where
 /// the face's loop walks the edge out and straight back. Both ends of a
 /// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
-/// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
-/// reading is structural and takes no ε. Where a tip lies is tier 3's
+/// The wrap flag is [`wraps`]'. Where a tip lies is tier 3's
 /// (`crate::pcurves::pcurve_pass`). The valence-1 end is the vertex
 /// [`crate::surface_boundary::tips`] reads off a loop (a half-edge its
 /// loop follows by its own mate), counted here so that a body whose
@@ -5864,13 +5909,7 @@ pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, Half
     let valence = valences(body);
     let mut tips = SecondaryMap::new();
     for (he_key, he) in body.half_edges.iter() {
-        let wraps = body
-            .edges
-            .get(he.edge)
-            .and_then(|edge| body.curves.get(edge.curve))
-            .and_then(CurveGeom::certified)
-            .is_some_and(|curve| curve.description().is_wrap());
-        if wraps && valence.get(he.start) == Some(&1) {
+        if wraps(body, he.edge) && valence.get(he.start) == Some(&1) {
             tips.insert(he.start, he_key);
         }
     }
@@ -6147,7 +6186,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    with no singular point refuses as such
 ///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
 ///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
-///    incidence is the one the joint resets by
+///    incidence is the one the joint's turn is decided by
 ///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
 ///    check 6's at-vertex placement reads too), and a joint check 8
 ///    itself refuses or leaves unread reports nothing more.
@@ -6193,7 +6232,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   (via booleans). The whole-body embedding certificate belongs to
 ///   the at-rest gate (`DESIGN.md` `[topology.tiers]`), not to this
 ///   pass, and is not built yet:
-///   `work/clear/the-at-rest-gate-certifies-embedding.md`.
+///   `work/embed/the-at-rest-gate-certifies-embedding.md`.
 /// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
 ///   its material arm are both exempt by kind there (implicit-form
 ///   gradients are poison on a spline chart), so such an edge carries
@@ -7180,12 +7219,12 @@ pub(crate) fn wedge_reading(
     let mark = match verdict {
         V::InBand(_) | V::Mixed(_) => ContactMark::Unmarked,
         _ if wrap => ContactMark::Seam,
-        V::Crease(_) => ContactMark::Transverse,
+        V::Crease { .. } => ContactMark::Transverse,
         V::Seam {
             bend: Bend::Determinate,
             ..
         }
-        | V::End(_) => ContactMark::Tangent,
+        | V::End { .. } => ContactMark::Tangent,
         V::Seam {
             bend: Bend::UnderDetermined,
             ..
@@ -7195,11 +7234,11 @@ pub(crate) fn wedge_reading(
     let finding = match verdict {
         V::InBand(escalation) => Some(dihedral_finding(edge, escalation)),
         V::Mixed(stations) => Some(ValidationError::MixedDihedral { edge, stations }),
-        V::Crease(_) if conventional => Some(ValidationError::TransverseNotIntrinsic { edge }),
+        V::Crease { .. } if conventional => Some(ValidationError::TransverseNotIntrinsic { edge }),
         // Conformal contact: refused, and no declaration is consulted
         // because none would cure it.
         V::Lamina => Some(ValidationError::LaminaWedge { edge }),
-        V::Crease(_) | V::Seam { .. } | V::End(_) => None,
+        V::Crease { .. } | V::Seam { .. } | V::End { .. } => None,
     };
     (mark, finding)
 }
@@ -8656,8 +8695,8 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
     // chart singularities as vertices): every wrap edge's tip lies on its
-    // face's chart singularity, read by the incidence the joint resets
-    // its first channel by (`crate::pcurves::pcurve_pass`).
+    // face's chart singularity, read by the incidence the joint's turn
+    // is decided by (`crate::pcurves::pcurve_pass`).
     let pass = crate::pcurves::pcurve_pass(body, band);
     for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });
@@ -10925,9 +10964,13 @@ fn pseudomanifold_certificate_via<
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = linear_band(tol)?;
-    // The tier-3 local battery, verbatim: it reads no contact record,
-    // so with empty records 3′ is tier 3 exactly. The records are the
-    // census's.
+    // Tier 3's gate, then its local battery, verbatim: neither reads a
+    // contact record, so with empty records 3′ is tier 3 exactly. The
+    // records are the census's. The session box is tier 3's first
+    // predicate ([`structural_via`]), so a body past it refuses here as
+    // there, and a tier-3′ pass records the one decision a finish then a
+    // census over a kept verdict records.
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
@@ -17422,7 +17465,9 @@ mod tests {
 
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
-        let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
+        let flipped = cube
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
@@ -17885,7 +17930,7 @@ mod tests {
         // that emits it.
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
-                what: crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
+                what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -17926,7 +17971,7 @@ mod tests {
     /// no way through yet, as the refusal standard asks of a dead end.
     #[test]
     fn no_census_decline_renders_without_a_repair_to_make() {
-        let what = crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY;
+        let what = geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY;
         // The chart lane's own row proves all thirteen of its arms
         // (`chart_region::tests::every_chart_region_arm_names_a_recourse`);
         // what this one adds is that the census's wrapper does not

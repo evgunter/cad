@@ -362,6 +362,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Place {
             body: node.into(),
             target: pncad::document::Operand::Var(VarId::WORLD),
+            name: None,
         },
         SessionOp::SetBundle {
             placement: node,
@@ -386,8 +387,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddToProduct { node, body: None },
         SessionOp::RepointPlacements {
-            body: node.into(),
-            onto: node,
+            source: pncad::document::VarId::WORLD,
+            onto: node.into(),
         },
         SessionOp::AddMirror {
             body: node.into(),

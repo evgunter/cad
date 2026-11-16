@@ -1471,7 +1471,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // a component of its own that neither side keeps, and the slit's,
         // nested below as a ring of the section face containing it.
         if let SectionKind::Slit { strut } = section.kind {
-            let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+            let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
             let (trace, slit) = if ring == strut {
                 (promoted.face, section.face)
             } else {
@@ -1515,7 +1515,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // would be listed from both and refuse typed
         // (`DuplicateRedescription`), or, naming neither's chart,
         // `RechartUndescribed`.
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let charts = vec![
             Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
             Rechart::new(plane_for(other_side), section.face, outer_sense),
@@ -2052,10 +2052,10 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             mixed: Some(stations),
                         });
                     }
-                    geom_brep::WedgeVerdict::Crease(_) => {
+                    geom_brep::WedgeVerdict::Crease { .. } => {
                         return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
                     }
-                    geom_brep::WedgeVerdict::End(_) | geom_brep::WedgeVerdict::Lamina
+                    geom_brep::WedgeVerdict::End { .. } | geom_brep::WedgeVerdict::Lamina
                         if !matches!(surf_other, Surface::Plane { .. }) =>
                     {
                         return Err(SplitFinishError::KnifeEdge(KnifeEdge {
@@ -2064,7 +2064,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         }));
                     }
                     geom_brep::WedgeVerdict::Seam { .. }
-                    | geom_brep::WedgeVerdict::End(_)
+                    | geom_brep::WedgeVerdict::End { .. }
                     | geom_brep::WedgeVerdict::Lamina => {}
                 }
                 // What the join stores is what its wedge demands, and
@@ -2271,11 +2271,7 @@ fn shell_side<T: Decide>(
                     "split_edge_side",
                     geom_core::Margin::of(offset),
                     band,
-                    |d| match d.sign {
-                        geom_core::Sign::Positive => Some(PlaneSide::Above),
-                        geom_core::Sign::Negative => Some(PlaneSide::Below),
-                        geom_core::Sign::Zero => None,
-                    },
+                    |d| (d.sign != geom_core::Sign::Zero).then(|| PlaneSide::of_sign(d.sign)),
                 )
                 .map_kept(|diag| (edge, diag))
             }

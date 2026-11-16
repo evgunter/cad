@@ -531,14 +531,18 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // 850 → 834. The extrude reads each of the box's 12 edges by its
     // whole wedge, the arm, the wedge and a corner's sign at each of 7
     // stations, where it read the arm and the wedge at one witness:
-    // 12 × 19 more, 834 → 1062. The copy is validated by no one, so
-    // main's matching +24 on the placing op does not arise.
+    // 12 × 19 more, 834 → 1062. Its caps are the sketch frame and its
+    // walls the frame turning their segments, so it fits no plane: the
+    // two caps' `cap_plane_orientation` and the six planes' four corners
+    // of `newell_plane_residual` go, 1062 → 1036. The copy is validated
+    // by no one, so main's matching +24 on the placing op does not
+    // arise.
     assert_eq!(
         first.len(),
         0,
         "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 1062, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 1036, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

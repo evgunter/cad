@@ -568,6 +568,13 @@ impl<T: KinkJacobian> Real for Dual<T> {
         self.value.is_bounded()
     }
 
+    /// Both channels exactly zero: an exact test holds of the function,
+    /// not only of its value at the point, so a shortcut taken on it
+    /// drops no derivative.
+    fn is_exact_zero_in_every_channel(self) -> bool {
+        self.value.is_exact_zero_in_every_channel() && self.deriv.is_exact_zero_in_every_channel()
+    }
+
     /// `(⌊a⌋, floor′(a)·a′)` with the factor from
     /// [`KinkJacobian::floor_jacobian_factor`] (the module-doc step
     /// convention: 0 on plateaus at `f64`, the jump enclosure `[0, +∞]`

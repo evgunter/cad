@@ -297,10 +297,8 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
 
 /// A face's OUTWARD normal at the foot of `p` on a curved carrier: the
 /// implicit gradient at `p`, normalized, folded through the face's
-/// `sense` bit — the one home of that fold for a door handed a
-/// carrier and the bit rather than a face (the contact verifier
-/// reading two bodies' faces, the dihedral's material pairing, a blend
-/// battery's supports, `topo`'s `face_outward_normal_at_foot`).
+/// `sense` bit — the one home of that fold for a reader handed a
+/// carrier and the bit rather than a face.
 ///
 /// The level sets of each implicit form here are the carrier's
 /// parallel offsets, so the gradient's direction at `p` is the
