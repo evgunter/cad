@@ -353,6 +353,13 @@ own fail-loud direction: a pruning reader takes the box that overlaps everything
 reader refuses with that reason as its recourse. A reader grants on a
 cover only in the bound's conservative direction, and a tighter
 construction is written into the arm, never at a reader.
+**A reading reads what its question holds.** A question that holds a
+parameter reads the carrier there, refining it locally, and searches for
+no foot. A question that holds only a point finds its foot over the
+region it asks about: the span, the window, or the whole carrier only
+for whether the point lies on it. A foot certifies nothing and anchors
+no certificate, and no verdict rests on where a search descended outside
+that region.
 Exempt: methods over a cover or a box (BVH, subdivision, clearance),
 identity of stored bits on which no topology decision depends, test
 oracles, and reading a record (a declaration, or an edge that already
