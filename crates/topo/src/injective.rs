@@ -5009,7 +5009,7 @@ fn sign_on(
         }
         Zero::Past(s, a) => {
             let exact = against.is_some_and(|q| !matches!(q.zero, Zero::Past(..)));
-            let analytic = !matches!(p.surface, Surface::Nurbs(_) | Surface::Approx(_));
+            let analytic = geom_brep::is_analytic(p.surface);
             if !(exact && analytic && zero_on(*s, a, true)) {
                 return None;
             }

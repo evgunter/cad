@@ -166,8 +166,9 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
-/// distance to first order near it. Total: poison in, poison out;
-/// [`Surface::Nurbs`] yields poison.
+/// distance to first order near it. Total: poison in, poison out; a
+/// carrier with no implicit form (not [`crate::edge_nurbs::is_analytic`])
+/// yields poison.
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
