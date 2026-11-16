@@ -621,6 +621,18 @@ pub enum ComponentShape {
     },
 }
 
+impl ComponentShape {
+    /// The nodes an open component's ends stand at, start first; none for
+    /// a loop or a point.
+    #[must_use]
+    pub fn nodes(self) -> [Option<usize>; 2] {
+        match self {
+            Self::Open { ends } => ends.nodes.nodes(),
+            Self::Loop | Self::Point => [None, None],
+        }
+    }
+}
+
 /// **Where an open component ends**: the sides of each surface's
 /// parameter rectangle it reaches (rim ends, in the order the section was
 /// asked of), whether it reaches the operation's region (a cut end), and
@@ -964,8 +976,6 @@ pub enum NoCarrier {
     /// A spline pair's section is a handed-in row, or leaves the domain at
     /// a handed-in corner.
     RowRegion,
-    /// A spline × implicit arc ends at a node, and is not carried to it.
-    NodeArc,
     /// A spline × implicit loop closes inside the wall's chart, and no
     /// seat opens a loop certified on a chart.
     ChartLoop,
@@ -999,10 +1009,6 @@ impl NoCarrier {
                 "a Side or Corner region of a handed-in row or corner: the section there is the \
                  row, or leaves the domain at the corner, and no carrier is minted for it"
             }
-            Self::NodeArc => {
-                "an arc of a spline × implicit section ends at a node, and no arc is carried to \
-                 its node"
-            }
             Self::ChartLoop => {
                 "a loop of a spline × implicit section closes inside the spline's chart, and no \
                  seat opens a loop certified on a chart"
@@ -1018,8 +1024,8 @@ impl NoCarrier {
     /// tangency and an inner pinch are each a meeting the surfaces can be
     /// moved off, to cross or to part clearly; a spline × implicit touch,
     /// only to part.
-    /// An arc to a node, a loop on a chart and a spline pair's section
-    /// are components the kernel does not carry yet, and a section along
+    /// A loop on a chart and a spline pair's section are components the
+    /// kernel does not carry yet, and a section along
     /// a wall's side or a handed-in row is one it mints no carrier for
     /// yet.
     #[must_use]
@@ -1032,11 +1038,9 @@ impl NoCarrier {
             // which is not carried (`ChartLoop`), so parting is the one
             // way through.
             Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
-            Self::WallRegion
-            | Self::RowRegion
-            | Self::NodeArc
-            | Self::ChartLoop
-            | Self::SplinePairWhole => geom_core::NOT_YET_ENDING,
+            Self::WallRegion | Self::RowRegion | Self::ChartLoop | Self::SplinePairWhole => {
+                geom_core::NOT_YET_ENDING
+            }
         }
     }
 }
@@ -1950,6 +1954,7 @@ impl<T: Decide> PairSection<T> {
                     pad: 0.0,
                     reach: 0.0,
                     witness: curve.eval(T::pi()),
+                    boxes: Vec::new(),
                 }),
                 (ClassCarrier::Span { curve, span }, _) => Ok(CarriedComponent {
                     carrier: curve.clone(),
@@ -1960,6 +1965,7 @@ impl<T: Decide> PairSection<T> {
                     pad: 0.0,
                     reach: 0.0,
                     witness: curve.eval(geom::mid_param(span.0, span.1)),
+                    boxes: Vec::new(),
                 }),
                 (ClassCarrier::Fitted(fitted), _) => fitted.as_ref().clone(),
                 (ClassCarrier::General, Some(f)) => Ok(f),
@@ -2166,6 +2172,7 @@ impl<T: Decide> FittedCarrier<T> {
             pad: self.pad,
             reach: self.reach,
             witness: self.witness,
+            boxes: Vec::new(),
         })
     }
 }
@@ -2334,7 +2341,7 @@ impl Tube {
                 samples: PAD_SAMPLES,
             })
             .collect();
-        let (pad, reach) = pad_and_reach(net, &pieces, certificate.hull_sup, at)?;
+        let TubeRead { pad, reach, .. } = pad_and_reach(net, &pieces, certificate.hull_sup, at)?;
         Ok(Self { chain, pad, reach })
     }
 }
@@ -2375,14 +2382,14 @@ pub(super) fn pad_and_reach(
     pieces: &[TubePiece],
     hull_sup: f64,
     at: f64,
-) -> Result<(f64, f64), CarryError> {
+) -> Result<TubeRead, CarryError> {
     let unread = |why| CarryError::Refused(CarryRefusal::TubeUnread(why));
     if pieces.is_empty() {
         return Err(unread(LoopTubeRefusal::Empty));
     }
     let lift = <geom_core::Interval as Real>::from_computed;
     let lifted = carrier.map_scalar(lift);
-    let pad = pieces.iter().try_fold(0.0f64, |acc, piece| {
+    let each = pieces.iter().map(|piece| {
         let (lo, hi) = piece.span;
         let last = piece.samples.max(2) - 1;
         #[allow(clippy::cast_precision_loss)]
@@ -2393,7 +2400,7 @@ pub(super) fn pad_and_reach(
             .boxes
             .iter()
             .flat_map(|&b| parts(b))
-            .try_fold(acc, |acc, part| {
+            .try_fold(0.0f64, |acc, part| {
                 let far = samples
                     .iter()
                     .map(|&p| farthest(part, p))
@@ -2404,7 +2411,9 @@ pub(super) fn pad_and_reach(
                     Err(unread(LoopTubeRefusal::of(part, &samples)))
                 }
             })
-    })?;
+    });
+    let each = each.collect::<Result<Vec<f64>, CarryError>>()?;
+    let pad = each.iter().copied().fold(0.0f64, f64::max);
     if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
         return Err(CarryError::Refused(CarryRefusal::PadShort {
             pad,
@@ -2452,7 +2461,16 @@ pub(super) fn pad_and_reach(
             core::slice::from_ref(&witness),
         )));
     }
-    Ok((pad, reach))
+    Ok(TubeRead { pad, reach, each })
+}
+
+/// What [`pad_and_reach`] reads of a tube: the pad, the witness's reach,
+/// and each piece's own pad, the farthest its boxes stand from the
+/// carrier, in the pieces' order.
+pub(super) struct TubeRead {
+    pub(super) pad: f64,
+    pub(super) reach: f64,
+    pub(super) each: Vec<f64>,
 }
 
 /// How many times [`pad_and_reach`] halves each tube box for the pad:
@@ -2564,6 +2582,7 @@ fn seat_at(
     let tube = Tube::of(&carrier, &certificate, mid)?;
     Ok(CarriedComponent {
         witness: carrier.eval(mid),
+        boxes: Vec::new(),
         carrier,
         span,
         shape: ComponentShape::Loop,
@@ -2936,6 +2955,52 @@ pub struct CarriedComponent<T: Real> {
     /// A point of the carrier, `carrier(mid)`: the witness the component
     /// is read by.
     pub witness: Point3<T>,
+    /// **The pad read box by box** (C2's node end), empty where it is
+    /// read whole: an arc carried to a node reads its pad per box of its
+    /// tube, each the farthest that window's image stands from the
+    /// carrier, narrowing toward the node, so a site reads the pad of the
+    /// boxes it lies in, and a site in none is not on the component
+    /// ([`Self::reads`]). A node's own box is marked with the node
+    /// ([`PadBox::node`]): a site in it and not at the node escalates
+    /// ([`CarriedSection::site`]). [`Self::pad`] is the widest of them.
+    pub boxes: Vec<PadBox>,
+}
+
+/// **One box of a component's tube and the pad a site in it reads**
+/// ([`CarriedComponent::boxes`]): an enclosure of the window's image on
+/// the wall, in metres, the farthest a point of it stands from the
+/// carrier, and the node it holds, where it is a node's box.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PadBox {
+    /// The image's least corner.
+    pub lo: [f64; 3],
+    /// The image's greatest corner.
+    pub hi: [f64; 3],
+    /// The farthest a point of the image stands from the carrier.
+    pub pad: f64,
+    /// The node, by its index among the section's, whose box this is
+    /// (C2's node end); `None` for a box of the arc's own.
+    pub node: Option<usize>,
+}
+
+impl PadBox {
+    /// Whether `p` lies in the box widened by `by` along each axis.
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal::Desync`] where a coordinate of `p` is not a point
+    /// the scalar holds: the boxes are read at `f64`, where a site read
+    /// box by box stands.
+    fn holds<T: Decide>(&self, p: Point3<T>, by: f64) -> Result<bool, SiteRefusal> {
+        let mut inside = true;
+        for ((c, lo), hi) in [p.x, p.y, p.z].into_iter().zip(self.lo).zip(self.hi) {
+            let x = c.point_value().ok_or(SiteRefusal::Desync(
+                "a site read box by box is not a point the scalar holds",
+            ))?;
+            inside &= lo - by <= x && x <= hi + by;
+        }
+        Ok(inside)
+    }
 }
 
 impl<T: Decide> CarriedComponent<T> {
@@ -2948,7 +3013,10 @@ impl<T: Decide> CarriedComponent<T> {
     /// **Where the point `p` of the section lies against this
     /// component**: its foot on the carrier where `p` is within the band
     /// padded by [`Self::pad`] ([`Curve3::on_carrier`], [`Band::padded`]),
-    /// `None` where it is past it. The one reading of "a point on this
+    /// `None` where it is past it. Where the pad is read box by box
+    /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
+    /// each widened by the band's escalation, and `None` where it lies in
+    /// none: every point of the component lies in its tube's windows. The one reading of "a point on this
     /// component", by [`CarriedSection::site`] and the counted section's
     /// cross-check alike.
     ///
@@ -2957,8 +3025,22 @@ impl<T: Decide> CarriedComponent<T> {
     /// [`SiteRefusal`]: an undecided reading escalates.
     pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
         use geom::OnCarrier;
+        let pad = if self.boxes.is_empty() {
+            self.pad
+        } else {
+            let mut held: Option<f64> = None;
+            for b in &self.boxes {
+                if b.holds(p, band.escalate())? {
+                    held = Some(held.map_or(b.pad, |a| a.max(b.pad)));
+                }
+            }
+            match held {
+                Some(pad) => pad,
+                None => return Ok(None),
+            }
+        };
         let padded = band
-            .padded(self.pad)
+            .padded(pad)
             .map_err(|_| SiteRefusal::Desync(TUBE_PADS_NO_BAND))?;
         match self.carrier.on_carrier(p, self.span.0, padded) {
             Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
@@ -2971,8 +3053,10 @@ impl<T: Decide> CarriedComponent<T> {
     /// that is a question: on an open arc of a circle or an ellipse,
     /// whose carrier runs on past the span's ends round the whole conic.
     /// `t` is read in the turn the span starts, and decided under its
-    /// last end on the parameter metered by the carrier's speed at the
-    /// foot (`section_site_in_span`); a closed form's other component on its
+    /// last end by its gap from that end in metres
+    /// ([`Span::end_gap`](crate::curve_pair::Span::end_gap), at the inf of
+    /// the carrier's speed over the gap: `section_site_in_span`); a closed
+    /// form's other component on its
     /// conic takes the rest. A foot at the span's end stands within the
     /// band of its end's node, which every reading of a site tests first
     /// ([`at_node`]): one decided off the node and reaching here lies
@@ -2985,9 +3069,13 @@ impl<T: Decide> CarriedComponent<T> {
     /// lies within twice the zero of the witness's, so a site is excluded
     /// only where its witness stands past the span's end by the band's
     /// escalation and that twice the zero more
-    /// (`section_site_in_span_past`), whatever the band's ratio of the
-    /// two. That holds because a conic component is a closed form, which
-    /// carries no pad: a pad widens the witness's reach by twice itself,
+    /// (`section_site_in_span_past`, the overshoot metered at the inf over
+    /// the gap, so "farther than that" is sound), whatever the band's ratio
+    /// of the two. The desync, a witness past the end by less than that
+    /// reach, is read at the sup (`section_site_in_span_past_near`), so
+    /// "nearer than that" is sound; where the two meters disagree the
+    /// site escalates on both bounds. That holds because a conic component
+    /// is a closed form, which carries no pad: a pad widens the witness's reach by twice itself,
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
@@ -3002,25 +3090,50 @@ impl<T: Decide> CarriedComponent<T> {
                 "a conic component carries a pad: its witness can stand past the band from its foot",
             ));
         }
-        let (lo, hi) = self.span;
-        let t = turn.at_or_above(t, lo);
-        let speed = self.carrier.ders1(t).1.norm();
-        use geom_core::NonzeroSign;
-        use geom_core::k_stats::decide_nonzero;
-        let inside = Margin::metered(hi - t, geom_core::InfSpeed::new(speed));
+        let t = turn.at_or_above(t, self.span.0);
+        use crate::curve_pair::{GapMeter, Span, SpanEnd};
+        use geom_core::k_stats::{decide_nonzero, decide_nonzero_reported, straddle};
+        use geom_core::{Decided, NonzeroSign, Sign};
+        // The gap to the last end, metered over the gap itself
+        // (`Span::end_gap`). Each acted-on side is read under the meter
+        // that makes it sound: inside, and past by more than twice the
+        // zero, at the inf (`Clear`); nearer than twice the zero, the
+        // desync, at the sup (`Within`).
+        let span = Span::new(&self.carrier, self.span);
+        let inside = span.end_gap(t, SpanEnd::Stop, GapMeter::Clear);
         match decide_nonzero(SITE_IN_SPAN, inside, band) {
-            Ok(NonzeroSign::Positive) => Ok(Some(t)),
-            Ok(NonzeroSign::Negative) => {
-                let reach = T::from_computed(2.0 * band.zero());
-                match decide_nonzero(SITE_PAST_SPAN, Margin::of(inside.value() + reach), band) {
-                    Ok(NonzeroSign::Negative) => Ok(None),
-                    Ok(NonzeroSign::Positive) => Err(SiteRefusal::Desync(
-                        "a witness read past the span reads inside it nearer by twice the zero",
-                    )),
-                    Err(diag) => Err(SiteRefusal::Escalated(diag)),
-                }
-            }
-            Err(diag) => Err(SiteRefusal::Escalated(diag)),
+            Ok(NonzeroSign::Positive) => return Ok(Some(t)),
+            Ok(NonzeroSign::Negative) => {}
+            Err(diag) => return Err(SiteRefusal::Escalated(diag)),
+        }
+        let reach = T::from_computed(2.0 * band.zero());
+        let past = |meter| Margin::of(span.end_gap(t, SpanEnd::Stop, meter).value() + reach);
+        let decided = |(sign, margin): (NonzeroSign, _)| Decided {
+            sign: match sign {
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
+            },
+            margin,
+        };
+        let far = decide_nonzero_reported(SITE_PAST_SPAN, past(GapMeter::Clear), band)
+            .map_err(SiteRefusal::Escalated)?;
+        if far.0 == NonzeroSign::Negative {
+            return Ok(None);
+        }
+        let near = decide_nonzero_reported(SITE_PAST_SPAN_NEAR, past(GapMeter::Within), band)
+            .map_err(SiteRefusal::Escalated)?;
+        match near.0 {
+            NonzeroSign::Positive => Err(SiteRefusal::Desync(
+                "a witness read past the span reads inside it nearer by twice the zero",
+            )),
+            // Past by more than the reach at the sup, nearer at the inf:
+            // the carrier's speed over the gap leaves the site undecided.
+            NonzeroSign::Negative => Err(SiteRefusal::Escalated(straddle(
+                SITE_PAST_SPAN_STRADDLE,
+                decided(near),
+                decided(far),
+                band,
+            ))),
         }
     }
 
@@ -3262,8 +3375,17 @@ const SITE_AT_NODE: &str = "section_site_at_node";
 const SITE_IN_SPAN: &str = "section_site_in_span";
 
 /// The site's witness past the span's end by more than the zero's
-/// reach from it ([`CarriedComponent::within_span`]'s docs).
+/// reach from it, its gap metered at the inf over the gap
+/// ([`CarriedComponent::within_span`]'s docs).
 const SITE_PAST_SPAN: &str = "section_site_in_span_past";
+
+/// The site's witness past the span's end by less than the zero's reach,
+/// a desync, its gap metered at the sup over the gap.
+const SITE_PAST_SPAN_NEAR: &str = "section_site_in_span_past_near";
+
+/// The witness past by more than the reach at the sup and by less at the
+/// inf: the two bounds of one undecided overshoot.
+const SITE_PAST_SPAN_STRADDLE: &str = "section_site_in_span_past_straddle";
 
 /// **The node `p` stands at**, among `nodes`, the first test of every
 /// reading of a site (C5): `p`'s distance from each node against the
@@ -3325,7 +3447,8 @@ impl<T: Decide> CarriedSection<T> {
     /// [`SiteRefusal`]: a site on no component, or on two that share no
     /// node, is a desync; one on two arcs that share a node it is not
     /// decided at escalates on its distance from that node, an in-band
-    /// reading near a crossing.
+    /// reading near a crossing, and so does one in a node's own box
+    /// ([`PadBox::node`]) that it is not decided at.
     pub fn site(&self, p: Point3<T>, band: Band) -> Result<SiteReading<T>, SiteRefusal> {
         let (node, apart) = at_node(&self.nodes, p, band)?;
         if let Some(n) = node {
@@ -3338,10 +3461,12 @@ impl<T: Decide> CarriedSection<T> {
             };
             if let Some(first) = found {
                 // The nearest node the two arcs share.
-                let shared = node_of_ends(&self.components[first.component])
+                let shared = self.components[first.component]
+                    .shape
+                    .nodes()
                     .into_iter()
                     .flatten()
-                    .filter(|n| node_of_ends(c).contains(&Some(*n)))
+                    .filter(|n| c.shape.nodes().contains(&Some(*n)))
                     .min_by(|&m, &n| {
                         let d = |k: usize| {
                             (p - self.nodes[k].point)
@@ -3370,9 +3495,33 @@ impl<T: Decide> CarriedSection<T> {
                 tangent: c.carrier.ders1(t).1,
             });
         }
-        found.map(SiteReading::OnArc).ok_or(SiteRefusal::Desync(
+        let found = found.ok_or(SiteRefusal::Desync(
             "a site lies on no component of its section",
-        ))
+        ))?;
+        // A site in a node's own box and not at the node: within the
+        // node's settle reach of it, where no reading at the band tells
+        // its arcs apart (C2's node end), though it read on one arc alone.
+        let mut in_box = None;
+        for b in self.components.iter().flat_map(|c| &c.boxes) {
+            if let Some(n) = b.node
+                && b.holds(p, band.escalate())?
+            {
+                in_box = Some(n);
+                break;
+            }
+        }
+        if let Some(n) = in_box {
+            let at = apart.get(n).copied().ok_or(SiteRefusal::Desync(
+                "a node's box names a node not in its section",
+            ))?;
+            return Err(SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
+                SITE_AT_NODE,
+                at,
+                band,
+                geom_core::SizedPass::Zero,
+            )));
+        }
+        Ok(SiteReading::OnArc(found))
     }
 
     /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
@@ -3408,14 +3557,6 @@ impl<T: Decide> CarriedSection<T> {
         let dots = [0, 1, 2, 3].map(|i| dir.dot(rays[i]).point_value());
         let dots = [dots[0]?, dots[1]?, dots[2]?, dots[3]?];
         Some(SectionNode::<T>::RAYS[SectionNode::<T>::nearest_ray(dots)])
-    }
-}
-
-/// The nodes an open component's ends stand at, start first.
-fn node_of_ends<T: Real>(c: &CarriedComponent<T>) -> [Option<usize>; 2] {
-    match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.nodes(),
-        ComponentShape::Loop | ComponentShape::Point => [None, None],
     }
 }
 
@@ -3514,6 +3655,7 @@ mod wiring {
         let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net));
         let component = super::CarriedComponent {
             witness: at,
+            boxes: Vec::new(),
             carrier,
             span: (0.0, 1.0),
             shape: super::ComponentShape::Loop,
@@ -3548,6 +3690,7 @@ mod wiring {
         use geom_core::{Band, Point3, Vec3};
         let component = super::CarriedComponent {
             witness: Point3::new(1.0, 0.0, 0.0),
+            boxes: Vec::new(),
             carrier: geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
             span: (0.0, 1.0),
             shape: super::ComponentShape::Open {
@@ -3576,6 +3719,116 @@ mod wiring {
             matches!(component.reads(at(1.0 - 2e-9), band), Ok(Some(_))),
             "2e-9 inside: on the arc"
         );
+    }
+
+    /// **A site in a node's box that reads on one arc alone escalates**
+    /// (C2's node end): an arc along `+x` from a node at the origin, its
+    /// pad read box by box, its last box the node's, `10⁻³` wide. A site
+    /// on the arc inside that box reads on that arc alone (no other arc is
+    /// carried), and escalates on its distance from the node, there being
+    /// no reading at the band that tells the node's arcs apart; one past
+    /// the box reads on the arc; one off every box reads on nothing, a
+    /// desync. Red against the node's box read as the arc's own.
+    #[test]
+    fn a_site_in_a_nodes_box_on_one_arc_escalates() {
+        use geom_core::{Point3, Vec3};
+        let node = super::SectionNode {
+            point: Point3::origin(),
+            normal: Vec3::unit_z(),
+            lines: [Vec3::unit_x(), Vec3::unit_y()],
+            above: super::PairSide::First,
+        };
+        let pad_box = |lo: f64, hi: f64, node: Option<usize>| super::PadBox {
+            lo: [lo, -1e-3, -1e-3],
+            hi: [hi, 1e-3, 1e-3],
+            pad: 1e-3,
+            node,
+        };
+        let component = super::CarriedComponent {
+            witness: Point3::new(0.5, 0.0, 0.0),
+            boxes: vec![
+                pad_box(-1e-3, 1e-3, Some(0)),
+                pad_box(5e-4, 0.5, None),
+                pad_box(0.5, 1.0, None),
+            ],
+            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 1e-3,
+            reach: 0.0,
+        };
+        let carried = super::CarriedSection {
+            components: vec![component],
+            nodes: vec![node],
+            lever: geom_core::test_support::fixture_lever(1.0),
+        };
+        let at = |x: f64, y: f64| carried.site(Point3::new(x, y, 0.0), band());
+        assert!(
+            matches!(at(5e-4, 0.0), Err(super::SiteRefusal::Escalated(_))),
+            "in the node's box: {:?}",
+            at(5e-4, 0.0)
+        );
+        assert!(
+            matches!(at(0.25, 0.0), Ok(super::SiteReading::OnArc(f)) if f.component == 0),
+            "past the box: {:?}",
+            at(0.25, 0.0)
+        );
+        assert!(
+            matches!(at(0.25, 0.1), Err(super::SiteRefusal::Desync(_))),
+            "off every box: {:?}",
+            at(0.25, 0.1)
+        );
+    }
+
+    /// **A site read box by box reads the widest pad of the boxes it lies
+    /// in, each widened by the band's escalation**
+    /// ([`super::CarriedComponent::reads`]): an arc along `+x` read over
+    /// two boxes about `x = ½`, of pads `10⁻³` and `5·10⁻³`. A site
+    /// `3·10⁻³` off the carrier inside both reads on the arc, by the wider
+    /// pad; a site past the box's end by half the band's escalation reads
+    /// on it, the box widened; one past the box by a millimetre reads on
+    /// nothing.
+    ///
+    /// Red against: the narrowest pad read, and the boxes read unwidened.
+    #[test]
+    fn a_site_reads_the_widest_pad_of_its_widened_boxes() {
+        use geom_core::{Point3, Vec3};
+        let pad_box = |lo: f64, hi: f64, pad: f64| super::PadBox {
+            lo: [lo, -1e-2, -1e-2],
+            hi: [hi, 1e-2, 1e-2],
+            pad,
+            node: None,
+        };
+        let component = super::CarriedComponent {
+            witness: Point3::new(0.5, 0.0, 0.0),
+            boxes: vec![pad_box(0.4, 0.6, 1e-3), pad_box(0.45, 0.55, 5e-3)],
+            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 5e-3,
+            reach: 0.0,
+        };
+        let at = |x: f64, y: f64| component.reads(Point3::new(x, y, 0.0), band());
+        assert!(
+            matches!(at(0.5, 3e-3), Ok(Some(_))),
+            "within the wider pad: {:?}",
+            at(0.5, 3e-3)
+        );
+        let past = 0.6 + 0.5 * band().escalate();
+        assert!(
+            matches!(at(past, 0.0), Ok(Some(_))),
+            "past the box within the widening: {:?}",
+            at(past, 0.0)
+        );
+        assert_eq!(at(0.601, 0.0), Ok(None), "past the box by a millimetre");
     }
 
     /// **An undecided nearness to the start refuses**: a seat one band
@@ -4345,6 +4598,7 @@ mod end_at_rows {
             pad: 0.0,
             reach: 0.0,
             witness: Point3::new(0.5, 0.0, 0.0),
+            boxes: Vec::new(),
         }
     }
 
