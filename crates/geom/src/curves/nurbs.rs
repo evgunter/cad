@@ -185,6 +185,15 @@ use std::sync::{Arc, OnceLock};
 use crate::memo::{Table, kept, session_memo};
 use crate::net;
 
+/// **A spline's second-order bounds by span**
+/// (`accel_upper_bound_over`'s table): each nonempty span's parameters
+/// and its bound on `‖C″‖`, ascending, and the crease values.
+#[derive(Debug)]
+struct AccelSpans<T> {
+    spans: Vec<(T, T, T)>,
+    creases: Vec<T>,
+}
+
 /// The speed meter's piece schedule (D9: structure, never a decision):
 /// both of `speed_lower_bound`'s piece readings and `speed_upper_bound`
 /// read each nonempty span as this many equal pieces, at every degree,
@@ -341,6 +350,9 @@ macro_rules! nurbs_curve {
             /// [`Self::accel_upper_bound`], filled on first read, on the
             /// same terms as `speed`.
             accel: OnceLock<T>,
+            /// [`Self::accel_upper_bound_over`]'s table, filled on first
+            /// read, on the same terms as `speed`.
+            accel_spans: OnceLock<Arc<AccelSpans<T>>>,
             $(
                 /// Each range's restricted enclosure and derivative, kept
                 /// where [`NurbsCurve3::with_span_memo`] asked for them;
@@ -353,7 +365,7 @@ macro_rules! nurbs_curve {
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, $($spans: _,)? } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, accel_spans: _, $($spans: _,)? } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -514,7 +526,7 @@ macro_rules! nurbs_curve {
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
                 let weights = Weights::from_point_parts(weights, weight_channel);
-                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), $($spans: None,)? })
+                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), accel_spans: OnceLock::new(), $($spans: None,)? })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -603,7 +615,7 @@ macro_rules! nurbs_curve {
             /// coordinate and weight one value by `same`. Every field that
             /// states the curve is read; the memos are not part of it.
             pub fn same_content(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
-                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, $($spans: _,)? } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _, accel: _, accel_spans: _, $($spans: _,)? } = self;
                 let Self {
                     knots: other_knots,
                     control: other_control,
@@ -611,6 +623,7 @@ macro_rules! nurbs_curve {
                     speed: _,
                     speed_sup: _,
                     accel: _,
+                    accel_spans: _,
                     $($spans: _,)?
                 } = other;
                 let all = |a: &[T], b: &[T]| {
@@ -663,7 +676,7 @@ macro_rules! nurbs_curve {
                     knots.structure().control_count(),
                     weights.len()
                 );
-                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), $($spans: None,)? }
+                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), accel: OnceLock::new(), accel_spans: OnceLock::new(), $($spans: None,)? }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1270,10 +1283,10 @@ macro_rules! nurbs_curve {
             /// order"), each a bound on its own open span alone. Infinite
             /// where the knots hold a crease (`KnotStructure::crease_runs`),
             /// where `C′` may jump and no finite bound holds across the
-            /// knot (poison at `Interval`, which holds no infinity). The
-            /// cost: a creased spline reads no second-order bound even
-            /// inside a smooth span, so its touches and tangent meetings
-            /// walk to the band.
+            /// knot (poison at `Interval`, which holds no infinity), so a
+            /// creased spline reads no second-order bound here even inside
+            /// a smooth span; [`Self::accel_upper_bound_over`] reads one
+            /// over a run, and a crease costs only the runs that hold it.
             /// At `Interval` it is certified; at `f64` it is the same
             /// expression in round-to-nearest. Poison where the
             /// statement refuses (a degree above 18, where `3p` passes
@@ -1299,6 +1312,84 @@ macro_rules! nurbs_curve {
                 spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS)
                     .and_then(|ps| ps.iter().map(spline::QuotientPiece::sup_norm).reduce(Real::max))
                     .unwrap_or_else(|| T::from_f64(f64::NAN))
+            }
+
+            /// A certified **upper** bound on `‖C″(t)‖` over the
+            /// parameters `[t0, t1]`, in m/param²: the greatest of
+            /// [`Self::accel_upper_bound`]'s per-span bounds over the
+            /// nonempty spans the run is not proved clear of, read as a
+            /// Lipschitz constant of `C′` across them, since `C′` is
+            /// continuous at every knot short of a crease. Infinite where
+            /// the run is not proved clear of a crease
+            /// (`Knots::crease_values`): `C′` may jump there, so a crease
+            /// costs only the runs that hold it, not the whole carrier.
+            /// A run proved clear of every span (wholly outside the
+            /// domain) reads the whole domain's bound. "Proved clear"
+            /// compares the brackets of the values
+            /// ([`geom_core::SpanLocate::structure_bracket`]), so at `Interval` a run
+            /// whose end may lie on either side of a knot counts that
+            /// knot's spans, and a poisoned bracket clears nothing.
+            pub fn accel_upper_bound_over(&self, (t0, t1): (T, T)) -> T {
+                let table = self.accel_spans();
+                let clear = |x: T, y: T| match (x.structure_bracket(), y.structure_bracket()) {
+                    (Some((_, x_hi)), Some((y_lo, _))) => x_hi <= y_lo,
+                    _ => false,
+                };
+                if table.creases.iter().any(|&c| !(clear(c, t0) || clear(t1, c))) {
+                    return T::from_f64(f64::INFINITY);
+                }
+                table
+                    .spans
+                    .iter()
+                    .filter(|&&(lo, hi, _)| !(clear(hi, t0) || clear(t1, lo)))
+                    .map(|&(_, _, bound)| bound)
+                    .reduce(Real::max)
+                    .unwrap_or_else(|| self.accel_upper_bound())
+            }
+
+            /// [`Self::accel_upper_bound_over`]'s table: memoised on the
+            /// same terms as [`Self::speed_lower_bound`].
+            fn accel_spans(&self) -> Arc<AccelSpans<T>> {
+                if geom_core::sym::session_installed() {
+                    return Arc::new(self.accel_spans_uncached());
+                }
+                Arc::clone(self.accel_spans.get_or_init(|| Arc::new(self.accel_spans_uncached())))
+            }
+
+            /// Each nonempty span's second-order bound (the max of the
+            /// [`spline::QuotientPiece::sup_norm`] of its own
+            /// [`spline::accel_pieces_by_span`] pieces), and the creases.
+            /// Poison on every span where the statement refuses, as
+            /// [`Self::accel_upper_bound`] is; a span with no pieces reads
+            /// poison.
+            fn accel_spans_uncached(&self) -> AccelSpans<T> {
+                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                let values = self.knots.values();
+                let by_span = spline::accel_pieces_by_span(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS);
+                let spans = match by_span {
+                    Some(spans) => spans
+                        .into_iter()
+                        .map(|(i, pieces)| {
+                            let bound = pieces
+                                .iter()
+                                .map(spline::QuotientPiece::sup_norm)
+                                .reduce(Real::max)
+                                .unwrap_or_else(|| T::from_f64(f64::NAN));
+                            (values[i], values[i + 1], bound)
+                        })
+                        .collect(),
+                    None => {
+                        let kv = self.knots.structure();
+                        (kv.first_span()..=kv.last_span())
+                            .filter_map(|i| self.knots.span(i).map(|s| s.span().index()))
+                            .map(|i| (values[i], values[i + 1], T::from_f64(f64::NAN)))
+                            .collect()
+                    }
+                };
+                AccelSpans {
+                    spans,
+                    creases: self.knots.crease_values(),
+                }
             }
 
             /// **Whether this carrier is polynomial**: the one plain
@@ -2076,6 +2167,7 @@ impl<T: Real> NurbsCurve3<T> {
             speed: OnceLock::new(),
             speed_sup: OnceLock::new(),
             accel: OnceLock::new(),
+            accel_spans: OnceLock::new(),
             spans: None,
         }
     }
