@@ -415,7 +415,10 @@ curve pairs.
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
   that it is a rotation; a certificate; a verdict) is built at the
-  lane scalar, from its own inputs and those choices. A continuous
+  lane scalar, from its own inputs and those choices, and is held as
+  the claim it is (a frame as a `RigidMotion` or `UnitVec3`, never as
+  its entries), so no gate reads it back from entries that, at a box
+  scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it.
 - **The editor-core evaluation service is generic over `Real`.** M10's
@@ -439,7 +442,13 @@ curve pairs.
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
-  any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  any K > 2. At K ≤ 2, two pieces decided at least K·ε apart can both
+  lie within ε of one point, so a reading that names which piece a point
+  lies on (a foot's branch of its carrier, a cut's parameter) would not
+  be unique. Above 2 the band alone makes it so, however many pieces the
+  boundary chains together: the two pieces a point is near are compared
+  with each other, never through a third ([intrinsic.absolute]). K = 10, per-run
+  configuration like ε (`Tolerance.k`).
   K's headroom absorbs f64 rounding by the run's admission rule
   ([simple.conditioned]): a formula whose error is amplified by a vanishing
   quantity (a division by sin θ, |n|², a near-zero determinant) is a
@@ -1657,7 +1666,11 @@ in their space moves none of its bits ([determinism]). The frame is no
 part of the operation's meaning: the body up to that rigid map, its
 names and every verdict outside the sliver band are the same in any
 frame, and a minted reference direction is a function of the inputs,
-not of the axes. Where conditioning does not decide, a construction
+not of the axes. An operand in another frame is read into it through
+their relative placement, which moves where the operand stands and
+none of its data: a reading within one operand is made in its own
+coordinates, and only a reading between two goes through their
+relative motion. Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
@@ -1767,8 +1780,9 @@ one fixed operand's description for a merged face (chosen by
 a fixed rule that reads keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band. A solid's only shell is its outer
-shell and poses no role question; a shell's role among several is read
+whose one census number lies in band. A finished solid's only shell is its outer
+shell and poses no role question to a door (the at-rest gate reads it:
+that reading is the orientation invariant's); a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
 certified sign of its volume where no ray reads. A ray that passes
 within the band of an edge meets it, half a crossing for each face the
