@@ -308,7 +308,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
     );
     for abort in crate::face_normal::NORMAL_INVALID_INPUTS {
         let torus = abort.torus().unwrap();
-        let geom_brep::TorusVerdict::Refused(verdict) = torus.verdict else {
+        let geom_brep::TorusStanding::InvalidInput(verdict) = torus.standing() else {
             panic!("{torus:?} is decided")
         };
         let text = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(torus))
@@ -541,12 +541,12 @@ fn an_aborted_normal_is_answered_by_its_row() {
 
 /// A ring torus refused outside its convention, decided.
 fn horn() -> geom_brep::TorusRefusal {
-    geom_brep::TorusRefusal {
-        convention: geom_brep::TorusConvention::Ring,
-        verdict: geom_brep::TorusVerdict::Refused(geom_brep::recourse::Refused::Negative {
+    geom_brep::TorusRefusal::decided(
+        geom_brep::TorusConvention::Ring,
+        geom_brep::recourse::Refused::Negative {
             margin: MarginDiag::INVALID,
-        }),
-    }
+        },
+    )
 }
 
 /// **A line's wedge unread on a torus outside the ring convention renders

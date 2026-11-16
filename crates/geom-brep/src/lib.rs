@@ -285,4 +285,4 @@ pub use ssi::{charted_nurbs_mints, implicit_pair_marches};
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
-pub use torus_convention::{TorusConvention, TorusRefusal, TorusVerdict};
+pub use torus_convention::{TorusConvention, TorusRefusal, TorusStanding};

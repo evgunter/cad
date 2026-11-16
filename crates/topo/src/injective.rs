@@ -5616,7 +5616,7 @@ mod rows {
 mod by_kind_rows {
     use super::{EngineRefusal, by_kind};
     use geom::Surface;
-    use geom_brep::{TorusConvention, TorusVerdict};
+    use geom_brep::{TorusConvention, TorusStanding};
     use geom_core::interval::Interval;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -5638,7 +5638,7 @@ mod by_kind_rows {
         let verdict = |major: f64| match by_kind(face, &torus(major), band) {
             Err(EngineRefusal::TorusNotRing { refusal, .. }) => {
                 assert_eq!(refusal.convention, TorusConvention::Ring, "{major}");
-                refusal.verdict
+                refusal.standing()
             }
             other => panic!("{major}: a torus not decided a ring: {other:?}"),
         };
@@ -5646,14 +5646,14 @@ mod by_kind_rows {
         assert!(
             matches!(
                 in_band,
-                TorusVerdict::Undecided(geom_core::Indeterminate { predicate, .. })
+                TorusStanding::Ranked(geom_core::Indeterminate { predicate, .. })
                     if predicate == Some(geom::RingReader::SelfIntersection.sites().ring())
             ),
             "a ring half in band escalates as its own margin, under the engine's own row: \
              {in_band:?}"
         );
         assert!(
-            matches!(verdict(0.5), TorusVerdict::Refused(_)),
+            matches!(verdict(0.5), TorusStanding::InvalidInput(_)),
             "a tube wider than its ring is decided outside the convention"
         );
         assert_eq!(
