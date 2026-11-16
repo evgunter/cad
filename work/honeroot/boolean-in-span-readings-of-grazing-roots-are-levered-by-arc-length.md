@@ -1,7 +1,7 @@
 ---
 id: boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length
 kind: issue
-title: boolean: bool_wall_root_in_span (line × cylinder or sphere) and bool_carrier_cross_in_span read a near-graze root's span by arc length, with no root-slack bound
+title: boolean: a wall root (line × cylinder or sphere, read by wall_crossing through Span::place_param) and bool_carrier_cross_in_span read a near-graze root's span with no root-slack bound
 status: open
 opened: 2026-10-08
 priority: P2
@@ -21,7 +21,7 @@ decided while the root lies within its own error of the span's end.
 PR 4246 found and fixed this shape in the ring lane
 (`split_ring_path_in_span`). The sweep for it here:
 
-- **`bool_wall_root_in_span`** (`crates/topo/src/boolean/reduce.rs:3431`)
+- **A wall root against its span** (`crates/topo/src/boolean/reduce.rs`, `wall_crossing`, through `geom_brep::curve_pair::Span::place_param` since `onecopy/in-span-end-gap`; once `bool_wall_root_in_span`)
   reads `gap · speed_at(end)`, which is arc length.
   - **The conic doors are covered.** Circle and ellipse against a
     sphere, wall or cone, circle and ellipse against a torus, and line
@@ -80,3 +80,9 @@ that row's `±0.9` arm moves when this lands.
 - Banded P2: a span reading levered by arc length where the root's error is its slope's: interval and error propagation, P2 by `work/README.md` Priority.
 - Priced `M`, the effort the body describes.
 - Moved to HONEROOT (`work/honeroot/`) by `git mv`, id and body unchanged: whose charter is the boolean's root doors and sector readers and their margins. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The site moved (2026-11-10, `onecopy/in-span-end-gap`)
+
+`bool_wall_root_in_span` is retired. A wall root is read against its span by `geom_brep::curve_pair::Span::place_param` (`crates/topo/src/boolean/reduce.rs`, `wall_crossing`): at an end by its chord (`curve_pair_span_end_chord`), else inside, else past by its side of the ends, each also read on its copy a turn away. No decision moved over the ci sets at ε 1e-9 and 1e-12 (measured on that branch, against the old `gap·speed_at(end)` beside it).
+
+This row's question stands on the new reading. A chord is no slope: a near-graze line × cylinder or sphere root's error still runs past the band with no root-slack row, and a transverse crossing near an end still reads its chord, `√2·0.9·zero` in the dome row. `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders`'s `±0.9` arm now escalates on `curve_pair_span_end_chord`, at the same margin (`±1.2727923e-9` at ε 1e-9).
