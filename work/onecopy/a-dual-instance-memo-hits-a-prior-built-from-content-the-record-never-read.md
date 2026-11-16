@@ -2,9 +2,11 @@
 id: a-dual-instance-memo-hits-a-prior-built-from-content-the-record-never-read
 kind: issue
 title: A dual's instance node memo-hits a prior value built from content its record never read
-status: open
+status: closed
 opened: 2026-11-16
 priority: P3
+closed: 2026-11-16
+pr: 6790
 ---
 
 
@@ -25,3 +27,7 @@ So the memo is not transparent on a dual run where a resolver breaks A4. The sam
 2. The kernel checks A4 itself at `Entered::enter`, for every scalar. That is the broader route the closed row `a-dual-part-bound-under-a-pin-its-resolver-answers-otherwise-reads-record-refused` named, and it would close this row and make `ReferenceCycle` unreachable alike.
 
 Reachable only through a resolver that answers a pin with other content; no shipped resolver does.
+
+**Resolved (PR 6790), by route 1.** `parts::Reached::carried_from` says whether this run's row for a part is the one the prior carried. `PartStore::enter` takes a reused row from the prior by clone, so that is pointer identity on its `Refusals`. `eval_any` filters the prior's value of an instantiate node through it, families included. A node whose part row was rebuilt re-runs; an honest run's hits are unchanged, at one pointer compare per lookup. Pinned by `asm2a_instantiate::an_unmoved_instance_is_not_a_memo_hit_where_its_part_row_was_rebuilt`: the probe above (`part_evaluations == 1`, `reused == 0`, refused), and a run whose resolver agrees with the record's `Y` while the prior built `X` (rebuilt, and the instance reads `Y`). Both shapes measured red without the filter (`reused == 1`).
+
+**Not closed by it:** an `f64` run over a prior from another resolver's content still reuses the part row by key, and so the instance with it. That is the part store's A4 premise itself, with no record to pair against, so it stays with route 2.

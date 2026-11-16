@@ -35,4 +35,4 @@ The cost is one canonicalization per part per dual run. The other route is the k
 
 **Not taken (6790 review S3).** Evaluating the record's own `Refusals::doc` in the dual's descent, in place of the document the run's resolver answers, would make a content mismatch unconstructible rather than refused. It would also change which document a dual run reads, so it is left to whichever route takes A4 up.
 
-**Left open:** the node memo's half, filed as `a-dual-instance-memo-hits-a-prior-built-from-content-the-record-never-read` (P3).
+**The node memo's half** was filed as `a-dual-instance-memo-hits-a-prior-built-from-content-the-record-never-read` (P3) and closed in the same PR.
