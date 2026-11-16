@@ -543,7 +543,9 @@ impl LeverOnly {
 /// proved, a reading in band wholly on the refused side, or one past the
 /// band there, whichever arm carries it. A reading that may still show a
 /// size (an offer, a floor, an unresolved enclosure, a straddle) ends in
-/// the lever whatever the side.
+/// the lever whatever the side, and so does every reading on the
+/// undecided arm: one the band left undecided is reported as undecided,
+/// never as the defect ending ([`SizedDecision::recourse`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefusedSide {
     /// The decision's own lever reaches it: the lever and the decision's
@@ -661,7 +663,11 @@ impl SizedDecision {
     ///   the refused side does, on either route
     ///   ([`geom_core::SizedWords::sign_certain_recourse`]).
     /// - A reading certainly on the refused side ends as
-    ///   [`SizedDecision::side`] says at `at`.
+    ///   [`SizedDecision::side`] says at `at`, except on the undecided
+    ///   arm: a reading the band left undecided ends as its class shows
+    ///   whatever the side, in the lever and the decision's note, and
+    ///   never in the defect ending (forks 144 and 259), at a point and
+    ///   over a box alike.
     /// - At the import door ([`ReadAt::File`]), a band-decided arm whose
     ///   margin's nearer end lies at or below the file's declared
     ///   coincidence distance ends in the door's one sentence for a size
@@ -687,7 +693,18 @@ impl SizedDecision {
             RefusedArm::Straddle => return lever_recourse(lever, None),
             RefusedArm::SignCertain(_) => return self.words(at).sign_certain_recourse(),
         };
-        let words = self.words(at);
+        let words = match arm {
+            // **An undecided reading is reported as undecided** (forks 144
+            // and 259): read in band, it is a statement about the input,
+            // which reaches the person through its decision's own lever
+            // ([tolerance.recourse]), on a stored or unminted side as on
+            // the lever's, and never as the defect ending.
+            RefusedArm::Undecided(_) => SizedWords {
+                refused: RefusedReading::AsShown,
+                ..self.words(at)
+            },
+            _ => self.words(at),
+        };
         match at {
             ReadAt::Run(_) => margin.sized_recourse(band, words),
             ReadAt::File(file) => margin.sized_recourse_in_file(band, words, file),

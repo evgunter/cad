@@ -9183,9 +9183,12 @@ mod tests {
             check.recourse(RefusedArm::Undecided(&cause), reading)
         };
         let undecided = |check, margin| undecided_at(check, margin, Reading::Build);
-        // A span reading on a side no construction mints, built by hand,
-        // ends in its lever at a build, and is the kernel's or the file's
-        // at rest.
+        // A span reading on a side no construction mints, built by hand
+        // and left undecided by the band, ends in its lever at a build and
+        // at rest alike: an undecided reading is reported as undecided
+        // (forks 144 and 259), over a box as at a point. Only a definite
+        // reading on that side (the zero and sign-certain rows below) is
+        // the kernel's or the file's at rest.
         let unminted = [
             (CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
             (CertCheck::ParamSpan, MarginDiag::value(0.0)),
@@ -9209,7 +9212,7 @@ mod tests {
             );
             assert_eq!(
                 undecided_at(check, margin, Reading::AtRest),
-                KERNEL_OR_FILE_DEFECT_ENDING,
+                lever,
                 "{check:?} {margin} at rest"
             );
         }
