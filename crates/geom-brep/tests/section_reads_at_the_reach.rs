@@ -422,8 +422,8 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
     let coaxial = cyl(Vec3::unit_x(), 0.25);
     let degenerate =
         |what: &str, got: Result<ConeCylinderSection<f64>, SectionError>, says| match got {
-            Err(SectionError::DegenerateOperand { what: w }) if w.contains(says) => {}
-            other => panic!("{what}: refused as degenerate ({says}), got {other:?}"),
+            Err(SectionError::ConeAtTheBand { what: w }) if w.contains(says) => {}
+            other => panic!("{what}: refused at the band ({says}), got {other:?}"),
         };
     // `coc_aperture_sin`: sin α = q.
     degenerate(

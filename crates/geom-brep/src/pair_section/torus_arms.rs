@@ -21,8 +21,15 @@ pub(super) enum ArmRefusal {
     /// A margin decided `Zero`, or undecided: the components pinch.
     Pinch(Pinch),
     /// A crossing of the carriers the closed form cannot place on either
-    /// side of a line it reads the section by, named.
-    Unordered(&'static str),
+    /// side of a line it reads the section by, named, with the side's
+    /// margin's diagnostics where it was undecided rather than decided
+    /// `Zero` ([`Pinch::undecided`]).
+    Unordered {
+        /// The reading.
+        predicate: &'static str,
+        /// The diagnostics, where the side was undecided.
+        undecided: Option<Indeterminate>,
+    },
 }
 
 impl From<Pinch> for ArmRefusal {
@@ -85,6 +92,24 @@ fn first_pinch<R, const N: usize>(
         });
     }
     Ok(out)
+}
+
+/// **Which side of a line the section is read by a crossing stands on**,
+/// `margin`'s sign under `predicate`: positive, or not. A margin decided
+/// `Zero` leaves the crossing unordered, and an undecided one carries its
+/// diagnostics ([`ArmRefusal::Unordered`]), which the value reads as its
+/// escalation.
+pub(super) fn ordered_side_as<T: Decide>(
+    predicate: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<bool, ArmRefusal> {
+    signs_as([(predicate, margin)], band)
+        .map(|[side]| side)
+        .map_err(|p| ArmRefusal::Unordered {
+            predicate,
+            undecided: p.undecided,
+        })
 }
 
 /// **Decides every margin in `ms`**, the first `Zero` or undecided one
@@ -962,8 +987,7 @@ fn square_folds<T: Decide>(
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
         for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
-            let [outer] = signs_as([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_FOLD_HALF))?;
+            let outer = ordered_side_as(SQUARE_FOLD_HALF, sigma * y - big_r, band)?;
             out.push(Fold { plus, y, z, outer });
         }
     }
@@ -1111,8 +1135,7 @@ fn across_strip<T: Decide>(
         let w = ((rc - h) * (rc + h)).sqrt();
         for right in [true, false] {
             let y = if right { e + w } else { e - w };
-            let [over] = signs_as([(SQUARE_EDGE_OVER, big_r - y.abs())], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_EDGE_OVER))?;
+            let over = ordered_side_as(SQUARE_EDGE_OVER, big_r - y.abs(), band)?;
             edges.push((
                 psi(y, z),
                 Edge {

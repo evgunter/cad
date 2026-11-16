@@ -17,7 +17,11 @@
 # function above its row and fails. One that went away lowers it and
 # fails until the row is lowered, so the slack cannot let one back in
 # unseen. A hand census missed the sites PR 6788's review found; this
-# gate is what finds the next one.
+# gate finds the next one only in the three shapes it counts. It does not
+# see `T::tau()`, `2.0 * T::pi()`, `two * T::pi()`, `T::pi() + T::pi()`,
+# `PI * 2.0` or `Interval::tau()`, nor the uses of a `const ... = TAU`
+# alias; those sites are filed in
+# `work/onecopy/a-turn-read-off-a-value-or-a-literal-remains-at-f64.md`.
 #
 # EXEMPT, not in the table: the period home `crates/geom-core/src/period.rs`,
 # and the scalar implementations of τ (`crates/geom-core/src/{real,dual,
