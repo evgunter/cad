@@ -67,7 +67,7 @@ pub fn ellipse_torus_roots<T: Decide>(
     t1: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     let (
         geom::Curve3::Ellipse(..),
         Some(conic),
@@ -110,7 +110,7 @@ fn torus_walk<T: Decide>(
     surface: &geom::Surface<T>,
     slack: Option<&'static str>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     // The walk reads only a ring: its harmonics take the convention's
     // witness, whose floor on `|F|` per metre leans on `R − r > 0`.
     let ring = crate::TorusRefusal::require(torus.2, torus.3, band).map_err(DoorRefusal::Torus)?;
@@ -1173,10 +1173,8 @@ mod torus_rows {
                 assert!(
                     matches!(
                         got,
-                        Err(DoorRefusal::Torus(crate::TorusRefusal {
-                            verdict: crate::TorusVerdict::Refused(_),
-                            ..
-                        }))
+                        Err(DoorRefusal::Torus(ref refusal))
+                            if matches!(refusal.standing(), crate::TorusStanding::InvalidInput(_))
                     ),
                     "{what}, {pose}: {got:?}"
                 );
@@ -1186,10 +1184,8 @@ mod torus_rows {
             assert!(
                 matches!(
                     got,
-                    Err(DoorRefusal::Torus(crate::TorusRefusal {
-                        verdict: crate::TorusVerdict::Undecided(_),
-                        ..
-                    }))
+                    Err(DoorRefusal::Torus(ref refusal))
+                        if matches!(refusal.standing(), crate::TorusStanding::Ranked(_))
                 ),
                 "a ring in the gap, {pose}: {got:?}"
             );

@@ -183,7 +183,7 @@ pub fn circle_torus_roots<T: Decide>(
     t1: T,
     torus: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     let (
         &geom::Curve3::Circle(
             circle @ geom::Circle {
@@ -726,7 +726,7 @@ mod tests {
         t1: T,
         torus: &geom::Surface<T>,
         band: Band,
-    ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+    ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
                 origin: center,
