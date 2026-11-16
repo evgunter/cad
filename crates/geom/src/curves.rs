@@ -20,9 +20,14 @@
 //!   length in meters (unit `dir`); a circle's is the angle in radians;
 //!   an ellipse's is the eccentric anomaly.
 //! - **Bounds come from the topology, never from the curve.** An edge
-//!   bounds its carrier by its **vertices**: the parameter interval is
-//!   derived from the vertex positions, not stored (the
-//!   representation-consistency lesson of D2 applied to bounds; also why
+//!   bounds its carrier, a complete locus, by a parameter interval its
+//!   construction states from the quantity that defines it (for example
+//!   a segment's length, an arc's span, an extrusion distance, a knot
+//!   domain, a split's certified parameter), and its **vertices**
+//!   certify it: they are the authority the interval is certified
+//!   against, not its source, and where they are the only definition (a
+//!   line between two computed points) their distance is the definition
+//!   (`geom_brep`'s README, "Parameterization conventions"; also why
 //!   profile carriers are split so no edge spans a full period).
 //! - **The `he_plus` forward contract (D1, ratified at M1):** an edge's
 //!   intrinsic direction is its plus half-edge, and the curve geometry
@@ -885,19 +890,27 @@ impl<T: Real> Line<T> {
     }
 }
 
-/// **A half-line**: [`Ray::line`] read forward from its origin, the point
-/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
-/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
-/// a length only where the caller's `dir` is unit, which nothing here
-/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// **A half-line**: [`Ray::line`] read forward from its start, the point
+/// `origin + dir·t` ahead at an advance `t` past the start's and behind
+/// before it. The start is the line's origin (advance `0`) unless the
+/// ray is built [starting](Ray::starting) elsewhere on its line: a ray
+/// built through a point it is aimed at keeps that point as its origin,
+/// so every reading on its line is taken from there and not from a
+/// start derived from it. An advance is in units of `|dir|`, as
+/// [`Line::param`]'s parameter is: a length only where the caller's
+/// `dir` is unit, which nothing here makes it
+/// (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
 /// A root's forward reading is [`Ray::ahead`], decided under the
 /// reader's own row. The touch analysis decides its own ahead readings
 /// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
 /// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
-    /// The line the ray runs along, from its origin.
-    pub line: Line<T>,
+    /// The line the ray runs along.
+    line: Line<T>,
+    /// The advance the ray starts at on its line: zero at the line's
+    /// origin.
+    start: T,
 }
 
 impl<T: Real> Ray<T> {
@@ -905,24 +918,88 @@ impl<T: Real> Ray<T> {
     /// is in units of `|dir|` (the type's doc).
     #[must_use]
     pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self::starting(origin, dir, T::zero())
+    }
+
+    /// The ray along `dir` on the line through `origin` that starts at
+    /// advance `start`, the point `origin + dir·start`: `origin` is a
+    /// point of its line, ahead of the start where `start` is negative.
+    #[must_use]
+    pub fn starting(origin: Point3<T>, dir: Vec3<T>, start: T) -> Self {
         Self {
             line: Line { origin, dir },
+            start,
+        }
+    }
+
+    /// **The line the ray runs along**, for readings taken on the whole
+    /// line (a carrier's roots, an edge's closest approach), each an
+    /// advance from the line's origin. That origin is a point of the
+    /// line and not where the ray begins: the ray begins at
+    /// [`Ray::start`], the point [`Ray::start_point`].
+    #[must_use]
+    pub fn line(&self) -> Line<T> {
+        self.line
+    }
+
+    /// The advance the ray starts at: `0` at its line's origin.
+    #[must_use]
+    pub fn start(&self) -> T {
+        self.start
+    }
+
+    /// The point the ray starts at: its line's origin itself where the
+    /// start is exactly zero ([`Ray::from_start`]).
+    #[must_use]
+    pub fn start_point(&self) -> Point3<T> {
+        if geom_core::is_exact_zero(self.start) {
+            self.line.origin
+        } else {
+            self.line.at(self.start)
+        }
+    }
+
+    /// **The advance `reach` past the ray's start.** The one place the
+    /// start is added to or taken from an advance, with
+    /// [`Ray::past_start`]: an exactly zero start
+    /// ([`geom_core::is_exact_zero`]) is not added, since `x + 0` is `x`,
+    /// so a ray from its line's origin reads `reach` itself, the bits and
+    /// the expression a reader held before a ray could start elsewhere.
+    #[must_use]
+    pub fn from_start(&self, reach: T) -> T {
+        if geom_core::is_exact_zero(self.start) {
+            reach
+        } else {
+            self.start + reach
+        }
+    }
+
+    /// **How far advance `at` lies past the ray's start**, negative
+    /// behind it: `at` less the start, the start not subtracted where it
+    /// is exactly zero ([`Ray::from_start`]).
+    #[must_use]
+    pub fn past_start(&self, at: T) -> T {
+        if geom_core::is_exact_zero(self.start) {
+            at
+        } else {
+            at - self.start
         }
     }
 }
 
 impl<T: Decide> Ray<T> {
-    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// **Whether advance `at` lies ahead of the ray's start**, decided
     /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
-    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// `Zero` at the start. Each reader keeps its own policy for `Zero`
     /// and for an undecided reading.
     ///
     /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
-    /// the margin decided is `at` itself, in units of `|dir|` (the type's
-    /// doc). The method takes the parameter, not a point, because every
-    /// reader holds only a parameter computed on [`Ray::line`]: a root
-    /// against a carrier (`line_*_roots`), or the closest-approach span of
-    /// an edge's passage. No point is minted before the forward test. The
+    /// the margin decided is how far `at` lies past the start
+    /// ([`Ray::past_start`]), in units of `|dir|` (the type's doc). The
+    /// method takes the parameter, not a point, because every reader
+    /// holds only a parameter computed on [`Ray::line`]: a root against a
+    /// carrier (`line_*_roots`), or the closest-approach span of an
+    /// edge's passage. No point is minted before the forward test. The
     /// ray does not re-derive `at`; a reader that passes a parameter of
     /// another line decides nothing about this ray.
     ///
@@ -932,9 +1009,9 @@ impl<T: Decide> Ray<T> {
     ///
     /// # Errors
     ///
-    /// [`Indeterminate`] where `at` is in band.
+    /// [`Indeterminate`] where the margin is in band.
     pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
-        geom_core::k_stats::decide(site, Margin::of(at), band)
+        geom_core::k_stats::decide(site, Margin::of(self.past_start(at)), band)
     }
 }
 
@@ -1329,9 +1406,9 @@ impl<T: Decide> Curve3<T> {
         match decide(
             "spiric_frame_orthogonal",
             // The torus's ball, `R + r` about its centre: the bounded
-            // carrier this curve lies on. `geom` sits below `geom_brep`,
-            // so the extent home's `ExtentBall::of_torus` is out of reach
-            // here; this is its one other spelling.
+            // carrier this curve lies on, its tube's (`Cover::tube`) for a
+            // unit frame. `geom` sits below `geom_brep`, so the extent
+            // home's `ExtentBall::of_cover` is out of reach here.
             Margin::levered(
                 axis.dot(u_ref),
                 geom_core::Lever::of_consumed_extent(major_radius + minor_radius),
@@ -1849,6 +1926,27 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A ray is read forward from its start, not from its line's
+    /// origin**: a ray started `2` before its origin has an advance of
+    /// `−1` ahead and `−3` behind, where the ray from the origin itself
+    /// has `−1` behind. Red against a forward test that reads the advance
+    /// alone.
+    #[test]
+    fn a_ray_started_before_its_origin_is_read_from_its_start() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (origin, dir) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
+        let ahead = |ray: Ray<f64>, at: f64| ray.ahead(at, "ray_start_row", band).unwrap();
+        let started = Ray::starting(origin, dir, -2.0);
+        assert_eq!(started.start(), -2.0);
+        assert_eq!(ahead(started, -1.0), Sign::Positive);
+        assert_eq!(ahead(started, -3.0), Sign::Negative);
+        assert_eq!(ahead(started, -2.0), Sign::Zero);
+        let plain = Ray::new(origin, dir);
+        assert_eq!(plain.start(), 0.0);
+        assert_eq!(ahead(plain, -1.0), Sign::Negative);
+        assert_eq!(ahead(plain, 1.0), Sign::Positive);
+    }
 
     /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
     /// oval repeat every turn, at `τ` exactly; a line and a spline do not.

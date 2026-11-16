@@ -28,3 +28,14 @@ The same ray exhaustion as the tang row, read by tier 3′'s census on the
 union instead of by the pieces probe on the difference: likely one root.
 Add the union's finding to that row, or widen the pin, once the root is
 read.
+
+## Behind a volume refusal (GREEN, 2026-11-14)
+
+From PR 6466 (`sectarms/cylinder-node-listing`, merge `c053873aa`) on,
+every cell of the 3° pose refuses its volume at ε 1e-12 (`ResultInvalid
+{ NotFinished { VolumeUncomputable } }`, `props_chart_junction_closed`),
+A ∪ B included, so its tier-3′ census is never reached. Its first parent
+`6775be78c` still stops at this row's census finding. Whether the census
+finding stands is unmeasured behind that refusal, not gone. The volume
+refusal is NEARPOINT's
+`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`.

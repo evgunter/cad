@@ -617,7 +617,7 @@ BOUND_AS = {
     "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
-    "PlaneRelation": "Coincidence.relation",
+    "CarrierRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `placement` and `output_ix`, or `node`.
@@ -1412,6 +1412,10 @@ BOUND_AS = {
     # Why an index is refused as declared crosses at the carrier's
     # second word (`count_not_count`, `within_no_index`).
     "IndexFault": "EditError.inner_variant",
+    # Why a source is refused as declared crosses at the carrier's second
+    # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
+    # `fresh`).
+    "SourceFault": "EditError.inner_variant",
     # Why a family's members could not be listed: the evaluator turns
     # it into its node refusal (`MemberCountFault::node_error`), so it
     # crosses as the tags `index_count` / `index_count_out_of_range`.
@@ -2785,8 +2789,11 @@ NOT_BOUND = {
     # `inconsistent_arc` with its check left behind. `Gate`,
     # `EscalatedAt` and `ArcRead` are the same footing: the escalation
     # arms' gate and site, and the read-back arms' read, crossing as
-    # the arm's word with the field left behind.
+    # the arm's word with the field left behind. `RecordedDirection`
+    # is `InconsistentDirection`'s and `DirectionBelowSceneResolution`'s,
+    # on `ArcCheck`'s footing.
     "ArcCheck": INTERIOR,
+    "RecordedDirection": INTERIOR,
     "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalatedAt": INTERIOR,
@@ -3022,6 +3029,9 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
+    # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
+    # (`wedge_unsettled`) already names at the Python seam.
+    "UnsettledWedge": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
@@ -3651,6 +3661,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
     "EditError::PickPath": "EditError.variant",
+    "EditError::PlacementReadsNoSource": "EditError.variant",
+    "EditError::SourceRead": "EditError.variant",
     "EditError::ProductRead": "EditError.variant",
     "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",
@@ -3721,6 +3733,9 @@ MEMBERS_BOUND_AS = {
     "EditError::WitnessOnNonSketch": "EditError.variant",
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::TakeOverRepeatsCopy": "EditError.variant",
+    "EditError::TakeOverNotASource": "EditError.variant",
+    "EditError::TakeOverSharedSource": "EditError.variant",
+    "EditError::SourceReaderRefused": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",

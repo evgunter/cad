@@ -2397,7 +2397,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    neither of the zone's seam meridians: its section lies inside
     //    one half-band, which keeps it as a ring, and the mesher has no
     //    lane for a curved face with a ring
-    //    (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
+    //    (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
@@ -2519,6 +2519,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
                 _ => false,
             };
+            let scalar = <S as pncad::geom_core::Real>::NAME;
+            let marches = scalar == <f64 as pncad::geom_core::Real>::NAME;
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
@@ -2539,10 +2541,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                     a_kind: SurfaceKind::Torus,
                     b_face,
                     b_kind: SurfaceKind::Nurbs,
-                    why: SectionUnbuilt::Refused(
-                        pncad::geom_brep::SectionError::Unaccounted { cause }
-                    ),
-                } if lower_tube(*a_face) && ridge_wall(*b_face) && cause.contains("cell budget")
+                    why: SectionUnbuilt::Refused(why),
+                } if lower_tube(*a_face) && ridge_wall(*b_face) && match why {
+                    // At the tour's own scalar the torus × spline section
+                    // marches, and runs to its cell budget.
+                    pncad::geom_brep::SectionError::Unaccounted { cause } => {
+                        marches && cause.contains("cell budget")
+                    }
+                    // PINNED, not wanted: a scalar handed no march lane
+                    // (the K sweep's) reads this wall one refusal short
+                    // of the tour, and the refusal names that scalar. It
+                    // waits on
+                    // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
+                    pncad::geom_brep::SectionError::NoMarch { scalar: unmarched } => {
+                        !marches && *unmarched == scalar
+                    }
+                    _ => false,
+                }
             )
         },
         "join the long leaf to the stem it grows from",

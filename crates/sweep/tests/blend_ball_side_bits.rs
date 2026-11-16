@@ -6,7 +6,7 @@
 //! and a fold that dropped the side, or read it backwards, reds here
 //! rather than in a downstream mesh.
 //!
-//! `Inner` is what `Convexity::ball_side` answers for a convex chain
+//! `Inner` is what `battery::ball_side` answers for a convex chain
 //! over a `sense: true` support (the ball rests behind the chart
 //! normal), `Outer` for a concave one. The pinned values are the
 //! reduction's own answers at f64, printed with the shortest

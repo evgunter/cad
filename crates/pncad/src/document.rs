@@ -128,7 +128,9 @@ pub use editor_core::{
     Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
     TubeWindow, VectorSlot,
 };
-pub use editor_core::{Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached};
+pub use editor_core::{
+    Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept

@@ -38,3 +38,15 @@ Decide which is meant:
   per band, or pin the default ε; or
 - the pcurve pass should report the face's `Unminted` finding ahead of an
   edge's in-band escalation, whatever the ε.
+
+## The merge, and a pin (GREEN, 2026-11-14)
+
+A first-parent bisect of main at 1e-12 over `50cfcf499..c43415ae0`
+names `dc1e4c7d4`, the merge of PR 6532 (`pcert/curved-general-image`);
+its first parent `c58a72e39` passes. The row is pinned at 1e-12 on main's
+order (the `GeneralLane` escalation on `ssi_hull_value_chart` where the
+fixture expects `Unminted { face: 1v1 }`); the pin goes red the day the
+row's findings change, which is this row's fix either way it decides.
+
+    CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p topo --lib \
+      -E 'test(a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it)'

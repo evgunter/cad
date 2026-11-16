@@ -1538,9 +1538,8 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// `evaluate`, with the kernel's payload carried unaltered into the
 /// panel's note — so the payload the caption quotes and the payload
 /// the probe pins cannot be two different measurements. That is why
-/// this one takes an evaluation where `torusvessel::wall_probes` takes
-/// only a tolerance and builds its own operands: nothing outside that
-/// scene's probe reads what it makes.
+/// this one takes an evaluation rather than a tolerance and operands of
+/// its own.
 pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // WALL 2 — RETIRED: the handle joins the pot. The section value
     // carries the vessel's sphere face meeting the handle's torus, the

@@ -2784,7 +2784,7 @@ impl<T: Decide> FaceSector<T> {
             for he in cycle {
                 let he = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 if !crate::census::edge_is_line(body, he.edge) {
-                    return Self::cleared(body, f, outward, p, holds);
+                    return Self::cleared(body, f, outward, p, holds, band);
                 }
                 keys.push(he.start);
                 ring.push(position(body, he.start)?);
@@ -2821,8 +2821,8 @@ impl<T: Decide> FaceSector<T> {
     /// ball.
     ///
     /// The fan itself runs further, past the face ([`fan`]): its every
-    /// chord stands past the farthest the face's boundary stands from `p`
-    /// ([`face_reach_from`](crate::face_reach::face_reach_from)),
+    /// chord stands past the farthest the face stands from `p`
+    /// ([`face_reach_from`](crate::cover::face_reach_from)),
     /// so every point of the rim lies past every point of the face, and a
     /// coincidence read there holds over the whole face.
     ///
@@ -2836,6 +2836,7 @@ impl<T: Decide> FaceSector<T> {
         outward: Vec3<T>,
         p: Point3<T>,
         holds: &[Hold],
+        band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
@@ -2889,7 +2890,7 @@ impl<T: Decide> FaceSector<T> {
             }
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
-        let far = crate::face_reach::face_reach_from(body, f, p)
+        let far = crate::cover::face_reach_from(body, f, p, band)
             .map_err(|_| TouchUnread::Corrupt)?
             .length();
         for length in [radius, far] {

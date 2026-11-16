@@ -1032,6 +1032,12 @@ fn role<'n, 's>(
         RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
         RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandSection { vertex } => vec![text("the band section at "), cites.one(vertex)],
+        RoleSeg::HostFoot { vertex, edge } => vec![
+            text("the host foot at "),
+            cites.one(vertex),
+            text(" of the blend over "),
+            cites.one(edge),
+        ],
         RoleSeg::BandFace(edges) => {
             let mut items = vec![text("the blend band over ")];
             items.extend(cites.list(edges));

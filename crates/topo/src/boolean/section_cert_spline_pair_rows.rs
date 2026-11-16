@@ -22,7 +22,7 @@ fn read(f: &Surface<f64>, g: &Surface<f64>, known: KnownPair<f64>) -> Section<f6
     classify_known(
         f,
         g,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.0)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.0)),
         None,
         Some(geom_brep::SsiLane::marched()),
         band(),
@@ -187,6 +187,7 @@ fn shared_rim() -> KnownPair<f64> {
     let image = geom_brep::Pcurve::IsoLine {
         p0: Point2::new(0.0, 0.0),
         pl: Vec2::new(1.0, 0.0),
+        ends: None,
     };
     KnownPair {
         rows: vec![geom_brep::KnownRow {

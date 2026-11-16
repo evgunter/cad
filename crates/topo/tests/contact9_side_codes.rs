@@ -20,11 +20,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_brep::CarrierDesc;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::face_normal::face_carrier_desc;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment,
-    face_carrier, intersect, mass_properties, point_in_solid, split, subtract, union,
-    validate_geometric,
+    AtRestBody, Body, BooleanError, BooleanResult, FaceKey, SolidContainment, intersect,
+    mass_properties, point_in_solid, split, subtract, union, validate_geometric,
 };
 
 /// The far end's depth, in zero thresholds: definite under a 1 m arm
@@ -71,7 +72,7 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(face_carrier(body, k), Some(CarrierDesc::Plane { normal, .. })
+            matches!(face_carrier_desc(body, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
                 if normal.dot(n) > 1.0 - 1e-3)
         })
         .collect();
@@ -362,15 +363,15 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_with_normal(&wedge, [0.0, 0.0, -1.0]),
     );
     let (ca, cb) = (
-        face_carrier(&block, top).unwrap(),
-        face_carrier(&wedge, bottom).unwrap(),
+        face_carrier_desc(&block, top).unwrap(),
+        face_carrier_desc(&wedge, bottom).unwrap(),
     );
-    let metre = topo::carrier_eq(&ca, &cb, &metre_ball(1.0), band);
+    let metre = geom_brep::carrier_eq(&ca, &cb, &geom_brep::ConsumedExtent::arm(1.0), band);
     assert!(
         matches!(
             metre,
-            Err(topo::CarrierEqError::Escalated {
-                rung: topo::PlaneRung::Parallel,
+            Err(geom_brep::CarrierEqError::Escalated {
+                rung: geom_brep::PlaneRung::Parallel,
                 ..
             })
         ),
@@ -654,10 +655,4 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
             sliver(e)
         );
     }
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }

@@ -41,7 +41,7 @@ use geom::{Curve3, Surface};
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, Branch, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
-use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
+use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE, ball_side};
 
 const EPS: f64 = 1e-12;
 
@@ -497,13 +497,13 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         let (tp, _) = sheet
             .trace(
                 &plane(Point3::new(0.0, 0.0, 0.0), n, Vec3::new(1.0, 0.0, 0.0)),
-                Convexity::Convex.ball_side(true),
+                ball_side(Convexity::Convex, true),
             )
             .unwrap();
         let (ts, _) = sheet
             .trace(
                 &sphere(sphere_c, 1.0),
-                Convexity::Convex.ball_side(sphere_sense),
+                ball_side(Convexity::Convex, sphere_sense),
             )
             .unwrap();
         let new = sheet.blend(tp, ts, radius, Branch::Rim);

@@ -1,6 +1,6 @@
 //! The B-rep geometry layer: D2's intensional edge descriptions,
-//! certified carrier caches, the dihedral classification predicate, and
-//! Newell face equations (M2 PR 3).
+//! certified carrier caches, and the dihedral classification predicate
+//! (M2 PR 3).
 //!
 //! This crate sits between the evaluators (`geom`) and the arena
 //! store (`topo`): it defines **what an
@@ -8,14 +8,15 @@
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
 //! is unrepresentable), and the two geometric classifiers M2's
-//! constructions and tier-3 validation stand on:
+//! constructions and tier-3 validation stand on, and the plane mint
+//! test fixtures build their bodies with:
 //!
 //! - [`classify_dihedral`] — the material wedge-angle predicate's first
 //!   arrival: transverse / smooth / sliver-escalation, via
 //!   implicit-form gradients (never chart normals) and D4 ¶1's
 //!   displacement-through-lever-arm margins.
-//! - [`newell_plane`] — certified planes from loop vertex data,
-//!   translate-to-origin by default.
+//! - `newell_plane` (behind `test-support`) — certified planes from
+//!   loop vertex data, translate-to-origin by default.
 //!
 //! [`ssi`] is M5 PR 7's addition: rung 3 of the C1 ladder — surface
 //! intersection by march-then-certify, with the full three-limb C2
@@ -53,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
 pub mod carrier_resolution;
@@ -82,6 +84,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
+pub mod polygon_orientation;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
@@ -92,6 +95,7 @@ pub mod ladder {
 pub mod locus;
 pub mod mapped;
 pub(crate) mod memo;
+#[cfg(any(test, feature = "test-support"))]
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -103,6 +107,7 @@ pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
+pub mod plane_eq;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
@@ -116,6 +121,10 @@ pub mod tangent;
 pub mod torus_convention;
 pub mod variety;
 
+pub use carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
+    ConsumedExtent, carrier_eq,
+};
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use carrier_pose::{
     CarrierPose, CarrierPoseRefusal, Directions, Nest, POSE_AXES_PARALLEL, POSE_AXIS_ALONG_PLANE,
@@ -135,15 +144,14 @@ pub use description::{
 };
 pub use dihedral::{
     AlignmentReading, Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN,
-    DIHEDRAL_SIGN, Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation,
-    GRADIENT_ALIGNMENT_LEVER, GradientAlignment, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    DIHEDRAL_SIGN, DIHEDRAL_WEDGE, Dihedral, DihedralClass, GRADIENT_ALIGNMENT_LEVER,
+    GradientAlignment, MATERIAL_CUSP_SIDE, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
     MaterialPairing, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryRung, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace,
-    SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
-    classify_dihedral, classify_dihedral_reported, classify_edge_wedge, classify_seam,
-    folded_lever_arm, gradient_alignment, material_kappa_rel, must_carry_description,
-    must_carry_over_edge, normals_alignment, reask_chart, reask_pair, rest_locus,
-    tangent_second_order,
+    MustCarryRung, MustCarryVerdict, PairRefusal, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    SmoothJoin, Station, TANGENT_SECOND_ORDER, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_seam, folded_lever_arm,
+    gradient_alignment, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -157,7 +165,9 @@ pub use edge_nurbs::{
     is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
     probe_pick, sub_arc_joint,
 };
-pub use edge_wedge::{Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over};
+pub use edge_wedge::{
+    Bend, FoldNames, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
@@ -168,7 +178,7 @@ pub use enters::{
 pub use extent::{
     ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
     edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
-    polygon_half_perimeter, surface_anchored_at,
+    surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -202,6 +212,7 @@ pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
+#[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,
@@ -223,11 +234,12 @@ pub use pair_section::{
     CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
     NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
     Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionNode,
-    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
-    SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
-    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
-    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
-    axis_pose, line_tilt, pair_section, spline_pair_section, square_part, tori_coincide,
+    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
+    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
+    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -239,15 +251,18 @@ pub use pcurve::{
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
     ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
-    FocalImage, FramedCarrier, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal, IsoFamily,
-    IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, OffMargin, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
-    ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
-    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, incidence_ended_unwitnessed,
-    iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
-    read_point_incidence, ruling_miss,
+    FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal,
+    IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoHeldLine, NoSpeedBound,
+    OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
+    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, StoredSpan,
+    WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve,
+    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    chart_sup_arms_at, harmonic_form_of, harmonic_range, incidence_ended_unwitnessed, iso_arc_skew,
+    iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence, read_point_incidence,
+    ruling_miss,
 };
+pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
+pub use polygon_orientation::PolygonOrientation;
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,

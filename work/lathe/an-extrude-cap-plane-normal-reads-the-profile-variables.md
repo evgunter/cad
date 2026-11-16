@@ -80,3 +80,5 @@ Do not re-derive it from the points. A Newell plane stays the right
 reading where the points are not known coplanar by construction. The
 row: at `Sym`, an extrude's two cap normals are exactly `±z`, with no
 profile symbol in them.
+
+- 2026-11-15 — **Done in fact by BOXFINISH's `boxfinish/sweep-frames` (PR 6972).** `crates/sweep/src/swept.rs` `cap_plane` no longer calls `newell_plane`: a cap is its station's frame, the sketch plane's normal signed by the validated winding and the traversal, its `u_ref` the frame's first axis and its origin the frame's origin carried by the sweep, so no profile variable enters it at `Sym` and the `cap_plane_orientation` decision is gone. Evidence on that branch: `a_sweep_keeps_the_frame_it_is_handed::a_slab_over_a_depth_box_stores_exact_caps_and_walls` (the caps' normals exact over a depth box at `Sym<Interval>`), and the two rows this row names: `glue_on_zero_rows::a_flush_rest_glues_and_records_its_unproven_rows` now reads recourse `OneConstruction` where it read `Budget`, and `coincidence_door::a_filleted_box_records_one_unproven_turn_per_corner` holds. Left for whoever closes it.

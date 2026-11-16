@@ -280,7 +280,7 @@ pub enum FaceSurface<T: Real> {
     /// demoting face.
     Inherit,
     /// Mint a new surface for the new face (the sweep's usual case —
-    /// e.g. a Newell-certified plane from `geom_brep::newell_plane`).
+    /// e.g. a sweep's cap, its station's frame).
     New {
         /// The surface to mint.
         surface: Surface<T>,
@@ -2971,6 +2971,7 @@ impl<T: Decide> Body<T> {
                 let new = body.new_site_face(
                     face_key,
                     &surface,
+                    ParentSide::With,
                     !carried,
                     with(SiteHalf::NewMinus, new_side),
                 )?;
@@ -3131,8 +3132,13 @@ impl<T: Decide> Body<T> {
             &[loop_key],
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None);
-                let new =
-                    body.new_site_face(face_key, &surface, !carried, vec![SiteHalf::NewMinus])?;
+                let new = body.new_site_face(
+                    face_key,
+                    &surface,
+                    ParentSide::With,
+                    !carried,
+                    vec![SiteHalf::NewMinus],
+                )?;
                 Ok(vec![old, new])
             },
             &certified,
@@ -4249,6 +4255,7 @@ impl<T: Decide> Body<T> {
         SiteFace {
             rows_from: face,
             surface,
+            sense: view.sense(),
             moved: false,
             loops,
         }
@@ -4283,10 +4290,20 @@ impl<T: Decide> Body<T> {
         &self,
         from: FaceKey,
         surface: &FaceSurface<T>,
+        side: ParentSide,
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
         let from_data = self.proven_face(from);
+        // The bit the door writes ([`Body::resolve_face_surface`]): the
+        // stated one, or the one the door's topology derives.
+        let sense = match *surface {
+            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => sense,
+            FaceSurface::Inherit => match side {
+                ParentSide::With => from_data.sense(),
+                ParentSide::Against => !from_data.sense(),
+            },
+        };
         let chart = match surface {
             FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
@@ -4298,6 +4315,7 @@ impl<T: Decide> Body<T> {
         Ok(SiteFace {
             rows_from: from,
             surface: chart,
+            sense,
             moved,
             loops: vec![SiteLoop::Rewired(halves)],
         })
@@ -5682,6 +5700,25 @@ mod tests {
 
     #[test]
     fn a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it() {
+        // Pinned red: the pcurve pass reports the split circle's in-band
+        // `General` image ahead of the pillow's unminted face
+        // (`work/pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12`).
+        test_utils::pinned_red::row(
+            Tol::witness().eps(),
+            &[1e-12],
+            "the fan mev split",
+            &[
+                "Escalated { check: GeneralLane",
+                "ssi_hull_value_chart",
+                "Pcurve { finding: Unminted",
+            ],
+            a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it_row,
+        );
+    }
+
+    /// The row [`a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it`] runs, under its pin.
+    fn a_fan_mev_rebases_the_plane_x_nurbs_class_through_the_policy_lane_and_mev_null_splits_it_row()
+     {
         // The re-basing gate re-derives the M7-8 edge through the lane
         // `f64`'s policy holds: a fan `mev` at the old vertex's own point
         // (the closed spec) carries the edge onto the new vertex, bit for

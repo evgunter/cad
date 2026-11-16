@@ -123,10 +123,10 @@ pub struct SplitPlane<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionGermReading {
     /// Whether a face meets the plane along a line there
-    /// (`split_germ_line`).
+    /// (`germ_line`, the star's germ rule).
     Line,
-    /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// The order of two germs about the plane's normal (`germ_side`,
+    /// `germ_sense`, `germ_order`, the star's one order), or of
     /// two along one tangent by how their sections curve off it
     /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,
@@ -170,6 +170,28 @@ pub enum PlaneSide {
 }
 
 impl PlaneSide {
+    /// The side a decided offset's sign names: the one reading of a
+    /// sign as a side of a plane.
+    #[must_use]
+    pub const fn of_sign(sign: geom_core::Sign) -> Self {
+        match sign {
+            geom_core::Sign::Negative => Self::Below,
+            geom_core::Sign::Zero => Self::On,
+            geom_core::Sign::Positive => Self::Above,
+        }
+    }
+
+    /// The side as the star's cut reads it ([`crate::star::apart`]):
+    /// `Some(true)` above, `Some(false)` below, `None` on the plane.
+    #[must_use]
+    pub const fn strict(self) -> Option<bool> {
+        match self {
+            Self::Below => Some(false),
+            Self::On => None,
+            Self::Above => Some(true),
+        }
+    }
+
     /// The side as a refusal names it.
     #[must_use]
     pub fn word(self) -> &'static str {
@@ -346,12 +368,22 @@ pub enum SplitReduceError {
     /// names.
     KnifeEdge(KnifeEdge),
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// from the plane, or from a section the plane ends at it
-    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
-    /// or cannot be read. No snapping — resolution is an explicit
-    /// repair/adoption op (D7 machinery).
+    /// from the plane lies in the ambiguity band, beyond ε, or cannot be
+    /// read. No snapping — resolution is an explicit repair/adoption op
+    /// (D7 machinery).
     SliverVertex {
         /// The offending vertex.
+        vertex: VertexKey,
+        /// The escalation diagnostics.
+        diag: Indeterminate,
+    },
+    /// Whether a vertex on the plane lies on the section the plane cuts
+    /// in a face at it is undecided ([`crate::vertex_section`]): its
+    /// reading against that section, margin `δ / sin ψ`, lies in the
+    /// ambiguity band. The split's twin of the Boolean's
+    /// `Coincide::VertexOnSection`; no snapping.
+    SliverSection {
+        /// The vertex on the plane.
         vertex: VertexKey,
         /// The escalation diagnostics.
         diag: Indeterminate,
@@ -487,13 +519,15 @@ pub enum SplitReduceError {
         /// The vertex with no verdict.
         vertex: VertexKey,
     },
-    /// A face whose outer loop is a lone vertex: it has no outer
-    /// boundary, so no finite lever arm meters a predicate across it.
-    UnboundedFace {
+    /// A face with no cover (`topo::face_cover`), so no finite lever arm
+    /// meters a predicate across it: a ruled face whose outer loop is a
+    /// lone vertex, a carrier with no region, or a boundary edge with no
+    /// cover (a gap of null scaffolding among them).
+    UncoveredFace {
         /// The face.
         face: FaceKey,
-        /// Its outer loop's lone vertex.
-        vertex: VertexKey,
+        /// Why it has no cover.
+        why: crate::cover::FaceUncovered,
     },
     /// `split_edge` refused while inserting the crossing vertex on an
     /// edge whose endpoints straddle the plane — typically the
@@ -671,6 +705,13 @@ impl SplitReduceError {
                     diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
+            Self::SliverSection { diag, .. } => diag
+                .undecided(
+                    "whether a vertex on the split plane lies on the section that plane cuts \
+                     in a face at the vertex",
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
                 concat!(
@@ -772,10 +813,9 @@ impl SplitReduceError {
                 "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
                  reaches"
             ),
-            Self::UnboundedFace { face, vertex } => write!(
+            Self::UncoveredFace { face, why } => write!(
                 f,
-                "face {face:?}'s outer loop is the lone vertex {vertex:?}, so the face has no \
-                 extent to meter a predicate across"
+                "face {face:?} has no cover ({why}), so no extent to meter a predicate across"
             ),
             Self::CrossingInsertion {
                 edge,

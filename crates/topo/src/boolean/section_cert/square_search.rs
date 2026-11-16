@@ -586,7 +586,7 @@ fn square_pose_at(
 /// The reach every search pose is classified with: a ball about the
 /// torus holding all of it.
 pub(super) fn reach_of(ring: &Ring) -> Reach<f64> {
-    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
         ring.c,
         1.5 * (ring.big_r + ring.r),
     ))

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use topo::construction::Construct;
 
 use geom::{ApproxSurface, NurbsSurface, Surface};
-use geom_core::{Affine3, Decide, Point3, Real, Tol, Vec3};
+use geom_core::{Decide, Point3, Real, Tol};
 use topo::construction::FaceSurface;
 use topo::{Body, ContactRecords, FaceKey};
 
@@ -77,11 +77,14 @@ fn nurbs_seed<T: Decide>() -> (Body<T>, FaceKey) {
     )))
 }
 
-/// A turn about `z`, admitted at `f64` and entered at `T` as the computed
-/// values it is.
+/// A turn about `z` by 0.7 rad, minted at `T`.
 fn turned<T: Real>() -> geom_core::RigidMotion<T> {
-    let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7);
-    geom_core::test_support::rigid(&map, tol()).computed_at::<T>()
+    geom_core::RigidMotion::rotation_about_axis(
+        Point3::origin(),
+        geom_core::UnitVec3::exact_z(),
+        T::from_f64(0.7),
+    )
+    .expect("a finite turn")
 }
 
 /// The public doors at one scalar. `lane` is the name the mint

@@ -1693,6 +1693,7 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::RowInterval { .. } => WalkRefusal::Torn,
         M::Escalated { .. }
         | M::NetStretchUndecided { .. }
+        | M::SingularTurn { .. }
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
@@ -5564,14 +5565,19 @@ impl OneRecordTokens {
     /// every result face the moved operand faces the glue read over
     /// ([`super::glue::GlueCensus`]) left that still wears the other
     /// record: their fragments, read through the faces the join merged
-    /// back. A pair one of whose records no result face wears licenses
-    /// nothing. A pair whose two faces share a record asks nothing.
+    /// back. A pair one of whose records the result does not hold
+    /// licenses nothing. A pair whose two faces share a record asks
+    /// nothing.
     ///
     /// The record's relation says whether the two operand faces'
     /// material sides agree, and each face's sense turns its material
     /// side to its chart's normal, so the two glued faces' own senses
-    /// say how the two operands' charts face; `op` turns B's chart where
-    /// it subtracts and B's surface carries its own reversal.
+    /// say how the two operands' charts face. ∖ reads B reverted: its
+    /// material side is the other one, and its face's sense on the
+    /// record the result holds is the one revert leaves it
+    /// ([`crate::revert::reverted_sense`]). `b` is therefore B as the
+    /// caller gave it, never the reverted copy the result was built
+    /// from, whose senses revert has already turned.
     ///
     /// # Errors
     ///
@@ -5594,11 +5600,11 @@ impl OneRecordTokens {
             .map(|pair| {
                 (|| {
                     let relation = pair.class().carrier_relation()?;
-                    let (fa, fb) = (a.get_face(pair.a)?, b.get_face(pair.b)?);
+                    let (fa, fb) = (a.get_face(pair.a)?, b.face(pair.b)?);
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
-                    let kb = graft.surfaces.get(fb.surface).copied()?;
+                    let kb = graft.surfaces.get(fb.record().surface).copied()?;
                     (ka != kb
                         && result.get_surface(ka).is_some()
                         && result.get_surface(kb).is_some())
@@ -5608,18 +5614,15 @@ impl OneRecordTokens {
                         Operand::A => (ka, kb),
                         Operand::B => (kb, ka),
                     };
-                    // ∖ reads B reverted, and a reverted plane turns its
-                    // chart where every other kind turns its faces' senses:
-                    // B's face then faces its result chart as its sense
-                    // turned does.
-                    let turned = op == BooleanOp::Subtract
-                        && b.get_surface(fb.surface).is_some_and(|s| {
-                            crate::transform::OrientationClass::of(s)
-                                == crate::transform::OrientationClass::Plane
-                        });
+                    let subtracts = op == BooleanOp::Subtract;
+                    let b_sense = if subtracts {
+                        crate::revert::reverted_sense(fb.surface(), fb.sense())
+                    } else {
+                        fb.sense()
+                    };
                     let charts_agree = crate::one_record::charts_agree(
-                        relation == super::CarrierRelation::SameOriented,
-                        [fa.sense, fb.sense != turned],
+                        (relation == geom_brep::CarrierRelation::SameOriented) != subtracts,
+                        [fa.sense, b_sense],
                     );
                     let side = census.moving();
                     let view = &views[usize::from(side == Operand::B)];
@@ -6780,6 +6783,53 @@ pub(super) fn recut_lean<T: Decide>(
     })
 }
 
+/// **A re-cut's turn carrying `a` onto `b` about the sphere's `center`**
+/// (`bool_sphere_recut_turn`): the decided least turn, consumed over the
+/// sphere (every point it moves stands at the radius from the centre it
+/// turns about, the sphere's curvature arm). A conditioning refusal is the
+/// re-chart the band cannot determine, typed; any other refusal is past
+/// what the alignment trilean and the seam's half-plane choice settled,
+/// so it is an invariant broken.
+#[allow(clippy::too_many_arguments)] // the turn's mint arguments, and the face its refusal names
+fn recut_turn<T: Decide>(
+    a: geom_core::UnitVec3<T>,
+    b: geom_core::UnitVec3<T>,
+    center: Point3<T>,
+    radius: T,
+    band: Band,
+    tol: Tol,
+    operand: Operand,
+    representative: FaceKey,
+) -> Result<geom_core::RigidMotion<T>, BooleanError> {
+    geom_core::RigidMotion::least_turn(
+        a,
+        b,
+        center,
+        geom_core::Lever::curvature_radius(radius),
+        RECUT_TURN,
+        band,
+        tol,
+    )
+    .map_err(|e| match e {
+        geom_core::TurnError::IllConditioned { .. }
+        | geom_core::TurnError::ConditioningUndecided(_) => {
+            BooleanError::FallbackExtentUnsupported {
+                operand,
+                face: representative,
+                what: "a sphere group whose stored polar axis stands so near opposed to its \
+                       escape normal that the re-chart's turn, levered at the radius, passes \
+                       the run's rounding reach: the turn is not determined at ε",
+            }
+        }
+        _ => BooleanError::ClassificationInvariant {
+            what: "re-cut rotation does not mint a turn",
+        },
+    })
+}
+
+/// The decision name of a re-cut's turn ([`recut_turn`]).
+const RECUT_TURN: &str = "bool_sphere_recut_turn";
+
 /// Applies the scan's re-cuts: each escaping group's shell is carved
 /// out, rigidly rotated about the sphere's own center so the stored
 /// polar axis lands on the escape normal (the same point set — a
@@ -6830,23 +6880,35 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
             // The alignment turn and the seam spin, each MINTED as the
-            // turn between two unit witnesses (`RigidMotion::turned_between`,
+            // turn between two unit witnesses (`RigidMotion::least_turn`,
             // the quaternion of `(1 + a·b, a × b)`: algebraic, no
             // atan2/sin/cos, so under the Interval scalar exact zeros stay
             // exact), about the sphere's centre. Rigid by construction,
             // so no rigidity door is asked of twelve numbers (closing
-            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`);
-            // `1 + a·b > 0` is its one decision, which the alignment
-            // trilean above already settled for the axis pair and the
-            // seam's half-plane choice settles for the spin.
-            const RECUT_TURN: &str = "bool_sphere_recut_turn";
+            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`).
+            // Its pole verdict, over the radius, is settled by the
+            // alignment trilean above for the axis pair (near opposed
+            // `|axis × align|` is the chord, levered at the same radius)
+            // and by the seam's half-plane choice for the spin. Its
+            // conditioning is not: past the crossover radius `√(Kε·R/2)`
+            // (about 0.16 m at the default ε) the conditioning's edge
+            // `2r/R` is the wider, so an axis that near opposed refuses
+            // here, typed, as a re-chart the band cannot determine.
             let unit = |v: Vec3<T>| {
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
             let turn = |a, b| {
-                geom_core::RigidMotion::turned_between(a, b, r.center, RECUT_TURN, band)
-                    .map_err(|_| corrupt("re-cut rotation does not mint a turn"))
+                recut_turn(
+                    a,
+                    b,
+                    r.center,
+                    r.radius,
+                    band,
+                    tol,
+                    operand,
+                    r.representative,
+                )
             };
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
@@ -8263,6 +8325,42 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    /// **A re-cut's turn at the dual scalar keeps its derivative where its
+    /// two directions agree only in value**: the seam spin's `a = x̂` and
+    /// `b = (cos t, sin t, 0)` seeded at `t = 0`, about the origin at a
+    /// radius of one. The spin is the rotation about `z` by `t`, so the
+    /// turn moves `x̂` at `ŷ` and `ŷ` at `−x̂`. *Breaks if* the mint's
+    /// identity reads the value channel alone, which drops that derivative
+    /// from the re-charted sphere's ∂m/∂p.
+    #[test]
+    fn a_recut_turn_one_direction_only_in_value_keeps_its_derivative() {
+        use geom_core::{Dual, UnitVec3};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("a band");
+        let d = |v: f64, dv: f64| Dual {
+            value: v,
+            deriv: dv,
+        };
+        let zero = d(0.0, 0.0);
+        let unit = |v| UnitVec3::new(v, super::RECUT_TURN, band).expect("a unit direction");
+        let a = unit(geom_core::Vec3::new(d(1.0, 0.0), zero, zero));
+        let b = unit(geom_core::Vec3::new(d(1.0, 0.0), d(0.0, 1.0), zero));
+        let m = super::recut_turn(
+            a,
+            b,
+            geom_core::Point3::new(zero, zero, zero),
+            d(1.0, 0.0),
+            band,
+            geom_core::Tol::witness(),
+            crate::boolean::Operand::A,
+            crate::entity::FaceKey::default(),
+        )
+        .expect("the turn builds")
+        .linear();
+        let deriv = |v: geom_core::Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
+        assert_eq!(deriv(m.c0), [0.0, 1.0, 0.0], "S'·x̂ is ŷ");
+        assert_eq!(deriv(m.c1), [-1.0, 0.0, 0.0], "S'·ŷ is −x̂");
+    }
+
     /// **The loop walk reads a carrier decided off its chart as torn, and
     /// one read in band at a pose as unread** (D3): only a definite miss
     /// is a contradiction the kernel holds; a read in band is never a
@@ -8768,7 +8866,9 @@ mod tests {
         use crate::ValidationError as V;
         let tol = Tol::witness();
         let (pillow, split) = crate::tier3_tests::coplanar_pillow(tol);
-        let lamina = pillow.flipped_face_sense_for_tests(split.face).unwrap();
+        let lamina = pillow
+            .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+            .unwrap();
         let inside_out =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol)
                 .revert()

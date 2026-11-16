@@ -56,13 +56,32 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("POSE_ROUND_SIDE"),
     NameCarrier::Const("TANGENT_GAP_ORIENTATION"),
     NameCarrier::Const("GRADIENT_ALIGNMENT_LEVER"),
+    NameCarrier::Const("DIHEDRAL_WEDGE"),
+    NameCarrier::Const("TANGENT_SECOND_ORDER"),
+    NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    // The carrier ladder's data names, and each kind's reach row with
+    // its straddle row (`carrier_eq.rs`).
+    NameCarrier::Const("CARRIER_CONE_APEX"),
+    NameCarrier::Const("CARRIER_CONE_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CONE_HALF_ANGLE"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_OFFSET"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CYL_RADIUS"),
+    NameCarrier::Const("CARRIER_SPHERE_CENTER"),
+    NameCarrier::Const("CARRIER_SPHERE_RADIUS"),
+    NameCarrier::Const("CONE_REACH"),
+    NameCarrier::Const("CYL_REACH"),
+    NameCarrier::Const("PLANE_REACH"),
+    NameCarrier::Const("SPHERE_REACH"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("apart_in_order_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
+    NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
+    NameCarrier::Call("convexity"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
@@ -182,6 +201,8 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name (`.turn()`, \
      `.straddle()`), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
+const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
+                             `cone_data`, whose names are declared consts";
 const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
                       forwards its caller's name";
 const CLOSED_TYPE: &str = "a closed type's `name()` or `predicate()`, whose names are spelled in \
@@ -198,6 +219,9 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
                             first argument";
 const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
                            (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
+const FOLD_NAMES: &str = "a `FoldNames` field, whose names are read at its literals: \
+                          `FoldNames::SHAPE`'s declared consts here, a building reader's in its \
+                          own crate";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
@@ -208,6 +232,16 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    ("carrier_eq.rs: coincident_over_extent_as: row", FORWARDS),
+    (
+        "carrier_eq.rs: coincident_over_extent_as: straddle",
+        FORWARDS,
+    ),
+    ("carrier_eq.rs: pair_door_reading: c1", CARRIER_CALL),
+    (
+        "carrier_eq.rs: read_identity#1(margins.iter().copied())",
+        IDENTITY_DATA,
+    ),
     (
         "carrier_resolution.rs: the_resolution_bounds_each_section_tables_carrier: &cut",
         CARRIER_CALL,
@@ -261,13 +295,13 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
-    ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
     ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
     ("dihedral.rs: normals_alignment: name", FORWARDS),
     (
         "carrier_pose.rs: directions_parallel: what.name()",
         CLOSED_TYPE,
     ),
+    ("dihedral.rs: convexity: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
     ("dihedral.rs: decide_magnitude: name", FORWARDS),
     ("dihedral.rs: decide_magnitude_reported: name", FORWARDS),
@@ -275,8 +309,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_nonzero_reported: name", FORWARDS),
     ("dihedral.rs: decide_positive: name", FORWARDS),
     ("dihedral.rs: decide_reported: name", FORWARDS),
-    ("dihedral.rs: gate: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
+    ("edge_wedge.rs: after_positive: self.end", FOLD_NAMES),
+    ("edge_wedge.rs: edge_wedge_over_as: names.sign", FOLD_NAMES),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
         "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: Interval::from_bounds(0.0, 0.0)",

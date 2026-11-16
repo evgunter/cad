@@ -262,7 +262,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "rounded_prism",
         [0x0d7a_8827_002b_0ba9, 0x0d7a_8827_002b_0ba9],
     ),
-    ("ball", [0xcb6a_4bef_173f_8581, 0x4a7d_529a_cfd5_0ea3]),
+    ("ball", [0x7808_bbdc_c848_c50e, 0xc6d1_f5b7_bcec_efdf]),
     (
         "sphere_wedge",
         [0xc0e4_3c76_081e_10f3, 0x70f4_2f79_af65_0fee],
@@ -296,7 +296,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
     (
         "swept_elbow",
-        [0xc4b9_ed98_6ad4_3719, 0x7bf1_2263_63b2_d17c],
+        [0xca97_2f70_8e56_d5a9, 0xe8f8_263b_c340_6dd9],
     ),
 ];
 

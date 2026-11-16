@@ -74,12 +74,10 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let Some(face) = names::EntityKey::face(ent.key) else {
                 unreachable!("the traced seat admits a face alone")
             };
-            let (surface, sense) =
-                topo::readback::face_carrier(framed.body(), face).map_err(|error| {
-                    NodeErrorKind::PoseRead {
-                        pose: VarKind::Face,
-                        fault: PoseReadFault::Readback { error },
-                    }
+            let (surface, sense) = topo::readback::face_stored_surface(framed.body(), face)
+                .map_err(|error| NodeErrorKind::PoseRead {
+                    pose: VarKind::Face,
+                    fault: PoseReadFault::Readback { error },
                 })?;
             let body = framed.frame();
             Ok(TracedFace {
