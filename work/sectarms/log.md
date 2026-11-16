@@ -865,3 +865,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Sequencing:** MEASUREDOOR's `tier-3-refuses-a-carrier-with-an-interior-c0-knot` is now `blocked_on` this item too; otherwise valid quadric booleans would fail at rest.
   - The optional `[edges]` sentence is asked separately in the PR body.
   - Subscribed to PR 7042.
+- 2026-11-16 — **The rim-pad lane (Opus) stopped on a design fork; nothing was built and there is no PR.** Its branch holds only the dispatch mark, at `2d0cc36252`.
+  - **Why:** the certificate's tube pads every window by the rung imaged across the carrier, so a pad read off the certifying rung's windows is at least about one rung, whether read per box or per sub-span. `apart` then refuses arcs 1.2 rungs apart (measured pad/rung 1.10 on every rod at s = 0.01, 1 and 10).
+  - **What it would take:** the done-when needs a pad read from a narrower chain than the certifying one. C2's carry sentence ("its pad the chart tube's windows imaged … by its chart speeds", written by PR 6862, Ev-approved) names the certificate's own tube, so changing it is a design change.
+  - **A finding:** short sub-spans read wider, not narrower, because each window is read only against its own span's carrier points.
+  - **Next:** this goes to designers as a fork. There is no model-compare row, since no PR was opened; the lane's interruption-free stop is logged here. Bytes are drawn after this entry.
