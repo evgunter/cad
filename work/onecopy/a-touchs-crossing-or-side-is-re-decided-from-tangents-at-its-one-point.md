@@ -21,3 +21,5 @@ That angle is 0 at the extremum. It grows to about √(2zκ) at the arc's ends, 
 **Fix (C, as recommended on PR 6570):** a `Meeting` carries its kind, `Crossing | Touch { arc }`, decided once by the pose or the subdivision. Readers that ask about crossing, touch or side read the kind. For a touch, where they need sides, they read the arc's two ends, never tangents at the point.
 
 **Done when:** a row injects an off-extremum reported point (an arc end) for each reader above and its verdict is unchanged, and no reader outside `meet` decides crossing-or-touch from tangents at a meeting's point.
+
+**Ev's reservation (PR 6570, 2026-11-16):** "i think this works, then. it still seems like it's not 'sound by construction' / has arbitrariness, but there may not be a solution that handles that better". The arbitrariness is which point of the in-band arc `meet` reports. Under C, no verdict may depend on that choice. When this row lands, check whether any reader still can, and say so in its PR. The aim is that the reported point is arbitrary only where nothing reads it.
