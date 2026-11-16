@@ -1303,10 +1303,13 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                     Err(E::BoundaryEar { .. }) => Some("BoundaryEar"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
-                let want = match (h <= 1e-5 && side == "above", delta) {
-                    (false, _) => None,
-                    (true, d) if d == 2e-4 => Some("BoundaryEar"),
-                    (true, _) => Some("FoldedTriangle"),
+                #[allow(clippy::float_cmp)]
+                let want = if h > 1e-5 || side != "above" {
+                    None
+                } else if delta == 2e-4 {
+                    Some("BoundaryEar")
+                } else {
+                    Some("FoldedTriangle")
                 };
                 if exact {
                     assert_eq!(refusal, want, "{what}, δ = {delta:e}");
