@@ -277,7 +277,7 @@ fn window<T: Decide>(
     (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
     (rb, pb, t): (&Read<'_, '_, T>, Piece<T>, T),
     band: Band,
-) -> super::WindowBound<T> {
+) -> (super::WindowBound<T>, bool) {
     let run = |r: &Read<'_, '_, T>, p: Piece<T>, u: T| {
         Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
     };
@@ -290,7 +290,7 @@ fn window<T: Decide>(
         curvature,
         (T::from_f64(band.escalate()), span),
     )
-    .unwrap_or_else(super::polish::undecided)
+    .map_or_else(|| (super::polish::undecided(), false), |b| (b, true))
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
@@ -422,8 +422,11 @@ pub(super) fn meet<T: Decide>(
                     point: ra.curve().eval(s),
                     ta: s,
                     tb: t,
-                    bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
+                    bound: None,
                 };
+                let (bound, basin) = window((&ra, pa, s), (&rb, pb, t), band);
+                let candidate = super::Candidate { bound: Some(bound), ..candidate };
+                found.probe_basin = Some(basin);
                 // PROBE (ring width): both pieces inside the ringing
                 // meeting's ring, each its middle's distance plus reach
                 // below the band's escalation width.

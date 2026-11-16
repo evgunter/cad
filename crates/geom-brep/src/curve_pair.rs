@@ -507,6 +507,9 @@ struct Found<T: geom_core::Real> {
     /// PROBE: the refusal the "neither" class raises under
     /// `CAD_RING_PROBE_REFUSE`.
     probe_refused: Option<MeetFault>,
+    /// PROBE (a): whether the walk's window proved its basin; `None` for
+    /// a pose candidate (whose basin `closest` proves or refuses).
+    probe_basin: Option<bool>,
 }
 
 impl<T: geom_core::Real> Default for Found<T> {
@@ -516,6 +519,7 @@ impl<T: geom_core::Real> Default for Found<T> {
             held: Vec::new(),
             probe_contained: None,
             probe_refused: None,
+            probe_basin: None,
         }
     }
 }
@@ -540,6 +544,7 @@ impl<T: Decide> Found<T> {
             )
         };
         let contained = self.probe_contained.take();
+        let basin = self.probe_basin.take();
         let Some(bound) = c.bound else {
             self.offer(c.point, on_both, band);
             return;
@@ -550,13 +555,18 @@ impl<T: Decide> Found<T> {
                 geom_core::Margin::of(bound.floor),
                 band,
             );
-            let class = if floor == Ok(geom_core::Sign::Positive) {
-                "a-decided"
-            } else if contained == Some(true) {
-                "b-contained"
-            } else {
-                "neither"
+            let moved = bound
+                .reach
+                .structure_bracket()
+                .is_some_and(|(_, hi)| hi.is_finite());
+            let class = match (basin, floor == Ok(geom_core::Sign::Positive), contained) {
+                (_, true, _) => "a-decided",
+                (None, _, _) => "a-pose",
+                (Some(true), _, _) => "a-walk",
+                (Some(false), _, Some(true)) => "b-contained",
+                (Some(false), _, _) => "basin-unproved",
             };
+            let class = format!("{class}\t{}", if moved { "move" } else { "nomove" });
             let at_end = |span: &Span<'_, T>, t: T| {
                 let (lo, hi) = span.params();
                 span.ended()
@@ -584,7 +594,7 @@ impl<T: Decide> Found<T> {
                     let _ = f.write_all(line.as_bytes());
                 }
             }
-            if class == "neither" && std::env::var_os("CAD_RING_PROBE_REFUSE").is_some() {
+            if class.starts_with("basin-unproved") && std::env::var_os("CAD_RING_PROBE_REFUSE").is_some() {
                 self.probe_refused.get_or_insert(MeetFault::Unsettled(Unsettled::Meter {
                     row: "ring_probe_neither",
                 }));
