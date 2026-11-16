@@ -63,6 +63,32 @@ node arc's chord at rest needs a schedule that grades toward a node end,
 which that sentence excludes. The image is the pcurve mint's too
 (`pcurve_cache::general_image_lane`, which reads no partner).
 
+## The fork
+
+This item, `a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`
+and `a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`
+are one question. Each refusal is on the wall's image of a carrier the
+trace certified, never on the carrier:
+- the plane lane's degree-1 image sags off a foot path that bends in the
+  chart;
+- the curved lane's finest uniform rung misses by about 5e-10 of the
+  wall's size;
+- a node arc's uniform end span is far wider than its node box.
+
+The trace fits the carrier and its wall pcurve together on one shared
+parameter (`ssi::fit_branch`, graded toward a node by `Ends::graded`)
+and certifies that pair. The join keeps the carrier and its certificate
+and drops the pcurve. Rest then images the carrier on the fixed foot
+schedule, chosen by the partner's kind, and the mint stores a third
+image of its own.
+
+What rest's image of a fitted spline × implicit carrier is, for every
+partner kind, node ends and both charts of a spline pair, and what the
+wall's face stores for the same edge, is the decision. C2's at-rest
+image sentences ("derived from the same foot schedule", PR 6879) and
+its NURBS × NURBS sentence ("from the fixed foot schedule") change
+with it.
+
 ## Done when
 
 A chord of a carried node arc certifies at rest, its node end read
