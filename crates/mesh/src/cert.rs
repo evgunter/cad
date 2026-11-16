@@ -54,55 +54,86 @@
 use crate::sizing::Eps;
 use geom_core::{Point3, Vec3};
 
-/// Exact point–triangle distance (the standard closest-point-on-
-/// triangle case analysis; total and branch-complete).
+/// **The distance from `p` to the triangle `abc`, for every triangle**:
+/// one of no area included, where it is the distance to the nearest
+/// side. It is a function of the three corners as a set (they are put in
+/// one order first), so no corner order answers differently.
+///
+/// The nearest point of a triangle is the foot of `p` on its plane where
+/// that lies inside, and on a side otherwise. With `s` the distance to
+/// the nearest side and `ρ = 2·area / perimeter` the inradius, the
+/// distance is in `[s − ρ, s]` either way, since no point of a triangle
+/// is further than `ρ` from its sides, and the foot's distance is read
+/// inside that bracket. So a normal that rounding has left no direction
+/// (a triangle thin against the rounding of its own corners) cannot move
+/// the answer by more than the triangle's own width, and a triangle of no
+/// area answers `s` exactly. The normal is the cross product of the two
+/// shorter sides, each a difference of stored corners: on a needle those
+/// are near square to each other, and the product is exact to its own
+/// rounding.
+///
+/// A coordinate that is not finite, or corners so far from `p` that the
+/// fourth power of that distance is past `f64`'s range, answers NaN.
 pub fn dist_point_triangle(p: Point3<f64>, a: Point3<f64>, b: Point3<f64>, c: Point3<f64>) -> f64 {
-    let ab = b - a;
-    let ac = c - a;
-    let ap = p - a;
-    let d1 = ab.dot(ap);
-    let d2 = ac.dot(ap);
-    if d1 <= 0.0 && d2 <= 0.0 {
-        return ap.norm(); // vertex a
+    let mut corners = [a, b, c];
+    corners.sort_by(|s, t| {
+        s.x.total_cmp(&t.x)
+            .then(s.y.total_cmp(&t.y))
+            .then(s.z.total_cmp(&t.z))
+    });
+    let [a, b, c] = corners;
+    let (u, v, w) = (a - p, b - p, c - p);
+    // Every product below is at most `192·m⁴`, `m` the largest
+    // coordinate of a corner from `p`.
+    let reach = u.dot(u) + v.dot(v) + w.dot(w);
+    if !(16.0 * reach).powi(2).is_finite() {
+        return f64::NAN;
     }
-    let bp = p - b;
-    let d3 = ab.dot(bp);
-    let d4 = ac.dot(bp);
-    if d3 >= 0.0 && d4 <= d3 {
-        return bp.norm(); // vertex b
+    let (ab, bc, ca) = (b - a, c - b, a - c);
+    let sides = dist_origin_segment(u, v, ab)
+        .min(dist_origin_segment(v, w, bc))
+        .min(dist_origin_segment(w, u, ca));
+    let (lab, lbc, lca) = (ab.dot(ab), bc.dot(bc), ca.dot(ca));
+    let n = if lab >= lbc && lab >= lca {
+        bc.cross(ca)
+    } else if lbc >= lca {
+        ca.cross(ab)
+    } else {
+        ab.cross(bc)
+    };
+    // The foot's barycentric weights, each times `|n|²`.
+    let inside =
+        n.dot(v.cross(bc)) > 0.0 && n.dot(w.cross(ca)) > 0.0 && n.dot(u.cross(ab)) > 0.0;
+    if !inside {
+        return sides;
     }
-    let vc = d1 * d4 - d3 * d2;
-    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
-        let t = d1 / (d1 - d3);
-        return (ap - ab * t).norm(); // edge ab
-    }
-    let cp = p - c;
-    let d5 = ab.dot(cp);
-    let d6 = ac.dot(cp);
-    if d6 >= 0.0 && d5 <= d6 {
-        return cp.norm(); // vertex c
-    }
-    let vb = d5 * d2 - d1 * d6;
-    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
-        let t = d2 / (d2 - d6);
-        return (ap - ac * t).norm(); // edge ac
-    }
-    let va = d3 * d6 - d5 * d4;
-    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
-        let t = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-        return (bp - (c - b) * t).norm(); // edge bc
-    }
-    // Interior: distance along the normal.
-    let denom = 1.0 / (va + vb + vc);
-    let s = vb * denom;
-    let t = vc * denom;
-    (ap - (ab * s + ac * t)).norm()
+    let area2 = n.norm();
+    let inradius = area2 / (lab.sqrt() + lbc.sqrt() + lca.sqrt());
+    // `f64::max` drops a NaN: a foot that underflow left `0/0` reads the
+    // bracket's floor.
+    (u.dot(n).abs() / area2).max(sides - inradius).min(sides)
 }
 
-/// Exact line–triangle distance: project the triangle onto the plane
-/// through `o` orthogonal to the unit direction `d` (a projection of a
-/// triangle is a triangle) — the line collapses to the origin of that
-/// plane, so the distance is a point–triangle distance.
+/// The distance from the origin to the segment from `u` to `v`, with
+/// `e = v − u`; an endpoint where the origin's foot on the line is past
+/// it, and where the segment has no length.
+fn dist_origin_segment(u: Vec3<f64>, v: Vec3<f64>, e: Vec3<f64>) -> f64 {
+    let (along, length2) = (-u.dot(e), e.dot(e));
+    if along <= 0.0 {
+        u.norm()
+    } else if along >= length2 {
+        v.norm()
+    } else {
+        (u + e * (along / length2)).norm()
+    }
+}
+
+/// The distance from the line through `o` along `d` to the triangle
+/// `abc`: the triangle's shadow on the plane across the line is a
+/// triangle, or a segment where a side is along `d` or the triangle is
+/// seen edge-on, and the line is one point of that plane, so it is a
+/// point–triangle distance ([`dist_point_triangle`], which takes a
+/// shadow of no area). `d` need not be unit; a zero `d` answers NaN.
 pub fn dist_line_triangle(
     o: Point3<f64>,
     d: Vec3<f64>,
@@ -110,27 +141,33 @@ pub fn dist_line_triangle(
     b: Point3<f64>,
     c: Point3<f64>,
 ) -> f64 {
-    let proj = |p: Point3<f64>| -> Point3<f64> {
+    let shadow = |p: Point3<f64>| -> Point3<f64> {
         Point3::origin() + geom::Line { origin: o, dir: d }.offset(p)
     };
-    dist_point_triangle(Point3::origin(), proj(a), proj(b), proj(c))
+    dist_point_triangle(Point3::origin(), shadow(a), shadow(b), shadow(c))
 }
 
-/// Cylinder certificate: `r − dist(axis, T)`, clamped at 0.
-///
-/// The clamp also reads a NaN as 0, and one arises on a sound triangle: a
-/// triangle with a side along a ruling has a segment for its shadow across
-/// the axis, and [`dist_point_triangle`] answers NaN for some corner
-/// orders of a triangle of no area
-/// (`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`).
+/// Cylinder certificate: `r − dist(axis, T)`, at least 0 (a corner
+/// outside the cylinder by its carrier residual reads a distance past
+/// `r`). NaN where the distance or `r` is not finite.
 pub fn cert_cylinder(origin: Point3<f64>, axis: Vec3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    (r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2])).max(0.0)
+    inside_bound(r, dist_line_triangle(origin, axis, tri[0], tri[1], tri[2]))
 }
 
-/// Sphere certificate: `r − dist(center, T)`, clamped at 0 (a NaN
-/// included, as [`cert_cylinder`]'s).
+/// Sphere certificate: `r − dist(center, T)`, at least 0 and NaN as
+/// [`cert_cylinder`]'s.
 pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    (r - dist_point_triangle(center, tri[0], tri[1], tri[2])).max(0.0)
+    inside_bound(r, dist_point_triangle(center, tri[0], tri[1], tri[2]))
+}
+
+/// `r − dist`, at least 0, and NaN unless both are finite: `f64::max`
+/// would read a NaN as the 0.
+fn inside_bound(r: f64, dist: f64) -> f64 {
+    if r.is_finite() && dist.is_finite() {
+        (r - dist).max(0.0)
+    } else {
+        f64::NAN
+    }
 }
 
 /// **Cone certificate: the deviation of a flat triangle with its corners
