@@ -1079,7 +1079,7 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
 
 /// **A table's director is stored as a wall's normal at its own length**:
 /// the unit square as a table whose bottom side records the director
-/// `(1 + δ, 0)`, `δ = 2e-10`. Validation accepts it — its miss
+/// `(1 + δ, 0)`, `δ = ε/5`. Validation accepts it — its miss
 /// `‖o + ℓ·d − p‖ = δ·ℓ` is within the band — and the extrude stores
 /// that side's wall normal as the frame turning the director's right
 /// normal, so the stored normal is `1 + δ` long, and nothing at rest
@@ -1092,7 +1092,7 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
 #[test]
 fn a_tables_director_is_stored_as_a_walls_normal_at_its_own_length() {
     use profile::{Segment, SegmentDirections};
-    let delta = 2e-10;
+    let delta = 0.2 * tol().eps();
     let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
     let lp: ProfileLoop<f64> =
         RawLoop::new_directed(corners.iter().enumerate().map(|(k, &(x, y))| {
@@ -1106,12 +1106,12 @@ fn a_tables_director_is_stored_as_a_walls_normal_at_its_own_length() {
         .collect();
     let off: Vec<f64> = lengths.iter().map(|l| l - 1.0).collect();
     assert_eq!(
-        off.iter().filter(|o| (**o - delta).abs() <= 1e-15).count(),
+        off.iter().filter(|o| (**o - delta).abs() <= 4.0 * f64::EPSILON).count(),
         1,
         "one wall, the written side's, stores its normal 1 + δ long: {off:?}"
     );
     assert_eq!(
-        off.iter().filter(|o| o.abs() <= 1e-15).count(),
+        off.iter().filter(|o| o.abs() <= 4.0 * f64::EPSILON).count(),
         3,
         "the minted sides' walls store unit normals: {off:?}"
     );
