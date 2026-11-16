@@ -33,7 +33,6 @@ fn turned(body: &AtRestBody<f64>, about: Point3<f64>, axis: Vec3<f64>, a: f64) -
         topo::transform_rigid(
             body,
             &geom_core::test_support::rigid(&Affine3::rotation_about_axis(about, axis, a), tol()),
-            tol(),
         )
         .unwrap(),
     )
@@ -186,7 +185,6 @@ fn main() {
                         topo::transform_rigid(
                             &slab,
                             &geom_core::test_support::rigid(&Affine3::translation(n * d), tol()),
-                            tol(),
                         )
                         .unwrap(),
                     );
@@ -225,7 +223,6 @@ fn main() {
                         topo::transform_rigid(
                             &corner,
                             &geom_core::test_support::rigid(&Affine3::translation(n * d), tol()),
-                            tol(),
                         )
                         .unwrap(),
                     );

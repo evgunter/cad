@@ -20,14 +20,15 @@ use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
-use crate::entity::{LoopBoundary, LoopKey};
+use crate::entity::{EntityId, LoopBoundary, LoopKey};
+use crate::unresolved::Unresolved;
 use crate::validate::definitely_positive as positive;
-use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
+use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 
-/// A traversal of a section loop met a dangling key: the scratch body
-/// is torn (a kernel bug).
+/// A traversal of a section loop met a dangling key, which it names:
+/// the scratch body is torn (a kernel bug).
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Torn;
+pub(super) struct Torn(pub(super) Unresolved);
 
 /// The outward normal of `side`'s section face, for the split plane's
 /// normal `n` (module docs): `−n` above, `+n` below.
@@ -158,8 +159,8 @@ pub(super) struct Nesting<O, H> {
 
 /// Why [`nest`] refused.
 pub(super) enum NestFault<H> {
-    /// [`Torn`].
-    Torn,
+    /// [`Torn`], with the key that did not resolve.
+    Torn(Unresolved),
     /// Two outlines each read as enclosing the other around this hole:
     /// their outlines were decided disjoint, and disjoint outlines
     /// cannot (a kernel bug).
@@ -167,8 +168,8 @@ pub(super) enum NestFault<H> {
 }
 
 impl<H> From<Torn> for NestFault<H> {
-    fn from(Torn: Torn) -> Self {
-        Self::Torn
+    fn from(Torn(unresolved): Torn) -> Self {
+        Self::Torn(unresolved)
     }
 }
 
@@ -210,7 +211,7 @@ pub(super) fn nest<T: Decide, O, H>(
         if !outlines_disjoint(body, outer, inner, normal, band)? {
             return Ok(false);
         }
-        let q = ring_representative(body, inner).map_err(|_| Torn)?;
+        let q = ring_representative(body, inner).map_err(Torn)?;
         Ok(matches!(
             point_in_loop(body, outer, normal, q, band),
             Ok(LoopContainment::In)
@@ -252,7 +253,7 @@ pub(super) fn nest<T: Decide, O, H>(
 /// disjoint: `true` only where every pair of their edges is.
 ///
 /// - **Line and circle edges**: tier 3's check 9 contact reading
-///   ([`ring_outer_contact_about`]), which on loops in one plane that
+///   ([`ring_outer_contact_about_as`]), which on loops in one plane that
 ///   carry only these kinds decides every shared point — at a vertex of
 ///   either loop, along an arc, or where two edges cross.
 /// - **A pair with an ellipse edge**, which check 9's edge arms skip:
@@ -277,7 +278,7 @@ pub(super) fn outlines_disjoint<T: Decide>(
     band: geom_core::Band,
 ) -> Result<bool, Torn> {
     if !matches!(
-        ring_outer_contact_about(body, a, b, Some(normal), band),
+        ring_outer_contact_about_as(body, a, b, Some(normal), band),
         RingOuterVerdict::Disjoint
     ) {
         return Ok(false);
@@ -328,26 +329,37 @@ fn conic<T: Real>(carrier: &geom::Curve3<T>) -> &dyn Conic<T> {
 /// link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn curve panics
 /// where null scaffolding reads [`OutlineEdge::Undecided`].
 fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T>>, Torn> {
-    let corrupt = || Torn;
+    let record = |entity| Torn(Unresolved::Record(entity));
     // A lone-vertex loop bounds nothing a contact reading could clear.
-    let first = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
+    let first = match body.get_loop(l).ok_or(record(EntityId::Loop(l)))?.boundary {
         LoopBoundary::Cycle { first } => first,
         LoopBoundary::Empty { .. } => return Ok(vec![OutlineEdge::Undecided]),
     };
     let mut out = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+    for he in body
+        .loop_cycle(first)
+        .ok_or(Torn(Unresolved::Walk(EntityId::Loop(l))))?
+    {
+        let h = body
+            .get_half_edge(he)
+            .ok_or(record(EntityId::HalfEdge(he)))?;
+        let edge = body
+            .get_edge(h.edge)
+            .ok_or(record(EntityId::Edge(h.edge)))?;
         let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
             out.push(OutlineEdge::Undecided);
             continue;
         };
         out.push(match *curve.carrier() {
             geom::Curve3::Line(_) => {
-                let end = body.half_edge_end(he).ok_or_else(corrupt)?;
+                let end = body
+                    .half_edge_end(he)
+                    .ok_or(Torn(Unresolved::Walk(EntityId::HalfEdge(he))))?;
                 let point = |v| -> Result<Point3<T>, Torn> {
-                    let p = body.get_vertex(v).ok_or_else(corrupt)?.point;
-                    body.get_point(p).copied().ok_or_else(corrupt)
+                    let p = body.get_vertex(v).ok_or(record(EntityId::Vertex(v)))?.point;
+                    body.get_point(p)
+                        .copied()
+                        .ok_or(Torn(Unresolved::Geometry(EntityId::Vertex(v))))
                 };
                 OutlineEdge::Line(point(h.start)?, point(end)?)
             }
@@ -425,7 +437,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
 /// **A torn ring curve panics before the outlines are answered**: on a
 /// holed block's top face, whose ring lies clear inside its outer loop,
 /// a torn curve on the ring panics naming the link. Check 9
-/// (`ring_outer_contact_about`), which [`outlines_disjoint`] asks first,
+/// (`ring_outer_contact_about_as`), which [`outlines_disjoint`] asks first,
 /// reads every curve of both loops as a link and panics there, so the
 /// outline reading's own read of the same link is never reached.
 #[cfg(test)]

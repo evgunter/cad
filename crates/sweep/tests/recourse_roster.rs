@@ -55,6 +55,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    NameCarrier::Const("SWEEP_STATION_ROLL"),
+    NameCarrier::Const("SWEEP_STATION_STILL"),
     // The loft's pinned rim is an identity over its control rows, read
     // by `geom_brep::ladder::read_identity` under this constant's name.
     NameCarrier::Const("LOFT_RIM_PINNED"),
@@ -64,7 +66,17 @@ const CARRIERS: &[NameCarrier] = &[
 /// as `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "blend/mod.rs: name",
+        "blend/mod.rs: classify: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
+        "blend/mod.rs: classify_positive: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
+        "blend/mod.rs: classify_reported: name",
         "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
@@ -74,31 +86,35 @@ const INDIRECT: &[(&str, &str)] = &[
          carrier",
     ),
     (
-        "swept.rs: name",
-        "the swept-traversal funnel, forwarding its parameter",
-    ),
-    (
-        "swept.rs: names.lines()",
-        "a `CosurfaceNames` field — the line half of a caller's table",
-    ),
-    (
-        "swept.rs: names.arcs()",
-        "a `CosurfaceNames` field — the arc half of the same table",
-    ),
-    (
-        "revolve/axis.rs: name",
+        "revolve/axis.rs: classify_segment: name",
         "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
          names are `ClearanceDecision::ALL`'s",
     ),
     (
-        "revolve/tube.rs: name",
+        "revolve/tube.rs: build: name",
         "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
          `TubeDecision::ALL`'s",
     ),
     (
-        "revolve/turn_rows.rs: name",
+        "revolve/turn_rows.rs: old_decide: name",
         "the tube's old funnel, kept as the agreement test's oracle, naming the closed \
          `TubeDecision` it takes",
+    ),
+    (
+        "swept.rs: cosurface: names.arcs()",
+        "a `CosurfaceNames` field — the arc half of the same table",
+    ),
+    (
+        "swept.rs: cosurface: names.lines()",
+        "a `CosurfaceNames` field — the line half of a caller's table",
+    ),
+    (
+        "swept.rs: decide: name",
+        "the swept-traversal funnel, forwarding its parameter",
+    ),
+    (
+        "swept.rs: decide_reported: name",
+        "the swept-traversal funnel, forwarding its parameter",
     ),
 ];
 
@@ -122,7 +138,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),
     ("sweep_path_turn", PATH),
-    ("cap_plane_orientation", CAP),
+    ("sweep_station_roll", PATH),
+    ("sweep_station_still", PATH),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
@@ -135,8 +152,6 @@ const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveEr
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const PATH: &str = "the path sweep's station tangents, chords and turns, typed on `SkinError`";
-const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
-                   the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 
@@ -173,12 +188,20 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
+        BlendDecision::LinkBend,
+        sweep::blend::FILLET3_LINK_BEND_RECOURSE,
+    ),
+    (
         BlendDecision::KnifeEnd,
         sweep::blend::FILLET3_KNIFE_END_RECOURSE,
     ),
     (
         BlendDecision::KnifeRoom,
         sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
+        BlendDecision::BallRoom,
+        sweep::blend::FILLET3_BALL_ROOM_RECOURSE,
     ),
     (
         BlendDecision::RingClearance,
@@ -234,6 +257,16 @@ fn census() -> PredicateCensus {
     )
 }
 
+/// **Decisions that word one question `geom_brep` decides**, under its
+/// one name: the second-order separation of two faces meeting smoothly,
+/// at a contact edge the surgery describes and at a requested edge the
+/// wedge fold reads. One quantity, one population. Listed rather than
+/// read from the source: `BlendDecision::predicate` spells each name
+/// through a `geom_brep` constant, and nothing at run time says which
+/// arm is a `geom_brep` question; the assertion checks each pair shares.
+const SHARED_QUESTIONS: &[(BlendDecision, BlendDecision)] =
+    &[(BlendDecision::ContactSecondOrder, BlendDecision::LinkBend)];
+
 /// An escalation carrying `name`, its margin inside the run's band.
 fn escalation(name: Option<&'static str>) -> Indeterminate {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
@@ -264,7 +297,9 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
 /// through theirs, so none may appear at a decide site as a literal:
 /// one that did would be a gate metered outside its closed type. Every other name is listed with its door, and a listed
 /// name nothing decides is a stale entry. The blend's names are
-/// distinct, since two decisions under one name would fuse two K rows.
+/// distinct, since two decisions under one name would fuse two K rows,
+/// except where two decisions word one `geom_brep` question
+/// ([`SHARED_QUESTIONS`]).
 #[test]
 fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
     let census = census();
@@ -274,9 +309,16 @@ fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
         census.names
     );
     let blend: BTreeSet<&str> = BlendDecision::ALL.iter().map(|d| d.predicate()).collect();
+    for (a, b) in SHARED_QUESTIONS {
+        assert_eq!(
+            a.predicate(),
+            b.predicate(),
+            "{a:?} and {b:?} word one question"
+        );
+    }
     assert_eq!(
         blend.len(),
-        BlendDecision::ALL.len(),
+        BlendDecision::ALL.len() - SHARED_QUESTIONS.len(),
         "two blend decisions share a k_stats name"
     );
     let listed: BTreeSet<&str> = OTHER_DOORS.iter().map(|(n, _)| *n).collect();
@@ -409,13 +451,14 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 
 /// The decisions that pass on a negative sign as well as a positive one:
 /// the convexity sign on either side, the material side either way, a
-/// knife's end either way (a cusp or a slit), and the contact edge's
-/// second-order separation on any definite sign.
+/// knife's end either way (a cusp or a slit), and the second-order
+/// separation of a contact edge or a link on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
     BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
+    BlendDecision::LinkBend,
 ];
 
 /// **No tolerance is offered where none decides the margin passing**,

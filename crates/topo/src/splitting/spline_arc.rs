@@ -155,9 +155,9 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
         let offsets: Vec<T> = net.iter().map(|c| (*c - q).dot(side)).collect();
         let along = || net.iter().map(|c| (*c - q).dot(d));
         let offset = || offsets.iter().copied();
-        if all(CROSS_SIDE, offset(), Sign::Positive, band)
-            || all(CROSS_SIDE, offset(), Sign::Negative, band)
-            || all(CROSS_ADVANCE, along(), Sign::Negative, band)
+        if all_as(CROSS_SIDE, offset(), Sign::Positive, band)
+            || all_as(CROSS_SIDE, offset(), Sign::Negative, band)
+            || all_as(CROSS_ADVANCE, along(), Sign::Negative, band)
         {
             return Some(0);
         }
@@ -171,21 +171,21 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
             return None;
         };
         let steps = || offsets.windows(2).map(|w| w[1] - w[0]);
-        let monotone = all(CROSS_TURN, steps(), Sign::Positive, band)
-            || all(CROSS_TURN, steps(), Sign::Negative, band);
+        let monotone = all_as(CROSS_TURN, steps(), Sign::Positive, band)
+            || all_as(CROSS_TURN, steps(), Sign::Negative, band);
         if !monotone {
             return None;
         }
         if a == z {
             return Some(0);
         }
-        all(CROSS_ADVANCE, along(), Sign::Positive, band).then_some(1)
+        all_as(CROSS_ADVANCE, along(), Sign::Positive, band).then_some(1)
     }
 }
 
 /// Whether every margin of `xs` decides `sign` on `row`, read in order
 /// to the first that does not.
-fn all<T: Decide>(
+fn all_as<T: Decide>(
     row: &'static str,
     xs: impl IntoIterator<Item = T>,
     sign: Sign,

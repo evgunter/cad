@@ -526,7 +526,7 @@ fn a_standings_ending_is_its_rows() {
         (
             Refusal::InBand,
             Ending::Move,
-            "Recourse: move the geometry".to_owned(),
+            geom_core::MOVE_RECOURSE.to_owned(),
         ),
         (
             Refusal::Unsettled,

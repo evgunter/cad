@@ -45,7 +45,7 @@ pub fn kernel_invariant(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::ClassificationInvariant { .. } | BooleanError::JoinDesync { .. }
-    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::SplitJoinError::SectionInvariant { .. }))
+    ) || matches!(e, BooleanError::Join(j) if matches!(j.error(), topo::JoinError::SectionInvariant { .. }))
 }
 
 /// Which region of the two operands an op keeps.

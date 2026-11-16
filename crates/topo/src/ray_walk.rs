@@ -35,7 +35,7 @@
 //!   validation's ring nesting rely on. Served to a planar loop in
 //!   3-space (`splitting::containment`) and a chart-space polygon
 //!   (`chart_region`).
-//! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
+//! - **The closest crossing** ([`Crossings`], [`advance_as`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
 //!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
 //!   trimmed sphere face's great circles (`boolean::sphere_region`).
@@ -48,7 +48,7 @@
 //!
 //! Every decision here funnels through [`crate::validate::decide`]
 //! under a name the caller supplies ([`ParityRows`], or the row passed
-//! to [`advance`] and [`Crossings::closest`]). The K ledger meters each
+//! to [`advance_as`] and [`Crossings::closest`]). The K ledger meters each
 //! consumer's margins separately — a 3-D loop's metres and a chart
 //! polygon's metres are different populations — so the shared code
 //! must not pool them under one name. Sharing the walk and sharing the
@@ -103,8 +103,12 @@ pub(crate) enum RayFault<E> {
     /// at the point itself), or its ray meets nothing a side is read
     /// from. Nothing is kept.
     Unread,
-    /// An in-band margin about this ray alone, kept as evidence with its
-    /// value: a tighter tolerance could decide it.
+    /// An escalation about this ray alone, kept as evidence with its
+    /// diagnostics, which say which kind: a margin in the band, which a
+    /// tighter tolerance could decide, or an enclosure reaching past the
+    /// band's edge, which only a narrower box could. No reader of the
+    /// fault tells the two apart; a reader of the diagnostics does
+    /// ([`geom_core::ladder::in_band`]).
     InBand(E),
     /// A limit of the reader this ray meets that no tolerance moves — a
     /// face or an edge it has no exact reading for, met on definite
@@ -218,7 +222,7 @@ impl core::fmt::Display for NoRaySettled {
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn advance<T: Decide>(
+pub(crate) fn advance_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -226,13 +230,13 @@ pub(crate) fn advance<T: Decide>(
     crossing_side(decide(row, at, band))
 }
 
-/// [`advance`]'s reading of a crossing's side already decided (a
+/// [`advance_as`]'s reading of a crossing's side already decided (a
 /// [`geom::Ray::ahead`]): a `Zero` grazes, an undecided one sets the ray
 /// aside.
 ///
 /// # Errors
 ///
-/// As [`advance`].
+/// As [`advance_as`].
 pub(crate) fn crossing_side(
     decided: Result<Sign, Indeterminate>,
 ) -> Result<Sign, RayFault<Indeterminate>> {
@@ -248,13 +252,13 @@ pub(crate) fn crossing_side(
 /// `at` the crossing's distance from `q` (nonnegative: a magnitude, the
 /// shorter way round). Only that distance is read: a `Zero` is a
 /// crossing at `q`, which the boundary pre-pass has ruled out, so it
-/// grazes, as in [`advance`].
+/// grazes, as in [`advance_as`].
 ///
 /// # Errors
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn apart<T: Decide>(
+pub(crate) fn apart_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -266,10 +270,15 @@ pub(crate) fn apart<T: Decide>(
     }
 }
 
-/// **One ray's crossings ahead of `q`, read to the closest** — the fold
-/// the closest-crossing readers share. Each crossing is offered with its
-/// distance along the ray in metres, already decided ahead of `q`
-/// ([`advance`]), and whether its material side cannot be read there.
+/// **One ray's crossings ahead of its start, read to the closest** — the
+/// fold the closest-crossing readers share. Each crossing is offered with
+/// its advance along the ray's line in metres, already decided ahead of
+/// the ray's start ([`advance_as`], [`geom::Ray::ahead`]), and whether
+/// its material side cannot be read there. An advance is read from the
+/// line's origin, so one ahead of a start behind that origin may be
+/// negative. The forward test against the start is the offering
+/// reader's, taken before a crossing reaches this fold; the fold itself
+/// compares only one crossing's advance with another's.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
     /// Each crossing's span along the ray, `[from, to]`: the point `at`
@@ -287,7 +296,7 @@ impl<T: Decide, H> Crossings<T, H> {
         }
     }
 
-    /// A crossing `at` metres ahead of `q`. `sideless` for one whose
+    /// A crossing at advance `at`, in metres. `sideless` for one whose
     /// material side cannot be read where the ray meets it: it lands on
     /// a boundary of what it crosses (a trim's edge, an arc's end), or
     /// meets it at a tangential incidence.
@@ -295,9 +304,9 @@ impl<T: Decide, H> Crossings<T, H> {
         self.push_span(at, (at, at), hit, sideless);
     }
 
-    /// A crossing `at` metres ahead of `q` that lies somewhere in
+    /// A crossing at advance `at`, in metres, that lies somewhere in
     /// `[from, to]` along the ray, as [`Self::push`] offers one:
-    /// [`Self::first_count`] orders it against another only where the
+    /// [`Self::first_count_as`] orders it against another only where the
     /// whole span lies definitely before or after it.
     pub(crate) fn push_span(&mut self, at: T, (from, to): (T, T), hit: H, sideless: bool) {
         self.ahead.push((at, hit, sideless));
@@ -338,16 +347,16 @@ impl<T: Decide, H> Crossings<T, H> {
         band: Band,
         escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
     ) -> Result<Option<H>, RayFault<E>> {
-        let gap =
+        let gap_as =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
         let mut best = 0;
         for k in 1..self.ahead.len() {
-            if gap(k, best) == Ok(Sign::Negative) {
+            if gap_as(k, best) == Ok(Sign::Negative) {
                 best = k;
             }
         }
         for k in (0..self.ahead.len()).filter(|&k| k != best) {
-            match gap(k, best) {
+            match gap_as(k, best) {
                 Ok(Sign::Positive) => {}
                 // A tie, or a crossing the scan above left behind the
                 // one it kept: the closest is not certain.
@@ -393,7 +402,7 @@ impl<T: Decide, H> Crossings<T, H> {
     /// # Errors
     ///
     /// [`RayFault::Graze`] or [`RayFault::InBand`].
-    pub(crate) fn first_count<E>(
+    pub(crate) fn first_count_as<E>(
         self,
         order: &'static str,
         band: Band,
@@ -743,7 +752,7 @@ mod tests {
             let got = walk(
                 rays.iter().copied(),
                 |ray| match ray {
-                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                    Some(margin) => advance_as("test_ray_walk_advance", Margin::of(margin), band())
                         .map_err(|fault| fault.map(|_| ())),
                     None => Err(RayFault::Unread),
                 },
@@ -772,7 +781,7 @@ mod tests {
         let got: Result<Sign, &str> = walk(
             [Some(5e-9), None],
             |ray| match ray {
-                Some(m) => advance("test_ray_walk_advance", Margin::of(m), band())
+                Some(m) => advance_as("test_ray_walk_advance", Margin::of(m), band())
                     .map_err(|f| f.map(|_| "in band")),
                 None => Err(RayFault::Fatal("corrupt")),
             },
@@ -1018,14 +1027,14 @@ mod tests {
         );
     }
 
-    /// [`Crossings::first_count`] over `(advance, count, a pair's party,
+    /// [`Crossings::first_count_as`] over `(advance, count, a pair's party,
     /// sideless)` crossings: a pair is two parties in band of each other.
     fn count_of(hits: &[(f64, i32, bool, bool)]) -> Result<Option<Sign>, &'static str> {
         let mut c = Crossings::new();
         for &(at, count, party, sideless) in hits {
             c.push(at, (at, count, party), sideless);
         }
-        c.first_count(
+        c.first_count_as(
             "test_ray_walk_order",
             band(),
             |h| h.1,
@@ -1121,14 +1130,51 @@ mod tests {
     /// is set aside, and only [`advance`] reads a side of `q`.
     #[test]
     fn a_crossing_at_q_grazes() {
-        let a = |m: f64| advance("test_ray_walk_advance", Margin::of(m), band());
+        let a = |m: f64| advance_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(a(1.0), Ok(Sign::Positive)));
         assert!(matches!(a(-1.0), Ok(Sign::Negative)));
         assert!(matches!(a(5e-10), Err(RayFault::Graze)));
         assert!(matches!(a(5e-9), Err(RayFault::InBand(_))));
-        let p = |m: f64| apart("test_ray_walk_advance", Margin::of(m), band());
+        let p = |m: f64| apart_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(p(1.0), Ok(())));
         assert!(matches!(p(5e-10), Err(RayFault::Graze)));
         assert!(matches!(p(5e-9), Err(RayFault::InBand(_))));
+    }
+
+    /// **A ray that decides answers past rays set aside ahead of it**
+    /// ([`walk`], `Any`), and the kept rays rank where none decides. Rays
+    /// read as the test says:
+    /// - in band, then deciding → the verdict;
+    /// - in band, then at a limit, then grazing → the limit, ranked ahead
+    ///   of the earlier in-band ray;
+    /// - in band, then fatal, then deciding → the fatal error;
+    /// - grazing only → the exhaustion.
+    ///
+    /// The first-refusal loop refused at the first ray of each.
+    #[test]
+    fn a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it() {
+        let run = |rays: &[(&'static str, char)]| {
+            walk(
+                rays.iter().copied(),
+                |(name, kind)| match kind {
+                    'v' => Ok(name),
+                    'i' => Err(RayFault::InBand(name)),
+                    'b' => Err(RayFault::Blocked(name)),
+                    'f' => Err(RayFault::Fatal(name)),
+                    _ => Err(RayFault::Graze),
+                },
+                || "exhausted",
+            )
+        };
+        assert_eq!(run(&[("in band", 'i'), ("decides", 'v')]), Ok("decides"));
+        assert_eq!(
+            run(&[("in band", 'i'), ("limit", 'b'), ("graze", 'g')]),
+            Err("limit")
+        );
+        assert_eq!(
+            run(&[("in band", 'i'), ("fatal", 'f'), ("decides", 'v')]),
+            Err("fatal")
+        );
+        assert_eq!(run(&[("graze", 'g')]), Err("exhausted"));
     }
 }

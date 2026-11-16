@@ -277,9 +277,11 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 /// fully-chamfered box has no two-link junctions (every vertex is a
 /// trivalent corner), so chain G1 never fires — on this scene OR on
 /// the tour's `spacer` scene, whose K-row registration names it as one
-/// of the four the scene delivers. The four that reach the funnel from
-/// such a scene are chain-arm, convexity-sign, face-clearance and
-/// corner-independence.
+/// of the four the scene delivers. Nor `fillet3_chain_arm`: it gates the
+/// chain's junction readings, and an edge's wedge is read through the
+/// whole-edge fold under `fillet3_convexity_sign` with no arm gate of
+/// its own. The three that reach the funnel from such a scene are
+/// convexity-sign, face-clearance and corner-independence.
 #[cfg(feature = "probe")]
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
@@ -327,13 +329,12 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     assert_eq!(
         names,
         vec![
-            "fillet3_chain_arm",
             "fillet3_convexity_sign",
             "fillet3_corner_independence",
             "fillet3_face_clearance",
         ],
         "the chamfer's battery rows: ball facts absent, nothing new minted, \
-         and no junction ever fires chain G1 on an all-corners request"
+         and no junction ever asks chain G1 or its arm on an all-corners request"
     );
 }
 
@@ -386,13 +387,11 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
                 ),
                 Tol::witness(),
             ),
-            Tol::witness(),
         )
         .expect("the ball stands up");
         topo::transform_rigid(
             &upright,
             &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, l)).unwrap(),
-            Tol::witness(),
         )
         .expect("the ball translates")
     };
@@ -555,15 +554,15 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
 
 /// **C5 where the PR's fixture did not stand**: the L-bracket's
 /// all-CONVEX-edges request (the concave inner edge deliberately left
-/// out) still refuses, and this row pins WHAT it refuses with. The two
-/// requested cap edges flanking the omitted inner edge meet at its end
-/// vertices as two-link junctions; chain G1 reads a definite turn there
-/// and breaks the chain, and the corner predicate refuses each such
-/// vertex for its configuration: two convex edges and the omitted
-/// concave one are not one convexity, so it is `MixedConvexity` before
-/// it is a turn.
+/// out) carves. The two requested cap edges flanking the omitted inner
+/// edge meet at its end vertices as two-link junctions; chain G1 reads
+/// a definite turn there, and the two edges that round alike meet in
+/// the mitre, a join over the cap's reflex sector. The chamfer removes
+/// `d²/2` along the 21 m of convex edge, less `(2/3)d³` at each of the
+/// ten convex box corners, plus the `d³/3` wedge each of the two joins
+/// takes.
 #[test]
-fn the_brackets_best_convex_request_still_refuses_typed() {
+fn the_brackets_every_convex_edge_carves_mitring_over_the_reflex_corners() {
     let bracket = prism(
         &[
             (0.0, 0.0),
@@ -596,21 +595,25 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
         query::all_edges(&bracket).len() - 1,
         "one edge out"
     );
-    let err = chamfer_edges(
+    let d: f64 = 0.05;
+    let out = chamfer_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &edges,
-        0.05,
+        d,
         Tol::witness(),
     )
-    .expect_err("a corner with an unrequested edge cannot be patched");
+    .unwrap_or_else(|e| panic!("every convex edge carves, got {:?}", e.error));
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "the chamfered bracket, tier 3"
+    );
+    let removed = crate::band_planar_cut_off::volume(&bracket)
+        - crate::band_planar_cut_off::volume(&out.body);
+    let want = d * d / 2.0 * 21.0 - 10.0 * crate::band_planar_cut_off::Verb::Chamfer.corner_at(d)
+        + 2.0 * d.powi(3) / 3.0;
     assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::MixedConvexity { convex: 2 },
-                ..
-            }
-        ),
-        "the omitted edge's ends are mixed-convexity vertices: {err:?}"
+        (removed - want).abs() < 1e-12,
+        "the bracket loses {removed}, the closed form {want}"
     );
 }

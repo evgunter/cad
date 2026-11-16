@@ -279,6 +279,7 @@ fn the_cone_lines_incidence_over_reads_by_at_most_the_lever_spread() {
             &surface,
             band(),
             None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("[{t0}, {t1}]: check 4's terms: {e:?}"));
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];

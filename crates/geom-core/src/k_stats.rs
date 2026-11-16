@@ -739,7 +739,7 @@ pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, I
     decide(name, margin, Band::least())
 }
 
-/// **Two parameters compared, read exactly** under `row`: [`prove`] of
+/// **Two parameters compared, read exactly** under `name`: [`prove`] of
 /// `s − t`. A parameter is no distance the band resolves, so the band
 /// plays no part, and only an enclosure that straddles fails to decide.
 /// The one home of the question, read by `geom-brep`'s curve pair (its
@@ -753,8 +753,8 @@ pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, I
 /// # Errors
 ///
 /// [`prove`]'s, where an enclosure of `s − t` holds zero.
-pub fn param_order<T: Decide>(row: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
-    prove(row, Margin::of(s - t))
+pub fn param_order<T: Decide>(name: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
+    prove(name, Margin::of(s - t))
 }
 
 /// What [`choose`] picks: the margin's side, or a tie.
@@ -2157,12 +2157,12 @@ mod tests {
             decide("scope_before", Margin::of(1.0f64), b),
             Ok(Sign::Positive)
         );
-        let inside = unlogged("F28", || {
+        let inside = unlogged("F41", || {
             assert_eq!(open_frames(), 2, "the scope runs under a frame of its own");
             (
                 decide("scope_verdict", Margin::of(-1.0f64), b),
                 decide("scope_escalation", Margin::of(mid), b).is_err(),
-                check_unlogged("scope_check", -1.0f64, b, "F28"),
+                check_unlogged("scope_check", -1.0f64, b, "F41"),
             )
         });
         assert_eq!(
@@ -2189,9 +2189,9 @@ mod tests {
         let b = band();
         let mid = f64::midpoint(b.zero(), b.escalate());
         start_recording();
-        unlogged("F28", || {
+        unlogged("F41", || {
             let _ = decide("scope_sample_a", Margin::of(Probe(1.0)), b);
-            let _ = check_unlogged("scope_sample_b", Probe(mid), b, "F28");
+            let _ = check_unlogged("scope_sample_b", Probe(mid), b, "F41");
         });
         let got: Vec<_> = take_samples()
             .iter()

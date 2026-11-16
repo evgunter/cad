@@ -334,7 +334,7 @@ pub(super) fn arc_window<T: Decide>(t0: T, t1: T, arm: T, band: Band) -> Result<
         }
     })?;
     let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
-    match Period::new(T::tau()).strictly_partial(rows, span, Exact::new(arm), band) {
+    match Period::angle().strictly_partial(rows, span, Exact::new(arm), band) {
         Ok(true) => Ok(span.get()),
         Ok(false) => Err(TubeError::FullRangeWindow),
         Err(undecided) => Err(escalated(TubeDecision::WindowHeadroom, undecided.diag)),
@@ -469,7 +469,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // both of the first two decide Positive, and the subtraction
     // rounds the inner radius onto the outer. Nothing downstream may
     // be relied on to catch it: the observed refusals for that class
-    // come from the pcurve mint and the cap-plane Newell fit, AFTER
+    // came from the pcurve mint and the cap plane's fit, AFTER
     // the frame, both classifications and the mint have run, and the
     // cavity's `Carried { Positive }` would by then have been carried
     // for a pair of coincident circles. ----

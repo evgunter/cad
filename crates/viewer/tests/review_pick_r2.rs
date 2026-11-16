@@ -74,7 +74,16 @@ struct Tally {
 /// change to which near-degenerate candidates the certification
 /// refuses. The PR that moves it says which documents' landings moved
 /// and why; what it never moves is the empty `genuine_refused` above.
-const PINNED: (usize, usize, usize, usize) = (451_800, 147_955, 17_532, 8_358);
+///
+/// RE-PINNED when a windowed revolve's far rim circles came to take
+/// their `u_ref` from the turned station frame (BOXFINISH's
+/// `boxfinish/sweep-frames`), one to three ulps from the vector to the
+/// placed start vertex they read before: the rim's chord points moved
+/// by that rounding. Against its merge base only `gallery_ring` after
+/// its first edit, `tube_arc` and `hollow_tube_elbow`, open and after
+/// their first edits, moved: grazes 147,955 → 147,952, refused
+/// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
+const PINNED: (usize, usize, usize, usize) = (451_800, 147_952, 16_824, 8_244);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

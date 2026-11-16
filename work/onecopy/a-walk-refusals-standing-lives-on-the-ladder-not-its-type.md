@@ -1,7 +1,7 @@
 ---
 id: a-walk-refusals-standing-lives-on-the-ladder-not-its-type
 kind: issue
-title: A spline walk refusal's standing was Refusal::of_walk on the ladder; containment's fold of it remains
+title: A spline walk refusal's standing was Refusal::of_walk on the ladder, and containment folded it into Unsettled
 status: closed
 opened: 2026-11-09
 closed: 2026-11-10
@@ -60,3 +60,11 @@ There is nothing left for this row's code to do. On main at `origin/main` (2026-
 - **The fold** (`splitting/containment.rs` `ConicArc::hit`, `CarrierRefusal::Unwalked(_) => ConicHit::Unsettled`) is the ladder lane's, under ruling (b): `ConicHit::Uncertified`, a typed fault, in its any-pins PR. It is not touched here.
 
 No code changed, so no outcome moves.
+
+## The fold, split by the any-pins unit (`onecopy/refusal-standing`, PR 6758)
+
+`ConicArc::hit` no longer folds both walk refusals into `ConicHit::Unsettled`:
+- **`Exhausted`** (the walk's budget) stays `Unsettled`. It still reads as `RayExhausted` in region and as `EdgeContact::Unread` in containment.
+- **`Unbounded`** (no speed bound) is an `unreachable!` naming its premise, the idiom `ConicArc::of` and `::read` use two functions up. A `ConicArc` is built only from a `CertifiedTurn`, which only certification mints (`geom_brep::certify`, its fields private). Certification decides the carrier's speed floor positive or refuses (`IntervalNotForward`), and the walk refuses `Unbounded` only where the greatest speed, at least that floor, is non-finite or not positive. So the arm is an impossible state, not a refusal.
+
+PR 6758 first typed it as `ConicHit::Uncertified`, carried through `EdgeContact`, `OffEdge` and region's match. The review replaced that: a typed variant threaded an impossible state through four enums.

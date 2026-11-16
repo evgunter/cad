@@ -77,6 +77,24 @@ pub fn record<R>(f: impl FnOnce() -> R) -> (R, Vec<Decision>) {
     (out, decisions)
 }
 
+/// How many decisions the installed recorder holds, `None` without one
+/// ([`super::aside`]'s mark).
+pub(super) fn mark() -> Option<usize> {
+    RECORDER.with(|r| r.borrow().as_ref().map(Vec::len))
+}
+
+/// Drops every decision recorded after `mark` ([`super::Aside::discard`]);
+/// nothing where no recorder was installed at the mark.
+pub(super) fn truncate(mark: Option<usize>) {
+    if let Some(mark) = mark {
+        RECORDER.with(|r| {
+            if let Some(v) = r.borrow_mut().as_mut() {
+                v.truncate(mark);
+            }
+        });
+    }
+}
+
 /// The hook `Sym::sign_within` calls before it decides: one
 /// thread-local read when no recorder is installed. Returns the
 /// decision's index for [`settle`].

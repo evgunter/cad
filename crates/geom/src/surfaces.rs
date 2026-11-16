@@ -63,6 +63,7 @@ pub mod projection;
 use crate::rows::{RingReader, RingSites};
 use std::sync::Arc;
 
+use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
@@ -73,7 +74,9 @@ use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
-pub use nurbs::{NetState, NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
+pub use nurbs::{
+    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
+};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
 /// An analytic surface — a **complete locus**. Units, the
@@ -471,6 +474,24 @@ impl SurfaceKind {
         }
     }
 
+    /// The kind as the noun a person reads in a refusal ("a spline
+    /// (NURBS) face"). It is not [`Self::name`]: that one is a stable
+    /// key other tools join on, so it cannot be reworded for a reader,
+    /// and the two spline kinds read differently here.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Nurbs => "spline (NURBS)",
+            Self::Approx => "approximated spline",
+            Self::Plane
+            | Self::Cylinder
+            | Self::Cone
+            | Self::Sphere
+            | Self::Torus
+            | Self::Spindle => self.name(),
+        }
+    }
+
     /// The kind as an adjective for a face or its surface, for prose
     /// ("a cylindrical face").
     #[must_use]
@@ -520,7 +541,7 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(
+    ring_half_as(
         RingReader::Convention.sites().ring(),
         major_radius,
         minor_radius,
@@ -529,7 +550,7 @@ pub fn ring_torus<T: geom_core::Decide>(
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
-fn ring_half<T: geom_core::Decide>(
+fn ring_half_as<T: geom_core::Decide>(
     name: &'static str,
     major_radius: T,
     minor_radius: T,
@@ -698,7 +719,7 @@ impl<T: geom_core::Decide> RingTorus<T> {
                 verdict: tube,
             });
         }
-        let ring = ring_half(sites.ring(), major_radius, minor_radius, band);
+        let ring = ring_half_as(sites.ring(), major_radius, minor_radius, band);
         if !positive(&ring) {
             return Err(NotARing::Ring {
                 site: sites.ring(),
@@ -815,7 +836,7 @@ pub fn spindle_sheet<T: geom_core::Decide>(
     // The horn end is the ring convention's ring half read from the other
     // side: the sheet holds where `R − r` is not positive.
     held(
-        ring_half("spindle_horn_end", major_radius, minor_radius, band),
+        ring_half_as("spindle_horn_end", major_radius, minor_radius, band),
         SpindleEnd::Horn,
         &[Negative, Zero],
     )
@@ -867,6 +888,10 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
     }
 }
 
+/// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
+/// `Some` on a channel that is an angle, `None` on one that is a length.
+pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -899,6 +924,34 @@ impl<T: Real> Surface<T> {
             | Surface::Spindle { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
+        }
+    }
+
+    /// **The analytic chart's angle channels, `(u, v)`, each with its
+    /// period**: [`Period::angle`] where the chart's coordinate is an
+    /// angle, none where it is a length (a plane's two, a cylinder's or a
+    /// cone's `v`). The question is whether `S` is periodic in the channel,
+    /// `S(u, v + τ) = S(u, v)`, which a lifted copy and a seam's two images
+    /// read; a sphere's latitude is such an angle, though its chart's
+    /// domain does not wrap in it (`topo`'s `Chart::v_domain_wraps` asks
+    /// that other question). `None` on a spline chart, whose periods are
+    /// its knot domains' and are decided closed at a band (`topo`'s
+    /// `chart_u_period`, `chart_v_period`).
+    ///
+    /// The one home of which analytic channel is an angle (geom-brep's
+    /// C4: "every whole-period question uses the channel's own period,
+    /// which the chart owns"), matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn angle_periods(&self) -> Option<AnglePeriods<T>> {
+        let angle = || Some(Period::angle());
+        match *self {
+            Surface::Plane { .. } => Some((None, None)),
+            Surface::Cylinder { .. } | Surface::Cone { .. } => Some((angle(), None)),
+            Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+                Some((angle(), angle()))
+            }
+            Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     }
 

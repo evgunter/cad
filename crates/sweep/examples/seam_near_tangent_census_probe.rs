@@ -138,7 +138,6 @@ fn main() {
                     ),
                     tol(),
                 ),
-                tol(),
             )
             .unwrap();
             run(

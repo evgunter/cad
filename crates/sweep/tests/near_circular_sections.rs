@@ -339,7 +339,7 @@ fn rotated(body: &Body<f64>, about: Vec3<f64>, angle: f64) -> AtRestBody<f64> {
 fn moved_body(body: &Body<f64>, map: &Affine3<f64>) -> AtRestBody<f64> {
     finished(
         "the moved body",
-        topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol()), tol()).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol())).unwrap(),
         tol(),
     )
 }

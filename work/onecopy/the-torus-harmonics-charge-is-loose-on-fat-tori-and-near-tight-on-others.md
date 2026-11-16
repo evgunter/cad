@@ -2,10 +2,13 @@
 id: the-torus-harmonics-charge-is-loose-on-fat-tori-and-near-tight-on-others
 kind: issue
 title: conic_torus_harmonics: its charge squares R² + r² where the error is linear in it (loose by (R² + r²)/|R² − r²| on fat tori), is within 2× of its 16-ulp constant on some non-fat draws, and its f_per_metre_lo floor reads the rounded R² − r²
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: E
+closed: 2026-11-10
+branch: onecopy/torus-harmonics-charge
+pr: 6761
 ---
 
 
@@ -26,3 +29,9 @@ The review's sweep found draws whose exact excess sits within 1–2× of the 16-
 `f_per_metre_lo = 2r·k`, with `k = R.powi(2) − r.powi(2)` rounded. On a fat torus `k` can stand above the exact value by its rounding, about `ε(R² + r²)`, which is about 18ε relative on the pinned draw. So the floor can stand that far above the true floor, and `noise / f_per_metre_lo` understates by the same relative amount. That is negligible beside the 16-ulp constant, but it is not a floor.
 
 **Why it was not folded into the follow-up.** Lowering it by `rounding_charge(R² + r²)` is one line, but the floor can then reach zero on a torus the ring gate certified. `geom::ring_torus` decides `R − r` against the band, and at ε 1e-12 with `R + r` near 2000, `R − r` can be smaller than `k`'s rounding. There `half_angle::HalfAngleFrame::noise_reading` would divide by zero rather than by a tiny positive floor. What a certified ring with no certified floor should do (refuse at the door, or read the floor as an interval) is a decision for whoever takes this row.
+
+## Resolution (PR 6761)
+
+- **Measured** over 6000 draws in 18 families (thin, ordinary and fat tori; circles and ellipses; tube, axis and rim): the old charge's worst excess was 0.12–0.48 of it in every family. Finding 2 is the `SHORT_CHAIN_ULPS` convention's uniform ~2× headroom, and no margin is close to failing.
+- **1:** `terms` is `|p|·(|S| + R² + r²) + 4R²(|S| + |h|²)`. It is never above the old charge, equal to it on thin tori, and up to ~2500× tighter on fat tori near the axis. The fat pin reads 0.048 of it, and a new thin pin reads 0.065.
+- **3:** `f_per_metre_lo` is `2r(R − r)(R + r)/CEILING_PAD`. Its rounding is relative to `R² − r²`, so it is positive on every ring and the door question does not arise. At `R` = 1000 and `r` the float below it, the old form stood 2.4% above the true floor.

@@ -384,7 +384,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         0.0,
     ))
     .expect("a finite offset");
-    let apart = pncad::topo::transform_rigid(&cup, &beside, tol).expect("a translation is rigid");
+    let apart = pncad::topo::transform_rigid(&cup, &beside).expect("a translation is rigid");
 
     vec![TourStop {
         name: "fivewall",

@@ -390,16 +390,15 @@ mod interference {
 
     /// Two parallel convex shafts side by side, clashing: A r=1 at the
     /// origin, B r=0.3 at 1.2 from it, both standing on one base. Gap(A, B)
-    /// = 1 - 0.3 - 1.2 = -0.5, which holds under <= -0.01, though the clash
-    /// is 0.1 deep and neither face is a socket. Both lateral faces bound
-    /// the crescent overlap, and it lies between their carriers. What
-    /// keeps it loud is `opposed`: two cylinders off one axis pair their
-    /// materials differently from point to point, so no single reading
-    /// answers for the pair, and it is not opposed at any bearing of B
-    /// about A (a reading at one point of A's wall was quiet at one
-    /// bearing in eight).
+    /// = 1.2 - 1 - 0.3 = -0.1, the clash depth, which holds under
+    /// <= -0.01. Both lateral faces bound the crescent overlap, and it lies
+    /// between their carriers. The `Gap` reads the two walls apart, each
+    /// facing the other's material: CONTACT-DESIGN C5's opposed pair. So
+    /// with no assertion the clash is loud, and under the holding `Gap` it
+    /// is quiet at every bearing of B about A (a reading at one point of
+    /// A's wall was quiet at one bearing in eight).
     #[test]
-    fn r2_two_convex_shafts_side_by_side_stay_loud() {
+    fn r2_two_convex_shafts_side_by_side_quiet_under_a_holding_gap() {
         use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
         let rod = |doc: ProfileDoc, (cx, cy): (f64, f64), r: f64, long: bool| {
@@ -442,8 +441,8 @@ mod interference {
             let (doc, _) = gap_at_copies(doc, (p, fa), (q, fb), AssertionRelation::AtMost, -0.01);
             let r = report(&doc);
             assert!(
-                r.iter().all(|(l, _)| *l),
-                "side-by-side shafts quieted at bearing {k}/8: {r:?}"
+                r.iter().all(|(l, _)| !*l),
+                "side-by-side shafts loud under the holding Gap at bearing {k}/8: {r:?}"
             );
         }
         assert!(decided > 0, "the premise: an overlap at some bearing");

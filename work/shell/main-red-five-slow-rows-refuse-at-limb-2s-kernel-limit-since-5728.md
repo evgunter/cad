@@ -116,3 +116,7 @@ Reproduce: `cd demos/tour && CAD_TOLERANCE_EPS=1e-12 cargo run
 
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+## Evidence: the leaning prisms no longer stop here (ONEHOME, 2026-11-10)
+
+`onehome/session-box-fixtures` sizes the slab oracle's cutting slabs from the operand (half-size 2.2× its farthest vertex, where it was a fixed 20 × the scale) and takes the large scale to ×60, so the oracle stays inside the session box. Before, the slab was 2000 m across at ×100: that was this row's extent-2000 plane, and past the box it refused `OutsideSessionBox` at every ε. With the change, `band_turn_overrun_oracles::leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales` passes at 1e-12 as well as at 1e-9 and 1e-6, and its `kernel_limit::pinned_row` is removed. So this row's limb-2 stop was a property of the oracle's 2 km slab and not of the subject. The table's other rows are untouched. (ONEHOME session-box-fixtures lane)

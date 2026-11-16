@@ -22,7 +22,7 @@
 //! **On the boundary.** A point is at a vertex of the face where its
 //! distance to the vertex's stored point decides zero
 //! ([`vertex_at_singular_point`], the one reading of that incidence,
-//! which the loop walk's reset joint reads too), and inside an edge where
+//! which the loop walk's joint decision reads too), and inside an edge where
 //! its distance to the edge's nearest interior point does
 //! ([`on_boundary`]), both at the caller's band and each decided once; a
 //! distance the
@@ -407,11 +407,11 @@ pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
 /// singular point `point`** of its chart, at the caller's `band`
 /// (`chart_singularity_at_vertex`, [`ON_BOUNDARY`]): their 3-D distance
 /// decided zero. The one reading of that incidence. [`locate`] places a
-/// singular point at a face's vertex by it, and the loop walk resets a
-/// joint's first channel at a vertex it reads on (`topo::pcurves`,
-/// `singular_at`), which is also where tier 3 reads a wrap edge's tip.
-/// So a reset joint and a point [`Lies::AtVertex`] cannot disagree on one
-/// vertex at one band.
+/// singular point at a face's vertex by it, and the loop walk decides a
+/// joint at a vertex it reads on as the face's turn there
+/// (`topo::pcurves`, `singular_at`), which is also where tier 3 reads a
+/// wrap edge's tip. So a joint stored as a turn and a point
+/// [`Lies::AtVertex`] cannot disagree on one vertex at one band.
 ///
 /// # Errors
 ///
@@ -566,7 +566,7 @@ enum Near<T> {
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
-/// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
+/// has none. A periodic carrier's ([`Curve3::period`]) is brought
 /// into `[from, from + τ)`, the turn at or past `from`
 /// ([`geom_core::period::Period::at_or_above`]): a point a hair behind
 /// `from` whose lift rounds onto `from + τ` reads `from`. A
@@ -574,11 +574,7 @@ enum Near<T> {
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest(x, from)?;
-    Some(if carrier.is_periodic() {
-        geom_core::period::Period::new(T::tau()).at_or_above(t, from)
-    } else {
-        t
-    })
+    Some(carrier.period().map_or(t, |p| p.at_or_above(t, from)))
 }
 
 /// **The point of `e` nearest `x`**, decided once at `band`
@@ -811,11 +807,14 @@ impl<'a, T: Decide> Sides<'a, T> {
         let bounding: Vec<usize> = (0..self.loops.len())
             .filter(|&l| crate::chart_image::bounds_area(self.loops[l]))
             .collect();
+        // The face is on the left of its loops, under the chart normal,
+        // where its polygon is counter-clockwise.
+        let face_is_left = crate::PolygonOrientation::of_face(sense).interior_is_left();
         // A loop whose side does not read (a side or a walk: `left_holds`
         // reads nothing else) is ranked as its reading states.
         let outside = climb(Answering::Any, bounding, |l| {
             match self.left_holds(l, singularity, x) {
-                Ok(left) if left != sense => Rung::Answers(()),
+                Ok(left) if left != face_is_left => Rung::Answers(()),
                 Ok(_) => Rung::Passes,
                 Err(why) => why.rung(),
             }
@@ -1330,7 +1329,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
+        let step = geom_core::period::Period::angle().near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;

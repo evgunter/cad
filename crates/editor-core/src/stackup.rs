@@ -838,7 +838,9 @@ impl From<crate::RecordMispairing> for BindingViolation {
     fn from(m: crate::RecordMispairing) -> Self {
         use crate::RecordMispairing as M;
         match m {
-            M::Document(m) => m.into(),
+            M::Document { expected, found } => {
+                Self::EvaluationOfAnotherDocument { expected, found }
+            }
             M::NotABuild => Self::NotABuild,
             M::Unpinned => Self::Unpinned { refusal: None },
             M::Revision => Self::Revision,

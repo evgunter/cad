@@ -162,7 +162,7 @@ fn on_carrier<T: Decide>(
     (member, m): (&Body<T>, MemberFace),
     band: Band,
 ) -> Result<(), HeldRefusal> {
-    use super::carrier_eq::CarrierRelation;
+    use geom_brep::CarrierRelation;
     match super::carrier_pair::carrier_pair_relation(body, f, member, m.1, band) {
         Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => Ok(()),
         Ok(Ok(CarrierRelation::Distinct)) => Err(HeldRefusal::NotUnder { member_face: m }),

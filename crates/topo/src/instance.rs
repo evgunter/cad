@@ -31,8 +31,8 @@
 //! component representations. Each instance's frame is its own rigid
 //! map, and [`transform_rigid`](crate::transform_rigid) — the kernel's
 //! placement door, which moves a body by a rigid motion the reader
-//! decided at `RigidMotion::check_rigid` and re-certifies every
-//! carrier — maps a WHOLE body. So an instance is
+//! admitted at `RigidMotion::check_rigid` and carries every
+//! certificate — maps a WHOLE body. So an instance is
 //! materialized by building its component alone, mapping that lone body
 //! through the kernel door, and grafting the placed result in. The body
 //! that ships is then, entity for entity, the union of the bodies that
