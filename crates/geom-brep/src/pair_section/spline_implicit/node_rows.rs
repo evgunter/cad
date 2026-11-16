@@ -342,21 +342,6 @@ fn an_oblique_nodes_lines_are_its_null_lines() {
 /// from its seeds.
 #[test]
 fn a_loop_through_a_node_names_both_its_ends() {
-    // Pinned red at 1e-12: the chart accounting runs out of cells, which
-    // a reading with its node handed in refuses as the node's tangency
-    // (`work/sectarms/the-lemniscate-node-row-exceeds-the-accounting-budget-at-1e-12.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the lemniscate's node",
-        &["Pinched { predicate: \"spline_critical_unread\" }"],
-        a_loop_through_a_node_names_both_its_ends_row,
-    );
-}
-
-/// The row [`a_loop_through_a_node_names_both_its_ends`] runs, under its
-/// pin.
-fn a_loop_through_a_node_names_both_its_ends_row() {
     let wall = separable(
         &[0.0, 0.0, -1.0, 0.0, 1.0],
         (-1.2, 2.4),
@@ -1027,19 +1012,11 @@ fn a_node_is_listed_and_carried_to_at_every_scale() {
 /// and the reading's accounting runs out of cells.
 #[test]
 fn a_lemniscate_a_hundredth_across_is_listed_and_carried() {
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the lemniscate's node",
-        &["Pinched { predicate: \"spline_critical_unread\" }"],
-        || {
-            let s = 0.01;
-            let built = built(&level(0.0), &scaled_lemniscate(s)).unwrap();
-            let carried = built.carry(Some(SsiLane::marched()), band()).unwrap();
-            assert_eq!(carried.components().len(), 2, "two loops");
-            carried_to("the lemniscate", &carried, pt(0.0, 0.0, 0.0), 1e-11);
-        },
-    );
+    let s = 0.01;
+    let built = built(&level(0.0), &scaled_lemniscate(s)).unwrap();
+    let carried = built.carry(Some(SsiLane::marched()), band()).unwrap();
+    assert_eq!(carried.components().len(), 2, "two loops");
+    carried_to("the lemniscate", &carried, pt(0.0, 0.0, 0.0), 1e-11);
 }
 
 /// **A node's box is its settle reach** (C2's node end): on the cross
