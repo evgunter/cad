@@ -7379,7 +7379,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             )
             .map_err(|diag| geom_core::ladder::Undecided::of(diag).map(|diag| Box::new(esc(diag))))
         };
-        let nearest = |set: Vec<usize>, below: bool| {
+        let next_hit = |set: Vec<usize>, below: bool| {
             let cmp = |&a: &usize, &b: &usize| {
                 if below {
                     order(&hits[b], &hits[a])
@@ -7405,8 +7405,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             )
         };
         let (below, over) = (
-            nearest(belows, true)?.map(|k| &hits[k]),
-            nearest(overs, false)?.map(|k| &hits[k]),
+            next_hit(belows, true)?.map(|k| &hits[k]),
+            next_hit(overs, false)?.map(|k| &hits[k]),
         );
         let (Some(below), Some(over)) = (below, over) else {
             return Err(refuse(
