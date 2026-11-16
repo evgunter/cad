@@ -86,3 +86,5 @@ in 8d9a7790.
 
 No outcome moved where the probe reached. The 1e-6 run's last 14 calls
 were not measured.
+
+**After 7030's review** (13c51046): `replace_face.rs`'s `cover-kind-match` arm pin falls 7 → 6, since its spline test now reads `geom_brep::is_analytic`.
