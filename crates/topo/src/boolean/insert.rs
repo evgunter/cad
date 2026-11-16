@@ -2431,20 +2431,16 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// `vertex` one of them.
 ///
 /// The tip is `validate::wrap_tips`' (a valence-1 end of a wrap edge),
-/// read at one corner. At rest that is the same set: a corner bounded
-/// both ways by one edge of two ends is that edge's halves following each
-/// other round `vertex`, so its orbit holds no other edge. Mid-run this
-/// is the reading that stands, where `wrap_tips`' valence would count the
-/// struts already minted at the vertex.
-fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
+/// read at one corner, the wrap flag [`crate::validate::wraps`]'. At rest
+/// that is the same set: a corner bounded both ways by one edge of two
+/// ends is that edge's halves following each other round `vertex`, so
+/// its orbit holds no other edge. Why the two vertex readings stay two
+/// is the door's.
+pub(crate) fn wrap_tip_at<T: Decide>(body: &Body<T>, vertex: VertexKey, edge: EdgeKey) -> bool {
     let e = proven(&body.edges, edge, EntityId::Edge);
     let ends = [Some(e.he_plus), body.mate(e.he_plus)]
         .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
-    let wraps = body
-        .get_curve_geom(e.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .is_some_and(|c| c.description().is_wrap());
-    wraps && ends[0] != ends[1] && ends.contains(&Some(vertex))
+    crate::validate::wraps(body, edge) && ends[0] != ends[1] && ends.contains(&Some(vertex))
 }
 
 /// **Whether a strut's corner is a closed edge's lone vertex with a

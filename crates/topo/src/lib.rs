@@ -409,6 +409,40 @@ pub mod test_support {
         1024.0 * tol.eps()
     }
 
+    /// **A body's wrap tips as each of its two readings has them**
+    /// (`validate::wraps`' docs say why they stay two): every
+    /// `(vertex, edge)` at which either reads a tip, with the corner
+    /// reading (`boolean::insert`'s `wrap_tip_at`, asked at each loop
+    /// corner that arrives and departs by one edge, as the strut's
+    /// facing asks it) and the valence one (`validate::wrap_tips`, the
+    /// edge of the half-edge leaving the tip), in that order. A row reads
+    /// at rest that the two agree on every entry.
+    #[must_use]
+    pub fn wrap_tip_readings<T: geom_core::Decide>(
+        body: &Body<T>,
+    ) -> Vec<(crate::VertexKey, crate::EdgeKey, bool, bool)> {
+        let by_valence: Vec<_> = crate::validate::wrap_tips(body)
+            .iter()
+            .filter_map(|(v, &he)| Some((v, body.half_edges.get(he)?.edge)))
+            .collect();
+        let mut at = by_valence.clone();
+        for (_, he) in body.half_edges.iter() {
+            let Some(next) = body.half_edges.get(he.next) else {
+                continue;
+            };
+            if he.edge == next.edge && !at.contains(&(next.start, he.edge)) {
+                at.push((next.start, he.edge));
+            }
+        }
+        at.into_iter()
+            .map(|(v, e)| {
+                let corner = crate::boolean::insert::wrap_tip_at(body, v, e);
+                (v, e, corner, by_valence.contains(&(v, e)))
+            })
+            .filter(|&(_, _, corner, valence)| corner || valence)
+            .collect()
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
