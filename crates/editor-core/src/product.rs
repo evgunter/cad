@@ -762,9 +762,9 @@ pub struct GatheredCopy<T: Decide + topo::AtRestPolicy> {
     pub output: u32,
     /// The placed body, in the frame the product computed in
     /// ([`Product::body`]'s): its source's own where the two are one
-    /// frame, else its source's body mapped, construction state
-    /// ([`crate::eval::ReadIn`]).
-    pub body: crate::eval::ReadIn<T>,
+    /// frame, else what its source holds, moved
+    /// ([`crate::eval::Held::moved`]).
+    pub body: crate::eval::Held<T>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
 }
@@ -1175,7 +1175,7 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 
 /// One grafted source: the source, its graft's key bridge, and its body
 /// read into the gather's computing frame.
-type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::ReadIn<T>);
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::Held<T>);
 
 /// Why a grafted source's position among a product's inputs fits a `u32`
 /// ([`crate::names::to_u32`]): each grafts at least one solid into the

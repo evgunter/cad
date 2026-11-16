@@ -85,7 +85,9 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     );
 
     let (face, outer) = body.faces().map(|(k, f)| (k, f.outer)).next().unwrap();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, Tol::witness()).unwrap_err();
     assert!(
         errs.contains(&topo::ValidationError::LoopRoleInverted {

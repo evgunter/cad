@@ -21,23 +21,25 @@ Both leave `docs/` when the experiment concludes.
 
 **Live:**
 
-- **Dual Opus review concordance** — `docs/DUAL-REVIEW-PROTOCOL.md`
-  (**read it before dispatching a dual**) and `docs/DUAL-REVIEW-LOG.md`.
-  What a second independent review buys; every unit the review tiers
-  ([[orchestration-model]]) send to the dual tier is a row.
 - **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
   before dispatching the designers**) and `docs/DESIGN-FORK-LOG.md`.
   What the Opus and Fable designers (and, on a drawn third of forks,
   a second Opus) recommended, and what Ev then decided; every
   design fork put to Ev is a row.
+- **Model comparison** — `docs/MODEL-COMPARE-PROTOCOL.md` (**read it
+  before dispatching an implementer or a reviewer**) and
+  `docs/MODEL-COMPARE-LOG.md`. Opus vs Fable as implementers and as
+  reviewers, on quality, time and token cost; every unit sent to a
+  single or dual review draws its implementer's model, a single
+  review draws its reviewer's, a dual-tier unit's reviewers are one
+  Opus and one Fable (a concurrent pair at H or L; at M or S a drawn
+  model first and the other second only if the first raises a MAJOR),
+  and the unit is a row.
 
-**Suspended** (no need to read unless Ev reinstates it):
-
-- **Model A/B** (Opus vs Fable implementation), suspended 2026-09-23 —
-  `docs/MODEL-AB-LOG.md`, whose opening section holds the rules that
-  bound agents outside it. It predates the protocol/log split: its
-  protocol is the log's amendment history, so reinstating it starts by
-  writing `docs/MODEL-AB-PROTOCOL.md` from the entries in force.
+**Paused** (read only if Ev resumes it): **dual Opus review
+concordance** — `docs/DUAL-REVIEW-PROTOCOL.md` and
+`docs/DUAL-REVIEW-LOG.md`, paused 2026-11-10 in favour of the model
+comparison; its instrument runs the model comparison's dual pairs.
 
 **What binds under any experiment:**
 
@@ -55,5 +57,9 @@ Both leave `docs/` when the experiment concludes.
 - **A change to one side's method is recorded, naming the side**, and
   a comparison whose sides ran under different methods is recorded
   but not counted.
+- **Every row names each agent's exact model version** ("Opus 5.5",
+  "Fable 5.2"), as the harness reports it, always — never the family
+  name alone, never inferred. A release is an era boundary that every
+  analysis must split on, and gets a dated note in each live log.
 - **Starting, changing or ending an experiment is Ev's call**; the log
   records it as a dated entry, and this memory's lists change with it.

@@ -88,7 +88,7 @@ fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
                 normal: UnitVec3::exact_z(),
                 offset: S::zero(),
             };
-            let frame = mate_coset(&z, &plane).representative.linear;
+            let frame = mate_coset(&z, &plane).unwrap().representative.linear();
             let d = direction(key, at).get();
             let mut defects = unproven_orthonormality(frame);
             defects.extend(
@@ -104,7 +104,7 @@ fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
             );
             [
                 defects,
-                unproven_orthonormality(mate_coset(&plane, &z).representative.linear),
+                unproven_orthonormality(mate_coset(&plane, &z).unwrap().representative.linear()),
             ]
         });
         assert_eq!(

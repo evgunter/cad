@@ -322,12 +322,30 @@ reference** — nothing here binds kernel design; it moves out of
 `docs/` when the experiment concludes.
 
 Standing experiment (Ev, in-chat, 2026-09-23), opened the day the
-model A/B protocol was suspended (`docs/MODEL-AB-LOG.md`, the
-suspension entry). **The protocol in force lives in
+model A/B protocol was suspended (concluded 2026-11-10;
+`docs/doc-ledger/model-ab-experiment-concludes.md`). **The protocol in force lives in
 `docs/DUAL-REVIEW-PROTOCOL.md`.** Each row names the protocol it was
 recorded under by commit hash, so `git show
 <hash>:docs/DUAL-REVIEW-PROTOCOL.md` reads that version. Ev's rulings
 on the readouts are in `docs/dual-review-log/rulings.md`.
+
+**PAUSED (Ev, in-chat, 2026-11-10)** after readout 6, in favour of
+the Opus/Fable model comparison (`docs/MODEL-COMPARE-PROTOCOL.md`),
+under which a dual-tier unit's reviewers are one Opus and one Fable. Units whose
+reviews were already dispatched still finish here; nothing new enters.
+
+**Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
+BOUNDARY.** Fable 5.2 released 2026-11-09. Every reviewer here is
+Opus 5.5, so the reviewing instrument does not cross the mark. What
+can is the reviewed population: from 2026-11-10 the model
+comparison (`docs/MODEL-COMPARE-PROTOCOL.md`) draws a Fable 5.2 or Opus
+5.5 implementer for each reviewed unit, where every unit before it
+was Opus-implemented. An analysis of this log must keep rows whose
+implementer is Fable 5.2 SEPARATE from the Opus-implemented rows,
+report them apart, and say so; rows recorded from 2026-11-10 name
+every agent's model version (the protocol's rule 8). Dual-tier
+reviewers stay Opus; only single-review units draw the reviewer's
+model.
 
 **This file is generated.** Each row is one file,
 `docs/dual-review-log/rows/PR-<n>.md`; its DR number is assigned on main

@@ -264,8 +264,27 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 ///   the two pairs of cap discs then overlap in their planes, one plane
 ///   each by margin, which the boolean glues: the union builds at its
 ///   closed form, in both poses.
+///
+/// At ε 1e-6 the unequal radii's enclosure is wider than the row admits,
+/// and the row is pinned there.
 #[test]
 fn the_fenced_poses_keep_their_own_outcomes() {
+    // Pinned red at 1e-6: the unequal radii's direct union holds the
+    // closed form in an enclosure wider than the row's ceiling
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the fenced poses",
+        &[
+            "unequal radii, direct: OK BAD t2=true t3p=true cert=true operand=true v=14.935301415 pad=7.6e-6 want=14.935301415",
+        ],
+        the_fenced_poses_keep_their_own_outcomes_row,
+    );
+}
+
+/// The row [`the_fenced_poses_keep_their_own_outcomes`] runs, under its pin.
+fn the_fenced_poses_keep_their_own_outcomes_row() {
     let tol = Tol::witness();
     let a = cyl(1.0, 2.0);
     let quarter = Affine3::rotation_about_axis(
@@ -287,7 +306,6 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
         &geom_core::RigidMotion::translation(shift).unwrap(),
-        tol,
     )
     .unwrap();
     let want = crossed::volume(
@@ -410,8 +428,27 @@ fn same_door_matches_a_rejection_by_its_reading() {
 /// builds, its spline-chorded walls measured by the rotational lane, at
 /// the crossed cylinders' sliced volume (`common::crossed_cylinders`),
 /// and never at the one-site loop's refusal.
+///
+/// At ε 1e-6 the union's enclosure is wider than the row admits, and the
+/// row is pinned there.
 #[test]
 fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
+    // Pinned red at 1e-6: the union's enclosure holds the closed form and
+    // is wider than the row's ceiling
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the rod through the drum's wall",
+        &[
+            "drum ∪ rod: OK BAD t2=true t3p=true cert=true operand=true v=1.667873349 pad=3.7e-7 want=1.667873349",
+        ],
+        a_rod_through_a_drum_wall_builds_at_its_sliced_volume_row,
+    );
+}
+
+/// The row [`a_rod_through_a_drum_wall_builds_at_its_sliced_volume`] runs, under its pin.
+fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume_row() {
     let tol = Tol::witness();
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
     let rod = spin(
@@ -423,7 +460,6 @@ fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
     let rod = topo::transform_rigid(
         &rod,
         &geom_core::test_support::rigid(&Affine3::translation(shift), tol),
-        tol,
     )
     .unwrap();
     let rod = finished("the rod", rod, tol);

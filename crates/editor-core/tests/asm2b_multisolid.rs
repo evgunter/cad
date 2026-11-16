@@ -427,10 +427,13 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// The digest is pinned per ε: a document's tolerance is part of what
 /// its ids are minted from, so each eps row mints its own (the
 /// msolve14 posture), and every row's volume bits are the same.
+// Re-measured when a placement came to read its body through a source
+// it mints (VARIABLES VR4): one more minted variable per placement moves
+// every id the digest feeds; the volume did not move.
 const SINGLE_SOLID_NAMES_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 17_614_411_536_504_555_015),
-    (1e-6, 16_222_653_049_492_933_193),
-    (1e-12, 720_102_748_755_875_421),
+    (1e-9, 10_035_309_867_779_659_901),
+    (1e-6, 18_201_326_034_985_066_997),
+    (1e-12, 10_243_350_270_111_689_349),
 ];
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 

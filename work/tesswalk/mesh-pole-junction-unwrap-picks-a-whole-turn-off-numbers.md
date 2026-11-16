@@ -44,3 +44,16 @@ meshed, would show it.
 ## Moved to TESSWALK (what the walk and the lanes decide: structural premises, and readings taken off undecided numbers) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## The stored lift now holds the structure (`onedoor/three-walks`, 2026-11-12)
+
+The lift's joint at a pole stores the turn on the face's side
+(`topo::pcurves`' `singular_turn`, `crates/topo/src/joint.rs` "The
+singular set"): a whole turn where the loop leaves along the edge it
+arrived on, and the face-side branch between two distinct edges. The
+trimmed lane reads it (`mesh::trimmed::trim_polygon` over
+`Body::loop_lift`), and its own pole search, `choose_pole_azimuths`,
+is gone. `mesh::walk`'s `unwrap_tie` is the pin left standing: it
+places a pole junction's azimuth from `prev` and `anchor` on the
+curved lane's own walk, beside the stored element. Reading the
+junction off `Body::loop_lift` there would retire it.

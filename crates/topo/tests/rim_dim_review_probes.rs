@@ -3,8 +3,8 @@
 //! audit's FIXED predicates actually fire in the twin boolean
 //! configurations (coverage-vacuity check), and the linearity pins
 //! for the sites the twin configs leave silent (flush-face subtract →
-//! `bool_plane_orient`; oblique split → `split_join_frame_arm`,
-//! `split_section_area`). `bool_strut_order` stays SILENT here too —
+//! `plane_eq_orient`; oblique split → `split_join_frame_arm`,
+//! `split_section_area`). `germ_order` stays SILENT here too —
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 //!
@@ -31,8 +31,8 @@ use topo::{BooleanResult, subtract};
 const FIXED: &[&str] = &[
     "props_rim_side",
     "bool_join_facing",
-    "bool_strut_order",
-    "bool_plane_orient",
+    "germ_order",
+    "plane_eq_orient",
     "pm_census_ee_parallel",
     "point_in_loop_arm",
     "split_join_frame_arm",
@@ -108,7 +108,7 @@ use geom_core::k_stats::SampleOutcome;
 use topo::split;
 
 /// Linearity probe for the fixed sites the twin pin leaves SILENT:
-/// a flush-face subtract (coplanar lane -> bool_plane_orient) and an
+/// a flush-face subtract (coplanar lane -> plane_eq_orient) and an
 /// oblique plane split (split_join_frame_arm, split_section_area).
 #[test]
 fn silent_fixed_predicates_scale_linearly() {
@@ -127,7 +127,7 @@ fn silent_fixed_predicates_scale_linearly() {
         let b = fin("b", bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5)));
         k_stats::start_recording();
         // Flush: b's x-max face lies IN a's x=2 face plane, which the
-        // op glues on its decided zero; the bool_plane_orient sample
+        // op glues on its decided zero; the plane_eq_orient sample
         // fires on the way, which is all this probe harvests.
         assert!(
             subtract(&a, &b, Tol::witness()).is_ok(),
@@ -163,12 +163,12 @@ fn silent_fixed_predicates_scale_linearly() {
     let mm = run(1e-3);
     let m = run(1.0);
     // The first three are the sites this probe exists to pin, so a
-    // silence there is a red; `bool_strut_order` stays optional (header).
+    // silence there is a red; `germ_order` stays optional (header).
     for (pred, required) in [
-        ("bool_plane_orient", true),
+        ("plane_eq_orient", true),
         ("split_join_frame_arm", true),
         ("split_section_area", true),
-        ("bool_strut_order", false),
+        ("germ_order", false),
     ] {
         match (mm.get(pred), m.get(pred)) {
             (Some(a), Some(b)) => {

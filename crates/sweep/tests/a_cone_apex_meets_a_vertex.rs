@@ -73,7 +73,7 @@ fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
 fn moved(body: &topo::Body<f64>, m: Affine3<f64>) -> AtRestBody<f64> {
     finished(
         "moved",
-        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol())).unwrap(),
         tol(),
     )
 }
@@ -574,7 +574,10 @@ fn shared_volume_of(alpha1: f64, a1: Vec3<f64>, alpha2: f64, a2: Vec3<f64>) -> f
 ///
 /// Both cones tipped, then both revolved: each op at the closed form its
 /// intersection's direction integral sets ([`shared_volume_of`]), with
-/// the regions at the lattice. The rim germs of the two common rulings
+/// the regions at the lattice, and tier 3′ passing: near-coaxial, the
+/// wider cone less the narrower is one shell whose apex holds both
+/// cones' nappes, the narrower's void nested in the wider's material. The
+/// rim germs of the two common rulings
 /// must each pair with the apex germ on their own ruling, not with each
 /// other across the apex (`boolean::join`'s `two_rulings`).
 #[test]

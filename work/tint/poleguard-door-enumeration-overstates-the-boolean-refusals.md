@@ -8,7 +8,7 @@ opened: 2026-09-18
 
 
 Found by TESS-1's lane (the rim-only cap survey's doc-rot note,
-`work/tess/rim-only-sphere-cap-panics-at-census.md`, last paragraph);
+`work/tesslane/rim-only-sphere-cap-panics-at-census.md`, last paragraph);
 filed here because the file is a `crates/*/tests/*` header whose
 hand-kept enumeration describes a tree that has moved.
 

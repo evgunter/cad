@@ -1120,7 +1120,10 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
 
         The cap is the post's top in its own coordinates; lying down
         about +y puts it at the -x end, which is why every one of them
-        answers at exactly FLAT_PACK_GAP.
+        answers at exactly FLAT_PACK_GAP. Its frame's origin is the
+        post's sketch origin carried there, the section's corner, so
+        each copy answers at its own step and not at the section's
+        middle.
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
@@ -1139,8 +1142,8 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
             [
                 (
                     round(FLAT_PACK_GAP, 9),
-                    round(POST_SECTION / 2.0 + index * PATTERN_SPACING, 9),
-                    round(POST_SECTION / 2.0, 9),
+                    round(index * PATTERN_SPACING, 9),
+                    0.0,
                 )
                 for index in range(PATTERN_COUNT)
             ],

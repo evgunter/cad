@@ -181,19 +181,20 @@ impl Scene {
         name.clone()
     }
 
-    /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
-    /// frame mate equating the cap's corner frame at its bottom cap
+    /// **The seat of `cap` on the copy read at `at`, or at its member
+    /// `member` (`at[member]`, empty for `at`'s own body), under `wrap`**:
+    /// one frame mate equating the cap's corner frame at its bottom cap
     /// (up its lateral edge 0, `x` towards corner 1) with the copy's at
     /// its top cap, slid [`OVERHANG`] along both rim lines, so the cap
-    /// overhangs the copy — `wrap` spells a name of the top as the copy
-    /// read at `at` wears it.
+    /// overhangs the copy — `wrap` spells a name of the top as the body
+    /// read wears it.
     fn seat(
         &self,
         cap: RecipeNodeId,
-        at: RecipeNodeId,
+        (at, member): (RecipeNodeId, &[u32]),
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> Vec<Mate<Formula>> {
-        let read = |name: &StableName| SitedRef::new(at, wrap(self.on_top(name)));
+        let read = |name: &StableName| fixture::read_member(at, member, wrap(self.on_top(name)));
         let own = |name: &StableName| SitedRef::new(cap, name.clone());
         let slid = |pose: Operand, along: &StableName| {
             Operand::Pose(Box::new(PoseDef::Slide {
@@ -274,7 +275,7 @@ fn scene(label: &str) -> Scene {
 fn control_seat(label: &str) -> Affine3<f64> {
     let s = scene(&format!("{label}-control"));
     let (a, b) = (s.top_cap(), s.cap_bottom());
-    let (doc, _) = seated(s.doc.clone(), s.cap, s.seat(s.cap, s.top, &|n| n));
+    let (doc, _) = seated(s.doc.clone(), s.cap, s.seat(s.cap, (s.top, &[]), &|n| n));
     let ev = run(&doc, &s.opts);
     seat_map(&doc, &ev, &a, &b)
 }
@@ -355,7 +356,8 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
     let axis = axis_at(&s, part, &on_part, [-4.0, 0.0]);
     let (doc, j, outer) = ring(doc, part, axis, Q, 2);
     let wrap = |n| in_copy(outer, j, 1, in_copy(inner, i, 1, n));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, outer, &wrap));
+    let own = |n| in_copy(inner, i, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (outer, &[1]), &own));
     assert_placed(&doc, &s.opts, s.cap, "A1");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -386,7 +388,8 @@ fn a2d_a_rotating_outer_map_seats() {
     let axis = axis_at(&s, part, &on_part, [-2.0, 9.0]);
     let (doc, j, outer) = ring(doc, part, axis, Q, 3);
     let wrap = |n| in_copy(outer, j, 1, in_copy(inner, i, 1, n));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, outer, &wrap));
+    let own = |n| in_copy(inner, i, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (outer, &[1]), &own));
     assert_placed(&doc, &s.opts, s.cap, "A2′");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -415,7 +418,7 @@ fn a3a_a_member_read_at_its_family_seats() {
     let s = scene("msolve2-a3a");
     let (doc, k, pattern) = fixture::linear_on(s.doc.clone(), s.top, [0.0, -1.0, 0.0], 4.0, 1);
     let wrap = |n| in_copy(pattern, k, 0, n);
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, pattern, &wrap));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (pattern, &[0]), &|n| n));
     assert_placed(&doc, &s.opts, s.cap, "A3(a)");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -451,7 +454,7 @@ fn a4_a_read_of_another_member_leaves_the_target_unresolved() {
     // The read picks member 2; the name below says member 1.
     let (doc, part) = fixture::member(doc, pattern, 2);
     let wrap = |n| in_copy(pattern, k, 1, n);
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (part, &[]), &wrap));
     let ev = run(&doc, &s.opts);
     assert_target_unresolved(&ev, s.cap, "A4");
 }
@@ -480,7 +483,8 @@ fn a1c_three_levels_deep_seat() {
     let axis = axis_at(&s, part2, &on_part2, [5.0, -1.0]);
     let (doc, k3, p3) = ring(doc, part2, axis, std::f64::consts::FRAC_PI_3, 4);
     let wrap = |n| in_copy(p3, k3, 2, in_copy(p2, k2, 1, in_copy(p1, k1, 1, n)));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, p3, &wrap));
+    let own = |n| in_copy(p2, k2, 1, in_copy(p1, k1, 1, n));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (p3, &[2]), &own));
     assert_placed(&doc, &s.opts, s.cap, "A1′(b)");
     let ev = run(&doc, &s.opts);
     assert_seated(
@@ -513,8 +517,8 @@ fn a4b_a_part_mismatch_is_met_per_reference() {
     let (doc, part1) = fixture::member(doc, pattern, 0);
     let (doc, part2) = fixture::member(doc, pattern, 0);
     let wrap = |n| in_copy(pattern, k, 0, n);
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part1, &wrap));
-    let (doc, _) = seated(doc, cap2, s.seat(cap2, part2, &wrap));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (part1, &[]), &wrap));
+    let (doc, _) = seated(doc, cap2, s.seat(cap2, (part2, &[]), &wrap));
     assert!(
         solve(&doc, &s.opts, Tol::witness()).fault(cap2).is_none(),
         "the premise: the second cap seats while its read agrees with the name"
@@ -568,7 +572,7 @@ fn a4c_the_read_index_is_evaluated_at_the_documents_bindings() {
         vec![Formula::named(which.clone(), Dimension::Count)],
     );
     let wrap = |n| in_copy(pattern, k, 1, n);
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, (part, &[]), &wrap));
     assert_placed(&doc, &s.opts, s.cap, "A4′(b) at which = 1");
     let ev = run(&doc, &s.opts);
     assert_seated(

@@ -7,7 +7,7 @@ opened: 2026-10-29
 priority: P0
 cost: H
 refs: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite]
-blocked_on: [c5-plane-torus-cone-cylinder-arms]
+blocked_on: [c5-plane-torus-cone-cylinder-arms, the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells]
 ---
 
 
@@ -57,3 +57,19 @@ On main `72c637c`, lily wall 8 no longer stops at SPLICE's spline-span dispatch.
 ## Re-banded P0 (2026-11-03)
 
 Lily wall 8's stop once `c5-plane-torus-cone-cylinder-arms` (re-banded P0 today) clears, and its arm is the torus partner of the P0 NURBS × implicit arm, which Ev's ruling on PR 6121 builds curved partners first. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/splice/curved-demo-joins-build.md`.
+
+## The arm is reached first now (2026-11-12, CLEAVETAIL's lily-wall8 lane)
+
+Since PR 6862 the join's germ mint carries the torus wall × the leaf's
+ridge wall before the join frames the plane × torus germ, so lily
+wall 8 now stops at this row's pair: `GermSectionUnbuilt { a_kind:
+Torus, b_kind: Nurbs, why: Refused(Unaccounted { cause: "ssi: the
+exhaustiveness subdivision exceeded its 200000-cell budget …" }) }`,
+at ε 1e-9 and 1e-6 (bisected: `c8c2b4f70b`, the merge's first parent,
+still stops at `GermSectionSpiric`; the merge `7d83cdff9e` stops here).
+The whole reading's accounting spends its budget clearing a region of
+the wall a centimetre from the thin torus, before it reaches the
+section: SSIARITH's
+`the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells`,
+now a blocker of this row beside the plane × torus arm, which still
+stands behind it in the join.

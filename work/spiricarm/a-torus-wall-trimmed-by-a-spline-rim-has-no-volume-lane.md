@@ -2,10 +2,12 @@
 id: a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane
 kind: issue
 title: A torus wall trimmed by a spline rim has no volume lane: the re-imported spiric cavity refuses check 7 there
-status: open
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: M
+closed: 2026-11-11
+pr: 6808
 ---
 
 
@@ -58,3 +60,7 @@ wall has to read that wall's rings too.
 ## Re-banded P0 (2026-11-03)
 
 Teapot wall 2's next stop. The handle's torus face is trimmed by the sphere × torus section's fitted chord, and `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` (P0, the sphere's arm, teapot wall 2's current stop) hands a conic trim on a torus face to this row. The donut ∩ rod above reaches it too. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/splice/curved-demo-joins-build.md`.
+
+## Closed (2026-11-11)
+
+PR 6808: the rotational lane reads the torus chart; the spiric wall is an arm of the lane, its junctions read through the lane's connectors; the torus doors, radial hole and spiric round trip build at independently sliced volumes. Dual review `docs/dual-review-log/rows/PR-6808.md`.

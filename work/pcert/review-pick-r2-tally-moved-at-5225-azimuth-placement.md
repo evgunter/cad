@@ -166,7 +166,7 @@ INTENT stage 6 A (#6023) has since re-pinned the row over a new
 corpus, so main is green on it. The question this row asks now covers a third
 refusal move: is #5920's halving what its sphere mesh should produce?
 TESS owns that answer, as the merge's program
-(`work/tess/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side.md`).
+(`work/tesslane/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side.md`).
 This entry is the evidence: read the refused candidates per landing at `890d10746`
 against `148c1a24f`.
 

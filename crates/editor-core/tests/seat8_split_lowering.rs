@@ -424,13 +424,38 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// changes the edge curve's `Debug` the digest feeds. With that `Debug`
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a placed copy came to carry its
+/// source's edge certificates rather than re-deriving them after the
+/// transform (ONEHOME, `topo::FinishedBody::moved`): the digest feeds each
+/// edge's `Debug`, whose `max_residual` is now the source's. One value at
+/// every ε row, and no point moved: `m10_p_fence`'s geometry and
+/// evaluation fences held at 1e-9, 1e-6 and 1e-12.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink`, for a boolean that
+/// leaves each glued one-carrier pair's faces on one surface record
+/// (DESIGN `[coincidence.door]`): both documents union, and the moved
+/// faces' surface keys and senses feed the digest. The same value at all
+/// three ε rows; `m10_p_fence`'s f64 row and its ids-masked geometry row
+/// held, so no point moved.
+///
+/// RE-BLESSED, `kitchen_sink`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
+///
+/// `kitchen_sink` carries both re-blessings above, a placed copy's carried
+/// certificates and the one-record glue, each on its own branch; merged,
+/// it reads one value, measured on the merge.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
-        ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x9343_0074_7900_50e2),
+        ("cut_cylinder", 0xd978_3279_a614_f38c_u64),
+        ("part_select", 0x80a0_2a31_a48f_de42),
+        ("kitchen_sink", 0x76e9_14eb_4322_b8fb),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -594,8 +619,13 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
+    // Re-measured when the cube's caps and walls became its sketch
+    // frame: the body's stored planes moved. And again when a line
+    // wall's origin became the wall's middle, from construction data:
+    // the walls' origins moved back to where their fitted centroids
+    // stood, to rounding; the caps' stay at their sketch origins.
     assert_eq!(
-        got, 0x026a_685b_ca8d_45ce,
+        got, 0x4623_582c_d764_9006,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
