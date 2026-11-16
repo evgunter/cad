@@ -83,7 +83,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `1048 → 1046`, the annulus `549 → 548`, the link `944 → 943`, the
 /// bracket `1547 → 1545` and the pad `1710 → 1709`; no symbolic or frozen
 /// count moves. Measured by deciding the pole at the identity again,
-/// which puts back every receipt above. (PR 6988's gate did not run this
+/// which puts back every receipt above
+/// (`sym11_the_exact_channel_never_contradicts_past_the_ceiling` reads
+/// them). (PR 6988's gate did not run this
 /// slow row:
 /// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
