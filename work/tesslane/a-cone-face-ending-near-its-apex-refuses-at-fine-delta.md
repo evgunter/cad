@@ -2,10 +2,11 @@
 id: a-cone-face-ending-near-its-apex-refuses-at-fine-delta
 kind: issue
 title: A cone face ending near its apex refuses CertificateExceeded at fine δ: the development triangulates, the chart certifies
-status: parked
+status: closed
 opened: 2026-11-14
 priority: P1
-blocked_on: [the-cone-arm-certifies-the-triangle-its-development-makes]
+closed: 2026-11-16
+pr: 6965
 ---
 
 ## Finding
@@ -73,3 +74,7 @@ at `s = 0.01` at all three. The ringless ops of `s = 0.1` mesh at every
 δ. At `s = 10⁻³` the door answers `Undecided` (the ring within the band
 of the outer loop). Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## Closed (2026-11-16, PR 6965)
+
+The cone arm certifies the flat triangle it emits (`cert::cert_cone`, closed form) and lays its rows a certified chord apart. Every row of the table above meshes at the default eps, 10⁻⁶ and 10⁻¹² where the body builds, and passes `reach_probes::geometry` (`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`). The two cases that were truly over δ on the old mesh (sampled 1.63δ and 1.23δ) are within it. The ringed poses unit 3 added here mesh too. What still refuses is a needle funnel cut 10⁻⁵ above its apex, on its own row: `a-needle-funnel-cut-at-its-apex-refuses-folded`.

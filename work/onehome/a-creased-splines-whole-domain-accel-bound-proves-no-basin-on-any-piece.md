@@ -2,12 +2,37 @@
 id: a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece
 kind: issue
 title: A creased spline's whole-domain accel bound is +∞, so the walk proves no basin on any piece of it, transverse crossings included
-status: open
+status: closed
 opened: 2026-11-16
 priority: P2
 cost: M
+closed: 2026-11-16
+branch: onehome/creased-accel-per-span
 ---
+## Closed (2026-11-16): the window reads the curvature of its own run
 
+`NurbsCurve3::accel_upper_bound_over` (`crates/geom/src/curves/nurbs.rs`)
+bounds the second derivative over a parameter run. It takes the max of
+the per-span bounds whose spans the run meets, so a crease costs only the
+runs that hold it: a crease inside the run, or not clear of it at its
+ends, reads +∞. The per-span bounds are the same `spline::accel_pieces`
+maxima the whole-domain bound reduces, chunked by span and memoised beside
+it. `geom::carrier_speed::curvature_hi_over` is the curvature door over a
+run, `accel_hi / speed_lo²` as before. The walk's `window`
+(`crates/geom-brep/src/curve_pair/walk.rs`) now reads each carrier's
+curvature through `Read::curvature_near`: the run within the window's
+`span` of the pair, widened by the carrier's speed floor. That is the
+reach premise P2 states.
+
+`a_spline_with_a_corner_meets_a_line_past_it`
+(`crates/geom-brep/src/curve_pair/meet_rows.rs`) pins a transverse
+crossing on a creased spline, away from the crease, as basin-proved. The
+seam row's crossings now prove their basin. On the probe branch with this
+merged, under `CAD_RING_PROBE_REFUSE`, both rows pass and every walk read
+they log is `a-walk`.
+
+`pieces_apart` and the floor still read the whole-carrier accel and
+curvature bounds. Neither one stands between the seam row and its basin.
 
 Found by the ring-width probe for the walk-stop fork (probe branch
 `onehome/ring-width-probe`, never merged, @96b64d1e30), 2026-11-16.

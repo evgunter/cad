@@ -453,7 +453,16 @@ fn undecided_symmetry(diag: Indeterminate) -> TorusPoseRefusal {
 fn arm_refused(refusal: ArmRefusal) -> SectionError {
     match refusal {
         ArmRefusal::Pinch(p) => pinched(p),
-        ArmRefusal::Unordered(predicate) => SectionError::Unordered { predicate },
+        // An undecided side is the value's escalation, as a pinch's is
+        // ([`pinched`]); a side decided `Zero` is the crossing unordered.
+        ArmRefusal::Unordered {
+            undecided: Some(diag),
+            ..
+        } => SectionError::Escalated(diag),
+        ArmRefusal::Unordered {
+            predicate,
+            undecided: None,
+        } => SectionError::Unordered { predicate },
     }
 }
 
@@ -1271,4 +1280,36 @@ pub(super) fn torus_torus<T: Decide>(
         nodes: Vec::new(),
         node_sets: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod unordered_rows {
+    use super::{SectionError, arm_refused};
+    use crate::pair_section::torus_arms::ordered_side_as;
+    use geom_core::Band;
+
+    /// **An unordered crossing reads by its side's margin**: decided
+    /// `Zero` it is the crossing unordered, in band; undecided it is the
+    /// value's escalation, carrying its diagnostics. Red if the undecided
+    /// side collapses back into `Unordered`, or a decided side reads as an
+    /// escalation.
+    #[test]
+    fn an_unordered_crossing_reads_by_its_sides_margin() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band"));
+        let read = |margin: f64| {
+            ordered_side_as("section_torus_square_fold_half", margin, band).map_err(arm_refused)
+        };
+        assert_eq!(read(1.0), Ok(true), "a side decided positive");
+        assert_eq!(read(-1.0), Ok(false), "a side decided negative");
+        assert!(
+            matches!(read(0.0), Err(SectionError::Unordered { predicate }) if predicate == "section_torus_square_fold_half"),
+            "a side decided zero is unordered: {:?}",
+            read(0.0)
+        );
+        assert!(
+            matches!(read(5e-9), Err(SectionError::Escalated(diag)) if diag.predicate == Some("section_torus_square_fold_half")),
+            "a side in band escalates on its margin: {:?}",
+            read(5e-9)
+        );
+    }
 }
