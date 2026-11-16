@@ -2,10 +2,13 @@
 id: main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint
 kind: issue
 title: Main red: sym11's numeric column fell by one or two on five documents after PR 6988 (the decided least-turn mint), a slow row the PR gate did not run
-status: open
+status: closed
 opened: 2026-11-15
 priority: P0
 cost: E
+closed: 2026-11-16
+pr: 7016
+branch: onehome/sym11-least-turn
 ---
 
 
@@ -45,3 +48,17 @@ mint no longer takes on these five documents (the row's own message:
 "a number that moved is a decision that moved and is a finding, not a
 table to refresh"), then re-pin with that account.
 (BOXFINISH orchestrator)
+
+## Closed (2026-11-16): the identity charts, measured
+
+The decisions the least-turn mint no longer takes are the `mate_chart_pole`
+verdicts of the identity charts. A pair that is one direction exactly turns by
+the identity with no pole verdict (its chord is 2), so each mate chart whose
+mated directions agree exactly logs no pole row. Numeric only: the plate −2,
+the annulus −1, the link −1, the bracket −2 and the pad −1. This is the same
+pattern PR 6988 measured on `sym_9_retry_interval` and `m10_9_pins_interval`.
+
+Measured by one variant: the mint deciding the pole at the identity again
+(`least_turn_minted`'s identity branch). With it, the row reads every stored
+receipt and passes; without it, it reads the five as found. The row is
+re-pinned with that account in its doc.
