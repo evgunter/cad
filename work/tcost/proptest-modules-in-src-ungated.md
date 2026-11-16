@@ -2,10 +2,11 @@
 id: proptest-modules-in-src-ungated
 kind: issue
 title: the 14 in-src proptest modules stay ungated: a split per file buys 0.62 cpu-s
-status: open
+status: parked
 opened: 2026-09-03
 priority: P4
 cost: E
+blocked_on: [fuzz-depth-not-existence-run-everything-at-effort-1]
 ---
 
 

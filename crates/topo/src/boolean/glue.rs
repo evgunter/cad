@@ -30,12 +30,13 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierRelation, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand,
-    PairUnread, TangencyFailure, carrier_pair_decided, glued_tangency,
+    BooleanError, DeclarationRead, Glue, GluedPair, Operand, PairUnread, TangencyFailure,
+    carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::boxes;
 use crate::entity::FaceKey;
+use geom_brep::{CarrierRelation, CarrierVerdict};
 
 /// **The first-written operand**, A: an n-ary operation folds its
 /// members in list order, each step's accumulation its operand A. Where
@@ -348,7 +349,9 @@ fn pairs_among(
 /// **The section door**: the operation's section table
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
-/// ([`geom_brep::pair_section::serves`]) at the operation's band and
+/// by classification ([`geom_brep::pair_section::serves`]), or that are a
+/// spline wall and a partner with an implicit residual
+/// ([`geom_brep::SplineImplicitPose::of`]), at the operation's band and
 /// region, and the coincidences the join reads,
 /// per face pair of the two operands: each coincidence decided `Zero`
 /// that the pair's section stands on one row, read from the table, at
@@ -382,7 +385,23 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         let face = body.proven_face(f);
         (face.record().surface, face.surface().clone())
     };
-    let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
+    // A face that is a side of a pair read here: a kind the value builds
+    // by classification, a spline wall, or a plane where the other
+    // operand has a spline face, as a plane is read against a spline wall
+    // alone.
+    let spline = |body: &Body<T>| {
+        body.face_views()
+            .any(|f| f.surface().spline_chart().is_some())
+    };
+    let read = |s: &geom::Surface<T>, partner_spline: bool| {
+        geom_brep::pair_section::serves(s.kind())
+            || s.spline_chart().is_some()
+            || (partner_spline && matches!(s, geom::Surface::Plane { .. }))
+    };
+    let pair_read = |sa: &geom::Surface<T>, sb: &geom::Surface<T>| {
+        (geom_brep::pair_section::serves(sa.kind()) && geom_brep::pair_section::serves(sb.kind()))
+            || geom_brep::SplineImplicitPose::of(sa, sb).is_some()
+    };
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),
@@ -426,17 +445,28 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, pad)),
         _ => None,
     };
-    let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+    let served = |body: &Body<T>,
+                  boxed: &[(FaceKey, bvh::Aabb)],
+                  partner: &Body<T>|
+     -> Vec<(FaceKey, bvh::Aabb)> {
+        let partner_spline = spline(partner);
         boxed
             .iter()
-            .filter(|&&(k, _)| read(&surface(body, k).1))
+            .filter(|&&(k, _)| read(&surface(body, k).1, partner_spline))
             .copied()
             .collect()
     };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
-    for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
+    for (fa, fb) in pairs_among(&served(a, &a_boxes, b), &served(b, &b_boxes, a))? {
         let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
+        if !pair_read(&sa, &sb) {
+            continue;
+        }
+        if geom_brep::SplineImplicitPose::of(&sa, &sb).is_some() {
+            table.hold((ka, &sa), (kb, &sb));
+            continue;
+        }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {

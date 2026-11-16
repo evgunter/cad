@@ -97,8 +97,12 @@ mod a_trace_reads_a_piece_against_its_carrier;
 mod a_verdict_moves_only_the_faces_it_read;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
 mod a_zero_vertex_pair_keeps_the_kept_sides_point;
+#[path = "an_aimed_ray_beside_a_boxed_cylinders_moving_rim.rs"]
+mod an_aimed_ray_beside_a_boxed_cylinders_moving_rim;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
+#[path = "an_operand_with_no_solid.rs"]
+mod an_operand_with_no_solid;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
@@ -119,6 +123,8 @@ mod boolean_discards;
 mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "boxed_revolved_bodies_read_what_their_members_read.rs"]
+mod boxed_revolved_bodies_read_what_their_members_read;
 #[path = "carried_citations_past_index_zero.rs"]
 mod carried_citations_past_index_zero;
 #[path = "carried_vertex_pairs_share_a_key.rs"]

@@ -49,11 +49,17 @@ fn edges(n: usize) -> Vec<EdgeKey> {
 /// The cylinder of radius `r` and unit axis `axis` through `p`, its axis
 /// `r` behind `p` along `x`.
 fn cylinder<T: Real>(p: Point3<T>, axis: Vec3<T>, r: f64) -> geom::Surface<T> {
+    cylinder_behind(p, r, v(1.0, 0.0, 0.0), axis)
+}
+
+/// The cylinder of radius `r` and unit axis `axis` through `p`, its axis
+/// `r` behind `p` along the unit `out`, square to `axis`.
+fn cylinder_behind<T: Real>(p: Point3<T>, r: f64, out: Vec3<T>, axis: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Cylinder {
-        origin: p - v::<T>(r, 0.0, 0.0),
+        origin: p - out * T::from_f64(r),
         axis,
         radius: T::from_f64(r),
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: out,
     }
 }
 
@@ -144,16 +150,17 @@ fn quarter<T: Real>(about: [f64; 3]) -> (Vec3<T>, Vec3<T>) {
 
 /// A whole plane through `p` of outward unit `m`.
 fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
-    let surface = geom::Surface::Plane {
-        origin: p,
-        normal: m,
-        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
-    };
+    whole_on(p, plane(p, m), m)
+}
+
+/// The whole tangent plane at `p`, of outward unit `m`, of a face on
+/// `surface` holding `p` inside it.
+fn whole_on<T: Decide>(p: Point3<T>, surface: geom::Surface<T>, m: Vec3<T>) -> TangentPiece<T> {
     let fan = TangentFan::Inside {
         reach: T::from_f64(2.0),
         frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
     };
-    FaceSector::tangent(surface, true, m, p, fan, band()).expect("a whole plane")
+    FaceSector::tangent(surface, true, m, p, fan, band()).expect("a whole tangent plane")
 }
 
 fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
@@ -428,7 +435,7 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
         );
         assert_eq!(
             read(p, thin(lean)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the void with its second plane leaning at {p:?}"
         );
     }
@@ -947,12 +954,7 @@ fn upright<T: Real>(p: Point3<T>, r: f64, turn: f64) -> geom::Surface<T> {
 
 /// [`upright`] about the unit `axis`, square to `x`.
 fn upright_along<T: Real>(p: Point3<T>, r: f64, turn: f64, axis: Vec3<T>) -> geom::Surface<T> {
-    geom::Surface::Cylinder {
-        origin: p - v::<T>(turn * r, 0.0, 0.0),
-        axis,
-        radius: T::from_f64(r),
-        u_ref: v(turn, 0.0, 0.0),
-    }
+    cylinder_behind(p, r, v(turn, 0.0, 0.0), axis)
 }
 
 /// **A lune about `p`** as two lune cavities kissing at their cusps
@@ -1199,7 +1201,7 @@ fn capped<T: Decide>(
 /// whose second sheet does not hold the cusp line (its cylinder turned
 /// 30° off it) is not read. A void just past the escalation at its cap
 /// rests, and with its second plane leaning off the first by nine tenths
-/// of the band's zero there it is not read: the lean is charged. A curved
+/// of the band's zero there it refuses in band: the lean is charged. A curved
 /// sheet tangent to the floor along the cap's ray, bending away under it,
 /// refuses in band: the cut there does not read the cap. Red where the
 /// polar value, the pinch, the caps' agreement or the charge is not read,
@@ -1310,7 +1312,7 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
         );
         assert_eq!(
             read(p, thin(lean)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the void with its second plane leaning at {p:?}"
         );
         // A cylinder along `x` under the floor, tangent to it at `p`,
@@ -1445,6 +1447,318 @@ fn a_crescents_slivers_open_into_the_material_at_its_rim_interval() {
     a_crescents_slivers_open_into_the_material_at_its_rim::<Interval>();
 }
 
+/// How [`ridge_end`] departs from the ridge that rests.
+#[derive(Clone, Copy, PartialEq)]
+enum Ridge {
+    /// A cylinder wall of this radius bending up off the floor.
+    Rests(f64),
+    /// The wall of radius 1 bending down through the floor.
+    Sunk,
+    /// The wall's tip edge a curve, not a line.
+    CurvedTip,
+    /// The wall a ball's face, tangent to the floor at the point alone.
+    Ball,
+    /// The wall a cone's, its apex 3 back along the tip, of half-angle 30°.
+    Cone,
+    /// The floor a ball's whole tangent plane, not a planar face's.
+    BallFloor,
+    /// The ridge a hollow: its three faces turned over, the wall's
+    /// outward normal the floor's.
+    Hollow,
+    /// The wall, of this radius, leaving the floor across the tip at this
+    /// angle.
+    Leaning(f64, f64),
+    /// The floor a cylinder's whole tangent plane, the tip its ruling.
+    CylinderFloor,
+    /// The wall a ball's face and the tip its great circle in the plane
+    /// wall: the ridge a ball's octant, on the floor at the point alone.
+    BallTip,
+}
+
+/// **A ridge's end on a wall tangent to its floor**, about `p`: the floor
+/// the whole plane `x = 0`, its material behind it; the ridge over it in
+/// `y′ > 0`, `z′ > 0` (`y′`, `z′` the plane's `y`, `z` turned `turn`
+/// about `x`), its tip the line edge along `+z′`, its plane wall
+/// `y′ = 0`, its end cap `z′ = 0`, and its other wall a cylinder of axis
+/// `z′` tangent to the floor along the tip, bending up off it across the
+/// cap's arc edge along `+y′`. `how` varies it ([`Ridge`]).
+fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece<T>> {
+    let (s, c) = turn.sin_cos();
+    let (x, y, z) = (v::<T>(1.0, 0.0, 0.0), v::<T>(0.0, c, s), v::<T>(0.0, -s, c));
+    let two = T::from_f64(2.0);
+    let k = edges(3);
+    let (tip, arc, up) = (k[0], k[1], k[2]);
+    let r = match how {
+        Ridge::Rests(r) | Ridge::Leaning(_, r) => r,
+        _ => 1.0,
+    };
+    // The wall's outward normal, and its arc edge's tangent, turned up
+    // off the floor about the tip.
+    let lean = match how {
+        Ridge::Leaning(phi, _) => phi,
+        _ => 0.0,
+    };
+    let (ls, lc) = lean.sin_cos();
+    let (out, along) = (
+        y * T::from_f64(ls) - x * T::from_f64(lc),
+        y * T::from_f64(lc) + x * T::from_f64(ls),
+    );
+    let (wall, sense, bend): (geom::Surface<T>, bool, f64) = match how {
+        Ridge::Sunk => (cylinder_behind(p, r, x, z), false, -1.0 / r),
+        Ridge::Ball | Ridge::BallTip => (
+            geom::Surface::Sphere {
+                center: p + x * T::from_f64(r),
+                radius: T::from_f64(r),
+                axis: z,
+                u_ref: -x,
+            },
+            true,
+            1.0 / r,
+        ),
+        Ridge::Cone => {
+            let alpha = core::f64::consts::FRAC_PI_6;
+            (
+                geom::Surface::Cone {
+                    apex: p - z * T::from_f64(3.0),
+                    axis: x * T::from_f64(alpha.sin()) + z * T::from_f64(alpha.cos()),
+                    half_angle: T::from_f64(alpha),
+                    u_ref: y,
+                },
+                true,
+                1.0 / (3.0 * alpha.tan()),
+            )
+        }
+        _ => (cylinder_behind(p, r, out, z), true, 1.0 / r),
+    };
+    let arc = Bound {
+        edge: arc,
+        line: false,
+        circle: true,
+        bend: -out * T::from_f64(bend),
+    };
+    let tip_of_wall = match how {
+        Ridge::CurvedTip => curve(tip, Vec3::zero()),
+        Ridge::BallTip => curve(tip, x * T::from_f64(1.0 / r)),
+        _ => line(tip),
+    };
+    let tip_of_plane = if how == Ridge::BallTip {
+        tip_of_wall
+    } else {
+        line(tip)
+    };
+    let floor = match how {
+        Ridge::BallFloor => whole_on(
+            p,
+            geom::Surface::Sphere {
+                center: p - x * two,
+                radius: two,
+                axis: z,
+                u_ref: x,
+            },
+            x,
+        ),
+        Ridge::CylinderFloor => whole_on(p, cylinder_behind(p, 2.0, x, z), x),
+        _ => whole(p, x),
+    };
+    if how == Ridge::Hollow {
+        return vec![
+            corner_along(p, (wall, false), x, (y * two, z * two), [arc, tip_of_wall]),
+            floor,
+            corner_along(
+                p,
+                (plane(p, z), true),
+                z,
+                (x * two, y * two),
+                [line(up), arc],
+            ),
+            corner_along(
+                p,
+                (plane(p, y), true),
+                y,
+                (z * two, x * two),
+                [line(tip), line(up)],
+            ),
+        ];
+    }
+    vec![
+        corner_along(
+            p,
+            (wall, sense),
+            out,
+            (z * two, along * two),
+            [tip_of_wall, arc],
+        ),
+        floor,
+        corner_along(
+            p,
+            (plane(p, -z), true),
+            -z,
+            (along * two, x * two),
+            [arc, line(up)],
+        ),
+        corner_along(
+            p,
+            (plane(p, -y), true),
+            -y,
+            (x * two, z * two),
+            [line(up), tip_of_plane],
+        ),
+    ]
+}
+
+/// **A sheet on a planar face along a line is the void its bend
+/// opens.** A ridge's end on a cylinder wall tangent to its floor
+/// ([`ridge_end`]) rests, whichever way its tip is turned about the
+/// floor's normal (the floor's fan need hold neither end of the wall's
+/// wedge), and so does one on a cone's wall. The wall bending down through
+/// the floor does not rest; nor does one whose bend the band does not
+/// part from the floor at the arm (in band), though one twice the
+/// escalation off rests. A plane holding the tip's ray inside it, or one
+/// through the wedge's middle, does not rest. A wall whose tip is no
+/// line, a ball's face, a ball's tangent plane for the floor, and a
+/// hollow ridge whose wall faces as the floor does, a cylinder's tangent
+/// plane for the floor (the tip its ruling) and a ball's octant on the
+/// floor at the point alone (both ends mouths) are not read; a wall
+/// leaving the floor across its tip, whatever its bend, is no such pair,
+/// and rests at first order. A plane in band of the tip's ray refuses in
+/// band. Red where the pair is not found off the floor's own rays, the
+/// floor is not cut along the wall's edges, a sunk wall or one in band
+/// passes, a sheet through the tip's ray is not looked for, or a face
+/// that is not developable or a floor that is no plane is read.
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>(interval: bool) {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let in_band = TouchVerdict::Unread(TouchUnread::InBand);
+    let e = band().escalate();
+    for (at, p) in apexes::<T>().into_iter().enumerate() {
+        // A kilometre off on `Interval` at the finest band, a turned
+        // link's own rays read in band of its own planes
+        // (`work/restread/a-turned-link-a-kilometre-off-reads-its-own-rays-in-band-on-interval.md`).
+        // Taken only by the readings that reach that leg: a turned ridge
+        // that rests, and the four refusals named below.
+        let fine = interval && at == 1 && Tol::witness().eps() <= 1e-12;
+        let turned_in_band = |got: &TouchVerdict, turn: f64| fine && turn != 0.0 && *got == in_band;
+        for turn in [0.0, 0.3, 2.0, 5.0] {
+            for (what, how) in [
+                ("a cylinder", Ridge::Rests(1.0)),
+                ("a cone", Ridge::Cone),
+                (
+                    "a wall leaving the floor across its tip",
+                    Ridge::Leaning(0.4, 1.0),
+                ),
+                // Its bend at the arm, 0.5, under its rise off the floor there.
+                (
+                    "a wall of radius 4 leaving the floor across its tip",
+                    Ridge::Leaning(0.4, 4.0),
+                ),
+            ] {
+                let got = read(p, ridge_end(p, turn, how));
+                assert!(
+                    matches!(got, TouchVerdict::Rest(_)) || turned_in_band(&got, turn),
+                    "a ridge's end on {what} turned {turn} at {p:?}: {got:?}"
+                );
+            }
+            for (what, how) in [
+                ("a sunk wall", Ridge::Sunk),
+                ("a curved tip", Ridge::CurvedTip),
+                ("a ball's face", Ridge::Ball),
+            ] {
+                assert_eq!(
+                    read(p, ridge_end(p, turn, how)),
+                    unread,
+                    "{what} turned {turn} at {p:?}"
+                );
+            }
+            for (what, how) in [
+                ("a ball's tangent plane for the floor", Ridge::BallFloor),
+                (
+                    "a hollow ridge, its wall facing as the floor does",
+                    Ridge::Hollow,
+                ),
+                (
+                    "a cylinder's tangent plane for the floor",
+                    Ridge::CylinderFloor,
+                ),
+                (
+                    "a ball's octant on the floor at the point alone",
+                    Ridge::BallTip,
+                ),
+            ] {
+                let got = read(p, ridge_end(p, turn, how));
+                assert!(
+                    got == unread || turned_in_band(&got, turn),
+                    "{what} turned {turn} at {p:?}: {got:?}"
+                );
+            }
+        }
+        // The arm is 2: the wall's bend `2/r` off the floor there.
+        // Unturned, twice the escalation rests on every leg.
+        for (turn, frac, rests) in [
+            (0.0, 0.5, false),
+            (0.0, 2.0, true),
+            (0.3, 0.5, false),
+            (0.3, 2.0, true),
+        ] {
+            let got = read(p, ridge_end(p, turn, Ridge::Rests(2.0 / (frac * e))));
+            if rests {
+                assert!(
+                    matches!(got, TouchVerdict::Rest(_)) || turned_in_band(&got, turn),
+                    "a bend {frac} of the escalation turned {turn} at {p:?}: {got:?}"
+                );
+            } else {
+                assert_eq!(
+                    got, in_band,
+                    "a bend {frac} of the escalation turned {turn} at {p:?}"
+                );
+            }
+        }
+        let (s, c) = 0.3f64.sin_cos();
+        let (y, z) = (v::<T>(0.0, c, s), v::<T>(0.0, -s, c));
+        let mut held = ridge_end(p, 0.3, Ridge::Rests(1.0));
+        held.push(whole(
+            p,
+            (v::<T>(1.0, 0.0, 0.0) + y) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2),
+        ));
+        assert_eq!(
+            read(p, held),
+            unread,
+            "a plane holding the tip's ray at {p:?}"
+        );
+        // The same plane leaning so the tip's ray, at the arm 2, stands
+        // half the escalation off it.
+        let mut near = ridge_end(p, 0.3, Ridge::Rests(1.0));
+        near.push(whole(
+            p,
+            (v::<T>(1.0, 0.0, 0.0) + y + z * T::from_f64(0.25 * e * core::f64::consts::SQRT_2))
+                .normalize(),
+        ));
+        assert_eq!(
+            read(p, near),
+            in_band,
+            "a plane in band of the tip's ray at {p:?}"
+        );
+        let mut cut = ridge_end(p, 0.3, Ridge::Rests(1.0));
+        cut.push(whole(
+            p,
+            (y - z) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2),
+        ));
+        assert_eq!(
+            read(p, cut),
+            TouchVerdict::Crossing,
+            "a plane through the wedge's middle at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens_f64() {
+    a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens::<f64>(false);
+}
+
+#[test]
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens_interval() {
+    a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens::<Interval>(true);
+}
+
 /// `(x, y, z)` as a vector, unturned.
 fn raw<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
@@ -1542,11 +1856,10 @@ fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_interval() {
 /// pinched on `tan ψ = √(kr/kb)` either side of `z`, their rays √2 long
 /// (`l²/2 = 1`). The gap at the middle is `kr`, the form's polar value on
 /// the two bounds `2kr·cos²ψ`, nearly twice it. With the middle's gap at
-/// 0.55, 0.7 and 0.9 of the escalation the lens is in band and not read;
-/// at 1.2 it rests. Red where the polar value is read raw, not as the gap
-/// it makes at the middle.
+/// 0.55, 0.7 and 0.9 of the escalation the lens refuses in band; at 1.2
+/// it rests. Red where the polar value is read raw, not as the gap it
+/// makes at the middle.
 fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let e = band().escalate();
     for p in apexes::<T>() {
         for (frac, rests) in [(0.55, false), (0.7, false), (0.9, false), (1.2, true)] {
@@ -1572,7 +1885,8 @@ fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
                 );
             } else {
                 assert_eq!(
-                    got, unread,
+                    got,
+                    TouchVerdict::Unread(TouchUnread::InBand),
                     "a narrow lens {frac} of the escalation at {p:?}"
                 );
             }

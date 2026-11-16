@@ -63,7 +63,6 @@ fn pin(r: f64, x: f64, y0: f64, y1: f64) -> Body<f64> {
     topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(Vec3::new(x, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap()
 }
@@ -217,13 +216,11 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -PI / 2.0),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     let rod = topo::transform_rigid(
         &along_x,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.45, 0.8)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let v = cone_verdicts(&cone, &rod);
@@ -258,7 +255,6 @@ fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.25, 0.0), Vec3::unit_z(), 0.2),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     let frustum = revolve(
@@ -370,12 +366,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// **W4 through the door: a ball on the quarter cone's generator

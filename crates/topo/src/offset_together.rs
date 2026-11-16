@@ -1100,7 +1100,6 @@ mod scope_walks {
         let placed = crate::transform_rigid(
             &other,
             &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
-            tol,
         )
         .unwrap();
         let second = crate::graft_disjoint(&mut body, &placed).unwrap();

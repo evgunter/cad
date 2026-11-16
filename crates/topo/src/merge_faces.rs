@@ -46,14 +46,15 @@ use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, oriented_plane_eq};
+use crate::boolean::Cell;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::{face_outward_normal, face_plane};
 use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
+use geom_brep::{CarrierEqError, CarrierRelation, PlaneRung, oriented_plane_eq};
 
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -207,18 +208,18 @@ struct HalfEdgeFacts {
 
 /// The door's one kind question, asked of every live face
 /// ([`Body::kind_census`]).
-struct KindCensus<'a, T: geom_core::Real> {
+struct KindCensus<'a> {
     /// Each live face's kind.
     kinds: SecondaryMap<FaceKey, MergeKind>,
-    /// Each live face's record and the surface it resolved to, which
-    /// the adjacency test reads rather than looking the surface up.
-    described: Described<'a, T>,
+    /// Each live face's record, which the adjacency test reads its
+    /// surface key and sense off.
+    records: FaceRecords<'a>,
     /// The faces on a placeholder, in face-arena order.
     placeholders: Vec<FaceKey>,
 }
 
-/// [`KindCensus::described`]'s map.
-type Described<'a, T> = SecondaryMap<FaceKey, (&'a crate::entity::Face, &'a Surface<T>)>;
+/// [`KindCensus::records`]'s map.
+type FaceRecords<'a> = SecondaryMap<FaceKey, &'a crate::entity::Face>;
 
 /// What becomes of one group's INVENTORY refusal — the door's two
 /// failure regimes, named so the boundary between them is a value
@@ -587,10 +588,8 @@ pub enum MergeCoplanarError {
         face: FaceKey,
         /// Its boundary edge.
         edge: EdgeKey,
-        /// The reading that could not decide.
-        reading: DihedralReading,
-        /// Its diagnostics.
-        diag: Indeterminate,
+        /// The must-carry rule's escalation, whole.
+        escalation: geom_brep::MustCarryEscalation,
     },
 }
 
@@ -654,8 +653,6 @@ impl EdgeDescribeFailure {
     }
 }
 
-pub use geom_brep::DihedralReading;
-
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
 /// [`MergeCoplanarError::KeptBoundaryUndecided`], the boolean in its
@@ -673,8 +670,7 @@ pub(crate) enum DescribeRefusal {
     /// A reading of its two faces could not decide.
     Undecided {
         edge: EdgeKey,
-        reading: DihedralReading,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     },
     /// Its line chord reads within the band of one of its two faces'
     /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
@@ -849,14 +845,9 @@ impl DescribeRefusal {
 
     pub(crate) const fn undecided(
         edge: EdgeKey,
-        reading: DihedralReading,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     ) -> Self {
-        Self::Undecided {
-            edge,
-            reading,
-            diag,
-        }
+        Self::Undecided { edge, escalation }
     }
 
     const fn edge(&self) -> EdgeKey {
@@ -901,15 +892,10 @@ impl MergeCoplanarError {
                 cause,
                 fitted,
             },
-            DescribeRefusal::Undecided {
-                edge,
-                reading,
-                diag,
-            } => Self::KeptBoundaryUndecided {
+            DescribeRefusal::Undecided { edge, escalation } => Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             },
             DescribeRefusal::OffFace { edge, diag } => {
                 Self::KeptBoundaryOffFace { face, edge, diag }
@@ -939,11 +925,8 @@ impl MergeCoplanarError {
                 fitted: *fitted,
             }),
             Self::KeptBoundaryUndecided {
-                edge,
-                reading,
-                diag,
-                ..
-            } => Some(DescribeRefusal::undecided(*edge, *reading, *diag)),
+                edge, escalation, ..
+            } => Some(DescribeRefusal::undecided(*edge, *escalation)),
             Self::KeptBoundaryOffFace { edge, diag, .. } => {
                 Some(DescribeRefusal::off_face(*edge, *diag))
             }
@@ -961,24 +944,26 @@ impl MergeCoplanarError {
 /// the same way, leaves two carriers and a slit (one carrier, opposed)
 /// as they are, and refuses a reading the band does not decide.
 fn unglued_pair_verdict(
-    verdict: Result<PlaneRelation, PlaneEqError>,
+    verdict: Result<CarrierRelation, CarrierEqError>,
     faces: [FaceKey; 2],
 ) -> Result<bool, MergeCoplanarError> {
     match verdict {
-        Ok(PlaneRelation::SameOriented) => Ok(true),
-        Ok(PlaneRelation::SameOpposite | PlaneRelation::Distinct) => Ok(false),
-        Err(PlaneEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
+        Ok(CarrierRelation::SameOriented) => Ok(true),
+        Ok(CarrierRelation::SameOpposite | CarrierRelation::Distinct) => Ok(false),
+        Err(CarrierEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::NeighbourCoincidence,
             diag: coincidence.reported(),
         }),
-        Err(PlaneEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
+        Err(CarrierEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::Neighbours(rung),
             diag,
         }),
-        Err(PlaneEqError::OffRing { torus, refusal }) => Err(MergeCoplanarError::DegenerateTorus {
-            face: torus.of(faces),
-            refusal,
-        }),
+        Err(CarrierEqError::OffRing { torus, refusal }) => {
+            Err(MergeCoplanarError::DegenerateTorus {
+                face: torus.of(faces),
+                refusal,
+            })
+        }
     }
 }
 
@@ -1242,21 +1227,21 @@ impl MergeCoplanarError {
             Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             } => {
-                let (question, ending) = match reading {
-                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
+                let diag = &escalation.diag();
+                let (question, ending) = match escalation.rung() {
+                    geom_brep::MustCarryRung::Arm => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         at.map(|at| {
                             geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
                         }),
                     ),
-                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
+                    geom_brep::MustCarryRung::Wedge => (
                         "whether the faces at it cross or meet smoothly",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
-                    DihedralReading::Bend => (
+                    geom_brep::MustCarryRung::Bend => (
                         "whether the faces at it bend apart",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
@@ -1964,7 +1949,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // net refuses before any group forms.
         let KindCensus {
             kinds,
-            described,
+            records,
             placeholders,
         } = self.kind_census()?;
         let mut outcome = MergeCoplanarOutcome {
@@ -1977,7 +1962,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         for (edge_key, edge) in self.edges() {
             let (hp, hm) = self.edge_halves(edge_key, edge);
             let (fp, fm) = (hp.face, hm.face);
-            if fp != fm && self.faces_continue(hp, hm, &described, &ctx)? {
+            if fp != fm && self.faces_continue(hp, hm, &records, &ctx)? {
                 neighbors.entry(fp).or_default().push(fm);
                 neighbors.entry(fm).or_default().push(fp);
                 any = true;
@@ -2202,45 +2187,42 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarError::PoisonedSurfaceDescription`] for a net
     /// that has no kind here.
     fn merge_kind(&self, face: FaceKey) -> Result<MergeKind, MergeCoplanarError> {
-        Ok(self.described_kind(self.proven_face(face))?.1)
+        self.described_kind(self.proven_face(face))
     }
 
-    /// `face`'s surface and the surface's [`MergeKind`]:
+    /// The [`MergeKind`] of `face`'s surface:
     /// [`Body::merge_kind`]'s errors past the face lookup.
-    fn described_kind<'a>(
+    fn described_kind(
         &self,
-        face: crate::live::FaceView<'a, T>,
-    ) -> Result<(&'a Surface<T>, MergeKind), MergeCoplanarError> {
-        let described = face.surface();
-        let kind = MergeKind::of(described).map_err(|PoisonedNet| {
+        face: crate::live::FaceView<'_, T>,
+    ) -> Result<MergeKind, MergeCoplanarError> {
+        MergeKind::of(face.surface()).map_err(|PoisonedNet| {
             MergeCoplanarError::PoisonedSurfaceDescription { face: face.key() }
-        })?;
-        Ok((described, kind))
+        })
     }
 
     /// Every live face's [`MergeKind`], in one pass — the one place
-    /// the door asks the kind question of the arena — with the
-    /// surface each face resolved to and the placeholder faces that
-    /// pass met, in face-arena order.
+    /// the door asks the kind question of the arena — with each
+    /// face's record and the placeholder faces that pass met, in face-arena order.
     ///
     /// # Errors
     ///
     /// [`Body::merge_kind`]'s, for the first face (arena order) that
     /// raises one.
-    fn kind_census(&self) -> Result<KindCensus<'_, T>, MergeCoplanarError> {
+    fn kind_census(&self) -> Result<KindCensus<'_>, MergeCoplanarError> {
         let mut census = KindCensus {
             kinds: SecondaryMap::new(),
-            described: SecondaryMap::new(),
+            records: SecondaryMap::new(),
             placeholders: Vec::new(),
         };
         for face in self.face_views() {
             let (face_key, record) = (face.key(), face.record());
-            let (described, kind) = self.described_kind(face)?;
+            let kind = self.described_kind(face)?;
             if kind == MergeKind::Placeholder {
                 census.placeholders.push(face_key);
             }
             census.kinds.insert(face_key, kind);
-            census.described.insert(face_key, (record, described));
+            census.records.insert(face_key, record);
         }
         Ok(census)
     }
@@ -2546,8 +2528,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// adjacency scan resolved them: their faces are the pair, and
     /// their start vertices are the edge's two ends.
     ///
-    /// `described` is the kind census's record of every live face and
-    /// its surface.
+    /// `records` is the kind census's record of every live face.
     ///
     /// # Errors
     ///
@@ -2563,12 +2544,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         &self,
         plus: HalfEdgeFacts,
         minus: HalfEdgeFacts,
-        described: &Described<'_, T>,
+        records: &FaceRecords<'_>,
         ctx: &MergeCtx,
     ) -> Result<bool, MergeCoplanarError> {
         let (f1, f2) = (plus.face, minus.face);
         let resolved = |f: FaceKey| {
-            let Some(&entry) = described.get(f) else {
+            let Some(&entry) = records.get(f) else {
                 unreachable!(
                     "{f:?}, read off a loop's face link, is not in the kind census: the census \
                      holds every live face of the body the scan reads"
@@ -2576,7 +2557,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             };
             entry
         };
-        let ((face1, s1), (face2, s2)) = (resolved(f1), resolved(f2));
+        let (face1, face2) = (resolved(f1), resolved(f2));
         let (k1, k2) = (face1.surface, face2.surface);
         // The one-key rung, kind-agnostic: one surface continues where
         // its two faces share a sense, and is a slit where they do not.
@@ -2584,32 +2565,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             return Ok(face1.sense == face2.sense);
         }
         let band = ctx.band;
-        let (
-            Surface::Plane {
-                origin: o1,
-                normal: n1,
-                ..
-            },
-            Surface::Plane {
-                origin: o2,
-                normal: n2,
-                ..
-            },
-        ) = (s1.clone(), s2.clone())
-        else {
-            return self.carriers_continue(f1, f2, band);
-        };
         // Outward normals, not chart normals (S10): `PlaneDesc`'s
         // contract, and the reason the SameOpposite verdict stands as
         // the shared-sense refusal — an opposite-sense pair on one
         // plane lands there by construction.
-        let p1 = PlaneDesc {
-            origin: o1,
-            normal: plane_outward_normal(face1, n1).vec(),
-        };
-        let p2 = PlaneDesc {
-            origin: o2,
-            normal: plane_outward_normal(face2, n2).vec(),
+        let (Some(p1), Some(p2)) = (face_plane(self, f1), face_plane(self, f2)) else {
+            return self.carriers_continue(f1, f2, band);
         };
         // The pair is read over a ball enclosing both faces: the glue
         // holds at every point of both. A face whose extent does not
@@ -2625,7 +2586,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         f1: FaceKey,
         f2: FaceKey,
         band: Band,
-    ) -> Result<crate::boolean::ConsumedExtent<T>, MergeCoplanarError> {
+    ) -> Result<geom_brep::ConsumedExtent<T>, MergeCoplanarError> {
         crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
             .map(|extent| extent.consumed())
             .map_err(|side| MergeCoplanarError::PairExtentUnread {
@@ -3024,15 +2985,14 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         let survivor = self.proven_face(face);
-        let described = survivor.surface();
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
-        let Surface::Plane { normal, .. } = described else {
+        let Some(normal) = face_outward_normal(self, face) else {
             return Ok(None);
         };
-        let normal = plane_outward_normal(survivor.record(), *normal).vec();
+        let normal = normal.vec();
         // Every loop's verdict, outline slot first (`None`). A negative
         // winding and an empty loop are not positive and name nothing.
         let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
@@ -3533,7 +3493,7 @@ mod tests {
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
                 got = Some(
                     body.kind_census()
-                        .and_then(|census| body.faces_continue(hp, hm, &census.described, &ctx)),
+                        .and_then(|census| body.faces_continue(hp, hm, &census.records, &ctx)),
                 );
             }));
             match (want, panicked) {

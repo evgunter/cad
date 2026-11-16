@@ -152,7 +152,18 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
                     out.extend(self.of_var(index));
                 }
             }
-            Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Select(_) | VarDef::Pick(_)) => {
+            Some(VarDef::Source(body)) if body.is_indexed() => {
+                for &index in &body.at {
+                    out.extend(self.of_var(index));
+                }
+            }
+            Some(
+                VarDef::Defined(_)
+                | VarDef::Pose(_)
+                | VarDef::Select(_)
+                | VarDef::Pick(_)
+                | VarDef::Source(_),
+            ) => {
                 for read in doc.definition_reads(var) {
                     out.extend(self.of_var(read));
                 }

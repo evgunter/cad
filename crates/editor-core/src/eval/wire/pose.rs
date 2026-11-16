@@ -234,6 +234,7 @@ fn eval_pose_as<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         | VarDef::Defined(_)
         | VarDef::Select(_)
         | VarDef::Pick(_)
+        | VarDef::Source(_)
         | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
@@ -726,7 +727,8 @@ pub(crate) fn key_words<T: Decide>(
         // the names'; a pose's reads, a role and a member read say more.
         let member = doc
             .selection(var)
-            .is_some_and(|select| select.body.is_indexed());
+            .is_some_and(|select| doc.selected_body(select).is_indexed())
+            || doc.through_sources(var).is_indexed();
         if role.is_none() && !member && doc.var(var).and_then(|held| held.def().pose()).is_none() {
             continue;
         }
@@ -765,9 +767,14 @@ fn walk<T: Decide>(
         Some(VarDef::Select(select)) => {
             out.push(PoseWord::Tag(w::SELECTION));
             out.push(port_word(doc.read_ports(select.body.read).first().copied()));
-            // A member read is that member: its index values key it.
-            out.push(PoseWord::Count(select.body.at.len() as u64));
-            for (k, &index) in select.body.at.iter().enumerate() {
+            // A member read is that member: its index values key it, a
+            // selection of a source of a member as that member's.
+            let body = match select.body.is_indexed() {
+                true => select.body.clone(),
+                false => doc.through_sources(select.body.read),
+            };
+            out.push(PoseWord::Count(body.at.len() as u64));
+            for (k, &index) in body.at.iter().enumerate() {
                 let value = crate::expr::eval_var_count(index, env).map_err(|source| {
                     NodeErrorKind::Expr {
                         slot: crate::SlotId::Index { seat, k },
@@ -777,7 +784,7 @@ fn walk<T: Decide>(
                 out.push(PoseWord::Count(value as u64));
             }
             // A selection in a pick is in that piece: its path keys it.
-            if let Some(pick) = doc.pick(select.body.read) {
+            if let Some(pick) = doc.pick(body.read) {
                 out.push(PoseWord::Count(pick.of.len() as u64));
                 out.extend(pick.of.iter().map(|step| PoseWord::Count(step.0.digest())));
             }
@@ -814,13 +821,35 @@ fn walk<T: Decide>(
                 ));
             }
         }
+        // A source of a member is that member: its index values key it.
+        Some(VarDef::Source(_)) if doc.through_sources(var).is_indexed() => {
+            let body = doc.through_sources(var);
+            out.push(PoseWord::Tag(w::SOURCE));
+            out.push(PoseWord::Count(body.at.len() as u64));
+            for (k, &index) in body.at.iter().enumerate() {
+                let value = crate::expr::eval_var_count(index, env).map_err(|source| {
+                    NodeErrorKind::Expr {
+                        slot: crate::SlotId::Index { seat, k },
+                        source,
+                    }
+                })?;
+                out.push(PoseWord::Count(value as u64));
+            }
+        }
         // An output, whose key the upstream list carries at the place
         // this word names, or a read the door admits at no pose seat.
         Some(VarDef::Output { node, port }) => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
+        Some(
+            VarDef::Free(_)
+            | VarDef::Defined(_)
+            | VarDef::Pick(_)
+            | VarDef::Source(_)
+            | VarDef::Index(_),
+        )
+        | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

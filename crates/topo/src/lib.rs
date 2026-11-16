@@ -133,8 +133,10 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
 pub(crate) mod boxes;
+pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
+pub(crate) mod chain_parity;
 pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
@@ -154,6 +156,7 @@ pub mod euler_kill;
 pub mod euler_ring;
 pub mod face_boxes;
 pub mod face_normal;
+pub(crate) mod face_reach;
 mod finish;
 #[cfg(test)]
 pub(crate) mod fixtures;
@@ -176,6 +179,7 @@ pub mod link;
 pub(crate) mod live;
 pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
+pub(crate) mod meeting;
 pub mod merge_faces;
 pub mod mirror;
 pub mod movefac;
@@ -234,6 +238,7 @@ pub(crate) mod seqgen;
 pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
+pub(crate) mod spline_trim;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -404,6 +409,40 @@ pub mod test_support {
         1024.0 * tol.eps()
     }
 
+    /// **A body's wrap tips as each of its two readings has them**
+    /// (`validate::wraps`' docs say why they stay two): every
+    /// `(vertex, edge)` at which either reads a tip, with the corner
+    /// reading (`validate::wrap_tip_at`, asked at each loop
+    /// corner that arrives and departs by one edge, as the strut's
+    /// facing asks it) and the valence one (`validate::wrap_tips`, the
+    /// edge of the half-edge leaving the tip), in that order. A row reads
+    /// at rest that the two agree on every entry.
+    #[must_use]
+    pub fn wrap_tip_readings<T: geom_core::Decide>(
+        body: &Body<T>,
+    ) -> Vec<(crate::VertexKey, crate::EdgeKey, bool, bool)> {
+        let by_valence: Vec<_> = crate::validate::wrap_tips(body)
+            .iter()
+            .filter_map(|(v, &he)| Some((v, body.half_edges.get(he)?.edge)))
+            .collect();
+        let mut at = by_valence.clone();
+        for (_, he) in body.half_edges.iter() {
+            let Some(next) = body.half_edges.get(he.next) else {
+                continue;
+            };
+            if he.edge == next.edge && !at.contains(&(next.start, he.edge)) {
+                at.push((next.start, he.edge));
+            }
+        }
+        at.into_iter()
+            .map(|(v, e)| {
+                let corner = crate::validate::wrap_tip_at(body, v, e);
+                (v, e, corner, by_valence.contains(&(v, e)))
+            })
+            .filter(|&(_, _, corner, valence)| corner || valence)
+            .collect()
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
@@ -533,14 +572,19 @@ pub mod test_support {
     }
 
     /// How far each solid's aimed rays start from `aim`, over two
-    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
-    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
-        crate::side_reader::beyond_report(body, aim)
+    /// (`boolean::solid_contain`'s `selection_reach`): the reach's pins
+    /// read its scale.
+    pub fn aim_reach(
+        body: &Body<f64>,
+        aim: geom_core::Point3<f64>,
+        band: geom_core::Band,
+    ) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim, band)
     }
 
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
-    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn aimed_rays<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
@@ -558,11 +602,11 @@ pub mod test_support {
 
     /// One aimed ray at `aim` on `face`, at the aimed incidence to
     /// `normal` (`side_reader`): the probes aim it at and about an edge.
-    pub fn ray_at(
-        body: &Body<f64>,
+    pub fn ray_at<T: geom_core::Decide>(
+        body: &Body<T>,
         face: crate::FaceKey,
-        aim: geom_core::Point3<f64>,
-        normal: geom_core::Vec3<f64>,
+        aim: geom_core::Point3<T>,
+        normal: geom_core::Vec3<T>,
         band: geom_core::Band,
     ) -> String {
         crate::side_reader::ray_at_report(body, face, aim, normal, band)
@@ -1365,7 +1409,8 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+        let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
+        else {
             let f = body.proven_face(face);
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
@@ -1375,6 +1420,7 @@ pub mod test_support {
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
+mod edge_wedge;
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
@@ -1382,7 +1428,9 @@ mod tier3_tests;
 pub mod transform;
 #[cfg(test)]
 mod turn_rows;
+pub(crate) mod unresolved;
 pub mod validate;
+pub use edge_wedge::{edge_wedge, edge_wedge_as, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1391,26 +1439,24 @@ pub use body::Body;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
-    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
-    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
-    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
-    ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
-    EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,
-    FaceContainment, FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings,
-    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm,
-    LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal,
+    Cell, Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
+    ContainDecision, ContainError, DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
+    FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT,
+    JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault,
+    MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
+    NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PointInSolidError, ReductionContacts,
     RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention, UncutFace,
-    UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
-    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, contfp,
+    curved_face_containment, decision_words, flush_pair_relation, insert_void, insert_voids,
+    intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
+    nary_boolean, nary_boolean_apart, overlap, point_in_solid, point_in_solid_faces,
+    point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
@@ -1431,6 +1477,7 @@ pub use boolean::{
     swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
     take_output_stage_points, take_shared_points,
 };
+pub use chart_window::ChartWindowError;
 #[cfg(feature = "sweep-testing")]
 pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
@@ -1476,15 +1523,15 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, CurveSelector, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
-    Structural, SurfacePair,
+    StoredSpan, Structural, SurfacePair,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
-    MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
+    EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind,
+    MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
@@ -1507,10 +1554,17 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use carve::{CarveError, NotOneSolid};
+pub use chord_join::{
+    ApexSectionReading, ConicCrossingsCase, JoinError, OrderDecision, SectionEndReading,
+    SectionPinMiss,
+};
 pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
-pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
+pub use finish::{
+    FindingFamily, FinishedBody, LeafBody, MoveError, NotFinished, Replay, finish, take,
+};
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
@@ -1534,16 +1588,16 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
-    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
-    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,
-    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    BoundClass, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision,
+    NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge,
+    SectionError, SectionGermFault, SectionGermReading, SectionPolygon, SectionRegion,
+    SectorReading, SplitContacts, SplitError, SplitFinishError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
     vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{Isometry, TransformError, transform_rigid};
+pub use unresolved::Unresolved;
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,

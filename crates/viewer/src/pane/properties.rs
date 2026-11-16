@@ -211,7 +211,34 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+        for row in crate::props::source_rows(self.session.doc()) {
+            self.source_row_ui(ui, &row);
+        }
         self.add_variable_ui(ui);
+    }
+
+    /// **A named source's row** (VARIABLES VR4): `bracket = B`, and its
+    /// body field, set by picking — the button re-points the source onto
+    /// the body selected in the tree or the picture
+    /// ([`crate::session::DocSession::repoint_button`]), disabled with the
+    /// reason where the offer would withhold it.
+    fn source_row_ui(&mut self, ui: &mut egui::Ui, row: &crate::props::SourceRow) {
+        let button = self
+            .session
+            .repoint_button(row.var, self.session.selection().node());
+        let plural = if row.copies == 1 { "y" } else { "ies" };
+        ui.horizontal(|ui| {
+            if crate::widgets::message_link(
+                ui,
+                format!("{} = {} ({} cop{plural})", row.label, row.body, row.copies),
+            )
+            .clicked()
+            {
+                self.ops
+                    .push(SessionOp::Select(Selection::Variable(row.var)));
+            }
+            crate::widgets::repoint_button(ui, button, self.ops);
+        });
     }
 
     /// **A feature's editing rows**: its slot rows — or, for a
@@ -658,18 +685,16 @@ impl ViewerBehavior<'_> {
     /// **The copy the selection is on, and the steps it offers**
     /// ([`crate::frame::placement_offers`]): the way to the original
     /// body from a placed copy, and the re-point of a body's placements
-    /// onto a body built on it. Read off the committed document.
+    /// onto a body built on it, each beside the fact it acts on. Read
+    /// off the committed document, once per change ([`crate::session::DocSession::placement_offers`]).
     fn placement_ui(&mut self, ui: &mut egui::Ui) {
         let Some(node) = self.session.selection().seat_node() else {
             return;
         };
-        let (said, offers) = crate::frame::placement_offers(self.session.committed_doc(), node);
-        if let Some(said) = said {
-            crate::widgets::message(ui, said);
-        }
-        for (label, op) in offers {
-            if ui.button(label).clicked() {
-                self.ops.push(op);
+        for offer in self.session.placement_offers(node) {
+            crate::widgets::message(ui, offer.said);
+            if ui.button(offer.label).clicked() {
+                self.ops.push(offer.op);
             }
         }
     }

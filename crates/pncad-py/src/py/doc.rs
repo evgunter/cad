@@ -1130,7 +1130,8 @@ impl Doc {
                     d::VarDef::Output { .. }
                     | d::VarDef::Select(_)
                     | d::VarDef::Pose(_)
-                    | d::VarDef::Pick(_) => held.kind().dimension(),
+                    | d::VarDef::Pick(_)
+                    | d::VarDef::Source(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1816,13 +1817,20 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
-    /// **A takeover**: each of `copies` (placements) re-pointed to copy
-    /// `result`, which replaces the body they copied, and every
-    /// selection that read one of them rebound where the result carries
+    /// **A takeover**: the source each of `copies` (placements) reads its
+    /// body through (VARIABLES VR4) redefined as a read of `result`, which
+    /// replaces the body they copied, and every selection that read one of
+    /// them, or selected in the source, rebound where the result carries
     /// its entity (a face, an edge or a vertex) as one entity; one the
     /// result splits, ties or consumes stays stale. One action. Answers
     /// each name moved, as `(copy, old name, new name)`, for a name held
     /// outside the document.
+    ///
+    /// Redefining a source re-points every copy reading it, so every copy
+    /// reading a named copy's source is named too, or the call refuses
+    /// `take_over_shared_source` naming one left out. A copy given twice
+    /// refuses `take_over_repeats_copy`, and a node that is no placement
+    /// `unknown_slot` (only a placement reads a source).
     ///
     /// Reading where a name went evaluates the document, under
     /// `resolver=` as `evaluate` takes it: a document with instances
@@ -1839,7 +1847,58 @@ impl Doc {
         result: OperandArg,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Vec<(NodeId, String, String)>> {
-        let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
+        // Each copy's source, once. Redefining a source re-points every
+        // copy reading it, so a source another copy reads is refused unless
+        // that copy is named too.
+        let named: Vec<d::RecipeNodeId> = copies.iter().map(|c| c.0).collect();
+        let mut sources: Vec<d::VarId> = Vec::new();
+        for (at, &copy) in named.iter().enumerate() {
+            if named[..at].contains(&copy) {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::TakeOverRepeatsCopy {
+                        node: self.inner.spoken(copy),
+                    },
+                ));
+            }
+            let Some(source) = self.inner.copied_read(copy) else {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::UnknownSlot {
+                        id: self.inner.spoken(copy),
+                        slot: d::SlotId::Operand(d::OperandSlot::Source),
+                    },
+                ));
+            };
+            let reads = |placement: d::RecipeNodeId| {
+                self.inner.copied_read(placement).is_some_and(|read| {
+                    read == source
+                        || self
+                            .inner
+                            .source_steps(read)
+                            .iter()
+                            .any(|&(step, _)| step == source)
+                })
+            };
+            if let Some(other) = self
+                .inner
+                .placements()
+                .into_iter()
+                .find(|&placement| reads(placement) && !named.contains(&placement))
+            {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::TakeOverSharedSource {
+                        copy: self.inner.spoken(copy),
+                        source: Box::new(self.inner.spoken_var(source)),
+                        other: Box::new(self.inner.spoken(other)),
+                    },
+                ));
+            }
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
         let result = result.read();
         let opts = d::EvalOptions {
             resolver: seam(resolver),
@@ -1848,7 +1907,7 @@ impl Doc {
         let tol = Tol::witness();
         let done = d::take_over(
             &self.inner,
-            &copies,
+            &sources,
             &result,
             &opts,
             &d::CancelToken::new(),
@@ -1887,8 +1946,13 @@ impl Doc {
     /// `Doc.set_product` names. A split's half is placed by its output,
     /// `place(doc.output(split, 1))`.
     ///
-    /// Two placements of one body are two copies. `label=` labels the
-    /// placement in the same call, as `insert`'s does.
+    /// A placement reads its body through a source (VARIABLES VR4): a
+    /// body passed here gets an anonymous source minted for this call, so
+    /// two calls are two copies through two sources; a source passed
+    /// (`VarDecl.source`, or a source named with `rename_var`) is shared,
+    /// and redefining it (`define_var`) re-points every placement reading
+    /// it. `label=` labels the placement in the same call, as `insert`'s
+    /// does.
     #[pyo3(signature = (source, target, constraints=None, *, label=None))]
     fn place(
         &mut self,
@@ -3938,12 +4002,23 @@ impl VarDecl {
         }))
     }
 
-    /// The defining expression, or `None` for a free variable or an
-    /// index.
+    /// **A source** `bracket = B` (VARIABLES VR4): a `Body` variable
+    /// defined as a read of `body` — a node, a port, a member `op[i]`, a
+    /// pick or another source — which placements read their body
+    /// through. Declared under a name, it is how several placements
+    /// share one body (`Doc.place(bracket, …)`), and redefining it
+    /// (`define_var`) re-points every placement reading it.
+    #[staticmethod]
+    fn source(body: BodyArg) -> Self {
+        Self(d::VarDecl::Source(body.read()))
+    }
+
+    /// The defining expression, or `None` for a free variable, an
+    /// index or a source.
     #[getter]
     fn expr(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Free(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Free(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
             d::VarDecl::Defined(expr) => Some(super::expr::Formula(expr.clone())),
         }
     }
@@ -3953,7 +4028,7 @@ impl VarDecl {
     fn value(&self) -> Option<FreeVar> {
         match &self.0 {
             d::VarDecl::Free(free) => Some(FreeVar(free.clone())),
-            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3962,7 +4037,7 @@ impl VarDecl {
     fn count(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { count, .. } => Some(super::expr::Formula(count.clone())),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3972,7 +4047,7 @@ impl VarDecl {
     fn within(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3994,6 +4069,10 @@ impl VarDecl {
                     ),
                 }
             }
+            d::VarDecl::Source(body) => match body.at.len() {
+                0 => format!("VarDecl.source({})", body.read),
+                _ => format!("VarDecl.source(a member of {})", body.read),
+            },
         }
     }
 }

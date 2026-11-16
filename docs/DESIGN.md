@@ -79,7 +79,11 @@ is checked against what was meant.
   is a value they can name, share and vary ([variables]). What the
   kernel needs beyond that — a 3-D carrier, a pcurve, a profile's
   loop — is a derived cache of a description of what the thing *is*,
-  certified against it ([edges], [recipe.forms]). An imported file has
+  certified against it ([edges], [recipe.forms]). What a
+  cache holds never flows back toward the description: a face's
+  surface is stated from its construction (a swept cap's plane is the
+  sketch plane moved by the sweep), and the vertices placed with it are
+  certified against it, never it fitted to them. An imported file has
   no variables, so adoption recovers descriptions and never intent
   ([import]).
 - **Intent is stated one way per kind of statement.**
@@ -274,6 +278,7 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
+| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it, and every joint's chart point: where a row meets a column, the meet of the two lines they hold fixed, and elsewhere the image's value there. An image stores the line it holds and its map along it, never its ends | [edges] |
 | Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
@@ -404,6 +409,15 @@ curve pairs.
   the certificate is derived and carried at `T` (`SsiCertificate<T>`,
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
+- **What a lane scalar takes from `f64` is a choice, never a claim,
+  and the same across the box.** A choice is a discrete selection
+  (a structure, a branch, an order), checked at the lane scalar to
+  stay the same over the box, or a continuous value that depends on
+  none of the document's variables. A claim (a frame, which asserts
+  that it is a rotation; a certificate; a verdict) is built at the
+  lane scalar, from its own inputs and those choices. A continuous
+  value that varies over the box is no choice: chosen at the nominal
+  values, it is wrong everywhere else, so the lane builds it.
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -680,10 +694,11 @@ against
 its intensional description ([edges]). Kernel invariant: `residual ≤ ε`
 for every derived item in a valid body; the `topo` validator checks
 it, at `f64` as a conservative estimate and at `Interval` as an
-enclosure. A certified upper bound on a vector-valued residual is
-read from the Euclidean norm of each coefficient, never from a
-per-coordinate box folded into a norm: the bound is then a function
-of the geometry, and a rigid map moves it only by its rounding width.
+enclosure. Whatever a certificate or a meter reads is a function of
+the geometry, so a rigid map moves it only by its rounding width. A
+bound is the common case, upper or lower, and so is a width: a
+vector-valued bound is read from the Euclidean norm of each
+coefficient, never from a per-coordinate box folded into a norm.
 
 **Failure is a typed, actionable error naming the failing check and
 the entity.** `[tolerance.typed-failure]`
@@ -815,7 +830,7 @@ tiers".
      reader in the chart's own coordinates (measurement in a lifted
      coordinate, a loop's windings, the mesher's domain) reads the
      loops as stored, seams and wrap edges as the chart's cuts and a
-     wrap edge's tip through the lift's reset at its singular
+     wrap edge's tip through the lift's whole turn at its singular
      vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
      surface boundary, keeping each wrap tip's singular vertex as the
      datum of the face's side; an empty one on a closed surface is
@@ -838,16 +853,19 @@ tiers".
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
-  `Probe`) the question decides with the band every verdict decides
+  a scalar without them, such as a dual, cannot reach the gate). The
+  question is asked inside the gate once tier 3 has passed, and reads
+  tier 3's facts from its verdict, never re-deciding one over a cell. At every
+  scalar the question decides with the band every verdict decides
   with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
   meet in the body (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
   reading inside the band refuses as ambiguous, never as Holds or
-  Violated. At
-  `Interval` and `Sym` the stored brackets carry the family instead.
+  Violated. An exact
+  value `x` enters the question as `[x, x]`; a stored bracket enters as
+  itself, and the verdict then holds for the whole family.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
@@ -861,7 +879,10 @@ tiers".
   evaluator keeps it with the value, so no consumer gates an operand.
   At a scalar without certification rights the finished type is a
   replay's: tier 2 alone, carrying no verdict, and nothing that reads
-  a verdict accepts it. The validity class rides the result wrapper
+  a verdict accepts it. The finished type bundles the body with its
+  verdict, the gate its one constructor; the verdict keeps tier 3's
+  per-entity facts beside its certificate, and a reading of such a
+  fact takes the bundle, never the bare body. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
@@ -1038,12 +1059,17 @@ EdgeDescription =
   native or imported geometry: import adopts extensional input by
   recovering the selector a native body would carry, or refuses typed
   where no lane recovers one ([import]).
-- **Validity is margined.** `Intersection` requires transversality along
-  the locus; a tangency of order k is read through its k-jet, with its
-  margin at order k+1, transverse to the locus. A locus in the ambiguous
-  band, certifiable as neither, fails loudly at construction exactly as
-  at import, and so does an edge read definitely transverse at some
-  stations and definitely smooth at others.
+- **Validity is margined.** Whatever the kernel measures to admit an
+  edge is admitted only with a margin. A witness-selected `Intersection`
+  requires transversality along the locus; a tangency of order k is read
+  through its k-jet, with its margin at order k+1, transverse to the
+  locus. A locus in the ambiguous band, certifiable as neither, fails
+  loudly at construction exactly as at import, and so does an edge read
+  definitely transverse at some stations and definitely smooth at
+  others.
+- **What is true by construction is not measured.** A structural
+  selector's curve is known in advance (the selector's question, above),
+  so it owes no transversality margin.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,
@@ -1552,8 +1578,12 @@ the axisless spin does. Where the mated direction is opposite to where the
 orientation puts it (the orientation written backwards) the least
 turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
-a construction refuses at its degenerate values; so no edit that keeps
-the face short of a half turn from where the orientation puts it
+a construction refuses at its degenerate values. The band is where the
+least turn's answer is not determined at ε: its chord from the pole,
+levered by the bundle's arm (written slides included), is within the
+run's band, or its lever on its own two directions, twice the arm over
+that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
+"Float rounding"). So no edit that keeps the face outside that band
 moves a held value's meaning, or the copy's place on the face. The
 orientation and a mate's `Flip` are two facts, the copy's attitude and
 the contact's sense; only the pole band refuses. Where no direction is

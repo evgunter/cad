@@ -233,10 +233,49 @@ pub(crate) struct Study {
 /// placed map's seven `transform_rigid_*` margins: 7 symbolic per
 /// map, numeric and frozen unmoved, the plate 1203 -> 1189, the annulus
 /// 720 -> 713, the link 998 -> 991, the bracket 1613 -> 1599 (door shut
-/// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike). The moves
+/// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike); ONEHOME's
+/// moved bodies (a move carries its verdict, `Held::moved`) the copy each
+/// document reads into its measuring frame, no longer re-certified or
+/// finished again there: the plate 1189 -> 1015, the annulus 713 -> 535,
+/// the link 991 -> 817, the bracket 1599 -> 1421 (door shut (1528, 1226)
+/// -> (1350, 1071)) and the pad 1697 -> 1523 (door shut (1697, 1368) ->
+/// (1523, 1213)). PCERT's closed-form bound (a stated harmonic image bounded by its residual's
+/// coefficients, main's `4121c920`) moves none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so none is metered again in the measuring frame.
+/// Then the extrude and revolve read each edge they write by its whole
+/// wedge, the arm, the wedge and a corner's sign at each of its 7
+/// interior stations, where they read the class at one witness,
+/// identical at all three ε rows: symbolic the link 817 -> 813, the
+/// bracket 1421 -> 1419 and the pad 1523 -> 1515, the witness reads the
+/// tier proved, which no station's read reproduces; door shut the link
+/// (727, 585) -> (723, 846), the bracket (1350, 1072) -> (1349, 1610)
+/// and the pad (1523, 1214) -> (1515, 1698). The plate and the annulus
+/// do not move symbolic. Then validation's mint began reading each
+/// straight side's chord components exactly and outside the log (audit
+/// row F43), its readings counted in the session's receipt: symbolic the
+/// plate 1015 -> 1019, the link 813 -> 814, the bracket 1419 -> 1427
+/// and the pad 1515 -> 1531; door shut the link (723, 846) -> (724,
+/// 847), the bracket (1349, 1610) -> (1356, 1619) and the pad (1515,
+/// 1698) -> (1531, 1714). The annulus, two circles, reads none. Then the
+/// decided least-turn mint (fork 270) took a pair that is one direction
+/// exactly to the identity with no pole verdict (its chord is 2): each
+/// mate chart whose mated directions agree exactly logs no
+/// `mate_chart_pole` row, door shut the bracket (1356, 1619) -> (1356,
+/// 1617) and the pad (1531, 1714) -> (1531, 1713); measured by deciding
+/// the pole at the identity again, which gives main's. The moves
 /// this ledger lists between PR 5728 and PR 5811
 /// are PR 5728's (the pad and the link door shut) and PR 5811's (the
 /// bracket door shut), measured at each merge and its first parent.
+/// Then the sweeps keep their sketch frames: a cap is its station's
+/// frame and a wall the frame turning its segment, so no extrude or loft
+/// fits a plane (`newell_plane_residual`, `cap_plane_orientation` go)
+/// and a latitude registers nothing: symbolic the plate 1019 -> 979,
+/// the annulus 535 -> 511, the link 814 -> 786, the bracket 1427 -> 1361
+/// and the pad 1531 -> 1483; door shut the link (724, 847) -> (696, 843),
+/// the bracket (1356, 1619) -> (1290, 1613) and the pad (1531, 1714) ->
+/// (1483, 1710). Then the decided least-turn mint (fork 270) took each
+/// identity chart with no pole verdict, door shut: the bracket (1290,
+/// 1613) -> (1290, 1611) and the pad (1483, 1710) -> (1483, 1709).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -250,7 +289,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1189, 1189, 1189],
+            symbolic: [979, 979, 979],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -261,7 +300,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [713, 713, 713],
+            symbolic: [511, 511, 511],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -291,8 +330,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((727, 585), Some("Stalled { operand: Cylinder"))),
-            symbolic: [991, 991, 991],
+            without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
+            symbolic: [786, 786, 786],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -326,13 +365,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // is a norm the tier does not reduce with the door shut, so two
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
-            without_the_registry: Some(((1528, 1226), None)),
+            // +1 numeric: the placement asks the session box of its image.
+            // −2 numeric: its two identity charts owe no pole verdict.
+            without_the_registry: Some(((1290, 1611), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1599, 1599, 1599],
+            symbolic: [1361, 1361, 1361],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -356,7 +397,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
-            without_the_registry: Some(((1697, 1368), None)),
+            // +1 numeric: the placement asks the session box of its image.
+            // −1 numeric: its identity chart owes no pole verdict.
+            without_the_registry: Some(((1483, 1709), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -371,7 +414,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1697, 1697, 1697],
+            symbolic: [1483, 1483, 1483],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -900,7 +943,22 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // over 175 first-parent commits) and 3751 with PR 6682. Then ONEHOME's
     // seven rigidity margins, which a placement composed as motions decides
     // none of (`mate::solve::admitted` removed): 1704 -> 1697 symbolic.
-    assert_eq!(got[0], (1697, 1368, 3751), "rule F shut: the pad's receipt");
+    // Then ONEHOME's moved copy, its verdict carried and not re-certified:
+    // (1697, 1368, 3751) -> (1523, 1213, 3683). Then each move asks the
+    // session box of its image (`Replay::moved_by`): one numeric
+    // decision, (1523, 1214, 3683). Then the constructors' whole-wedge
+    // reads (the study's `symbolic`): (1523, 1214, 3683) -> (1515, 1698,
+    // 3989), each witness the edge's carrier middle. Then a line rim's
+    // span and direction stated from its sketch segment (PR 6953): the
+    // decisions hold, and the forms they freeze read the placed sketch
+    // chord's unit where they read the placed vertices' difference,
+    // 3989 -> 4000. Validation's mint reading each straight side's chord
+    // exactly (audit row F43) took (1515, 1698) to (1531, 1714). Then the
+    // sweeps keep their sketch frames, fitting no plane: (1531, 1714,
+    // 4000) -> (1483, 1710, 2773), the Newell sums' forms no longer
+    // frozen. Then the decided least-turn mint (fork 270) took the pad's
+    // identity chart with no pole verdict: 1710 -> 1709 numeric.
+    assert_eq!(got[0], (1483, 1709, 2773), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

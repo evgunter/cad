@@ -29,9 +29,14 @@ At a trivalent vertex whose three edges do not all have one convexity, the **odd
 - **The odd edge and one pair edge.** The chamfer builds: the pair strip is cut off in the odd strip's plane. The fillet refuses: the pair band would have to stop where its edge runs smoothly into the cut-off arc.
 
 The vocabulary after it:
-- A band's end is one of `Patch | CutOff | Mitre | Overrun`. The pair's chain through a mixed corner is a link, not an end.
-- One typed refusal, `UnbuiltEnd`, replaces `UnsupportedCorner`'s run-out policy and `UnsupportedRunOut`'s free-text detail. Its tags are valence, dependent normals, seam, indeterminate, curved end face, foot inside a face, feet crossing and run-out. Its payload is the vertex's convex count, its odd edge and the requested subset.
-- `MixedConvexity`, `RunOutPolicy` and `CornerConfig::policy` retire. `Patch` carries no convexity.
+- A band's end is one of `Patch | CutOff | Mitre | Overrun`: the battery's own per-end result, `BandEnd`, private to the blend, with `Patch` stated rather than inferred. The pair's chain through a mixed corner is a link, not an end.
+- One typed refusal, `BlendError::UnbuiltEnd`, replaces `UnsupportedCorner` and `UnsupportedRunOut`. It is an enum of eight tags, each carrying only its own site:
+  - valence: the vertex and its valence;
+  - dependent normals, seam, indeterminate, curved end face, foot inside a face: the vertex;
+  - feet crossing: the edge both feet stand on;
+  - run-out (a band would have to stop where its edge runs on smoothly): the vertex and the unrequested edge it would run into, plus, at a mixed vertex, the odd edge and its convexity.
+- `BlendError::edge()` names the feet-crossing edge and the run-out's unrequested edge. Python reports the inner tag (`unbuilt_end_seam`, `unbuilt_end_feet_cross`, …).
+- `CornerConfig`, `RunOutPolicy` and `MixedConvexity` retire, and leave the public prelude. No public end-kind type replaces them.
 
 Build order:
 1. The gate. Uniform convexity is a precondition of the patch only, and a mixed vertex refuses only a request naming the odd edge with another edge (`band/mixed-vertex-gate`).

@@ -123,3 +123,12 @@ carrier, so its disposition is this row.
 ## `Contradiction` retired (SEAL, `seal/tangent-verdict`)
 
 `topo::Contradiction` and `BooleanError::ContactContradicted`, its only carrier, are gone: the Boolean decides a glued tangency once and mints no contradiction (`work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`). Its `DISPOSITIONS` row is deleted. This row's carry is now `BooleanDecision`, `SectorRung`, `CrossingDecision` and the rungs added below; the title still names `Contradiction`.
+
+## One more rung (GAUGE, PR 6832)
+
+PR 6832 adds `SharedStarts` (why the pairs at a shared vertex took no
+choice of starts: none clear, or too many pairs to search), carried by
+`BooleanError::SharedVertexCrossings { why, .. }`
+(`crates/topo/src/boolean/mod.rs`). It is `AlongFace`'s shape, a
+sibling refusal's discriminant under the same carrier, so its
+disposition is this row.

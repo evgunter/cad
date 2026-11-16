@@ -49,7 +49,7 @@ fn moves_where_its_entries_do_not_decide(
     what: &str,
 ) {
     let cube = cube();
-    let moved = topo::transform_rigid(&cube, &motion, Tol::witness())
+    let moved = topo::transform_rigid(&cube, &motion)
         .unwrap_or_else(|e| panic!("{what}: the witness moves the cube: {e:?}"));
     let contains =
         |outer: Interval, inner: Interval| outer.lo() <= inner.lo() && inner.hi() <= outer.hi();

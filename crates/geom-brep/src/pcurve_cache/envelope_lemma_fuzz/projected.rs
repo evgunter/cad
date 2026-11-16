@@ -15,7 +15,9 @@ use geom_core::tolerance::Tol;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
-use super::super::projected::{FramedCarrier, SectorChannel, project, projected_envelope};
+use super::super::projected::{
+    FramedCarrier, SectorChannel, check_4_terms, project, projected_envelope,
+};
 use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
 
@@ -1086,7 +1088,7 @@ impl Moved {
 /// One dominance row on a curved chart: `(sampled sup, envelope, the
 /// moved term's value)`, or `None` where the moved pair refuses before
 /// any term (a sector the move broke).
-fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, f64, f64)> {
+fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Dominance> {
     let b = band();
     let mut surf = surface(chart, s);
     let carrier = on_chart(&surf, s);
@@ -1183,37 +1185,112 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, 
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
     let lane = crate::FittedLane::<f64>::certified();
-    let terms = projected_envelope(&image, t0, t1, &boxed, &carrier, &surf, b, Some(lane))
+    let read = |parts| {
+        check_4_terms(
+            &pcurve,
+            (t0, t1),
+            &boxed,
+            &carrier,
+            &surf,
+            b,
+            Some(lane),
+            parts,
+        )
+    };
+    let eight = crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS);
+    let lemma_in = |parts| {
+        projected_envelope(
+            &image,
+            t0,
+            t1,
+            &boxed,
+            &carrier,
+            &surf,
+            b,
+            Some(lane),
+            parts,
+        )
         .map(|(terms, _)| terms)
-        .ok()?;
-    Some((
-        sampled(&pcurve, &carrier, &surf, t0, t1),
-        terms.total(),
-        terms.0[moved.term().slot()],
-    ))
+    };
+    let lemma = lemma_in(eight).ok()?;
+    Some(Dominance {
+        sampled: sampled(&pcurve, &carrier, &surf, t0, t1),
+        eight: read(eight).ok().map(|t| t.total()),
+        by_turn: read(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        lemma: lemma.total(),
+        lemma_by_turn: lemma_in(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        term: lemma.0[moved.term().slot()],
+    })
+}
+
+/// What [`dominance_row`] read: the row's densely sampled displacement;
+/// check 4's envelope ([`check_4_terms`]) with each knot span in eight
+/// parts and in the parts its turn needs (`None` where it refuses); and
+/// the projected lemma's own envelope ([`projected_envelope`], no
+/// placement pair) at eight parts, with the moved respect's term in it,
+/// and at the parts each span's turn needs.
+struct Dominance {
+    sampled: f64,
+    eight: Option<f64>,
+    by_turn: Option<f64>,
+    lemma: f64,
+    lemma_by_turn: Option<f64>,
+    term: f64,
 }
 
 const CURVED: [Chart; 4] = [Chart::Cylinder, Chart::Cone, Chart::Sphere, Chart::Torus];
 const MOVES: [Moved; 4] = [Moved::Carrier, Moved::Net, Moved::Frame, Moved::Deck];
 
 /// **The envelope dominates**: every row moved in one respect bounds
-/// its densely sampled displacement. A counterexample search.
+/// its densely sampled displacement, the lemma's envelope and check 4's,
+/// its knot spans read in eight parts and in the parts their turn needs
+/// alike. A counterexample search; most rows read an envelope, and few
+/// refuse at the parts their turn needs.
 #[test]
 fn the_projected_envelope_dominates_the_sampled_displacement() {
     let mut s = fuzz::start("projected_dominance");
+    let (mut rows, mut by_turn_refused) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(10) {
         for chart in CURVED {
             for moved in MOVES {
-                if let Some((sup, env, _)) = dominance_row(chart, moved, &mut s) {
+                let Some(row) = dominance_row(chart, moved, &mut s) else {
+                    continue;
+                };
+                rows += 1;
+                by_turn_refused += usize::from(row.eight.is_some() && row.by_turn.is_none());
+                let sup = row.sampled;
+                for (parts, env) in [
+                    ("the lemma", Some(row.lemma)),
+                    ("the lemma by turn", row.lemma_by_turn),
+                    ("eight", row.eight),
+                    ("by turn", row.by_turn),
+                ] {
+                    let Some(env) = env else { continue };
                     assert!(
                         env >= sup * (1.0 - 1e-9) - 1e-15,
-                        "{chart:?} moved {moved:?}: envelope {env:e} under sampled {sup:e} — {}",
+                        "{chart:?} moved {moved:?}, {parts}: envelope {env:e} under sampled \
+                         {sup:e} — {}",
                         fuzz::replay()
                     );
                 }
             }
         }
     }
+    let drawn = fuzz::scaled(10) * CURVED.len() * MOVES.len();
+    assert!(
+        3 * rows >= drawn,
+        "{rows} of {drawn} rows read an envelope — {}",
+        fuzz::replay()
+    );
+    assert!(
+        4 * by_turn_refused <= rows,
+        "{by_turn_refused} of {rows} rows refuse at the parts their turn needs — {}",
+        fuzz::replay()
+    );
 }
 
 /// **Each term is load-bearing**: on every curved chart, for each
@@ -1230,7 +1307,7 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
         for moved in MOVES {
             let bearing = (0..24).any(|_| {
                 dominance_row(chart, moved, &mut s)
-                    .is_some_and(|(sup, env, term)| term > 0.0 && env - term < sup)
+                    .is_some_and(|row| row.term > 0.0 && row.lemma - row.term < row.sampled)
             });
             assert!(
                 bearing,
@@ -1886,9 +1963,19 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
             let image = project(&c, None, &surf, b).unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
             let pcurve = Pcurve::Projected(Box::new(image.clone()));
             let boxed = pcurve.chart_box(0.0, 1.0);
-            let terms = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &surf, b, Some(lane))
-                .map(|(terms, _)| terms)
-                .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
+            let terms = projected_envelope(
+                &image,
+                0.0,
+                1.0,
+                &boxed,
+                &c,
+                &surf,
+                b,
+                Some(lane),
+                crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            )
+            .map(|(terms, _)| terms)
+            .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
             let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
             assert!(
                 incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
@@ -1904,9 +1991,19 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
         let image = project(&c, Some((0.3, 2.1)), &sphere, b).expect("clear of the poles");
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(0.3, 2.1);
-        let terms = projected_envelope(&image, 0.3, 2.1, &boxed, &c, &sphere, b, None)
-            .map(|(terms, _)| terms)
-            .expect("a circle reads no door");
+        let terms = projected_envelope(
+            &image,
+            0.3,
+            2.1,
+            &boxed,
+            &c,
+            &sphere,
+            b,
+            None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+        )
+        .map(|(terms, _)| terms)
+        .expect("a circle reads no door");
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
         assert!(
             incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
@@ -2063,10 +2160,20 @@ fn moved_stored_scalars_are_dominated() {
                  t1: f64| {
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(t0, t1);
-        let env = projected_envelope(&image, t0, t1, &boxed, c, surf, b, Some(lane))
-            .map(|(terms, _)| terms)
-            .unwrap_or_else(|e| panic!("{what}: {e:?}"))
-            .total();
+        let env = projected_envelope(
+            &image,
+            t0,
+            t1,
+            &boxed,
+            c,
+            surf,
+            b,
+            Some(lane),
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+        )
+        .map(|(terms, _)| terms)
+        .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+        .total();
         let sup = sampled(&pcurve, c, surf, t0, t1);
         assert!(sup > 1e-8, "{what}: the move is real ({sup:e})");
         assert!(
@@ -2326,10 +2433,20 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
     let image = project(&c, None, &plane, b).expect("a plane takes every net");
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(0.0, 1.0);
-    let env = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &plane, b, None)
-        .map(|(terms, _)| terms)
-        .expect("the plane reads no door")
-        .total();
+    let env = projected_envelope(
+        &image,
+        0.0,
+        1.0,
+        &boxed,
+        &c,
+        &plane,
+        b,
+        None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+    )
+    .map(|(terms, _)| terms)
+    .expect("the plane reads no door")
+    .total();
     let dense =
         super::super::harmonic_sup_rows::sampled_residual(&pcurve, (0.0, 1.0), &c, &plane, 2048);
     assert!(
@@ -2372,9 +2489,19 @@ fn a_cone_carrier_leaving_the_apex_is_dominated() {
     let sup = sampled(&pcurve, &c, &cone, t0, t1);
     assert!((sup - d).abs() < 1e-9, "the start is {d:e} off: {sup:e}");
     let boxed = pcurve.chart_box(t0, t1);
-    let terms = projected_envelope(&image, t0, t1, &boxed, &c, &cone, b, Some(lane))
-        .map(|(terms, _)| terms)
-        .expect("the lever is positive on the nappe");
+    let terms = projected_envelope(
+        &image,
+        t0,
+        t1,
+        &boxed,
+        &c,
+        &cone,
+        b,
+        Some(lane),
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+    )
+    .map(|(terms, _)| terms)
+    .expect("the lever is positive on the nappe");
     let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
     assert!(
         incidence >= sup * (1.0 - 1e-9),
@@ -2403,7 +2530,15 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            net,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
         super::super::projected::net_incidence(
@@ -2453,7 +2588,15 @@ fn an_uncertified_sector_bound_escalates() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            net,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     for (k, piece) in hull.pieces.iter().enumerate() {
         hull_sector(piece, k, &image.chart, b).expect("the clean hull's sectors hold");
     }
@@ -2503,7 +2646,15 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            &corrupt,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
         matches!(
@@ -2548,7 +2699,15 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            &corrupt,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     assert!(hull.pieces[0].x_lo.is_nan(), "{:?}", hull.pieces[0]);
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(

@@ -314,7 +314,6 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
         let posed_after = transform_rigid(
             &hollowed(what, &body),
             &geom_core::test_support::rigid(&map, tol()),
-            tol(),
         )
         .unwrap_or_else(|e| {
             panic!(
@@ -322,14 +321,13 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             )
         });
-        let posed_first =
-            transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{what}: the operand re-poses, got {e_at}",
-                        e_at = e.render(geom_brep::recourse::Reading::Build)
-                    )
-                });
+        let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the operand re-poses, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let hollow_after = topo::shell(
             &finished("the operand", posed_first.clone(), tol()),
             T,
@@ -391,9 +389,9 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let band = Band::linear(tol()).expect("the witness band");
     let barrel = torus_barrel();
     let hollow = hollowed("the torus barrel", &barrel);
-    let operand = transform_rigid(&barrel, &geom_core::test_support::rigid(&map, tol()), tol())
+    let operand = transform_rigid(&barrel, &geom_core::test_support::rigid(&map, tol()))
         .expect("the operand re-poses");
-    let posed = transform_rigid(&hollow, &geom_core::test_support::rigid(&map, tol()), tol())
+    let posed = transform_rigid(&hollow, &geom_core::test_support::rigid(&map, tol()))
         .expect("the hollow re-poses");
     let on_operand: Vec<Point3<f64>> = operand.vertex_points().map(|(_, p)| p).collect();
     let mut cavity = 0;
@@ -829,14 +827,10 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     let mut offset_first = body.clone();
     topo::offset_charts_together(&mut offset_first, &hollow_moves(&body, t), band, tol())
         .expect("the unposed lune offsets");
-    let posed_after = transform_rigid(
-        &offset_first,
-        &geom_core::test_support::rigid(&map, tol()),
-        tol(),
-    )
-    .expect("the offset lune re-poses");
+    let posed_after = transform_rigid(&offset_first, &geom_core::test_support::rigid(&map, tol()))
+        .expect("the offset lune re-poses");
 
-    let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+    let posed_first = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()))
         .expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     topo::offset_charts_together(
@@ -1131,7 +1125,9 @@ fn torax_the_lune_cavity_volume_closed_form_matches_quadrature() {
 /// moved surface AT ITS OWN FACES — three surfaces per rim corner,
 /// which is what pins the mitre's azimuth too (a corner off the
 /// material bisector satisfies neither moved cap plane). MEASURED at
-/// this head: worst corner residual `2.01e-19` m; asserted at `1e-18`.
+/// this head: worst corner residual `2.25e-18` m, a cap plane's residual
+/// read from its station's origin on the axis, a fraction of an ulp of
+/// the corner's coordinates; asserted at `1e-17`.
 #[test]
 fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     let (r, t) = (0.3_f64, 0.05_f64);
@@ -1157,7 +1153,7 @@ fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
     }
     println!("[torax] the reflex lune's worst corner residual: {worst:e}");
     assert!(
-        worst <= 1e-18,
+        worst <= 1e-17,
         "a corner stands {worst:e} m off one of its own moved surfaces"
     );
 }

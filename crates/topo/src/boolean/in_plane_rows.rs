@@ -34,7 +34,7 @@ fn face_along(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&f| {
-            super::plane_desc(body, f)
+            crate::face_normal::face_plane(body, f)
                 .is_some_and(|p| p.normal.x * n[0] + p.normal.y * n[1] + p.normal.z * n[2] > 0.99)
         })
         .collect();
@@ -112,7 +112,6 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
         crate::transform::transform_rigid(
             &prism_z::<f64>(&tri, z0, z1, tol).body,
             &geom_core::test_support::rigid(&along_x, tol),
-            tol,
         )
         .unwrap()
     };

@@ -2,8 +2,14 @@
 id: a-subtract-tokens-chart-agreement-reconciles-revert-by-hand
 kind: issue
 title: the Boolean's one-record token reconciles revert's plane convention by hand when it reads how two charts face under subtract
-status: open
+status: closed
 opened: 2026-11-11
+priority: P1
+cost: M
+design: true
+closed: 2026-11-14
+pr: 6935
+branch: onedoor/revert-door
 ---
 
 
@@ -28,3 +34,36 @@ there, so the token needs no knowledge of revert. That needs a live
 result face on each side of every pair (a fully covered decided face
 has none), or a revert-owned door that says how a reverted record's
 chart faces against its source's.
+
+## Spec (ONEDOOR, 2026-11-14)
+
+Weighed by two designers, who converged. Revert has no convention of its own to hand out. `Body::reverted` borrows the reflection's `OrientationClass` through a local `is_plane` closure (`revert.rs:196-199`, applied at `:352-353`), and the boolean token rebuilds the same split with `== OrientationClass::Plane` (`boolean/ops.rs:5614-5620`). So it is written twice, out of someone else's enum. Reading the senses off the result was rejected: a fully covered decided face has no live result face, and the void fallback (`ops.rs:7786`) builds from pristine operands.
+
+- **One door, which revert writes through.** In `revert.rs`:
+  - a private `Reversal { Chart, Sense }`, built by an exhaustive `match` on `Surface` variants (not on `OrientationClass`), so that a new surface kind does not compile until revert decides how it reverses;
+  - one `pub(crate)` door, `reverted_sense(surface, sense) -> bool`.
+
+  `Body::reverted` dispatches every split it makes today through `Reversal` (plane faces, mirrored chart images and pcurve rows, normal negation), and its face-sense loop calls `reverted_sense`. The `is_plane` closure retires.
+- **The token asks the door.** `OneRecordTokens::of_result` drops `turned`. B's sense under ∖ is `reverted_sense(b_surface, fb.sense)`. Materials agree is the glue relation flipped under ∖. Its doc at `:5570-5575` follows.
+- **The borrowed spelling cannot return.** `OrientationClass`'s doc narrows to the reflection. It becomes private to `transform.rs` if nothing else then reads it; otherwise a source guard refuses `OrientationClass` outside `transform.rs`.
+- **Tests:**
+  - for a plane, a cylinder and a NURBS face, `reverted()`'s face sense equals `reverted_sense` of the source;
+  - a ∖ coplanar-glue row on a curved glued pair, if none exercises the non-plane arm today;
+  - the existing ∖ rows stay green.
+
+**Residue, not folded in:** "∖ complements B" stays spelled `op == Subtract` at `finish.rs:289`, `holdings.rs:311` and `join.rs:1095`. That is the Boolean's own fact, kind-independent, and filed separately. Also found: `of_result`'s doc says a pair whose record no result face wears licenses nothing, but the code checks only `result.get_surface(..).is_some()` (`ops.rs:5601-5604`). The lane fixes whichever side is wrong and says which.
+
+Letter M, dual tier (sequential): it moves revert's convention, which the reflection, the Boolean and every revert caller read.
+
+## Closed (PR 6935, 2026-11-14)
+
+Revert owns how a face reverses. `crates/topo/src/revert.rs` holds a private `Reversal<T>`, built by one exhaustive match on `Surface`. `Reversal::Chart` carries the reversed chart (a plane with its normal negated); every other kind reverses by its face's sense. Revert also exports one `pub(crate)` door, `reverted_sense`.
+- `Body::reverted` writes every arm through it: plane faces, turned chart images and pcurve rows, the chart itself, and face senses. The `is_plane` closure and `reverse_chart`'s second plane match are gone.
+- The subtract token in `OneRecordTokens::of_result` asks the door, so `turned` is gone. It reads B's surface through the face view, so a dangling link fails loud.
+- `OrientationClass` is private to `transform.rs`.
+- **Tests:**
+  - the door's answer on plane, cylinder and NURBS (the NURBS fixture asserts every face is NURBS) matches `reverted()`;
+  - a curved ∖ glued pair, `a_groove_at_a_shafts_root_continues_its_wall`, which turns red under both of R1's mutations.
+- **`of_result`'s doc-vs-check mismatch:** the doc was the wrong side. The check stays arena presence. No row could reach the one case where "worn" would differ.
+
+Residue: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4). Model-compare row: `docs/model-compare-log/rows/PR-6935.md`.

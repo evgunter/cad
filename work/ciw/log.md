@@ -3113,3 +3113,4 @@ The numbers behind `dependents-slow-sets-skip-a-kernel-pr`'s policy.
 - 29 are named in some `work/` row, and the other 6 share onehome's `OutsideSessionBox` family (PR 6730 adds them there as witnesses).
 
 Signed (ONECOPY slow-set-reach lane).
+- 2026-11-15 — (BOXFINISH orchestrator) Filed here from PR 6972's two reviews: see the new row of this date.

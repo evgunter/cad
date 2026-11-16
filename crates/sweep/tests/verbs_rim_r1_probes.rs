@@ -335,11 +335,10 @@ fn a_co_surface_seam_reads_smooth_at_exactly_zero_margin() {
         );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
         let margin = sweep::test_support::smooth_reading(&ball, seams[0], 0.05 * r, tol());
-        assert_eq!(margin.predicate, "fillet3_convexity_sign");
         assert_eq!(
-            margin.reading.diagnostic_f64_for_error_text().value(),
-            Some(0.0),
-            "a co-surface seam's sine is structurally zero; {}",
+            margin,
+            None,
+            "a co-surface seam is read by identity, no margin read; {}",
             fuzz::replay()
         );
     }

@@ -270,7 +270,8 @@ impl PointLever {
 /// reach `κ·E`, which names the lever ([`PointLever::of`]). Every SSI
 /// point decision reads its arm here: the march's states, the Hermite's
 /// ends, refinement's chord midpoint ([`march::decide_transversality`])
-/// and the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]), as
+/// and the at-rest spline lanes' samples ([`crate::plane_nurbs_limbs`],
+/// [`crate::curved_nurbs_limbs`], [`crate::nurbs_pair_limbs`]), as
 /// does [`crate::dihedral_side()`]'s spline face. A seam's spline face
 /// ([`crate::classify_seam`]) brackets its arm instead, between a
 /// certified lower bound read off curvature bounds near the point

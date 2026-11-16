@@ -228,7 +228,7 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     }
     // The mesher's chord schedule lands on the sub-arc joints only for
     // a rim whose arc is its edge's interval, and refuses the children
-    // (`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
+    // (`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
     match mesh::tessellate(&body, 5e-2, tol()) {
         Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => assert!(
             note.starts_with("an arc-rim pcurve whose turn is not its edge's parameter interval"),
@@ -368,7 +368,7 @@ fn a_line_piece_the_closed_form_crosses_at_its_quarter_point_takes_its_row() {
     let he = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            Pcurve::IsoLine { p0, pl } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
+            Pcurve::IsoLine { p0, pl, .. } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
             _ => None,
         })
         .expect("a line rim on a wall row");

@@ -12,10 +12,7 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 use common::{brick, describe_as_intersections};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, MotionPart, RigidMotion, RigidMotionError, Vec3};
-use topo::{
-    Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
-    validate_geometric,
-};
+use topo::{Body, mass_properties, transform_rigid, validate, validate_closed, validate_geometric};
 
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
@@ -69,7 +66,7 @@ fn near_rigid_door_rounding_behavior() {
     // moves the body.
     let admitted = RigidMotion::check_rigid(&with_c0x(1.0 + f64::EPSILON))
         .expect("rounding-level orthonormality noise must not refuse");
-    assert!(transform_rigid(&b, &admitted, Tol::witness()).is_ok());
+    assert!(transform_rigid(&b, &admitted).is_ok());
     // Beyond rounding, however small against any length: refused.
     for defect in [1e-12, 1e-6] {
         match RigidMotion::check_rigid(&with_c0x(1.0 + defect)) {
@@ -101,18 +98,8 @@ fn transform_is_bit_deterministic() {
         Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0).normalize(), FRAC_PI_3),
         Vec3::new(0.1, -0.2, 0.3),
     );
-    let t1 = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
-    let t2 = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let t1 = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
+    let t2 = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
     assert_eq!(
         arena_dump(&t1),
         arena_dump(&t2),
@@ -144,11 +131,7 @@ fn rotation_composition_keeps_witness_residuals_honest() {
             Mat3::rotation_about(axes[i % 4], FRAC_PI_3 + 0.01 * i as f64),
             Vec3::new(0.25, -0.5, 0.125),
         );
-        cur = match transform_rigid(
-            &cur,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        ) {
+        cur = match transform_rigid(&cur, &geom_core::test_support::rigid(&map, Tol::witness())) {
             Ok(t) => t,
             Err(e) => panic!("step {i}: typed refusal {e:?} — fail-loud but surprising"),
         };
@@ -176,11 +159,7 @@ fn long_thin_feature_transform_is_honest_either_way() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    ) {
+    match transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())) {
         Ok(t) => {
             tiers_ok(&t);
             let m0 = mass_properties(
@@ -199,35 +178,24 @@ fn long_thin_feature_transform_is_honest_either_way() {
             eprintln!("long-thin took the Ok path; rel volume drift {rel:e}");
             assert!(rel < 1e-9, "volume drifted rel {rel:e} under a rigid map");
         }
-        Err(e) => {
-            // Typed refusal at scale is acceptable (fail-loud), but it
-            // must be the certification door, not corruption.
-            match e {
-                TransformError::Certify { .. } => {}
-                other => panic!("expected Certify refusal at scale, got {other:?}"),
-            }
-        }
+        Err(e) => panic!("the data map refuses nothing on a valid body: {e:?}"),
     }
 }
 
 /// R1a escalation: at 1e9 coordinates the rotation rounding (~1e-7)
-/// exceeds the escalate threshold (1e-8) — the door must FIRE typed
-/// (Certify or a decided refusal), or, if it passes, the finished-body
-/// gate refuses the result by the session box, alone; silent
-/// degradation (Ok and any other finding) is the falsifier.
+/// exceeds the escalate threshold (1e-8). The map carries every
+/// certificate and refuses nothing, and the finished-body gate refuses
+/// the result by the session box, alone; any other finding is the
+/// falsifier.
 #[test]
-fn extreme_scale_fires_the_certify_door_or_stays_valid() {
+fn an_extreme_scale_image_is_the_session_boxs_to_refuse() {
     let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    ) {
+    match transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())) {
         Ok(t) => {
             let errors = validate_geometric(&t, Tol::witness()).unwrap_err();
             assert!(
@@ -238,10 +206,7 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
                 "a 1e9 m image is the box's to refuse, alone: {errors:?}"
             );
         }
-        Err(e) => {
-            eprintln!("1e9 scale refused: {e:?}");
-            assert!(matches!(e, TransformError::Certify { .. }));
-        }
+        Err(e) => panic!("the data map refuses nothing on a valid body: {e:?}"),
     }
 }
 
@@ -283,12 +248,7 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
         Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
         Vec3::new(-3.0, 7.0, 0.5),
     );
-    let t = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let t = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
     let keys = |bb: &Body<f64>| {
         (
             bb.points()

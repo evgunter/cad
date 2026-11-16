@@ -4,7 +4,7 @@
 //! speed's Lipschitz slack, bracket the true one), then pins:
 //! `edge_extent_inf ≤ D ≤ edge_extent_sup ≤ c·D` and `R ≤ reach ≤ c·R`,
 //! the reach the far distance of the carrier's cover over the window
-//! from the start (`ExtentBall::of_edge_from`), `c` stated per kind, so a
+//! from the start (`Reach::of_span`), `c` stated per kind, so a
 //! bound that loosens (or reads `∞`) goes red beside one that stops
 //! bracketing.
 //!
@@ -25,20 +25,22 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3};
-use geom_brep::{ExtentBall, LeverBounds, edge_extent_inf, edge_extent_sup, edge_reach_bounds};
+use geom_brep::{LeverBounds, Reach, edge_extent_inf, edge_extent_sup, edge_reach_bounds};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
 use crate::shared::tol::band;
 
 /// The reach of `carrier` over `span` from `start`, from above: the
-/// ball about `start` holding the arc ([`ExtentBall::of_edge_from`]).
+/// cover's far distance from `start` ([`Reach::of_span`]).
 fn reach_from(
     carrier: &Curve3<f64>,
     span: (f64, f64),
     start: Point3<f64>,
 ) -> geom_core::Lever<f64> {
-    ExtentBall::of_edge_from(carrier, span, start).lever_from(start)
+    Reach::of_span(carrier, span)
+        .unwrap_or_else(|why| panic!("{carrier:?} over {span:?}: {why}"))
+        .lever_from(start)
 }
 
 /// The dense schedule's piece count.

@@ -277,9 +277,11 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 /// fully-chamfered box has no two-link junctions (every vertex is a
 /// trivalent corner), so chain G1 never fires — on this scene OR on
 /// the tour's `spacer` scene, whose K-row registration names it as one
-/// of the four the scene delivers. The four that reach the funnel from
-/// such a scene are chain-arm, convexity-sign, face-clearance and
-/// corner-independence.
+/// of the four the scene delivers. Nor `fillet3_chain_arm`: it gates the
+/// chain's junction readings, and an edge's wedge is read through the
+/// whole-edge fold under `fillet3_convexity_sign` with no arm gate of
+/// its own. The three that reach the funnel from such a scene are
+/// convexity-sign, face-clearance and corner-independence.
 #[cfg(feature = "probe")]
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
@@ -327,13 +329,12 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     assert_eq!(
         names,
         vec![
-            "fillet3_chain_arm",
             "fillet3_convexity_sign",
             "fillet3_corner_independence",
             "fillet3_face_clearance",
         ],
         "the chamfer's battery rows: ball facts absent, nothing new minted, \
-         and no junction ever fires chain G1 on an all-corners request"
+         and no junction ever asks chain G1 or its arm on an all-corners request"
     );
 }
 
@@ -386,13 +387,11 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
                 ),
                 Tol::witness(),
             ),
-            Tol::witness(),
         )
         .expect("the ball stands up");
         topo::transform_rigid(
             &upright,
             &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, l)).unwrap(),
-            Tol::witness(),
         )
         .expect("the ball translates")
     };

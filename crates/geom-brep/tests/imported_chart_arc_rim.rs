@@ -204,6 +204,7 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
             Pcurve::IsoLine {
                 p0: Point2::new(u, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             },
             0.0,
             1.0,

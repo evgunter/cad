@@ -551,11 +551,34 @@ pub enum Pcurve<T: Real> {
     /// trims): the certificate's hull then rests on the de Boor
     /// collapse rather than a boundary row, and the variant is the same
     /// one — nothing reads "boundary" off it.
+    ///
+    /// **Its ends, where they are stated.** `p0 + pl·t` read at an end of
+    /// its edge's span is that end through arithmetic, and at an
+    /// enclosure scalar the arithmetic forgets what the construction
+    /// knew: a rim whose span is a computed length `L` is minted with
+    /// `pl = 1/L`, and `pl·L` encloses `1` without being it. A mint that
+    /// places the image from one chart point at its edge's start to
+    /// another at its end (a boundary row or column traversed whole)
+    /// stores the two in `ends`, and [`Pcurve::span_ends`] reads them
+    /// there; every other image reads its ends through the map. A stated
+    /// end is certified twice: check 3 reads it at the span end it images
+    /// (`schedule_residuals`), so an end the carrier does not reach is
+    /// refused, and check 4's envelope carries its metred distance from
+    /// the map's value there, which the rectangle lane pads by.
     IsoLine {
         /// The chart point at `t = 0`.
         p0: Point2<T>,
         /// The velocity in chart coordinates (constant).
         pl: Vec2<T>,
+        /// The chart points at the start and the end of the span of the
+        /// edge the image is stored on. `Some` holds what a mint stated
+        /// (a boundary row's corners, exact; the importer's column, whose
+        /// corners a banded selection chose), and, where an operation
+        /// moved one end of the span, the map's value there
+        /// ([`Pcurve::with_end_at`]: a split's cut, a re-anchored end, both
+        /// ends of a joined edge). `None` is an image placed by its map
+        /// alone, every end read through the map.
+        ends: Option<[Point2<T>; 2]>,
     },
     /// The **circular-ARC rim** on a NURBS chart (M8-3): the chart
     /// image is again an exact straight line in UV — the boundary
@@ -1035,7 +1058,126 @@ pub fn harmonic_form_of<T: Real>(u: Channel<T>, v: Channel<T>) -> HarmonicForm<T
     )
 }
 
+/// **The span of the edge an image is stored on**, the one span
+/// [`Pcurve::span_ends`] reads an image's ends over. It is handed out by
+/// the holders of that pairing, a cache ([`PcurveCache::edge_span`]) and
+/// an edge's certified curve ([`crate::EdgeCurve::edge_span`]), so no
+/// caller can ask an image for its ends over another span.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredSpan<T>(T, T);
+
+impl<T: Copy> StoredSpan<T> {
+    /// The span `(t0, t1)`, held by the caller that pairs it with its image.
+    pub(crate) fn new(t0: T, t1: T) -> Self {
+        Self(t0, t1)
+    }
+
+    /// A span stated by a suite, for an image it builds by hand.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn for_tests(t0: T, t1: T) -> Self {
+        Self(t0, t1)
+    }
+
+    /// The span's ends `(t0, t1)`.
+    #[must_use]
+    pub fn ends(self) -> (T, T) {
+        (self.0, self.1)
+    }
+}
+
+/// **The chart line an iso image lies on** ([`Pcurve::held_line`]): the
+/// channel it holds fixed, the value it holds there, and the moving
+/// channel's rate along the image's own parameter.
+#[derive(Clone, Copy, Debug)]
+pub struct HeldLine<T> {
+    /// The channel held fixed: [`ChartAxis::U`](crate::ssi::ChartAxis::U)
+    /// for a column, [`ChartAxis::V`](crate::ssi::ChartAxis::V) for a row.
+    pub axis: crate::ssi::ChartAxis,
+    /// The value the line holds that channel at.
+    pub value: T,
+    /// The moving channel's rate: an `IsoLine`'s slope there, an `IsoArc`'s
+    /// whole displacement (its parameter increases with the carrier's).
+    /// Its sign is the way the image runs along the line.
+    pub rate: T,
+}
+
+/// Why an image lies on no held line ([`Pcurve::held_line`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoHeldLine {
+    /// The image is not an iso image: no variant states it straight.
+    NotIso,
+    /// Both channels move: a diagonal line of the chart.
+    Diagonal,
+    /// Neither channel moves: the image is one chart point.
+    Point,
+}
+
 impl<T: Real> Pcurve<T> {
+    /// **The chart line the image lies on** ([`HeldLine`]): an
+    /// [`Pcurve::IsoLine`]'s or an [`Pcurve::IsoArc`]'s fixed coordinate,
+    /// read where that channel's slope is an exact zero, so every point
+    /// of the image holds it. The one reading of a held line; a reader
+    /// that admits fewer images filters this one.
+    ///
+    /// # Errors
+    ///
+    /// [`NoHeldLine`]: a non-iso image, or an iso image with both channels
+    /// moving or neither.
+    pub fn held_line(&self) -> Result<HeldLine<T>, NoHeldLine> {
+        use crate::ssi::ChartAxis;
+        let (p0, slope) = match *self {
+            Pcurve::IsoLine { p0, pl, .. } => (p0, pl),
+            Pcurve::IsoArc { p0, pd, .. } => (p0, pd),
+            _ => return Err(NoHeldLine::NotIso),
+        };
+        match (
+            geom_core::is_exact_zero(slope.x),
+            geom_core::is_exact_zero(slope.y),
+        ) {
+            (true, false) => Ok(HeldLine {
+                axis: ChartAxis::U,
+                value: p0.x,
+                rate: slope.y,
+            }),
+            (false, true) => Ok(HeldLine {
+                axis: ChartAxis::V,
+                value: p0.y,
+                rate: slope.x,
+            }),
+            (false, false) => Err(NoHeldLine::Diagonal),
+            (true, true) => Err(NoHeldLine::Point),
+        }
+    }
+
+    /// The `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0` to
+    /// `u1` at `t1`, the span of the edge it is minted for, with its two
+    /// ends stored: the row a mint places by its ends (a boundary row
+    /// traversed whole), read there as placed at every scalar
+    /// ([`Pcurve::span_ends`]). The map is `u0 + (u1 − u0)·(t − t0)/(t1 − t0)`
+    /// and `v` itself, never a difference of it.
+    #[must_use]
+    pub fn iso_row(v: T, (u0, u1): (T, T), (t0, t1): (T, T)) -> Self {
+        let slope = (u1 - u0) / (t1 - t0);
+        Pcurve::IsoLine {
+            p0: Point2::new(u0 - slope * t0, v),
+            pl: Vec2::new(slope, T::zero()),
+            ends: Some([Point2::new(u0, v), Point2::new(u1, v)]),
+        }
+    }
+
+    /// [`Pcurve::iso_row`]'s transpose: the `u = const` column from `v0`
+    /// at `t0` to `v1` at `t1`, its ends stored.
+    #[must_use]
+    pub fn iso_column(u: T, (v0, v1): (T, T), (t0, t1): (T, T)) -> Self {
+        let slope = (v1 - v0) / (t1 - t0);
+        Pcurve::IsoLine {
+            p0: Point2::new(u, v0 - slope * t0),
+            pl: Vec2::new(T::zero(), slope),
+            ends: Some([Point2::new(u, v0), Point2::new(u, v1)]),
+        }
+    }
+
     /// A harmonic image read as its four coefficient vectors
     /// `(p0, pa, pb, pl)` of `p0 + pa·cos t + pb·sin t + pl·t`, channel
     /// by channel ([`Channel::coefficients`]); `None` for every other
@@ -1218,9 +1360,10 @@ impl<T: Real> Pcurve<T> {
             },
             Pcurve::Fitted(image) => Pcurve::Fitted(Arc::new(image.map_points(point))),
             Pcurve::General(image) => Pcurve::General(Arc::new(image.map_points(point))),
-            Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+            Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
                 p0: point(*p0),
                 pl: vector(*pl),
+                ends: ends.map(|e| e.map(point)),
             },
             Pcurve::IsoArc {
                 p0,
@@ -1392,6 +1535,65 @@ impl<T: Real> Pcurve<T> {
 }
 
 impl<T: SpanLocate> Pcurve<T> {
+    /// The chart points at the two ends of `span`, the span of the edge
+    /// this image is stored on: an [`Pcurve::IsoLine`]'s stated `ends`
+    /// where it holds them, the map's value at the span's ends
+    /// ([`Pcurve::eval`]) otherwise. The ends are the edge's, which is why
+    /// the span is a [`StoredSpan`]: a sub-span cannot be asked.
+    pub fn span_ends(&self, span: StoredSpan<T>) -> [Point2<T>; 2] {
+        match self {
+            Pcurve::IsoLine {
+                ends: Some(ends), ..
+            } => *ends,
+            _ => {
+                let (t0, t1) = span.ends();
+                [self.eval(t0), self.eval(t1)]
+            }
+        }
+    }
+
+    /// This image over its edge's span with one end moved to `t` (the
+    /// span's end where `end`, its start otherwise): the same map, an
+    /// [`Pcurve::IsoLine`]'s stated end at the moved end read through
+    /// the map there, and the other kept.
+    #[must_use]
+    pub fn with_end_at(&self, end: bool, t: T) -> Self {
+        match self {
+            Pcurve::IsoLine {
+                p0,
+                pl,
+                ends: Some(ends),
+            } => {
+                let mut ends = *ends;
+                ends[usize::from(end)] = self.eval(t);
+                Pcurve::IsoLine {
+                    p0: *p0,
+                    pl: *pl,
+                    ends: Some(ends),
+                }
+            }
+            _ => self.clone(),
+        }
+    }
+
+    /// This image over a span `(t0, t1)` its edge was given anew, its
+    /// stated ends read through the map at both ([`Pcurve::with_end_at`]):
+    /// where an edge's span is re-read, nothing says either end is still
+    /// the one the mint placed.
+    #[must_use]
+    pub fn over_span(&self, (t0, t1): (T, T)) -> Self {
+        self.with_end_at(false, t0).with_end_at(true, t1)
+    }
+
+    /// This image as its edge's two children at the split parameter `t`
+    /// store it, `(first, second)` over `[t0, t]` and `[t, t1]`
+    /// ([`Pcurve::with_end_at`]): a stated end kept on the child that
+    /// keeps that end of the span, and the cut read through the map.
+    #[must_use]
+    pub fn split_at(&self, t: T) -> (Self, Self) {
+        (self.with_end_at(true, t), self.with_end_at(false, t))
+    }
+
     /// The chart point at the **carrier parameter** `t` (module docs:
     /// the parameter is not re-mapped). Fixed evaluation order (D9);
     /// total.
@@ -1406,7 +1608,7 @@ impl<T: SpanLocate> Pcurve<T> {
                 )
             }
             Pcurve::Fitted(image) | Pcurve::General(image) => image.eval(t),
-            Pcurve::IsoLine { p0, pl } => Point2::new(p0.x + pl.x * t, p0.y + pl.y * t),
+            Pcurve::IsoLine { p0, pl, .. } => Point2::new(p0.x + pl.x * t, p0.y + pl.y * t),
             Pcurve::IsoArc {
                 p0,
                 pd,
@@ -1503,7 +1705,7 @@ impl<T: SpanLocate> Pcurve<T> {
             }
             // A straight line is a harmonic image with no
             // trigonometric part, and its box is its endpoint hull.
-            Pcurve::IsoLine { p0, pl } => {
+            Pcurve::IsoLine { p0, pl, .. } => {
                 let zero = Vec2::new(T::zero(), T::zero());
                 harmonic_span_box(*p0, zero, zero, *pl, t0, t1)
             }
@@ -1621,6 +1823,50 @@ impl<T: SpanLocate> Pcurve<T> {
     #[must_use]
     pub fn shift_branch(&self, k: i32, period: Period<T>) -> Self {
         self.translate(period.times(k), T::zero())
+    }
+}
+
+impl Pcurve<f64> {
+    /// **The image's speed along each chart axis** over the carrier span
+    /// `[t₀, t₁]`: `(s_u, s_v)` with `|u′(t)| ≤ s_u` and `|v′(t)| ≤ s_v`
+    /// there, in chart units per unit of the carrier's parameter. The
+    /// third fact beside [`Pcurve::eval`] and [`Pcurve::chart_box`];
+    /// each form's derivation is `speed`'s module docs.
+    ///
+    /// # Errors
+    ///
+    /// [`NoSpeedBound`]: a fitted image (none is wired), a rational or
+    /// out-of-domain general image, a net whose derivative bound does not
+    /// certify, an arc rim with no sub-arc, a closed form outside its
+    /// regime, a projected image through its chart's singular set.
+    pub fn speed_bound(&self, t0: f64, t1: f64) -> Result<(f64, f64), NoSpeedBound> {
+        if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
+            return Err(NoSpeedBound::NotASpan);
+        }
+        if !speed::finite_input(self) {
+            return Err(NoSpeedBound::NonFinite);
+        }
+        match self {
+            Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
+            Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
+            Pcurve::IsoArc {
+                pd,
+                angle,
+                breaks,
+                ends,
+                ..
+            } => speed::iso_arc_speeds(*pd, *angle, breaks, ends),
+            Pcurve::General(image) => speed::general_speeds(image, (t0, t1)),
+            Pcurve::Fitted(_) => Err(NoSpeedBound::Fitted),
+            Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image,
+            } => speed::spiric_speeds((*major, *minor, *offset), image, (t0, t1)),
+            Pcurve::FocalSection(image) => speed::focal_section_speeds(image),
+            Pcurve::Projected(image) => speed::projected_speeds(image, (t0, t1)),
+        }
     }
 }
 
@@ -2174,6 +2420,14 @@ pub enum PcurveCertifyError {
     /// focal-section and spiric-wall lanes leave a span past a period to
     /// the edge certificate's `interval_span_winding`.
     TubePeriodExceeded,
+    /// A stated image definitely misses its carrier at a point the
+    /// bound's search located off the schedule
+    /// (`closed_bound::verdict`): `|C(t) − S(P(t))|` read past the band
+    /// there, at [`PcurveCheck::MapResidual`].
+    MissLocated {
+        /// What the classifier saw of the miss.
+        margin: geom_core::MarginDiag,
+    },
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -2311,6 +2565,12 @@ impl PcurveCertifyError {
                     ),
                     None => String::new(),
                 }
+            ),
+            Self::MissLocated { margin } => write!(
+                f,
+                "pcurve certification: the image misses its carrier by {margin:e} m at a point \
+                 located between the schedule's samples, past the tolerance band — the pcurve \
+                 does not represent the carrier through the map (D4 ¶2)"
             ),
             Self::FittedLimb { limb, margin } => write!(
                 f,
@@ -2466,6 +2726,10 @@ impl PcurveCertifyError {
                 Decision::Check(general(*check), RefusedArm::Undecided(cause))
             }
             Self::ResidualExceeded { check, .. } => Decision::Check(general(*check), definite),
+            Self::MissLocated { margin } => Decision::Check(
+                PcurveCheck::MapResidual,
+                RefusedArm::SignCertain(Some(*margin)),
+            ),
             Self::FittedLimb { limb, margin } => {
                 match PcurveCheck::of_fitted_limb(*limb) {
                     Some(check) => Decision::Check(check, RefusedArm::SignCertain(Some(*margin))),
@@ -3104,7 +3368,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band);
+    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band, |_, _| Ok(()));
     #[cfg(test)]
     let image = match mutants::general_image_class_gate(carrier) {
         Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),
@@ -3190,9 +3454,10 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
 /// ([`crate::FittedLane`]): the stored image's piece hulls (its sector
 /// and lever data), and the chart's canonical implicit form composed
 /// along `twin_net`, the carrier written in the frame of `twin`, the
-/// chart's orthonormal twin, over parts cut at `cuts` besides the
-/// uniform ones. Every value crosses into certification arithmetic
-/// through [`geom_core::Interval::from_certified`].
+/// chart's orthonormal twin, over each knot span cut into the parts
+/// `parts` reads it in and at `cuts`. Every value crosses into
+/// certification arithmetic through
+/// [`geom_core::Interval::from_certified`].
 ///
 /// # Errors
 ///
@@ -3202,6 +3467,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
     twin: &Surface<T>,
+    parts: Parts,
     cuts: &[f64],
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
     use projected::{PieceHull, ProjectedHull};
@@ -3262,13 +3528,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
-    let spans = twin_span_hulls(
-        &lift(twin_net),
-        twin,
-        image.chart.nappe(),
-        Parts::Each(projected::INCIDENCE_CUTS),
-        cuts,
-    )?;
+    let spans = twin_span_hulls(&lift(twin_net), twin, image.chart.nappe(), parts, cuts)?;
     Ok(ProjectedHull { pieces, spans })
 }
 
@@ -3528,11 +3788,11 @@ fn spans_of(
     } else {
         Some(composite_of(&data.clone().with_breaks(&all_cuts))?)
     };
-    let parts = cut.as_ref().unwrap_or(&whole);
+    let composite = cut.as_ref().unwrap_or(&whole);
     let (breaks, part_sup, values) = (
-        parts.num.breaks().to_vec(),
-        parts.span_sup_bounds(),
-        parts.break_values(),
+        composite.num.breaks().to_vec(),
+        composite.span_sup_bounds(),
+        composite.break_values(),
     );
     // A bound the composite could not certify is NaN, which `f64::min`
     // passes over while the other is certified, and which its consumer
@@ -3568,6 +3828,9 @@ fn spans_of(
             };
             let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
+            #[cfg(test)]
+            let f_sup =
+                mutants::by_turn_sampled(parts, (values[j], values[j + 1])).unwrap_or(f_sup);
             let (rho_lo, rho_hi, z) = (
                 lower(rho, ok),
                 upper(far, ok),
@@ -3750,6 +4013,12 @@ mod span_memo {
     pub(crate) fn counts() -> (u64, u64) {
         crate::memo::counts(&MEMO)
     }
+
+    /// Empties this thread's memo.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        crate::memo::clear(&MEMO);
+    }
 }
 
 /// **Limb 2's reader: an `Intersection` carrier's distance from an
@@ -3877,7 +4146,10 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // all clear, so `offset_cleared`'s decisions (the window's ends
     // located, a cone's or torus's lever per part) are taken only on a
     // reading about to pass; where a lever then refuses, the rounds
-    // take those decisions again, so the trail shows them twice.
+    // take those decisions again, so the trail shows them twice. Check
+    // 4's first reading sets its decisions aside instead
+    // (`projected::run_projected_checks`); this one's are
+    // `work/pcert/limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail.md`.
     let cleared = |(hull, size)| {
         projected::offset_cleared(hull, size, window, nappe, &twin, band)
             .ok()
@@ -4523,8 +4795,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                     })
             };
             let chart = surface.map_scalar(geom_core::Interval::from_certified);
-            held = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1]))).ok_or(
-                PcurveCertifyError::FittedCertificate {
+            held = patch::patch(
+                class,
+                &chart,
+                (window(&pcoords[0]), window(&pcoords[1])),
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                patch::PatchRefusal::NoWidth => PcurveCertifyError::FittedCertificate {
                     limb: Some(SsiLimb::HullSupChart),
                     what: "no window around the image's control coordinates has width: they \
                            are no finite numbers, or too large for one unit either side to \
@@ -4532,7 +4810,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                     magnitude: None,
                     ending: FittedEnding::Defect,
                 },
-            )?;
+                patch::PatchRefusal::Pieces => PcurveCertifyError::FittedCertificate {
+                    limb: Some(SsiLimb::HullSupChart),
+                    what: "the image turns through more of its chart's angle than the enclosing \
+                           patch reads in pieces small enough to hold its remainder under the band",
+                    magnitude: None,
+                    ending: FittedEnding::NotYet,
+                },
+            })?;
             (&held.0, &held.1, &held.2[..], &held.3[..])
         }
     };
@@ -4750,6 +5035,12 @@ impl<T: Real> PcurveCache<T> {
         (self.param_start, self.param_end)
     }
 
+    /// [`Self::params`] as the span [`Pcurve::span_ends`] reads this
+    /// cache's image over.
+    pub fn edge_span(&self) -> StoredSpan<T> {
+        StoredSpan::new(self.param_start, self.param_end)
+    }
+
     /// The certification record of the run that admitted this cache.
     pub fn certificate(&self) -> &PcurveCertificate<T> {
         &self.certificate
@@ -4903,9 +5194,7 @@ impl<T: Decide> PcurveCache<T> {
                 // The iso lane (M6-3): closed-form like the harmonic one —
                 // no bracket obligation — so it shares this `Decide`-scalar
                 // door.
-                Pcurve::IsoLine { p0, pl } => {
-                    run_iso_checks(*p0, *pl, t0, t1, carrier, surface, band)
-                }
+                iso @ Pcurve::IsoLine { .. } => run_iso_checks(iso, t0, t1, carrier, surface, band),
                 Pcurve::IsoArc {
                     p0,
                     pd,
@@ -5166,9 +5455,8 @@ impl<T: Decide> PcurveCache<T> {
                     band,
                     lane,
                 ),
-                Pcurve::IsoLine { p0, pl } => run_iso_checks(
-                    *p0,
-                    *pl,
+                iso @ Pcurve::IsoLine { .. } => run_iso_checks(
+                    iso,
                     self.param_start,
                     self.param_end,
                     carrier,
@@ -5615,7 +5903,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// window's largest `|v|` (`cos` decreases in `|v|` up to `π`, and the
 /// sheet's apexes read zero). Never negative: a window on a pole or an
 /// apex reads zero.
-fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+///
+/// # Panics
+///
+/// On a chart with no azimuth: a plane or a spline chart.
+pub fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
     let arm = match *surface {
         Surface::Cylinder { radius, .. } => radius,
         Surface::Sphere { radius, .. } => {
@@ -5830,8 +6122,7 @@ fn run_harmonic_checks<T: Decide>(
             schedule_residuals(
                 Record::CrossCheck,
                 pcurve,
-                t0,
-                t1,
+                Stations::Computed(t0, t1),
                 carrier,
                 surface,
                 band,
@@ -6472,6 +6763,29 @@ fn class_circle<T: Decide>(
     }
 }
 
+/// A sphere meridian's azimuth direction `d̂`: the direction of `â_r`, or
+/// of `b̂_r` at a pole start, read as that radial part's length along
+/// `m = e × n`, the one horizontal direction in the carrier's plane
+/// (normal `n = a × b`, chart axis `e`). The class holds a centred great
+/// circle whose plane contains the axis, so `a` and `b`, and their radial
+/// parts, lie in that plane. A radial part is a cancellation
+/// (`v − e·(v·e)`) whose error is an ulp of the radius, so where it is
+/// short (a start near the pole) its own direction is off by that ulp
+/// over its length, across the plane and toward the axis; `m` is read off
+/// the long `e` and `n`, and the short part sets only a length along it.
+/// The derivation reads its azimuth off `d̂`, and [`incidence()`] models the
+/// image with it, so the two read the one direction.
+fn sphere_meridian_direction<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>, pole: bool) -> Vec3<T> {
+    let part = if pole { form.b } else { form.a };
+    let radial = part - axis * part.dot(axis);
+    #[cfg(test)]
+    if mutants::sphere_meridian_unprojected() {
+        return radial.normalize();
+    }
+    let m = axis.cross(form.a.cross(form.b));
+    (m * (m.dot(radial) / m.norm_squared())).normalize()
+}
+
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
 /// for the image `P_d` that [`derive_harmonic`] builds from `form`
 /// under `derivation`, in the carrier's own coefficients and the
@@ -6600,7 +6914,7 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
-            let (a_r, b_r) = (radial(a), radial(b));
+            let a_r = radial(a);
             let aa = a.dot(axis);
             terms.add(Line, l.norm() * reach);
             match derivation {
@@ -6614,30 +6928,26 @@ fn incidence<T: Decide>(
                     // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
                     // `a′ = ‖a_r‖·d̂ + (a·e)·e` and `b′ = ‖a_r‖·e − (a·e)·d̂`
                     // (`‖a′‖ = ‖b′‖ = ‖a‖`), `d̂` the azimuth direction the
-                    // derivation read: `â_r`, where `a′ = a` and `b′ = J·a`, or
-                    // `b̂_r` at a pole start. A pole start with `b_r` zero too
+                    // derivation read ([`sphere_meridian_direction`]): `â_r`
+                    // in the carrier's plane, where `a′` is `a` up to that
+                    // plane's part of `a_r`, or `b̂_r` at a pole start. A pole start with `b_r` zero too
                     // is no circle; its `b̂_r` is NaN or an entire enclosure,
                     // which refuses at the envelope's decision.
                     // On the far half the derivation read `d̂` negated, and
                     // `‖a_r‖` with it: the same `a′`, `b′`.
                     let flip = if far { T::zero() - T::one() } else { T::one() };
                     let s_r = a_r.norm() * flip;
-                    let d = if pole {
-                        b_r.normalize()
-                    } else {
-                        a_r.normalize()
-                    } * flip;
+                    let d = sphere_meridian_direction(&form, axis, pole) * flip;
                     let jb = (axis * s_r - d * aa) * angle_rate::<T>(sigma);
                     let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
+                    let ja = d * s_r + axis * aa;
+                    let cos_part = ja * k + (ja - a);
+                    #[cfg(test)]
                     let cos_part = if pole {
-                        let ja = d * s_r + axis * aa;
-                        let cos_part = ja * k + (ja - a);
-                        #[cfg(test)]
-                        let cos_part = mutants::pole_start_under(a, k).unwrap_or(cos_part);
-                        cos_part
+                        mutants::pole_start_under(a, k).unwrap_or(cos_part)
                     } else {
-                        a * k
+                        cos_part
                     };
                     let pair = harmonic_sup(cos_part, jb * k + (jb - b));
                     #[cfg(test)]
@@ -6661,7 +6971,7 @@ fn incidence<T: Decide>(
                         pole,
                         radius,
                         (a, b),
-                        (a_r, b_r),
+                        (a_r, radial(b)),
                         (aa, b.dot(axis)),
                         read,
                         jb,
@@ -7052,6 +7362,112 @@ fn fidelity<T: Decide>(
     Ok(())
 }
 
+/// **A focal-section image's structure**, decided in band, the one
+/// spelling of it for every door that reads one: its sense `±1` and its
+/// tube rate `±1` on a torus (`tube` its minor radius), each a residue
+/// metered at its channel's rate; `|β| < 1`, levered at the azimuth's.
+/// Returns the azimuth's arm, metres per radian over the image's box,
+/// with the two unit signs it decided.
+pub(super) fn focal_section_identity<T: Decide>(
+    pcurve: &Pcurve<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    tube: Option<T>,
+    band: Band,
+) -> Result<FocalIdentity<T>, PcurveCertifyError> {
+    let Pcurve::FocalSection(image) = *pcurve else {
+        unreachable!("focal_section_identity: its callers hold a focal-section image")
+    };
+    let esc = |check| {
+        move |cause| PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause,
+        }
+    };
+    let mismatch = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::FocalSection,
+        why,
+    };
+    let boxed = pcurve.chart_box(t0, t1);
+    let v_sup = boxed.v_reach();
+    let arm = azimuth_lever(surface, v_sup);
+    let sense = UnitDecided {
+        value: image.sense,
+        residue: image.sense.abs() - T::one(),
+    };
+    match decide(
+        "pcurve_focal_section_sense",
+        Margin::metered_sup(sense.residue, SupSpeed::new(arm)),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ImageIdentity))?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(mismatch(
+                "the stored sense is not ±1, so the image winds no section",
+            ));
+        }
+    }
+    match decide(
+        "pcurve_focal_section_beta",
+        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
+        // headroom, a coefficient that is no parameter span, and the
+        // azimuth arm is a rate (metres per radian), not an extent.
+        Margin::levered(
+            T::one() - image.beta.abs(),
+            geom_core::Lever::unsourced(arm),
+        ),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ImageIdentity))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(mismatch(
+                "the stored |β| is not below 1, so the true-anomaly map is not cut-free",
+            ));
+        }
+    }
+    let mut tube_rate = None;
+    if let Some(r) = tube {
+        let rate = UnitDecided {
+            value: image.vl,
+            residue: image.vl.abs() - T::one(),
+        };
+        match decide(
+            "pcurve_focal_section_tube_rate",
+            Margin::metered_sup(rate.residue, SupSpeed::new(r)),
+            band,
+        )
+        .map_err(esc(PcurveCheck::ImageIdentity))?
+        {
+            Sign::Zero => tube_rate = Some(rate),
+            Sign::Positive | Sign::Negative => {
+                return Err(mismatch(
+                    "the stored tube rate is not ±1, so the image is no Villarceau circle's",
+                ));
+            }
+        }
+    }
+    Ok(FocalIdentity {
+        arm,
+        sense,
+        tube_rate,
+    })
+}
+
+/// **A focal-section image's decided identity**: the azimuth's arm and
+/// the unit signs `focal_section_identity` decided (the tube rate only
+/// on a torus).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FocalIdentity<T> {
+    pub(super) arm: T,
+    pub(super) sense: UnitDecided<T>,
+    pub(super) tube_rate: Option<UnitDecided<T>>,
+}
+
 /// **The focal-section lane's four checks** — the harmonic lane's
 /// order and meters. As on a harmonic row (C4), check 4's envelope is
 /// the whole certified statement and check 3 its cross-check.
@@ -7119,59 +7535,8 @@ fn run_focal_section_checks<T: Decide>(
     let Some(carrier_form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: an ellipse or circle has its harmonic form")
     };
-    let boxed = pcurve.chart_box(t0, t1);
-    let v_sup = boxed.v_reach();
-    let arm = azimuth_lever(surface, v_sup);
-    match decide(
-        "pcurve_focal_section_sense",
-        Margin::metered_sup(image.sense.abs() - T::one(), SupSpeed::new(arm)),
-        band,
-    )
-    .map_err(esc(PcurveCheck::ImageIdentity))?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(mismatch(
-                "the stored sense is not ±1, so the image winds no section",
-            ));
-        }
-    }
-    match decide(
-        "pcurve_focal_section_beta",
-        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
-        // headroom, a coefficient that is no parameter span, and the
-        // azimuth arm is a rate (metres per radian), not an extent.
-        Margin::levered(
-            T::one() - image.beta.abs(),
-            geom_core::Lever::unsourced(arm),
-        ),
-        band,
-    )
-    .map_err(esc(PcurveCheck::ImageIdentity))?
-    {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(mismatch(
-                "the stored |β| is not below 1, so the true-anomaly map is not cut-free",
-            ));
-        }
-    }
-    if let Some(r) = tube {
-        match decide(
-            "pcurve_focal_section_tube_rate",
-            Margin::metered_sup(image.vl.abs() - T::one(), SupSpeed::new(r)),
-            band,
-        )
-        .map_err(esc(PcurveCheck::ImageIdentity))?
-        {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(mismatch(
-                    "the stored tube rate is not ±1, so the image is no Villarceau circle's",
-                ));
-            }
-        }
-    }
+    focal_section_identity(pcurve, (t0, t1), surface, tube, band)?;
+    let v_sup = pcurve.chart_box(t0, t1).v_reach();
 
     let mut max_residual = T::zero();
 
@@ -7191,8 +7556,7 @@ fn run_focal_section_checks<T: Decide>(
             schedule_residuals(
                 Record::CrossCheck,
                 pcurve,
-                t0,
-                t1,
+                Stations::Computed(t0, t1),
                 carrier,
                 surface,
                 band,
@@ -7376,6 +7740,83 @@ fn focal_section_envelope<T: Real>(
         + frame_defect(surface, v_sup)
 }
 
+/// **A spiric image's copies of its carrier's three scalars**, decided
+/// against them in band, each a metre comparand: `Zero` is the carrier's
+/// own, past the band the image's structure read wrong
+/// ([`PcurveCertifyError::ImageMismatch`]), in band the image's identity
+/// escalated. The one spelling of this identity, for every door that
+/// reads a stated spiric image.
+pub(super) fn spiric_copies<T: Decide>(
+    (major, minor, offset): (T, T, T),
+    (c_major, c_minor, c_offset): (T, T, T),
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    for (name, diff) in [
+        ("pcurve_spiric_major", major - c_major),
+        ("pcurve_spiric_minor", minor - c_minor),
+        ("pcurve_spiric_offset", offset - c_offset),
+    ] {
+        match decide(name, Margin::of(diff), band).map_err(|cause| {
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::ImageIdentity,
+                sample: 0,
+                cause,
+            }
+        })? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::Spiric,
+                    why: "the image's major radius, minor radius or offset is not the carrier's",
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **A stored unit sign, decided**: `value` is `±1` to within the band,
+/// its residue `|value| − 1` decided `Zero` by the identity that returns
+/// it. The one way to hold one, so the sign it is read for
+/// (`closed_bound::unit_winding`) is read after that identity, never
+/// before.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct UnitDecided<T> {
+    pub(super) value: T,
+    pub(super) residue: T,
+}
+
+/// **A spiric wall image's sense**, `σ = ±1`: its residue `|sense| − 1`
+/// decided `Zero` at the chart's azimuth rate over `reach`, the one
+/// spelling of that identity. Returns the residue.
+pub(super) fn spiric_sense<T: Decide>(
+    sense: T,
+    surface: &Surface<T>,
+    reach: T,
+    band: Band,
+) -> Result<UnitDecided<T>, PcurveCertifyError> {
+    let residue = sense.abs() - T::one();
+    match decide(
+        "pcurve_spiric_sense",
+        Margin::metered_sup(residue, SupSpeed::new(azimuth_lever(surface, reach))),
+        band,
+    )
+    .map_err(|cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ImageIdentity,
+        sample: 0,
+        cause,
+    })? {
+        Sign::Zero => Ok(UnitDecided {
+            value: sense,
+            residue,
+        }),
+        Sign::Positive | Sign::Negative => Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Spiric,
+            why: "the wall image's sense is not a unit sign",
+        }),
+    }
+}
+
 /// **The spiric lane's four checks** — the harmonic lane's order, the
 /// harmonic lane's meters, and two different check-4 statements, one
 /// per [`SpiricImage`].
@@ -7457,13 +7898,6 @@ fn run_spiric_checks_as<T: Decide>(
         });
     };
     let chart = surface.kind();
-    let esc = |check: PcurveCheck| {
-        move |cause| PcurveCertifyError::Escalated {
-            check,
-            sample: 0,
-            cause,
-        }
-    };
     // The image kind IS the chart kind, exhaustively: a spiric lies on
     // its own cutting plane and on the two tori that hold it (its own
     // and that torus's mirror through the plane; which one is check 1's
@@ -7478,21 +7912,7 @@ fn run_spiric_checks_as<T: Decide>(
     // is a metre comparand and must be Zero; what the band admits is
     // measured below.
     let (d_major, d_minor, d_offset) = (major - r_major, minor - r_minor, offset - c_offset);
-    for (name, diff) in [
-        ("pcurve_spiric_major", d_major),
-        ("pcurve_spiric_minor", d_minor),
-        ("pcurve_spiric_offset", d_offset),
-    ] {
-        match decide(name, Margin::of(diff), band).map_err(esc(PcurveCheck::ImageIdentity))? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(PcurveCertifyError::ImageMismatch {
-                    image: PcurveKind::Spiric,
-                    why: "the image's major radius, minor radius or offset is not the carrier's",
-                });
-            }
-        }
-    }
+    spiric_copies((major, minor, offset), (r_major, r_minor, c_offset), band)?;
     let reach = t0.abs().max(t1.abs());
     // The wall's sense is a unit sign, the azimuth's turn per radian of
     // the carrier: its residue is metered at the chart's azimuth rate, a
@@ -7501,24 +7921,7 @@ fn run_spiric_checks_as<T: Decide>(
     // `±1` of the image's `WallTorus` tag, so this one residue is the
     // residue of both channels.
     let sense_drift = match *image {
-        SpiricImage::Wall { sense, .. } => {
-            let residue = sense.abs() - T::one();
-            match decide(
-                "pcurve_spiric_sense",
-                Margin::metered_sup(residue, SupSpeed::new(azimuth_lever(surface, reach))),
-                band,
-            )
-            .map_err(esc(PcurveCheck::ImageIdentity))?
-            {
-                Sign::Zero => residue.abs(),
-                Sign::Positive | Sign::Negative => {
-                    return Err(PcurveCertifyError::ImageMismatch {
-                        image: PcurveKind::Spiric,
-                        why: "the wall image's sense is not a unit sign",
-                    });
-                }
-            }
-        }
+        SpiricImage::Wall { sense, .. } => spiric_sense(sense, surface, reach, band)?.residue.abs(),
         SpiricImage::Cap { .. } => T::zero(),
     };
     // **The wall's own premise: the chart IS the torus its tag
@@ -7548,7 +7951,7 @@ fn run_spiric_checks_as<T: Decide>(
                 ..
             },
         ) => {
-            let arm = crate::ExtentBall::of_torus(s_center, s_major, s_minor).lever();
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok()).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
             // vectors, levered over the chart torus's ball. Which
@@ -7644,8 +8047,7 @@ fn run_spiric_checks_as<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -7696,7 +8098,6 @@ fn run_spiric_checks_as<T: Decide>(
         }
         SpiricImage::Wall { .. } => {
             let Surface::Torus {
-                major_radius: chart_major,
                 minor_radius: chart_minor,
                 ..
             } = *surface
@@ -7731,7 +8132,11 @@ fn run_spiric_checks_as<T: Decide>(
                 .sqrt()
                 .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
-            let arm = chart_major + chart_minor;
+            // The chart torus's ball: the farthest a point of it stands
+            // from its centre, the arm an angular drift moves it over.
+            let arm = crate::ExtentBall::of_covered(surface.cover().as_ref().ok())
+                .lever()
+                .length();
             arm * d_theta
                 + chart_minor * sense_drift * reach
                 + arm * sense_drift * T::pi()
@@ -8095,24 +8500,63 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     }
 }
 
+/// **The stations check 3 reads**: the shared schedule's samples.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Stations<T> {
+    /// [`sample_param`] over `[t0, t1]`, computed at the scalar.
+    Computed(T, T),
+    /// The ends as held, every other station the `f64` schedule over
+    /// `domain` entered as the point it is
+    /// ([`crate::certify::held_station`]): at an enclosure scalar the
+    /// image and the carrier are read at one point, so the read's
+    /// width is their evaluation's and not the station's arithmetic
+    /// taken twice through a steep map.
+    Held {
+        /// The span's `f64` ends. The caller passes them in the order of
+        /// `held`; the stated route's are the sorted outer ends of a span
+        /// already decided forward ([`stated::EdgeSpan`]).
+        domain: (f64, f64),
+        /// The span's ends at the scalar.
+        held: (T, T),
+    },
+}
+
+impl<T: Real> Stations<T> {
+    /// Station `i` of [`CERT_SAMPLES`].
+    fn at(self, i: u32) -> T {
+        match self {
+            Self::Computed(t0, t1) => sample_param(t0, t1, i),
+            Self::Held { domain, held } => {
+                crate::certify::held_station(domain, held, i, CERT_SAMPLES)
+            }
+        }
+    }
+}
+
 /// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
-/// schedule, in metres through the map, recorded as `record` says: a
-/// verdict on every lane whose statement it is part of, and the
-/// cross-check of check 4's closed form on a harmonic row.
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+/// schedule's `stations`, in metres through the map, recorded as
+/// `record` says: a verdict on every lane whose statement it is part
+/// of, and the cross-check of check 4's closed form on a harmonic row.
 fn schedule_residuals<T: Decide>(
     record: Record,
     pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
+    stations: Stations<T>,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
+    // The first and last stations are the span's ends, read as the image
+    // states them there: a stated end is certified where it is read.
+    let last = CERT_SAMPLES - 1;
+    let [start, end] = pcurve.span_ends(StoredSpan::new(stations.at(0), stations.at(last)));
     for i in 0..CERT_SAMPLES {
-        let t = sample_param(t0, t1, i);
-        let chart_point = pcurve.eval(t);
+        let t = stations.at(i);
+        let chart_point = match i {
+            0 => start,
+            i if i == last => end,
+            _ => pcurve.eval(t),
+        };
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
         check_residual_as(
@@ -8209,8 +8653,7 @@ fn run_fitted_checks<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         &pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -8552,8 +8995,7 @@ fn run_iso_arc_checks<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         &pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -8915,12 +9357,15 @@ fn side_of<T: Decide>(
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the harmonic lane's
 /// fidelity idiom transposed. Every slack is exactly zero on the
-/// minted path (the builder mints exact `0`/`1` chart values).
+/// minted path (the builder mints exact `0`/`1` chart values). A stated
+/// end ([`Pcurve::span_ends`]) adds its metred distance from the map's
+/// value at that end, so the envelope covers the image wherever either
+/// places that end: the readers of stated ends pad by it, and the
+/// rectangle lane, which reads the line the image holds and the map's
+/// end, pads by it beside the joint's gap.
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(
-    p0: Point2<T>,
-    pl: Vec2<T>,
+    pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -8957,14 +9402,16 @@ fn run_iso_checks<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
 
+    let &Pcurve::IsoLine { p0, pl, ends } = pcurve else {
+        unreachable!("run_iso_checks reads an IsoLine: both its callers dispatch on the variant")
+    };
+
     // ---- Check 3: the schedule, in metres through the map. ----
-    let pcurve = Pcurve::IsoLine { p0, pl };
     let mut max_residual = T::zero();
     schedule_residuals(
         Record::Verdict,
-        &pcurve,
-        t0,
-        t1,
+        pcurve,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -8999,7 +9446,7 @@ fn run_iso_checks<T: Decide>(
         // + |C(v(t)) − C(t)|                  (parameter-map slack).
         (false, true) => seam_envelope(
             payload,
-            (p0, pl),
+            (p0, pl, ends.map(|[a, b]| [a.y, b.y])),
             (t0, t1),
             carrier,
             (stretch_u, stretch_v),
@@ -9013,7 +9460,11 @@ fn run_iso_checks<T: Decide>(
         // row (a control-net copy) or an interior one (the collapse).
         (true, false) => seam_envelope(
             &payload.transposed(),
-            (Point2::new(p0.y, p0.x), Vec2::new(pl.y, pl.x)),
+            (
+                Point2::new(p0.y, p0.x),
+                Vec2::new(pl.y, pl.x),
+                ends.map(|[a, b]| [a.x, b.x]),
+            ),
             (t0, t1),
             carrier,
             (stretch_v, stretch_u),
@@ -9034,6 +9485,18 @@ fn run_iso_checks<T: Decide>(
             });
         }
     };
+    let off_map = ends.map_or(T::zero(), |stated| {
+        let mapped = [pcurve.eval(t0), pcurve.eval(t1)];
+        stated
+            .iter()
+            .zip(mapped)
+            .map(|(end, at)| {
+                stretch_u.to_meters((end.x - at.x).abs())
+                    + stretch_v.to_meters((end.y - at.y).abs())
+            })
+            .fold(T::zero(), |a, b| a.max(b))
+    });
+    let envelope = envelope + off_map;
     envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
@@ -9129,7 +9592,7 @@ fn traversed_column<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 fn seam_envelope<T: Decide>(
     payload: &geom::NurbsSurface<T>,
-    (p0, pl): (Point2<T>, Vec2<T>),
+    (p0, pl, stated): (Point2<T>, Vec2<T>, Option<[T; 2]>),
     (t0, t1): (T, T),
     carrier: &Curve3<T>,
     (stretch_u, stretch_v): (SupSpeed<T>, SupSpeed<T>),
@@ -9138,6 +9601,16 @@ fn seam_envelope<T: Decide>(
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<T, PcurveCertifyError> {
     let span = t1 - t0;
+    // The moving channel's reach for the domain gates below: the map's
+    // value at both span ends and, where they are stated, the stated
+    // ends, which `span_ends`' readers read in their place. The gate
+    // decides on that reach; the envelope folds only the map's own
+    // excursion, since a stated end's distance from the map is already
+    // in it (`run_iso_checks`).
+    let reach = |a: T, b: T| {
+        let (lo, hi) = (a.min(b), a.max(b));
+        stated.map_or((lo, hi), |[x, y]| (lo.min(x).min(y), hi.max(x).max(y)))
+    };
     // **The LINE-carrier limb** (#388): a straight ruling
     // edge whose carrier was promoted to `Curve3::Line`
     // upstream (D7 curve recognition) claims the same
@@ -9191,10 +9664,12 @@ fn seam_envelope<T: Decide>(
         let v_at_0 = p0.y + pl.y * t0;
         let v_at_1 = p0.y + pl.y * t1;
         let (d0, d1) = b.knot_values().domain();
+        let (lo, hi) = reach(v_at_0, v_at_1);
+        let gate = escape((d0 - lo).max(hi - d1));
         let over = escape((d0 - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - d1));
         match decide(
             "pcurve_iso_domain",
-            Margin::metered_sup(over, stretch_v),
+            Margin::metered_sup(gate, stretch_v),
             band,
         )
         .map_err(esc)?
@@ -9327,6 +9802,8 @@ fn seam_envelope<T: Decide>(
     // carrier's (one domain, unless the carrier is reflected).
     let (r0, r1) = b.knot_values().domain();
     let (d0, d1) = c.knot_values().domain();
+    let (lo, hi) = reach(v_at_0, v_at_1);
+    let gate = escape((r0 - lo).max(hi - r1).max(d0 - t0).max(t1 - d1));
     let over = escape(
         (r0 - v_at_0.min(v_at_1))
             .max(v_at_0.max(v_at_1) - r1)
@@ -9335,7 +9812,7 @@ fn seam_envelope<T: Decide>(
     );
     match decide(
         "pcurve_iso_domain",
-        Margin::metered_sup(over, stretch_v),
+        Margin::metered_sup(gate, stretch_v),
         band,
     )
     .map_err(esc)?
@@ -11248,11 +11725,7 @@ fn derive_class_zero<T: Decide>(
                             Sign::Positive | Sign::Negative => true,
                             Sign::Zero => false,
                         };
-                    let d_hat = if use_a {
-                        a_r.normalize()
-                    } else {
-                        b_r.normalize()
-                    };
+                    let d_hat = sphere_meridian_direction(&form, axis, !use_a);
                     // σ: the polar rate at t = 0 is v′(0) = σ, and
                     // e′(0)·axis = ba, with e·axis = r·sin v ⇒
                     // ba = r·cos δ·σ. At a pole start (cos δ = 0) the
@@ -13220,11 +13693,15 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
+mod closed_bound;
 pub(crate) mod patch;
 pub mod projected;
+mod speed;
 mod spline_incidence;
 mod stated;
+mod trig;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub use speed::{NoSpeedBound, harmonic_range};
 pub(crate) use stated::{EdgeSpan, StatedDoor};
 
 #[cfg(test)]
@@ -13256,6 +13733,9 @@ mod by_turn_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod closed_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cone_line_rows;
@@ -13294,6 +13774,9 @@ mod radial_pair_rows;
 mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod speed_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod spline_door_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -13318,10 +13801,7 @@ mod tests {
     /// reads a build.
     #[test]
     fn a_pcurve_escalation_renders_at_its_door() {
-        use geom_core::{
-            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING,
-            KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag,
-        };
+        use geom_core::{FileCoincidence, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag};
 
         let error = PcurveCertifyError::Escalated {
             check: PcurveCheck::ChartWinding,
@@ -13342,10 +13822,13 @@ mod tests {
         );
         for (at, want) in [
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
-            (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
+            // Read at rest and not decided, it is reported as undecided
+            // (ONEHOME fork 259): at a point, the last resort.
+            (ReadAt::Run(Reading::AtRest), KERNEL_LIMIT_RECOURSE),
+            // The import door reads as rest does.
             (
                 ReadAt::File(FileCoincidence::new(1e-6)),
-                DAMAGED_FILE_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ] {
             let text = error.render(at);
@@ -15213,6 +15696,7 @@ mod tests {
             Pcurve::IsoLine {
                 p0: Point2::new(0.0, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             },
             0.0,
             1.0,
@@ -15239,6 +15723,7 @@ mod tests {
             Pcurve::IsoLine {
                 p0: Point2::new(0.0, 1.0),
                 pl: Vec2::new(0.0, -1.0),
+                ends: None,
             },
             0.0,
             1.0,
@@ -15260,6 +15745,7 @@ mod tests {
             Pcurve::IsoLine {
                 p0: Point2::new(1.0, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             },
             0.0,
             1.0,
@@ -15285,6 +15771,7 @@ mod tests {
         let image = || Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(0.0, 1.0),
+            ends: None,
         };
         let d = 0.3 * Tol::witness().get().eps;
         let cache = PcurveCache::certify(image(), 0.0, 1.0, &displaced(d), &ruled_wall(), band())
@@ -15324,6 +15811,7 @@ mod tests {
                 Pcurve::IsoLine {
                     p0: Point2::new(0.0, 0.0),
                     pl: Vec2::new(0.0, 1.0),
+                    ends: None,
                 },
                 0.0,
                 1.0,
@@ -15358,7 +15846,7 @@ mod tests {
         let carrier = ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let (p0, pl) = (Point2::new(0.0, 0.0), Vec2::new(0.0, 1.0));
         let at_door = PcurveCache::certify(
-            Pcurve::IsoLine { p0, pl },
+            Pcurve::IsoLine { p0, pl, ends: None },
             0.0,
             1.5,
             &carrier,
@@ -15372,7 +15860,14 @@ mod tests {
             ),
             "a ruling past the patch's end is off the patch: {at_door:?}"
         );
-        let got = run_iso_checks(p0, pl, 0.0, 1.5, &carrier, &ruled_wall(), band());
+        let got = run_iso_checks(
+            &Pcurve::IsoLine { p0, pl, ends: None },
+            0.0,
+            1.5,
+            &carrier,
+            &ruled_wall(),
+            band(),
+        );
         match got {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(

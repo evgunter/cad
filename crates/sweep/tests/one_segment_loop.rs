@@ -607,7 +607,7 @@ fn one_segment_circles_revolve_at_interval() {
 /// per one-segment loop with its strut the body's one wrap edge, all
 /// three tiers at `f64`, and at `Interval` tiers 1–2 and the two-arc
 /// circle's tier-3 verdict. A rational wall is not meshed
-/// (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
+/// (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
 /// its volume is the next row's.
 #[test]
 fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
@@ -1220,7 +1220,7 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
             spec.description,
             geom_brep::EdgeDescriptionSpec::Chart {
                 surface,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, .. }),
                 wrap: true,
                 ..
             } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0

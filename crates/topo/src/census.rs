@@ -87,29 +87,10 @@
 //!   a cylinder or cone face, read for whether the face runs through its
 //!   wedge ([`sweep_edge_in_curved_face`]);
 //!   and a point where a solid touches itself whose link there bounds
-//!   no one material ([`sweep_self_touch_points`]).
+//!   no one material ([`sweep_self_touch_points`]), a point its reading
+//!   does not decide refused undecided with the reading's cause.
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid); a point
-//!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it unread, at first order and one order
-//!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
-//!   [`SelfTouch::SecondOrder`]) — a cone's apex its nappe does not
-//!   decide (`link::rest::at_apex`), a vertex in the band of a cone's
-//!   axis, a cusp corner whose edges' bends do not part it, a horn
-//!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal
-//!   or reach does not read, a spline corner face on a placeholder chart
-//!   or with no certified curve or pcurve there (a spline corner on a
-//!   crease reads its sector's side, or refuses by the crease's
-//!   standing; it is not left here), a curved edge with no certified
-//!   curve, sheets along a tied ray that one order down meet or do not
-//!   part, a curved sheet holding a tied ray inside it with no certified
-//!   bend, two whole tangent planes on one plane, or two tangent sectors
-//!   lying on each other that no lens or lune reads
-//!   (`link::second_order::lenses`) — which
-//!   [`sweep_self_touch_points`] leaves unread
-//!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
-//!   and one
+//!   distinct-key curved pairs (the backstop is cross-solid); and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
 //!   (`work/atrest/declared-only-meetings-clear-at-the-census-gate-unread.md`).
@@ -374,9 +355,9 @@ struct EdgeGeo<T: Real> {
     /// The point keys `v0` and `v1` sit on; `None` for a segment no
     /// body holds.
     points: [Option<PointKey>; 2],
-    /// Unit direction v0 → v1.
+    /// The unit direction from `p0` to `p1`.
     dir: Vec3<T>,
-    /// Chord length (positive on tier-2 bodies).
+    /// The length from `p0` to `p1` (positive on tier-2 bodies).
     len: T,
     /// The two adjacent faces (structural-adjacency exclusions).
     f_plus: FaceKey,
@@ -2229,6 +2210,49 @@ enum PairContact<T: Real> {
     Line(Vec3<T>),
 }
 
+/// What a declared pair's carriers are, read over both faces
+/// ([`crate::boolean::carrier_pair_relation`], over both faces).
+enum OneCarrier {
+    /// One carrier, the two faces' materials on one side of it where
+    /// `aligned`, on its two sides otherwise. A coincidence the ladder
+    /// left undecided reads here by the orientation it decided first.
+    Same {
+        /// The two faces face the same way.
+        aligned: bool,
+    },
+    /// Definitely two carriers.
+    Distinct,
+    /// No reading: the ladder's escalation where there is one, or a pair
+    /// the ladder has no description or extent for, or a torus off its
+    /// ring convention (`None`), which tier 3 refuses first
+    /// (`ValidationError::DegenerateTorus`).
+    Unread(Option<Indeterminate>),
+}
+
+/// [`OneCarrier`] of `fx` and `fy`.
+fn one_carrier<T: Decide>(body: &Body<T>, fx: FaceKey, fy: FaceKey, band: Band) -> OneCarrier {
+    use geom_brep::{CarrierEqError, CarrierRelation};
+    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
+        Ok(
+            Ok(CarrierRelation::SameOpposite)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOpposite,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: false },
+        Ok(
+            Ok(CarrierRelation::SameOriented)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOriented,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: true },
+        Ok(Ok(CarrierRelation::Distinct)) => OneCarrier::Distinct,
+        Ok(Err(refusal)) => OneCarrier::Unread(refusal.reported()),
+        Err(_) => OneCarrier::Unread(None),
+    }
+}
+
 /// The contact a confirmed pair's carriers make, read as the confirm
 /// pass reads it ([`confirm_face_pair`]); `None` where it reads none.
 fn pair_contact<T: Decide>(
@@ -2238,31 +2262,13 @@ fn pair_contact<T: Decide>(
     fy: FaceKey,
     band: Band,
 ) -> Option<PairContact<T>> {
-    use crate::boolean::{CarrierEqError, CarrierRelation};
     // One carrier, with the senses opposed (a rest) or aligned (the
     // face-pair arm's overlap); two planes are one carrier or none.
     let planes = planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some();
-    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
-        Ok(
-            Ok(CarrierRelation::SameOpposite)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOpposite,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: false }),
-        Ok(
-            Ok(CarrierRelation::SameOriented)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOriented,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: true }),
-        Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
-        // A torus off its ring convention (`CarrierEqError::OffRing`)
-        // lands here too: tier 3 refuses such a face first
-        // (`ValidationError::DegenerateTorus`), so no validated body
-        // reaches it.
-        _ => return None,
+    match one_carrier(body, fx, fy, band) {
+        OneCarrier::Same { aligned } => return Some(PairContact::Area { aligned }),
+        OneCarrier::Distinct if !planes => {}
+        OneCarrier::Distinct | OneCarrier::Unread(_) => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
     // a sphere and a plane, or two spheres. A sphere against any other
@@ -2340,11 +2346,21 @@ pub(crate) fn edge_line<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<geom::Line<T>> {
-    body.edges
+    edge_line_span(body, ek).map(|(line, _)| line)
+}
+
+/// [`edge_line`] with the edge's interval on it, `(t0, t1)` as its plus
+/// half walks it: the edge as its stored line holds it.
+fn edge_line_span<T: Real>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+) -> Option<(geom::Line<T>, (T, T))> {
+    let curve = body
+        .edges
         .get(ek)
         .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)
-        .and_then(|c| c.carrier().as_line())
+        .and_then(CurveGeom::certified)?;
+    Some((curve.carrier().as_line()?, curve.params()))
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -5415,18 +5431,14 @@ enum CrossingBacking {
 ///    boundary edges" read as a decided screen: an edge DIVING
 ///    through the carrier crosses in-plane edges at plane level, and
 ///    such a transverse crossing is interpenetration however the seat
-///    is declared), and the carriers not definitely transverse at the
-///    crossing ([`geom_brep::classify_dihedral`], the same all-smooth
-///    gate the tier-3 wedge pass and the rim-wedge screen run);
-/// 2. the side question is validly posed and answers
-///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
-///    precondition is ESTABLISHED by type: the pairing is asked of
-///    the tangency token the dihedral of 1 returns
-///    ([`geom_brep::Tangency::pairing`]), decided by that one sense
-///    algebra (which mints both outward normals itself from the
-///    faces' `Face::sense` bits, levered by
-///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
-///    same arm the parallel gate meters). No new numerics; and
+///    is declared);
+/// 2. the pair's two planes are one carrier, and its materials lie on
+///    opposite sides of it: the pair's carrier relation
+///    ([`crate::boolean::carrier_pair_relation`]) reads
+///    `SameOpposite`, the reading the confirm pass reads the same pair
+///    by ([`pair_contact`]), read over both faces. `SameOriented`
+///    is [`CrossingSideVerdict::SameSide`], and two distinct planes
+///    answer for nothing; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
 ///    that confirms ([`Declared::confirm`]), or a pair the planar
 ///    face-pair arm found, and the crossing lies in the closure of its
@@ -5496,33 +5508,22 @@ fn ee_cross_backed<T: Decide>(
         {
             continue; // the pair's carrier does not hold the crossing
         }
-        // Both faces are in the snapshot, read off the live arena.
-        let (da, db) = (body.proven_face(fa), body.proven_face(fb));
-        let (sa, sb) = (da.surface(), db.surface());
-        let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
-        let arm_extent = chord(ea).min(chord(eb));
-        // The last carrier screen, and the Smooth-site precondition the
-        // pairing below states. The edge screen reads points against
-        // each plane; this reads the planes against each other, at the
-        // crossing. Two edges can run within the zero band of two
-        // transverse planes where both hug the planes' common line, so a
-        // definitely transverse pair passes the edge screen and still
-        // does not hold the crossing: it answers for nothing.
-        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
-            Ok(geom_brep::Dihedral::Corner(_)) => continue,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
+        // The pair's own carrier relation, read over both faces, as the
+        // confirm pass reads it ([`pair_contact`]):
+        // the edge screen reads points against each plane, and this the
+        // planes against each other. Two edges can run within the zero
+        // band of two transverse planes where both hug the planes' common
+        // line, so a pair whose planes are distinct passes the edge
+        // screen and still does not hold the crossing: it answers for
+        // nothing.
+        let side = match one_carrier(body, fa, fb, band) {
+            OneCarrier::Same { aligned: false } => CrossingSideVerdict::OppositeSides,
+            OneCarrier::Same { aligned: true } => CrossingSideVerdict::SameSide,
+            OneCarrier::Unread(Some(diag)) => {
+                undecided.push(diag);
                 continue;
             }
-        };
-        let side = match tangency.pairing([da.sense(), db.sense()], band) {
-            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
-                continue;
-            }
+            OneCarrier::Distinct | OneCarrier::Unread(None) => continue,
         };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
@@ -6527,7 +6528,7 @@ fn planar_face_pairs<T: Decide>(
                     _ => continue,
                 };
             match relation {
-                crate::boolean::CarrierRelation::SameOpposite => {
+                geom_brep::CarrierRelation::SameOpposite => {
                     let area = |x, y| {
                         matches!(
                             lane.declared_overlap(
@@ -6549,7 +6550,7 @@ fn planar_face_pairs<T: Decide>(
                         });
                     }
                 }
-                crate::boolean::CarrierRelation::SameOriented => {
+                geom_brep::CarrierRelation::SameOriented => {
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
@@ -6615,7 +6616,7 @@ fn curved_same_side_pairs<T: Decide>(
     let surface = |f: FaceKey| body.surfaces.get(body.get_face(f)?.surface);
     let kind = |f: FaceKey| {
         surface(f)
-            .filter(|s| crate::boolean::carrier_eq::exact_curved(s))
+            .filter(|s| geom_brep::carrier_eq::exact_curved(s))
             .map(geom::Surface::kind)
     };
     // A face's span along an axis: its boundary's, which on a cylinder
@@ -6665,7 +6666,7 @@ fn curved_same_side_pairs<T: Decide>(
                 Some(Ok(_)) => true,
                 Some(Err(_)) => continue,
             };
-            let Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) =
+            let Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) =
                 crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                     .map(|reading| reading.map(|verdict| verdict.one()))
             else {
@@ -6716,10 +6717,10 @@ fn in_band_reading<T: Decide>(
     geo: &Geo<T>,
     lane: RegionLane<T>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
-    door_one: crate::boolean::CarrierEqError,
+    door_one: geom_brep::CarrierEqError,
     band: Band,
 ) -> InBand {
-    use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    use geom_brep::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
     // A torus off its ring convention read no coincidence at all, in band
     // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
@@ -8901,8 +8902,9 @@ fn edge_in_own_face<T: Decide>(
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
 /// wherever their first order decides, or one order down where it ties
 /// at a cusp corner or along a ray (`link::second_order`). Where neither
-/// decides, or the cones do not build, the point is left unread, named
-/// ([`SelfTouch::SecondOrder`]).
+/// decides, or the cones do not build, the point refuses undecided with
+/// the reading's cause (the classes: `crates/topo/README.md`, tier 3′'s
+/// self-touch reading).
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8938,7 +8940,11 @@ fn sweep_self_touch_points<T: Decide>(
     );
     let mut read = BTreeSet::new();
     for (s, v) in seeds {
-        let (Some(keys), Some(&at)) = (touch_keys(geo, &ties, &[v]), geo.vmap.get(&v)) else {
+        // A seed's keys hold its own, so `least` reads wherever its key
+        // does; one that does not is refused, never passed.
+        let found =
+            touch_keys(geo, &ties, &[v]).and_then(|keys| Some((keys.first().copied()?, keys)));
+        let (Some((least, keys)), Some(&at)) = (found, geo.vmap.get(&v)) else {
             errors.push(ValidationError::BoundaryCrossesItselfUndecided {
                 solid: s,
                 witness: geo.vmap.get(&v).map_or_else(String::new, |&p| witness(p)),
@@ -8946,17 +8952,10 @@ fn sweep_self_touch_points<T: Decide>(
             });
             continue;
         };
-        let Some(&least) = keys.first() else { continue };
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = match self_touch_verdict(body, geo, &ties, s, &keys, at, band) {
-            SelfTouch::Read(verdict) => verdict,
-            // Left to second order: genuinely undetected (the module
-            // doc's class list), not refused.
-            SelfTouch::SecondOrder(_) => continue,
-        };
-        match verdict {
+        match self_touch_verdict(body, geo, &ties, s, &keys, at, band) {
             TouchVerdict::Rest(_) => {}
             TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
                 solid: s,
@@ -8973,52 +8972,13 @@ fn sweep_self_touch_points<T: Decide>(
     }
 }
 
-/// **What the self-touch reading made of a point** ([`self_touch_verdict`]).
-#[derive(Debug, PartialEq)]
-enum SelfTouch {
-    /// The link's verdict.
-    Read(TouchVerdict),
-    /// A curved face or edge takes part and the faces' tangent cones do
-    /// not decide the point ([`Link::tangent_of`]), at first order or one
-    /// order down (`link::second_order`), or the tangent reading cannot
-    /// build. [`crate::CurvedUnread::Unreadable`], or the cause the corner names
-    /// ([`TouchUnread::curved_unread`]), for a face with no tangent plane
-    /// there that no reading takes ([`crate::CurvedUnread::NoTangentPlane`]:
-    /// a vertex in the band of a cone's axis, a face held inside in band
-    /// of its axis, centre or apex, or a cone's apex its nappe does not
-    /// decide: a nappe not held whole, a horn beside it, a half-plane
-    /// cutting it, or its axis on the wrong side of the rest's
-    /// material), a cusp
-    /// corner its edges' bends do not part, a horn beside a sector along
-    /// its ray that caps no lune or a ring of horns that reads as no
-    /// thorn, a spline face held off a corner, a face whose normal at the
-    /// foot or whose reach does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses (a surface with no sector arm, a spline edge not placed:
-    /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
-    /// a spline corner on a crease reads the normal on its sector's side,
-    /// and one the band cannot read refuses the reading by the crease's
-    /// standing, not here), a curved edge with no certified curve, sheets
-    /// along a tied ray that one order down meet or do not part (a curved
-    /// sheet holding such a ray inside it with no certified bend among
-    /// them), two whole tangent planes on one plane (two kissing balls at
-    /// any pose included), two sectors lying on each other where one is no
-    /// plane and no lens or lune reads them, or a lens or lune the link
-    /// round it does not hold. A sign one order down that the band leaves
-    /// undecided, in band or moved there by the first order's charged residue, is
-    /// [`crate::CurvedUnread::Unreadable`] too: this `why` does not part an
-    /// in-band reading one order down from a structural refusal. Two
-    /// planar faces lying on each other are no such point: the link
-    /// refuses them [`TouchUnread::Degenerate`], as the planar link does.
-    SecondOrder(TouchUnread),
-}
-
 /// **Solid `s`'s whole link at the touch point of `keys`, read for
 /// one material** ([`rest::one_material`]): the link of the faces'
 /// sectors where every face reads one ([`Germ::of_holds`]), and where a
 /// curved face or edge takes part, the link of their tangent cones
 /// ([`Link::tangent_of`]), over the one gathering of the faces
 /// ([`gather`]). What the tangent cones leave unread is
-/// [`SelfTouch::SecondOrder`].
+/// [`TouchVerdict::Unread`] with the reading's cause.
 #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
 fn self_touch_verdict<T: Decide>(
     body: &Body<T>,
@@ -9028,24 +8988,16 @@ fn self_touch_verdict<T: Decide>(
     keys: &BTreeSet<PointKey>,
     at: Point3<T>,
     band: Band,
-) -> SelfTouch {
+) -> TouchVerdict {
     let holds = match gather(body, geo, ties, s, keys) {
         Ok(holds) => holds,
-        Err(why) => return SelfTouch::Read(TouchVerdict::Unread(why)),
+        Err(why) => return why.into(),
     };
     match Link::planar_of(body, geo, &holds, at, band) {
-        Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
-        Err(why) if why.curved_unread() => {
-            match Link::tangent_of(body, geo, &holds, at, band)
-                .map(|link| rest::one_material(&link, band))
-            {
-                Ok(TouchVerdict::Unread(why)) if why.curved_unread() => SelfTouch::SecondOrder(why),
-                Err(why) if why.curved_unread() => SelfTouch::SecondOrder(why),
-                Ok(verdict) => SelfTouch::Read(verdict),
-                Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
-            }
-        }
-        Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
+        Ok(link) => rest::one_material(&link, band),
+        Err(why) if why.curved_unread() => Link::tangent_of(body, geo, &holds, at, band)
+            .map_or_else(TouchVerdict::from, |link| rest::one_material(&link, band)),
+        Err(why) => why.into(),
     }
 }
 
@@ -9086,7 +9038,7 @@ impl<T: Decide> FaceSector<T> {
             .ok_or(TouchUnread::Corrupt)?
             .vec();
         if !fg.polygon {
-            return Self::cleared(body, f, outward, p, holds);
+            return Self::cleared(body, f, outward, p, holds, band);
         }
         let rings = fg
             .loops
@@ -9439,7 +9391,7 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::splitting::rules::face_reach_from(body, f, p)
+        crate::cover::face_reach_from(body, f, p, band)
             .map(geom_core::Lever::length)
             .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))
     };
@@ -11152,21 +11104,21 @@ fn confirm_face_pair<T: Decide>(
     // A carrier the ladder calls one, or one within the band, is a
     // patch, which the patch door reads (and refuses in band).
     match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
-        Ok(Ok(crate::boolean::CarrierRelation::Distinct))
+        Ok(Ok(geom_brep::CarrierRelation::Distinct))
         | Err(crate::boolean::PairUnread::OutsideInventory) => {}
         // A torus off its ring convention is tier 3's finding; the
         // patch door reads the pair as it reads one in band.
         Ok(
             Ok(_)
             | Err(
-                crate::boolean::CarrierEqError::Undecided { .. }
-                | crate::boolean::CarrierEqError::OffRing { .. },
+                geom_brep::CarrierEqError::Undecided { .. }
+                | geom_brep::CarrierEqError::OffRing { .. },
             ),
         ) => {
             confirm_patch(body, a, b, band, region, errors);
             return;
         }
-        Ok(Err(crate::boolean::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             errors.push(ValidationError::CensusEscalated { cause: diag });
             return;
         }
@@ -11455,22 +11407,56 @@ fn interiors_meet<T: Decide>(
 fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     let chord = p1 - p0;
     EdgeGeo {
+        p1,
+        ..span_along(p0, chord.normalize(), chord.norm())
+    }
+}
+
+/// The census geometry of the span from `p0` along the unit `dir`, `len`
+/// long, which no body holds as an edge: its far end is `p0 + dir·len`.
+/// For a span given by where it starts and how it runs (a ray, an edge's
+/// stored line): its direction is the one given, where [`segment`]'s is
+/// read off two ends.
+fn span_along<T: Real>(p0: Point3<T>, dir: Vec3<T>, len: T) -> EdgeGeo<T> {
+    EdgeGeo {
         key: EdgeKey::default(),
         v0: VertexKey::default(),
         v1: VertexKey::default(),
         p0,
-        p1,
+        p1: p0 + dir * len,
         points: [None; 2],
-        dir: chord.normalize(),
-        len: chord.norm(),
+        dir,
+        len,
         f_plus: FaceKey::default(),
         f_minus: FaceKey::default(),
     }
 }
 
-/// **How a segment passes one of a body's line edges** — the
-/// edge-edge closest read ([`ee_lines_closest`]) with the segment as the
-/// first span: what a ray reads of the edges it passes
+/// **A line edge as its stored line holds it**: the span from the
+/// line's point at the start of the edge's interval, along the line's
+/// direction, to the interval's end, with `edge`'s keys and faces. A
+/// vertex is the body's cache of where an edge ends and the line is what
+/// the edge is (`[intent.stored]`), so a direction read off two vertices
+/// that share a boxed coordinate carries that box where the line holds
+/// none.
+fn on_its_line<T: Real>(
+    edge: &EdgeGeo<T>,
+    (line, (t0, t1)): (geom::Line<T>, (T, T)),
+) -> EdgeGeo<T> {
+    let (dir, speed) = line.dir.direction_and_length();
+    EdgeGeo {
+        key: edge.key,
+        v0: edge.v0,
+        v1: edge.v1,
+        f_plus: edge.f_plus,
+        f_minus: edge.f_minus,
+        ..span_along(line.at(t0), dir, (t1 - t0) * speed)
+    }
+}
+
+/// **How a ray's span passes one of a body's line edges** — the
+/// edge-edge closest read ([`ee_lines_closest`]) with the span as the
+/// first: what a ray reads of the edges it passes
 /// (`boolean::solid_contain::ray_crossings`).
 pub(crate) struct LinePass<T: Real> {
     /// The edge.
@@ -11481,8 +11467,8 @@ pub(crate) struct LinePass<T: Real> {
     pub(crate) ends: [VertexKey; 2],
     /// The lines' distance where they come closest, enclosed.
     pub(crate) gap: [T; 2],
-    /// How far along the segment from its start they come closest,
-    /// enclosed.
+    /// The advance along the span's direction, from its start, where
+    /// they come closest, enclosed.
     pub(crate) along: [T; 2],
     /// How far along the edge they come closest, from each of its ends,
     /// enclosed.
@@ -11490,18 +11476,33 @@ pub(crate) struct LinePass<T: Real> {
 }
 
 /// Every line edge of `body` that `keep` holds (asked of its key and two
-/// faces), as the segment `from → to` passes it ([`LinePass`]). The
-/// caller keeps only edges whose line is not parallel to the segment:
-/// the closed form divides by the sine of their angle.
+/// faces), as the span from `from` along the unit `dir` to advance `top`
+/// passes it ([`LinePass`]). Both spans are read as given: the ray's by
+/// its start and direction ([`span_along`]), each edge by its stored line
+/// ([`on_its_line`]), found once. The caller keeps only edges whose line
+/// is not parallel to the span: the closed form divides by the sine of
+/// their angle.
+///
+/// Reading the edge off its line and not off its two vertices changes a
+/// reading only where the two differ: by the body's tolerance at `f64`
+/// (`the_ray_passes_an_edges_stored_line_not_its_vertices_chord`), and
+/// over a box wherever the line was stored narrower than the chord. The
+/// sweep doors store a moving edge's line as wide as its chord today
+/// (`work/boxfinish/the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box.md`),
+/// so over their bodies it changes none yet.
 pub(crate) fn line_passes<T: Real>(
     body: &Body<T>,
-    (from, to): (Point3<T>, Point3<T>),
+    (from, dir, top): (Point3<T>, Vec3<T>, T),
     keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
 ) -> Vec<LinePass<T>> {
-    let ray = segment((from, to));
-    line_edges(body)
-        .into_iter()
-        .filter(|e| keep(e.key, e.f_plus, e.f_minus))
+    let ray = span_along(from, dir, top);
+    body.edges
+        .iter()
+        .filter_map(|(key, _)| {
+            let line = edge_line_span(body, key)?;
+            let edge = edge_geo(body, key)?;
+            keep(edge.key, edge.f_plus, edge.f_minus).then(|| on_its_line(&edge, line))
+        })
         .map(|e| {
             let closest = ee_lines_closest(&ray, &e);
             LinePass {
@@ -11995,7 +11996,7 @@ fn flush_pairs<T: Decide>(
             let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                 .map(|reading| reading.map(|verdict| verdict.one()))
             {
-                Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) => margin,
+                Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) => margin,
                 _ => continue,
             };
             let planar = planar_face(geo, fa).zip(planar_face(geo, fb));
@@ -12082,11 +12083,11 @@ fn flush_pairs<T: Decide>(
 }
 
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
-/// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
+/// decides exactly ([`geom_brep::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face(f)
         .map(|f| f.surface())
-        .is_some_and(crate::boolean::carrier_eq::exact_curved)
+        .is_some_and(geom_brep::carrier_eq::exact_curved)
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -13572,8 +13573,11 @@ mod tests {
 
     /// **A `(vertex, edge)` record on a circle edge is witnessed by the
     /// curved lane**: a vertex off the rim's carrier reads stale, as it
-    /// would against a line. Red when the arm skips the record or still
-    /// refuses the circle as unsupported.
+    /// would against a line. The record ties the vertex to the rim for the
+    /// self-touch sweep too, where the sheet's corner face there has no
+    /// sector arm: the point refuses undecided, naming that. Red when the
+    /// arm skips the record or still refuses the circle as unsupported, or
+    /// when the self-touch point passes unread.
     #[test]
     fn a_vertex_on_edge_record_off_a_circle_edge_reads_stale() {
         let mut body = Body::<f64>::new();
@@ -13624,6 +13628,16 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
             "{errors:?}"
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::BoundaryCrossesItselfUndecided {
+                    why: TouchUnread::Curved(CurvedUnread::NoSectorArm),
+                    ..
+                }
+            )),
+            "the self-touch point refuses, no sector arm: {errors:?}"
         );
     }
 
@@ -13825,7 +13839,6 @@ mod tests {
         let part = crate::transform_rigid(
             &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
             &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 1.2)).unwrap(),
-            tol,
         )
         .unwrap();
         crate::instance::graft_disjoint(&mut body, &part).unwrap();
@@ -15514,70 +15527,6 @@ mod tests {
         body
     }
 
-    /// A planar cap in the plane `x = offset`, bounded by one SPIRIC arc
-    /// — the section of the torus `(R, r)` about the `z` axis, over its
-    /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
-    fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-        let tol = Tol::witness();
-        let spiric = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-            major_radius: big_r,
-            minor_radius: r,
-            offset,
-        };
-        let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p0, true).expect("a seed");
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(offset, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        });
-        let torus = body.add_surface(Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: big_r,
-            minor_radius: r,
-            u_ref: Vec3::unit_x(),
-        });
-        let arc = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p1,
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        pair: SurfacePair::new(torus, plane),
-                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.5 * (v0 + v1))),
-                    },
-                    carrier: spiric,
-                    param_start: v0,
-                    param_end: v1,
-                },
-                tol,
-            )
-            .expect("the spiric arc");
-        body.mef(
-            MefSite::Chords {
-                he1: arc.he_minus,
-                he2: arc.he_plus,
-            },
-            EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-            tol,
-        )
-        .expect("the chord closes the cap");
-        body
-    }
-
     /// [`spiric_cap`] of the torus `R = 2, r = 1` in `x = 1/2`, over
     /// `[−π/2, π/2]`, with a cube grafted in beside it whose `x = 1/2`
     /// face lies in the cap's plane, outside the cap and inside the ball
@@ -15586,7 +15535,14 @@ mod tests {
     fn spiric_cap_and_near_cube() -> Body<f64> {
         use std::f64::consts::FRAC_PI_2;
         let tol = Tol::witness();
-        let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+        let mut body = crate::test_support_fixtures::spiric_cap(
+            2.0,
+            1.0,
+            0.5,
+            (-FRAC_PI_2, FRAC_PI_2),
+            Tol::witness(),
+        )
+        .0;
         let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
         crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
@@ -16341,7 +16297,8 @@ mod tests {
     fn just_past_a_spiric_arcs_end_the_cap_answers() {
         use std::f64::consts::FRAC_PI_2;
         let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
-        let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
+        let body =
+            crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -18636,7 +18593,14 @@ mod tests {
                 errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
                 "{cuts:?} {errors:?}"
             );
-            let mut across = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let mut across = crate::test_support_fixtures::spiric_cap(
+                2.0,
+                1.0,
+                0.5,
+                (-FRAC_PI_2, FRAC_PI_2),
+                Tol::witness(),
+            )
+            .0;
             let cube = cube_at(Vec3::new(0.5, 2.5, -0.5), tol);
             crate::instance::graft_disjoint(&mut across, &cube).unwrap();
             let (cap, edge) = in_plane(&across, -0.5);
@@ -23005,7 +22969,6 @@ mod lone_vertex_rows {
         let cube = crate::transform_rigid(
             &crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
             &tip,
-            tol,
         )
         .unwrap();
         crate::graft_disjoint_all_keyed(&mut body, &cube).unwrap();
@@ -23171,5 +23134,42 @@ mod corner_cause_rows {
         for (why, named) in causes {
             assert_eq!(corner_cause(&why), TouchUnread::Curved(named), "{why:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod line_pass_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::test_support_fixtures::brick;
+
+    /// **The ray's edge pass reads an edge off its stored line, not off
+    /// the chord of its vertices.** A unit brick with one vertex's point
+    /// moved a thousandth off the edges that end at it, their lines left
+    /// as built: a span through the middle of one such edge's line passes
+    /// it at no gap, and half a thousandth from its vertices' chord. Red
+    /// against a pass that reads the edge's two ends.
+    #[test]
+    fn the_ray_passes_an_edges_stored_line_not_its_vertices_chord() {
+        let tol = geom_core::Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (key, edge) = line_edges(&body)
+            .into_iter()
+            .map(|e| (e.key, e))
+            .find(|(_, e)| e.dir.z.abs() < 0.5 && e.p0.z > 0.5)
+            .expect("a brick has a top edge");
+        let moved = edge.points[1].expect("an edge of a body sits on points");
+        body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
+        let middle = edge.p0 + edge.dir * (0.5 * edge.len);
+        let across = edge.dir.cross(Vec3::new(0.0, 0.0, 1.0));
+        let passes = line_passes(&body, (middle - across, across, 2.0), |k, _, _| k == key);
+        let [pass] = &passes[..] else {
+            panic!("the one edge kept: {} passes", passes.len());
+        };
+        assert!(
+            pass.gap[1] < 1e-12,
+            "the span runs through the edge's stored line: gap {:?}",
+            pass.gap
+        );
     }
 }

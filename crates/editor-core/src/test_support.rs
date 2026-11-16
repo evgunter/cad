@@ -147,6 +147,18 @@ pub fn stored_reading(
                 let placement = given(doc, slot, placement, read);
                 crate::edit::pick_into(&mut doc.borrow_mut(), placement, of)
             }
+            crate::Operand::Source(body) => {
+                let read = given(doc, slot, &body.read, read);
+                let at = body
+                    .at
+                    .iter()
+                    .map(|index| {
+                        crate::edit::lower_slot_into(&mut doc.borrow_mut(), index)
+                            .expect("an index lowers as given")
+                    })
+                    .collect();
+                crate::edit::source_into(&mut doc.borrow_mut(), crate::BodyRead { read, at })
+            }
             crate::Operand::Pose(def) => {
                 let lowered = def
                     .try_map(

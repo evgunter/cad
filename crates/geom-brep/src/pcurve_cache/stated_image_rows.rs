@@ -201,6 +201,7 @@ impl Stated {
             Self::Iso => Pcurve::IsoLine {
                 p0: Point2::new(c(0.5), c(0.0)),
                 pl: Vec2::new(c(0.0), c(1.0)),
+                ends: None,
             },
             Self::General => {
                 let image = NurbsCurve2::new(

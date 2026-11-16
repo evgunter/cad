@@ -786,7 +786,6 @@ fn r2_the_two_union_walls_on_my_operands() {
         &cone,
         &pncad::geom_core::RigidMotion::translation(Vec3::new(0.45, 0.2, 0.0))
             .expect("a finite translation"),
-        tol,
     )
     .expect("placed");
     let cone = finished("the cone", cone, tol);
@@ -1077,7 +1076,6 @@ fn r2_the_scene_numbers() {
             Vec3::new(-1.0 / 32.0, 3.0 / 64.0, 0.0),
         ))
         .expect("a 3-4-5 turn is rigid"),
-        tol,
     )
     .expect("spout placed");
     let spout = finished("the spout", spout, tol);

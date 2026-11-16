@@ -430,7 +430,7 @@ fn band_scale_circle_mints(carrier: &Curve3<f64>, span: (f64, f64), surface: &Su
             "{scalar}, {span:?}: escalates on the carrier's speed: {certified:?}"
         );
     }
-    let (envelope, hi) = check_4_terms(&image, &image_i, carrier, span, surface)
+    let (envelope, hi) = lemma_envelopes(&image, &image_i, carrier, span, surface)
         .unwrap_or_else(|e| panic!("{span:?}: check 4's terms: {e:?}"));
     let sup = sampled_residual(&image, span, carrier, surface, 4096);
     assert!(
@@ -440,11 +440,12 @@ fn band_scale_circle_mints(carrier: &Curve3<f64>, span: (f64, f64), surface: &Su
     );
 }
 
-/// Check 4's envelope of a projected image over `span`, read straight
-/// off its terms at `f64` and at `Interval` (the latter's upper end), so
-/// a carrier whose certificate stops at an earlier check still has its
-/// lemma read.
-pub(super) fn check_4_terms(
+/// The projected lemma's envelope of an image over `span`
+/// ([`projected::projected_envelope`], without check 4's placement pair,
+/// which `projected::check_4_terms` adds), at `f64` and at `Interval`
+/// (the latter's upper end), so a carrier whose certificate stops at an
+/// earlier check still has its lemma read.
+pub(super) fn lemma_envelopes(
     image: &Pcurve<f64>,
     image_i: &Pcurve<Interval>,
     carrier: &Curve3<f64>,
@@ -464,6 +465,7 @@ pub(super) fn check_4_terms(
         surface,
         band(),
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     let (terms_i, _) = projected::projected_envelope(
         p_i,
@@ -474,6 +476,7 @@ pub(super) fn check_4_terms(
         &surface.map_scalar(f),
         band(),
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     Ok((terms.total(), terms_i.total().hi()))
 }
@@ -891,6 +894,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &surface,
         b,
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads: {e:?}"));
     assert!(
@@ -911,6 +915,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &si,
         b,
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads at Interval: {e:?}"));
     assert!(
@@ -1219,7 +1224,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
             Pcurve::Projected(Box::new(image)),
             Pcurve::Projected(Box::new(image_i)),
         );
-        let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
+        let Ok((envelope, hi)) = lemma_envelopes(&image, &image_i, &carrier, (t0, t1), &surface)
         else {
             tally[chart][1] += 1;
             continue;

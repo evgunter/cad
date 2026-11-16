@@ -58,3 +58,21 @@ is a `Meter` case on settled geometry, so read it after that lands.
 The pin is the `spin = 0, tilt = 1.5` rows of
 `a_needle_cone_cut_off_its_apex_lands_its_closed_forms`, which assert
 the refusal as measured.
+
+## The refusal is typed now (GREEN, 2026-11-14)
+
+PR 6648 (`onecopy/carrier-standing-2`, merge `af002229b`, 2026-11-09)
+replaced the census's `ContactLane(NotCertifiable { what: "the meeting
+reading of two curved edges could not settle a count" })` with the
+meeting's own typed cause (`census/curved.rs` `refuse_meeting`). On main
+`b363f5fa` the pinned poses read, at every ε row:
+
+    CensusUnsupported { subject: Entity(Edge(..)), cause: Meeting(MeetUnread(Unsettled(Meter { row: "curve_pair_pose_basin" }))) }
+
+which is the `MeetFault::Unsettled(Unsettled::Meter)` this row read at
+`interior_meeting`, now with its meter's row. The pin in
+`a_needle_cone_cut_off_its_apex_lands_its_closed_forms` was still
+spelled on the old string, so it was red in the nightly from that merge
+(the test is in the slow set and PR 6648 did not edit its file); GREEN's
+default-eps lane re-spelled it on the typed cause. Nothing about the
+residue moved.

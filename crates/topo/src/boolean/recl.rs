@@ -44,7 +44,6 @@
 
 use geom_core::{Band, Decide, Sign, Vec3};
 
-use super::plane_eq::PlaneRelation;
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
     BoolSector, BoundSupport, FaceShape, Flank, PairRecord, crossing_flank, pair_codes,
@@ -55,6 +54,7 @@ use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCod
 use crate::body::Body;
 use crate::entity::EntityId;
 use crate::live::{Proven, proven};
+use geom_brep::CarrierRelation;
 
 /// **The carrier identity of a sector on another's plane at an edge**,
 /// which is the glue door's alone: a pair it glued one carrier reads the
@@ -76,7 +76,7 @@ pub(super) fn require_same<T: Decide>(
     declared: &super::GluedPairs<T>,
     on: super::CornerOn,
     band: Band,
-) -> Result<PlaneRelation, BooleanError> {
+) -> Result<CarrierRelation, BooleanError> {
     // A glued tangency has no carrier-identity answer (its carriers are
     // distinct); every lane that meets one lumps it by its curving
     // ([`super::sectors::tangent_lump`]) before reaching here.
@@ -274,7 +274,7 @@ pub(super) fn recl_sectors<T: Decide>(
                         edge,
                         kept: own.face,
                         face: other.face,
-                        aligned: matches!(rel, super::PlaneRelation::SameOriented),
+                        aligned: matches!(rel, geom_brep::CarrierRelation::SameOriented),
                     });
                 }
             }
@@ -2980,13 +2980,16 @@ mod tests {
             u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        // Two skeletal faces, each a ruled carrier whose outer loop is a
+        // lone vertex, have no cover, so no consumed extent: the glue door
+        // reads no carrier verdict over them, glues nothing, and leaves
+        // the pair to the stage that meets it.
+        let none = crate::boolean::Glue::none();
+        let glued = crate::boolean::glue::decided_glue(&ca, &cb, &none, band)
+            .expect("an uncovered pair is left unread, not refused");
         assert!(
-            !crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
-                .expect("the door reads every pair")
-                .pairs
-                .iter()
-                .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
-            "the glue door glues the curved flanks under no Tangent"
+            glued.pairs.is_empty(),
+            "no pair is glued over faces with no cover: {glued:?}"
         );
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");
@@ -4076,7 +4079,7 @@ mod tests {
     /// its ON one lumping In (BonA⁺ → BinA).
     #[test]
     fn tog_fig18_worked_example() {
-        use crate::boolean::plane_eq::PlaneRelation::SameOriented;
+        use geom_brep::CarrierRelation::SameOriented;
         let lumps = |side: Operand| {
             move |_: Flank, _| Ok(eq15_3_lump(BooleanOp::Union, side, SameOriented) == In)
         };

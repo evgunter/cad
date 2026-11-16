@@ -49,7 +49,7 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_across, slides_left_along, turn_onto};
+pub use turn::{SNAP_TURN, slides_across, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::{
     ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
@@ -223,10 +223,11 @@ pub(crate) fn copies_of<P>(
         let Some(crate::Node::Place { source, .. }) = doc.node(p) else {
             continue;
         };
-        if source.read == body {
+        let read = doc.through_sources(source.read);
+        if read.read == body {
             out.push((
                 p,
-                if source.is_indexed() {
+                if source.is_indexed() || read.is_indexed() {
                     Copying::Member
                 } else {
                     Copying::Whole

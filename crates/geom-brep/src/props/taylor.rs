@@ -313,11 +313,12 @@ pub(super) fn primitive_each<S, C, const N: usize>(
 ///   piece's length, and the rate's reciprocal is the distance from the
 ///   axis, so a piece within it keeps its Taylor remainder finite and
 ///   small;
-/// - the incidence read of a net's twin (`crate::pcurve_cache::Parts::ByTurn`)
-///   reads the diagonal of the piece's control box over the box's least
-///   distance from the axis, so the floors its metre conversion divides
-///   by (that distance, the cone's lever) stay within a fixed fraction
-///   of the piece's own.
+/// - the incidence read of a net's twin
+///   (`crate::pcurve_cache::Parts::ByTurn`, limb 2's first reading and
+///   check 4's) reads the diagonal of the piece's control box over the
+///   box's least distance from the axis, so the floors its metre
+///   conversion divides by (that distance, the cone's lever) stay within
+///   a fixed fraction of the piece's own.
 ///
 /// Its own value, not either lane's round count: changing it
 /// re-schedules both readers.
@@ -386,7 +387,7 @@ pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
 /// the half-width by the interval rotation — the one widening every
 /// enclosure here reads (a parameter bracket, a piece, an edge's span).
 /// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
-pub(super) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
+pub(crate) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
     let m = geom::bracket_mid((lo, hi));
     if !(m.is_finite() && lo <= hi) {
         return (Interval::refused(), Interval::refused());

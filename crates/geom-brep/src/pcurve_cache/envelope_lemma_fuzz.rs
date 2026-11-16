@@ -1136,23 +1136,20 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         if pole != (a_r.norm() < z) {
             continue;
         }
-        let d_read = if pole {
-            (b - e * b.dot(e)).normalize()
-        } else {
-            a_r.normalize()
+        let form = super::Harmonic3 {
+            c: Point3::origin(),
+            a,
+            b,
+            l: Vec3::zero(),
         };
+        // The direction the derivation builds the image on.
+        let d_read = super::sphere_meridian_direction(&form, e, pole);
         let v0 = a.dot(e).atan2(a_r.norm());
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: r,
             axis: e,
             u_ref: d_read,
-        };
-        let form = super::Harmonic3 {
-            c: Point3::origin(),
-            a,
-            b,
-            l: Vec3::zero(),
         };
         let derivation = Derivation::SphereMeridian {
             pole,
@@ -2061,7 +2058,7 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
 }
 
 /// A random tilted plane section of a random cone, and the cone.
-fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
+pub(super) fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
     let (axis, u_ref) = frame(s);
     let apex = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let half_angle = s.range(0.15, 1.3);
@@ -2090,7 +2087,7 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
 
 /// A random ring torus and one of its Villarceau circles, on either
 /// family and traversal, from any start.
-fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
+pub(super) fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
     let (axis, u_ref) = frame(s);
     let center = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let major = s.range(0.5, 3.0);

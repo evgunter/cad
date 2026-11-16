@@ -22,7 +22,7 @@ use geom_core::{Bounds, Interval};
 use test_utils::fuzz;
 
 use super::circle_lane_rows::{
-    certifies_projected, check_4_terms, cone, cone_coefficient_excess, cylinder, derived,
+    certifies_projected, cone, cone_coefficient_excess, cylinder, derived, lemma_envelopes,
     other_charts_within, torus, world, world_dir,
 };
 use super::harmonic_sup_rows::{band, sampled_residual, zero};
@@ -751,7 +751,7 @@ fn an_ellipses_projected_envelope_covers_its_residual() {
             Pcurve::Projected(Box::new(image)),
             Pcurve::Projected(Box::new(image_i)),
         );
-        let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
+        let Ok((envelope, hi)) = lemma_envelopes(&image, &image_i, &carrier, (t0, t1), &surface)
         else {
             tally[chart][1] += 1;
             continue;
@@ -808,7 +808,7 @@ fn the_search_as_rows() {
             Pcurve::Projected(Box::new(image)),
             Pcurve::Projected(Box::new(image_i)),
         );
-        let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
+        let Ok((envelope, hi)) = lemma_envelopes(&image, &image_i, &carrier, (t0, t1), &surface)
         else {
             continue;
         };
@@ -981,6 +981,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &surface,
             b,
             None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads: {e:?}"));
         let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
@@ -995,6 +996,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &si,
             b,
             None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));
         println!(

@@ -518,10 +518,12 @@ fn a_line_row_is_shared_only_on_both_walls_sides() {
             Pcurve::IsoLine {
                 p0: geom_core::Point2::new(c, 0.0),
                 pl: geom_core::Vec2::new(0.0, 1.0),
+                ends: None,
             },
             Pcurve::IsoLine {
                 p0: geom_core::Point2::new(0.0, 0.0),
                 pl: geom_core::Vec2::new(1.0, 0.0),
+                ends: None,
             },
         ];
         for (i, image) in images.iter().enumerate() {
@@ -688,10 +690,12 @@ fn tangent_at(ys: f64, lean: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(1.0, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -815,6 +819,7 @@ fn a_sign_change_across_a_crease_is_no_tangency() {
     let image = || Pcurve::IsoLine {
         p0: geom_core::Point2::new(0.0, 0.0),
         pl: geom_core::Vec2::new(1.0, 0.0),
+        ends: None,
     };
     let pair = Pair::of(
         wall(Vec3::new(0.0, -1.0, 0.0)),
@@ -878,10 +883,12 @@ fn swapping_at(ys: f64, s: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(1.0, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -950,8 +957,8 @@ fn a_shared_row_reads_one_verdict_wherever_its_charts_sit() {
 
 /// **An interior row refuses, whichever way a crease beside it folds.** A
 /// floor creased along its interior column `u = ½`, one sheet folded up to
-/// within `0.1 ε` of the upright `x = ½`, on either side: the shared row
-/// is built for boundary rows, so both mirror images refuse
+/// within `0.1 ε` of the upright `x = ½`, on either side: a spline
+/// wall's shared row is read on a domain side only, so both mirror images refuse
 /// `CertifyError::Row { refusal: RowRefusal::OffSide, .. }` on the floor, before any reading that
 /// could tell the two sides apart.
 #[test]
@@ -975,10 +982,12 @@ fn an_interior_row_refuses_whichever_way_its_crease_folds() {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.5, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     let s = 0.1 * eps();

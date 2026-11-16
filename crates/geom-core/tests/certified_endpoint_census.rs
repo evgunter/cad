@@ -252,6 +252,7 @@ const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/pair_section/spline_implicit.rs",
     "crates/geom-brep/src/patch_bound.rs",
+    "crates/geom-brep/src/pcurve_cache/patch.rs",
     "crates/geom-brep/src/props/mod.rs",
     "crates/geom-brep/src/props/quad/",
     "crates/geom-brep/src/ssi.rs",
@@ -342,9 +343,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
-        11,
-        9,
-        "nine reads are in `cell_terms`, which refuses to `None` by name. The remainder is \
+        12,
+        10,
+        "nine reads are in `cell_terms`, which refuses to `None` by name, and one is \
+         `e_floors`' box mignitude, read after it asks `is_certified()`. The remainder is \
          `e_low_witness`'s 2, the `e_low` that `cell_bound` hands `cell_terms`: its only \
          production call is there, after both `e_floors` intervals have asked `is_certified()`",
     ),
@@ -359,15 +361,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        2,
-        0,
-        "held by name since SECTARMS #6412 removed its one `is_certified()` (the bracket's), \
-         which was all the population key saw. Both reads are the pivot's: `pivot`'s shift, the \
-         upper end of the foot's lift over the stored normal's length (the normal is certified, \
-         and a quotient by a length not proven away from zero has an end that is not finite, \
-         which `band.padded` refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a \
-         sum of products of certified points, no quotient, which certifies, its upper end a \
-         sound bound on the pivot's stand-off added to a height",
+        6,
+        4,
+        "the 4 that ask are `box_gap`'s per-axis gap, read only where both boxes' coordinates \
+         certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
+         the pivot's lift, the foot's height over the stored plane divided by the stored \
+         normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
+         quotient by a length not proven away from zero has an end that is not finite, which \
+         `band.padded` refuses (`SectionError::Unaccounted`) before any reading exists; and \
+         `Bracketed::at`'s, the same lift carried on the reading's form, which is only the \
+         bracket's first step, every side it keeps decided by `Bracketed::sign`, which asks \
+         `is_certified()` (`ssi::section::sign`), its pad the reach over the span it kept",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
@@ -392,11 +396,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        4,
-        2,
-        "two are the rational arm's quotient readings, each guarded by the `is_certified()` this \
-         counts: `certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking by \
-         name. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
+        8,
+        6,
+        "six ask: the rational arm's two quotient readings, each guarded by the `is_certified()` \
+         this counts (`certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking \
+         by name), and the ball algebra's four (`Ball::dot`'s and `Ball::cross`'s reach, \
+         `Ball::norm_sq`'s two ends), each read after both balls ask `Ball::is_certified`. The \
+         remainder is `centre`'s 2, safe because a centre is a translation choice and \
          no enclosure rests on it: it takes midpoints, contributes `0` for a non-finite one and \
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
@@ -417,7 +423,25 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          two asking reads above; so a refused bracket moves where the net is cut, never what a \
          span certifies, and a NaN reading compares false and grades nothing",
     ),
+    (
+        "crates/geom-brep/src/pcurve_cache/patch.rs",
+        2,
+        0,
+        "both are the enclosing patch's `mag`, a chart radius's magnitude read only to choose how \
+         many pieces an angle's window is cut into and at what degree. Every control is formed \
+         in interval arithmetic from the chart's own brackets, so a refused one's decoration \
+         rides into the controls and the composite that reads them; a refused bracket moves \
+         where the window is cut, never what a control encloses, and a NaN magnitude \
+         refuses as no size (`PatchRefusal::NoWidth`)",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache/speed.rs",
+        38,
+        4,
+        "not yet dispositioned: the 34 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
+    ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
         "crates/geom-brep/src/props/quad/cells.rs",
@@ -477,7 +501,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the guarded ones, \
          or asks `is_certified()` of the bracket it reads (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/spiric.rs", 13, 13, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 20, 20, ""),
     (
         "crates/geom-brep/src/props/taylor.rs",
         16,
@@ -610,6 +634,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -655,10 +680,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        53,
+        56,
         16,
         "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 37, `split_axis`'s 4 and the `coincidence` and \
+         `extent_of` (2). Of the other 40, `split_axis`'s 4 and the `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
          passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
@@ -667,25 +692,39 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \
          direction; and `box_dependent`'s 2 store a straddling separation's ends as the \
-         refusal's payload, which certifies nothing",
+         refusal's payload, which certifies nothing; `embedded`'s 3 choose the witness pair \
+         by its separation's upper end (2), a selection `confirms` then decides at the strict \
+         site, and report the confirmed separation's upper end (1)",
     ),
     (
         "crates/topo/src/injective.rs",
-        121,
-        40,
-        "the 40 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (16), \
-         `present_plane` (8) and the two `psi`s (8). `present_chart` asks each clip line where \
-         it is placed, so its touch, reach, merge, rectangle-side and apex reads see only \
-         certified lines; `present_plane` asks its one-edge `y`, and its other reads are behind \
-         the SPAN and CORNER funnels; `Curved::psi`'s shift reads finite parameters. Of the \
-         other 81, the seeds and selections (`mid`, `graph_read`'s `inside` and lever), the read \
-         behind `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, \
-         `narrowed`, `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the \
-         placement asks, are sound. The rest read the window's carrier and the face's boundary, \
-         which `clearance`'s `window_of` admits only where every lifted value certifies; \
-         `present_wall`'s wall-image reads and `speeds`' jet bound also read an enclosure \
-         computed from them that may clamp, which is \
-         `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+        154,
+        59,
+        "the 59 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+         `present_plane` (8), `present_plane_corner` (7), `present_plane_vertex` (7) and \
+         `Trig::psi` (3). `present_chart` asks each clip line where it is placed, so 16 of its \
+         reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
+         lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
+         to the ask, so they count as asking only because the census reads a whole function, \
+         and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
+         and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
+         and `present_plane_vertex` each read the cell's 4 ends behind their `cell` ask; \
+         each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
+         (1), neither of which the ask covers: the span is a parameter read like those below, \
+         and the speed is the jet bound `speeds` reads. `Trig::psi`'s 3 are its `over` \
+         closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
+         (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
+         any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
+         whole turns, read outward so `within`'s containment is conservative, the read behind \
+         `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
+         `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the placement \
+         asks, are sound. The rest read the window's carrier and the face's boundary, which \
+         `clearance`'s `window_of` admits only where every lifted value certifies; \
+         `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
+         presentations' speed bounds also read an enclosure computed from them that may clamp, \
+         which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`. \
+         `one_plane`'s 10 compare a stored frame's bracket ends to decide one value, never \
+         asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`",
     ),
     (
         "crates/topo/src/props.rs",
