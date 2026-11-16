@@ -47,8 +47,15 @@ for pin in pins:
                 with open("/".join(p.split("/")[:2]) + "/Cargo.toml", "rb") as m:
                     packages.add(tomllib.load(m)["package"]["name"])
 # Each pin's sites: the line range of every registered function that
-# names it, `<file>:<lo>-<hi>`, comma-separated (the plan, `AFM_PLAN`).
+# names it, `<file>:<lo>-<hi>`, comma-separated (the plan, `AFM_PLAN`). A
+# range runs from the `fn` line to the next item at its indentation or
+# shallower (a fn, a `mod`, an attribute, an `impl` or a type), so the last
+# fn before a test module does not take the module in.
 FN = re.compile(r"^(\s*)(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_0-9]+)")
+# A range also ends at the next item that is no fn at the fn's indentation
+# or shallower: a `mod` (a `#[cfg(test)] mod tests` after the last fn), an
+# attribute line, an `impl`, a type.
+END = re.compile(r"^(\s*)(?:#\[|(?:pub(?:\([^)]*\))?\s+)?(?:mod|impl|struct|enum|trait|type|const|static)\b)")
 sites = {}
 with open(sys.argv[1]) as fh:
     for raw in fh:
@@ -63,7 +70,7 @@ with open(sys.argv[1]) as fh:
                 continue
             indent, hi = len(m.group(1)), len(src)
             for j in range(i + 1, len(src)):
-                n = FN.match(src[j])
+                n = FN.match(src[j]) or END.match(src[j])
                 if n and len(n.group(1)) <= indent:
                     hi = j
                     break

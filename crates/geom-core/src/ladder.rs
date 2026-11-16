@@ -595,6 +595,11 @@ pub fn climb_evidence<I, A, E>(
 /// reading) is held with the rung's own run, and spliced as the rung's
 /// outcome says. The one way every entry point reads a rung. The run of an
 /// exhausted iterator's last step is spliced at once.
+///
+/// All of the iterator's own recording up to a yielded item is attributed
+/// to that item's rung: a `.filter` that decides before a climb, say, has
+/// the readings of every item it skips held with the next rung it yields,
+/// and spliced (superseded or live) as that rung is.
 fn next_rung<I, A, E>(
     rungs: &mut impl Iterator<Item = I>,
     read: &mut impl FnMut(I) -> Rung<A, E>,
@@ -745,9 +750,10 @@ pub fn climb_agreeing<I, A, E>(
     let mut held = Held::default();
     let mut first: Option<(usize, A)> = None;
     let mut rungs = rungs.into_iter();
-    let mut index = 0..;
+    let mut next_at = 0;
     while let Some((got, log)) = next_rung(&mut rungs, &mut read) {
-        let at = index.next().unwrap_or(usize::MAX);
+        let at = next_at;
+        next_at += 1;
         let Some((answer, aborts)) = held.take(got, log) else {
             // The first-refusal mutant (`climb_evidence`'s).
             #[cfg(any_first_mutant)]
