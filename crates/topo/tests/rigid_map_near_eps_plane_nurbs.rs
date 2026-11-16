@@ -256,17 +256,13 @@ fn every_rotation_moves_an_edge_certified_near_eps() {
     };
     let body = lamina(delta);
     for (name, map) in rotations() {
-        topo::transform_rigid(
-            &body,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| {
-            panic!(
-                "{name}: the image of an edge certified near ε moves: {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            )
-        });
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, Tol::witness()))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name}: the image of an edge certified near ε moves: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
     }
 }
 

@@ -626,7 +626,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // `shell_reference`), so a quadrature face's lever is the
             // extent of the shell's quadrature faces
             // (`m8_3_rational_volume`'s ceiling). The lofted concave
-            // prism measured 8.96e-4 at 1e-6, 0.87 times the target: the
+            // prism measures 8.64e-4 at 1e-6, 0.84 times the target: the
             // ceiling is the measure with headroom, not a bound the rule
             // guarantees.
             let ceiling = 4.0 * target;
@@ -636,7 +636,9 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 m.enclosure.volume_pad
             );
             // The measure the ceiling's comment cites, held where it was taken.
-            if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
+            if row == "the lofted concave prism"
+                && test_utils::kernel_limit::at_row(Tol::witness().eps(), &[1e-6])
+            {
                 assert!(
                     (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
                     "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
@@ -709,7 +711,10 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
         "the flipped wall is the concave arc, sampled on the notch floor \
          y = 2.5 − √2; got {p:?}"
     );
-    let lied = lofted.body.flipped_face_sense_for_tests(wall).unwrap();
+    let lied = lofted
+        .body
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
+        .unwrap();
     assert_eq!(topo::validate(&lied), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
     // The recorded residual, stated as what it is: a CHANGE DETECTOR,
@@ -1109,5 +1114,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
 }
 
 /// The lofted concave prism's volume pad at ε 1e-6, the measure the
-/// rational-volume ceiling's comment cites.
-const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.956_6e-4;
+/// rational-volume ceiling's comment cites, held by
+/// `loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`: what
+/// the per-span round-zero schedule achieves on it.
+const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.636_7e-4;

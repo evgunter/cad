@@ -24,38 +24,115 @@
 //! never touch.
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 
 use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    TangencyFailure, carrier_pair_decided, glued_tangency,
+    BooleanError, DeclarationRead, Glue, GluedPair, Operand, PairUnread, TangencyFailure,
+    carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::boxes;
 use crate::entity::FaceKey;
+use geom_brep::{CarrierRelation, CarrierVerdict};
 
-/// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
-/// [coincidence.booleans], its one place [one-way.places]): the
-/// first-written operand's, A's, a fixed rule that reads no values. An
-/// n-ary operation folds its members in list order, each step's
-/// accumulation its operand A, so the first-written member's
-/// description is the one kept.
-pub(crate) const KEPT: Operand = Operand::A;
+/// **The first-written operand**, A: an n-ary operation folds its
+/// members in list order, each step's accumulation its operand A. Where
+/// the two operands' copies of one cell meet, the first-written side's
+/// copy is the one the result holds — the face region the lump keeps of
+/// a coincident pair ([`super::tables::surviving_copy`]), a seam's edges
+/// and points (`zip`), a vertex-vertex record's point
+/// (`ops::PointOwners`) — because the result arena is A's clone and the
+/// lump and the containment fallback cut only B's copies. The record a
+/// one-carrier pair's faces end on is the census's ([`GlueCensus`]),
+/// which falls back to this side where the census does not choose.
+pub(crate) const FIRST_WRITTEN: Operand = Operand::A;
 
-const _: () = assert!(
-    matches!(KEPT, Operand::A),
-    "[coincidence.booleans] keeps the first-written operand's description, \
-     and the boolean assumes it is A's: the result arena is A's clone, the \
-     lump and the containment fallback cut only B's copies"
-);
+/// A pair's two sides as `(first-written, other)` ([`FIRST_WRITTEN`]):
+/// given `side`'s `x` and the other operand's `y`.
+pub(crate) fn written_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
+    if side == FIRST_WRITTEN {
+        (x, y)
+    } else {
+        (y, x)
+    }
+}
 
-/// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
-/// `side`'s `x` and the other operand's `y`. The boolean hands the
-/// merge each glued pair kept side first (`ops::GluedSurfaces::of_result`).
-pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
-    if side == KEPT { (x, y) } else { (y, x) }
+/// **What a one-carrier glue of `fa` on `a` and `fb` on `b` keeps and
+/// moves**, a census of keys (`[coincidence.door]`; this crate's README
+/// `[topo.one-record.kept]`): the side whose record is kept — the one
+/// whose record alone is also worn by a face of its operand outside
+/// `decided`, each operand's faces in a pair this glue leaves on one
+/// record, else [`FIRST_WRITTEN`]'s ([`crate::one_record::kept_of`]) —
+/// and the faces of the other side the verdict moves: its decided face
+/// and that face's closure under same-record adjacency
+/// ([`crate::one_record::moved_closure`]). The verdict is read over the
+/// two decided faces and every face it moves
+/// ([`super::carrier_pair::glue_extent`]).
+#[derive(Clone, Debug)]
+pub(super) struct GlueCensus {
+    /// The side whose record the moved faces are left on.
+    pub(super) kept: Operand,
+    /// The moved side's faces the verdict moves, in its keys.
+    pub(super) moved: BTreeSet<FaceKey>,
+}
+
+/// Each operand's faces in a pair the glue leaves on one record: A's,
+/// then B's.
+pub(super) type Decided = [BTreeSet<FaceKey>; 2];
+
+impl GlueCensus {
+    /// The census of `fa` on `a` and `fb` on `b`, `kept` where the
+    /// deciding reading took it already.
+    ///
+    /// # Panics
+    ///
+    /// Where a face's loop does not walk ([`crate::one_record::moved_closure`]).
+    pub(super) fn of<T: geom_core::Real>(
+        (a, fa): (&Body<T>, FaceKey),
+        (b, fb): (&Body<T>, FaceKey),
+        decided: &Decided,
+        kept: Option<Operand>,
+    ) -> Self {
+        let kept = kept.unwrap_or_else(|| {
+            crate::one_record::kept_of(
+                &[
+                    (
+                        Operand::A,
+                        crate::one_record::worn_outside(a, fa, &decided[0]),
+                    ),
+                    (
+                        Operand::B,
+                        crate::one_record::worn_outside(b, fb, &decided[1]),
+                    ),
+                ],
+                FIRST_WRITTEN,
+            )
+        });
+        let moved = match kept {
+            Operand::A => crate::one_record::moved_closure(b, &[fb]),
+            Operand::B => crate::one_record::moved_closure(a, &[fa]),
+        };
+        Self { kept, moved }
+    }
+
+    /// The side whose faces move.
+    pub(super) fn moving(&self) -> Operand {
+        match self.kept {
+            Operand::A => Operand::B,
+            Operand::B => Operand::A,
+        }
+    }
+
+    /// The moving side's decided face, of `fa` and `fb`.
+    fn decided_face(&self, (fa, fb): (FaceKey, FaceKey)) -> FaceKey {
+        match self.kept {
+            Operand::A => fb,
+            Operand::B => fa,
+        }
+    }
 }
 
 /// `decls` with every undeclared pair the operation decides one carrier
@@ -77,25 +154,86 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
         return Ok(Cow::Borrowed(decls));
     }
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
-    let mut found = Vec::new();
+    // Each pair is read over its two faces first: which pairs are one
+    // carrier is what says which faces the glue decides.
+    // Each pair's slot, in enumeration order: a tangency or nothing now,
+    // a one-carrier pair once its census is read.
+    let mut found: Vec<Option<GluedPair<T>>> = Vec::new();
+    let mut ones = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
         }
-        let glued = match carrier_pair_decided(a, fa, b, fb, band) {
+        match carrier_pair_decided(a, fa, b, fb, band) {
             Ok(Ok(CarrierVerdict::One { relation, margin })) => {
-                GluedPair::one_carrier(fa, fb, relation, margin)
+                ones.push((found.len(), fa, fb, relation, margin));
+                found.push(None);
             }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
-            | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))
-            }
+            | Err(PairUnread::OutsideInventory) => found.push(
+                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency)),
+            ),
             // In band, or unread: left to the stage that meets the pair
             // (module doc).
-            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
-        };
-        found.extend(glued);
+            Ok(Err(_)) | Err(PairUnread::Extent(_)) => {}
+        }
     }
+    // A one-carrier pair's verdict is the one read over every face it
+    // moves, under the census of the pairs this glue leaves on one record:
+    // read again over those that survive until none drops.
+    // The pair's own reading where its census moves the decided face
+    // alone; read again over the decided faces and the closure where it
+    // moves more. Apart, in band or Distinct: left to the stage that meets
+    // the pair (module doc).
+    let verdict = |census: &GlueCensus, (fa, fb), first| {
+        let verdict =
+            if census.moved.len() == 1 && census.moved.contains(&census.decided_face((fa, fb))) {
+                Some(first)
+            } else {
+                match super::carrier_pair::carrier_pair_decided_over(
+                    a,
+                    fa,
+                    b,
+                    fb,
+                    (census.moving(), &census.moved),
+                    band,
+                ) {
+                    Ok(Ok(CarrierVerdict::One { relation, margin })) => Some((relation, margin)),
+                    _ => None,
+                }
+            };
+        verdict.filter(|&(relation, _)| relation != CarrierRelation::Distinct)
+    };
+    let declared_faces = decls.one_carrier_faces();
+    let mut live = ones;
+    let glued = loop {
+        let mut decided = declared_faces.clone();
+        for &(_, fa, fb, ..) in &live {
+            decided[0].insert(fa);
+            decided[1].insert(fb);
+        }
+        let read: Vec<_> = live
+            .iter()
+            .map(|&(slot, fa, fb, relation, margin)| {
+                let census = GlueCensus::of((a, fa), (b, fb), &decided, None);
+                let verdict = verdict(&census, (fa, fb), (relation, margin));
+                ((slot, fa, fb, relation, margin), census.kept, verdict)
+            })
+            .collect();
+        if read.iter().all(|(_, _, verdict)| verdict.is_some()) {
+            break read;
+        }
+        live = read
+            .into_iter()
+            .filter(|(_, _, verdict)| verdict.is_some())
+            .map(|(pair, ..)| pair)
+            .collect();
+    };
+    for ((slot, fa, fb, ..), kept, verdict) in glued {
+        found[slot] = verdict
+            .and_then(|(relation, margin)| GluedPair::one_carrier(fa, fb, relation, margin, kept));
+    }
+    let found: Vec<GluedPair<T>> = found.into_iter().flatten().collect();
     if found.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
@@ -211,7 +349,9 @@ fn pairs_among(
 /// **The section door**: the operation's section table
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
-/// ([`geom_brep::pair_section::serves`]) at the operation's band and
+/// by classification ([`geom_brep::pair_section::serves`]), or that are a
+/// spline wall and a partner with an implicit residual
+/// ([`geom_brep::SplineImplicitPose::of`]), at the operation's band and
 /// region, and the coincidences the join reads,
 /// per face pair of the two operands: each coincidence decided `Zero`
 /// that the pair's section stands on one row, read from the table, at
@@ -245,7 +385,23 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         let face = body.proven_face(f);
         (face.record().surface, face.surface().clone())
     };
-    let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
+    // A face that is a side of a pair read here: a kind the value builds
+    // by classification, a spline wall, or a plane where the other
+    // operand has a spline face, as a plane is read against a spline wall
+    // alone.
+    let spline = |body: &Body<T>| {
+        body.face_views()
+            .any(|f| f.surface().spline_chart().is_some())
+    };
+    let read = |s: &geom::Surface<T>, partner_spline: bool| {
+        geom_brep::pair_section::serves(s.kind())
+            || s.spline_chart().is_some()
+            || (partner_spline && matches!(s, geom::Surface::Plane { .. }))
+    };
+    let pair_read = |sa: &geom::Surface<T>, sb: &geom::Surface<T>| {
+        (geom_brep::pair_section::serves(sa.kind()) && geom_brep::pair_section::serves(sb.kind()))
+            || geom_brep::SplineImplicitPose::of(sa, sb).is_some()
+    };
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),
@@ -289,17 +445,28 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, pad)),
         _ => None,
     };
-    let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+    let served = |body: &Body<T>,
+                  boxed: &[(FaceKey, bvh::Aabb)],
+                  partner: &Body<T>|
+     -> Vec<(FaceKey, bvh::Aabb)> {
+        let partner_spline = spline(partner);
         boxed
             .iter()
-            .filter(|&&(k, _)| read(&surface(body, k).1))
+            .filter(|&&(k, _)| read(&surface(body, k).1, partner_spline))
             .copied()
             .collect()
     };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
-    for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
+    for (fa, fb) in pairs_among(&served(a, &a_boxes, b), &served(b, &b_boxes, a))? {
         let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
+        if !pair_read(&sa, &sb) {
+            continue;
+        }
+        if geom_brep::SplineImplicitPose::of(&sa, &sb).is_some() {
+            table.hold((ka, &sa), (kb, &sb));
+            continue;
+        }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {

@@ -1271,7 +1271,8 @@ mod tests {
         let chart = surface.spline_chart().unwrap();
         let at = chart.ders(u, v).point;
         let [a, b] = bounds.map(window);
-        let reach = crate::ExtentBall::of_control_net_from(chart.control(), at).lever();
+        let net = geom::cover::Cover::net(chart.control().to_vec());
+        let reach = crate::ExtentBall::of_cover_from(net.as_ref(), at).lever();
         chart_normal_beside(chart, true, (u, v), [&a, &b], chords, reach, band())
             .map(|(normal, _)| normal.vec())
     }

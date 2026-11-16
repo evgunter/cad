@@ -4,6 +4,8 @@ kind: issue
 title: "[topo.homes] K names that carry a caller's lane prefix are decided outside that lane: split_ring_*, bool_pierce_normal_*, bool_ring_run_winding, bool_chord_side, bool_curved_contain_carrier"
 status: open
 opened: 2026-11-03
+priority: P4
+cost: M
 ---
 
 

@@ -11,8 +11,8 @@
 //!    non-seam boundary edge, and every vertex of the face, is decided
 //!    clear of that ball in metres, each on its own carrier
 //!    (`splitting::containment::arc_distance_floor`: a line by its
-//!    segment, a circle or an ellipse by its own arc, any other carrier
-//!    by the ball its arc lies in, or else piece by piece). An edge's 3-D box is never read: a
+//!    segment, any other carrier by its cover's nearest distance, and a
+//!    spiric or a spline else piece by piece). An edge's 3-D box is never read: a
 //!    long diagonal edge's box covers every cell beside it. So is every
 //!    singular point of the carrier, which a patch can be connected
 //!    through without being connected in the face: a cone's apex, and
@@ -23,8 +23,9 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::curved_face_containment`] on a curved carrier), says
-//!    which.
+//!    [`crate::contain::curved_face_placement`] on a curved carrier),
+//!    says which; a station the curved door reads off its own carrier
+//!    is the kernel's defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -45,7 +46,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::contain::{FaceContainment, contfp, curved_face_containment};
+use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -164,9 +165,18 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::curved_face_containment`] on a curved carrier. `None` for
-/// a face that does not resolve, a door that refuses, and
-/// a curved door's unread remainder.
+/// [`crate::contain::curved_face_placement`] on a curved carrier. `None`
+/// for a face that does not resolve, a door that refuses, and a curved
+/// door's unread remainder.
+///
+/// # Panics
+///
+/// In every build, where the curved door reads the station definitely
+/// off an analytic face's carrier (a sphere, cylinder, cone, torus or
+/// ruled carrier): the station is a point of the face's own chart, so
+/// that is the kernel's defect. A spline face's off-carrier reading is
+/// `None` instead: its station has no premise check, and the spline
+/// region's search is the only reading of it.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -189,9 +199,30 @@ fn place<T: Decide>(
         .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
-        _ => curved_face_containment(body, face, station, band)
-            .ok()
-            .flatten(),
+        _ => match curved_face_placement(body, face, station, band).ok()? {
+            CurvedPlacement::Trim(at) => at,
+            // A spline chart's station is read by the spline region's own
+            // search (hull cells and feet), and `Held::check` does not
+            // read a spline: that search is the only reading of it, so
+            // its off-carrier answer is a reading the door could not
+            // settle, not a contradiction of a checked premise. The cell
+            // is kept, the direction a subdivision consumer's looseness
+            // runs. An analytic carrier's station is the face's own
+            // chart's (`constructed`), which `Held::check` reads in debug
+            // and the closed form decides here, so its off-carrier reading
+            // is the kernel's defect, as at every held door, never a
+            // reading of `Out`.
+            CurvedPlacement::OffCarrier => {
+                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    return None;
+                }
+                unreachable!(
+                    "cell region: face {face:?}: a station of the face's own stored chart reads \
+                     definitely off its carrier. {}",
+                    geom_core::kernel_defect_ending!()
+                )
+            }
+        },
     }
 }
 
@@ -244,7 +275,7 @@ impl Ball {
         arc_distance_floor(carrier, params, self.centre).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,
-                ArcFloor::Conic { .. } => CONIC,
+                ArcFloor::Conic(_) => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
             floor.clears(|d| self.clear_as(row, d, band))
@@ -338,7 +369,7 @@ fn clear_of_boundary_as(
         BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,
-                ArcFloor::Conic { .. } => CONIC,
+                ArcFloor::Conic(_) => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
             floor.clears(|d| clear_as(row, d))

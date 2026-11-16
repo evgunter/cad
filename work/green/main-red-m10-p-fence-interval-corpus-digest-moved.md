@@ -2,10 +2,11 @@
 id: main-red-m10-p-fence-interval-corpus-digest-moved
 kind: issue
 title: main red: m10_p_fence's Interval corpus digest moved (the_corpus_evaluation_is_bit_identical_at_interval)
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-14
 ---
 
 
@@ -21,3 +22,7 @@ Found by `onecopy/small-reads` running editor-core's full suite, slow set includ
 It is a slow-set row, so the PR gate does not run it. No open row names it: `green/main-reds-editor-core-slow-set-and-the-k-probe-sweep` is closed. Fix: find the PR that moved the Interval corpus evaluation. If its output is right, re-pin the digest with the reason (`memories/output-stability-as-justification.md`).
 
 Reproduce: `cargo nextest run -p editor-core -E 'test(=m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval)'`.
+
+## Closed (2026-11-14)
+
+Every test this row names passes at all three ε rows of nightly 43371638371 (main `e36675c1`, 2026-11-13), read from each leg's junit. Whether a fix or a pin greened each is not traced here.

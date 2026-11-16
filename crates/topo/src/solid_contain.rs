@@ -214,15 +214,15 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::plane_desc_of;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
-    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from,
-    point_in_loop_projected,
+    Escalation, LoopContainment, PointInLoopError, SCHEDULE, point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::PlaneDesc;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
@@ -658,7 +658,7 @@ impl PointInSolidError {
                  surface, which the inside/outside test has no way yet to cross. The \
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
-                crate::contain::kind_word(*kind)
+                kind.word()
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -746,7 +746,7 @@ impl std::error::Error for PointInSolidError {}
 /// and a region reads the sense itself.
 pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// A planar face: a point on it and its OUTWARD normal.
-    Plane(Point3<T>, Vec3<T>),
+    Plane(PlaneDesc<T>),
     /// A cylinder wall face: the ray/wall quadratic's roots, each tested
     /// against the face's own region, read from its boundary edges
     /// ([`crate::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
@@ -929,6 +929,7 @@ pub(crate) fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
+    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
@@ -937,7 +938,7 @@ pub(crate) fn face_geo<T: Decide>(
     if let Some(e) = uncrossable(body, face) {
         return Err(e);
     }
-    face_geo_arms(body, face, charts)
+    face_geo_arms(body, face, charts, band)
 }
 
 /// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
@@ -947,13 +948,13 @@ fn face_geo_arms<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
+    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
-        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
-            *origin,
-            plane_outward_normal(f.record(), *normal).vec(),
-        )),
+        Surface::Plane { origin, normal, .. } => {
+            Ok(FaceGeo::Plane(plane_desc_of(f.record(), *origin, *normal)))
+        }
         &Surface::Cylinder {
             origin,
             axis,
@@ -972,7 +973,7 @@ fn face_geo_arms<T: Decide>(
                     axis: geom::Line { origin, dir: axis },
                     radius,
                     anchor,
-                    reach: partial_reach(body, face, anchor)?.length(),
+                    reach: partial_reach(body, face, anchor, band)?.length(),
                 })
             }
         },
@@ -997,7 +998,7 @@ fn face_geo_arms<T: Decide>(
                     dir: axis,
                 },
                 half_angle,
-                reach: partial_reach(body, face, apex)?,
+                reach: partial_reach(body, face, apex, band)?,
             }),
         },
         &Surface::Sphere { center, radius, .. } => match closed_sphere_group(body, face, charts) {
@@ -1139,18 +1140,12 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 /// **A radius about `anchor` that a cylinder or cone face lies within**
 /// — the reach [`FaceGeo::PartialWall`] and [`FaceGeo::PartialCone`]
 /// refuse inside, about a point of the wall face's boundary or the
-/// cone's apex.
-///
-/// Every point of a wall face lies on a ruling segment whose two ends
-/// are points of its boundary, and every point of a cone face on a
-/// generator segment from a point of its boundary toward the apex, so a
-/// ball about such an anchor holding the boundary holds the face; each
-/// loop's ball is the containment walk's own ([`loop_extent_from`]:
-/// vertices, and each curved edge's carrier ball).
+/// cone's apex: the face's cover's far distance from it
+/// ([`crate::cover::face_reach_from`]).
 ///
 /// # Errors
 ///
-/// [`loop_extent_from`]'s refusal of a loop that does not walk.
+/// [`PointInSolidError::CorruptFace`] for a face with no cover.
 ///
 /// # Panics
 ///
@@ -1159,13 +1154,10 @@ fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
+    band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = body.proven_face(face);
-    let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for (lk, _, _) in f.loops() {
-        reach = reach.max(loop_extent_from(body, lk, anchor)?);
-    }
-    Ok(reach)
+    crate::cover::face_reach_from(body, face, anchor, band)
+        .map_err(|_| PointInSolidError::CorruptFace { face })
 }
 
 /// The point of `face`'s outer loop's first vertex.
@@ -1425,7 +1417,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             "bool_sphere_iso_meridian",
             Margin::levered(
                 n_c.dot(axis),
-                geom_brep::ExtentBall::of_circle(c_c, r_c).lever(),
+                geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever(),
             ),
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
@@ -1458,7 +1450,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_sphere(center, radius).lever(),
+                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )
@@ -1502,29 +1494,27 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    // A window the loop walk cannot derive is a face this chart cannot
-    // express, NOT a broken body: the walk needs a closed-form chart
-    // image for every boundary edge and a branch it can pin across each
-    // junction, and a face that denies it either is out of the class.
-    // Only the in-band arm is an escalation.
-    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
-        Ok(Some(w)) => w,
-        Ok(None) => return Ok(None),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
-        | Err(crate::chord_join::SplitJoinError::OrderEscalated { diag }) => {
-            return Err(escalate(diag));
+    // The window is the lift's: the face's boundary in the chart,
+    // decided here at the band, since containment reads bodies
+    // mid-operation too. A face whose outer loop has an image with no
+    // closed-form box, a joint that names no branch, or a turn on the
+    // chart's singular set that nothing decides, is out of the class,
+    // NOT a broken body: only the in-band arm is an escalation. A key
+    // that does not resolve, or a boundary that does not close in its
+    // chart, is not a class statement, and keeps the arena claim's own
+    // door.
+    let raw = {
+        use crate::chart_window::ChartWindowError;
+        match crate::chart_window::face_azimuth_window(body, face, band) {
+            Ok(Some(w)) => w,
+            Ok(None) | Err(ChartWindowError::Unread | ChartWindowError::Singular(_)) => {
+                return Ok(None);
+            }
+            Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
+            Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
+                return Err(PointInSolidError::CorruptFace { face });
+            }
         }
-        // A CORRUPTION-shaped refusal is not a class statement and must
-        // not wear one: a key the walk could not resolve, or a boundary
-        // that does not close, keeps the arena claim's own door — the
-        // same distinction `bool_planar_chord_spec` draws between a key
-        // that does not resolve and a key of the wrong kind.
-        Err(crate::chord_join::SplitJoinError::Corrupt { .. })
-        | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
-            return Err(PointInSolidError::CorruptFace { face });
-        }
-        // The honest remainder: a walk this chart cannot express.
-        Err(_) => return Ok(None),
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
     // attains every azimuth of its latitude range, so its azimuth window
@@ -2059,7 +2049,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     let climbed = climb(Answering::Any, faces, |&face| {
-        let geo = match face_geo(body, face, &sel.charts) {
+        let geo = match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
             // where the ray test cannot cross a face of it: definitely
@@ -2099,7 +2089,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
-    let reach = selection_reach(body, faces, q)?;
+    let reach = selection_reach(body, faces, q, band)?;
     // A ray that crosses nothing reads the at-infinity side
     // (`missed_side`), which says how the ray's reading ranks.
     let read = MissedRead::new();
@@ -2134,7 +2124,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     match *geo {
-        FaceGeo::Plane(origin, normal) => {
+        FaceGeo::Plane(PlaneDesc { origin, normal }) => {
             // Orientation-free: a residual compared against Zero
             // answers the same whichever way the normal points,
             // and `point_in_face` below is ray parity (ditto).
@@ -2387,35 +2377,35 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
     }
 }
 
-/// **How far from `q` any loop of the selection reaches**: the radius of
-/// a ball about `q` holding every boundary loop of every face in
-/// `faces` ([`loop_extent_from`]). It asks no decision. It is the lever
-/// the ray's two skip questions are metered over (the plane arm's
+/// **How far from `q` any face of the selection reaches**: the radius of
+/// a ball about `q` holding every face in `faces`, each face's cover's
+/// far distance from `q` ([`crate::cover::face_reach_from`]). It is the
+/// lever the ray's two skip questions are metered over (the plane arm's
 /// `d·n̂`, the wall arm's axis-parallel rung): a ray that drifts off a
 /// face's plane, or off a wall's axis, by no more than the band's zero
 /// over this whole length meets no point of the face when `q` starts
 /// definitely further off the carrier than that ([`clear_of_carrier`]),
-/// so skipping it there is sound. A planar face lies in its outer loop's hull, and a wall face
-/// in the hull of its loops (each of its points is on a ruling segment
-/// between two boundary points), so each lies in this ball. A sphere or
-/// a torus face bulges past its loops' hull, by up to its radius (the
-/// tube's, for a torus), so this ball need not hold it: its arms meter
-/// their own crossings over their own extents, and the side-at-infinity
-/// reader, which needs a start beyond every face, widens this reach by
-/// each such face's whole ball (`side_reader`'s `beyond`).
+/// so skipping it there is sound. The side-at-infinity reader starts an
+/// aimed ray twice this far from its aim, beyond every face.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a face with no cover (a
+/// poisoned net, data that is not a finite number), which no reach
+/// bounds.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
+    band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let mut reach = geom_brep::ExtentBall::point(q).lever();
-    for &face in faces {
-        let f = body.proven_face(face);
-        for (l, _, _) in f.loops() {
-            reach = reach.max(loop_extent_from(body, l, q)?);
-        }
-    }
-    Ok(reach)
+    faces
+        .iter()
+        .try_fold(geom_brep::ExtentBall::point(q).lever(), |reach, &face| {
+            crate::cover::face_reach_from(body, face, q, band)
+                .map(|far| reach.max(far))
+                .map_err(|_| PointInSolidError::CorruptFace { face })
+        })
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
@@ -2475,7 +2465,7 @@ pub(super) enum About {
     /// is also the reading every edge-sweep margin was measured on.
     Start,
     /// The line's closest approach to the quadric's axis or centre, for
-    /// a ray started far from the body.
+    /// a ray whose line's origin may lie far from the quadric.
     Nearest,
 }
 
@@ -2960,7 +2950,7 @@ fn ray_passes_beside<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let f = body
         .get_face(face)
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
@@ -3239,26 +3229,6 @@ struct EdgeMeets<T> {
     vertices: Vec<crate::entity::VertexKey>,
 }
 
-/// How far the ray passes a met edge, as a wedge's mark reads it.
-#[derive(Clone, Copy)]
-enum Gap {
-    /// Decided Zero.
-    Zero,
-    /// In the band's gap.
-    InBand(Indeterminate),
-}
-
-impl Gap {
-    /// The mark two met edges of one face read: a wedge where either gap
-    /// is in band, else a graze.
-    const fn mark(self, other: Self) -> Mark {
-        match (self, other) {
-            (Self::InBand(gap), _) | (Self::Zero, Self::InBand(gap)) => Mark::Wedge(gap),
-            (Self::Zero, Self::Zero) => Mark::Graze,
-        }
-    }
-}
-
 /// **An edge the ray meets**, half a crossing for each of its faces: the
 /// edge, its faces, the advance where the ray passes it, the span its
 /// passage lies in along the ray, which carrier crossing of each face it
@@ -3315,8 +3285,9 @@ enum RootSide {
 ///   charge ([`geom_core::rounding_charge`] over the lengths it is read
 ///   from), and the enclosure's lower end is decided, as an edge's gap
 ///   is.
-/// - **An edge** whose lines' gap is not definitely past the band and
-///   whose closest point lies definitely inside it is met. One whose
+/// - **An edge** whose lines' gap is within the band ([`edge_gap`]) and
+///   whose closest point lies definitely inside it is met; one whose
+///   gap nothing read sets the ray aside there. One whose
 ///   closest point lies definitely past an end is nearest the ray at
 ///   that end, which is read as its vertex. One whose closest point is
 ///   in band of an end is marked a graze there, which no reading here
@@ -3340,11 +3311,10 @@ fn edge_meets<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<EdgeMeets<T>, RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
     let top = reach * T::from_f64(2.0);
-    let far = q + d * top;
-    let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
+    let passes = crate::census::line_passes(body, (q, d, top), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
         lines: std::collections::BTreeSet::new(),
@@ -3359,8 +3329,7 @@ fn edge_meets<T: Decide>(
                 body,
                 v,
                 [pass.faces.0, pass.faces.1],
-                (q, top),
-                d,
+                (ray, top),
                 band,
                 rows,
             )?;
@@ -3370,23 +3339,18 @@ fn edge_meets<T: Decide>(
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         meets.clear.insert(pass.edge);
-        let gap = match geom_core::k_stats::decide_magnitude(
+        let Some(gap) = Reach::of(geom_core::k_stats::decide_magnitude(
             rows.edge(),
             Margin::of(pass.gap[0]),
             band,
-        ) {
-            Ok(geom_core::k_stats::Magnitude::Positive) => continue,
-            Ok(geom_core::k_stats::Magnitude::Zero) => Gap::Zero,
-            Err(gap) => Gap::InBand(gap),
+        ))
+        .met() else {
+            continue;
         };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
         let at = geom::mid_param(lo, hi);
-        // The ray starts at `q`. Where its line comes closest to the
-        // edge's line behind `q`, the ray itself is nearest the edge at
-        // `q`, and the boundary pre-pass holds `q` clear of both the
-        // edge's faces, so of the edge.
-        if ray.ahead(at, rows.advance(), band) == Ok(Sign::Negative) {
+        if edge_gap::start(ray, (at, at), rows, band) == edge_gap::Start::Behind {
             continue;
         }
         // Where the lines come closest, against each end of the edge:
@@ -3406,6 +3370,7 @@ fn edge_meets<T: Decide>(
         if !inside {
             continue;
         }
+        let gap = gap.map_err(|diag| edge_gap::set_aside(pass.faces.0, diag))?;
         meets.meet(Met {
             edge: pass.edge,
             faces,
@@ -3419,20 +3384,18 @@ fn edge_meets<T: Decide>(
 }
 
 impl<T: Decide> EdgeMeets<T> {
-    /// **Reads vertex `v`** of an edge between `faces` against the ray
-    /// segment `ray` along `d`, once per vertex: within the band of the
+    /// **Reads vertex `v`** of an edge between `faces` against `ray` from
+    /// its start to advance `top`, once per vertex: within the band of the
     /// ray it is a corner, on it a graze, marked where the ray comes
     /// closest to it. Its distance from the ray, a short chain on in-box
     /// coordinates, is decided as read: its rounding is the run's
     /// (`geom_core::tolerance::admissible`), not charged here.
-    #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
     fn vertex(
         &mut self,
         body: &Body<T>,
         v: crate::entity::VertexKey,
         faces: [FaceKey; 2],
-        (q, top): (Point3<T>, T),
-        d: Vec3<T>,
+        (ray, top): (&geom::Ray<T>, T),
         band: Band,
         rows: RayRows,
     ) -> Result<(), RayFault<PointInSolidError>> {
@@ -3447,9 +3410,8 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let ray = geom::Line { origin: q, dir: d };
-        let along = ray.param(at);
-        let distance = ray.distance_within(at, (T::zero(), top));
+        let along = ray.line().param(at);
+        let distance = ray.line().distance_within(at, (ray.start(), top));
         match geom_core::k_stats::decide_magnitude(
             rows.vertex(),
             Margin::of(distance.max(T::zero())),
@@ -3876,7 +3838,7 @@ fn carrier_roots<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<CarrierRoots<T>, RayFault<PointInSolidError>> {
-    let q = ray.line.origin;
+    let q = ray.line().origin;
     let (mut roots, mut missed) = (Vec::new(), Vec::new());
     // Each face's fault, the highest kept: the ray's, whatever order its
     // faces are read in.
@@ -3901,7 +3863,7 @@ fn carrier_roots<T: Decide>(
                     radius,
                     sense,
                     ..
-                } => match line_wall_roots(ray.line, wall, radius, reach, band, About::Nearest)
+                } => match line_wall_roots(ray.line(), wall, radius, reach, band, About::Nearest)
                     .map_err(|fault| escalate(fault.diag))?
                 {
                     WallRoots::Miss => missed.push(face),
@@ -3923,7 +3885,7 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    let centred = line_cone_quadratic(ray.line, cone, half_angle, About::Nearest);
+                    let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
                     let a2 = centred.coeffs[0];
                     // A bound on the face's reach from its apex, never under
                     // it — the lever both margins below are metered by.
@@ -3966,7 +3928,7 @@ fn carrier_roots<T: Decide>(
                     radius,
                     sense,
                     ..
-                } => match line_sphere_roots(ray.line, center, radius, band, About::Nearest)
+                } => match line_sphere_roots(ray.line(), center, radius, band, About::Nearest)
                     .map_err(escalate)?
                 {
                     WallRoots::Two([near, far], slack) => {
@@ -3991,7 +3953,8 @@ fn carrier_roots<T: Decide>(
                     ..
                 } => {
                     let found =
-                        match line_torus_roots(ray.line, torus, major_radius, minor_radius, band) {
+                        match line_torus_roots(ray.line(), torus, major_radius, minor_radius, band)
+                        {
                             Ok(roots) => Ok(roots),
                             Err(RootRefusal::Unsettled(why)) => Err(why),
                             Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
@@ -4057,7 +4020,7 @@ fn root_outward<T: Decide>(
     ray: &geom::Ray<T>,
     band: Band,
 ) -> Result<Sign, RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
     let p = q + d * root.t;
     match (root.side, geo) {
@@ -4160,7 +4123,7 @@ fn reach_margin<T: Decide>(
     m: &Met<T>,
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let surface = body.proven_face(face).surface();
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
@@ -4216,14 +4179,8 @@ fn reaches_root_in_band<T: Decide>(
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let margin = reach_margin(body, face, ray, m, root)?;
-    match decide(rows.reaches(), Margin::of(margin), band) {
-        Ok(sign) => Ok(sign != Sign::Positive),
-        Err(diag) if crate::validate::in_band(&diag) => Ok(false),
-        Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
-            face,
-            diag,
-        })),
-    }
+    edge_gap::shown(decide(rows.reaches(), Margin::of(margin), band))
+        .map_err(|diag| edge_gap::set_aside(face, diag))
 }
 
 /// **Whether trimmed curved `face` holds the point `p` of its carrier**,
@@ -4259,8 +4216,12 @@ fn root_held<T: Decide>(
     }
 }
 
-/// Every crossing of the ray `q + s·d` ahead of `q` with the faces of
-/// `geos` (a selection's, each with its resolved query geometry), each
+/// Every crossing of `ray` ahead of its start with the faces of `geos`
+/// (a selection's, each with its resolved query geometry). `q` and `d`
+/// below are the ray's line's origin and direction: every advance is
+/// read from `q`, which is where the ray starts only for a ray built
+/// from its start (point containment's); an aimed ray's `q` is its aim
+/// and it starts behind it ([`geom::Ray::start`]). Each crossing is
 /// offered as a [`RayHit`] at its advance, and as on an edge where it
 /// lands on a curved face's boundary or meets it tangentially.
 ///
@@ -4300,12 +4261,12 @@ pub(crate) fn ray_crossings<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
-    let geom::Line { origin: q, dir: d } = ray.line;
+    let geom::Line { origin: q, dir: d } = ray.line();
     let reach = arm.length();
     let mut crossings = Crossings::new();
     let turn_ray = TurnRay { band, rows };
-    // A crossing at advance `t`, somewhere in `span`; behind `q` it is
-    // none.
+    // A crossing at advance `t`, somewhere in `span`; behind the ray's
+    // start it is none.
     let mut offer = |hit: RayHit<T>, span: (T, T), sideless: bool| {
         let escalate = |diag| PointInSolidError::Escalated {
             face: hit.face,
@@ -4327,7 +4288,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // ---- Each planar face's plane, crossed once. ----
     let mut planes: Vec<PlaneCross<T>> = Vec::new();
     for &(face, ref geo) in geos {
-        let FaceGeo::Plane(origin, normal) = *geo else {
+        let FaceGeo::Plane(PlaneDesc { origin, normal }) = *geo else {
             continue;
         };
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
@@ -4342,11 +4303,13 @@ pub(crate) fn ray_crossings<T: Decide>(
         let outward = decide(rows.denom(), Margin::levered(denom, arm), band).map_err(escalate)?;
         if outward == Sign::Zero {
             // A ray parallel to the plane within the band rises off it
-            // by at most the band's zero over the reach. The pre-pass
-            // passes q in band of the carrier wherever its foot is
-            // outside the face, so a miss is asked, not assumed: q
-            // definitely off the plane, or the face definitely to one
-            // side of the ray.
+            // by at most the band's zero over the reach, so it stands as
+            // far off the plane everywhere as its line's origin `q` does.
+            // That `q` may lie in band of the carrier: point containment's
+            // pre-pass passes a query there wherever its foot is outside
+            // the face, and an aimed ray's `q` is its aim, on another
+            // face. So a miss is asked, not assumed: `q` definitely off
+            // the plane, or the face definitely to one side of the ray.
             let clear = clear_of_carrier(geom::plane_offset(origin, normal, q), face, band, rows);
             if matches!(clear, Ok(true)) || ray_passes_beside(body, face, ray, normal, band, rows)?
             {
@@ -4454,9 +4417,15 @@ pub(crate) fn ray_crossings<T: Decide>(
             // carrier past that edge, outside the face.
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
-                let near =
-                    geom_core::k_stats::decide_magnitude(rows.represents(), Margin::of(off), band)
-                        != Ok(geom_core::k_stats::Magnitude::Positive);
+                // Near where the offset is within the band. One that is
+                // unread is not near: the crossing then stands only
+                // where the face holds it, the reading that asks more.
+                let near = Reach::of(geom_core::k_stats::decide_magnitude(
+                    rows.represents(),
+                    Margin::of(off),
+                    band,
+                ))
+                .within();
                 let held = match (c, plane) {
                     _ if near => Ok(Some(true)),
                     (Cross::Plane, Some(p)) => {
@@ -4483,8 +4452,9 @@ pub(crate) fn ray_crossings<T: Decide>(
         let [(ta, sa, ea), (tb, sb, eb)] = ends;
         // An edge's half crossings are its faces' crossings of their
         // carriers, which the ray makes through the edge only where both
-        // lie ahead of `q`: from a `q` in band of a face's carrier, the
-        // ray can pass the face's edge ahead and its carrier behind.
+        // lie ahead of its start: from a start in band of a face's
+        // carrier, the ray can pass the face's edge ahead and its carrier
+        // behind.
         let ahead = [ta, tb]
             .iter()
             .all(|&t| ray.ahead(t, rows.advance(), band) == Ok(Sign::Positive));
@@ -4639,7 +4609,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             | FaceGeo::TorusPatch { .. } => {}
             // A ray that may meet the untrimmable face ahead cannot be
             // answered; one that definitely misses the double cone, or
-            // meets it only behind `q`, takes no crossing from it. The
+            // meets it only behind its start, takes no crossing from it. The
             // quadratic and its margins are the cone arm's above.
             FaceGeo::PartialCone {
                 axis: cone @ geom::Line { origin: apex, .. },
@@ -4650,7 +4620,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 // ball holding the face blocks the ray; a `Zero` on any
                 // of these rows grazes, as on the trimmable arm, since a
                 // tighter tolerance could decide it either way.
-                let centred = line_cone_quadratic(ray.line, cone, half_angle, About::Nearest);
+                let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
                 if decide(
                     "bool_ray_cone_lead",
                     Margin::levered(centred.coeffs[0], reach),
@@ -4705,19 +4675,21 @@ pub(crate) fn ray_crossings<T: Decide>(
                 anchor,
                 reach: ball,
             } => {
-                let ts = match line_wall_roots(ray.line, wall, radius, reach, band, About::Nearest)
-                    .map_err(|fault| escalate(fault.diag))?
-                {
-                    WallRoots::Miss => continue,
-                    WallRoots::AxisParallel => {
-                        if clear_of_carrier(wall_elevation(wall, radius, q), face, band, rows)? {
-                            continue;
+                let ts =
+                    match line_wall_roots(ray.line(), wall, radius, reach, band, About::Nearest)
+                        .map_err(|fault| escalate(fault.diag))?
+                    {
+                        WallRoots::Miss => continue,
+                        WallRoots::AxisParallel => {
+                            if clear_of_carrier(wall_elevation(wall, radius, q), face, band, rows)?
+                            {
+                                continue;
+                            }
+                            return Err(RayFault::Graze);
                         }
-                        return Err(RayFault::Graze);
-                    }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
-                    WallRoots::Two(ts, _) => ts,
-                };
+                        WallRoots::Tangent => return Err(RayFault::Graze),
+                        WallRoots::Two(ts, _) => ts,
+                    };
                 for t in ts {
                     let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
@@ -4763,7 +4735,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     continue;
                 }
                 let ([near, far], slack) =
-                    match line_sphere_roots(ray.line, center, radius, band, About::Nearest)
+                    match line_sphere_roots(ray.line(), center, radius, band, About::Nearest)
                         .map_err(escalate)?
                     {
                         WallRoots::Two(ts, slack) => (ts, slack),
@@ -4798,7 +4770,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     continue;
                 }
                 let roots =
-                    match line_torus_roots(ray.line, torus, major_radius, minor_radius, band) {
+                    match line_torus_roots(ray.line(), torus, major_radius, minor_radius, band) {
                         Ok(roots) => Ok(roots),
                         Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
@@ -5441,6 +5413,8 @@ mod volume_read_key_rows {
 mod r1_probes;
 
 mod curved_edges;
+mod edge_gap;
+use edge_gap::{Gap, Reach};
 
 #[cfg(test)]
 mod r1_generic_poses;
@@ -5502,11 +5476,11 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
-            let reach = selection_reach(&body, sel.faces(), q).unwrap();
+            let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
             let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
             assert!(
                 !matches!(
@@ -5551,11 +5525,11 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
-                let reach = selection_reach(&body, sel.faces(), q).unwrap();
+                let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
                 let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
                 let pair = matches!(
                     &got,
@@ -5579,10 +5553,10 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
-            let reach = selection_reach(&body, sel.faces(), q).unwrap();
+            let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
             cast_ray(&body, &geos, &geom::Ray::new(q, d.normalize()), reach, band)
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
@@ -6288,7 +6262,7 @@ mod kind_arm_tests {
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = surface;
             let sel = SolidFaces::select(&body, faces).unwrap();
-            let read = face_geo_arms(&body, face, &sel.charts);
+            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
             assert_eq!(
                 refused,
@@ -6443,7 +6417,10 @@ mod reach_tests {
             at: root - off,
             span: (root - off, root - off),
             cross: [Cross::Root(0); 2],
-            gap: Gap::Zero,
+            gap: Reach::of(Ok(geom_core::k_stats::Magnitude::Zero))
+                .met()
+                .and_then(Result::ok)
+                .expect("a decided Zero is a gap"),
         };
         let (mut decided, mut in_band) = (0, 0);
         for i in 0..400 {

@@ -62,3 +62,32 @@ line: `crates/sweep/tests/thread-count-digest/eps-1e-6.txt:7` still reads
 `arc_loft_1e9eps vpad=40a1452432655556` (2.2105706969896955e3), the
 widened value. The digest re-cuts since changed verdict counts and
 hashes only. The widening is still unexplained.
+
+## A second widening on the 1e-12 line, explained (BOXFINISH, 2026-11-15)
+
+The same fixture moved again at ε 1e-12, from a different cause. PR
+6959 (`95892011`) widened `arc_loft_1e11eps` at
+`thread-count-digest/eps-1e-12.txt:6`: vpad `3db30319374e81b6` →
+`3db303198d26e97a` (+2.69e-7 relative) and apad `…b714d630` →
+`…b714d690` (+2.1e-14 relative, three ulps of one wall's area). That
+digest line is re-cut on `boxfinish/chart-ends-golden`.
+
+The term is check 4's `off_map` (`run_iso_checks`,
+`crates/geom-brep/src/pcurve_cache.rs`). At s = 0.1 the line rims on
+the three straight walls state the ends `(1, 0)` and `(1, 1)`. Their
+maps read `5.0 · 0.19999999999999998 = 0.9999999999999999` at the
+span's far end. That is one ulp short of the end, so each rim's
+envelope gains 2.22e-17. At s = 100 (ε 1e-9 and 1e-6) and s = 1e-3
+(`arc_loft_1e9eps`) the product reads 1 exactly, and nothing moves.
+
+How big the term is, measured with the term switched off and on:
+- **Per wall:** `boundary_defect` goes from 1.11e-17 to 2.00e-17 (two
+  rims, 0.2 each).
+- **Predicted vpad move:** Σ Δdefect · p_bound / 3 = 8.88e-18 ·
+  (0.4 + 0.6 + 0.6) / 3 = 4.74e-18. Measured: 4.65e-18.
+- **Rounding:** `widen` rounds each wall's flux and area bounds to
+  their own ulps. The area moves by exactly one ulp of 0.04 per wall
+  (6.94e-18, ×3 = 2.08e-17).
+
+With the term off, the row reproduces the old line bit for bit. The
+vpad widening at 1e-6 that this row tracks is not this term.

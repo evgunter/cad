@@ -878,6 +878,25 @@ it. The rule (2) spelling it checks a rostered mint's `target_len`
 against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
 ε-coupled family is held to.
 
+**Roster change (ONEDOOR face pair): a pairing is read only behind the
+reading that decided the faces parallel.** `geom_brep::classify_material_pairing_as`
+retires. Each of its readers reads the fact its own question is about,
+so the rows it carried change meaning:
+
+| name | carrier | what moved |
+|---|---|---|
+| `link_normal` | a named `const` (`LINK_NORMAL`), decided through the link's door | was the two faces' carriers' outward normals at the point, levered by the folded arm; now one sector's outward normal carried the links' reach off the point against the coplanar sector's plane, in metres. Does not pool with its earlier samples |
+| `at_rest_quiet_opposed`, `at_rest_quiet_axes_parallel`, `at_rest_quiet_centred` | retired | the quieting rule reads the facing of the pose the `Gap` is read in (`geom_brep::carrier_pose`); their samples end |
+| `carrier_pose_planes_parallel`, `carrier_pose_axes_parallel` | `geom_brep::Directions::name` (`POSE_PLANES_PARALLEL`, `POSE_AXES_PARALLEL`) | new: the pose's parallelism of two planes' normals or two axes, the sine levered at the faces' arm. The measure's gap and distance read it, and the quieting rule through the gap; `editor_core`'s `bool_plane_parallel` and `carrier_cyl_axis_parallel` samples end there (the names stay with `topo`'s carrier ladder, a different reading) |
+| `carrier_pose_round_side`, `carrier_pose_round_larger`, `carrier_pose_axis_along_plane` | named `const`s in `geom_brep::carrier_pose` | renamed from `gap_round_side`, `gap_round_larger`, `gap_axis_parallel_to_plane`, same margins; they pool with them |
+| `carrier_pose_planes_facing` | a named `const` (`POSE_PLANES_FACING`), through `geom_brep::normals_alignment` | new: two parallel planes' outward normals' cosine over the gap's arm, read only where a facing is asked |
+| `contact_tangent_opposed`, `tangent_gap_orientation`, `material_wedge_side` | the caller's name, handed to `geom_brep::normals_alignment` | the outward normals' cosine, as before; each name's samples pool. A decided zero now also decides the lever (`gradient_alignment_lever`) |
+| `gradient_alignment_lever` | a named `const` (`GRADIENT_ALIGNMENT_LEVER`) | new: the lever a perpendicular verdict stands behind, decided positive only where a cosine read zero |
+
+`census::ee_cross_backed` reads the pair's carrier relation, so the
+`dihedral_arm`, `dihedral_wedge` and `material_wedge_side` readings it
+took at each edge crossing end there.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
@@ -1351,6 +1370,15 @@ once per cap, two per body, and reads ±(half-perimeter) to within
 `O(ε/width)` on every certified cap, so it never lands near the band;
 a `Negative` sample is a cap whose inscribed polygon winds against its
 region (a large convex arc) and is flipped.
+
+**Roster change (BOXFINISH `sweep-frames`, 2026-11-14): one name
+retired, one thinned.** A sweep's cap is its station's frame (`sweep`'s
+`cap_plane`: the frame's origin, first axis and normal, signed by the
+traversal and the cap's end), so `cap_plane_orientation` decides
+nothing and is retired. The sweeps no longer fit a Newell plane to a cap
+or a line wall, so `newell_plane_residual` loses every sweep sample;
+`geom_brep::newell_plane` is a test fixture's mint now
+(`test-support`).
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
@@ -3763,3 +3791,151 @@ door, each reading `Δt·inf`, up to `sup/inf` under the arc:
   floor is short of positive (`geom_core::period::Extent::forward_by_arc`).
   Both readings bound the arc from below, so the forward claim keeps its
   direction.
+
+## INSTR addendum (2026-11-10): the large-K gate's flags, read uncapped
+
+A record of one reading. No rule, threshold or wiring changes with it,
+and the nightly `large-K lint` step stays pinned red at exit 2
+(`work/instr/k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs.md`).
+
+**What was measured.** Main `9fe94da35`, running the dump half of
+`scripts/k_probe_sweep.sh`, with the three CSVs linted as the nightly
+step lints them. The plain half stops at `assemble_one_local_battery`,
+a main red tracked on
+`work/onehome/main-red-the-gather-records-one-sample-tier-3-prime-does-not.md`.
+That half runs before any dump, so to get a dump at all the plain loop
+and its `--check-executed` floor were left out of a scratch copy of the
+script. The dump loop itself ran unchanged. The lily and lily_walls
+scenes stop at 1e-12 on the stem's pinned kernel limit, so the 1e-12
+file carries neither.
+
+```
+k-lint: 1e-6:  4271646 samples, 4159 flagged — rule 1: 2167, rule 2: 1992, rule 3: 1992
+k-lint: 1e-9:  4255332 samples, 5171 flagged — rule 1: 1830, rule 2: 2565, rule 3: 3341
+k-lint: 1e-12: 3767989 samples,  703 flagged — rule 1: 0,    rule 2: 703,  rule 3: 703
+```
+
+These are the 2026-11-09 flag counts exactly; only the sample counts
+grew. The driver lint (`--gate-rule-1-only`) exits 0 with 342 advisory
+flags.
+
+**The split, uncapped.** The CLI prints at most 200 flags per file. The
+split below is every flag `k_lint::lint_csv` returns, read by a scratch
+binary that links the crate, so no rule was re-implemented. Each cell
+is rule 1 / rule 2 / rule 3 flags.
+
+| predicate | shapes | 1e-6 | 1e-9 | 1e-12 | \|m\| |
+|---|---|---|---|---|---|
+| `bool_spline_region_carrier` | lily_walls | 1106 / 538 / 538 | 720 / 654 / 804 | — | ε … 3.9e-5 |
+| `curve_pair_walk_foot_clear` | lily_walls | 504 / 144 / 144 | 522 / 522 / 882 | — | ε … 2.6e-5 |
+| `curve_pair_walk_foot_piece` | lily_walls | 252 / 72 / 72 | 270 / 252 / 432 | — | a ×2 ladder |
+| `curve_pair_pose_parallel` | lily, lily_walls, projectbox_cutaway, axis_projection, revolves_on_one_axis | 195 / 204 / 204 | 234 / 165 / 165 | 0 / 145 / 145 | `Kε` (in band at `Kε − δ`); `0.342·Kε` |
+| `curve_pair_pose_clear` | the same | 84 / 301 / 301 | 84 / 301 / 301 | 0 / 129 / 129 | `Kε` (in band at `Kε − δ`) |
+| `curve_pair_pose_tilt` | letterforms, az | 0 / 118 / 118 | 0 / 118 / 118 | 0 / 118 / 118 | exactly `2Kε` |
+| `bool_pair_gap` | lily, lily_walls, projectbox_cutaway, tiltedcut, axis_projection, revolves_on_one_axis | 0 / 541 / 541 | 0 / 541 / 541 | 0 / 311 / 311 | exactly `24·ε` |
+| `plane_crossing_belly_graze` | lily, lily_walls | 0 / 66 / 66 | 0 / 0 / 66 | — | 2.9169e-5 |
+| `link_wedge` | lily_walls | 0 / 8 / 8 | 0 / 0 / 8 | — | 3.8090e-5 |
+| `bool_ray_torus_disc` | lily, lily_walls | 14 / 0 / 0 | 0 / 12 / 14 | — | 6.0e-6 to 7.8e-6 at 1e-6; varies with ε |
+| `tangent_sector_order2` | lily_walls | 8 / 0 / 0 | 0 / 0 / 8 | — | 8.3336e-6 |
+| `bool_conic_quadric_sub_clear` | lily_walls | 4 / 0 / 0 | 0 / 0 / 2 | — | 3.0555e-6 |
+
+`δ` is rounding, from 7e-18 m to 6e-17 m. A dash means the lily was not
+recorded at that row.
+
+**Three populations, and where each is routed.**
+
+- **A, ε-coupled pads: `bool_pair_gap` and `curve_pair_pose_{clear,parallel,tilt}`.**
+  When the geometric term is zero, the recorded margin is the pad the
+  site subtracts or the lever it reads: `24·ε`, `Kε` or `2Kε`. Where
+  the pad is exactly `Kε`, rounding decides whether the sample is in
+  band or definite, so the same sample moves between rule 1 and rules 2
+  and 3 from one ε row to the next.
+  - Rule 1: `work/cpair/the-pose-screens-clear-and-parallel-record-minus-k-eps-and-land-in-band-under-k-lint.md`.
+  - Rules 2 and 3: the rule (4) fork on
+    `work/instr/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint.md`.
+    Every one of these margins sits below rule (4)'s `150·ε`.
+- **B, refinement walks: `curve_pair_walk_foot_{clear,piece}` and `bool_spline_region_carrier`.**
+  Each halves a reach or a cell and records a sample at every step.
+  The stop test takes only `Negative | Zero`, so every walk passes
+  through `(ε, Kε)` under rule 1, and records one rule-2 or rule-3 sample
+  per decade above it.
+  - Rule 1: `work/cpair/lily-walls-curve-walks-decide-24045-margins-in-band-under-k-lint.md`
+    and `work/splice/the-spline-region-carrier-walk-records-in-band-margins-by-construction-under-k-lint.md`.
+  - Rules 2 and 3: `work/instr/refinement-walks-flag-rules-2-and-3-by-construction-in-the-gated-sweep.md`.
+- **C, the lily's fine features, 3 µm to 38 µm.** All are ε-independent
+  except `bool_ray_torus_disc`. The 26 rule-1 samples land in band at
+  1e-6 only. That is M7-F1's "thin FEATURE headroom" at 1e-6, now under
+  rule 1, so the protocol's two checks (dimension, then disposition)
+  are the owners':
+  - `work/inside/a-lily-wall-ray-reads-the-torus-quartic-disc-in-band-at-1e-6.md`;
+  - `work/germ/a-lily-wall-conic-quadric-sub-clearance-of-3-microns-is-in-band-at-1e-6.md`;
+  - `work/splice/a-lily-wall-tangent-sector-order2-margin-of-8-microns-escalates-at-1e-6.md`.
+
+  The definite rows under 4e-5 are the stale floor of
+  `work/instr/k-lints-definite-floor-is-read-off-a-retired-predicate.md`.
+
+No k-lint threshold reaches any rule-1 sample: rule 1 reads only the
+`outcome` column.
+
+**Why `BASELINE_FLOOR_MARGIN` is not re-cut at this reading.** The
+snapshot contract would cut it at P0 of the ε-independent definite
+population. Here that P0 is 2.9169e-5 (`plane_crossing_belly_graze`),
+which puts the floor near 2.5e-5. Four things say not yet:
+
+1. **Its candidates are unread rule-1 samples.** The smaller
+   ε-independent margins in C (3.06e-6, 8.33e-6) are definite at 1e-9
+   and in band at 1e-6, and their owners have not yet checked their
+   dimension (M7 addendum, 2026-08-05, caveat 1). Counting them would
+   put the floor near 2.5e-6, only about 8% above the #99 litmus datum
+   of 2.315e-6.
+2. **The 1e-12 file lacks the lily.** A baseline cut now cannot carry
+   the same ε-independent population at all three rows, which is the
+   property the M7 floor was cut on.
+3. **P0's premise does not hold.** The M7 argument for P0 rests on an
+   empty gap between the zero cluster and the definite bottom. B fills
+   that gap with samples at every decade from `Kε` up to 3.9e-5.
+4. **It would buy almost nothing.** A floor near 2.5e-5 clears C's 74
+   definite rows at 1e-6 and at 1e-9: 148 of the 6036 rule-2 and rule-3
+   flags. Rule 1 stays at 3997, and the step still exits 2.
+
+**A stale phrase.** "The row is a GATE" above says to demote the row
+"in both wirings". Only one wiring runs the large-K lint today,
+`nightly.yml`'s `dev-probe` row. `ci.yml` runs only the tool's own
+tests. The phrase dates from when the row ran in two places: hosted
+`ci.yml` and `scripts/ci-local.sh` (`f6cd8d89a`, 2026-08-08). The
+local script is gone. The re-wording belongs with this report's other
+stale `ci.yml` sites, on
+`work/instr/k-report-still-names-ci-yml-for-the-k-lint-row.md`.
+
+## Census note (2026-11-13): the carrier ladder's plane rows take their modules' prefixes
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the carrier ladder (`carrier_eq.rs`) and its planar arm (`plane_eq.rs`)
+out of `topo::boolean` to `geom-brep`'s root, since neither takes a
+`Body` nor an arena key, and a K name's prefix is the module that
+decides the margin. The `bool_` prefix named the Boolean, which no
+longer decides these. Each name below is one site and one population,
+so each is renamed and nothing pools: margins, bands, outcomes and
+order are untouched, only the `predicate` column moves, and the census
+count is the same on both sides.
+
+| old | new | decided in |
+|---|---|---|
+| `bool_plane_parallel` | `plane_eq_parallel` | `geom_brep::plane_eq` |
+| `bool_plane_orient` | `plane_eq_orient` | `geom_brep::plane_eq` |
+| `bool_plane_offset` | `plane_eq_offset` | `geom_brep::plane_eq` |
+| `bool_plane_reach` | `carrier_plane_reach` | `geom_brep::carrier_eq` |
+| `bool_plane_reach_straddle` | `carrier_plane_reach_straddle` | `geom_brep::carrier_eq` |
+
+The plane reach rows take `carrier_eq`'s own prefix, which their
+siblings (`carrier_sphere_reach`, `carrier_cyl_reach`,
+`carrier_cone_reach` and their straddles) and the ladder's data rows
+(`carrier_sphere_center`, …) already carry. None of the five new
+spellings was decided anywhere at the merge base. Three of the old
+spellings are in committed snapshots, as the sweeps wrote them:
+`bool_plane_parallel` (10928 rows in each `m4-eps-*.csv.gz`, 10977 in
+each `m5-eps-*.csv.gz`, 10989 in each `m7-eps-*.csv.gz`), and
+`bool_plane_orient` and `bool_plane_offset` (353, 366 and 366 each).
+The two reach rows appear in no committed CSV. The committed CSVs and
+the addenda above keep the old spellings.

@@ -393,7 +393,8 @@ impl ContainError {
             Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
-                "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
+                "contfp: {u}. Recourse: {}",
+                crate::meeting::CONIC_OUTLINE_RECOURSE
             ),
             Self::ArcEndClearOfCorners(gaps) => write!(
                 f,
@@ -1253,17 +1254,6 @@ pub(crate) fn one_vertex_at<T: Decide>(
     let (magnitude, margin) =
         geom_core::k_stats::decide_magnitude_reported("bool_contact_vertex", distance, band)?;
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
-}
-
-/// A surface kind as the person holding the mouse reads it. The
-/// spline kinds get one spelling everywhere a Boolean refusal names
-/// them; every other kind is its own name.
-pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
-    match kind {
-        geom::SurfaceKind::Nurbs => "spline (NURBS)",
-        geom::SurfaceKind::Approx => "approximated spline",
-        other => other.name(),
-    }
 }
 
 #[cfg(test)]

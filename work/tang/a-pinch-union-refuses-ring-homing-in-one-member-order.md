@@ -30,7 +30,7 @@ fixture `pinch`); the refusal is raised by the ring rehoming in
 `crates/topo/src/chord_join.rs`
 (`SplitJoinError::RingHomingAmbiguous`). The same order-set's
 `[p1, p2, plate]` body trips the tessellator's watertight census
-(`work/tess/a-pinch-union-body-trips-the-watertight-census-in-one-member-order.md`).
+(`work/tesslane/a-pinch-union-body-trips-the-watertight-census-in-one-member-order.md`).
 
 ## Outcome (2026-10-02, branch `tang/pinch-union-order`)
 
@@ -109,7 +109,7 @@ pinch's strut ring has every vertex on the run. Filed:
     - Filed as `work/wire/a-boolean-drops-its-operands-own-contact-records.md`.
   - X ∩ P and P ∩ X mesh a doubled edge as one segment of four
     triangles, which `check_mesh` refuses. Filed as
-    `work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.
+    `work/tesslane/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.
 - `union_pinch_member_order.rs` asserts both divergences, citing the two
   rows.
 

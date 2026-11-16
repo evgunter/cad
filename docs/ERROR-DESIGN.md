@@ -189,16 +189,19 @@ content-key cached like everything.
   - or from both sides at once: `= c`, or a band `lo ≤ clearance(a, b)
     ≤ hi`.
 
-  Each of `a` and `b` selects which faces of which body: a body
-  reference means all of its faces, a face reference means that one
-  face. The bounds are length formulas. The assertion reads like an
+  Each of `a` and `b` selects a set of points: a body reference
+  selects its material, a face reference that one face. The clearance
+  is the distance between the two sets, so material the two share, by
+  a crossing or by burial, is at distance 0, and a core inside a cavity
+  is not in the material around it. The bounds are length formulas. The assertion reads like an
   equation, though no clearance value exists.
   - **Its verdict** comes from E7's sweep at the bounds, never from the
     minimum. Each bound is decided with the margin every assertion
     carries.
     - A lower bound holds when every pair is certified clear of it. A
       violating pair breaks it: two face points that the `f64` rebuild
-      decides are closer than the bound.
+      decides are closer than the bound, or a point of one selection
+      that it decides lies in the other's material.
     - An upper bound holds when a verified pair lies within it, and
       that pair is its witness. It is violated when every pair is
       certified clear of it.
@@ -208,7 +211,9 @@ content-key cached like everything.
     - A refusal, typed, is the verdict's third state.
   - **The minimum is never computed.** No node holds a clearance
     value, so a definition's arithmetic over a clearance cannot be
-    written.
+    written. Nor does a violated clearance carry a depth: whether two
+    bodies' material overlaps, where, and quieted by what is the
+    census's question, and its signed quantity is `Gap`.
   - **Same body on both sides.** That body's self-clearance; scopes
     that meet violate, named on the shared cell (*Self-intersection
     scope*, E7).
@@ -216,7 +221,7 @@ content-key cached like everything.
     is a later selection spelling, not a different form.
 - **Parallelism verdicts a measure consumes are levered by the
   operands' EXTENT, with no floor.** `distance`/`gap` over plane or
-  axis pairs consume `bool_plane_parallel` /
+  axis pairs consume `plane_eq_parallel` /
   `carrier_cyl_axis_parallel` at margin `sin θ · L`. M10-2 shipped
   `L = max(separation, 1 m)`, an ad-hoc absolute constant of exactly
   the class the rejected lever-arm unification names: for every
@@ -531,9 +536,13 @@ the whole point of this machinery"). The E6 leaf protocol gains a
 SYMBOLIC tier ahead of the numeric one: beside every lane value the
 replay carries a handle into a hash-consed expression DAG over the
 document's continuous-parameter symbols, and a funnel margin whose
-expression is IDENTICALLY ZERO in the parameters decides `Zero`
-before any enclosure is consulted — for every parameter value, at
-any box width. Everything else decides numerically as today.
+expression is zero at every parameter value in the leaf's box at which
+the build takes the decisions this replay took decides `Zero` before
+any enclosure is consulted, at any box width. Those are the only
+values at which this body exists; a sign the construction never
+compared is not one of its decisions. Where the plain normal form is
+the zero polynomial, that is every parameter value. Everything else
+decides numerically as today.
 
 **The defect it closes** (measured by M10-3, pinned by
 `m10_3_driver_interval::a_macroscopic_box_refuses_all_of_its_mass_as_budget_today`).
@@ -645,7 +654,12 @@ number.
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
   a session-level record that two DAG NODES denote one function of the
-  parameters, made by the site that guarantees it. A zero through it
+  parameters — equal at every parameter value, not only where a
+  decision of the registrant came out as it did — made by the site
+  that guarantees it. A fact that holds only past a decision is not
+  registered: the construction spells that decision as a literal sign
+  (`4·atan(σ·b)`, a radius `σ·ρ`), and the fact is then an identity of
+  the expressions it built. A zero through it
   is counted with every other symbolic zero (`SymCounts::symbolic`,
   the K token `symbolic`), and what the registry buys a document
   is the differential with the door shut (`SymRules::registered`).

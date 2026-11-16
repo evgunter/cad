@@ -14,7 +14,7 @@ cost: M
 Found by RIMSCALAR (CLEAR), which builds every row of
 `crates/sweep/tests/self_intersection_proves_injectivity.rs` at
 `Body<Interval>` by the same generic builders as at `Body<f64>`. The row
-`a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone`
+`a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
 builds rod `A` (`sweep::test_support::prism_at`, radius 1, `z ∈ [−3, 3]`)
 less the slab tilted `−π/4` about `y`, then unites it with rod `B`
 (`z ∈ [0.2, 3]`) turned `π/2` about `y`. At `f64` both operations build.
@@ -58,8 +58,18 @@ so it goes red when the union builds at any ε.
 
 On that branch the cylinder–cylinder tee
 (`sweep/tests/self_intersection_proves_injectivity.rs`
-`a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone`)
+`a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`)
 unites at `Interval` at the default ε and 1e-6, and still refuses typed at
 1e-12: the ruled region's span now reads the rim's parameter through
 `Period::near`, not through a floor a turn wide at the middle's antipode.
 The row's pin was flipped there.
+
+**The tee builds at 1e-12 too (GREEN `green/eps-1e-12`, 2026-11-14).**
+Since PR 6516 (`onecopy/meet-interval`, merge `b9cc0096c`; its first
+parent `b5d0d8805` still refuses), the tee's `Interval` union builds at
+ε 1e-12 as the `f64` body: the same f/e/v, and a volume enclosure
+[17.82886385, 17.82886387] bracketing `f64`'s 17.8288638620. The row
+`self_intersection_proves_injectivity::a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
+(renamed from `…_tee_refuses_typed_…`) now requires the build at every
+ε, so nothing above stays red on main. Whether this row closes is its
+owner's call.

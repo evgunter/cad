@@ -17,7 +17,7 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::readback::euler_counts;
 use topo::{
-    Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    Body, JoinError, SplitError, SplitFinishError, SplitPart, SplitPlane, SplitReduceError,
     Surface, mass_properties, plane_section, split, validate_closed, validate_geometric,
 };
 
@@ -1104,7 +1104,7 @@ fn no_split_refusal_names_a_stage() {
     };
     let cases = [
         SplitError::Reduce(topo::splitting::SplitReduceError::Band(band)),
-        SplitError::Join(SplitJoinError::Band(band)),
+        SplitError::Join(JoinError::Band(band)),
         SplitError::Finish(SplitFinishError::Band(band)),
         SplitError::Pcurves(topo::pcurves::PcurveMintError::Band(band)),
     ];

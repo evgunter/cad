@@ -327,12 +327,8 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     for seam in seams {
         let margin = sweep::test_support::smooth_reading(&body, seam, 0.02, tol());
         assert_eq!(
-            (
-                margin.predicate,
-                margin.reading.diagnostic_f64_for_error_text().value()
-            ),
-            ("fillet3_convexity_sign", Some(0.0)),
-            "a co-surface seam's dihedral is exactly zero, got {margin}"
+            margin, None,
+            "a co-surface seam is read by identity, no margin read"
         );
     }
 }

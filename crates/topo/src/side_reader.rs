@@ -222,7 +222,7 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", {} is a {} surface, which no ray can cross yet",
                     EntityId::Face(*face),
-                    crate::contain::kind_word(*kind)
+                    kind.word()
                 )?,
                 SetAsideWhy::Limit(e) => write!(f, ", {}", e.summary())?,
             }
@@ -281,7 +281,7 @@ fn aim_at<T: Decide>(
     geo: &FaceGeo<T>,
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
-    if let Some((_, normal)) = crate::face_normal::face_plane(body, face) {
+    if let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face) {
         if let Some(aim) = loop_aim(body, face, normal) {
             return Ok(Some((aim, normal)));
         }
@@ -377,48 +377,6 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     }
     let into = crate::stands::inward(normal, tau);
     Some(m + into.normalize() * step.unwrap_or(T::zero()).max(T::zero()))
-}
-
-/// **How far from `aim` any face of the selection reaches**: the loops'
-/// reach ([`selection_reach`]), which holds a planar face (its outer
-/// loop's hull) and a wall (its rulings' segments), and for a face on a
-/// bounded carrier, which can bulge past its loops' hull, the farthest
-/// its carrier's whole cover reaches from `aim` ([`geom::Surface::cover`]:
-/// a sphere's ball, a torus's tube, a spline's net). An aimed ray starts
-/// twice this far from its aim, so its start lies beyond every face of
-/// the selection, whatever it is aimed at.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for a face whose carrier's region
-/// cannot be bounded (a poisoned net, data that is not a finite number),
-/// which no start is shown beyond.
-///
-/// # Panics
-///
-/// Where a face of the selection does not resolve ([`SolidFaces`]).
-fn beyond<T: Decide>(
-    body: &Body<T>,
-    faces: &[FaceKey],
-    aim: Point3<T>,
-) -> Result<T, PointInSolidError> {
-    let mut reach = selection_reach(body, faces, aim)?.length();
-    for &face in faces {
-        match body.proven_face(face).surface().cover() {
-            Ok(cover) => {
-                reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
-            }
-            // An unbounded carrier's face is held by its loops' reach.
-            Err(e)
-                if e.unknowns()
-                    .iter()
-                    .all(|&(_, what)| what == geom::cover::Unknown::Unbounded) => {}
-            // A carrier whose region cannot be bounded leaves no start
-            // beyond its face: refuse rather than aim from inside it.
-            Err(_) => return Err(PointInSolidError::CorruptFace { face }),
-        }
-    }
-    Ok(reach)
 }
 
 /// **Whether faces `a` and `b` meet**, so that a ray's two crossings of
@@ -614,7 +572,7 @@ fn cast_aims<T: Decide>(
     // is cast, and the volume reads with that face as the limit.
     let mut geos = Vec::with_capacity(faces.len());
     for &face in faces {
-        match face_geo(body, face, &sel.charts) {
+        match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geos.push((face, geo)),
             Err(e) => {
                 return Ok(Rays::Unread {
@@ -677,9 +635,21 @@ enum Aimed {
     SetAside(SetAsideWhy),
 }
 
-/// **One aimed ray**: from twice the selection's reach off `aim` on
-/// `face`, at [`AIM_INCIDENCE`] to `normal`, turned off the coordinate
-/// planes ([`aim_turn`]), read off the sign of its count.
+/// **One aimed ray**: the line through `aim` on `face` at
+/// [`AIM_INCIDENCE`] to `normal`, turned off the coordinate planes
+/// ([`aim_turn`]), read from twice the selection's reach before `aim`
+/// off the sign of its count.
+///
+/// The ray is its line through `aim` along `−out` and the advance it
+/// starts at, never a start point and a direction read back off it: the
+/// crossing walk reads every crossing from `aim`
+/// ([`geom::Ray::starting`]), so a crossing is as wide as `aim`, `out`
+/// and the face crossed make it, and the start's width, which is the
+/// reach's, enters only the forward tests ([`geom::Ray::ahead`]), where
+/// a crossing of a face lies at least the reach past the start. `out` is
+/// unit as `normal` is, so an advance along it is a length; that a
+/// face's stored normal is unit is the body's to hold, and nothing here
+/// checks it.
 #[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
@@ -702,13 +672,12 @@ fn aimed_ray<T: Decide>(
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
-    let d = (aim - from).normalize();
-    let reach = selection_reach(body, faces, from)?;
+    let reach = selection_reach(body, faces, aim, band)?;
+    let start = reach.length() * T::from_f64(-2.0);
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::new(from, d),
+        &geom::Ray::starting(aim, -out, start),
         reach,
         band,
         AIMED_ROWS,
@@ -759,13 +728,19 @@ fn aimed_ray<T: Decide>(
     )
 }
 /// **How far each solid's aimed rays start from `aim`, over two**
-/// ([`beyond`]): the probes read the reach's scale off it.
+/// ([`selection_reach`]): the probes read the reach's scale off it.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn beyond_report(body: &Body<f64>, aim: Point3<f64>) -> Vec<Result<f64, String>> {
+pub(crate) fn beyond_report(
+    body: &Body<f64>,
+    aim: Point3<f64>,
+    band: Band,
+) -> Vec<Result<f64, String>> {
     body.solids()
         .map(|(solid, _)| {
             let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
-            beyond(body, sel.faces(), aim).map_err(|e| format!("{e:?}"))
+            selection_reach(body, sel.faces(), aim, band)
+                .map(|reach| reach.length())
+                .map_err(|e| format!("{e:?}"))
         })
         .collect()
 }
@@ -810,7 +785,7 @@ pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<Stri
         let geos: Vec<_> = match sel
             .faces()
             .iter()
-            .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+            .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
             .collect()
         {
             Ok(geos) => geos,
@@ -954,7 +929,7 @@ pub(crate) fn ray_at_report<T: Decide>(
     let geos: Result<Vec<_>, _> = sel
         .faces()
         .iter()
-        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
         .collect();
     match geos {
         Ok(geos) => format!(
@@ -987,7 +962,7 @@ pub(crate) fn ray_counts(
     let mut geos: Vec<_> = sel
         .faces()
         .iter()
-        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
         .collect::<Result<_, _>>()
         .map_err(|e| format!("{e:?}"))?;
     if reversed {
@@ -995,8 +970,8 @@ pub(crate) fn ray_counts(
     }
     let n = geos.len().max(1);
     geos.rotate_left(turn % n);
-    let reach =
-        selection_reach(body, sel.faces(), ray.line.origin).map_err(|e| format!("{e:?}"))?;
+    let reach = selection_reach(body, sel.faces(), ray.line().origin, band)
+        .map_err(|e| format!("{e:?}"))?;
     let crossings =
         ray_crossings(body, &geos, ray, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
     Ok(crossings
@@ -1004,6 +979,74 @@ pub(crate) fn ray_counts(
         .into_iter()
         .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
         .collect())
+}
+
+#[cfg(test)]
+mod aimed_ray_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::test_support_fixtures::brick;
+    use geom_core::Tol;
+
+    /// **A ray that starts before its line's origin reads what lies
+    /// between them**: the crossings and marks of a ray from its start
+    /// are those of the same half-line given through a point `k` further
+    /// along it, each advance `k` less. One line crosses two faces of a
+    /// brick clear of its edges; the other runs through two opposite
+    /// corners, where only its marks are compared (a crossing read at a
+    /// corner is rounding's, and the mark there is what the count
+    /// reads). Red against a walk that drops what lies behind the origin,
+    /// or holds a vertex's distance from the ray at the origin and not at
+    /// the start.
+    #[test]
+    fn a_ray_started_before_its_origin_reads_what_lies_between() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().expect("a brick has faces").0;
+        let counts = |ray: &geom::Ray<f64>, marks_only: bool| {
+            let mut hits = ray_counts(&body, face, ray, band, (0, false)).expect("the ray reads");
+            hits.retain(|hit| hit.3 || !marks_only);
+            hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+            hits
+        };
+        let through_faces = (Point3::new(-1.0, 0.4, 0.3), Vec3::new(1.0, 0.0, 0.0));
+        let third = 1.0 / 3.0_f64.sqrt();
+        let through_corners = (
+            Point3::new(-1.0, -1.0, -1.0),
+            Vec3::new(third, third, third),
+        );
+        for (what, (start, d), hits, marks_only) in [
+            ("through two faces", through_faces, 2, false),
+            ("through two corners", through_corners, 2, true),
+        ] {
+            let from_start = counts(&geom::Ray::new(start, d), marks_only);
+            assert!(
+                from_start.len() >= hits,
+                "{what}: the ray from its start reads the brick: {from_start:?}"
+            );
+            for k in [0.5, 3.0, 7.0] {
+                let given = counts(&geom::Ray::starting(start + d * k, d, -k), marks_only);
+                assert_eq!(
+                    given.len(),
+                    from_start.len(),
+                    "{what}, origin {k} along: {given:?} against {from_start:?}"
+                );
+                for (a, b) in from_start.iter().zip(&given) {
+                    assert!(
+                        (a.0 - k - b.0).abs() < 1e-9
+                            && (a.1 - k - b.1).abs() < 1e-9
+                            && (a.2, a.3) == (b.2, b.3),
+                        "{what}, origin {k} along: {b:?} is not {a:?} less {k}"
+                    );
+                }
+            }
+            // The same origin with no start before it reads nothing
+            // behind itself.
+            let past = counts(&geom::Ray::new(start + d * 7.0, d), marks_only);
+            assert!(past.is_empty(), "{what}: past the brick: {past:?}");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1073,28 +1116,30 @@ mod pre_filter_tests {
         // The limit is the one a ray meets at that face, from anywhere:
         // the face's geometry refuses.
         assert!(
-            matches!(face_geo(&body, spline, &sel.charts), Err(e) if e == want),
+            matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
             "a ray meets the same refusal"
         );
     }
 
     /// **A face whose carrier bounds no region refuses the reach**: a
     /// placeholder spline's net is poison, so no start is shown beyond
-    /// it, and `beyond` refuses naming the face rather than reading the
-    /// face as adding nothing. The brick's planar faces alone read.
+    /// it, and the selection's reach refuses naming the face rather than
+    /// reading the face as adding nothing. The brick's planar faces alone
+    /// read.
     #[test]
     fn a_face_whose_carrier_bounds_no_region_refuses_the_reach() {
         let (mut body, faces) = brick_and_faces(Tol::witness());
         let aim = Point3::new(0.5, 0.5, 0.5);
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance is a band");
         assert!(
-            beyond(&body, &faces, aim).is_ok(),
+            selection_reach(&body, &faces, aim, band).is_ok(),
             "the planar brick has a reach"
         );
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
         *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
         assert_eq!(
-            beyond(&body, &faces, aim),
+            selection_reach(&body, &faces, aim, band).map(|r| r.length()),
             Err(PointInSolidError::CorruptFace { face: spline }),
             "the poisoned net's face refuses"
         );
@@ -1217,3 +1262,7 @@ mod pre_filter_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "side_reader_boxed_brick_rows.rs"]
+mod boxed_brick_rows;

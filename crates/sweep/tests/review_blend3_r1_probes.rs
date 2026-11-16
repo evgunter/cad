@@ -12,10 +12,11 @@
 //! 2. **Is the shape argument tight?** BLEND-3 argues that the
 //!    requested set must be a whole component of the edge graph, so a
 //!    pocket cannot supply one, an unvented cavity is two shells, and
-//!    the twelve-edge cavity is therefore the shape. The first two
-//!    steps are executed here; the last one is FALSIFIED — a
-//!    triangular-prism cavity is the same argument's shape with nine
-//!    edges and six corners, and it carves.
+//!    the twelve-edge cavity is therefore the shape. Each step is
+//!    executed here. The first no longer holds — a pocket's concave
+//!    edges carve, its verticals cut off at the rim's mixed corners —
+//!    and the last is FALSIFIED: a triangular-prism cavity is the same
+//!    argument's shape with nine edges and six corners, and it carves.
 //! 3. **Does the ring gate still meter on the concave side?** A
 //!    concave carve moves the ceiling's trimlines the other way round
 //!    the material. A vent wide enough to collide with them must
@@ -41,6 +42,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::band_planar_cut_off::{Verb, volume};
 use crate::common::cavity::{brick, cut, edges_with_corners, prism, rod};
 use crate::common::oracles::{chamfered_cube_removed, rounded_box_volume};
 use geom_core::{Point2, Point3, Tol};
@@ -127,12 +129,15 @@ fn r1_a_square_vent_carves_past_the_ring_gate_and_both_convexity_doors() {
 
 /// **Step one of the argument: a pocket ends at mixed corners.** A
 /// cavity opened to the top face is the shape a modeller reaches for
-/// first, and BLEND-3 argues it cannot serve: its concave edges run
-/// into the rim, where they meet convex ones. Requesting the pocket's
-/// eight concave edges is refused, and the refusal is a corner or
-/// run-out one — never a carve.
+/// first, and BLEND-3 argued it cannot serve: its concave edges run
+/// into the rim, where they meet convex ones. That no longer stops it:
+/// each vertical is the odd edge of its rim corner, requested alone
+/// there, so it is cut off square at the top face. The pocket's eight
+/// concave edges carve, filling what the same chamfer would take from
+/// the void's box — eight prisms of `d²/2` over length 2, less the
+/// four floor corners' `(2/3)d³`.
 #[test]
-fn r1_a_pocket_cannot_supply_an_all_concave_component() {
+fn r1_a_pockets_concave_edges_carve_ending_at_the_rims_mixed_corners() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
     let body = cut("pocket", &block, &pocket);
@@ -173,20 +178,23 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
         "four floor edges and four verticals — the pocket's concave set"
     );
 
-    let err = chamfer_edges(
+    let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a pocket's concave edges are not a closed component");
+    .unwrap_or_else(|e| panic!("a pocket's concave edges carve, got {:?}", e.error));
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "the carved pocket, tier 3"
+    );
+    let added = volume(&out.body) - volume(&body);
+    let want = 8.0 * D * D / 2.0 * 2.0 - 4.0 * Verb::Chamfer.corner_at(D);
     assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner { .. } | BlendError::UnsupportedRunOut { .. }
-        ),
-        "expected a corner/run-out refusal at the pocket's rim, got {:?}",
-        err.error
+        (added - want).abs() < 1e-12,
+        "the pocket fills {added}, the void box's chamfer {want}"
     );
 }
 

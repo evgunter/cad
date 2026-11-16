@@ -58,3 +58,19 @@ row says. Measured: the census's loft prism against a brick inside it,
 and against a peg through its top cap, refuse
 `Containment(KindUnsupported { kind: Nurbs })` at the fallback's
 vertex probe.
+
+## The spline booleans' next stop (2026-11-12, `sectarms/spline-curved-at-rest`)
+
+A ball across a loft prism's wall now passes the join: its chords
+certify at rest (`edge_nurbs::curved_nurbs_limbs`). Union, subtract and
+intersect, in either operand order, across the flat wall and the flared
+one, all then refuse `Containment(KindUnsupported { kind: Nurbs })`
+naming a wall of the prism, as the brick across the flat wall does
+(`sweep` `a_partner_across_a_lofted_wall_is_joined_on_its_section_value`,
+both rows pin it). The ball stands inside the hull of the prism's
+reach, so the box exit above does not read it.
+
+SECTARMS's join unit (`work/sectarms/the-join-reads-a-spline-implicit-section.md`,
+P0) is done when the sphere × lofted-wall union builds with its volume
+held, and this arm is the last stop measured before that. This row is
+P3.
