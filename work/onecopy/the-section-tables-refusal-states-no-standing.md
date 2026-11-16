@@ -2,7 +2,9 @@
 id: the-section-tables-refusal-states-no-standing
 kind: issue
 title: geom_brep::SectionError states no standing, so the join's Section cause stands as an abort
-status: open
+status: closed
+closed: 2026-11-10
+branch: onecopy/section-error-standing
 opened: 2026-11-10
 ---
 
@@ -36,3 +38,22 @@ causes `Unaccounted` carries only by `cause.contains("cell budget")`;
 a typed cause (or a standing that says "a budget, not a decision")
 would let it match the variant.
 
+## Closed: each section refusal stands by its cause (#onecopy/section-error-standing)
+
+`geom_brep::SectionError::refusal` (`crates/geom-brep/src/intersect.rs`) is exhaustive, and `JoinError::Section` delegates to it. The standings are:
+
+- **By margin:** escalations, and the carrier and spiric constructors' escalations.
+- **In band:** `CoincidentSurfaces`. Also `Unordered`, now decided `Zero` only, because the torus arms carry an undecided side to `Escalated`. Also `ConeAtTheBand`, the cone's aperture and seam guards decided `Zero`, split from `DegenerateOperand`.
+- **Limits:** an arm not built, a station beyond the extent, an ellipse past what the representation carries.
+- **Aborts:** a caller's defect, a constructor disagreeing with its arm, and a mixed cause.
+
+Two standings moved on the ladder's path, which reaches `SectionError` only through the plane-cone apex section:
+- `Carrier(Escalated)` moved from abort to its margin.
+- A cone's guard decided `Zero` moved from abort to in band.
+
+A probe at default ε and at `1e-12` found no ladder reading a section refusal in-suite, so no reached outcome moved. Both standings are pinned through the apex section.
+
+Three residues remain, each with its own row:
+- `Pinched`: `work/onecopy/section-pinched-mixes-decided-tangencies-with-undecided-ones.md`.
+- `DegenerateOperand`'s radius, poison and unread partner: `work/onecopy/section-degenerate-operand-mixes-a-radius-at-the-band-with-invalid-operands.md`.
+- `Unaccounted`, whose cause is rendered text, which a consumer can match only by its words (the note above): `work/onecopy/section-unaccounted-carries-its-cause-as-text.md`.
