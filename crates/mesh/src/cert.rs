@@ -1776,6 +1776,15 @@ mod tests {
                 test_utils::fuzz::replay()
             );
 
+            for [a, b, c] in orders(flat) {
+                assert_eq!(
+                    dist_point_triangle(p, a, b, c).to_bits(),
+                    got.to_bits(),
+                    "point: {flat:?} from {p:?} answers by its corners' order ({})",
+                    test_utils::fuzz::replay()
+                );
+            }
+
             let lifted = tri.map(|x| frame.at(x[0], x[1], l * rng.range(-10.0, 10.0)));
             let o = frame.at(from[0], from[1], l * rng.range(-10.0, 10.0));
             let d = frame.e[2] * rng.log_uniform(0.1, 10.0);
@@ -1789,6 +1798,14 @@ mod tests {
                 k % 6,
                 test_utils::fuzz::replay()
             );
+            for [a, b, c] in orders(lifted) {
+                assert_eq!(
+                    dist_line_triangle(o, d, a, b, c).to_bits(),
+                    got.to_bits(),
+                    "line: {lifted:?} from {o:?} along {d:?} answers by its corners' order ({})",
+                    test_utils::fuzz::replay()
+                );
+            }
         }
         assert!(
             kept.iter().all(|&n| n > draws / 12),
