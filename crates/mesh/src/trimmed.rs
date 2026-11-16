@@ -583,8 +583,7 @@ pub(crate) fn tessellate_trimmed(
     // is what keeps the retry ladder strictly shrinking (module docs).
     let across = match row {
         ChartRow::Analytic(ref a) if a.development().is_some() => {
-            let loops = core::iter::once(face.outer).chain(face.rings.iter().copied());
-            Some(faces_across(body, fk, loops, chords)?)
+            Some(faces_across(body, fk, chords)?)
         }
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => None,
     };
@@ -1594,7 +1593,7 @@ impl TrimmedFace<'_> {
     }
 }
 
-/// **The faces across the edges of face `fk`'s `loops` (its outer loop and
+/// **The faces across the edges of face `fk`'s loops (its outer loop and
 /// its rings) at each boundary mesh id**: for every edge of a loop, the face its other half-edge
 /// bounds, at each of the edge's chord ids (`crate::chords`), ends
 /// included, so a vertex's id holds the faces across both edges meeting
@@ -1607,12 +1606,14 @@ impl TrimmedFace<'_> {
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
-    loops: impl Iterator<Item = topo::LoopKey>,
     chords: &ChordPass,
 ) -> Result<HashMap<u32, Vec<FaceKey>>, TessellateError> {
     let mut out: HashMap<u32, Vec<FaceKey>> = HashMap::new();
+    let face = body
+        .face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
     let mut sides = Vec::new();
-    for lk in loops {
+    for (lk, _, _) in face.loops() {
         sides.extend(crate::walk::loop_half_edges(body, lk, fk)?);
     }
     for (hek, ek, _) in sides {
