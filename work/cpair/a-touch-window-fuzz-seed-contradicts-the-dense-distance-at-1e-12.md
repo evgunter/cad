@@ -75,3 +75,10 @@ from the origin. The seed replays deterministically.
 ## 2026-11-16 — the same family off a touch (onecopy/ringed-near-end)
 
 The non-touch row `each_window_reading_holds_on_a_dense_distance`, run at the needle's band (1e-12/1e-11), drew one contradiction on seed `CAD_FUZZ_SEED=0x57955e51f786ba3a CAD_FUZZ_EFFORT=1`. Draw 51 is a circle of radius ≈662 against an ellipse with semi-axes (72.3, 48.3). Its ringed `Recedes` reading on `(1.926e-7, 2.016e-7)` (away true) contradicts the dense distance. That row now holds only the unringed reading at 1e-12 and leaves the ringed one to this item. Fixing this item should restore the ringed reading there.
+
+## 2026-11-16: from PR 7029's review
+
+- **The 1e-12 fence is wider than the defect.** The non-touch oracle row drops the whole ringed lane at 1e-12, `Off` and `On` included (`window/oracle.rs:306-307, 222-227`). Every seed this row lists is a ringed `Recedes`. When this row is worked, narrow the fence to skip only `Recedes`. The chain restart (`Window::chained`) leans on ringed `Recedes` plus a ringed `off` past the zero, and neither is held at 1e-12 while the fence stands.
+- **The contradiction may be oracle noise (unsure).** The oracle's own rounding is about `1e-13·scale` (`oracle.rs:243-247`), and `tol` is capped at `z/8`. At 1e-12 on circles of radius ~500 that is about `5e-11` of rounding against a `1.25e-13` tolerance. So the `Recedes` monotonicity check may be measuring the oracle, not the kernel. Check this first.
+- **The restart has no row that goes red without it.** Open a `k_stats::Bracket` around `w.chained(..)` on one of the 15 real windows, e.g. `curve_pair::plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root`. Assert that no verdict names `curve_pair_window_off_span` or `curve_pair_window_width` (locus.rs:1308 is the precedent).
+- **"A receding piece is off where its near end is" is spelled twice:** in `read`'s unringed arm (`window.rs:316-326`) and in `chained` (`window.rs:453`). One helper should map direction to near end for both. Alternatively, `read` could return `Off` for a ringed `Recedes` whose near end is off, leaving `chained` unchanged.
