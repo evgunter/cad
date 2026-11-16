@@ -183,6 +183,7 @@ use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 use std::sync::{Arc, OnceLock};
 
 use crate::memo::{Table, kept, session_memo};
+use crate::net;
 
 /// **A spline's second-order bounds by span**
 /// (`accel_upper_bound_over`'s table): each nonempty span's parameters
@@ -192,7 +193,6 @@ struct AccelSpans<T> {
     spans: Vec<(T, T, T)>,
     creases: Vec<T>,
 }
-use crate::net;
 
 /// The speed meter's piece schedule (D9: structure, never a decision):
 /// both of `speed_lower_bound`'s piece readings and `speed_upper_bound`
@@ -1356,34 +1356,38 @@ macro_rules! nurbs_curve {
                 Arc::clone(self.accel_spans.get_or_init(|| Arc::new(self.accel_spans_uncached())))
             }
 
-            /// Each nonempty span's second-order bound (the max of its
-            /// [`spline::accel_pieces`]' [`spline::QuotientPiece::sup_norm`],
-            /// [`SPEED_PIECE_SPLITS`] pieces per span, in span order), and
-            /// the creases. Poison on every span where the statement
-            /// refuses, as [`Self::accel_upper_bound`] is.
+            /// Each nonempty span's second-order bound (the max of the
+            /// [`spline::QuotientPiece::sup_norm`] of its own
+            /// [`spline::accel_pieces_by_span`] pieces), and the creases.
+            /// Poison on every span where the statement refuses, as
+            /// [`Self::accel_upper_bound`] is; a span with no pieces reads
+            /// poison.
             fn accel_spans_uncached(&self) -> AccelSpans<T> {
                 let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
-                let kv = self.knots.structure();
-                let spans: Vec<(T, T)> = (kv.first_span()..=kv.last_span())
-                    .filter_map(|i| self.knots.span(i).map(|s| s.span().index()))
-                    .map(|i| (self.knots.values()[i], self.knots.values()[i + 1]))
-                    .collect();
-                let pieces = spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS);
-                let bounds: Vec<T> = match pieces {
-                    Some(ps) if !spans.is_empty() && ps.len() % spans.len() == 0 => ps
-                        .chunks(ps.len() / spans.len())
-                        .map(|chunk| {
-                            chunk
+                let values = self.knots.values();
+                let by_span = spline::accel_pieces_by_span(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS);
+                let spans = match by_span {
+                    Some(spans) => spans
+                        .into_iter()
+                        .map(|(i, pieces)| {
+                            let bound = pieces
                                 .iter()
                                 .map(spline::QuotientPiece::sup_norm)
                                 .reduce(Real::max)
-                                .unwrap_or_else(|| T::from_f64(f64::NAN))
+                                .unwrap_or_else(|| T::from_f64(f64::NAN));
+                            (values[i], values[i + 1], bound)
                         })
                         .collect(),
-                    _ => vec![T::from_f64(f64::NAN); spans.len()],
+                    None => {
+                        let kv = self.knots.structure();
+                        (kv.first_span()..=kv.last_span())
+                            .filter_map(|i| self.knots.span(i).map(|s| s.span().index()))
+                            .map(|i| (values[i], values[i + 1], T::from_f64(f64::NAN)))
+                            .collect()
+                    }
                 };
                 AccelSpans {
-                    spans: spans.into_iter().zip(bounds).map(|((lo, hi), b)| (lo, hi, b)).collect(),
+                    spans,
                     creases: self.knots.crease_values(),
                 }
             }
