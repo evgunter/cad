@@ -80,3 +80,20 @@ When 6592's `Alike` lands, these premise-only ladders flip to it along with `cas
 
 - **`topo::link::Cone::reads_given`'s reference climb** (`crates/topo/src/link.rs`, "every reference reads one material"). It climbs under `Answering::First` until then (PR 6637's review, F1): the premise is shown failing on `work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`, and `editor_core::drive`'s `classify_replay` acts on the escalation log a superseded splice would drop. The code comment there says "pending 6592's `Alike`".
 - **`topo::chart_region::polygon_relation`'s vertex climb** (QML T4): "every vertex off the other polygon's boundary reads one relation" holds only where the boundaries do not properly cross (its own doc), so it climbs under `Answering::First` until then.
+
+## The simplicity-and-speed answer (2026-11-16)
+
+Ev asked on 6592 what the change does to simplicity and speed, given that the exact error an invalid surface gets matters little. The designer's measurements on main `0be17a13e` (f64 release, n-gon prisms):
+
+- **Recommendation: parts 1 and 2 only.** Part 3, the `Alike`/`AlikePremise` token, is dropped. It would classify 44 `climb*(Answering::Any…)` sites in 22 files, and its only gain is a deterministic error on invalid input. The side reader's ladder becomes `First`, with a comment. The sites in the section above stay on `First`.
+- **Simplicity:**
+  - `side_at_infinity`'s production callers go from 3 to 1.
+  - The missed-ray re-read is removed (`missed_side`, `MissedRead`, `sided`, `as_given`, `SolidFaces::read_as_given`, `operand_faces`), along with `inside_out_operand`.
+  - The inside-out chain retires: `PointInSolidError::InsideOut`, `ValidationError::SliverInsideOut`, `BooleanError::InsideOutOperand`, and `OrientationUndecided` with its 3-arm `OrientationUnread`, which folds into `ShellRoleUndecided`. That is about 20 match arms.
+  - The selection's existing `at_infinity: Option` becomes required.
+- **Speed:**
+  - One side read costs 0.09, 0.43, 1.8 and 10.5 ms at 6, 66, 258 and 1,026 faces.
+  - The gate is unchanged for one shell, and an n-shell solid saves one read.
+  - Point queries from outside run about 1.8× faster: 40 queries take 2.0→1.0, 30→16, 131→72 and 821→468 ms.
+  - Booleans save under 1%.
+- **Sequencing:** part 2 needs the following named. The census's instance containment (`census.rs`, `SolidFaces::of(body, outer)`) runs at the gate, before the solid's roles are known, so its selection cannot carry `Out` from a constructor. Either the census runs behind the per-shell role reads and takes the side from them, or its selection reads the side once and caches it (`work/onecopy/a-selections-aimed-side-read-is-repeated-on-every-missed-query.md`).
