@@ -1808,7 +1808,7 @@ impl Side {
                     return false;
                 };
                 let (near, far) = radii_sq(a, b, span);
-                near <= r1 * r1 && far >= r0 * r0
+                near <= r1.powi(2) && far >= r0.powi(2)
             }
         }
     }
@@ -1832,9 +1832,9 @@ fn radii_sq(a: SpadePoint<f64>, b: SpadePoint<f64>, (t0, t1): (f64, f64)) -> (f6
     let d = (b.x - a.x, b.y - a.y);
     let at = |t: f64| {
         let (x, y) = (a.x + t * d.0, a.y + t * d.1);
-        x * x + y * y
+        x.powi(2) + y.powi(2)
     };
-    let len = d.0 * d.0 + d.1 * d.1;
+    let len = d.0.powi(2) + d.1.powi(2);
     let foot = if len > 0.0 {
         (-(a.x * d.0 + a.y * d.1) / len).clamp(t0, t1)
     } else {
