@@ -521,8 +521,9 @@ pub enum JoinError {
     /// the wall's certified sections, and a ring re-homed on one where
     /// the new face's every edge is, on a net whose weights are constant
     /// along one parameter); on a
-    /// plane, a run with a spiric or rational spline edge at a scalar
-    /// that does not certify
+    /// plane, a run with an edge read by its enclosure alone (a spiric,
+    /// a rational spline, a non-rational one past the exact rule's
+    /// degrees) at a scalar that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {

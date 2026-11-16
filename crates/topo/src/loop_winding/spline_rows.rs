@@ -90,7 +90,7 @@ fn a_polynomial_arcs_bulge_is_its_closed_form_area() {
     assert_eq!(segment_kind(&carrier), SegmentKind::Closed);
     for (t0, t1) in [(0.0, 1.0), (0.2, 0.9), (0.55, 0.8), (0.0, 0.5)] {
         for forward in [true, false] {
-            let (bulge, length) =
+            let SegmentTerm { bulge, length } =
                 closed_segment_term((&carrier, (t0, t1)), forward).expect("a closed form");
             let dt: f64 = t1 - t0;
             let want = (4.0 / 3.0) * h * dt.powi(3) * if forward { -1.0 } else { 1.0 };
@@ -136,9 +136,9 @@ fn a_rational_arc_is_enclosed_and_winds_at_a_certifying_scalar() {
             let (c, span) = lifted(&carrier, (t0, t1));
             let edge = SegmentQ::of((&c, span), forward).expect("the enclosure builds");
             let term = |pieces| edge.term(pieces).unwrap().expect("a spline has a term");
-            let (bulge, length) = term(ENCLOSURE_PIECES[0]);
+            let SegmentTerm { bulge, length } = term(ENCLOSURE_PIECES[0]);
             // The finer count is read one way round: it is the cost.
-            let finer = forward.then(|| (1, term(ENCLOSURE_PIECES[1]).0.z, 1e-9));
+            let finer = forward.then(|| (1, term(ENCLOSURE_PIECES[1]).bulge.z, 1e-9));
             for (count, got, width) in [(0, bulge.z, 1e-5)].into_iter().chain(finer) {
                 assert!(
                     got.lo() <= want && want <= got.hi() && got.hi() - got.lo() < width,
@@ -200,11 +200,12 @@ fn a_degree_past_the_exact_rule_is_read_by_its_enclosure() {
     let carrier = spline(knots, 6, &pts, vec![1.0; 7]);
     assert_eq!(segment_kind(&carrier), SegmentKind::Enclosed);
     let (c, span) = lifted(&carrier, (0.0, 1.0));
-    let (bulge, _) = SegmentQ::of((&c, span), true)
+    let bulge = SegmentQ::of((&c, span), true)
         .expect("the enclosure builds")
         .term(ENCLOSURE_PIECES[0])
         .unwrap()
-        .expect("a spline has a term");
+        .expect("a spline has a term")
+        .bulge;
     let want = -(4.0 / 3.0) * h;
     assert!(
         bulge.z.lo() - 1e-13 <= want && want <= bulge.z.hi() + 1e-13,
@@ -309,7 +310,7 @@ fn an_arc_standing_off_the_plane_winds_as_its_projection() {
     let (flat, raised) = (parabola(0.375, 0.0), parabola(0.375, 1e-3));
     for span in [(0.0, 1.0), (0.2, 0.9)] {
         let term = |c: &Curve3<f64>| closed_segment_term((c, span), true).expect("a closed form");
-        let ((on, _), (off, _)) = (term(&flat), term(&raised));
+        let (on, off) = (term(&flat).bulge, term(&raised).bulge);
         assert_eq!(on.z, off.z, "{span:?}: the bulge along the normal");
         assert!(
             off.x != 0.0 || off.y != 0.0,
@@ -404,7 +405,7 @@ fn a_quiet_span_of_a_fast_carrier_is_not_wound_zero() {
     for far in [20.0, 50.0] {
         let carrier = quiet_span(1e-4, far);
         assert_eq!(segment_kind(&carrier), SegmentKind::Closed);
-        let (_, lever) = closed_segment_term((&carrier, span), true).unwrap();
+        let lever = closed_segment_term((&carrier, span), true).unwrap().length;
         let (area, length) = polygon(&carrier, span, 4096);
         assert!(
             length <= lever && lever < 1.25 * length,
@@ -446,11 +447,12 @@ fn a_wide_weight_arc_past_a_fast_start_is_decided() {
         let carrier = wide_weights(0.01, start);
         assert_eq!(segment_kind(&carrier), SegmentKind::Enclosed);
         let (c, lifted_span) = lifted(&carrier, span);
-        let (_, lever) = SegmentQ::of((&c, lifted_span), true)
+        let lever = SegmentQ::of((&c, lifted_span), true)
             .expect("the enclosure builds")
             .term(ENCLOSURE_PIECES[0])
             .unwrap()
-            .expect("a spline has a term");
+            .expect("a spline has a term")
+            .length;
         let (area, length) = polygon(&carrier, span, 1 << 14);
         assert!(
             length <= lever.lo() && lever.hi() < 1.25 * length,
@@ -590,8 +592,9 @@ fn closed_form_and_enclosure_agree_with_a_polygon(degree: usize, interior: &[f64
         assert_eq!(segment_kind(&carrier), SegmentKind::Closed);
         for span in spans {
             let name = format!("degree {degree} at {scale} m off {offset}, {span:?}");
-            let (bulge, length) = closed_segment_term((&carrier, span), true).unwrap();
-            let (back, _) = closed_segment_term((&carrier, span), false).unwrap();
+            let SegmentTerm { bulge, length } =
+                closed_segment_term((&carrier, span), true).unwrap();
+            let back = closed_segment_term((&carrier, span), false).unwrap().bulge;
             assert_eq!(back.z.to_bits(), (-bulge.z).to_bits(), "{name}: reversed");
             let ((coarse, _), (fine, polygon)) =
                 (polygon(&carrier, span, 512), polygon(&carrier, span, 1024));
@@ -603,7 +606,10 @@ fn closed_form_and_enclosure_agree_with_a_polygon(degree: usize, interior: &[f64
                 bulge.z
             );
             let (c, lifted_span) = lifted(&carrier, span);
-            let (enclosed, bound) = SegmentQ::of((&c, lifted_span), true)
+            let SegmentTerm {
+                bulge: enclosed,
+                length: bound,
+            } = SegmentQ::of((&c, lifted_span), true)
                 .expect("the enclosure builds")
                 .term(ENCLOSURE_PIECES[0])
                 .unwrap()

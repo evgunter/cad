@@ -6254,8 +6254,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
 ///   outward normal, on loops of every carrier — a planar loop with a
-///   spiric or rational spline edge is not examined at a scalar that
-///   does not certify, where that edge's area has no enclosure;
+///   spiric edge, a rational spline edge or a non-rational one past
+///   the exact rule's degrees is not examined at a scalar that does
+///   not certify, where that edge's area has no enclosure;
 ///   `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar
@@ -8203,12 +8204,14 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // A spline edge and a spiric one enter the same way, by their own
     // bulge and length bound (`crate::loop_winding`'s module docs: a
-    // non-rational spline's is exact, a rational spline's and a spiric's
-    // a certified enclosure refined to a sign).
+    // non-rational spline's is exact through the exact rule's degrees; a
+    // rational spline's, a higher-degree one's and a spiric's a certified
+    // enclosure refined to a sign).
     //
     // **The residue this arm does not examine**: a loop with an edge
-    // read by its enclosure alone, a spiric or a rational spline, at a
-    // scalar that does not certify, or where the enclosure reads nothing
+    // read by its enclosure alone (a spiric, a rational spline, a
+    // non-rational one past the exact rule's degrees), at a scalar that
+    // does not certify, or where the enclosure reads nothing
     // (`crate::loop_winding::Unwound`). A planar face bounded so carries
     // a stored sense this arm does not falsify.
     //

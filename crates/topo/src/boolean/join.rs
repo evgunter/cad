@@ -4897,8 +4897,9 @@ fn ring_order<T: Decide>(
 /// line, a conic and a spiric by theirs), so a planar face's run is
 /// wound whichever lane minted its chords. One the sum does not wind
 /// refuses typed ([`JoinError::RingIslandUnread`]): an edge read by its
-/// enclosure alone, a spiric or a rational spline, at a scalar that does
-/// not certify ([`crate::loop_winding::Unwound`]).
+/// enclosure alone (a spiric, a rational spline, a non-rational one past
+/// the exact rule's degrees) at a scalar that does not certify
+/// ([`crate::loop_winding::Unwound`]).
 ///
 /// A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge

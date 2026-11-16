@@ -1347,8 +1347,9 @@ fn the_elliptic_lever_holds_the_arc_whichever_semi_axis_is_larger() {
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .and_then(crate::null::CurveGeom::certified)
         .unwrap();
-    let (_, lever) =
-        geom_brep::props::closed_segment_term((curve.carrier(), curve.params()), true).unwrap();
+    let lever = geom_brep::props::closed_segment_term((curve.carrier(), curve.params()), true)
+        .unwrap()
+        .length;
     let at = |k: u32| curve.carrier().eval(pi * f64::from(k) / 4096.0);
     let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
     assert!(

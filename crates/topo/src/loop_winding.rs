@@ -146,7 +146,8 @@ pub(crate) enum LoopWinding<W> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unwound {
     /// An edge read by its enclosure alone (a spiric, a rational
-    /// spline) that has none: at a scalar that does not certify
+    /// spline, a non-rational one past the exact rule's degrees) that
+    /// has none: at a scalar that does not certify
     /// ([`crate::props::AtRestPolicy::quad_lane`]), where the enclosure
     /// does not build (`SegmentQ::of`'s `None`), or over a span it does
     /// not read at any piece count (`SegmentQ::term`'s refusal: a spiric's
@@ -548,14 +549,14 @@ fn winding_sum<S: Real>(
         }
         perimeter = perimeter
             + match term {
-                Some((_, len)) => len,
+                Some(term) => term.length,
                 None => (next - p).norm(),
             };
     }
     if open {
         perimeter = perimeter
             + match closing {
-                Some((_, len)) => len,
+                Some(term) => term.length,
                 None => (end - p0).norm(),
             };
     }
@@ -567,8 +568,8 @@ fn winding_sum<S: Real>(
         .chain(closing)
         .peekable();
     if bulges.peek().is_some() {
-        let bulge = bulges.fold(Vec3::new(S::zero(), S::zero(), S::zero()), |acc, (b, _)| {
-            acc + b
+        let bulge = bulges.fold(Vec3::new(S::zero(), S::zero(), S::zero()), |acc, term| {
+            acc + term.bulge
         });
         newell = newell + bulge;
     }

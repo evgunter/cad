@@ -254,11 +254,16 @@ fn nurbs_vector_area<T: SpanLocate>(
     Ok(acc * half)
 }
 
-/// A curved edge's term in a planar loop's winding sum: its **bulge**,
-/// twice the vector area between the edge as traversed and its chord
-/// (the vector area about the edge's own start point, which no chord
-/// through that point changes), and an upper bound on its length.
-pub type SegmentTerm<S> = (Vec3<S>, S);
+/// A curved edge's term in a planar loop's winding sum.
+#[derive(Debug, Clone, Copy)]
+pub struct SegmentTerm<S: Real> {
+    /// Twice the vector area between the edge as traversed and its
+    /// chord: the vector area about the edge's own start point, which no
+    /// chord through that point changes.
+    pub bulge: Vec3<S>,
+    /// An upper bound on the edge's length.
+    pub length: S,
+}
 
 /// **How a planar winding sum reads an edge of each carrier** — the one
 /// table of it ([`segment_kind`]).
@@ -320,7 +325,10 @@ pub fn closed_segment_term<T: SpanLocate>(
         }
         None => spline_bulge(carrier, (t0, t1), forward)?,
     };
-    Some((bulge, length_bound(carrier, (t0, t1))))
+    Some(SegmentTerm {
+        bulge,
+        length: length_bound(carrier, (t0, t1)),
+    })
 }
 
 /// An upper bound on the length of `carrier` over `(t0, t1)`, summed
@@ -378,6 +386,10 @@ impl SegmentQ {
         forward: bool,
     ) -> Option<Self> {
         let length = || length_bound(carrier, (t0, t1));
+        // Not [`segment_kind`]'s split: every spline is enclosed here,
+        // one with a closed form too, because at this scalar that form
+        // is a rounded rule ([`closed_segment_term`]) and every term of
+        // this sum is an enclosure.
         Some(match carrier {
             Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
                 Self::Closed(closed_segment_term((carrier, (t0, t1)), forward))
@@ -432,15 +444,15 @@ impl SegmentQ {
             Self::Closed(term) => Ok(*term),
             Self::Spiric(edge) => {
                 let length = super::spiric::spiric_length_bound(edge, pieces).ok_or(NoTermAt)?;
-                Ok(Some((
-                    twice(super::spiric::spiric_vector_area(edge, pieces)),
-                    Interval::from_certified(length),
-                )))
+                Ok(Some(SegmentTerm {
+                    bulge: twice(super::spiric::spiric_vector_area(edge, pieces)),
+                    length: Interval::from_certified(length),
+                }))
             }
-            Self::Spline(edge, length) => Ok(Some((
-                twice(super::rational_rim::rational_vector_area_split(edge, pieces).0),
-                *length,
-            ))),
+            Self::Spline(edge, length) => Ok(Some(SegmentTerm {
+                bulge: twice(super::rational_rim::rational_vector_area_split(edge, pieces).0),
+                length: *length,
+            })),
         }
     }
 }
@@ -687,7 +699,7 @@ mod tests {
     fn a_conic_arcs_length_term_is_its_own_stretchs() {
         let (o, z, x) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let (r, span) = (2.5, (0.3, 1.7));
-        let (_, length) =
+        let SegmentTerm { length, .. } =
             closed_segment_term((&Curve3::circle(o, z, r, x), span), true).expect("a conic");
         assert_eq!(length.to_bits(), (r * (span.1 - span.0)).to_bits());
         let (a, b) = (100.0, 1.0);
@@ -697,7 +709,8 @@ mod tests {
             ((3.1, 3.2), 1.1),
             ((0.0, core::f64::consts::TAU), 1.2),
         ] {
-            let (_, length) = closed_segment_term((&flat, (t0, t1)), false).expect("a conic");
+            let SegmentTerm { length, .. } =
+                closed_segment_term((&flat, (t0, t1)), false).expect("a conic");
             let at = |k: u32| flat.eval(t0 + (t1 - t0) * f64::from(k) / 4096.0);
             let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
             assert!(

@@ -101,7 +101,7 @@ fn a_spiric_arcs_bulge_is_the_area_it_cuts_off_its_chord() {
         for (t0, t1) in [(0.2, 0.9), (-1.0, 2.5), (2.0, 4.0), (-PI, PI), (0.0, TAU)] {
             for forward in [true, false] {
                 let (c, span) = lifted(&carrier, (t0, t1));
-                let (bulge, length) =
+                let SegmentTerm { bulge, length } =
                     spiric_segment_term((&c, span), forward, 1024).expect("a spiric's term");
                 let span = if forward { (t0, t1) } else { (t1, t0) };
                 let want = polygon_bulge(&carrier, span);
