@@ -638,6 +638,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ssi.rs: sphere_torus_ssi: a", NOT_A_NAME),
     ("ssi.rs: torus_torus_ssi: a", NOT_A_NAME),
     ("ssi/node.rs: decide: jets", NOT_A_NAME),
+    ("ssi/node.rs: node_box: jets", NOT_A_NAME),
     ("ssi/boundary.rs: graze: root", NOT_A_NAME),
     ("ssi/boundary.rs: run: *root", NOT_A_NAME),
     (
