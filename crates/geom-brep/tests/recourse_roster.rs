@@ -107,6 +107,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("old_pole_arc_full_as"),
     NameCarrier::Call("old_rim_only_closed_as"),
     NameCarrier::Call("old_span_as"),
+    NameCarrier::Call("ordered_side_as"),
     NameCarrier::Call("reaches_edge_as"),
     NameCarrier::Call("plane_cone_section"),
     NameCarrier::Call("require_positive_as"),
@@ -264,6 +265,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     (
         "pair_section/torus_arms.rs: reaches_edge_as: [(name, m)]",
+        FORWARDS,
+    ),
+    (
+        "pair_section/torus_arms.rs: ordered_side_as: [(predicate, margin)]",
         FORWARDS,
     ),
     (
