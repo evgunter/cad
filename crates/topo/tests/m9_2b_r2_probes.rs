@@ -202,15 +202,28 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
 
 /// F4 (union fix): the backstop rows are METRE data — scaling the
 /// geometry alone (the gate's band is the ambient metre band) leaves
-/// the DEFINITE verdicts standing at mm and km scale: a nested pair
-/// refuses undecidable, a far-separated pair stays clean, at every
-/// scale, where the nested pair is the DECIDED interference (the box
-/// gate cannot separate it; the material test finds an inner vertex
+/// the DEFINITE verdicts standing from mm scale to the session box's: a
+/// nested pair refuses undecidable, a far-separated pair stays clean, at
+/// every scale, where the nested pair is the DECIDED interference (the
+/// box gate cannot separate it; the material test finds an inner vertex
 /// strictly inside). A scale-invariant (dimensionless) margin would
-/// flip one.
+/// flip one. The largest scale, 90, puts the far cube's farthest
+/// coordinate at 990 m, inside the session box; at km scale the pair
+/// lies past the box, which tier 3′ refuses before its census as tier 3
+/// does (`OutsideSessionBox`), so no backstop row is read there.
 #[test]
 fn the_backstop_rows_are_metre_dimensioned() {
-    for s in [1e-3, 1.0, 1e3] {
+    let km = assembly(
+        &cube_scaled_at(4e3, 0.0, 0.0, 0.0),
+        &cube_scaled_at(1e3, 1.5e3, 1.5e3, 1.5e3),
+    );
+    let errs = validate_pseudomanifold(&km, &ContactRecords::default(), Tol::witness())
+        .expect_err("a km pair lies past the session box");
+    assert!(
+        matches!(&errs[..], [ValidationError::OutsideSessionBox { .. }]),
+        "km scale: the box refusal, alone: {errs:?}"
+    );
+    for s in [1e-3, 1.0, 90.0] {
         let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
         let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);
         let nested = assembly(&outer, &inner);
