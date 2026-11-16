@@ -1048,7 +1048,7 @@ impl<P> Hull<P> {
 impl Halved {
     /// Where the span is cut.
     fn mid(self) -> f64 {
-        0.5 * (self.lo + self.hi)
+        geom::mid_param(self.lo, self.hi)
     }
 }
 
@@ -1370,7 +1370,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // (zero-length tangent) divided by zero poisons `e`, the graph
         // margin's enclosure is refused with it, and the probe reads
         // that rung as unprobed ([`tube_margin`]).
-        let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
+        let t = carrier.deriv(T::from_f64(geom::mid_param(a, b)));
         out.push((bx, t.normalize(), (a, b)));
     }
     out
@@ -1466,7 +1466,8 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
             worst = m;
         }
     }
-    let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
+    let axis =
+        |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| geom::mid_param(c.lo(), c.hi())));
     let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
@@ -1546,7 +1547,7 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
                 u: (hu.lo() - pad.0, hu.hi() + pad.0),
                 v: (hv.lo() - pad.1, hv.hi() + pad.1),
             },
-            mid: 0.5 * (a + b),
+            mid: geom::mid_param(a, b),
             ends: (a, b),
         });
     }

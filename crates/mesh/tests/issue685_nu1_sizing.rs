@@ -29,13 +29,7 @@ fn cone_patch_triangles(body: &topo::Body<f64>, delta: f64) -> usize {
     let mesh = check_mesh_acceptance(body, delta, None);
     mesh.patches
         .iter()
-        .filter(|p| {
-            let face = body.get_face(p.face).expect("patch face is live");
-            matches!(
-                body.get_surface(face.surface).unwrap(),
-                Surface::Cone { .. }
-            )
-        })
+        .filter(|p| matches!(body.face_surface(p.face).unwrap(), Surface::Cone { .. }))
         .map(|p| p.triangles.len())
         .sum()
 }

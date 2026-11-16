@@ -62,9 +62,10 @@ fn a_flat_frustum_revolves_at_every_eps() {
             }
             continue;
         }
-        // A frustum whose base rim reaches past the 1 km session box is
-        // refused there, by the box and nothing else (D4 ¶4).
-        if r0.hypot(scale) > geom_core::tolerance::SESSION_BOX_EXTENT {
+        // A frustum whose largest coordinate, `max(r0, S)` about `+y`, is
+        // past the 1 km session box is refused there, by the box and
+        // nothing else (D4 ¶4).
+        if r0.max(scale) > geom_core::tolerance::SESSION_BOX_EXTENT {
             match got {
                 Err(e) if format!("{e:?}").contains("OutsideSessionBox") => {}
                 other => wrong.push(format!(

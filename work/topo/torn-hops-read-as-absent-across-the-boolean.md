@@ -95,7 +95,7 @@ stays: it asks whether a pierce copy survived the carve's kills.
 read a declaration or a coincidence: `mod.rs` `build`'s declared-face
 side, `tangent_struts` (it feeds `DeclaredPairs::build`),
 `border_held` (held edges of covered pairs) and
-`locus_through_plane_face` (`verify_tangent_declaration`); `ops.rs`
+`locus_through_plane_face` (the glue door's tangency); `ops.rs`
 `declared_surface_pairs`; `recl.rs` `carrier_of` / `require_same` (the
 carrier-identity ladder) and `resolve_edge_edge`'s flank-sense
 coincidence arm; `reduce.rs` `face_edges` (the undeclared-coincidence
@@ -120,7 +120,7 @@ only past `parents_distinct_from` on the `LiesOn` arm). Measured against
 the same criterion, `rim_wedge.rs` `face_boundary_arcs` is a helper as
 well, so it is converted now and comes off the held list.
 `mod.rs` `locus_through_plane_face` stays held, because it is part of
-`verify_tangent_declaration` and reads the declared pair's plane face.
+the glue door's tangency and reads the pair's plane face.
 
 A face's outer-then-rings loop links now have one home,
 `Body::face_loops_linked`, whose field names are `outer` and `rings`.

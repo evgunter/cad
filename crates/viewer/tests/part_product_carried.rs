@@ -414,8 +414,13 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         legs,
         vec![(
             pncad::document::Coord::slide(pncad::document::TargetAxis::X),
-            Formula::mul(common::len(1e200), common::scl(1e200))
-                .expect("length times scalar is a length"),
+            Formula::mul(
+                Formula::mul(common::len(1e200), common::scl(1e200))
+                    .expect("length times scalar is a length"),
+                Formula::add(crate::fixture::scalar_of(k), common::scl(1.0))
+                    .expect("a scalar plus a scalar"),
+            )
+            .expect("length times scalar is a length"),
         )],
     );
     let (sub, _) = viewer::test_support::mated(

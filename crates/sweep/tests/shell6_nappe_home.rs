@@ -421,7 +421,14 @@ fn the_displacement_moves_the_face_along_its_own_outward_normal() {
         assert_eq!(nappe, want);
         let (sin_a, cos_a) = half_angle.sin_cos();
         for d_face in [-T, T] {
-            let action = ConeOffset::new(apex, axis, half_angle, nappe.turn(d_face));
+            let action = ConeOffset::new(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                nappe.turn(d_face),
+            );
             for p in corners(&body, face) {
                 let w = p - apex;
                 let s = if w.dot(axis) < 0.0 { -1.0 } else { 1.0 };

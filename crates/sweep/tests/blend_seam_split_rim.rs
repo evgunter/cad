@@ -217,10 +217,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
-    match body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-    {
+    match body.face_surface(face).unwrap() {
         &Surface::Torus {
             center,
             major_radius,
@@ -485,8 +482,10 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     let top_n = Vec3::new(0.0, 1.0, 0.0);
     let shoulder = Point3::new(SHOULDER.0, SHOULDER.1, 0.0);
     let sheet_at = |p: Point3<f64>| Meridian {
-        origin,
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin,
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: p,
     };
     let sphere = |side: SurfaceSide| SupportTrace::Round {

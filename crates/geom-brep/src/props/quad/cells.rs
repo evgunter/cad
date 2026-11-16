@@ -275,10 +275,10 @@ pub(super) fn span_cells(kv: &KnotVector, cuts: &[f64]) -> Result<Vec<SpanCell>,
 /// midpoint unless that rounds up to `hi`, which on a cell an ulp wide
 /// is the next span's first knot; `lo` then.
 pub(super) fn cell_midpoint(lo: f64, hi: f64) -> (f64, Interval) {
-    let m = lo.midpoint(hi);
+    let m = geom::mid_param(lo, hi);
     (
         if m < hi { m } else { lo },
-        ((pt(lo) + pt(hi)) * pt(0.5)).clamped_to(lo, hi),
+        geom::mid_param(pt(lo), pt(hi)).clamped_to(lo, hi),
     )
 }
 
@@ -312,7 +312,7 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
 /// function of that span's ends (clipped to the range) and `pieces`
 /// alone, never of how many other spans share the range: a patch read
 /// whole and the same patch split into one face per span
-/// (`docs/DESIGN.md` [topology]'s C⁰-knot split) are read on the same
+/// (`docs/DESIGN.md` `[topology]`'s C⁰-knot split) are read on the same
 /// cells. A knot is a span end by construction, so no grid point needs
 /// a clearance from one.
 ///

@@ -66,7 +66,6 @@ fn moved(b: topo::Body<f64>, d: [f64; 3]) -> topo::Body<f64> {
     topo::transform_rigid(
         &b,
         &RigidMotion::translation(Vec3::new(d[0], d[1], d[2])).unwrap(),
-        tol(),
     )
     .unwrap()
 }
@@ -503,7 +502,7 @@ fn prism_in_a_brick() -> (AtRestBody<f64>, AtRestBody<f64>) {
 /// The NURBS faces of `body`, each with its `sense`.
 fn spline_walls(body: &topo::Body<f64>) -> Vec<(topo::FaceKey, bool)> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
         .map(|(k, f)| (k, f.sense))
         .collect()
 }
@@ -558,7 +557,9 @@ fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true
     );
     let mut wrong = cavity;
     for &(k, _) in &walls {
-        wrong = wrong.flipped_face_sense_for_tests(k).unwrap();
+        wrong = wrong
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap();
     }
     let admitted = topo::finish(wrong, t).expect("the gate admits the wrong-sense cavity");
     let v_wrong =

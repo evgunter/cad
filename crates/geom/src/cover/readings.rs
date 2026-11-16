@@ -18,11 +18,12 @@ use crate::{Curve3, Frame, Line, Surface};
 
 impl<T: Real> Surface<T> {
     /// **The region the whole carrier occupies**: a sphere's, a torus's or
-    /// a spindle sheet's tube (the sphere's with no spine, the sheet's
-    /// about the spine `|R|`, which holds its whole revolved circle; along
-    /// a unit `e` in a unit orthogonal frame the support is
-    /// `c·e + R·|e⊥| + r`), a spline's
-    /// control net (the fit's, for an approximating surface).
+    /// a spindle sheet's surface, as its tube's shell (the sphere's with
+    /// no spine, the sheet's about the spine `|R|`, which holds its whole
+    /// revolved circle; along a unit `e` in a unit orthogonal frame the
+    /// support is `c·e + R·|e⊥| + r`), which lies at its level about its
+    /// centre or core ([`Cover::about`], [`Cover::range_about`]); a spline's control net (the
+    /// fit's, for an approximating surface).
     ///
     /// # Errors
     ///
@@ -42,7 +43,7 @@ impl<T: Real> Surface<T> {
                 radius,
                 axis,
                 u_ref,
-            } => Cover::tube(&Frame::new(*center, *axis, *u_ref), T::zero(), *radius)
+            } => Cover::sphere(&Frame::new(*center, *axis, *u_ref), *radius)
                 .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Torus {
                 center,
@@ -50,7 +51,7 @@ impl<T: Real> Surface<T> {
                 major_radius,
                 minor_radius,
                 u_ref,
-            } => Cover::tube(
+            } => Cover::torus(
                 &Frame::new(*center, *axis, *u_ref),
                 *major_radius,
                 *minor_radius,
@@ -65,7 +66,7 @@ impl<T: Real> Surface<T> {
                 major_radius,
                 minor_radius,
                 u_ref,
-            } => Cover::tube(
+            } => Cover::torus(
                 &Frame::new(*center, *axis, *u_ref),
                 major_radius.abs(),
                 *minor_radius,

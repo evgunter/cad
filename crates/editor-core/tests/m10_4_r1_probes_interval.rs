@@ -260,14 +260,14 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(eps() / 16.0)), None);
     macro_rules! same {
         ($t:ty) => {{
-            let d: Evaluation<$t> = evaluate(
+            let d: Evaluation<$t> = editor_core::test_support::evaluate_any(
                 &doc,
                 None,
                 &CancelToken::new(),
                 &EvalOptions::default(),
                 Tol::witness(),
             );
-            let e: Evaluation<$t> = evaluate(
+            let e: Evaluation<$t> = editor_core::test_support::evaluate_any(
                 &doc,
                 None,
                 &CancelToken::new(),
@@ -291,7 +291,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
     same!(Dual64);
     same!(Interval);
     // And an unseeded dual carries an exactly zero tangent at the sink.
-    let unseeded: Evaluation<Dual64> = evaluate(
+    let unseeded: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
@@ -319,7 +319,7 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     for p in ["h1", "h2"] {
         let d = measured(
             &doc,
-            &evaluate(
+            &editor_core::test_support::evaluate_bound(
                 &doc,
                 None,
                 &CancelToken::new(),
@@ -369,21 +369,21 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
 #[test]
 fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
     let (doc, m) = stepped_shaft(1.0, 0.5, None, None);
-    let on_h1: Evaluation<Dual64> = evaluate(
+    let on_h1: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
         &opts(&doc, Some("h1")),
         Tol::witness(),
     );
-    let on_h2_fresh: Evaluation<Dual64> = evaluate(
+    let on_h2_fresh: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         None,
         &CancelToken::new(),
         &opts(&doc, Some("h2")),
         Tol::witness(),
     );
-    let on_h2_threaded: Evaluation<Dual64> = evaluate(
+    let on_h2_threaded: Evaluation<Dual64> = editor_core::test_support::evaluate_bound(
         &doc,
         Some(&on_h1),
         &CancelToken::new(),
@@ -968,7 +968,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
     let seeded = measured(
         &doc,
-        &evaluate(
+        &editor_core::test_support::evaluate_bound(
             &doc,
             None,
             &CancelToken::new(),
@@ -1004,13 +1004,12 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 /// `ChamberCertified` chamber over the whole box. The row pins the new
 /// datum with the same strictness the old one had.
 ///
-/// **Pinned at what main measures since PR 5728** (limb 2 for every
-/// carrier), identical at all three ε rows: the box certifies in four
-/// leaves after three splits, `Receipt { certified: 4, refused: 0,
-/// splits: 3 }`, and the study's chamber is the leaf `[-0.1, 0]` on both
-/// axes rather than the whole box. Why the whole box stopped certifying
-/// in one leaf is unread
-/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+/// **The whole box certifies in one leaf again** now that the extrudes
+/// keep their sketch frames. From PR 5728 (limb 2 for every carrier)
+/// until then it certified in four leaves after three splits, its
+/// chamber the leaf `[-0.1, 0]` on both axes: limb 2 enclosed the walls'
+/// carriers over the box, and the walls were planes fitted to boxed
+/// corners (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
 #[test]
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
@@ -1055,11 +1054,12 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
-            // DATUM (since PR 5728): the ±0.1 box certifies in four
-            // leaves after three splits, and the study's chamber is the
-            // leaf at `[-0.1, 0]` on both axes.
-            assert_eq!(verdict.certified().len(), 4, "{:?}", verdict.receipt());
-            assert_eq!(verdict.receipt().splits, 3, "{:?}", verdict.receipt());
+            // DATUM: the ±0.1 box certifies WHOLE, one leaf, no split,
+            // since the extrudes keep their sketch frames (it took four
+            // leaves after three splits while their planes were fitted
+            // to boxed corners), and the study's chamber is that leaf.
+            assert_eq!(verdict.certified().len(), 1, "{:?}", verdict.receipt());
+            assert_eq!(verdict.receipt().splits, 0, "{:?}", verdict.receipt());
             assert!(verdict.refused().is_empty(), "{:?}", verdict.receipt());
             let Chamber::ChamberCertified { leaf, .. } = &report.chamber else {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
@@ -1070,7 +1070,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                     .expect("the axis")
                     .span();
                 assert!(
-                    (lo + 0.1).abs() < 1e-12 && hi.abs() < 1e-12,
+                    (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"
                 );
             }

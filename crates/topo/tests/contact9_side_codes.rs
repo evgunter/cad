@@ -20,11 +20,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_brep::CarrierDesc;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::face_normal::face_carrier_desc;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment,
-    face_carrier, intersect, mass_properties, point_in_solid, split, subtract, union,
-    validate_geometric,
+    AtRestBody, Body, BooleanError, BooleanResult, FaceKey, SolidContainment, intersect,
+    mass_properties, point_in_solid, split, subtract, union, validate_geometric,
 };
 
 /// The far end's depth, in zero thresholds: definite under a 1 m arm
@@ -71,7 +72,7 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(face_carrier(body, k), Some(CarrierDesc::Plane { normal, .. })
+            matches!(face_carrier_desc(body, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
                 if normal.dot(n) > 1.0 - 1e-3)
         })
         .collect();
@@ -362,15 +363,15 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_with_normal(&wedge, [0.0, 0.0, -1.0]),
     );
     let (ca, cb) = (
-        face_carrier(&block, top).unwrap(),
-        face_carrier(&wedge, bottom).unwrap(),
+        face_carrier_desc(&block, top).unwrap(),
+        face_carrier_desc(&wedge, bottom).unwrap(),
     );
-    let metre = topo::carrier_eq(&ca, &cb, &metre_ball(1.0), band);
+    let metre = geom_brep::carrier_eq(&ca, &cb, &geom_brep::ConsumedExtent::arm(1.0), band);
     assert!(
         matches!(
             metre,
-            Err(topo::CarrierEqError::Escalated {
-                rung: topo::PlaneRung::Parallel,
+            Err(geom_brep::CarrierEqError::Escalated {
+                rung: geom_brep::PlaneRung::Parallel,
                 ..
             })
         ),
@@ -378,8 +379,14 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
     );
     let door = topo::boolean::rest_pair_verdict(&block, top, &wedge, bottom, band);
     assert!(
-        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
-        "the door reads the tilt across the faces and contradicts it: {door:?}"
+        matches!(
+            door,
+            Ok(topo::RestVerdict::Ruled(topo::RestRuling {
+                row: topo::RestRow::TwoCarriers,
+                by: Some(_),
+            }))
+        ),
+        "the door reads the tilt across the faces and rules the pair two carriers: {door:?}"
     );
 }
 
@@ -389,7 +396,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
 /// ball about the mean of the two faces' box centres, `(2.5, 0.25, 0)`,
 /// out to the top's far corner: radius `√200 + |(2.5, 0.25)| ≈
 /// 16.655 m`.
-fn wedge_on_the_top(rise: f64, lift: f64) -> Result<geom_core::MarginDiag, topo::ContactRefusal> {
+fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::RestVerdict, topo::ContactRefusal> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let block = common::finished(
@@ -436,12 +443,12 @@ fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
     );
 }
 
-/// **A tilt in band escalates, and a tilt past it contradicts.** The
+/// **A tilt in band escalates, and a tilt past it is two carriers.** The
 /// wedge pivots on its near edge so its far corner stands `d` off the
 /// top, for `d` across `0.3…1.5·Kε`. The door reads the tilt levered at
 /// the extent's radius, `d·16.655/10 ≈ 1.67·d`: in band, so the pair
-/// escalates, below `d ≈ 0.6·Kε`, and past it, two carriers the `Rest`
-/// contact contradicts, above.
+/// escalates, below `d ≈ 0.6·Kε`, and past it, two carriers on the datum
+/// decided apart, above.
 #[test]
 fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
     let k = Band::linear(Tol::witness()).unwrap().escalate();
@@ -449,15 +456,18 @@ fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
         (0.3, "escalated"),
         (0.4, "escalated"),
         (0.5, "escalated"),
-        (0.75, "contradicted"),
-        (0.9, "contradicted"),
-        (1.1, "contradicted"),
-        (1.5, "contradicted"),
+        (0.75, "apart"),
+        (0.9, "apart"),
+        (1.1, "apart"),
+        (1.5, "apart"),
     ] {
         let door = wedge_on_the_top(d * k, 0.0);
         let read = match door {
             Err(topo::ContactRefusal::Escalated { .. }) => "escalated",
-            Err(topo::ContactRefusal::Contradicted { .. }) => "contradicted",
+            Ok(topo::RestVerdict::Ruled(topo::RestRuling {
+                row: topo::RestRow::TwoCarriers,
+                by: Some(_),
+            })) => "apart",
             ref other => panic!("d = {d}·Kε: unexpected {other:?}"),
         };
         assert_eq!(read, expect, "d = {d}·Kε");
@@ -505,9 +515,10 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// A near-coincidence at a vertex pair, which the classification does
 /// not settle: a wedge on the block's CORNER whose 1 mm edge lies in the
 /// top's plane (outside the face) and whose 10 m edge rises `500·ε`
-/// over it. The pair of bottoms agrees at the 1 mm arm, so it goes to
-/// the carrier ladder as a coincidence its extent does not decide, and
-/// it refuses, typed. Read by its bounds instead, the pair is half a crossing, and
+/// over it. The pair of bottoms agrees at the 1 mm arm, which the glue
+/// door did not glue, so the corner refuses there on that reading
+/// (`Coincidence(CornerCrossing)`): an unglued Zero is no coplanar lump.
+/// Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
 /// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
@@ -533,12 +544,23 @@ fn a_near_coincident_pair_at_a_corner_refuses_typed() {
         ("−", subtract(&short, &block, tol)),
         ("∪", union(&short, &block, tol)),
     ] {
-        // The corner reads Zero for a pair the glue door did not glue
-        // (an unglued coincidence); at ε = 1e-6, where the 1 mm edges
+        // The corner reads its faces parallel at the 1 mm arm for a pair
+        // the glue door did not glue; at ε = 1e-6, where the 1 mm edges
         // are a thousand bands, an edge contact in band escalates first.
+        let corner = matches!(
+            &r,
+            Err(BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::CornerCrossing,
+                    topo::DeclarationRead::Moot,
+                ),
+                diag,
+            }) if diag.predicate == Some("bool_faces_parallel")
+                && diag.margin.rejected_sign() == Some(geom_core::Sign::Zero)
+        );
         assert!(
-            matches!(r, Err(BooleanError::Escalated { .. })),
-            "{what}: the near-coincidence refuses typed, got {:?}",
+            corner || (tol.eps() > 1e-9 && matches!(r, Err(BooleanError::Escalated { .. }))),
+            "{what}: the near-coincidence refuses at the corner's tilt, got {:?}",
             r.as_ref().err()
         );
     }
@@ -633,10 +655,4 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
             sliver(e)
         );
     }
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }

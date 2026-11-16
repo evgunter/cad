@@ -141,6 +141,42 @@ fn plane_chart_pcurve_segment_midpoints_hit_sweep_midpoints() {
     }
 }
 
+/// **A fit the cylinder door cannot run refuses as the caller's
+/// request**, before any sample is taken: degree 0, a degree the fixed
+/// sample count cannot fit, a tolerance that is not finite and positive.
+/// A fit of the door's own samples that refuses ends on the kernel's
+/// endings, never the fitting stack's caller recourse.
+#[test]
+fn pcurve_cylinder_fit_requests_and_refusals_end_at_the_door() {
+    use geom::FitError;
+    use geom_brep::{PCURVE_FIT_SAMPLES, PcurveError};
+    use geom_core::spline::{Built, KnotAlgebraError};
+    let e = section_ellipse(0.5);
+    let too_high = PCURVE_FIT_SAMPLES as usize;
+    for (degree, tolerance) in [(0, 1e-7), (too_high, 1e-7), (3, 0.0), (3, f64::NAN)] {
+        let refused = ellipse_pcurve_on_cylinder(&e, &cyl(), 0.0, 1.0, degree, tolerance);
+        assert!(
+            matches!(refused, Err(PcurveError::InvalidRequest { .. })),
+            "degree {degree}, tolerance {tolerance}: {:?}",
+            refused.map(|_| ())
+        );
+    }
+    let limit = PcurveError::Fit(Built::new(FitError::BudgetExhausted {
+        budget: 4,
+        achieved: 1e-3,
+    }))
+    .to_string();
+    assert!(limit.ends_with(geom_core::KERNEL_LIMIT_RECOURSE), "{limit}");
+    let defect = PcurveError::Fit(Built::new(FitError::KnotAlgebra(Built::new(
+        KnotAlgebraError::KnotNotPresent { u: 0.5 },
+    ))))
+    .to_string();
+    assert!(
+        defect.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+        "{defect}"
+    );
+}
+
 #[test]
 fn pcurve_wrong_lanes_and_degenerate_spans_are_typed() {
     let e = section_ellipse(0.5);

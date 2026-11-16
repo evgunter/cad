@@ -14,12 +14,12 @@
 //!
 //! - an OBLIQUE circle (neither a parallel, a meridian nor a Villarceau
 //!   circle), which the torus's incidence test reads off the torus
-//!   (`CarrierOffChart`);
+//!   (`IncidenceRead::Off`);
 //! - a circle ⊥ the axis through the tube's crest, centred off the
 //!   axis, which the incidence test reads on the torus while it is no
 //!   circle of it: it takes the general lane (D3), its projected image,
 //!   and the face mints clean;
-//! - a straight line, which no torus holds (`CarrierOffChart`).
+//! - a straight line, which no torus holds (`IncidenceRead::Off`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
 
@@ -62,7 +62,7 @@ fn torus_quarter() -> Body<f64> {
 fn torus_wall(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
     body.faces()
         .find_map(|(fk, f)| {
-            let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
+            let Surface::Torus { .. } = *body.face_surface(fk).unwrap() else {
                 return None;
             };
             let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
@@ -127,21 +127,22 @@ fn line_strut(body: &mut Body<f64>, he: HalfEdgeKey) {
     strut(body, he, end, EdgeCurveSpec::line_between(p, end));
 }
 
+/// Whether the mint's incidence read shows the carrier decidedly off its
+/// chart, by a margin read past the band (`geom_brep::IncidenceRead`).
+fn off_by_a_margin(e: &PcurveMintError) -> bool {
+    matches!(
+        e,
+        PcurveMintError::Certify { error, .. }
+            if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(Some(_))))
+    )
+}
+
 /// A strut off the torus: its refusal is the kernel's defect at the build
 /// door and the stored culprit's at rest, declared scaffold though it is.
 fn off_chart(e: &PcurveMintError) -> bool {
-    matches!(
-        e,
-        PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart {
-                margin: Some(geom_brep::OffMargin::Past(_)),
-                ..
-            },
-            ..
-        }
-    ) && e
-        .render(geom_brep::recourse::Reading::Build)
-        .ends_with(geom_core::KERNEL_DEFECT_ENDING)
+    off_by_a_margin(e)
+        && e.render(geom_brep::recourse::Reading::Build)
+            .ends_with(geom_core::KERNEL_DEFECT_ENDING)
         && topo::ValidationError::Pcurve { finding: e.clone() }
             .render(geom_brep::recourse::Reading::AtRest)
             .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
@@ -231,10 +232,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -244,10 +242,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let mut cases = 0;
     for (i, &h1) in cycle.iter().enumerate() {
         let edge = base.get_edge(base.get_half_edge(h1).unwrap().edge).unwrap();
@@ -304,19 +299,13 @@ fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
 
 /// Whether the mint refused as an escalation of `want`: the incidence
 /// read in band, or a closed-form envelope term.
-fn certificate_refused(e: &PcurveMintError, want: fn(geom_brep::PcurveCheck) -> bool) -> bool {
-    matches!(
-        e,
-        PcurveMintError::Certify {
-            error: PcurveCertifyError::Escalated { check, .. },
-            ..
-        } if want(*check)
-    )
+fn certificate_refused(e: &PcurveMintError, want: fn(&PcurveCertifyError) -> bool) -> bool {
+    matches!(e, PcurveMintError::Certify { error, .. } if want(error))
 }
 
 /// **A covered strut whose refusal the band cannot decide is named** —
 /// a parallel tilted off the torus's axis. At the corner on the tube's
-/// crest, tilted 2ε its incidence read lands in band (`ChartIncidence`),
+/// crest, tilted 2ε its incidence read lands in band (`IncidenceRead::Undecided`),
 /// and tilted ε its closed-form image derives and only its certificate
 /// refuses (an `EnvelopeTerm`). Tier 3 names it, the mint refuses with it, and
 /// the reversed body reads the same. At the other corner, where the
@@ -328,10 +317,21 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
     let (f, _, _) = verdicts(None, None);
     assert!(f.is_empty(), "the bare wall is clean: {f:?}");
     let eps = tol().eps();
-    let incidence: fn(geom_brep::PcurveCheck) -> bool =
-        |c| c == geom_brep::PcurveCheck::ChartIncidence;
-    let envelope: fn(geom_brep::PcurveCheck) -> bool =
-        |c| matches!(c, geom_brep::PcurveCheck::EnvelopeTerm(_));
+    let incidence: fn(&PcurveCertifyError) -> bool = |e| {
+        matches!(
+            geom_brep::IncidenceRead::of(e),
+            Some(geom_brep::IncidenceRead::Undecided(_))
+        )
+    };
+    let envelope: fn(&PcurveCertifyError) -> bool = |e| {
+        matches!(
+            e,
+            PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(_),
+                ..
+            }
+        )
+    };
     for (c, k, want) in [(0, 2.0, envelope), (1, 2.0, incidence), (1, 1.0, envelope)] {
         let tilt = k * eps;
         let mut body = torus_quarter();
@@ -398,10 +398,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -411,10 +408,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let tau = core::f64::consts::TAU;
     let mut cases = 0;
     for (i, &h1) in cycle.iter().enumerate() {
@@ -462,10 +456,7 @@ fn a_loop_moved_a_period_over_is_no_rows() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(
-                base.get_surface(f.surface).unwrap(),
-                Surface::Cylinder { .. }
-            ) {
+            if !matches!(base.face_surface(fk).unwrap(), Surface::Cylinder { .. }) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -475,10 +466,7 @@ fn a_loop_moved_a_period_over_is_no_rows() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .expect("the boss has a cylinder wall");
-    let surface = base
-        .get_surface(base.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = base.face_surface(wall).unwrap().clone();
     let tau = core::f64::consts::TAU;
     for shift in [tau, -tau] {
         for &he in &cycle {
@@ -566,7 +554,7 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let face = body
             .faces()
             .find_map(|(fk, f)| {
-                let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
+                let Surface::Torus { .. } = *body.face_surface(fk).unwrap() else {
                     return None;
                 };
                 let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
@@ -703,19 +691,7 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
         let [finding] = findings.as_slice() else {
             panic!("declared {declared}: {findings:?}")
         };
-        assert!(
-            matches!(
-                finding,
-                PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart {
-                        margin: Some(geom_brep::OffMargin::Past(_)),
-                        ..
-                    },
-                    ..
-                }
-            ),
-            "declared {declared}: {finding:?}"
-        );
+        assert!(off_by_a_margin(finding), "declared {declared}: {finding:?}");
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
         let built = minted.render(geom_brep::recourse::Reading::Build);

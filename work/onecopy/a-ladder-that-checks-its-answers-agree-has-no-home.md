@@ -81,7 +81,7 @@ did.
   is kept, and refuses only where neither bound shows a side, as before.
 
 **The debug check on the `Any` ladders is not in this row's PR.** It
-was built in commit `a8e175f9` on the lane's local branch (`climb_any`: `climb(Any)` in production, and in a debug build
+was built in commit `a8e175f9`, which is in `onecopy/refusal-standing`'s history (`climb_any`: `climb(Any)` in production, and in a debug build
 every rung after the answer read off the record and asserted to agree),
 and wired at five sites whose premise held. It cost about 25% on topo
 `ci` with every `Any` site wired. It found two premises false, filed P1

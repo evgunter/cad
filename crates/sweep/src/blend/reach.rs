@@ -94,7 +94,7 @@ use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, Ver
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
-    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward, same_supports,
 };
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
@@ -500,51 +500,18 @@ impl<T: Real> Bound<T> {
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(
-            sheet_of(
-                geom::Line {
-                    origin: *origin,
-                    dir: axis.normalize(),
-                },
-                x,
-            )
-            .0 - *radius,
-        ),
+        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?.unit(), x).0 - *radius),
         Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *apex,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+        Surface::Cone { half_angle, .. } => {
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(
-                geom::Line {
-                    origin: *center,
-                    dir: axis.normalize(),
-                },
-                x,
-            );
+            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -579,60 +546,31 @@ fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
 /// about its own axis, with that axis.
 fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> {
     let one = T::one();
-    match s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some((
-            SheetFn::Line {
-                alpha: one,
-                beta: T::zero(),
-                gamma: -*radius,
-            },
-            geom::Line {
-                origin: *origin,
-                dir: axis.normalize(),
-            },
-        )),
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some((
-            SheetFn::Cone {
-                q: T::zero(),
-                cos: half_angle.cos(),
-                sin: half_angle.sin(),
-                sigma: one,
-            },
-            geom::Line {
-                origin: *apex,
-                dir: axis.normalize(),
-            },
-        )),
+    let f = match s {
+        Surface::Cylinder { radius, .. } => SheetFn::Line {
+            alpha: one,
+            beta: T::zero(),
+            gamma: -*radius,
+        },
+        Surface::Cone { half_angle, .. } => SheetFn::Cone {
+            q: T::zero(),
+            cos: half_angle.cos(),
+            sin: half_angle.sin(),
+            sigma: one,
+        },
         Surface::Torus {
-            center,
-            axis,
             major_radius,
             minor_radius,
             ..
-        } => Some((
-            SheetFn::Circle {
-                p: *major_radius,
-                q: T::zero(),
-                r: *minor_radius,
-                sigma: one,
-            },
-            geom::Line {
-                origin: *center,
-                dir: axis.normalize(),
-            },
-        )),
-        _ => None,
-    }
+        } => SheetFn::Circle {
+            p: *major_radius,
+            q: T::zero(),
+            r: *minor_radius,
+            sigma: one,
+        },
+        _ => return None,
+    };
+    Some((f, s.axis_line()?.unit()))
 }
 
 /// **A surface's distance read in the sheet about the unit axis `a`
@@ -655,7 +593,7 @@ fn sheet_fn<T: Decide + Bounds>(
     let one = T::one();
     let off_axis = |p: Point3<T>| sheet_of(axis, p);
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
-    let centre = lo + (hi - lo) / T::from_f64(2.0);
+    let centre = lo.mid(hi);
     Some(match s {
         Surface::Plane { normal, .. } => {
             let n = normal.normalize();
@@ -674,7 +612,7 @@ fn sheet_fn<T: Decide + Bounds>(
             )
         }
         Surface::Cylinder { axis, radius, .. } => {
-            let foot = s.frame()?.axis_line().foot(centre);
+            let foot = s.axis_line()?.foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -825,8 +763,7 @@ fn normal_at<T: Decide>(
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .cloned()
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
@@ -927,20 +864,21 @@ fn screened<T: Decide + Bounds>(
     band: Band,
 ) -> Result<bool, BlendError> {
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
-    let kept = f.rings.iter().copied().filter(|r| !taken.contains(r));
-    for lp in core::iter::once(f.outer).chain(kept) {
-        let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
-            Some(topo::LoopBoundary::Cycle { first }) => body
+    let kept = f
+        .loops()
+        .filter(|(lp, _, role)| role.is_outer() || !taken.contains(lp));
+    for (lp, l, _) in kept {
+        let vertices: Vec<VertexKey> = match l.boundary {
+            topo::LoopBoundary::Cycle { first } => body
                 .loop_cycle(first)
                 .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support's cycle"))?
                 .into_iter()
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
-            Some(topo::LoopBoundary::Empty { vertex }) => vec![vertex],
-            None => return Err(unresolved(EntityId::Loop(lp), "a support's loop")),
+            topo::LoopBoundary::Empty { vertex } => vec![vertex],
         };
         for v in vertices {
             if ends.binary_search(&v).is_ok() {
@@ -989,8 +927,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
         Surface::Cylinder { radius, .. } => link
             .blend
             .surface
-            .frame()
-            .map(|f| (f.axis_line().foot(p), radius)),
+            .axis_line()
+            .map(|axis| (axis.foot(p), radius)),
         Surface::Torus {
             center,
             axis,
@@ -1011,7 +949,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
-    (request, taken): (&[VertexKey], &[LoopKey]),
+    (request, taken, sections): (&[VertexKey], &[LoopKey], &[VertexKey]),
     chain: usize,
     band: Band,
 ) -> Result<Stretch<T>, BlendError> {
@@ -1087,6 +1025,23 @@ fn straight_reach<T: Decide + Bounds>(
     let mut skip = Vec::new();
     for v in [link.start, link.end] {
         let pv = point_of(body, v)?;
+        // At a junction onto a link on other supports the band runs on
+        // into that link's: this link's material ends in the section
+        // plane through the vertex, normal to the spine, which the two
+        // bands share.
+        if sections.contains(&v) {
+            let cap = half_space(pv, tau, q);
+            core.push(cap.clone());
+            caps.push((Role::Other, cap));
+            for f in faces_at(body, v)? {
+                if f != link.face_a && f != link.face_b {
+                    skip.push(f);
+                }
+            }
+            let sv = (pv - start).dot(tau);
+            ends.push((sv, sv, sv, sv));
+            continue;
+        }
         let patch = corners.iter().find(|(cv, _)| *cv == v);
         let mut pad = T::zero();
         for f in faces_at(body, v)? {
@@ -1121,13 +1076,13 @@ fn straight_reach<T: Decide + Bounds>(
             }
             skip.push(f);
         }
-        let sv = (pv - start).dot(tau);
+        let sv = geom::plane_offset(start, tau, pv);
         ends.push(match patch {
             // The band ends at the patch, between its anchors' stations,
             // and its material inside the patch is the patch's: the core
             // stops at the vertex.
             Some((_, anchors)) => {
-                let at = |x: &Point3<T>| (*x - start).dot(tau);
+                let at = |x: &Point3<T>| geom::plane_offset(start, tau, *x);
                 let first = anchors.first().map_or(sv, at);
                 let (lo, hi) = anchors
                     .iter()
@@ -1140,7 +1095,7 @@ fn straight_reach<T: Decide + Bounds>(
             None => (sv - pad, sv + pad, sv - pad, sv + pad),
         });
     }
-    let s0 = (start - Point3::origin()).dot(tau);
+    let s0 = geom::plane_offset(Point3::origin(), tau, start);
     let window = |lo: T, hi: T| {
         [
             (
@@ -1272,15 +1227,18 @@ fn straight_reach<T: Decide + Bounds>(
 }
 
 /// **The reach of one link about a circular spine**, over the whole
-/// turn, every bound a function of the torus's own meridian sheet.
+/// turn, every bound a function of the torus's own meridian sheet — or,
+/// for an arc between two sections, one reach per piece of the arc, each
+/// over its own wedge ([`super::surgery::arc_pieces`]), whose union is
+/// the arc's window.
 fn circular_reach<T: Decide + Bounds>(
     body: &Body<T>,
     link: &Link<T>,
     st: &Station<T>,
-    request: &[VertexKey],
+    (request, sections): (&[VertexKey], &[VertexKey]),
     chain: usize,
     band: Band,
-) -> Result<Stretch<T>, BlendError> {
+) -> Result<Vec<Stretch<T>>, BlendError> {
     let Surface::Torus {
         center,
         axis,
@@ -1294,7 +1252,10 @@ fn circular_reach<T: Decide + Bounds>(
             "a circular spine's band is not a torus",
         ));
     };
-    let meridian @ geom::Line { dir: a, .. } = canonical_axis(center, axis);
+    let meridian @ geom::Line { dir: a, .. } = canonical_axis(geom::Line {
+        origin: center,
+        dir: axis,
+    });
     let (c, _) =
         st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
@@ -1353,69 +1314,94 @@ fn circular_reach<T: Decide + Bounds>(
         };
         bounds.push((role, in_sheet(circle, T::zero())));
     }
-    // Per support, the disk of the chord about the rim in the meridian
-    // sheet: a closed rim bounds its planar support, so the face lies on
-    // one side of the rim alone.
-    let mut replaces = Vec::new();
-    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
-        let chord = (foot - st.p).norm();
-        let ring = in_sheet(
-            SheetFn::Circle {
-                p: ps.0,
-                q: ps.1,
-                r: chord,
-                sigma: T::one(),
-            },
-            T::zero(),
-        );
-        let gap = |p: Point3<T>| ring.at(p) + chord;
-        // The disk has no one-sided form to narrow to: `screened`
-        // refuses a vertex in it, and its vacancy changes nothing here.
-        let _vacant = screened(
-            body,
-            (request, &[]),
-            f,
-            core::slice::from_ref(&ring),
-            None,
-            gap,
-            band,
-        )?;
-        replaces.push((f, vec![ring]));
+    // An arc running between two sections of a mixed chain is taken over
+    // its own window: one wedge per piece of it, each the half-spaces
+    // through the axis behind the piece's start and ahead of its end, on
+    // the side of its middle, which hold the band's material and its
+    // strips there. An arc whose pieces do not read certainly under a
+    // half turn keeps the whole circle.
+    let mut wedges: Vec<Vec<Bound<T>>> = Vec::new();
+    if sections.contains(&link.start) && sections.contains(&link.end) {
+        let (c, t0, t1) = carrier_of(body, link.edge)?;
+        if let (Some(circle), Some(pieces)) = (c.as_circle(), super::surgery::arc_pieces(t0, t1)) {
+            let o = circle.frame.origin;
+            for (ta, tb) in pieces {
+                let mid = c.eval(geom::mid_param(ta, tb));
+                wedges.push(vec![
+                    half_space(o, c.deriv(ta), mid),
+                    half_space(o, c.deriv(tb), mid),
+                ]);
+            }
+        }
     }
-    // Over line traces (a plane, a cylinder) a whole closed rim's bounds
-    // are its band's own cross-section revolved, and `at_strict` takes
-    // the slack the other way; a cone is read on both nappes and a
-    // sphere's or a torus's trace is a circle, so those stay bounds.
-    Ok(Stretch {
-        core: if exact {
-            bounds.iter().map(|(_, b)| b.clone()).collect()
-        } else {
-            Vec::new()
-        },
-        bounds,
-        lo,
-        hi,
-        chain,
-        sheet: Some(meridian),
-        sides,
-        surface: link.blend.surface.clone(),
-        replaces,
-        confine: None,
-        chains: vec![chain],
-        skip: Vec::new(),
-        width: reach,
-        spine: None,
-        strips: Vec::new(),
-    })
+    if wedges.is_empty() {
+        wedges.push(Vec::new());
+    }
+    let mut stretches = Vec::with_capacity(wedges.len());
+    for wedge in wedges {
+        let mut bounds = bounds.clone();
+        bounds.extend(wedge.iter().map(|b| (Role::Other, b.clone())));
+        // Per support, the disk of the chord about the rim in the meridian
+        // sheet: a closed rim bounds its planar support, so the face lies on
+        // one side of the rim alone; within the wedge, where there is one.
+        let mut replaces = Vec::new();
+        for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+            let chord = (foot - st.p).norm();
+            let ring = in_sheet(
+                SheetFn::Circle {
+                    p: ps.0,
+                    q: ps.1,
+                    r: chord,
+                    sigma: T::one(),
+                },
+                T::zero(),
+            );
+            let gap = |p: Point3<T>| ring.at(p) + chord;
+            // The disk has no one-sided form to narrow to: `screened`
+            // refuses a vertex in it, and its vacancy changes nothing here.
+            let mut region = vec![ring.clone()];
+            region.extend(wedge.iter().cloned());
+            let _vacant = screened(body, (request, &[]), f, &region, None, gap, band)?;
+            replaces.push((f, region));
+        }
+        // Over line traces (a plane, a cylinder) a whole closed rim's
+        // bounds are its band's own cross-section revolved, and
+        // `at_strict` takes the slack the other way; a cone is read on
+        // both nappes and a sphere's or a torus's trace is a circle, so
+        // those stay bounds.
+        stretches.push(Stretch {
+            core: if exact {
+                bounds.iter().map(|(_, b)| b.clone()).collect()
+            } else {
+                Vec::new()
+            },
+            bounds,
+            lo,
+            hi,
+            chain,
+            sheet: Some(meridian),
+            sides: sides.clone(),
+            surface: link.blend.surface.clone(),
+            replaces,
+            confine: None,
+            chains: vec![chain],
+            skip: Vec::new(),
+            width: reach,
+            spine: None,
+            strips: Vec::new(),
+        });
+    }
+    Ok(stretches)
 }
 
-/// **An axis's canonical frame**: the point of the line nearest the
-/// origin, and its unit direction signed so that its largest component is
-/// positive. Coaxial bands share it, so the bounds of one are functions
+/// **An axis's canonical frame**: the same line through the point of it
+/// nearest the origin, with its unit direction signed so that its
+/// largest component is positive. Coaxial bands share it, so the bounds of one are functions
 /// of the other's sheet too ([`Stretch::sheet`]); a frame that differs in
 /// a bit only loses that sharing.
-fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> geom::Line<T> {
-    let a = axis.normalize();
+fn canonical_axis<T: Bounds>(axis: geom::Line<T>) -> geom::Line<T> {
+    let geom::Line { origin: p, dir } = axis;
+    let a = dir.normalize();
     let k = [a.x, a.y, a.z]
         .into_iter()
         .max_by(|x, y| x.lo().abs().total_cmp(&y.lo().abs()))
@@ -1490,7 +1476,10 @@ fn corner_reach<T: Decide + Bounds>(
             for l in links {
                 let far = if l.start == v { l.end } else { l.start };
                 let tau = point_of(body, far)? - pv;
-                if (c - pv).dot(tau).lo() > 0.0 {
+                // A sign read alone: `tau` is the edge's chord, not unit,
+                // so the offset is not metres, and only its sign (which
+                // scaling `tau` keeps) is read.
+                if geom::plane_offset(pv, tau, c).lo() > 0.0 {
                     bounds.push((Role::Other, half_space(c, tau, pv)));
                 }
             }
@@ -1504,23 +1493,13 @@ fn corner_reach<T: Decide + Bounds>(
                     .iter()
                     .filter_map(|l| l.trim_on(*f).map(|t| &t.0))
                     .collect();
-                let [
-                    Curve3::Line(geom::Line {
-                        origin: o1,
-                        dir: d1,
-                    }),
-                    Curve3::Line(geom::Line {
-                        origin: o2,
-                        dir: d2,
-                    }),
-                ] = trims[..]
-                else {
+                let [Curve3::Line(a), Curve3::Line(b)] = trims[..] else {
                     return Ok(None);
                 };
-                feet.push(line_meet(*o1, *d1, *o2, *d2, n));
+                feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
-            let patch = chamfer_corner_patch(feet, normals);
+            let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
             let Surface::Plane { origin, normal, .. } = patch else {
                 return Ok(None);
             };
@@ -1668,7 +1647,7 @@ fn halves(lo: [f64; 3], hi: [f64; 3]) -> [([f64; 3], [f64; 3]); 2] {
     let k = (0..3)
         .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
         .unwrap_or(0);
-    let mid = 0.5 * (lo[k] + hi[k]);
+    let mid = geom::mid_param(lo[k], hi[k]);
     let (mut h1, mut l2) = (hi, lo);
     h1[k] = mid;
     l2[k] = mid;
@@ -1817,7 +1796,7 @@ fn boundary_reading<T: Decide>(
     core: &[Bound<T>],
 ) -> Result<Option<(T, T)>, BlendError> {
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
@@ -1830,10 +1809,7 @@ fn boundary_reading<T: Decide>(
         let (inner, outer) = (most(x, Bound::at_strict), most(x, Bound::at));
         reading = Some(reading.map_or((inner, outer), |(i, o)| (i.min(inner), o.max(outer))));
     };
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let l = body
-            .get_loop(lp)
-            .ok_or_else(|| unresolved(EntityId::Loop(lp), "a face's loop"))?;
+    for (lp, l, _) in f.loops() {
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
@@ -2089,11 +2065,11 @@ fn prism_inside<T: Decide>(
         return Ok(None);
     };
     let f = body
-        .get_face(face)
+        .face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     // Every edge but a line first: its ends certify the lines.
     let mut lines = Vec::new();
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lp, _, _) in f.loops() {
         let Some(walk) = loop_walk(body, lp) else {
             return Ok(None);
         };
@@ -2448,17 +2424,38 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         .iter()
         .map(|c| c.links().flat_map(|l| [l.face_a, l.face_b]).collect())
         .collect();
+    // The junctions onto a link on other supports, where a band runs
+    // on into the next link's through their shared section.
+    let mut sections: Vec<VertexKey> = Vec::new();
+    for c in chains {
+        let links: Vec<&Link<T>> = c.links().collect();
+        for j in &c.junctions {
+            if !same_supports(body, links[j.arriving], links[j.leaving])? {
+                sections.push(j.vertex);
+            }
+        }
+    }
     for (ci, link) in &all {
         let st = station(body, link)?;
-        let mut r = if link.arm.is_coaxial_torus() {
-            circular_reach(body, link, &st, &ends_all, *ci, band)?
+        let pieces = if link.arm.is_coaxial_torus() {
+            circular_reach(body, link, &st, (&ends_all, &sections), *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, (&ends_all, &taken), *ci, band)?
+            vec![straight_reach(
+                body,
+                link,
+                &st,
+                &corners,
+                (&ends_all, &taken, &sections),
+                *ci,
+                band,
+            )?]
         };
-        r.skip.extend(&supports[*ci]);
-        r.skip.sort_unstable();
-        r.skip.dedup();
-        reaches.push(r);
+        for mut r in pieces {
+            r.skip.extend(&supports[*ci]);
+            r.skip.sort_unstable();
+            r.skip.dedup();
+            reaches.push(r);
+        }
     }
     let boxes = FaceBoxes::of(body, band);
     // Two chains that share a vertex meet there in a corner or a turn,
@@ -2969,7 +2966,7 @@ mod tests {
         let (wall, stored) = faces
             .into_iter()
             .find_map(|f| {
-                let s = body.get_surface(body.get_face(f)?.surface)?;
+                let s = body.face_surface(f)?;
                 matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
             })
             .expect("the rod's wall");
@@ -3033,8 +3030,7 @@ mod tests {
         let face = faces
             .into_iter()
             .find(|&f| {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
+                body.face_surface(f)
                     .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the cap's sphere face");
@@ -3062,8 +3058,7 @@ mod tests {
             .faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
+                body.face_surface(f)
                     .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the pip's bowl");
@@ -3105,8 +3100,7 @@ mod tests {
                 faces
                     .into_iter()
                     .filter(|&f| {
-                        body.get_face(f)
-                            .and_then(|face| body.get_surface(face.surface))
+                        body.face_surface(f)
                             .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
                     })
                     .map(|f| {
@@ -3269,11 +3263,10 @@ mod tests {
     /// Ordered samples of each boundary loop of `face`.
     #[allow(clippy::expect_used)]
     fn boundary_samples(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Vec<Point3<f64>>> {
-        let f = body.get_face(face).expect("the face");
+        let f = body.face(face).expect("the face");
         let mut out = Vec::new();
-        for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).expect("its loop").boundary
-            else {
+        for (_, l, _) in f.loops() {
+            let topo::LoopBoundary::Cycle { first } = l.boundary else {
                 continue;
             };
             let mut pts = Vec::new();
@@ -3398,10 +3391,7 @@ mod tests {
         }
         #[allow(clippy::expect_used)]
         fn surface<T: geom_core::Real>(b: &topo::Body<T>, k: topo::FaceKey) -> geom::Surface<T> {
-            b.get_face(k)
-                .and_then(|face| b.get_surface(face.surface))
-                .cloned()
-                .expect("the face's surface")
+            b.face_surface(k).cloned().expect("the face's surface")
         }
         let iv = |x: f64| Interval::from_f64(x);
         let (mut clipped, mut perpendicular_walls, mut bad) = (0usize, 0usize, Vec::new());

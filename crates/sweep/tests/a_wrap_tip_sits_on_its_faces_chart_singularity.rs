@@ -44,9 +44,13 @@ fn tol() -> Tol {
 }
 
 /// Whether the joint the mint stored at `he` (into `he` from its loop's
-/// predecessor) is a reset.
+/// predecessor) is one whole turn on the principal sheet: the face
+/// wrapping a singular point at an edge's tip.
 fn resets(body: &Body<f64>, he: HalfEdgeKey) -> bool {
-    body.joint(he).is_some_and(topo::JointElement::is_reset)
+    body.joint(he).is_some_and(|e| {
+        let deck = e.deck();
+        deck.u.abs() == 1 && deck.v == 0 && !deck.twin
+    })
 }
 
 /// **A meridian spur of the unit sphere** from the equator vertex at
@@ -308,8 +312,7 @@ fn a_lone_wrap_edge_has_two_tips() {
         .find(|&e| body.both_sides_face(e) == Some(Some(face)))
         .expect("the strut lies in the sphere face");
     let ends = {
-        let e = body.get_edge(strut).unwrap();
-        let mut ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+        let mut ends = <[_; 2]>::from(body.edge_vertices(strut).unwrap());
         ends.sort();
         ends
     };
@@ -351,10 +354,7 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(
-                body.get_surface(body.get_face(face)?.surface)?,
-                geom::Surface::Cylinder { .. }
-            );
+            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");
@@ -513,7 +513,7 @@ fn side_about(
 ) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
     let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
-    let mut surface = body.get_surface(f.surface).unwrap().clone();
+    let mut surface = body.face_surface(face).unwrap().clone();
     if let (Some(turned), geom::Surface::Sphere { axis, .. }) = (axis, &mut surface) {
         *axis = turned;
     }
@@ -603,7 +603,9 @@ fn a_small_tip_cap_reads_its_side_off_its_tip_and_measures() {
 #[test]
 fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     let (body, face, _) = small_tip_cap();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let got = topo::validate_geometric(&flipped, tol()).expect_err("flipped refuses");
     assert!(
         got.contains(&ValidationError::CurvedSenseInverted { face }),
@@ -630,11 +632,21 @@ fn a_flipped_small_tip_cap_refuses_at_tier_3() {
     );
 
     let (body, face, _) = small_tip_cone();
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
+    // The tip's strut is outside the flipped face, so the whole turn
+    // its loop takes at the apex is the wrong way round and the loop
+    // does not close.
     assert_eq!(
         topo::validate_geometric(&flipped, tol()),
-        Err(vec![ValidationError::CurvedSenseInverted { face }]),
-        "the cone flipped: the side reader alone"
+        Err(vec![
+            ValidationError::CurvedSenseInverted { face },
+            ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::LoopNotClosed { face },
+            },
+        ]),
+        "the cone flipped: the side reader, and the loop that no longer closes"
     );
 }
 
@@ -703,4 +715,90 @@ fn a_held_tip_in_band_leaves_its_pole_unread() {
         other,
         "+x held, −x in band: +x decides"
     );
+}
+
+/// **The two tip readings agree at rest** (`topo::validate`'s `wraps`
+/// says why they are two): on every wrap-bearing body here, each
+/// `(vertex, edge)` either reading calls a tip is a tip by both, the
+/// corner the strut's facing asks at and the valence-1 end tiers 2 and
+/// 3 read. The one-face ball's lone wrap edge has two tips, the
+/// hemisphere's pole and the cone's apex one each; the extruded circle's
+/// seam strut, the full revolve's periodic meridians and the ring
+/// torus's wrap edges have none, so the corner reading must not call
+/// their ends tips either.
+#[test]
+fn the_two_tip_readings_agree_on_every_wrap_bearing_body() {
+    let circle = |c: (f64, f64), r: f64| {
+        profile::test_support::bulge_loop(vec![
+            (Point2::new(c.0 - r, c.1), 1.0),
+            (Point2::new(c.0 + r, c.1), 1.0),
+        ])
+    };
+    let validated = |loops| {
+        profile::Profile::new(profile::SketchPlane::<f64>::xy(), loops)
+            .validate(tol())
+            .unwrap()
+    };
+    let revolved = |loops| {
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        sweep::revolve(&validated(loops), axis, Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body()
+    };
+    let one_segment = profile::RawLoop::new([(
+        Point2::new(1.0, 0.0),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: 2.0 * PI,
+        }),
+    )]);
+    let cylinder = sweep::extrude(
+        &validated(vec![one_segment]),
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let tube = revolved(vec![profile::RawLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])]);
+    let bodies = [
+        ("the one-face ball", one_face_ball().0, 2),
+        ("the hemisphere", one_wrap_edge(hemisphere(), true).0, 1),
+        ("the cone", one_wrap_edge(cone(), true).0, 1),
+        ("the extruded circle", cylinder, 0),
+        ("the revolved annulus", tube, 0),
+        ("the ring torus", revolved(vec![circle((2.0, 0.0), 0.5)]), 0),
+    ];
+    for (what, body, tips) in bodies {
+        let wrap_edges = body
+            .edges()
+            .filter(|&(e, _)| {
+                let c = body.get_curve_geom(body.get_edge(e).unwrap().curve);
+                c.and_then(topo::CurveGeom::certified)
+                    .is_some_and(|c| c.description().is_wrap())
+            })
+            .count();
+        assert!(wrap_edges > 0, "{what}: the body bears a wrap edge");
+        let readings = topo::test_support::wrap_tip_readings(&body);
+        for &(v, e, corner, valence) in &readings {
+            assert_eq!(
+                corner, valence,
+                "{what}: at {v:?} along {e:?} the corner reads {corner}, the valence {valence}"
+            );
+        }
+        assert_eq!(readings.len(), tips, "{what}: its tips, {readings:?}");
+    }
 }

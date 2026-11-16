@@ -444,9 +444,9 @@ fn a_requested_mouth_on_the_strip_refuses() {
     };
     let mut edges = vec![edge(&body, [0.0, 1.0, 1.0], [1.0, 1.0, 1.0])];
     edges.extend(topo::query::all_edges(&body).into_iter().filter(|&e| {
-        let he = body.get_edge(e).expect("an edge").he_plus;
-        let p: Point3<f64> = point(body.get_half_edge(he).expect("a half").start);
-        let q: Point3<f64> = point(body.half_edge_end(he).expect("an end"));
+        let (v0, v1) = body.edge_vertices(e).expect("an edge");
+        let p: Point3<f64> = point(v0);
+        let q: Point3<f64> = point(v1);
         (p.z - 1.0).abs() < 1e-12 && (q.z - 1.0).abs() < 1e-12 && ((p - o).norm() - a).abs() < 1e-9
     }));
     assert!(edges.len() > 1, "the mouth's edges");

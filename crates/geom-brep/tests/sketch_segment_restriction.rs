@@ -237,8 +237,7 @@ fn whole_range_mismatches<T: Real>(
                     MappedSource::RevolvedPoint {
                         point: pt,
                         place,
-                        axis_origin: q,
-                        axis_dir: n,
+                        axis: geom::Line { origin: q, dir: n },
                         angle,
                     },
                     Affine3::rotate_point_about_axis(q, n, s * angle, placed(pt)),

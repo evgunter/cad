@@ -23,6 +23,10 @@ when a value is first shared or promoted, and a caller gives one when
 it declares. An unnamed variable has exactly one reader, a slot or a
 definition, and reads as its value and that reader ("5 mm, the depth of
 Extrude "base plate""), and as a hex tag in diagnostics, as a node does.
+A placement's own mate `on` sides selecting its source (`bracket.top`,
+VR4) are part of that placement's reading of the source, so an anonymous
+source read by one placement and its own `on` sides has one reader; a
+selection of it anywhere else is a second.
 An output reads as its operation and port, a name optional.
 
 **VR3 — Kind and definition.** `Var { kind, def }`. The kind is one of
@@ -32,8 +36,11 @@ is a new variable. `def` is `Free { value, unit, distribution }` (a
 definition may not reach its own variable (refused at the edit door and
 at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. The
-`Output { node, port }` and `Select { body, names }` definitions are
-arms of the same enum. A `Count` may be defined as an index,
+`Output { node, port }`, `Select { body, names }` and `Source(body)`
+definitions are arms of the same enum: a source is a `Body` defined as
+a read of one body (VR4), which evaluates as that body. A source reading
+itself, at any depth down further sources, is a definition reaching its
+own variable. A `Count` may be defined as an index,
 `index(N)` or `index(N) within j`, and every kind has a family keyed by
 index tuples, which no free variable holds (DESIGN `[repetition]`).
 
@@ -49,6 +56,25 @@ at a coarser slot carries the role it is read through (DESIGN
 an anonymous defined variable; a slot showing `5 mm` an anonymous free
 one. Formulas have one home: definitions, arithmetic over measured
 values included.
+
+A placement's source slot holds a **source** (DESIGN
+`[placement.placement]`): a `Body` variable defined as a read of one
+body — a plain body, a member `xs[k]`, a pick or another source —
+never an operation's output read directly. A source is a variable like
+any other, so VR2 holds unchanged: a lone placement's source is
+anonymous and its own, and two or more placements share it only by
+its name, which the person gives when the body is placed a second
+time. Re-pointing the placements of a body is redefining their source
+(`bracket = F`), one action with the rebinds of what reads the copies;
+a later placement of `bracket` reads `bracket`. Whatever reads a
+source — a placement, a selection in it (`bracket.top`), a further
+source (`u = bracket[0]`) — reads its body, so it evaluates after that
+body, and a redefinition is held to the load's rules at every reader. A source adds no name
+segment, so a copy's mate `on` sides select the source
+(`bracket.top`). An operation's output keeps its exemption from
+naming everywhere else. Ev chose this design on PR 6672 (2026-11-12) knowing
+its downsides were not all foreseen, and asked that a later reader who
+finds one push back on it rather than treat it as settled.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
@@ -87,7 +113,9 @@ and set a slot from a `Formula`. Create-or-replace by name goes.
 A named variable may stand unused; it is then reported (DESIGN
 `[operations]`, the `unused` check), never removed. An output is a
 byproduct of its operation unless named, and the operation is
-reported when none of its outputs is used.
+reported when none of its outputs is used. A source is a variable like
+any other: an anonymous one goes with its placement, and redefining a
+named one re-points every placement reading it.
 
 **VR8 — Coincidence tokens and the analysis lanes read ids.**
 `ParamSource` lowers a slot to its variable expanded through
@@ -107,9 +135,11 @@ document; `ParamScope::Root` / `Part` prefix its tokens. Persistence
 holds the variable table, the names and the mint log; a file this build
 cannot read refuses typed with the regenerate recourse, and the load
 door checks VR2's uniqueness, VR3's acyclicity and kinds, VR4's slot
-kinds and VR7's unnamed-has-one-reader. The façade's slot arguments accept a
+kinds — a placement's source slot reading a source among them — and
+VR7's unnamed-has-one-reader. The façade's slot arguments accept a
 variable, a `Formula`, or a written quantity (which mints an anonymous
 variable for that call); passing a named variable is how two slots share
-one.
+one. A placement passed a body mints an anonymous source for that call,
+and passed a source reads it.
 Python mirrors it. Split moves a variable with its readers; inline
 carries every variable of the part under a new id.

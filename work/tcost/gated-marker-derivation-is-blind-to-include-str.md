@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-19
 refs: [gated-markers-name-too-few-src-paths]
 priority: P3
-cost: D
+cost: E
 ---
 
 

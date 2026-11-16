@@ -2,10 +2,11 @@
 id: one-region-reads-a-cycle-crossing-at-a-shared-vertex-by-its-first-vertex
 kind: issue
 title: one_region::read_cycle reads two surface cycles of one loop (split by a seam or strut) that cross at a vertex they share by its first placed vertex (Answering::Any), so a CycleOffFaceSide can pass unreported
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
 ---
 
 
@@ -39,3 +40,75 @@ every walk order. If another check refuses the body, record which check
 and close this row. If not, make the site read every vertex (the agreeing
 check, `a-ladder-that-checks-its-answers-agree-has-no-home`, after
 `[ev]` PR 6592) or refuse a crossing at the shared vertex.
+
+## Closed (`onecopy/shared-vertex-crossing`): check 9 catches it
+
+Check 9 covers both shapes. None reaches `one_region` alone except in the cases named below.
+
+- **Two distinct loops meeting at a point** are its contact arm 1
+  (`RingMeetsOuter` / `RingMeetsRing` `Vertex`, on any carrier).
+  Probe: `one_region::tests::a_ring_crossing_its_outer_loop_at_shared_points_is_check_9s`.
+  A cylinder sheet's ring passes through two of its outer corners and
+  crosses the outer loop there. `validate_geometric` refuses it with
+  `RingMeetsOuter { contact: Vertex }`. Only arm 1's verdict is read:
+  the ring's edges are straight chords, so the body is otherwise
+  ill-formed.
+- **Two surface cycles of one loop sharing a point key.** A cycle is a
+  run of the loop's own half-edges, so a point key both cycles pass is
+  one the loop passes at two or more corners. `pinch_corner_errors`
+  groups exactly those (`loop_point_groups`, by point-key equality). It
+  reads each corner's wedge against the loop's other sides there,
+  including the seam or strut half-edges the surface boundary drops, on a
+  curved face in its tangent plane. A crossing there is
+  `PinchCornerCrossed`. A touch there is refused too, but not by arm 1's
+  rule for two loops. The strut splits the loop so that each cycle's
+  corner at the point pairs that cycle's own two edges, and the outer
+  corner's wedge holds the other cycle's edges, so neither corner is a
+  slice of the face. A legal pinch is one loop whose corners at the
+  point pair the two lobes' edges, each a slice (Ev's rule, PR 4057). It
+  passes, on a plane (`validate::tests::a_figure_eight_hole_with_a_closed_arc_passes`)
+  and on a cylinder: `one_region::tests::a_figure_eight_ring_on_a_cylinder_passes_and_its_crossed_twin_refuses`
+  reads a hexagon ring pinched at its waist onto one key and finds
+  nothing at the pinch, and its twin, one lobe walked the other way, is
+  refused there. Walked the other way round as a whole, the ring's
+  corners are complements and both shapes refuse; check 6 does not
+  refuse that role on the chord-built sheet, so the row fixes the hole's
+  order by hand.
+  Probe: `one_region::tests::two_surface_cycles_of_one_loop_crossing_at_a_shared_point_are_check_9s`.
+  - A cylinder sheet, its sense set so its loop bounds its rectangle,
+    has an outer loop carrying a strut, from the corner after `A`, to an
+    inner polygon closed by a membrane, with the strut kept. No polygon
+    edge runs along the strut. A first version led the strut from `A`
+    itself, so the polygon's edge to `A` lay along it, a degenerate
+    encoding. That is one loop, which
+    `surface_cycles` walks as two cycles (asserted).
+  - With the cycles apart, nothing is refused at the outer corner.
+  - With the polygon's corner moved onto the outer corner's point key,
+    `validate_geometric` refuses `PinchCornerCrossed` there, whether the
+    polygon crosses the outer cycle or touches it. Both come through the
+    same mechanism, the outer corner's wedge holding the polygon's edges,
+    so the row proves that no meeting of the two cycles at a shared key
+    reaches `one_region`, not that the arm tells a crossing from a touch.
+  - A first version of this probe read an unsensed sheet, which check 6
+    refuses (`CurvedSenseInverted`). Its corners were complements, so
+    the corner arm fired with the cycles apart too. The apart case now
+    guards against that.
+  - The moved corner's edges are re-carried on the chords to where it
+    now stands, so its departures there are not read from the line it
+    was built on (a 0.1 endpoint residual before).
+  - Only the corner arm's verdict at that point is read: the edges are
+    straight chords, so the body is otherwise ill-formed.
+
+A strut is an edge the face lies on both sides of. `surface_cycles` drops
+it, so it adds no point the two cycles share.
+
+**What the corner arm does not cover,** where `one_region` reads alone:
+- `pinch_corner_errors`' stated residue (`validate::pinch_corner_errors`'
+  doc): a cone's apex, which `one_region` does read (filed as
+  `two-cycles-crossing-at-a-cones-apex-are-read-by-their-first-vertex`);
+  a NURBS or `Approx` face; a side along a NURBS edge; two sides leaving
+  along one tangent; a cusp corner.
+- **Two distinct point keys within band** of one place, which
+  `loop_point_groups` does not group. Measured: neither the corner arm
+  nor arm 1 refuses it. That is the real residual, filed as
+  `a-loop-through-one-place-at-two-point-keys-is-read-by-its-first-vertex`.

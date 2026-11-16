@@ -194,7 +194,7 @@ pub(crate) fn floor<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
 /// the bar's walls.
 fn bar_walls<T: Real + Bounds>(body: &Body<T>, section: Section, k: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| match (body.get_surface(f.surface), section) {
+        .filter(|(fk, _)| match (body.face_surface(*fk), section) {
             (Some(geom::Surface::Cylinder { radius, .. }), Section::Round(a)) => {
                 (mid(*radius) - a).abs() < 1e-9 * k
             }
@@ -458,16 +458,14 @@ fn between_the_walls(body: &Body<f64>, faces: &[FaceKey]) -> Vec<FaceKey> {
     };
     let spans: Vec<FaceKey> = query::all_edges(body)
         .into_iter()
-        .filter_map(|e| body.get_edge(e))
-        .filter(|e| {
-            let (s, t) = (
-                x(body.get_half_edge(e.he_plus).expect("a half").start),
-                x(body.half_edge_end(e.he_plus).expect("an end")),
-            );
+        .filter_map(|k| body.get_edge(k).map(|e| (k, e)))
+        .filter(|&(k, _)| {
+            let (start, end) = body.edge_vertices(k).expect("an edge's ends");
+            let (s, t) = (x(start), x(end));
             ((s - 0.25).abs() < 1e-9 && (t - 0.75).abs() < 1e-9)
                 || ((s - 0.75).abs() < 1e-9 && (t - 0.25).abs() < 1e-9)
         })
-        .flat_map(|e| [e.he_plus, e.he_minus])
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
         .filter_map(|h| body.face_of_half_edge(h))
         .collect();
     faces

@@ -76,8 +76,8 @@ fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
 /// body — the caller guarantees only one such plane exists.
 fn z_chart(body: &Body<f64>, at: f64) -> Vec<FaceKey> {
     let mut found: Vec<FaceKey> = Vec::new();
-    for (k, f) in body.faces() {
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+    for (k, _) in body.faces() {
+        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
             continue;
         };
         if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9 && (origin.z - at).abs() < 1e-9 {

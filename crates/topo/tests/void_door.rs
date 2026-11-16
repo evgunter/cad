@@ -304,7 +304,7 @@ fn reading(body: &Body<f64>) -> Vec<String> {
             "face {k:?} shell={:?} sense={} surface={:?}",
             f.shell,
             f.sense,
-            body.get_surface(f.surface)
+            body.face_surface(k)
         ));
     }
     for (k, p) in body.vertex_points() {

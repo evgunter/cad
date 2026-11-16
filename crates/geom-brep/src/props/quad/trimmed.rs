@@ -400,7 +400,9 @@ fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
 /// chord: the extent ALONG the chord times the extent ACROSS it, both
 /// taken outward off the brackets. Exactly zero for a two-point block
 /// — a degree-1 arc IS its chord, so there is no lune at all, which is
-/// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
+/// every image this head's producer mints where a carrier's feet run
+/// straight in the chart (`PXN_IMAGE_DEGREE = 1`; a path that bends
+/// takes `edge_nurbs::general_chart_image`'s finer rungs).
 fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu.powi(2) + cv.powi(2)).sqrt();
@@ -514,7 +516,7 @@ fn piece_monotone<T: Decide>(
     // at least this much — and `rate` is a certified LOWER bound, so
     // under-stating it can only fail to certify, never certify a
     // sliver.
-    super::run::classify_len::<T>(
+    super::run::classify_len_as::<T>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,
@@ -790,7 +792,7 @@ impl Chord {
     /// EVERY knot and crossing cut is mandatory, and nothing may drop
     /// one: a dropped cut leaves a piece straddling a knot by the width
     /// of whatever guard dropped it, with no term paying for it. That is
-    /// the invariant [`knot_aligned_cuts`] states in capitals for its own
+    /// the invariant [`knot_aligned_cuts`](super::cells::knot_aligned_cuts) states in capitals for its own
     /// mandatory set; this list applies none of that function's SLIVER
     /// guard. A hairline piece is the safe outcome, and a piece of zero
     /// width is removed by the dedup.
@@ -868,10 +870,10 @@ impl Column {
             below: vbreaks
                 .windows(2)
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .map(|b| (b[0], b[1], geom::mid_param(b[0], b[1])))
                 .collect(),
             vk,
-            mid_v: vk.midpoint(vk1),
+            mid_v: geom::mid_param(vk, vk1),
         }
     }
 }
@@ -1162,7 +1164,7 @@ fn exact_piece(
     q: f64,
 ) -> Interval {
     let mu = wu.len() - 1;
-    let mid_u = p.midpoint(q);
+    let mid_u = geom::mid_param(p, q);
     let column = Column::under(vbreaks, cell_of(vbreaks, mid(chord.ell(pt(mid_u)))));
     let scale_u = pt(q) - pt(p);
     let mut acc = Interval::zero();
@@ -1212,7 +1214,7 @@ fn composite_piece(
     let (pi, qi) = (pt(p), pt(q));
     let h = qi - pi;
     let band = Interval::hull(chord.ell(pi), chord.ell(qi));
-    let m = p.midpoint(q);
+    let m = geom::mid_param(p, q);
     let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
     let located = (p < m && m < q && !in_gap)
         .then(|| {
@@ -1228,7 +1230,7 @@ fn composite_piece(
         return Some(Piece::Column(h.hi() * ((band - v0) * f).mag()));
     };
     let column = Column::under(vbreaks, cell);
-    let mi = (pi + qi) * pt(0.5);
+    let mi = geom::mid_param(pi, qi);
     let cu = Collapse::AtSpan { mid: m, t: &mi };
     let value = h * column_integral(wv, &column, chord.ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
     // `φ''` over the piece, every term read on the located cells'
@@ -1348,7 +1350,7 @@ fn chord_polygon_area(
                 return Interval::refused();
             };
             let hu = q - p;
-            let um = p.midpoint(q);
+            let um = geom::mid_param(p, q);
             let top = ell(um);
             let Some(column) = ParamRange::spanning(v0, top) else {
                 return Interval::refused();
@@ -1367,7 +1369,7 @@ fn chord_polygon_area(
                     return Interval::refused();
                 };
                 let hv = c1 - c0;
-                let vm = c0.midpoint(c1);
+                let vm = geom::mid_param(c0, c1);
                 let (cell_g, cell_gu, cell_gv) = area_cell(
                     su,
                     sv,
@@ -1516,8 +1518,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         return Err(PropsError::QuadratureUnsupported {
             what: "a RATIONAL chart reached the trimmed lane — the chord integrand is the \
                    polynomial `⟨S, S_u×S_v⟩`, and a quotient's is not polynomial in the \
-                   chord parameter, so the exact Newton–Cotes argument does not hold; the \
-                   rational chart carries IsoArc rims only on this head",
+                   chord parameter, so the exact Newton–Cotes argument does not hold",
         });
     }
     let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
@@ -1914,7 +1915,8 @@ mod tests {
     ///
     /// The loop `(0,0) → (1,0) → (1,1) → (0,0)` closes with a
     /// degree-1 `General` image, which is the class this head's
-    /// producer actually mints (`PXN_IMAGE_DEGREE = 1`): the region is
+    /// producer mints for a line whose feet run straight in the chart
+    /// (`PXN_IMAGE_DEGREE = 1`): the region is
     /// half the unit square, so `flux = c/2` and `area = 1/2`
     /// exactly. The rectangle lane cannot answer it at all — it reads
     /// endpoints and calls a diagonal a refusal — so this row is the

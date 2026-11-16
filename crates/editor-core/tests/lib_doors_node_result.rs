@@ -323,10 +323,12 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         // what lets a kernel-bug report name WHICH structure the
         // corrupt wall broke rather than only that one did.
         K::Loft(sweep::LoftError::SeamStructure {
-            source: geom_core::spline::SplineError::ControlCountMismatch {
-                control: 3,
-                expected: 4,
-            },
+            source: geom_core::spline::Built::new(
+                geom_core::spline::SplineError::ControlCountMismatch {
+                    control: 3,
+                    expected: 4,
+                },
+            ),
         }),
         K::Blend {
             verb: sweep::blend::BlendKind::Chamfer,
@@ -406,7 +408,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
 /// interpolation from any arm below reddens this immediately.
 ///
 /// The three cases are the workspace's source-carrying nestings:
-/// `LoftError`'s two (`SeamStructure`'s `SplineError` — the
+/// `LoftError`'s two (`SeamStructure`'s built `SplineError` — the
 /// `boundary_iso_u` refusal whose own `# Errors` section promises it is
 /// *surfaced rather than swallowed* — and `StackingEscalated`'s
 /// `Indeterminate`), plus the three-layer `Split` chain the roster
@@ -435,9 +437,9 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
     let cases: Vec<(K, String)> = vec![
         (
             K::Loft(sweep::LoftError::SeamStructure {
-                source: spline.clone(),
+                source: geom_core::spline::Built::new(spline.clone()),
             }),
-            spline.to_string(),
+            geom_core::spline::Built::new(spline.clone()).to_string(),
         ),
         (
             K::Loft(sweep::LoftError::StackingEscalated {

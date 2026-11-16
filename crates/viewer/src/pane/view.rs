@@ -1,6 +1,6 @@
 //! The View pane: display tolerance, the camera's state, and the
 //! show/hide toggle of every space and body
-//! ([`crate::display::toggles`]).
+//! ([`crate::display::DisplayState::toggles`]).
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 

@@ -15,7 +15,9 @@ use geom_core::tolerance::Tol;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
-use super::super::projected::{FramedCarrier, SectorChannel, project, projected_envelope};
+use super::super::projected::{
+    FramedCarrier, SectorChannel, check_4_terms, project, projected_envelope,
+};
 use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
 
@@ -676,7 +678,7 @@ fn a_spindle_toruss_floor_is_its_inner_sheets_distance() {
 #[test]
 fn a_spindle_toruss_bound_asks_its_lever_positive() {
     use super::super::projected::Meters;
-    let ask = |lever: f64| if lever > 0.0 { Ok(lever) } else { Err(lever) };
+    let ask = |lever: f64, _| if lever > 0.0 { Ok(lever) } else { Err(lever) };
     let spindle = Meters::Torus {
         major: 1.0,
         minor: 2.0,
@@ -697,22 +699,48 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
     );
 }
 
-/// `f = (m² − r²)(M² − r²)` in a sheet's meridian half-plane.
+/// An upper bound on `|f|`, `f = (m² − r²)(M² − r²)`, at a point of a
+/// sheet's meridian half-plane: each factor `ρ(ρ ∓ 2R) + z² + (R − r)(R + r)`
+/// enclosed in `Interval`, so the bound holds beside a horn's cusp, where
+/// the `f64` form cancels below the true value.
 fn sheet_form(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let r2 = minor * minor;
-    ((rho - major).powi(2) + z * z - r2) * ((rho + major).powi(2) + z * z - r2)
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let (big, r, rho, z) = (pt(major), pt(minor), pt(rho), pt(z));
+    let k = (big - r) * (big + r);
+    let near = rho * (rho - big - big) + z.powi(2) + k;
+    let far = rho * (rho + big + big) + z.powi(2) + k;
+    (near * far).abs().hi()
+}
+
+/// The fuzzes' allowance for the `f64` oracle's own rounding: relative
+/// to the bound, and absolute at the scale of the point's coordinates and
+/// the apexes' height, which beside a horn's cusp is far below `1e-15`.
+fn oracle_slack(bound: f64, rho: f64, z: f64, h: f64) -> f64 {
+    bound * 1e-9 + 8.0 * f64::EPSILON * (rho.abs() + z.abs() + h)
 }
 
 /// The exact distance in the meridian half-plane from `(ρ, z)` to the
 /// sheet `{(R + r cos v, r sin v) : |v| ≤ v*}`: the circle's nearest
 /// point where that lies at `ρ ≥ 0`, else the nearer apex (the arc's
-/// ends, `(0, ±√(r² − R²))`).
+/// ends, `(0, ±h)`, `h = √(r² − R²)`). The nearest point's `ρ` is
+/// `R + r(ρ − R)/m`; squaring `R·m ≥ r(R − ρ)` with
+/// `m² = (ρ − R)² + z²` gives the condition without `m`: on an apple or
+/// a horn `ρ ≥ R` or `R|z| ≥ h(R − ρ)`, on a lemon `|R||z| ≤ h(ρ − R)`,
+/// so a horn's foot is always on it. `m − r` is formed as
+/// `(ρ(ρ − 2R) + z² + (R − r)(R + r))/(m + r)`, which keeps its digits
+/// beside a horn's cusp.
 fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let m = ((rho - major).powi(2) + z * z).sqrt();
-    if major + minor * (rho - major) / m >= 0.0 {
-        (m - minor).abs()
+    let h = ((minor - major) * (minor + major)).max(0.0).sqrt();
+    let on_arc = if major > 0.0 {
+        rho >= major || major * z.abs() >= h * (major - rho)
     } else {
-        let h = (minor * minor - major * major).sqrt();
+        major.abs() * z.abs() <= h * (rho - major)
+    };
+    if on_arc {
+        let m = ((rho - major).powi(2) + z * z).sqrt();
+        ((rho * (rho - 2.0 * major) + z * z + (major - minor) * (major + minor)) / (m + minor))
+            .abs()
+    } else {
         (rho * rho + (z - h).powi(2))
             .sqrt()
             .min((rho * rho + (z + h).powi(2)).sqrt())
@@ -720,10 +748,12 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 }
 
 /// **A spindle sheet's bound is this sheet's distance**: wherever
-/// [`Meters::over`] certifies a box in a sheet's meridian half-plane, the
-/// distance of every point of the box from THIS sheet (not the torus's
-/// other sheet, and not its circle past the apexes) is at most the
-/// bound. Lemons and apples of every proportion, the box seeded on the
+/// [`Meters::certified`] reads a box in a sheet's meridian half-plane
+/// (the least of [`Meters::over`], the reading at the box's height and
+/// the apex reading), the distance of every point of the box from THIS
+/// sheet (not the torus's other sheet, and not its circle past the
+/// apexes) is at most the bound. Lemons, apples of every proportion and
+/// the horn (one draw in eight), the box seeded on the
 /// sheet, on the other sheet, at an apex, on the axis or anywhere near,
 /// at scales from `1e-9` to `1e-1`, as a point or a small box; `|f|`'s
 /// sup is read on a grid of the box and doubled, so a miss is the
@@ -732,10 +762,15 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 /// The side check (`|m − r|·|R| ≤ r·ρ`) is what selects the sheet, and
 /// this row is what holds it: without it the lever alone certifies
 /// parts near the other sheet and past the apexes, and the bound
-/// under-reads them by the thousand (`a_parts_past_a_sheets_apex_is_refused_by_the_side_check`
-/// is one, written down).
+/// under-reads them by the thousand
+/// (`a_parts_past_a_sheets_apex_is_refused_by_the_side_check` is one,
+/// written down, and `closed_form_limb2`'s
+/// `past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle` one at
+/// limb 2). The apex reading is the distance from the nearer apex, the
+/// box's far corner from it.
 ///
 /// [`Meters::over`]: super::super::projected::Meters::over
+/// [`Meters::certified`]: super::super::projected::Meters::certified
 #[test]
 fn a_spindle_bound_is_this_sheets_distance() {
     use super::super::projected::Meters;
@@ -745,6 +780,10 @@ fn a_spindle_bound_is_this_sheets_distance() {
         let mut u = s.range(-0.98, 0.98);
         if u.abs() < 0.02 {
             u = 0.5;
+        }
+        // One draw in eight is the horn.
+        if s.unit() < 0.125 {
+            u = 1.0;
         }
         let major = minor * u;
         let h = (minor * minor - major * major).sqrt();
@@ -789,22 +828,204 @@ fn a_spindle_bound_is_this_sheets_distance() {
                 };
                 let rho = rho_lo + (rho_hi - rho_lo) * at(a);
                 let z = z_lo + (z_hi - z_lo) * at(b);
-                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
                 far = far.max(sheet_distance(major, minor, rho, z));
             }
         }
         let f_sup = 2.0 * f_sup + 1e-300;
-        let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(()) };
-        let bound =
-            Meters::Spindle { major, minor }.over(f_sup, (rho_lo, rho_hi), (z_lo, z_hi), positive);
-        if let Ok(bound) = bound {
+        let read = Meters::Spindle { major, minor }.certified(
+            f_sup,
+            (rho_lo, rho_hi),
+            (z_lo, z_hi),
+            |x| x > 0.0,
+        );
+        if let Some(bound) = read {
             assert!(
-                far <= bound * (1.0 + 1e-9) + 1e-15,
+                far <= bound + oracle_slack(bound, rho_hi, z_lo.abs().max(z_hi.abs()), h),
                 "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
                  a point {far} from the sheet past the bound {bound}; {}",
                 fuzz::replay()
             );
         }
+    }
+}
+
+/// **[`a_spindle_bound_is_this_sheets_distance`] at `Interval`, near the
+/// apexes**, as `spans_of` reads it (each lever certified positive when
+/// its enclosure's lower end is): boxes seeded on this sheet, on the
+/// other, or at an apex, at scales `1e-12` to `1e-3`, on sheets from a
+/// fat lemon or apple to within `1e-9` of the horn, and on the horn
+/// itself (one draw in eight), beside its cusp. The bound's upper
+/// end bounds every sampled point's distance from this sheet.
+#[test]
+fn a_spindle_bound_is_this_sheets_distance_at_interval() {
+    use super::super::projected::Meters;
+    let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance_at_interval");
+    for i in 0..fuzz::scaled(60_000) {
+        let minor = s.range(0.2, 2.0);
+        // One draw in eight is the horn, its apexes one cusp.
+        let (gap, sign) = if s.unit() < 0.125 {
+            (0.0, 1.0)
+        } else {
+            (
+                s.log_uniform(1e-9, 0.9),
+                if s.unit() < 0.5 { -1.0 } else { 1.0 },
+            )
+        };
+        let major = sign * minor * (1.0 - gap);
+        let h = geom::sheet_apex(major, minor).height;
+        let apex = if s.unit() < 0.5 { h } else { -h };
+        let scale = s.log_uniform(1e-12, 1e-3);
+        let up = |v: f64| if apex > 0.0 { v } else { -v };
+        let (rho0, z0) = match i % 3 {
+            0 => {
+                let vs = (-major / minor).acos();
+                let v = up(vs - s.unit() * (scale / minor).min(vs));
+                (major + minor * v.cos(), minor * v.sin())
+            }
+            1 => {
+                let vs = (major / minor).acos();
+                let v = up(vs - s.unit() * (scale / minor).min(vs));
+                (-major + minor * v.cos(), minor * v.sin())
+            }
+            _ => (0.0, apex),
+        };
+        let rho_c = (rho0 + scale * s.range(-1.0, 1.0)).max(0.0);
+        let z_c = z0 + scale * s.range(-1.0, 1.0);
+        let point = s.unit() < 0.3;
+        let (dr, dz) = if point {
+            (0.0, 0.0)
+        } else {
+            (scale * s.unit(), scale * s.unit())
+        };
+        let (rho_lo, rho_hi) = ((rho_c - dr).max(0.0), rho_c + dr);
+        let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+        let n = if point { 0 } else { 12 };
+        let (mut f_sup, mut far) = (0.0_f64, 0.0_f64);
+        for a in 0..=n {
+            for b in 0..=n {
+                let at = |k: u32| {
+                    if n == 0 {
+                        0.0
+                    } else {
+                        f64::from(k) / f64::from(n)
+                    }
+                };
+                let rho = rho_lo + (rho_hi - rho_lo) * at(a);
+                let z = z_lo + (z_hi - z_lo) * at(b);
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
+                far = far.max(sheet_distance(major, minor, rho, z));
+            }
+        }
+        let f_sup = 2.0 * f_sup + 1e-300;
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let meters = Meters::Spindle {
+            major: pt(major),
+            minor: pt(minor),
+        };
+        let read = meters.certified(pt(f_sup), (pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), |l| {
+            l.is_certified() && l.lo() > 0.0
+        });
+        let Some(bound) = read else {
+            panic!(
+                "draw {i}: a sheet's reading always reads; {}",
+                fuzz::replay()
+            )
+        };
+        assert!(
+            far <= bound.hi() + oracle_slack(bound.hi(), rho_hi, z_lo.abs().max(z_hi.abs()), h),
+            "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
+             a point {far} from the sheet past {}; {}",
+            bound.hi(),
+            fuzz::replay()
+        );
+    }
+}
+
+/// **A part beside a horn's cusp is read at its own height**: the horn
+/// `R = r = 1` and the box `ρ ∈ [0, 4.4·10⁻¹⁶]`, `z ∈ [7, 9]·10⁻¹¹`, a
+/// stretch of its meridian a net with `f64` rounding encloses (the sheet
+/// runs at `ρ ≈ z²/2 ≈ 3·10⁻²¹` there). The lever `(ρ + R)² + z² − r²`
+/// is only `z² ≈ 5·10⁻²¹` at the box's least, so `|f|` over it reads
+/// about `10⁻¹⁰` where the side check lets it read at all; the sheet's
+/// point at each height, `ρ_s(z)`, puts every
+/// point of the box within its width, `4.4·10⁻¹⁶`, which is what
+/// [`Meters::certified`] reads.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.0, 4.4e-16), (7e-11, 9e-11));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
+    }
+    let f_sup = 2.0 * f_sup;
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let lever = Meters::Spindle { major, minor }.over(f_sup, rho, z, positive);
+    assert!(
+        !lever.is_ok_and(|d| d <= 1e-11),
+        "the lever's reading is refused or the rounding over z²: {lever:?}"
+    );
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let read = Meters::Spindle {
+        major: pt(major),
+        minor: pt(minor),
+    }
+    .certified(pt(f_sup), (pt(rho.0), pt(rho.1)), z, |l| {
+        l.is_certified() && l.lo() > 0.0
+    });
+    let Some(read) = read else {
+        panic!("a part beside the cusp reads")
+    };
+    assert!(
+        read.hi() <= 1e-15,
+        "the height reading is the box's width: {}",
+        read.hi()
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(
+            d <= read.hi(),
+            "({a}, {b}) is {d} from the horn, past {}",
+            read.hi()
+        );
+    }
+}
+
+/// **A sheet's reading is the least that reads**: on the horn
+/// `R = r = 1`, the box `ρ ∈ [0.04, 0.06]`, `z ∈ [0.3, 0.3001]` across
+/// the sheet (at `ρ_s(0.3) ≈ 0.046`). The lever and the side check both
+/// clear, and `|f|` over the lever reads about `0.017`; the sheet's point
+/// at the box's height reads `0.014`, which [`Meters::certified`] takes.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_sheets_reading_is_the_least_that_reads() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.04, 0.06), (0.3, 0.3001));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
+    }
+    let meters = Meters::Spindle { major, minor };
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let Ok(over) = meters.over(f_sup, rho, z, positive) else {
+        panic!("the lever and the side check clear")
+    };
+    let Some(read) = meters.certified(f_sup, rho, z, |x| x > 0.0) else {
+        panic!("the part reads")
+    };
+    assert!(
+        read < 0.015 && read < over,
+        "{read} is not the least of {over} and the height's"
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(d <= read, "({a}, {b}) is {d} from the horn, past {read}");
     }
 }
 
@@ -822,7 +1043,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
 /// [`Meters::over`]: super::super::projected::Meters::over
 #[test]
 fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
-    use super::super::projected::Meters;
+    use super::super::projected::{Lever, Meters};
     let (major, minor, rho, z) = (0.9_f64, 1.0_f64, 0.1_f64, 0.2_f64);
     let lever = (rho + major).powi(2) + z * z - minor * minor;
     assert!(lever > 0.0, "the lever reads {lever}, which certifies");
@@ -834,10 +1055,10 @@ fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
         "the circle's distance {whole} under-reads the sheet's {own}"
     );
     assert!(whole * major.abs() > minor * rho, "the side check fails");
-    let f = sheet_form(major, minor, rho, z).abs();
-    let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(x) };
+    let f = sheet_form(major, minor, rho, z);
+    let positive = |x: f64, which| if x > 0.0 { Ok(x) } else { Err(which) };
     let got = Meters::Spindle { major, minor }.over(f, (rho, rho), (z, z), positive);
-    assert!(got.is_err(), "the side check refuses: {got:?}");
+    assert_eq!(got, Err(Lever::Side), "the side check refuses");
 }
 
 /// One respect a dominance row moves.
@@ -867,7 +1088,7 @@ impl Moved {
 /// One dominance row on a curved chart: `(sampled sup, envelope, the
 /// moved term's value)`, or `None` where the moved pair refuses before
 /// any term (a sector the move broke).
-fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, f64, f64)> {
+fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Dominance> {
     let b = band();
     let mut surf = surface(chart, s);
     let carrier = on_chart(&surf, s);
@@ -964,37 +1185,112 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, 
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
     let lane = crate::FittedLane::<f64>::certified();
-    let terms = projected_envelope(&image, t0, t1, &boxed, &carrier, &surf, b, Some(lane))
+    let read = |parts| {
+        check_4_terms(
+            &pcurve,
+            (t0, t1),
+            &boxed,
+            &carrier,
+            &surf,
+            b,
+            Some(lane),
+            parts,
+        )
+    };
+    let eight = crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS);
+    let lemma_in = |parts| {
+        projected_envelope(
+            &image,
+            t0,
+            t1,
+            &boxed,
+            &carrier,
+            &surf,
+            b,
+            Some(lane),
+            parts,
+        )
         .map(|(terms, _)| terms)
-        .ok()?;
-    Some((
-        sampled(&pcurve, &carrier, &surf, t0, t1),
-        terms.total(),
-        terms.0[moved.term().slot()],
-    ))
+    };
+    let lemma = lemma_in(eight).ok()?;
+    Some(Dominance {
+        sampled: sampled(&pcurve, &carrier, &surf, t0, t1),
+        eight: read(eight).ok().map(|t| t.total()),
+        by_turn: read(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        lemma: lemma.total(),
+        lemma_by_turn: lemma_in(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        term: lemma.0[moved.term().slot()],
+    })
+}
+
+/// What [`dominance_row`] read: the row's densely sampled displacement;
+/// check 4's envelope ([`check_4_terms`]) with each knot span in eight
+/// parts and in the parts its turn needs (`None` where it refuses); and
+/// the projected lemma's own envelope ([`projected_envelope`], no
+/// placement pair) at eight parts, with the moved respect's term in it,
+/// and at the parts each span's turn needs.
+struct Dominance {
+    sampled: f64,
+    eight: Option<f64>,
+    by_turn: Option<f64>,
+    lemma: f64,
+    lemma_by_turn: Option<f64>,
+    term: f64,
 }
 
 const CURVED: [Chart; 4] = [Chart::Cylinder, Chart::Cone, Chart::Sphere, Chart::Torus];
 const MOVES: [Moved; 4] = [Moved::Carrier, Moved::Net, Moved::Frame, Moved::Deck];
 
 /// **The envelope dominates**: every row moved in one respect bounds
-/// its densely sampled displacement. A counterexample search.
+/// its densely sampled displacement, the lemma's envelope and check 4's,
+/// its knot spans read in eight parts and in the parts their turn needs
+/// alike. A counterexample search; most rows read an envelope, and few
+/// refuse at the parts their turn needs.
 #[test]
 fn the_projected_envelope_dominates_the_sampled_displacement() {
     let mut s = fuzz::start("projected_dominance");
+    let (mut rows, mut by_turn_refused) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(10) {
         for chart in CURVED {
             for moved in MOVES {
-                if let Some((sup, env, _)) = dominance_row(chart, moved, &mut s) {
+                let Some(row) = dominance_row(chart, moved, &mut s) else {
+                    continue;
+                };
+                rows += 1;
+                by_turn_refused += usize::from(row.eight.is_some() && row.by_turn.is_none());
+                let sup = row.sampled;
+                for (parts, env) in [
+                    ("the lemma", Some(row.lemma)),
+                    ("the lemma by turn", row.lemma_by_turn),
+                    ("eight", row.eight),
+                    ("by turn", row.by_turn),
+                ] {
+                    let Some(env) = env else { continue };
                     assert!(
                         env >= sup * (1.0 - 1e-9) - 1e-15,
-                        "{chart:?} moved {moved:?}: envelope {env:e} under sampled {sup:e} — {}",
+                        "{chart:?} moved {moved:?}, {parts}: envelope {env:e} under sampled \
+                         {sup:e} — {}",
                         fuzz::replay()
                     );
                 }
             }
         }
     }
+    let drawn = fuzz::scaled(10) * CURVED.len() * MOVES.len();
+    assert!(
+        3 * rows >= drawn,
+        "{rows} of {drawn} rows read an envelope — {}",
+        fuzz::replay()
+    );
+    assert!(
+        4 * by_turn_refused <= rows,
+        "{by_turn_refused} of {rows} rows refuse at the parts their turn needs — {}",
+        fuzz::replay()
+    );
 }
 
 /// **Each term is load-bearing**: on every curved chart, for each
@@ -1011,7 +1307,7 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
         for moved in MOVES {
             let bearing = (0..24).any(|_| {
                 dominance_row(chart, moved, &mut s)
-                    .is_some_and(|(sup, env, term)| term > 0.0 && env - term < sup)
+                    .is_some_and(|row| row.term > 0.0 && row.lemma - row.term < row.sampled)
             });
             assert!(
                 bearing,
@@ -1184,7 +1480,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
     );
     let err = super::super::chart_pcurve(&off, &torus, b).expect_err("off the torus");
     assert!(
-        matches!(err, PcurveCertifyError::CarrierOffChart { .. }),
+        matches!(
+            crate::IncidenceRead::of(&err),
+            Some(crate::IncidenceRead::Off(_))
+        ),
         "{err:?}"
     );
     let _ = Tol::witness();
@@ -1664,9 +1963,19 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
             let image = project(&c, None, &surf, b).unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
             let pcurve = Pcurve::Projected(Box::new(image.clone()));
             let boxed = pcurve.chart_box(0.0, 1.0);
-            let terms = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &surf, b, Some(lane))
-                .map(|(terms, _)| terms)
-                .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
+            let terms = projected_envelope(
+                &image,
+                0.0,
+                1.0,
+                &boxed,
+                &c,
+                &surf,
+                b,
+                Some(lane),
+                crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            )
+            .map(|(terms, _)| terms)
+            .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
             let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
             assert!(
                 incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
@@ -1682,9 +1991,19 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
         let image = project(&c, Some((0.3, 2.1)), &sphere, b).expect("clear of the poles");
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(0.3, 2.1);
-        let terms = projected_envelope(&image, 0.3, 2.1, &boxed, &c, &sphere, b, None)
-            .map(|(terms, _)| terms)
-            .expect("a circle reads no door");
+        let terms = projected_envelope(
+            &image,
+            0.3,
+            2.1,
+            &boxed,
+            &c,
+            &sphere,
+            b,
+            None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+        )
+        .map(|(terms, _)| terms)
+        .expect("a circle reads no door");
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
         assert!(
             incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
@@ -1841,10 +2160,20 @@ fn moved_stored_scalars_are_dominated() {
                  t1: f64| {
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(t0, t1);
-        let env = projected_envelope(&image, t0, t1, &boxed, c, surf, b, Some(lane))
-            .map(|(terms, _)| terms)
-            .unwrap_or_else(|e| panic!("{what}: {e:?}"))
-            .total();
+        let env = projected_envelope(
+            &image,
+            t0,
+            t1,
+            &boxed,
+            c,
+            surf,
+            b,
+            Some(lane),
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+        )
+        .map(|(terms, _)| terms)
+        .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+        .total();
         let sup = sampled(&pcurve, c, surf, t0, t1);
         assert!(sup > 1e-8, "{what}: the move is real ({sup:e})");
         assert!(
@@ -1883,7 +2212,7 @@ fn moved_stored_scalars_are_dominated() {
     let sphere = unit_sphere();
     let c = tilted_on(1.0, 0.7, 0.3);
     let mut image = project(&c, Some((0.3, 2.1)), &sphere, b).unwrap();
-    if let FramedCarrier::Circle { ref mut centre, .. } = image.carrier {
+    if let FramedCarrier::Conic { ref mut centre, .. } = image.carrier {
         *centre = *centre + Vec3::new(eta, -eta, eta);
     }
     check("the circle's stored centre", image, &c, &sphere, 0.3, 2.1);
@@ -2104,10 +2433,20 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
     let image = project(&c, None, &plane, b).expect("a plane takes every net");
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(0.0, 1.0);
-    let env = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &plane, b, None)
-        .map(|(terms, _)| terms)
-        .expect("the plane reads no door")
-        .total();
+    let env = projected_envelope(
+        &image,
+        0.0,
+        1.0,
+        &boxed,
+        &c,
+        &plane,
+        b,
+        None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+    )
+    .map(|(terms, _)| terms)
+    .expect("the plane reads no door")
+    .total();
     let dense =
         super::super::harmonic_sup_rows::sampled_residual(&pcurve, (0.0, 1.0), &c, &plane, 2048);
     assert!(
@@ -2150,9 +2489,19 @@ fn a_cone_carrier_leaving_the_apex_is_dominated() {
     let sup = sampled(&pcurve, &c, &cone, t0, t1);
     assert!((sup - d).abs() < 1e-9, "the start is {d:e} off: {sup:e}");
     let boxed = pcurve.chart_box(t0, t1);
-    let terms = projected_envelope(&image, t0, t1, &boxed, &c, &cone, b, Some(lane))
-        .map(|(terms, _)| terms)
-        .expect("the lever is positive on the nappe");
+    let terms = projected_envelope(
+        &image,
+        t0,
+        t1,
+        &boxed,
+        &c,
+        &cone,
+        b,
+        Some(lane),
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+    )
+    .map(|(terms, _)| terms)
+    .expect("the lever is positive on the nappe");
     let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
     assert!(
         incidence >= sup * (1.0 - 1e-9),
@@ -2181,7 +2530,15 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            net,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     let edge = (0.0, 0.5);
     let read = |hull: &super::super::projected::ProjectedHull| {
         super::super::projected::net_incidence(
@@ -2231,7 +2588,15 @@ fn an_uncertified_sector_bound_escalates() {
         unreachable!("a spline carrier")
     };
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, net, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            net,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     for (k, piece) in hull.pieces.iter().enumerate() {
         hull_sector(piece, k, &image.chart, b).expect("the clean hull's sectors hold");
     }
@@ -2281,7 +2646,15 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
-    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            &corrupt,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
         matches!(
@@ -2326,7 +2699,15 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&cylinder);
-    let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
+    let hull = lane
+        .projected_hull(
+            &image,
+            &corrupt,
+            &twin,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            &[],
+        )
+        .unwrap();
     assert!(hull.pieces[0].x_lo.is_nan(), "{:?}", hull.pieces[0]);
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(

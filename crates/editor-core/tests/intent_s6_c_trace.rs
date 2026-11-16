@@ -290,7 +290,7 @@ fn the_traced_wall_moves_with_the_radius_at_dual_and_interval() {
         seed: Some(r),
         ..EvalOptions::default()
     };
-    let ev = evaluate::<Dual<f64>>(
+    let ev = editor_core::test_support::evaluate_bound::<Dual<f64>>(
         &scene.doc,
         None,
         &CancelToken::new(),

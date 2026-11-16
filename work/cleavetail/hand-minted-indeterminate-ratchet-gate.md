@@ -67,3 +67,7 @@ or `straddle(` in production code, beside the two counts above.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Two sites retired (SEAL PR 6693, 2026-11-10)
+
+Two of the four sites cited above are retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`): `vtxfac`'s `bool_sector_coplanar` and `boolean/mod.rs`'s `unglued_coincidence`. Both are deleted, and the unglued corner refuses through `gate_rejection` or `straddle`.

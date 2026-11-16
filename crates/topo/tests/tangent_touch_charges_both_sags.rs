@@ -14,7 +14,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::contact::ContactRefusal;
+use topo::contact::TangentVerdict;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -42,7 +42,7 @@ fn off_axis_ball(delta: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     (ball, bore, halfway)
 }
 
-fn read(delta: f64) -> Result<geom_core::MarginDiag, ContactRefusal> {
+fn read(delta: f64) -> TangentVerdict {
     let (ball, bore, halfway) = off_axis_ball(delta);
     // The bore's face looks into the hole: its outward normal is the
     // cylinder's inward one, opposed to the ball's.
@@ -68,7 +68,11 @@ fn the_touch_between_samples_charges_both_surfaces_sags() {
     // schedule settles it, the true separation being within ε.
     assert!(0.95 * eps + bounds.gap_sag > eps, "{bounds:?}");
     for delta in [0.5 * eps, 0.95 * eps] {
-        assert!(read(delta).is_ok(), "{delta:e}: {:?}", read(delta));
+        assert!(
+            matches!(read(delta), TangentVerdict::Touch(_)),
+            "{delta:e}: {:?}",
+            read(delta)
+        );
     }
     // The table's finest schedule: `2^REFINE_HALVINGS` spans to each
     // of the nine-sample schedule's.
@@ -90,7 +94,7 @@ fn the_touch_between_samples_charges_both_surfaces_sags() {
     assert!(delta + finest.residual_sag <= eps, "{finest:?}");
     assert!(delta + finest.gap_sag > eps, "{finest:?}");
     match read(delta) {
-        Err(ContactRefusal::Escalated { diag }) => {
+        TangentVerdict::InBand(diag) => {
             assert_eq!(diag.predicate, Some("contact_tangent_touch"), "{diag:?}");
         }
         other => panic!("{delta:e}: the span line refuses on the sag: {other:?}"),

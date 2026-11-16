@@ -37,23 +37,18 @@
 use geom_core::{Band, Decide, Tol};
 
 use super::PlaneSide;
-use super::finish::{SplitFinishError, SplitNaming};
+use super::finish::{FinishDesync, SplitFinishError, SplitNaming};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::fuse::{Joint, fuse};
+use crate::unresolved::Unresolved;
 use crate::validate::{
     CornerSide, PointCorner, WedgeNames, corner_normal, loop_point_groups, point_corners,
     wedge_holds_named,
 };
 
 /// The split's cone-corner names ([`wedge_holds_named`]).
-const CONE_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "split_cone_corner_after_leaving",
-    before_arriving: "split_cone_corner_before_arriving",
-    turn: "split_cone_corner_turn",
-    straight: "split_cone_corner_straight",
-    straddle: "split_cone_corner_straddle",
-};
+const CONE_CORNER: WedgeNames = crate::rows::CONE_CORNER;
 
 /// A fusion read: the leaving half-edges of two corners, at two
 /// vertices of one point, of a loop of `face`.
@@ -72,10 +67,10 @@ struct Fusion {
 /// - [`SplitFinishError::ConeCornerUnread`] where a corner at a point of
 ///   two vertices has a side with no departure read, or the face no
 ///   normal there;
-/// - [`SplitFinishError::ConeFusionDesync`] or
+/// - [`SplitFinishError::LineageRow`] or
 ///   [`SplitFinishError::Euler`] where the fusion refuses;
-/// - [`SplitFinishError::Corrupt`] where a key the reading just walked no
-///   longer resolves.
+/// - [`SplitFinishError::Desync`] where a key the reading just walked no
+///   longer resolves, or a lineage list refuses a row.
 pub(super) fn fuse_section_cones<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
@@ -86,38 +81,48 @@ pub(super) fn fuse_section_cones<T: Decide + crate::props::AtRestPolicy>(
     while let Some(Fusion { face, from, to }) = next_fusion(body, side, naming, band)? {
         let start = |he| body.get_half_edge(he).map(|h| h.start);
         let (a, b) = (
-            start(from).ok_or(SplitFinishError::Corrupt)?,
-            start(to).ok_or(SplitFinishError::Corrupt)?,
+            start(from).ok_or(desync(Unresolved::Record(EntityId::HalfEdge(from))))?,
+            start(to).ok_or(desync(Unresolved::Record(EntityId::HalfEdge(to))))?,
         );
         let keep = if naming.original_of(a) <= naming.original_of(b) {
             a
         } else {
             b
         };
-        let p = body
+        let point = body
             .get_vertex(keep)
-            .and_then(|v| body.points.get(v.point).copied())
-            .ok_or(SplitFinishError::Corrupt)?;
+            .ok_or(desync(Unresolved::Record(EntityId::Vertex(keep))))?
+            .point;
+        let p = body
+            .points
+            .get(point)
+            .copied()
+            .ok_or(desync(Unresolved::Geometry(EntityId::Vertex(keep))))?;
         let fused = fuse(
             body,
             Joint::Chord { he1: from, he2: to },
             (p, keep),
-            |what| SplitFinishError::ConeFusionDesync { what },
+            desync,
             tol,
         )?;
         naming
             .vertex_fusions
             .push((fused.dead, fused.kept))
-            .map_err(|_| SplitFinishError::Corrupt)?;
+            .map_err(SplitFinishError::LineageRow)?;
         if let Some(made) = fused.divided {
             naming.sections.push((made, side));
             naming
                 .face_fragments
                 .push((made, face))
-                .map_err(|_| SplitFinishError::Corrupt)?;
+                .map_err(SplitFinishError::LineageRow)?;
         }
     }
     Ok(())
+}
+
+/// The finish's refusal for a key that does not resolve.
+fn desync(unresolved: Unresolved) -> SplitFinishError {
+    SplitFinishError::Desync(FinishDesync::Unresolved(unresolved))
 }
 
 /// The first fusion `side`'s section faces call for, in section order
@@ -139,7 +144,7 @@ fn next_fusion<T: Decide>(
             let vertex = |i: usize| body.get_half_edge(cycle[i]).map(|h| h.start);
             let vertices = at
                 .iter()
-                .map(|&i| vertex(i).ok_or(SplitFinishError::Corrupt))
+                .map(|&i| vertex(i).ok_or(desync(Unresolved::Record(EntityId::HalfEdge(cycle[i])))))
                 .collect::<Result<Vec<_>, _>>()?;
             if vertices.iter().all(|&v| v == vertices[0]) {
                 continue;

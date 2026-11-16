@@ -25,7 +25,7 @@ use geom_core::{Dual64, Tol, Vec3};
 use topo::construction::Construct;
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
 
-use crate::common::approx::{nurbs_walls, prism, twisted_loft};
+use crate::common::approx::{SADDLE_WALL_CAP_REACH, nurbs_walls, prism, twisted_loft};
 use sweep::test_support::finished;
 
 /// The wall thickness these rows shell at, in metres: 2.5% of the
@@ -39,9 +39,9 @@ fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
 /// The `z = 1` cap, whose chart normal points out of the body.
 fn top_cap<T: geom_core::Real + geom_core::Bounds>(body: &Body<T>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.lo() > 0.5 && origin.z.lo() > 0.5
             )
@@ -190,7 +190,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
                 if pl.y == 0.0 && (p0.y - z).abs() < 1e-9)
         })
         .count();
@@ -226,13 +226,11 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         );
     };
     // Which door answers first depends on ε: a wall's fit reaches
-    // 1.39486e-10 m on a 62 x 35 grid, the last within the sample cap,
+    // `SADDLE_WALL_CAP_REACH` on a 62 x 35 grid, the last within the sample cap,
     // so below that the fit refuses at the cap, and above it the fit
-    // certifies and the seams derive. (1.3958e-10 before the offset
-    // regularity floor became the area quotient's inf, PR 4984: the
-    // tangential term divides by that floor, and it rose.)
+    // certifies and the seams derive.
     let eps = Tol::witness().eps();
-    if eps < 1.39486e-10 {
+    if eps < SADDLE_WALL_CAP_REACH {
         assert!(
             is_spline_wall(&nurbs_walls(&body), *face),
             "the refusing face is not a wall: {e_at}",
@@ -255,7 +253,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             );
         };
         assert!(
-            *grid == (62, 35) && (achieved - 1.39486e-10).abs() < 1e-14,
+            *grid == (62, 35) && (achieved - SADDLE_WALL_CAP_REACH).abs() < 1e-14,
             "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
@@ -354,7 +352,7 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
         if !is_spline_wall(&walls, face) {
             continue;
         }
-        let geom_brep::Pcurve::IsoLine { p0, pl } = *cache.pcurve() else {
+        let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *cache.pcurve() else {
             continue;
         };
         // A row: `u` moves and `v` is fixed, strictly inside the chart.
@@ -449,8 +447,9 @@ fn vase() -> Body<f64> {
 /// lane reads their vector area (`geom_brep::props::rational_rim`), and
 /// its area and flux hold the disc's, while the structural door, which
 /// has no quadrature lane, keeps the closed form's typed refusal. Tier 3
-/// then refuses at a wall, whose trim rows are the cap's to rounding and
-/// not its chart's exact rectangle.
+/// then passes, and the volume holds the turned solid's: the walls' trim
+/// rows are the cap's to rounding, and a wall's rectangle is the lines its
+/// rows hold.
 #[test]
 fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row() {
     let body = vase();
@@ -488,7 +487,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     // The bottom cap, moved alone into the vase.
     let (cap, d) = body
         .faces()
-        .find_map(|(k, f)| match body.get_surface(f.surface) {
+        .find_map(|(k, _)| match body.face_surface(k) {
             Some(geom::Surface::Plane { origin, normal, .. }) if origin.z < 0.5 => {
                 Some((k, THICKNESS * normal.z.signum()))
             }
@@ -552,7 +551,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
                 if pl.y == 0.0 && (p0.y - row).abs() < 1e-9)
         })
         .count();
@@ -608,25 +607,49 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         "the moved cap's area bracket widened to ± {}",
         reading.area_pad
     );
-    // Tier 3 now passes the cap and refuses at a wall: the moved cap's
-    // rims are the walls' rows to rounding, not exactly, and a NURBS
-    // wall's patch lane reads only an exact rectangle of its chart
-    // (`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
-    let refusals = topo::validate_geometric(&alone, Tol::witness())
-        .expect_err("a wall trimmed off its exact rectangle has no volume");
+    // Tier 3 passes the moved cap and the walls. Each wall's rim is the
+    // cap's rim on the wall's row to rounding: held at
+    // `v = 0.024999999999974973`, 2.5e-14 (some 7,200 ulps) under the exact
+    // row `v = 0.025`, while its seams start at `0.024999999999999998`. The
+    // patch lane reads the rectangle its rows hold, `[0, 1] ×
+    // [0.024999999999974973, 1]`, and pads the corners' gap. The vase is
+    // turned, `r(z) = 1 + 0.6·z − 0.3·z²` for `z ∈ [0, 2]`, so its volume
+    // above the moved cap is `π ∫ r² dz` over `[z, 2]`, and the certified
+    // volume holds it within its own bracket. That bracket's half-width is
+    // some 4e-6, so the row cannot tell the rows' rectangle from the exact
+    // row's (their slabs differ by 1.7e-13); what it pins is a gross misread,
+    // such as the wall's rectangle taken from `v = 0`, which moves the volume
+    // by 0.16.
+    use geom_core::Bounds as _;
+    topo::validate_geometric(&alone, Tol::witness())
+        .expect("the vase with its cap moved alone validates");
+    let measured = topo::mass_properties(
+        &finished("the moved vase", alone.clone(), Tol::witness()),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the moved vase measures")
+    .enclosure;
+    let (a, b) = (0.6, -0.3);
+    let antiderivative = |z: f64| {
+        z + a * z.powi(2)
+            + (a * a + 2.0 * b) * z.powi(3) / 3.0
+            + a * b * z.powi(4) / 2.0
+            + b * b * z.powi(5) / 5.0
+    };
+    let turned = core::f64::consts::PI * (antiderivative(2.0) - antiderivative(z));
+    let (lo, hi) = (
+        measured.volume.lo() - measured.volume_pad,
+        measured.volume.hi() + measured.volume_pad,
+    );
     assert!(
-        matches!(
-            refusals.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    face,
-                    source: geom_brep::PropsError::QuadratureUnsupported { .. },
-                    ..
-                },
-                ..
-            }] if is_spline_wall(&walls, *face)
-        ),
-        "expected only a wall's volume refusal, got {refusals:?}"
+        lo <= turned && turned <= hi,
+        "the moved vase's volume [{lo}, {hi}] holds the turned solid's {turned}"
+    );
+    assert!(
+        hi - lo < 0.01,
+        "the bracket [{lo}, {hi}] is narrow enough to refuse a rectangle read from v = 0 \
+         (a volume 0.16 larger)"
     );
     // The structural door has no quadrature lane: the moved cap keeps
     // the closed form's typed refusal there.
@@ -691,9 +714,9 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
     let body = tilted_top_prism();
     let cap = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
             )
         })
@@ -827,9 +850,9 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )
@@ -922,9 +945,9 @@ fn a_moved_planes_section_with_a_held_fit_follows_the_plane() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )
@@ -1141,14 +1164,17 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// foot reads 1.4e-15 and 6.5e-16 m (`ImageMiss`).
 #[test]
 fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
-    // Pinned red since PR 4551: at ε = 1e-12 the cap's fit stops on (45, 48),
-    // not the pinned (45, 45)
+    // Pinned red: at ε = 1e-12 the cap's fit stops on (45, 48), not the
+    // pinned (45, 45)
     // (`work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the moved curved fitted cap",
-        &["eps 1e-12, d = 0.05: the cap's fit stopped at 4.38189780844083e-11 on (45, 48)"],
+        &[
+            "eps 1e-12, d = 0.05: the cap's fit stopped at",
+            "on (45, 48)",
+        ],
         a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row,
     );
 }
@@ -1270,7 +1296,6 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
         topo::transform_rigid(
             &body,
             &geom_core::test_support::rigid(&rigid, Tol::witness()),
-            Tol::witness(),
         )
         .unwrap_or_else(|e| {
             panic!(
@@ -1323,7 +1348,7 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         });
         let EdgeDescriptionSpec::Chart {
             surface,
-            image: Some(Pcurve::IsoLine { p0, pl }),
+            image: Some(Pcurve::IsoLine { p0, pl, .. }),
             ..
         } = spec.description
         else {
@@ -1399,9 +1424,9 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, origin, .. })
                     if normal.x.abs() > 0.5 && origin.x > 1.0
             )

@@ -37,7 +37,7 @@ fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<Row> {
                 .unwrap_or_else(|| panic!("{h:?}: the mint stores the wall's row"))
                 .pcurve()
             {
-                Pcurve::IsoLine { p0, pl } => ("column", (p0.x, p0.y), (pl.x, pl.y)),
+                Pcurve::IsoLine { p0, pl, .. } => ("column", (p0.x, p0.y), (pl.x, pl.y)),
                 Pcurve::IsoArc { p0, pd, .. } => ("rim", (p0.x, p0.y), (pd.x, pd.y)),
                 other => panic!("{h:?}: the wall's rows are exact iso images: {other:?}"),
             }
@@ -169,7 +169,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
     let (flat, chart) = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => {
                 Some((f, Arc::clone(n)))
             }
@@ -195,7 +195,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
     let inset = in_band() / (2.0 * (half + in_band()));
     for h in seams {
         let image = derived(&wider, h).unwrap();
-        let Pcurve::IsoLine { p0, pl } = image else {
+        let Pcurve::IsoLine { p0, pl, .. } = image else {
             panic!("{h:?}: a straight seam takes an iso line: {image:?}")
         };
         assert_eq!(pl.x, 0.0, "{h:?}: a column holds u: {pl:?}");
@@ -237,6 +237,7 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
         image: Some(Pcurve::IsoLine {
             p0: Point2::new(-slope * t0, 0.0),
             pl: geom_core::Vec2::new(slope, 0.0),
+            ends: None,
         }),
         wrap: false,
         declared: None,
@@ -304,7 +305,7 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
         let mut fresh = body.clone();
         fresh.detach_pcurve(h);
         let got = topo::pcurve_of(&fresh, h, band);
-        let Ok(Pcurve::IsoLine { p0, pl }) = got else {
+        let Ok(Pcurve::IsoLine { p0, pl, .. }) = got else {
             panic!("{h:?}: a sub-seam takes its column: {got:?}")
         };
         assert!(
@@ -345,12 +346,9 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
     let edge = body.get_edge(middle).unwrap();
     for h in [edge.he_plus, edge.he_minus] {
         let face = body.face_of_half_edge(h).unwrap();
-        let chart = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let chart = body.face_surface(face).unwrap().clone();
         let image = derived(&body, h).unwrap();
-        let Pcurve::IsoLine { p0, pl } = image else {
+        let Pcurve::IsoLine { p0, pl, .. } = image else {
             panic!("{h:?}: a sub-seam takes an iso line: {image:?}")
         };
         assert_eq!(
@@ -377,7 +375,7 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
     let flat = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
             _ => None,
         })
@@ -412,7 +410,7 @@ fn an_in_band_stated_column_gives_way_to_a_closed_form_that_holds() {
     let (shifted, flat) = flat_wall_shifted_in_v(&body);
     for h in seams(&body, flat) {
         let got = derived(&shifted, h);
-        let Ok(Pcurve::IsoLine { p0, pl }) = got else {
+        let Ok(Pcurve::IsoLine { p0, pl, .. }) = got else {
             panic!("{h:?}: the closed-form column holds: {got:?}")
         };
         assert!(

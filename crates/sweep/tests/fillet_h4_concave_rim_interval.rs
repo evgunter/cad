@@ -2,7 +2,7 @@
 //! interval twin of `fillet_h4_concave_rim`'s waist row.
 //!
 //! The material-adding band's one new decision is a SIGN — the side the
-//! arms rest the ball on, `Convexity::signed`, a fold of the chain's
+//! arms rest the ball on, `battery::signed`, a fold of the chain's
 //! STORED convexity verdict. That fold is a boolean on stored bits and
 //! no interval arithmetic touches it; what this lane shows is that the
 //! arithmetic UNDER the folded sign brackets the closed form: the

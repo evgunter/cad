@@ -497,10 +497,19 @@ fn the_projected_envelope_sums_its_channels() {
     image.v_off += 0.6 * zero();
     let boxed = Pcurve::Projected(Box::new(image.clone())).chart_box(t0, t1);
     let lane = Some(crate::FittedLane::<f64>::certified());
-    let terms =
-        projected::projected_envelope(&image, t0, t1, &boxed, &carrier, &surface, band(), lane)
-            .map(|(terms, _)| terms)
-            .unwrap();
+    let terms = projected::projected_envelope(
+        &image,
+        t0,
+        t1,
+        &boxed,
+        &carrier,
+        &surface,
+        band(),
+        lane,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+    )
+    .map(|(terms, _)| terms)
+    .unwrap();
     let (u, v) = (
         terms.0[EnvelopeTerm::FidelityU.slot()],
         terms.0[EnvelopeTerm::FidelityV.slot()],

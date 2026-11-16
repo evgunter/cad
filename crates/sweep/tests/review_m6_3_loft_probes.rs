@@ -68,7 +68,7 @@ fn probe_measure_revolve_minor_radius_drift() {
         .body;
     let rev_minor = rev
         .faces()
-        .find_map(|(_, f)| match rev.get_surface(f.surface) {
+        .find_map(|(fk, _)| match rev.face_surface(fk) {
             Some(geom::Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })

@@ -781,8 +781,8 @@ fn body_of(part: &ProfileDoc) -> topo::Body<f64> {
 fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
     let origin = Point3::new(0.0, 0.0, 0.0);
     let (mut best, mut circles) = (0.0_f64, 0usize);
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let (edges, _) = topo::props::loop_edges(body, lk).expect("the loop walks");
             for e in &edges {
                 match &e.carrier {

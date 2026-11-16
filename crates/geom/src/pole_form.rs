@@ -46,11 +46,11 @@ pub fn half_turn<T: Real>(w: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 /// answers `None`.
 pub fn half_turn_curve<T: Real>(
     carrier: &Curve3<T>,
-    origin: Point3<T>,
-    axis: Vec3<T>,
+    axis: crate::Line<T>,
     point: impl Fn(Point3<T>) -> Point3<T>,
     vector: impl Fn(Vec3<T>) -> Vec3<T>,
 ) -> Option<Curve3<T>> {
+    let crate::Line { origin, dir: axis } = axis;
     let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis));
     let turn = |w: Vec3<T>| vector(half_turn(w, axis));
     match *carrier {
@@ -87,12 +87,11 @@ pub fn sphere_meridian<T: Real>(
 /// surface's own slant `v`, `apex + (axis·cos α + d·sin α)·v`, so
 /// `v > 0` runs on the nappe opening along `axis` and `v < 0` on the
 /// other.
-pub fn cone_generator<T: Real>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    d: Vec3<T>,
-) -> Curve3<T> {
+pub fn cone_generator<T: Real>(axis: crate::Line<T>, half_angle: T, d: Vec3<T>) -> Curve3<T> {
+    let crate::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let (s, c) = half_angle.sin_cos();
     Curve3::line(apex, axis * c + d * s)
 }
@@ -135,8 +134,10 @@ mod tests {
         }
         let twin = half_turn_curve(
             &sphere_meridian(center, radius, axis, u_ref),
-            center,
-            axis,
+            crate::Line {
+                origin: center,
+                dir: axis,
+            },
             |p| p,
             |w| w,
         )
@@ -160,7 +161,14 @@ mod tests {
             unreachable!()
         };
         for (k, d) in azimuths(u_ref).into_iter().enumerate() {
-            let g = cone_generator(apex, ca, alpha, d);
+            let g = cone_generator(
+                crate::Line {
+                    origin: apex,
+                    dir: ca,
+                },
+                alpha,
+                d,
+            );
             let u = if k == 0 { 0.0 } else { core::f64::consts::PI };
             for v in [-1.5, 0.0, 0.7] {
                 assert!((g.eval(v) - cone.eval(u, v)).norm() < 1e-14, "{k}: v = {v}");

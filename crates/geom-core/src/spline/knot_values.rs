@@ -84,7 +84,7 @@ impl<T: SpanLocate> Knots<T> {
             let (lo, hi) = value
                 .structure_bracket()
                 .ok_or(SplineError::KnotIsPoison { index })?;
-            knots.extend(core::iter::repeat_n(f64::midpoint(lo, hi), m));
+            knots.extend(core::iter::repeat_n(crate::mid_param(lo, hi), m));
         }
         Ok(Cow::Owned(KnotVector::from_algebra(knots, self.degree())))
     }
@@ -158,8 +158,9 @@ impl<T: SpanLocate> Knots<T> {
     /// # Errors
     ///
     /// [`SplineError::DomainInvalid`] as [`KnotVector::on_domain`];
-    /// otherwise [`Self::new`]'s refusals. Two breakpoints that
-    /// rounding collapses onto one value refuse
+    /// otherwise [`Self::new`]'s refusals, among them `PastHalfMax` for
+    /// an end past [`KNOT_MAGNITUDE_MAX`](super::KNOT_MAGNITUDE_MAX).
+    /// Two breakpoints that rounding collapses onto one value refuse
     /// ([`SplineError::KnotRunsNotIncreasing`]) rather than merge, and
     /// at an enclosure scalar two whose mapped enclosures overlap
     /// refuse undecided ([`SplineError::KnotRunsUndecided`]).
@@ -203,7 +204,10 @@ impl<T: SpanLocate> Knots<T> {
     ///   is poison;
     /// - [`SplineError::KnotVectorInvalid`] (`NonFinite`, at the run's
     ///   first knot) for one that reaches past the finite numbers, as
-    ///   [`KnotVector::clamped`] refuses a non-finite knot;
+    ///   [`KnotVector::clamped`] refuses a non-finite knot, and
+    ///   (`PastHalfMax`, there too) for one whose bracket reaches past
+    ///   [`KNOT_MAGNITUDE_MAX`](super::KNOT_MAGNITUDE_MAX), the clause
+    ///   `clamped` reads;
     /// - [`SplineError::KnotRunsNotIncreasing`] for the first run that
     ///   is not above its predecessor for any value they stand for: two
     ///   breakpoints that read as one number would merge into one run,
@@ -228,6 +232,14 @@ impl<T: SpanLocate> Knots<T> {
             if !value.is_bounded() {
                 return Err(SplineError::KnotVectorInvalid {
                     reason: super::knots::KnotVectorIssue::NonFinite { index: at },
+                });
+            }
+            if value
+                .structure_bracket()
+                .is_some_and(super::knots::bracket_past_half_max)
+            {
+                return Err(SplineError::KnotVectorInvalid {
+                    reason: super::knots::KnotVectorIssue::PastHalfMax { index: at },
                 });
             }
             at += multiplicity;
@@ -350,7 +362,7 @@ impl<T: SpanLocate> Knots<T> {
 /// it holds for none, [`SplineError::KnotRunsUndecided`] with the step's
 /// enclosure where it holds for some.
 fn runs_ascend<T: SpanLocate>(a: T, b: T, index: usize) -> Result<(), SplineError> {
-    if super::locate::structure_ascends(a, b) {
+    if crate::structure_ascends(a, b) {
         return Ok(());
     }
     let step = b - a;

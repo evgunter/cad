@@ -23,6 +23,13 @@ pub fn speed_at<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> Option<T> {
     }
 }
 
+/// **The speed `|C′(t)|` at `t` on every kind**: [`speed_at`]'s closed
+/// form on a line and a conic, the derivative's norm on a spiric or a
+/// spline, which have none.
+pub fn speed_at_any<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> T {
+    speed_at(carrier, t).unwrap_or_else(|| carrier.deriv(t).norm())
+}
+
 /// The greatest speed over every `t`, [`speed_at`]'s bound: an
 /// ellipse's larger semi-axis.
 pub fn speed_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {

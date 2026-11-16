@@ -36,7 +36,7 @@
 //! transverse intersection with the cap.
 //!
 //! **Either material side.** The walk reads no convexity: the arm's
-//! feet already fold the chain's verdict (`Convexity::ball_side` in
+//! feet already fold the chain's verdict (`battery::ball_side` in
 //! the sheet reduction), the band's sense bit folds it once more at
 //! the surface pass, and the combinatorics are the same on a concave
 //! chain. The cap face loses the region under the arc on either side:
@@ -147,7 +147,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                     "a ruled link's half-edges do not lie in the faces the verdict names",
                 ));
             }
-            let planar = matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. }));
+            let planar = matches!(body.face_surface(face), Some(Surface::Plane { .. }));
             if !planar && !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,

@@ -62,6 +62,14 @@ impl<T: Real> Frame<T> {
         crate::azimuth::frame(self, u).radial.0
     }
 
+    /// **The radial direction's derivative in the azimuth**, `u_ref·(−sin
+    /// u) + v_ref·cos u`: the azimuthal frame's `Tangential`, beside
+    /// [`Self::radial`].
+    #[must_use]
+    pub fn tangential(&self, u: T) -> Vec3<T> {
+        crate::azimuth::frame(self, u).tangential.0
+    }
+
     /// `axis × u_ref`, the second axis.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {

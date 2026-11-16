@@ -50,7 +50,7 @@ fn rounded(s: &str) -> String {
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
     rounded(&format!(
         "{:?}",
-        topo::face_carrier(body, f).expect("a carrier")
+        topo::face_normal::face_carrier_desc(body, f).expect("a carrier")
     ))
 }
 
@@ -69,10 +69,7 @@ fn pt(body: &topo::Body<f64>, v: topo::VertexKey) -> String {
 fn live(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]) -> Vec<String> {
     let body = &out.body;
     let settler = out.naming.settler(body);
-    let ends = |e: topo::EdgeKey| {
-        let d = body.get_edge(e).expect("a live edge");
-        [d.he_plus, d.he_minus].map(|h| body.get_half_edge(h).expect("a live half").start)
-    };
+    let ends = |e: topo::EdgeKey| <[_; 2]>::from(body.edge_vertices(e).expect("a live edge"));
     rows.iter()
         .map(|&(u, w)| {
             let (u, w) = match (settler.settle(u), settler.settle(w)) {
@@ -201,7 +198,7 @@ pub(crate) fn extruded(loops: Vec<profile::ProfileLoop<f64>>, z0: f64, h: f64) -
     };
     let body = sweep::extrude(&profile, depth, tol).unwrap().body;
     let up = geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, z0));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol)).unwrap()
 }
 
 pub(crate) fn square(h: f64) -> profile::ProfileLoop<f64> {

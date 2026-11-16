@@ -46,7 +46,7 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     let mut ring_region: BTreeMap<LoopKey, usize> = BTreeMap::new();
     for &f in pieces {
         let face = piece_face(body, f);
-        for &r in &face.rings {
+        for (r, _, _) in face.loops().filter(|(_, _, role)| !role.is_outer()) {
             let n = ring_region.len() + 1;
             ring_region.insert(r, n);
         }
@@ -72,8 +72,8 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     let mut sides: Vec<(usize, usize, Vec<HalfEdgeKey>)> = Vec::new();
     for (p, &f) in pieces.iter().enumerate() {
         let face = piece_face(body, f);
-        for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let region = if l == face.outer {
+        for (l, _, role) in face.loops() {
+            let region = if role.is_outer() {
                 outline_region.get(&f).copied().unwrap_or(0)
             } else {
                 ring_region[&l]
@@ -141,8 +141,8 @@ fn union(link: &mut [usize], a: usize, b: usize) {
 
 /// A plane piece's face, which the split door recorded in `body`.
 #[track_caller]
-fn piece_face<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> &topo::Face {
-    let Some(face) = body.get_face(f) else {
+fn piece_face<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> topo::FaceView<'_, T> {
+    let Some(face) = body.face(f) else {
         unreachable!(
             "plane piece {f:?} is not live in its half, though the split door records the \
              pieces of the half it hands over"

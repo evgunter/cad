@@ -624,9 +624,7 @@ fn arm(derivation: Derivation) -> &'static str {
         _ => turning,
     };
     match derivation {
-        Derivation::CylinderMoving { beta } => {
-            moving(beta, "cylinder moving", "cylinder moving, zero winding")
-        }
+        Derivation::CylinderMoving { .. } => "cylinder moving",
         Derivation::CylinderMeridian => "cylinder meridian",
         Derivation::ConeRuling { anchored: true, .. } => "cone ruling, anchored",
         Derivation::ConeRuling {
@@ -657,9 +655,8 @@ fn arm(derivation: Derivation) -> &'static str {
 /// table that under-states anything.
 fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
     use EnvelopeTerm::{Centre, Drift, Line, Radius};
-    let cases: [(&str, &[EnvelopeTerm]); 14] = [
+    let cases: [(&str, &[EnvelopeTerm]); 13] = [
         ("cylinder moving", &[Centre, Radius]),
-        ("cylinder moving, zero winding", &[Centre, Radius, Drift]),
         ("cylinder meridian", &[Line, Radius, Drift]),
         ("cone ruling, by direction", &[Radius, Line]),
         ("cone ruling, anchored", &[Radius, Line]),
@@ -1139,23 +1136,20 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         if pole != (a_r.norm() < z) {
             continue;
         }
-        let d_read = if pole {
-            (b - e * b.dot(e)).normalize()
-        } else {
-            a_r.normalize()
+        let form = super::Harmonic3 {
+            c: Point3::origin(),
+            a,
+            b,
+            l: Vec3::zero(),
         };
+        // The direction the derivation builds the image on.
+        let d_read = super::sphere_meridian_direction(&form, e, pole);
         let v0 = a.dot(e).atan2(a_r.norm());
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: r,
             axis: e,
             u_ref: d_read,
-        };
-        let form = super::Harmonic3 {
-            c: Point3::origin(),
-            a,
-            b,
-            l: Vec3::zero(),
         };
         let derivation = Derivation::SphereMeridian {
             pole,
@@ -2064,7 +2058,7 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
 }
 
 /// A random tilted plane section of a random cone, and the cone.
-fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
+pub(super) fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
     let (axis, u_ref) = frame(s);
     let apex = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let half_angle = s.range(0.15, 1.3);
@@ -2093,7 +2087,7 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
 
 /// A random ring torus and one of its Villarceau circles, on either
 /// family and traversal, from any start.
-fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
+pub(super) fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
     let (axis, u_ref) = frame(s);
     let center = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let major = s.range(0.5, 3.0);
@@ -2331,7 +2325,7 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
 /// axis, the equator's tangent, a tilt about the centre's radial, the
 /// radius, a turn about the vertex's tangent — and the torus arm's
 /// answer is checked: an image it mints and certifies has an envelope
-/// over the dense residual, and `CarrierOffChart` is never the answer
+/// over the dense residual, and a read off the chart (`IncidenceRead::Off`) is never the answer
 /// for a circle whose dense distance from the torus is within `ε`.
 #[test]
 fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
@@ -2414,7 +2408,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                     );
                 }
             }
-            Err(PcurveCertifyError::CarrierOffChart { .. }) => {
+            Err(ref e) if matches!(IncidenceRead::of(e), Some(IncidenceRead::Off(_))) => {
                 answers[1] += 1;
                 assert!(
                     dense > b.zero(),
@@ -2429,7 +2423,12 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                 gap: crate::LaneGap::Pose { .. },
                 ..
             }) => answers[2] += 1,
-            Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
+            Err(ref e)
+                if matches!(IncidenceRead::of(e), Some(IncidenceRead::Undecided(_)))
+                    || matches!(e, PcurveCertifyError::Escalated { .. }) =>
+            {
+                answers[3] += 1;
+            }
             Err(other) => panic!(
                 "{}: refused untyped for this arm: {other_at} — {}",
                 context(),

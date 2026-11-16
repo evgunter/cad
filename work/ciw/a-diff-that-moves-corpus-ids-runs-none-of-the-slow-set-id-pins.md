@@ -55,3 +55,28 @@ Another instance, this time for verdicts rather than ids. PR 5745 changed what t
 `editor-core`'s `m10_sym_profile_interval` has a fast row, `the_forms_the_slabs_walks_build_are_pinned_per_eps_row` (0.32 s locally). It pins the slab's walk ledger, and the suite carries no `gated_to!` marker, so the row runs on every PR whose closure reaches editor-core. The plate's slow rows refine it. Its limit is stated in its doc: the slab has no curved wall, so it would not have caught PR 6504 or PR 6527, which moved only the plate.
 
 Three more slow-set reds of this class on main (~`c80a1e8c`), reported by another ONECOPY lane and not bisected: `editor-core` `m10_bulge_interval` ×2 (`pcurve_chart_radial_moving` reads `[22, 20]` → `[18, 24]`); `editor-core` `sym11_the_exact_channel_never_contradicts_past_the_ceiling` (`r2_filleted_bracket` 1325 vs 1313, `r2_link` 4104 vs 5161); and `scripts/gates/loop-boundary-discards.sh --selftest`, which fails on case `plant_extra_site census.rs face_cycles wrapped-return`.
+
+Bisected (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09), first-parent at ε 1e-9: `m10_bulge_interval` ×2 and `sym11_the_exact_channel_never_contradicts_past_the_ceiling` all first move at PR 6504 (`pcert/one-ruling-reading`, `143d99ec29`), the same merge that moved the plate. sym11 fails from that merge on, on `r2_link` and `r2_filleted_bracket` at 1e-9; its later count moves were not bisected. The m10_bulge pair's bisect is on `work/scalar/main-red-m10-bulge-d-tab-radial-moving-pcurve-chart-moved.md`. That makes four rows this one merge moved, none disclosed and none run by its PR gate.
+The `loop-boundary-discards.sh --selftest` case above passes on main (merged 2026-11-09).
+
+## Evidence: a discard-recording diff moved a slow-set count (2026-11-10, FLUSH)
+
+PR 5706 (`flush/fallback-partial-rows`) changed what the containment
+fallback records as discards (`boolean/ops.rs` `fallback_fates`). That
+moved `topo` `fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`
+from `(25 512, 1392)` to `(26 292, 2004)` bordered stretches, at its own
+head `4536e387`. Its gate selected no slow row, and its local run was
+the `ci` profile. The nightly found it after 5724 merged, and the
+bisect blamed the merge
+(`work/flush/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`,
+`## Closed`). So a diff to how a boolean records its naming rows
+(`boolean/discard.rs`, `fate.rs`, `ops.rs`) should select the slow
+rows that count them, by the same mechanism this row asks for ids.
+
+## Instance (2026-11-13, PR 6856; recorded by GREEN's `green/goldens` lane)
+
+PR 6856 (`placing/named-source`, merge `a9df07339`) made a placement mint the source it reads its body through, so every id minted after one moved. Its gate ran none of the slow-set rows that pin those ids, and it merged with them red: every row of `lib_g16_corpus_name_digests` and `perf2_name_keying_differential` (34 documents each), five rows each of `seat4_verb_lowering` and `seat7_sweep_lowering`, `seat8_split_lowering`'s three, and `m10_p_fence`'s f64 and interval rows. It re-pinned the id-bearing constants its gate did run (`m4_pr4_ci`'s diagnosis digest, `m10_6_certifying_keys.txt`, one seat4 constant), each with the right reason. Measured first-parent: the rows above read the same from `e36675c1` through `d8e1c86d6` and all move at `a9df07339`.
+
+The same mechanism hid PR 6820's `kitchen_sink` move in `seat7_sweep_lowering` (it re-blessed `seat8_split_lowering`'s copy of the same pin and its gate did not run seat7's), PR 6902's in `m10_5_clearance_interval`, and PR 6908's in step-export's `ball.step`, `die_pips.step` and `lily_lantern.step`.
+
+It also cuts the other way: a PR that only re-cuts a golden file or a constant adds no line spelling the test's name, so `slow_set.py --new-expr` selects `none()` and the gate is green having run none of the rows it re-cut. `green/goldens` had to name each test in a doc line beside its table to be selected.

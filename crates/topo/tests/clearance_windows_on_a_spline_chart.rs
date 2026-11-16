@@ -178,10 +178,10 @@ fn a_cap_with_holes_on_a_patch_refuses_as_trimmed() {
     topo::test_support::describe_as_intersections(&mut body, tol);
     let top = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, f)| {
             !f.rings.is_empty()
                 && matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.z > 0.5
                 )
         })

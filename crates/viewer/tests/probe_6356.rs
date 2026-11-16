@@ -20,7 +20,7 @@ fn session(tol: Tol) -> DocSession {
 fn door_of(doc: &Doc<pncad::document::ProfileProgram>, node: RecipeNodeId) -> String {
     match MateTool::moving(doc, node, None) {
         Ok(mut tool) => {
-            let place = tool.take_place();
+            let place = tool.take_place(doc);
             format!("{:?} / {place:?}", tool.door())
         }
         Err(event) => format!("refused: {event}"),
@@ -61,7 +61,7 @@ fn p2_transform_on_a_whole_split() {
     let said = door_of(doc, split);
     eprintln!("P2 split -> {said}");
     if let Ok(mut tool) = MateTool::moving(doc, split, None)
-        && let Some(place) = tool.take_place()
+        && let Some(place) = tool.take_place(doc)
     {
         let outcome = session.perform(place);
         eprintln!("P2 its Place -> {:?}", outcome.refusal);
@@ -110,16 +110,18 @@ fn p4_place_of_a_copy_into_its_space_lands() {
     let (mut session, copy) = common::world_copy_in(&session, body, tol);
     let doc = session.committed_doc();
     eprintln!("P4 copy {copy:?} space {:?}", doc.node_space(copy));
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(copy),
-    });
+    let outcome = session.perform(common::place_named(
+        session.committed_doc(),
+        Operand::Node(copy),
+        "bracket",
+    ));
     eprintln!("P4 refusal {:?} made {:?}", outcome.refusal, outcome.made);
     if let Some(made) = outcome.made {
         let doc = session.committed_doc();
         eprintln!(
             "P4 made {:?} reads copy: {:?}",
             doc.node(made).map(|n| matches!(n, Node::Place { .. })),
-            doc.copied_read(made) == doc.read_of_node(copy)
+            doc.copied_read(made).map(|s| doc.through_sources(s).read) == doc.read_of_node(copy)
         );
     }
     assert!(
@@ -128,10 +130,10 @@ fn p4_place_of_a_copy_into_its_space_lands() {
     );
 }
 
-/// P5: the takeover row's negative check — does a FIRST pattern of a
-/// placed body commit a `SetParam` (so `!any SetParam` can go red)?
+/// P5: a FIRST pattern of a placed body picked as itself commits no
+/// `SetParam`: no feature gesture re-points a placement (Ev, PR 6353).
 #[test]
-fn p5_a_pattern_takeover_writes_set_param() {
+fn p5_a_pattern_of_a_placed_body_writes_no_set_param() {
     let tol = Tol::witness();
     let doc = Doc::empty_derived("probe-6356", tol);
     let mut s0 = common::inline_without_door(doc, tol);
@@ -160,7 +162,7 @@ fn p5_a_pattern_takeover_writes_set_param() {
         "P5 first pattern edits: {kinds:?} / {:?}",
         outcome.committed
     );
-    assert!(kinds.contains(&"SetParam"));
+    assert!(!kinds.contains(&"SetParam"), "{kinds:?}");
 }
 
 /// P6: Place on a body already placed is a second placement of it.
@@ -170,7 +172,11 @@ fn p6_place_on_a_placed_body_is_a_second_placement() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     let (mut session, _copy) = common::world_copy_in(&session, body, tol);
-    let outcome = session.perform(SessionOp::Place { body: body.into() });
+    let outcome = session.perform(common::place_named(
+        session.committed_doc(),
+        body,
+        "bracket",
+    ));
     eprintln!(
         "P6 refusal: {:?}",
         outcome.refusal.as_ref().map(|r| r.to_string())

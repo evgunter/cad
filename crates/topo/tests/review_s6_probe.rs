@@ -15,14 +15,14 @@ use topo::{BooleanOp, ContactRecords, ValidationError, boolean_reduce, validate_
 
 /// The recourse a message must carry exactly once. An unrecorded
 /// contact carries the contact recourse (move the geometry so the
-/// faces clearly touch or clearly part); a contradicted record carries
-/// its own; every other site keeps the three-arm decidability sentence,
-/// whose "lower the tolerance" arm is meaningful there and meaningless
-/// at a contact.
+/// faces clearly touch or clearly part); a contradicted record ends on
+/// the defect ending; every other site keeps the three-arm
+/// decidability sentence, whose "lower the tolerance" arm is meaningful
+/// there and meaningless at a contact.
 fn recourse_for(e: &ValidationError) -> &'static str {
     match e {
         ValidationError::UnrecordedContact { .. } => topo::CONTACT_RECOURSE,
-        ValidationError::ContactContradicted { .. } => topo::CONTRADICTION_RECOURSE,
+        ValidationError::ContactContradicted { .. } => geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
         _ => COINCIDENCE_RECOURSE,
     }
 }

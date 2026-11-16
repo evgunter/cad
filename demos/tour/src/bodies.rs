@@ -187,7 +187,7 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     );
     let kind_count = |pred: fn(&pncad::topo::Surface<S>) -> bool| {
         body.faces()
-            .filter(|(_, f)| body.get_surface(f.surface).is_some_and(pred))
+            .filter(|(fk, _)| body.face_surface(*fk).is_some_and(pred))
             .count()
     };
     assert_eq!(
@@ -572,4 +572,5 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     pncad::sweep::blend::fillet_edges(&finished("body", body, tol), &mouth, S::from_f64(0.05), tol)
         .expect("the sphere-cone mouth rim fillets")
         .body
+        .into_body()
 }

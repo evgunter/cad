@@ -78,6 +78,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
 mod curves_decoration_certified_coords;
+#[path = "curves/derivative_at_is_ders1s.rs"]
+mod curves_derivative_at_is_ders1s;
 #[path = "curves/directional_extent.rs"]
 mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]
@@ -104,6 +106,8 @@ mod curves_m8_14_long_turn_meter;
 mod curves_n1r1_c24_dump;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_turn_follow_ups_probes.rs"]
 mod review_turn_follow_ups_probes;
 // Lane registration (aggregation guard): the R1 meter probe was pushed

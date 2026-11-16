@@ -328,13 +328,13 @@ fn fold_replace_face_error<T: Real>(
             other_kind,
             why,
         },
+        R::EdgeUncovered { edge, source } => R::EdgeUncovered { edge, source },
         R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
         R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },
         R::IsoRow { edge, error } => R::IsoRow {
             edge,
             error: fold_iso_row_error(error, end),
         },
-        R::Structure { edge, error } => R::Structure { edge, error },
         // A disagreement as large as the bracket admits.
         R::VertexDisagreement { vertex, gap } => R::VertexDisagreement {
             vertex,

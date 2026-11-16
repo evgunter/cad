@@ -98,7 +98,7 @@ fn the_unbounded_complement_is_caught_by_check_6() {
 
     let mut encoded: Vec<(FaceKey, bool, geom_brep::props::MaterialSign)> = Vec::new();
     for (k, f) in body.faces() {
-        let surface = body.get_surface(f.surface).expect("surface").clone();
+        let surface = body.face_surface(k).expect("surface").clone();
         let (outer, _hes) = topo::props::loop_edges(&body, f.outer).expect("loop edges");
         let side = geom_brep::props::boundary_material_sign(&surface, &outer, band)
             .expect("the apex cap encodes a side");

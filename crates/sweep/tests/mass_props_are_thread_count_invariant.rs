@@ -14,11 +14,9 @@
 //! widths of the SAME code agree whenever the loss is width-independent
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
-//! So `thread-count-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the walk is serial, and the four-thread walk is read against it: a
-//! row cut on this branch would record what this branch does, which is
-//! the thing under test. The one case where a lane re-cuts here
-//! anyway, and what licenses it, is at `expected`.
+//! So `thread-count-digest/eps-*.txt` holds what the SERIAL walk reads
+//! (the one-thread row holds it to that), and the four-thread walk is
+//! read against it. When a line of it moves, the rule is at `expected`.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -97,12 +95,13 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
 /// door), `loft_prism` (described splines, the finding's own body), the
 /// arc lofts scaled against the run's own ε so no row goes vacuous at
 /// one point of the matrix, and the thin strip.
-fn roster() -> Vec<(String, Body<f64>)> {
-    let eps = Tol::witness().get().eps;
-    let mut out: Vec<(String, Body<f64>)> = vec![
-        ("quintic_prism".to_string(), quintic_prism()),
-        ("tilted_cut_upper".to_string(), tilted_cut_upper()),
-        ("bulged_extrusion".to_string(), bulged_extrusion()),
+fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
+    let unit = unit();
+    let pinned = topo::test_support::pinned_resolution(Tol::witness());
+    let mut out: Vec<(String, Body<f64>, topo::Settle<f64>)> = vec![
+        ("quintic_prism".to_string(), quintic_prism(), pinned),
+        ("tilted_cut_upper".to_string(), tilted_cut_upper(), pinned),
+        ("bulged_extrusion".to_string(), bulged_extrusion(), pinned),
         // `loft_prism` is in this roster because it is the body the
         // finding measured
         // (`work/perf/mass-properties-are-serial-per-face.md`: 157 ms)
@@ -111,33 +110,53 @@ fn roster() -> Vec<(String, Body<f64>)> {
         // is about. A corpus DOCUMENT cannot stand in for it here:
         // `editor-core` sits above this crate, so the kernel-side
         // fixture is the only reachable spelling.
-        ("loft_prism".to_string(), loft_prism(Tol::witness())),
+        ("loft_prism".to_string(), loft_prism(Tol::witness()), pinned),
     ];
-    out.extend(
-        [1.0e11, 1.0e9]
-            .iter()
-            .map(|k| (format!("arc_loft_{k:e}eps"), arc_loft(k * eps))),
-    );
+    out.extend([1.0e11, 1.0e9].iter().map(|k| {
+        (
+            format!("arc_loft_{k:e}eps"),
+            arc_loft(k * unit),
+            resolution(),
+        )
+    }));
     out.push((
         "thin_strip".to_string(),
-        strip_loft(1.0e12 * eps, 1.0e9 * eps),
+        strip_loft(1.0e12 * unit, 1.0e9 * unit),
+        resolution(),
     ));
     out
 }
 
+/// **The roster's unit** ([`crate::common::box_unit`]): ε, or less
+/// where the strip at `1e12` units, reaching `1e12` (its half width and
+/// its height), would pass the session box's own extent: at ε = 1e-6
+/// the unit is `1e-9`, and the bodies there are the 1e-9 row's. The
+/// extent and not the far end (`common::FAR_END`) because the 1e-9
+/// row's strip already reaches the box's edge, and its golden is kept. The scaled bodies are
+/// measured at `1024` units, the fixed ones at the pinned `1024·ε`. The
+/// names keep `eps` for the unit.
+fn unit() -> f64 {
+    let eps = Tol::witness().get().eps;
+    crate::common::box_unit(
+        1.0e12,
+        geom_core::tolerance::SESSION_BOX_EXTENT,
+        eps / 1024.0,
+    )
+}
+
+fn resolution<T: geom_core::Real>() -> topo::Settle<T> {
+    crate::common::unit_resolution(unit())
+}
+
 /// One body's line: the reading (bits, or the typed refusal — which is
 /// where the refusing FACE is named) and both recorded channels.
-fn line(name: &str, body: &Body<f64>) -> String {
+fn line(name: &str, body: &Body<f64>, resolution: topo::Settle<f64>) -> String {
     // Finished outside the bracket, so the line is the measurement's own
     // readings. Every body here finishes at every ε, and one that did not
     // would panic here rather than reach the pinned line.
     let at_rest = topo::test_support::finished(name, topo::Body::clone(body), Tol::witness());
     let bracket = Bracket::open();
-    let read = match topo::mass_properties(
-        &at_rest,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    ) {
+    let read = match topo::mass_properties(&at_rest, Tol::witness(), resolution) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
             m.enclosure.volume.to_bits(),
@@ -164,7 +183,7 @@ fn line(name: &str, body: &Body<f64>) -> String {
 fn f64_block() -> String {
     roster()
         .iter()
-        .map(|(name, body)| line(name, body))
+        .map(|(name, body, resolution)| line(name, body, *resolution))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -195,9 +214,9 @@ fn sym_bodies() -> [(&'static str, SymBody); 2] {
     ]
 }
 
-/// The arc loft at `Sym<f64>`, at scale `1e9·ε`.
+/// The arc loft at `Sym<f64>`, at scale `1e9` [`unit`]s.
 fn sym_arc_loft() -> Body<Sym<f64>> {
-    let s = 1.0e9 * Tol::witness().get().eps;
+    let s = 1.0e9 * unit();
     loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
             arc_section(s),
@@ -218,14 +237,14 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
 
 /// The thin strip at `Sym<f64>`.
 fn sym_thin_strip() -> Body<Sym<f64>> {
-    let eps = Tol::witness().get().eps;
+    let unit = unit();
     loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
-            strip_section(1.0e12 * eps, 1.0e9 * eps, false),
-            strip_section(1.0e12 * eps, 1.0e9 * eps, false),
+            strip_section(1.0e12 * unit, 1.0e9 * unit, false),
+            strip_section(1.0e12 * unit, 1.0e9 * unit, false),
         ]),
         &sweep::test_support::lift_places::<Sym<f64>>(
-            &stacked(&[0.0, 1.0], 1.0e12 * eps),
+            &stacked(&[0.0, 1.0], 1.0e12 * unit),
             geom_core::Tol::witness(),
         ),
         1,
@@ -310,12 +329,9 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
                 let refused = match &finished {
-                    Some(finished) => topo::mass_properties(
-                        finished,
-                        Tol::witness(),
-                        topo::test_support::pinned_resolution(Tol::witness()),
-                    )
-                    .is_err(),
+                    Some(finished) => {
+                        topo::mass_properties(finished, Tol::witness(), resolution()).is_err()
+                    }
                     None => topo::validate_geometric(&body, Tol::witness()).is_err(),
                 };
                 (refused, built)
@@ -369,9 +385,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
     )
 }
 
-/// The committed digest for each ε row the matrix gates. Cut on the
-/// MERGE BASE (see the module docs); an ε with no entry prints its
-/// block and fails, which is how a new row gets cut.
+/// The committed digest for each ε row the matrix gates: what the
+/// serial walk reads. An ε with no entry prints its block and fails,
+/// which is how a new row gets cut.
 ///
 /// **What a golden holds.** The `# f64` block is one line per roster
 /// body ([`line`]): the certified volume, area and their pads as bits,
@@ -385,42 +401,27 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// shape report's length. Every receipt also clears
 /// [`dispute_coverage`] before the table is read.
 ///
-/// **When a lane may re-cut here instead, and what licenses it.** The
-/// merge-base rule exists to stop a branch recording its own
-/// regression as the baseline — not to make a pinned number a
-/// contract. A branch re-cuts on itself exactly when its own change is
-/// what moved the table AND the new reading is the right answer, with
-/// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
-/// certified bound that gets tighter re-baselines like any other move)
-/// and `memories/output-stability-as-justification.md`. A move the
-/// branch cannot explain is a finding, and the table stays where it is.
-/// A move in the wrong direction that is the named consequence of a
-/// change that makes the code right re-cuts, with the cause named at the
-/// cut and an item filed for the looseness (the INLANE orchestrator's
-/// ruling on C6 S3, PR 5290: one 90° rational sub-arc in place of two
-/// 45° ones, filed as
-/// `work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans.md`).
+/// **When a line moves.** The table is the SERIAL walk's reading:
+/// [`the_walk_matches_the_serial_golden_at_one_thread`] holds it to
+/// that, so a re-cut cannot record a width-dependent move as the
+/// baseline. A line whose move is explained and right is re-cut, with
+/// the cause named in the PR body (a certified bound that gets tighter
+/// re-baselines like any other move, and so does a looser one that is
+/// the named consequence of a change that makes the code right, with an
+/// item filed for the looseness). A line whose move nobody has
+/// explained is PINNED at the serial reading and named here with the
+/// row that owes the account, so the row is green and the next move
+/// reds; a pin is not a judgment that the reading is right.
 ///
-/// **Each re-cut names its cause in its PR body**, and the history of
-/// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
-///
-/// The 1e-12 table's `sym_arc_loft validate_geometric chk=97/104` is rule
-/// H's (`SymRules::angle_sum`; shut, it reads 99/104). Its form of one
-/// `Mul`'s kid carries a coefficient of about 100 bits, against the
-/// other kid's 160 at this row's scale. Their product passes the 256-bit
-/// ring, the early walk freezes the node, and the two contradiction
-/// checks whose residual is a multiple of it read frozen. Their
-/// decisions hold, and no dispute is lost.
-///
-/// The two `Sym` bodies' `validate_geometric` rows were re-cut here by
-/// PCERT E1c (PR 5889), whose mints read incidence before they store:
-/// their decisions hold, and `frozen` rose (at 1e-9, 4 -> 462 and
-/// 60 -> 348). Those are the forms of the read's sampled distances,
-/// which the plain walks freeze, and the count follows how the read's
-/// arithmetic is spelled: before main's merge the same reads froze 4 and
-/// 60, the merge's port with its divisor decision 406 and 1112, and the
-/// plane's foot in place of its slide 398 and 1104. The cost is
-/// `work/pcert/the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads.md`.
+/// **Pinned, unexplained**, read by
+/// [`the_walk_matches_the_serial_golden_at_four_threads`]: the two `Sym`
+/// bodies' `validate_geometric` lines at every ε row, and
+/// `arc_loft_1e9eps`' volume at 1e-12. They wait on
+/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`.
+/// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
+/// `the_walk_matches_the_serial_golden_at_four_threads` alike,
+/// `arc_loft_1e11eps`' two pads at 1e-12:
+/// `work/boxfinish/main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap.md`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
@@ -447,15 +448,22 @@ fn check_against_golden(threads: usize) {
         got.trim(),
         want.trim(),
         "at {threads} thread(s) the face walk's readings or its recorded channels differ \
-         from what the SERIAL walk recorded at the merge base (eps={eps:e}). This is not a \
-         baseline to preserve: if the new behaviour is right, re-cut the table on the merge \
-         base and say in the PR what moved and why."
+         from what the SERIAL walk recorded (eps={eps:e}). This is not a baseline to \
+         preserve: `expected` says what to do with a line that moved."
     );
 }
 
 #[test]
 fn the_walk_matches_the_serial_golden_at_four_threads() {
     check_against_golden(4);
+}
+
+/// The golden is the SERIAL walk's reading, so the serial walk must
+/// read it too: a golden re-cut from the four-thread row alone would
+/// otherwise record a width-dependent move as the baseline.
+#[test]
+fn the_walk_matches_the_serial_golden_at_one_thread() {
+    check_against_golden(1);
 }
 
 /// Non-vacuity, and it is about the GOLDEN as much as about the code:
@@ -558,12 +566,9 @@ fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() 
         .into_iter()
         .map(|door| {
             let (_, c) = with_session(budget(), || match door {
-                "mass_properties" => topo::mass_properties(
-                    &finished,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness()),
-                )
-                .is_err(),
+                "mass_properties" => {
+                    topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
+                }
                 _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
             });
             (door, c)

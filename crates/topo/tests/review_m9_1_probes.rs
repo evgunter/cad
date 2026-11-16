@@ -9,22 +9,14 @@
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::{
-    CarrierDesc, CarrierRelation, ContactRefusal, ValidationError, carrier_eq,
-    validate_pseudomanifold,
-};
+use topo::{ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
@@ -65,7 +57,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let off = sphere([1e-3, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1.0, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &off, &at(arm), band()).unwrap(),
+            carrier_eq(&a, &off, &geom_brep::ConsumedExtent::arm(arm), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite center offset must be Distinct at arm {arm}"
         );
@@ -74,7 +66,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let near = sphere([1e-13, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &near, &at(arm), band()).unwrap(),
+            carrier_eq(&a, &near, &geom_brep::ConsumedExtent::arm(arm), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "a zero-band center offset is one carrier at arm {arm}"
         );
@@ -98,12 +90,12 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     };
     // Unit arm: the tilt decides zero.
     assert_eq!(
-        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
     // Large arm: the same tilt is a definite misalignment there.
     assert_eq!(
-        carrier_eq(&a, &b, &at(1e6), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1e6), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }
@@ -121,7 +113,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
         assert_eq!(
-            carrier_eq(a, b, &at(1.0), band()).unwrap(),
+            carrier_eq(a, b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -129,7 +121,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     // — the ladder walks PAST the offset to the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
     assert_eq!(
-        carrier_eq(&m1, &near, &at(1.0), band()).unwrap(),
+        carrier_eq(&m1, &near, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }
@@ -143,18 +135,19 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let down = plane_s([0.0, 0.0, 1e-3], [0.0, 0.0, 1.0]);
-    let err =
-        tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band()).unwrap_err();
-    match err {
-        topo::ContactRefusal::Contradicted { diag } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_gap"));
-            let gap = diag.margin.diagnostic_f64_for_error_text().value();
-            assert!(
-                gap.is_some_and(|g| g > 0.0),
-                "apart, not crossing: {diag:?}"
+    let out = tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band());
+    match out {
+        topo::TangentVerdict::Ruled(topo::TangentRuling::Row {
+            row: topo::TangentRow::Gap,
+            by,
+        }) => {
+            assert_eq!(
+                by.sign,
+                geom_core::Sign::Positive,
+                "apart, not crossing: {by:?}"
             );
         }
-        other => panic!("expected Contradicted, got {other:?}"),
+        other => panic!("expected the gap row, got {other:?}"),
     }
 }
 
@@ -166,8 +159,8 @@ fn probe_tangent_definite_crossing_contradicts() {
     let tilted = plane_s([0.0, 0.0, 0.0], [0.0, 1e-3, 1.0]);
     let out = tangent_locus_relation(&up, true, &tilted, false, &xline(), -1.0, 1.0, band());
     assert!(
-        matches!(out, Err(topo::ContactRefusal::Contradicted { .. })),
-        "a definite crossing must contradict, got {out:?}"
+        matches!(out, topo::TangentVerdict::Ruled(_)),
+        "a definite crossing must be ruled out, got {out:?}"
     );
 }
 
@@ -180,11 +173,10 @@ fn probe_tangent_escalates_an_inband_residual() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     // A genuine (authored) gap of 3 eps: in the sliver band.
     let gapped = plane_s([0.0, 0.0, 3.0 * eps], [0.0, 0.0, 1.0]);
-    let refusal = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, band())
-        .expect_err("an in-band residual refuses");
+    let read = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, band());
     assert!(
-        matches!(refusal, ContactRefusal::Escalated { .. }),
-        "in-band residual must escalate: {refusal:?}"
+        matches!(read, topo::TangentVerdict::InBand(_)),
+        "in-band residual must escalate: {read:?}"
     );
 }
 
@@ -196,7 +188,7 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let z_face = |z: f64| {
         body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
+            .find(|(fk, _)| match body.face_surface(*fk) {
                 Some(&topo::Surface::Plane { origin, normal, .. }) => {
                     normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
                 }
@@ -293,12 +285,12 @@ fn probe_equal_carriers_are_one_and_a_definite_difference_two() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
     assert_eq!(
-        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
     assert_eq!(
-        carrier_eq(&a, &off, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &off, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }

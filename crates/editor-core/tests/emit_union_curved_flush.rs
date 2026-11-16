@@ -146,9 +146,7 @@ fn rim_arcs(ev: &Evaluation<f64>, union: RecipeNodeId, z: f64) -> BTreeMap<Stabl
         if topo::query::edge_carrier_kind(&body, k) != Some(topo::query::CurveKind::Circle) {
             continue;
         }
-        let edge = body.get_edge(k).unwrap();
-        let [p0, p1] =
-            [edge.he_plus, edge.he_minus].map(|he| point(body.get_half_edge(he).unwrap().start));
+        let [p0, p1] = <[_; 2]>::from(body.edge_vertices(k).unwrap()).map(point);
         if on(p0) && on(p1) {
             let (a, b) = (az(p0), az(p1));
             out.insert(name.clone(), (a.min(b), a.max(b)));

@@ -62,7 +62,7 @@ fn the_spike_document_becomes_a_drawable_scene() {
     assert_eq!(
         doc.placements()
             .iter()
-            .map(|&placement| viewer::world::seat_of(&doc, placement))
+            .map(|&placement| viewer::world::original_of(&doc, placement))
             .collect::<Vec<_>>(),
         [extrude],
         "the extrude is the world"

@@ -287,7 +287,7 @@ pub(crate) enum Held {
     /// A selection: the body read and the names, in stored order.
     Select {
         /// The body.
-        body: VarId,
+        body: crate::BodyRead<VarId>,
         /// The names.
         names: Vec<crate::names::StableName>,
     },
@@ -295,6 +295,8 @@ pub(crate) enum Held {
     Pose(crate::pose::PoseDef),
     /// A pick: the copy read and the path.
     Pick(crate::var::Pick),
+    /// A source: the body read.
+    Source(crate::BodyRead<crate::var::VarId>),
     /// An index: its count and what it is within.
     Index(crate::var::Index),
 }
@@ -310,11 +312,12 @@ impl Held {
             WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
             WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
             WrittenDef::Select(_, select) => Self::Select {
-                body: select.body,
+                body: select.body.clone(),
                 names: select.names.clone(),
             },
             WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
             WrittenDef::Pick(pick) => Self::Pick(pick.clone()),
+            WrittenDef::Source(read) => Self::Source(read.clone()),
             WrittenDef::Index(index) => Self::Index(index.clone()),
         }
     }

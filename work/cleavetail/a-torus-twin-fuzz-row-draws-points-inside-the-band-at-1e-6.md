@@ -45,3 +45,7 @@ Then pin this seed as a deterministic row beside the fix.
 - Banded P4: the test's own clearance filter, not the door: tooling whose payoff is CI going red less often, P4 by `work/README.md` Priority.
 - Priced `E`, the effort the body describes.
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Drawn again (2026-11-09, PR 6665's hosted CI)
+
+Seed `0x2ca1e53eb1681d40` at `CAD_TOLERANCE_EPS=1e-6` draws `(u, v) = (0.2999972593156823, 0.5939409096622223)` and escalates on `curve_carrier_gap` with margin `6.617e-6` (band zero `1e-6`, escalate `1e-5`). It fails identically on `origin/main` `2e2570a4` and on PR 6665's head `9e9a1962`, so it is this row's class, not that PR's.

@@ -93,10 +93,11 @@ vocabulary is the sign trilean against a stated value: `≈ v` /
 `> v` / `< v` at the document ε-band — never a bare float equality.
 
 **Convexity — RESERVED, NOT BUILT (GS-Q2).** The kernel's 3D
-edge-convexity predicate is `geom_brep::classify_edge_wedge`: convex,
-concave, smooth (wedge π) or knife (a cusp or slit), its margin the
-signed dihedral `((n₊ × n₋)·τ̂)·arm` in meters, read at one point of
-the edge; the blend verbs are its consumer. A selector atom over it
+edge-convexity predicate is the edge's wedge fold (`topo::edge_wedge`):
+a crease, convex or concave, a smooth seam (wedge π), a cusp or slit,
+or a lamina, its sign the signed dihedral `((n₊ × n₋)·τ̂)·arm` in
+meters, read at each interior station of the edge; tier 3 and the
+blend verbs are its consumers. A selector atom over it
 is still new work: sample-point choice along the edge (a dihedral
 that changes sign along one edge has no one class), and an
 equivariance check. Demand evidence is the weakest of
@@ -272,9 +273,8 @@ logs bracket operations, not sessions, which is how every existing
 pin already uses them.
 
 **GS-Q2 — Convexity does NOT ship in v1: the slot is reserved, not
-built.** Ground: the kernel predicate reads one point of an edge
-(`geom_brep::classify_edge_wedge`), and a selector atom needs a
-whole-edge verdict, and the demand evidence is a comment rather than
+built.** Ground: the kernel predicate read one point of an edge when
+this was ruled, and a selector atom needs a whole-edge verdict, and the demand evidence is a comment rather than
 a call site, since
 the demo's kind-pairs covered the real case. A wrong margin design
 shipped into public API costs far more than a follow-up unit.

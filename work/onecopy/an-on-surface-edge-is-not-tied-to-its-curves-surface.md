@@ -2,10 +2,12 @@
 id: an-on-surface-edge-is-not-tied-to-its-curves-surface
 kind: issue
 title: OnSurface::edge takes a bare carrier and span, so nothing ties an edge to the SurfaceCurve's surface it is read against
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6624
 ---
 
 
@@ -20,3 +22,17 @@ Nothing in the types ties an `OnSurface` to its `SurfaceCurve`'s surface.
 ## What closing it takes
 
 Build an `OnSurface` from a face (its record and edge), and give a `SurfaceCurve` that record's key, so that `across` refuses a mismatch. Check first whether every caller has a face record to hand. A caller that synthesises its surface has none, and either keeps the precondition with its reason or carries the key it charted from.
+
+## Closed (2026-11-09, PR 6624)
+
+- A `SurfaceCurve` is charted on a `Charted`, which owns the record's key and surface. The surface is one of:
+  - as stored (`Charted::record`);
+  - turned about its own axis onto another seam (`Charted::turned`);
+  - a sphere on a frame of the caller's (`Charted::framed`, the sphere door's, which keeps the chart's poles where its rows were measured).
+- `OnSurface::edge` takes its face record's key. Both readings of a pair, `across` (the edge across the curve's plane) and `under` (the curve across the edge's own plane), refuse a pair on two records (`AcrossRefusal::OffRecord`).
+- Every caller reads the key and the surface off one face:
+  - Each region door holds its face's `Charted`, and its geometry is read off it. The sphere door no longer takes a centre and radius from its callers. `landings` keys each edge by the door's record.
+  - `apply_cut_ins` turns the face's own sphere onto the cut's meridian.
+- A mismatch in either caller is a fault in its wiring (one record per door; every cut-in piece inherits the face's record), so it panics naming both keys.
+- The premise left to a caller is that the key and the surface it hands `Charted::record` are one record's.
+- The loop walk (PR 6609, merged in) keys its arc and its ray by the loop's face record (`CarrierLoop.face`). Its ray plane is built, not read off the record, so it is charted with `Charted::held`. Its premise (`certify_plane`'s, or the projected read's own) is named at `conic_crossings`.

@@ -72,7 +72,7 @@ fn defects(band: Band, rate: f64) -> Vec<(f64, f64)> {
 /// **The oracle**: `require_span_within_period` as it was spelled — the
 /// forward half `Δt·r` definitely positive, then the winding half
 /// `(τ − Δt)·r` not definitely negative, each a span metered at `r`.
-fn old_span<T: Decide>(
+fn old_span_as<T: Decide>(
     (t0, t1): (T, T),
     radius: T,
     band: Band,
@@ -127,7 +127,7 @@ fn the_circle_span_doors_agree_with_the_old_pair() {
     let refuse = |what| PropsError::NotIsoRectangle { what };
     for pair in names {
         for &(case, span) in &spans {
-            let old = old_span(span, radius, band, pair);
+            let old = old_span_as(span, radius, band, pair);
             let new = outcome(require_circle_span(span, radius, band, pair, refuse));
             assert_eq!(new, old, "{pair:?}, {case} {span:?}");
         }
@@ -206,7 +206,7 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
             for (k, d) in defects(band, rate) {
                 let t0 = centre - 0.5 * d;
                 let span = (t0, t0 + TAU + d);
-                let old = old_span(span, 1.0, band, names);
+                let old = old_span_as(span, 1.0, band, names);
                 let new = cone_ellipse(span, band);
                 if escalates.contains(&(side, rate, k)) {
                     seen += 1;
@@ -256,7 +256,7 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
 
 /// **The oracle**: the apex loop's sweep as it was spelled, the headroom
 /// `(τ − |total|)·arm` not definitely negative.
-fn old_apex_loop<T: Decide>(total: T, arm: T, band: Band) -> Outcome {
+fn old_apex_loop_as<T: Decide>(total: T, arm: T, band: Band) -> Outcome {
     let name = "props_cone_apex_loop_sweep";
     match decide(
         name,
@@ -287,7 +287,7 @@ fn the_apex_loop_sweep_agrees_with_the_old_test() {
             let total = sense * (TAU + d);
             assert_eq!(
                 outcome(apex_loop_sweep(total, arm, band)),
-                old_apex_loop(total, arm, band),
+                old_apex_loop_as(total, arm, band),
                 "sense {sense}, k = {k}"
             );
         }
@@ -306,14 +306,14 @@ fn the_apex_loop_sweep_agrees_with_the_old_test() {
         ),
     ] {
         assert_eq!(
-            old_apex_loop(total, arm, band),
+            old_apex_loop_as(total, arm, band),
             Outcome::Admitted,
             "{total}"
         );
         assert_eq!(outcome(apex_loop_sweep(total, arm, band)), want, "{total}");
     }
     let in_band = 3.0 * eps / arm;
-    assert_eq!(old_apex_loop(in_band, arm, band), Outcome::Admitted);
+    assert_eq!(old_apex_loop_as(in_band, arm, band), Outcome::Admitted);
     assert!(matches!(
         outcome(apex_loop_sweep(in_band, arm, band)),
         Outcome::Escalated(_)
@@ -322,7 +322,7 @@ fn the_apex_loop_sweep_agrees_with_the_old_test() {
 
 /// **The oracle**: `props_rim_only_closed` as it was spelled, the excess
 /// `(Δu − τ)·arm` within the zero band.
-fn old_rim_only_closed<T: Decide>(du: T, arm: T, band: Band) -> Outcome {
+fn old_rim_only_closed_as<T: Decide>(du: T, arm: T, band: Band) -> Outcome {
     let name = "props_rim_only_closed";
     match decide(
         name,
@@ -352,7 +352,7 @@ fn the_rim_only_closure_agrees_with_the_old_excess() {
     {
         let du = TAU + d;
         let extent = Extent::between(0.0, du);
-        let old = old_rim_only_closed(du, arm, band);
+        let old = old_rim_only_closed_as(du, arm, band);
         let new = outcome(require_rim_only_closed::<f64>(&[], extent, arm, band));
         match (old, new) {
             (Outcome::Escalated(Some(m_old)), Outcome::Escalated(Some(m_new))) => {
@@ -367,7 +367,7 @@ fn the_rim_only_closure_agrees_with_the_old_excess() {
 
 /// **The oracle**: `props_sphere_pole_arc_full` as it was spelled, the
 /// headroom `(τ − span)·r` within the zero band.
-fn old_pole_arc_full<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, Outcome> {
+fn old_pole_arc_full_as<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, Outcome> {
     let name = "props_sphere_pole_arc_full";
     decide(
         name,
@@ -387,7 +387,7 @@ fn the_pole_arc_full_read_agrees_with_the_old_test() {
     let radius = 3.0;
     for (k, d) in defects(band, radius).into_iter().chain([(0.0, -1.0)]) {
         let span = TAU + d;
-        let old = old_pole_arc_full(span, radius, band);
+        let old = old_pole_arc_full_as(span, radius, band);
         let new = pole_arc_full(Extent::between(0.0, span), radius, band)
             .map_err(|e| outcome::<()>(Err(e)));
         assert_eq!(new, old, "k = {k}");

@@ -199,3 +199,7 @@ named trigger, not as work.
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to DOCTAIL, still deferred. What remains is the one-edit convenience and the policy for which input survives (§1), which is Ev's to rule; reopen it on that ruling.
+
+## Evidence (2026-11-08, `placing-copy-reads`, the 6353 build)
+
+The open question, which input survives a delete, is answered for the viewer's delete by continuation (DM6 as narrowed on PR 6353): `editor_core::continuation::splice` hands each reader to what the deleted node continues — a fillet's, a chamfer's or a shell's input, an operator's one remaining operand, a cut's target once its tool goes — as `SetParam`/`SetMembers`/`SetProduct`/`Rebind` edits in one action (`Recording::delete_by_continuation`); `SessionOp::DeleteNode` uses it. Nothing continues for a boolean's deleted target, a split, a loft or a placement, so those still cascade. Whether this row closes is the DOCTAIL owner's call.

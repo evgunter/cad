@@ -52,9 +52,7 @@ pub fn arcs_at(body: &Body<f64>, r: f64, y: f64, seeds: Seeds) -> Vec<EdgeKey> {
             };
             let admitted = match seeds {
                 Seeds::Closed => {
-                    body.get_half_edge(e.he_plus)
-                        .map(|h| Some(h.start) == body.half_edge_end(e.he_plus))
-                        == Some(true)
+                    body.edge_vertices(k).is_some_and(|(start, end)| start == end)
                 }
                 Seeds::TwoSided => pncad::topo::readback::edge_sides(body, k)
                     .is_ok_and(|sides| sides.plus.surface != sides.minus.surface),

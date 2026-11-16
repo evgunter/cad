@@ -199,7 +199,8 @@ impl Pair {
             NurbsLane::certified(),
         )
         .expect("the draft's edge certifies");
-        let [ia, ib] = images;
+        let (t0, t1) = edge.params();
+        let [ia, ib] = images.map(|pcurve| geom_brep::ChartImage::Image { pcurve, t0, t1 });
         IntersectionDraft::of(Some(&edge), p0, p1).shared_row(
             self.pair(),
             [
@@ -517,10 +518,12 @@ fn a_line_row_is_shared_only_on_both_walls_sides() {
             Pcurve::IsoLine {
                 p0: geom_core::Point2::new(c, 0.0),
                 pl: geom_core::Vec2::new(0.0, 1.0),
+                ends: None,
             },
             Pcurve::IsoLine {
                 p0: geom_core::Point2::new(0.0, 0.0),
                 pl: geom_core::Vec2::new(1.0, 0.0),
+                ends: None,
             },
         ];
         for (i, image) in images.iter().enumerate() {
@@ -595,12 +598,14 @@ fn a_rim_across_a_closed_charts_closure_is_no_shared_row() {
             t0,
             angle,
             breaks,
+            ends,
         } => Pcurve::IsoArc {
             p0,
             pd,
             t0: t0 + tau,
             angle,
             breaks,
+            ends,
         },
         other => panic!("an arc row: {other:?}"),
     });
@@ -685,10 +690,12 @@ fn tangent_at(ys: f64, lean: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(1.0, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -812,6 +819,7 @@ fn a_sign_change_across_a_crease_is_no_tangency() {
     let image = || Pcurve::IsoLine {
         p0: geom_core::Point2::new(0.0, 0.0),
         pl: geom_core::Vec2::new(1.0, 0.0),
+        ends: None,
     };
     let pair = Pair::of(
         wall(Vec3::new(0.0, -1.0, 0.0)),
@@ -875,10 +883,12 @@ fn swapping_at(ys: f64, s: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(1.0, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -947,8 +957,8 @@ fn a_shared_row_reads_one_verdict_wherever_its_charts_sit() {
 
 /// **An interior row refuses, whichever way a crease beside it folds.** A
 /// floor creased along its interior column `u = ½`, one sheet folded up to
-/// within `0.1 ε` of the upright `x = ½`, on either side: the shared row
-/// is built for boundary rows, so both mirror images refuse
+/// within `0.1 ε` of the upright `x = ½`, on either side: a spline
+/// wall's shared row is read on a domain side only, so both mirror images refuse
 /// `CertifyError::Row { refusal: RowRefusal::OffSide, .. }` on the floor, before any reading that
 /// could tell the two sides apart.
 #[test]
@@ -972,10 +982,12 @@ fn an_interior_row_refuses_whichever_way_its_crease_folds() {
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.5, 0.0),
             pl: geom_core::Vec2::new(0.0, 1.0),
+            ends: None,
         },
         Pcurve::IsoLine {
             p0: geom_core::Point2::new(0.0, 0.0),
             pl: geom_core::Vec2::new(1.0, 0.0),
+            ends: None,
         },
     ];
     let s = 0.1 * eps();
@@ -1177,6 +1189,7 @@ fn a_shared_row_admits_only_row_images() {
         t0,
         angle,
         breaks,
+        ..
     } = ib
     else {
         panic!("an arc rim");
@@ -1191,6 +1204,7 @@ fn a_shared_row_admits_only_row_images() {
             t0,
             angle,
             breaks: breaks.clone(),
+            ends: Box::default(),
         };
         assert!(
             SharedRow::new(
@@ -1348,4 +1362,46 @@ fn rr2_a_tangency_a_hair_past_an_end_does_not_certify_clear() {
         }
     }
     assert!(bad.is_empty(), "{bad:?}");
+}
+
+/// **A certificate passes only over the span it was minted for**
+/// ([`geom_brep::side_row_certifies`]). A chart image handed in with its
+/// certificate over `(0.3, 0.9)` is taken without a check over exactly
+/// that span: nothing is decided. Asked over a span that runs past the
+/// wall's turn, the same cache is certified again, like an uncertified
+/// image, and refuses there, since the wall has no row past its turn.
+/// Agreeing with the image is not enough for a certificate minted
+/// elsewhere.
+#[test]
+fn a_certificate_minted_for_another_span_is_certified_again() {
+    let carrier = rim(1.0);
+    let wall = cylinder(4, TURN);
+    let span = (0.3, 0.9);
+    let cache = PcurveCache::certify(
+        row(&carrier, span, &wall),
+        span.0,
+        span.1,
+        &carrier,
+        &wall,
+        band(),
+    )
+    .expect("the row certifies over its own span");
+    let certified = geom_brep::ChartImage::Certified(cache);
+    let (same, read) = geom_core::k_stats::detached(|| {
+        geom_brep::side_row_certifies(&wall, &certified, (&carrier, span), band())
+    });
+    assert!(same, "the certificate passes over its own span");
+    assert_eq!(
+        read.recorded().verdicts.len(),
+        0,
+        "over its own span the certificate is taken, and nothing is decided again"
+    );
+    let (other, read) = geom_core::k_stats::detached(|| {
+        geom_brep::side_row_certifies(&wall, &certified, (&carrier, (0.3, TURN + 0.5)), band())
+    });
+    assert!(!other, "past the wall's turn the row does not certify");
+    assert!(
+        !read.recorded().verdicts.is_empty(),
+        "over another span the image is certified again"
+    );
 }

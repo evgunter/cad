@@ -38,10 +38,7 @@ fn face_of(b: &Body<f64>, he: HalfEdgeKey) -> FaceKey {
 }
 
 fn is_plane(b: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        b.get_surface(b.get_face(f).unwrap().surface),
-        Some(geom::Surface::Plane { .. })
-    )
+    matches!(b.face_surface(f), Some(geom::Surface::Plane { .. }))
 }
 
 /// Dumps every valence-2 vertex whose two edges separate the same face

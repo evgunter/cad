@@ -67,7 +67,78 @@
 - 2026-11-08 — PR 6587 merged (orchestrator's read): test-utils' four slow-set censuses are green again. The ledger, walks and pins were re-pointed at the tree as it stands, with each arrival checked held. An inert `deny_unknown_fields` on a `try_from` type was removed, and the census taught that shape. `test-utils-slow-censuses-read-a-stale-ledger-after-the-finished-body` closes. (ONEHOME orchestrator)
 - 2026-11-09 — **Seam (BOXES):** filed `main-red-four-sweep-slow-rows-refuse-outside-session-box` (P0) here. Four sweep slow rows refuse `OutsideSessionBox` in their fixtures' extrude, likely since `8a97c7fab5` (the session box's edge reach as a lower bound). They are slow-set rows, so PR gates skip them. Not bisected; the row says how to confirm. (BOXES orchestrator)
 - 2026-11-09 — Two forks are on Ev's desk, so ONEHOME's remaining P1 work waits:
-  - **`[ev]` PR 6585, the `topo::star` row** (fork 253, two designers, converged on their first reports). The `star-walk` lane stopped stage 2 when the walks differed at the entry; its probe is on `onehome/star-walk` (not for merge). The designers' D1′ re-measure showed no disagreement.
-  - **`[ev]` PR 6589, a finished body's isometric image is finished** (fork 254, two designers, converged after one round). It covers `a-rigid-motion-rewrites-and-recertifies-every-edge` and `placement-primitives-take-and-return-construction-state`.
+  - **`[ev]` PR 6585, the `topo::star` row** (fork 257, two designers, converged on their first reports). The `star-walk` lane stopped stage 2 when the walks differed at the entry; its probe is on `onehome/star-walk` (not for merge). The designers' D1′ re-measure showed no disagreement.
+  - **`[ev]` PR 6589, a finished body's isometric image is finished** (fork 256, two designers, converged after one round). It covers `a-rigid-motion-rewrites-and-recertifies-every-edge` and `placement-primitives-take-and-return-construction-state`.
   - **On approval:** merge the PR, fill its fork-log row from the analysis branch, and dispatch the unit. The star-walk lane builds stage 2; a new lane takes the `moved` door with `check_rigid`'s re-mint (audit F10).
   (ONEHOME orchestrator)
+- 2026-11-10 — Ev on PR 6585: "has an actual design decision changed? was the previous text meaningfully missing something?" No, and barely. The PR is closed without the DESIGN edit. Stage 2's design is recorded on `run-loops-of-split-and-pierce-are-twins` as an application of PR 6359's decision, and the star-walk lane builds it. Fork-log row 257 records the decline. Lesson: a fork answered entirely by applying an existing decision is not an `[ev]` question; put the design on the row and say so. (ONEHOME orchestrator)
+- 2026-11-10: Ev approved PR 6589: "this sounds good overall". He added that `check_rigid`'s admission (a near-orthonormal matrix kept bit for bit, decided on the metre band) "seems like a real problem". I merged it with fork row 256 filled in from the analysis branch, and moved `a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses` from SHELL to ONEHOME at P1 with its decision. That row is built first in the rigid-motion unit. (ONEHOME orchestrator)
+- 2026-11-10: star stage 2 merged (PR 6725). The full review found one MAJOR, demonstrated by execution: the Boolean's section reading reported a near-axis vertex as `ClassificationInvariant`, a kernel defect, where main read it. It also found MINORs: refusals from corners main never read, an unpinned half-turn halving, and an unresolved divider read silently. The fix pass closed all of them, adding per-fault `VertexRefusal` arms and a lazy corner reading. S1 is filed as `star-reads-whether-an-extremum-lies-inside-a-sector-twice` (P2). I accepted the by-value `BoolSector` as an application. The one CI red is ONECOPY's main red, filed as `onecopy/main-red-the-chord-arc-rung-count-reads-zero-through-a-const` (PR 6743). (ONEHOME orchestrator)
+- 2026-11-10: PR 6717's full review came back NOT-MERGEABLE.
+  - **MAJOR, demonstrated by execution:** the box-levered band charges a rotation's own rounding, so honest rotations refuse at low ε, and the sphere re-cut becomes `ClassificationInvariant` at 1e-12.
+  - **m4:** the f64 → T lift I had ruled (d) is the up door that Ev's ruling A on PR 5068 forbids. I withdrew it. Lesson: before ruling on a scalar crossing, read the "Crossing scalars" text and `git log -S` its ruling.
+  - **Fork 258.** The lane then stopped on literal frames. Three designers (fork 258) all found the premise false: no document holds a matrix. Not sent to Ev, since it is an application and no clause changes:
+    - motions are minted by construction at their scalar;
+    - `check_rigid` is f64-only and within rounding;
+    - STEP's placement is minted at f64 from axis and reference, and reported.
+  - **Off-question rows to file:** `RigidMotion::computed_at` (an up crossing via `from_computed` on main), `chain_turns` taking a `Mat3`, and the Python `Frame` constructors that no API consumes.
+  (ONEHOME orchestrator)
+- 2026-11-10: PR 6760 merged. The OutsideSessionBox main-red family was every refusal real (each margin equals the fixture's extent less 1000 m, checked against the geometry for seven rows), so it was fixtures moved inside the 1 km box, with refusal rows just past it and no kernel change. The full review was APPROVE-WITH-FIXES. Its fix pass restored `parallel_cylinder_join`'s stand-down guard (its reason is false near `EPS_MIN`), unified the box-unit helpers, and made the refusal rows assert their margin. (ONEHOME orchestrator)
+- 2026-11-10: PR 6717 merged. This is stage 1 of the rigid-motion unit: fork 258's final state, with every motion minted at its scalar and `check_rigid` f64-only within rounding. It took two reviews and fix passes, the withdrawal of my ruling (d) (an up door forbidden by Ev's ruling A), and fork 258, an application not sent to Ev. Stage 2, the `moved` door on the finished types, is next on the same lane. (ONEHOME orchestrator)
+- 2026-11-11 — (PCERT orchestrator) Main red, fixed in PCERT's roster PR: geom-core's `recourse_roster` lost its `check_rigid: check` site when 6717 moved the rigidity decide loop into `admitted_for_a_suite` (`linalg/rigid_motion.rs`). The roster now lists `admitted_for_a_suite: check` as ROW_TABLE. Reported by PCERT's ellipse lane. Nothing is owed.
+- 2026-11-12: PR 6820 is ready to merge.
+  - **What it is:** stage 2 of the rigid-motion unit. The moved door means a finished body moved by an isometry carries its verdict and asks only the session box again. Built from fork 256's recommendation, with fork 259's corrections:
+    - item 1, a leaf finished alone before moving, was measured and reverted at the box scalars;
+    - item 2, an undecided reading past a build ends as undecided;
+    - the certifier fix: Ev's #6824, `[tolerance.residuals]`.
+  - **The hull floor on `‖E‖`:** two intermediate readings were dropped, a ball that loosened production and a capped Frank–Wolfe descent 27% under the box. The floor now reads the hull's nearest point and tightens every offset row but one cap stop, which is a schedule effect.
+  - **Review:** the delta review was APPROVE-WITH-FIXES with no MAJOR, and the fix pass is accepted. I left one ask unbuilt: routing a check's own lever to the box recourse. `MarginKind::Enclosure` cannot tell a box from a point's rounding, so it is held as `an-undecided-reading-over-a-box-cannot-be-told-from-interval-rounding` (P3). The STEP wording stays as D4 ¶1 pins it.
+  - **Rows closed:** both stage-2 rows, and ENCL's `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters`.
+  - **Lesson:** a lower bound read off a capped descent is sound but can sit far under the bound it replaces. Pin a new floor with an oracle against the old one before re-pinning goldens to it. (ONEHOME implementer)
+- 2026-11-13: PR 6871 (`topo::star` stage 3, `onehome/star-cut`) is ready to merge on the orchestrator's acceptance of its fix pass.
+  - **What it is:** the cut (`star::cuts`), one germ rule signed by its codes (`star::germ_line`), one germ order (`star::germ_order`, `before`, `turn`, one K-name set), `entered_faces` reading `star::apart`, and `holds_whole` as `ring_tree` over the vertex's one cut order. Both readings ran side by side before deletion; every disagreement is classified on the PR.
+  - **Review:** FULL, APPROVE-WITH-FIXES. Finding 1 (a reachable `unreachable!` in the split's order) was blocking: zeros that disagree now refuse typed. Its second half, refusing far-apart germs a leaned zero puts on one line, broke the lean doctrine's pin (216 of 4 560 readings); kept the doctrine and filed the measurement.
+  - **Rows closed:** `run-loops-of-split-and-pierce-are-twins`, `two-germ-readers-sign-one-line-two-ways`, `the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree`, `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`, and HONEONE's `germ-orders-about-a-normal-have-two-homes` (closed in substance).
+  - **Rows filed:** `onehome/a-leaned-zero-reads-germs-far-apart-in-direction-as-one-line` (P2), `honeone/tied-cuts-at-a-vertex-are-placed-by-three-evidences` (P3), and the main red `sectarms/main-red-recourse-roster-misses-two-ring-path-indirect-sites` (P1). (ONEHOME star-cut lane)
+- 2026-11-14 — **From BOXFINISH: `check-1-reads-a-turning-frames-length-off-its-bracket` is on this slate now** (P1, `design`; moved here, id unchanged). It is fork 259's case (a), measured: on main, a round body turned by a boxed angle and then taken by a Boolean refuses check 1 at first order in the box and certifies 0 of 64 leaves at 30° ± 1°, and behind check 1 stand a volume reading and a `FlipCrossing` on `pcurve_cylinder_chart_axial` (0 rows in the witness, 32 in the box lane). The box-scalar switch plays no part. BOXFINISH's fork 268 designers leaned to a carrier storing its frame as the witness; the row says why that and fork 259's carry are one question. Also filed here earlier today: `the-f64-witness-finishes-a-placed-slab-twice-before-its-move` (P3). (BOXFINISH orchestrator)
+- 2026-11-14: fork 270 (pole conditioning) goes to Ev on the `[ev]` pole-band PR.
+  - **Evidence (labels only):**
+    - At `Chart::of`, a 1-ulp tilt of the mated direction moves a 1 m point 1.4ε at δ = 1e-7 and 14ε at 1e-8 (1 m arm). At a 70 m arm and δ = 1e-9 it is 143ε per metre.
+    - The Interval chart is not loud: it carries a pose about 19ε per metre wide at 1e-7 and admits it.
+    - The exact worst-case lever is `2·arm/chord`, checked at 80 digits.
+    - The Kε pole verdict is the wider test below an arm of `ε·√(K(K−1)/(32u))`, about 0.16 m at the default ε.
+  - **Main has three spellings of the least turn:**
+    - `RigidMotion::least_turn`;
+    - `turned_between`/`turned_onto`, with an unlevered `1 + a·b` decision (ledger F22);
+    - editor-core `LeastTurn`.
+  - **Owed whatever Ev decides:**
+    - an end-to-end f64 and Interval band-edge row on a generic-direction fixture;
+    - `bundle_arm` (`crates/editor-core/src/mate/solve.rs`) omits written slide values, so a copy slid L lands about `L·u/δ` off (to be filed as a defect row);
+    - an audit of `topo::vertex_section`'s `sin ψ` as a second reader of the door.
+- 2026-11-14 — **Shared ground, from BOXFINISH:** PR 6953 (`onehome/rim-span`) states a line rim's span from its segment's length. A BOXFINISH lane on `boxfinish/sweep-frames` (the sweep doors keep the frames they are handed; `work/boxfinish/the-extrude-mints-its-plane-normals-…`) is rewriting the same sites in `crates/sweep/src/extrude.rs` and `swept.rs`: each line rim's director and span come from the sketch frame turning a 2-D direction, never from two placed points. Its last pushed commit before an outage read "the line rim's and strut's spans are the sketch's". The two look like one statement reached twice; the lane is told to read 6953 and say so, or to send both readings if they differ. (BOXFINISH orchestrator)
+- 2026-11-15 — (BOXFINISH orchestrator) Main is red on `sym11_exact_channel_rows` after PR 6988 merged: the numeric column fell by one or two on five documents. Filed on this slate as `main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint` (P0, E), with the receipts and the attribution. The gate's slow-set step did not run the row. PR 6990 merges over it as an inherited red.
+- 2026-11-16 — **Fork 275, the walk stop's foot** (`work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md`), to Ev on the `onehome/walk-stop-ev` `[ev]` PR. There were three designers and three rounds, and they converged. The production width was measured by the ring probe (`onehome/ring-width-probe`, never merged). The probe classifies every ringed skip in `Found::read`, and an env switch refuses the unlicensed ones.
+  - **Topo whole: 31,251 skips.**
+    - 1,583 are pose skips the window certifies, and 21,580 are walk skips it certifies.
+    - 8,089 are unlicensed, in 2 tests. Containment licensed 0.
+    - Under refuse, one row flips: `ring_path::spline_wall_rows::an_island_across_a_closed_walls_seam_is_read_but_not_from_just_below_the_seam`. It is a transverse crossing at sine ≈ 1. Its window fails only because `NurbsCurve3::accel_upper_bound` is whole-domain and +∞ on a crease (`work/onehome/a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece.md`).
+    - The geom-brep row `a_spline_with_a_corner_meets_a_line_past_it` has 312 skips. All of them lie in one straight knot span, so a per-span bound proves them.
+  - **Sweep whole: 27 of 3,760 rows red under refuse**, the same 27 whichever kind the refusal takes.
+    - Bucketed by the outgoing-oriented angle at a held end, assuming the per-span bound and the one-sided arm are both built:
+      - 9 creased-transverse rows clear.
+      - 7 rows are joints (φ = 180°) and clear.
+      - 6 rows keep 2–5 skips each, tangent against an interior 1e-5–1e-4 m from an end.
+      - 5 rows keep a real residue of interior tangent touches. One of them is the ringed wall, with its 6 end-touches.
+    - So at most 5 to 11 rows stay red, all on tangent touches.
+  - **Absorption.** The refusals in the rows that stay green are absorbed by documented rules, not swallowed:
+    - `ring_path.rs` 1629, the `Answering::Any` climb;
+    - `carrier_cross.rs` 351–371, the frontier door.
+    - `spline_subtract_intersect_census` accepts any typed refusal and pins no census, which is a coverage gap.
+  - **Cost.** About 1–1.9 s saved per unequal-radius cylinder operation, from 6–7 s.
+- 2026-11-16 — **Fork 275 decided** (PR 7025). Ev approved the C5 change with the fork's answer (i): walked tangent touches escalate until a second-order arm exists, because (ii) is unsound. The `[one-way.readings]` rule was withdrawn, and C5 alone carries the instance. The build is owed, in this order:
+  1. the per-piece curvature bound (`work/onehome/a-creased-splines-whole-domain-accel-bound-proves-no-basin-on-any-piece.md`, in progress);
+  2. the one-sided window at a held span end;
+  3. the pair read, with the polish held to the spans and the sampled whole-carrier foot retired;
+  4. the ring rule, which lands last.
+
+  The residue that rule turns red is 5 to 11 sweep rows of tangent touches, which escalate by design. The demo measurement is still pending.

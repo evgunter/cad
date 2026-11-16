@@ -7,7 +7,7 @@ opened: 2026-11-03
 group: kernel/boolean/one-home
 prefix: onecopy/
 tag: (ONECOPY orchestrator)
-paths: [crates/geom/src/curves/*, crates/geom/src/surfaces/*, crates/geom-brep/src/ladder.rs, crates/geom-brep/src/curve_pair/*, crates/topo/src/boolean/*, crates/topo/src/splitting/*]
+paths: [crates/geom/src/curves/*, crates/geom/src/surfaces/*, crates/geom-core/src/ladder.rs, crates/geom-brep/src/curve_pair/*, crates/topo/src/boolean/*, crates/topo/src/splitting/*]
 keep_out: [opened 2026-11-03 by cutting ONEHOME per work/README.md Track size after its orchestrator ran out of usage - ONEHOME measured 70 budget points against 35 and every row it had not started moved here by git mv with its id and body unchanged and a dated note on the row - ONEHOME keeps what is in flight or staged (PR 6371 the finished body, PR 6380 the run owns f64 rounding with the lever and session-box rows filed against it, and the topo star stages 2 and 3 with the pierce and planner rows they fold) - so a row here that turns out to need one of those units moves back rather than racing it - BOXES cover-levers folds the per-kind ExtentBall constructors onto geom cover, and extent and lever rows stayed on ONEHOME for that reason - this track shares crates/topo/src/boolean/* and crates/topo/src/splitting/* with ONEHOME CLEAVE and the HONE family by design, shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - several rows reach outside the paths (sweep mesh import), name the owner in the PR]
 ---
 

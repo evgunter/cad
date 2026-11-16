@@ -371,7 +371,7 @@ impl RowCell {
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(crate::eval::ReadIn<T>, EntityRef)>,
+    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -422,12 +422,16 @@ impl Saying {
         if self.cells.contains(&RowCell::Tool(var)) {
             return Some((RowCell::Tool(var), None));
         }
+        // A member read's names are its member's, which no row's cell
+        // spells: the reference is no cell of a row.
         let selected = |var: VarId| {
-            let select = doc.selection(var)?;
+            let select = doc
+                .selection(var)
+                .filter(|select| !select.body.is_indexed())?;
             let [name] = select.names.as_slice() else {
                 return None;
             };
-            Some(RowCell::Entity(select.body, name.clone()))
+            Some(RowCell::Entity(select.body.read, name.clone()))
         };
         if let Some(cell) = selected(var) {
             return Some((cell, None));
@@ -443,7 +447,7 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(crate::eval::ReadIn<T>, EntityRef),
+    (body, ent): &(crate::eval::Held<T>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
@@ -501,7 +505,8 @@ where
                     b: &crate::eval::measure::Carrier<'_, T>| {
             said.verbs.iter().any(|&verb| {
                 [(a, b), (b, a)].into_iter().any(|(x, y)| {
-                    measure_sign(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+                    measure_sign_as(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band)
+                        == Some(Sign::Zero)
                 })
             })
         };
@@ -566,18 +571,18 @@ where
 /// ([`crate::eval::measure::gap_value`]), `None` where it refuses or
 /// the decision does. Both halves of the quieting rule ask it of a pair
 /// an assertion could be written over.
-fn gap_sign<T: Decide>(
+fn gap_sign_as<T: Decide>(
     outer: &crate::eval::measure::Carrier<'_, T>,
     inner: &crate::eval::measure::Carrier<'_, T>,
     site: &'static str,
     band: Band,
 ) -> Option<Sign> {
-    measure_sign(crate::measure::MeasureVerb::Gap, outer, inner, site, band)
+    measure_sign_as(crate::measure::MeasureVerb::Gap, outer, inner, site, band)
 }
 
-/// [`gap_sign`] for a `Gap` or a `Distance`
+/// [`gap_sign_as`] for a `Gap` or a `Distance`
 /// ([`crate::eval::measure::value_of`]).
-fn measure_sign<T: Decide>(
+fn measure_sign_as<T: Decide>(
     verb: crate::measure::MeasureVerb,
     a: &crate::eval::measure::Carrier<'_, T>,
     b: &crate::eval::measure::Carrier<'_, T>,
@@ -921,18 +926,6 @@ pub struct GapAssertion {
 /// is negative.
 pub(crate) const AT_REST_QUIET_BOUND: &str = "at_rest_quiet_bound";
 
-/// The funnel site name of the quieting rule's decision that two faces'
-/// materials face each other.
-pub(crate) const AT_REST_QUIET_OPPOSED: &str = "at_rest_quiet_opposed";
-
-/// The funnel site name of the quieting rule's decision that two
-/// cylinders' axes are parallel.
-pub(crate) const AT_REST_QUIET_AXES_PARALLEL: &str = "at_rest_quiet_axes_parallel";
-
-/// The funnel site name of the quieting rule's decision that two
-/// cylinders share an axis, or two spheres a centre.
-pub(crate) const AT_REST_QUIET_CENTRED: &str = "at_rest_quiet_centred";
-
 /// **Every assertion in `doc` that can quiet an interference between
 /// two of `copies`** ([`GapAssertion`]), in document order.
 ///
@@ -951,17 +944,21 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         return Vec::new();
     };
     let face_of = |var: VarId, at: &crate::names::MemberAt| -> Option<(usize, FaceKey)> {
-        let select = doc.selection(var)?;
+        // A member read names no copy the product gathers by its read.
+        let select = doc
+            .selection(var)
+            .filter(|select| !select.body.is_indexed())?;
+        let body = select.body.read;
         let [name] = select.names.as_slice() else {
             return None;
         };
-        let name = &member_name(doc, select.body, name, at);
+        let name = &member_name(doc, body, name, at);
         // The selection reads the copy, by the copy's own name; the
         // product's `⊔` keys that name by the copy it read.
         let entry = names.lookup(name).or_else(|| {
-            names.iter().find_map(|(held, entry)| {
-                (keyed_by(held, select.body) == Some(name)).then_some(entry)
-            })
+            names
+                .iter()
+                .find_map(|(held, entry)| (keyed_by(held, body) == Some(name)).then_some(entry))
         });
         let Some(Entry::Unique(EntityRef {
             key: EntityKey::Face(face),
@@ -973,7 +970,7 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         let solid = aggregate.solid_of_face(*face)?;
         let copy = copies
             .iter()
-            .position(|c| c.var == select.body && c.keys.solids().contains(&solid))?;
+            .position(|c| c.var == body && c.keys.solids().contains(&solid))?;
         Some((copy, *face))
     };
     let mut out = Vec::new();
@@ -1005,137 +1002,34 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
 
 /// **Whether a `Gap`'s two faces are opposed**: each faces the other's
 /// material, which is the mating configuration C5's gap is written for
-/// (two planes whose outward normals oppose, a bore about a pin, a
-/// socket about a ball). The material pairing door decides it, read at
-/// a point of the outer face and levered by the two faces' reach from
-/// it, as the census reads two faces' sides; a pairing it cannot decide
-/// is not opposed.
-///
-/// One point answers for the whole pair only where the pairing is the
-/// same at every point of the two faces ([`constant_pairing`]): two
-/// planes, two cylinders on one axis, two spheres about one centre.
-/// Any other pair is not opposed, so its finding stays loud: read at
-/// one point, two parallel shafts side by side would pair one way at
-/// one bearing and the other way at the next.
+/// (two plates face to face, a bore about a pin, a socket about a ball,
+/// a ball or a pin pressed into a plate, two shafts side by side:
+/// CONTACT-DESIGN C5's opposed pair, whose `g < 0` is the clash depth).
+/// It is the facing of the pose the `Gap` over the two faces is read in
+/// ([`crate::eval::measure::pose`]),
+/// so the quieting rule and the measure decide the pair once, alike. A
+/// pair the measure reads in no pose (two planes not parallel, a cone)
+/// or whose facing does not decide is not opposed, and its finding stays
+/// loud.
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
-    let Some(read) = pairing_read(body, outer, inner, band) else {
-        return false;
-    };
-    let arm = geom_brep::folded_lever_arm(
-        read.outer.0,
-        read.inner.0,
-        read.at,
-        // Unsourced lever: the faces' wedge reach (`crate::eval::measure::reach_of`), measured as a
-        // bare length outside the extent home.
-        geom_core::Lever::unsourced(read.reach),
-    );
-    geom_brep::classify_material_pairing_as(
-        AT_REST_QUIET_OPPOSED,
-        read.outer.0,
-        read.outer.1,
-        read.inner.0,
-        read.inner.1,
-        read.at,
-        arm,
-        band,
-    ) == Ok(geom_brep::MaterialPairing::Opposed)
-}
-
-/// **Where one reading answers for two faces' pairing**
-/// ([`pairing_read`]): each face's carrier and sense, the point of the
-/// outer face it is read at, and the farther of the two faces' reach
-/// from it.
-struct PairingRead<'b, T: Decide> {
-    outer: (&'b geom::Surface<T>, bool),
-    inner: (&'b geom::Surface<T>, bool),
-    at: geom_core::Point3<T>,
-    reach: T,
-}
-
-/// **The pairing of two faces, where one reading answers for it**: the
-/// reading at a point of the outer face, or `None` where the faces do
-/// not pair their materials alike at every point ([`constant_pairing`])
-/// or do not read. [`opposed`] decides the pairing on it, which both the
-/// quieting rule and [`could_quiet`] ask.
-fn pairing_read<T: Decide>(
-    body: &Body<T>,
-    outer: FaceKey,
-    inner: FaceKey,
-    band: Band,
-) -> Option<PairingRead<'_, T>> {
-    use crate::eval::measure::reach_of;
-    let carrier = |key: FaceKey| {
-        let face = body.get_face(key)?;
-        Some((body.get_surface(face.surface)?, face.sense))
-    };
-    let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
-    let at = face_point(body, outer)?;
-    let (r_outer, r_inner) = (
-        reach_of(body, outer, at, band)?,
-        reach_of(body, inner, at, band)?,
-    );
-    constant_pairing(outer_carrier.0, inner_carrier.0, r_outer + r_inner, band).then(|| {
-        PairingRead {
-            outer: outer_carrier,
-            inner: inner_carrier,
-            at,
-            reach: r_outer.max(r_inner),
-        }
-    })
-}
-
-/// **Whether two carriers pair their materials alike at every point**:
-/// two planes; two cylinders whose axes are parallel, levered by
-/// `extent`, and one line; two spheres about one centre. Every other
-/// pair, and a pair whose decision lands in band, is not.
-fn constant_pairing<T: Decide>(
-    outer: &geom::Surface<T>,
-    inner: &geom::Surface<T>,
-    extent: T,
-    band: Band,
-) -> bool {
-    use geom::Surface as S;
-    let zero = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);
-    match (outer, inner) {
-        (S::Plane { .. }, S::Plane { .. }) => true,
-        (
-            S::Cylinder {
-                origin: o1,
-                axis: a1,
-                ..
+    let carrier = |key| {
+        crate::eval::measure::carrier_of(
+            body,
+            EntityRef {
+                body: 0,
+                key: EntityKey::Face(key),
             },
-            S::Cylinder {
-                origin: o2,
-                axis: a2,
-                ..
-            },
-        ) => {
-            let rel = *o2 - *o1;
-            zero(
-                AT_REST_QUIET_AXES_PARALLEL,
-                // Unsourced lever: two faces' reaches from one point summed
-                // (`crate::eval::measure::reach_of`), a sum no extent read spells.
-                Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
-            ) && zero(
-                AT_REST_QUIET_CENTRED,
-                Margin::of((rel - *a1 * rel.dot(*a1)).norm()),
-            )
-        }
-        (S::Sphere { center: c1, .. }, S::Sphere { center: c2, .. }) => {
-            zero(AT_REST_QUIET_CENTRED, Margin::of((*c2 - *c1).norm()))
-        }
-        _ => false,
-    }
-}
-
-/// A point of face `key`: the start of its outer loop.
-fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Point3<T>> {
-    let face = body.get_face(key)?;
-    let vertex = match body.get_loop(face.outer)?.boundary {
-        topo::LoopBoundary::Empty { vertex } => vertex,
-        topo::LoopBoundary::Cycle { first, .. } => body.get_half_edge(first)?.start,
+            band,
+        )
     };
-    body.get_point(body.get_vertex(vertex)?.point).copied()
+    use geom_brep::{CarrierPose, MaterialPairing};
+    let facing = match crate::eval::measure::pose(&carrier(outer), &carrier(inner), band) {
+        Some(CarrierPose::Planes(planes)) => planes.facing(band).ok(),
+        Some(CarrierPose::Rounds(rounds)) => Some(rounds.facing()),
+        Some(CarrierPose::PlaneRound(plane_round)) => Some(plane_round.facing()),
+        None => None,
+    };
+    facing == Some(MaterialPairing::Opposed)
 }
 
 /// **The scalars the at-rest check localizes an overlap at**: one seam per
@@ -1356,7 +1250,7 @@ pub(crate) fn finding_solids<T: Decide>(
         // door already censused, it is that door's.
         E::BoundaryCrossesItself { solid, .. }
         | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
-        E::ContactContradicted { declaration, .. } => (face(declaration.a)?, face(declaration.b)?),
+        E::ContactContradicted { record, .. } => (face(record.a)?, face(record.b)?),
         E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
             match subject {
                 topo::CensusSubject::FacePair(a, b) => (face(*a)?, face(*b)?),
@@ -1391,6 +1285,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::UnrepresentableSurfaceDatum { .. }
         | E::PoisonedCurveDatum { .. }
         | E::UnrepresentableCurveDatum { .. }
+        | E::SurfaceDatumUndecided { .. }
+        | E::CurveDatumUndecided { .. }
         | E::EdgeCertification { .. }
         | E::DescriptionNotAdjacent { .. }
         | E::PlanarFaceResidual { .. }
@@ -1436,6 +1332,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::SolidOuterShells { .. }
         | E::ShellRoleUndecided { .. }
         | E::CuspEdgesMissing { .. }
+        | E::MaterialOnBothSides { .. }
         | E::DanglingTopology { .. }
         | E::DanglingGeometry { .. }
         | E::NextPrevMismatch { .. }
@@ -1458,6 +1355,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::OrphanEntity { .. }
         | E::MultiplyOwned { .. }
         | E::OrphanGeometry { .. }
+        | E::Unmovable { .. }
         | E::SolidWithoutShells { .. }
         | E::ShellWithoutFaces { .. }
         | E::EdgeAcrossShells { .. }
@@ -1582,9 +1480,11 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    // The intersection takes the two copies as finished bodies: a copy
-    // the gather read through a placement's map is finished here, once.
-    let operand = |i: usize| product.copies[i].body.clone().taken(tol);
+    // The intersection takes the two copies as finished bodies. A copy
+    // the gather read through a placement's map holds what its source
+    // held, moved, its verdict carried (`Held::moved`): a finished copy
+    // is taken as it is, and a leaf is finished here, once.
+    let operand = |i: usize| product.copies[i].body.clone().finished(tol);
     let (body_a, body_b) = match (operand(a), operand(b)) {
         (Ok(x), Ok(y)) => (x, y),
         (Err(refused), _) | (_, Err(refused)) => {
@@ -1757,7 +1657,7 @@ fn could_quiet(
         for &y in &from_b {
             for (outer, inner) in [(x, y), (y, x)] {
                 let negative =
-                    gap_sign(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
+                    gap_sign_as(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
                         == Some(Sign::Negative);
                 if negative && opposed(body, outer, inner, band) {
                     candidates.push((outer, inner));
@@ -1964,7 +1864,8 @@ fn beyond(
         band,
     );
     let origin = match &carrier {
-        Carrier::Plane { origin, .. } | Carrier::Cylinder { origin, .. } => *origin,
+        Carrier::Plane { origin, .. } => *origin,
+        Carrier::Cylinder { axis, .. } => axis.origin,
         _ => return Err("the containment check has no lane for this carrier".to_owned()),
     };
     // The region is sized to hold every face of the overlap: each face's
@@ -1996,14 +1897,9 @@ fn beyond(
     let (base, normal, loops, depth) = match carrier {
         Carrier::Plane {
             origin, outward, ..
-        } => (origin, outward, vec![rectangle(span)], span),
-        Carrier::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let base = origin - axis * span;
+        } => (origin, outward.vec(), vec![rectangle(span)], span),
+        Carrier::Cylinder { axis, radius, .. } => {
+            let base = axis.origin - axis.dir * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -2012,16 +1908,13 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis, loops, 2.0 * span)
+            (base, axis.dir, loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };
     // The region is turned with the carrier's own chart, so it moves
     // with the inputs and not with the computing axes.
-    let reference = match aggregate
-        .get_face(face)
-        .and_then(|f| aggregate.get_surface(f.surface))
-    {
+    let reference = match aggregate.face_surface(face) {
         Some(topo::Surface::Plane { u_ref, .. } | topo::Surface::Cylinder { u_ref, .. }) => *u_ref,
         _ => return Err("the carrier's surface is unreadable".to_owned()),
     };

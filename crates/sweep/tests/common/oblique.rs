@@ -25,7 +25,6 @@ pub fn clip(base: Body<f64>, angle: f64, axis: Vec3<f64>) -> Option<Body<f64>> {
     let tilted = topo::transform_rigid(
         &brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness()),
         &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let tilted = topo::transform_rigid(
@@ -34,7 +33,6 @@ pub fn clip(base: Body<f64>, angle: f64, axis: Vec3<f64>) -> Option<Body<f64>> {
             &Affine3::rotation_about_axis(Point3::new(1.0, 1.0, 1.0), axis.normalize(), angle),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     let out = boolean_op_with(

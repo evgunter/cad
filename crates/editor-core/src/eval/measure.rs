@@ -14,16 +14,16 @@
 //! |-----------|------|-------------|-------|
 //! | `distance` | vertex x vertex | `‖p_b − p_a‖` | none — an exact norm |
 //! | `distance` | vertex x plane face | `\|(p − o)·n̂\|` | none — a metre projection on a unit normal |
-//! | `distance` | plane face x plane face | `\|(o_b − o_a)·n̂_a\|`, PARALLEL required | `bool_plane_parallel` at the centre separation |
-//! | `distance` | cylinder face x cylinder face | axis-line distance minus nothing: `‖Δo − (Δo·â)â‖`, PARALLEL required | `carrier_cyl_axis_parallel` at the axis separation |
+//! | `distance` | plane face x plane face | `\|(o_b − o_a)·n̂_a\|`, PARALLEL required | `carrier_pose_planes_parallel` at the centre separation |
+//! | `distance` | cylinder face x cylinder face | axis-line distance minus nothing: `‖Δo − (Δo·â)â‖`, PARALLEL required | `carrier_pose_axes_parallel` at the axis separation |
 //! | `distance` | point (a vertex or a point pose) x point, axis or plane pose | `‖q − p‖`, the point's offset from the line, `\|(p − o)·n̂\|` | none |
-//! | `distance` | axis pose x axis pose | their separation where parallel, else their common perpendicular's length | `carrier_cyl_axis_parallel` levered over the faces they were read off |
+//! | `distance` | axis pose x axis pose | their separation where parallel, else their common perpendicular's length | `carrier_pose_axes_parallel` levered over the faces they were read off |
 //! | `angle` | plane face x plane face | `atan2(‖n̂_a × n̂_b‖, n̂_a·n̂_b)` | none — a ratio of unit quantities |
 //! | `angle` | line edge x line edge | `atan2(‖d̂_a × d̂_b‖, d̂_a·d̂_b)` | none |
-//! | `gap` | plane face x plane face | `(o_i − o_o)·ŵ_o` (SIGNED), `ŵ_o` the outer face's OUTWARD normal (S10 sense folded, not the chart normal) | `bool_plane_parallel` |
-//! | `gap` | sphere face x sphere face | the inner's touching point, `d = ‖Δc‖` (below) | `gap_round_side`, `gap_round_larger` |
-//! | `gap` | cylinder face x cylinder face | the inner's touching point, `d` the axes' separation (below) | `carrier_cyl_axis_parallel`, `gap_round_side`, `gap_round_larger` |
-//! | `gap` | plane face x sphere or cylinder face, either seat | `h ∓ r`, `h` the centre's or axis's offset along the plane's outward normal | `gap_round_side`; `gap_axis_parallel_to_plane` for a cylinder |
+//! | `gap` | plane face x plane face | `(o_i − o_o)·ŵ_o` (SIGNED), `ŵ_o` the outer face's OUTWARD normal (S10 sense folded, not the chart normal) | `carrier_pose_planes_parallel` |
+//! | `gap` | sphere face x sphere face | the inner's touching point, `d = ‖Δc‖` (below) | `carrier_pose_round_side`, `carrier_pose_round_larger` |
+//! | `gap` | cylinder face x cylinder face | the inner's touching point, `d` the axes' separation (below) | `carrier_pose_axes_parallel`, `carrier_pose_round_side`, `carrier_pose_round_larger` |
+//! | `gap` | plane face x sphere or cylinder face, either seat | `h ∓ r`, `h` the centre's or axis's offset along the plane's outward normal | `carrier_pose_round_side`; `carrier_pose_axis_along_plane` for a cylinder |
 //! | `gap` | vertex x plane, sphere or cylinder face, either seat | the vertex's signed offset from the face's carrier, positive away from its material | none |
 //! | `gap` | line edge x plane face, either seat | the lower end's offset `min((e − o)·ŵ)` | none |
 //! | `gap` | line edge x sphere or cylinder face, either seat | the edge's lowest offset from the carrier, `±(d − r)` at the least of `d` along it or an end | none |
@@ -35,13 +35,16 @@
 //! A face pair reads the inner carrier's point that touches the outer
 //! at a tangency, along the outer's outward normal. Which point that is
 //! is the configuration the two meet in, decided from the values at
-//! `gap_round_side` (and, for two nested round carriers, which is the
-//! larger at `gap_round_larger`): two round carriers apart or nested, by
+//! `carrier_pose_round_side` (and, for two nested round carriers, which is the
+//! larger at `carrier_pose_round_larger`): two round carriers apart or nested, by
 //! whether the smaller one's centre or axis lies inside the larger, and
 //! a round carrier against a plane by which side of it the centre or
 //! axis lies. At every tangency the margin is a radius, so a touch
 //! never lands in band. The roles stay authored: the decision reads the
-//! configuration, never which face is the socket.
+//! configuration, never which face is the socket. The configuration is
+//! one reading of the pair, `geom_brep::carrier_pose`, and so is which
+//! way the two faces' materials face, which the at-rest check's quieting
+//! rule reads off the same pose ([`pose`]).
 //!
 //! A vertex's or an edge's material is its link ([`topo::Link`]): the
 //! cone its faces bound at the point, convex, concave or a saddle alike.
@@ -64,10 +67,10 @@
 //!
 //! # Which trileans this module consumes
 //!
-//! Two EXISTING funnel predicates called at their existing margin
-//! shapes: `bool_plane_parallel` (`Margin::levered(‖n̂_a × n̂_b‖, arm)`,
+//! The pose's decisions (`geom_brep::carrier_pose`), among them its two
+//! parallelisms: `carrier_pose_planes_parallel` (`Margin::levered(‖n̂_a × n̂_b‖, arm)`,
 //! the sine of the normals' disagreement priced at a lever arm) and
-//! `carrier_cyl_axis_parallel` (the same shape on the axes). A vertex's
+//! `carrier_pose_axes_parallel` (the same shape on the axes). A vertex's
 //! or an edge's material decides through the link's own door, every
 //! sign a point's distance from a plane (`topo::link`'s module docs). A
 //! measure whose decision escalates refuses typed rather than
@@ -94,8 +97,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
-use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Point3, Vec3};
 use topo::{Body, Link, LinkRefusal, TouchUnread};
 
 use crate::measure::MeasurePrimitive;
@@ -167,22 +169,19 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// The face's outward normal: `normal` when the face's
         /// material side agrees with the chart, `-normal` when it is
         /// reversed.
-        outward: Vec3<T>,
+        outward: OutwardNormal<T>,
         /// An UPPER bound on the distance from `origin` to any point of
         /// the face — the face's own extent, and the lever [`arm`] is
         /// built from ([`reach_of`]).
         reach: T,
     },
-    /// A cylindrical face's carrier: a point on the axis, the unit
-    /// axis direction, and the radius.
+    /// A cylindrical face's carrier: its axis line and the radius.
     Cylinder {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
+        /// The axis: its origin a point on the axis, its direction unit.
+        axis: geom::Line<T>,
         /// The radius, positive by the surface's own convention.
         radius: T,
-        /// An UPPER bound on the distance from `origin` to any point of
+        /// An UPPER bound on the distance from `axis.origin` to any point of
         /// the face — the face's own extent, and the lever [`arm`] is
         /// built from ([`reach_of`]).
         reach: T,
@@ -190,12 +189,15 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// bore's, as the face's sense says.
         round: topo::Round<T>,
     },
-    /// A spherical face's carrier: centre and radius.
+    /// A spherical face's carrier: its centre, and the face's reach
+    /// from it.
     Sphere {
         /// The centre.
         center: Point3<T>,
-        /// The radius.
-        radius: T,
+        /// An UPPER bound on the distance from `center` to any point of
+        /// the face ([`reach_of`]): the sphere's radius, the level its
+        /// cover lies at about its centre.
+        reach: T,
         /// The face's material, read by its carrier: a ball's or a
         /// socket's, as the face's sense says.
         round: topo::Round<T>,
@@ -234,13 +236,8 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
 pub(crate) enum Pose<T: geom_core::Real> {
     /// A point.
     Point(Point3<T>),
-    /// The line through `through` along the unit `dir`.
-    Axis {
-        /// A point on the line.
-        through: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
+    /// An axis's line, as the pose value holds it.
+    Axis(crate::pose::AxisLine<T>),
     /// The plane through `through` with the unit `normal`, its sense
     /// the side a signed gap reads positive.
     Plane {
@@ -259,10 +256,7 @@ impl<T: geom_core::Real> Pose<T> {
         use crate::pose::PoseValue as V;
         match value {
             V::Point { position } => Some(Self::Point(*position)),
-            V::Axis(line) => Some(Self::Axis {
-                through: line.foot(),
-                dir: line.dir().get(),
-            }),
+            V::Axis(line) => Some(Self::Axis(*line)),
             V::Plane { normal, offset } => Some(Self::Plane {
                 through: V::plane_foot(*normal, *offset),
                 normal: normal.get(),
@@ -278,9 +272,8 @@ impl<T: geom_core::Real> Pose<T> {
     /// A point on the pose.
     pub(crate) fn at(&self) -> Point3<T> {
         match *self {
-            Self::Point(at) | Self::Axis { through: at, .. } | Self::Plane { through: at, .. } => {
-                at
-            }
+            Self::Axis(line) => line.foot(),
+            Self::Point(at) | Self::Plane { through: at, .. } => at,
         }
     }
 }
@@ -337,13 +330,13 @@ impl<T: Decide> CellOf<'_, T> {
 fn plane_of<T: Decide>(
     body: &Body<T>,
     k: topo::entity::FaceKey,
-) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
+) -> Option<(Point3<T>, Vec3<T>, OutwardNormal<T>)> {
     let face = body.get_face(k)?;
-    match body.get_surface(face.surface)? {
+    match body.face_surface(k)? {
         Surface::Plane { origin, normal, .. } => Some((
             *origin,
             *normal,
-            OutwardNormal::from_chart(*normal, face.sense).vec(),
+            OutwardNormal::from_chart(*normal, face.sense),
         )),
         _ => None,
     }
@@ -352,11 +345,14 @@ fn plane_of<T: Decide>(
 /// Reads the carrier a resolved entity sits on, out of the body its
 /// reference lands in.
 ///
-/// A dangling arena key is a KERNEL BUG, not a document fault: the
+/// A dangling entity key is a KERNEL BUG, not a document fault: the
 /// entity came out of the very table this evaluation emitted for this
 /// body. It comes back as [`Carrier::Other`] naming the state rather
 /// than as a panic, so the refusal ladder above still gets to say
-/// which measurement could not be taken.
+/// which measurement could not be taken. A torn link inside a live
+/// entity (a face's surface, a vertex's point) is not that: it panics in
+/// topo's door (`Body::face_surface`, `topo::readback::vertex_point`;
+/// D2 row 4).
 pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) -> Carrier<'_, T> {
     match ent.key {
         EntityKey::Body => Carrier::Other("a whole body"),
@@ -382,7 +378,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                     reach,
                 };
             }
-            let surface = body.get_surface(face.surface);
+            let surface = body.face_surface(k);
             let round = surface.and_then(|s| topo::Round::of(s, face.sense));
             match (surface, round) {
                 (
@@ -398,18 +394,25 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
-                        origin: *origin,
-                        axis: *axis,
+                        axis: geom::Line {
+                            origin: *origin,
+                            dir: *axis,
+                        },
                         radius: *radius,
                         reach,
                         round,
                     }
                 }
-                (Some(Surface::Sphere { center, radius, .. }), Some(round)) => Carrier::Sphere {
-                    center: *center,
-                    radius: *radius,
-                    round,
-                },
+                (Some(Surface::Sphere { center, .. }), Some(round)) => {
+                    let Some(reach) = reach_of(body, k, *center, band) else {
+                        return Carrier::Other("a face with no cover");
+                    };
+                    Carrier::Sphere {
+                        center: *center,
+                        reach,
+                        round,
+                    }
+                }
                 (Some(Surface::Cone { .. }), _) => Carrier::Other("a cone face"),
                 (Some(Surface::Torus { .. }), _) => Carrier::Other("a torus face"),
                 (Some(Surface::Spindle { .. }), _) => Carrier::Other("a spindle-torus sheet face"),
@@ -536,42 +539,28 @@ fn unsupported<T: geom_core::Real, X>(
     }))
 }
 
-/// The parallelism trilean, at an EXISTING funnel predicate and its
-/// existing margin shape: the sine of two unit directions'
-/// disagreement, levered at the arm over which the verdict is consumed.
-///
-/// The arm is [`arm`]'s — an upper bound on the EXTENT of the two
-/// operands together, with no floor. This paragraph used to say
-/// "the operands' own separation … falling back to unit arm when the
-/// two carriers pass through one point", which was the pre-E3 reading
-/// and stopped being true when E3's amendment landed: there is no
-/// fallback constant here any more, and separation is one of three
-/// terms rather than the whole of it.
+/// **Whether two directions are parallel over the two operands' [`arm`]**:
+/// the pose's one reading of parallelism
+/// ([`geom_brep::directions_parallel`]), so a distance between two planes
+/// or two axes and the gap's pose decide the same fact alike.
 fn parallel<T: Decide>(
-    predicate: &'static str,
+    what: geom_brep::Directions,
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
     band: Band,
 ) -> Result<bool, PrimitiveRefusal> {
-    match decide(
-        predicate,
-        // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-        // points' separation, a sum no extent read spells in this order.
-        Margin::levered(u.cross(v).norm(), geom_core::Lever::unsourced(arm)),
-        band,
-    ) {
-        Ok(Sign::Zero) => Ok(true),
-        Ok(Sign::Positive | Sign::Negative) => Ok(false),
-        Err(source) => Err(PrimitiveRefusal::Escalated(source)),
-    }
+    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
+    // points' separation, a sum no extent read spells in this order.
+    geom_brep::directions_parallel(what, u, v, geom_core::Lever::unsourced(arm), band)
+        .map_err(PrimitiveRefusal::Escalated)
 }
 
 /// **The lever arm a parallelism verdict is consumed over: an UPPER
 /// bound on the EXTENT of the two operands together, with no floor**
 /// (ERROR-DESIGN E3's amendment, ratified at revision E12).
 ///
-/// A `bool_plane_parallel` verdict is not consumed as "these normals
+/// A `carrier_pose_planes_parallel` verdict is not consumed as "these normals
 /// agree"; it is consumed as "the separation is CONSTANT across the
 /// faces", by [`gap`]'s sign and by the mate consumers. What that costs
 /// is a deviation `sin θ · L` where `L` is the length the faces span,
@@ -633,12 +622,10 @@ fn arm<T: Decide>(a: &Carrier<'_, T>, b: &Carrier<'_, T>) -> T {
 fn reference<T: Decide>(c: &Carrier<'_, T>) -> (Point3<T>, T) {
     match c {
         Carrier::Point { at, .. } => (*at, T::zero()),
-        Carrier::Plane { origin, reach, .. } | Carrier::Cylinder { origin, reach, .. } => {
-            (*origin, *reach)
-        }
+        Carrier::Plane { origin, reach, .. } => (*origin, *reach),
+        Carrier::Cylinder { axis, reach, .. } => (axis.origin, *reach),
         Carrier::Pose { pose, reach } => (pose.at(), reach.unwrap_or_else(T::zero)),
-        // A sphere's own radius IS its reach, exactly.
-        Carrier::Sphere { center, radius, .. } => (*center, *radius),
+        Carrier::Sphere { center, reach, .. } => (*center, *reach),
         // A segment's length bounds its reach from either end.
         Carrier::Line {
             ends: Some([start, end]),
@@ -718,8 +705,9 @@ fn distance<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *na, *nb, arm(a, b), band)? {
-                return not_parallel("distance", "bool_plane_parallel", a, b);
+            let planes = geom_brep::Directions::PlaneNormals;
+            if !parallel(planes, *na, *nb, arm(a, b), band)? {
+                return not_parallel("distance", planes.name(), a, b);
             }
             Ok(magnitude((*ob - *oa).dot(*na)))
         }
@@ -729,22 +717,12 @@ fn distance<T: Decide>(
         // convention. Parallel axes only: skew axes have a distance
         // this formula computes but a common perpendicular no wall
         // pair shares, which is `gap`'s refusal for the same reason.
-        (
-            Carrier::Cylinder {
-                origin: oa,
-                axis: aa,
-                ..
-            },
-            Carrier::Cylinder {
-                origin: ob,
-                axis: ab,
-                ..
-            },
-        ) => {
-            if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(a, b), band)? {
-                return not_parallel("distance", "carrier_cyl_axis_parallel", a, b);
+        (Carrier::Cylinder { axis: la, .. }, Carrier::Cylinder { axis: lb, .. }) => {
+            let axes = geom_brep::Directions::Axes;
+            if !parallel(axes, la.dir, lb.dir, arm(a, b), band)? {
+                return not_parallel("distance", axes.name(), a, b);
             }
-            Ok(axis_offset(*oa, *aa, *ob))
+            Ok(la.distance(lb.origin))
         }
         _ => pose_distance(a, b, band),
     }
@@ -752,8 +730,8 @@ fn distance<T: Decide>(
 
 /// **`distance` over a pose** (D10 `[assertions.quiet]`): a point (a
 /// vertex's, or a point pose) from a point, an axis or a plane, and an
-/// axis from an axis as one scalar: their separation where the kernel's
-/// axis verdict (`carrier_cyl_axis_parallel`, levered over the faces
+/// axis from an axis as one scalar: their separation where the pose's
+/// axis verdict (`carrier_pose_axes_parallel`, levered over the faces
 /// they were read off) reads them parallel, else the length of their
 /// common perpendicular. It is zero exactly where the axes are one line
 /// or meet. Two axes read off no face have no lever, and refuse.
@@ -780,44 +758,26 @@ fn pose_distance<T: Decide>(
     for (x, other) in [(a, b), (b, a)] {
         let Some(p) = point(x) else { continue };
         match pose(other) {
-            Some((Pose::Axis { through, dir }, _)) => return Ok(axis_offset(through, dir, p)),
+            Some((Pose::Axis(line), _)) => return Ok(line.line().distance(p)),
             Some((Pose::Plane { through, normal }, _)) => {
                 return Ok(magnitude((p - through).dot(normal)));
             }
             _ => {}
         }
     }
-    let (
-        Some((
-            Pose::Axis {
-                through: oa,
-                dir: da,
-            },
-            ra,
-        )),
-        Some((
-            Pose::Axis {
-                through: ob,
-                dir: db,
-            },
-            rb,
-        )),
-    ) = (pose(a), pose(b))
-    else {
+    let (Some((Pose::Axis(la), ra)), Some((Pose::Axis(lb), rb))) = (pose(a), pose(b)) else {
         return unsupported("distance", a, b);
     };
+    let (oa, da, ob, db) = (la.foot(), la.dir().get(), lb.foot(), lb.dir().get());
     if ra.is_none() || rb.is_none() {
         return unsupported_as("distance", NO_LEVER, b.class());
     }
-    if parallel(AXES_PARALLEL, da, db, arm(a, b), band)? {
-        return Ok(axis_offset(oa, da, ob));
+    if parallel(geom_brep::Directions::Axes, da, db, arm(a, b), band)? {
+        return Ok(la.line().distance(ob));
     }
     let across = da.cross(db);
     Ok(magnitude((ob - oa).dot(across)) / across.norm())
 }
-
-/// The site two axes are decided parallel at, the cylinder pair's own.
-const AXES_PARALLEL: &str = "carrier_cyl_axis_parallel";
 
 /// **Whether two axis poses read parallel** at the two-axes arm's own
 /// site and lever ([`pose_distance`]): the reading a coaxial row is said
@@ -830,18 +790,25 @@ pub(crate) fn axes_parallel<T: Decide>(
 ) -> Option<bool> {
     let (
         Carrier::Pose {
-            pose: Pose::Axis { dir: da, .. },
+            pose: Pose::Axis(la),
             reach: Some(_),
         },
         Carrier::Pose {
-            pose: Pose::Axis { dir: db, .. },
+            pose: Pose::Axis(lb),
             reach: Some(_),
         },
     ) = (a, b)
     else {
         return None;
     };
-    parallel(AXES_PARALLEL, *da, *db, arm(a, b), band).ok()
+    parallel(
+        geom_brep::Directions::Axes,
+        la.dir().get(),
+        lb.dir().get(),
+        arm(a, b),
+        band,
+    )
+    .ok()
 }
 
 /// The class a refusal names for two axes with no face to lever their
@@ -862,13 +829,6 @@ const NO_LEVER: &str = "an axis read off no face, which no tilt can be levered o
 /// same lattice `Expr::max` uses, and no comparison is reified.
 fn magnitude<T: Decide>(d: T) -> T {
     d.max(-d).max(T::zero())
-}
-
-/// The perpendicular distance from a point to a line — the component
-/// of the separation orthogonal to a UNIT direction. A metre quantity
-/// throughout.
-fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
-    geom::Line { origin, dir: axis }.distance(point)
 }
 
 /// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two
@@ -895,7 +855,7 @@ fn angle<T: Decide>(a: &Carrier<'_, T>, b: &Carrier<'_, T>) -> Result<T, Primiti
 /// Argument order is the ROLE: `outer` is the face the gap is read
 /// from, `inner` the face read. It is authored, never inferred from
 /// which radius is larger; what the values decide is the configuration
-/// the two meet in ([`round_pair`], [`plane_round`]). **Two faces are
+/// the two meet in, the pose ([`face_pose`], read by [`face_gap`]). **Two faces are
 /// read by both material sides**: an OPPOSED pair, each facing the
 /// other's material (a rod on a plate, two rods side by side, a pin in
 /// a bore), reads the same in either order, its sign clearance or
@@ -923,104 +883,10 @@ fn gap<T: Decide>(
     inner: &Carrier<'_, T>,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
+    if let Some(pose) = face_pose(outer, inner, band) {
+        return pose.map(|pose| face_gap(&pose));
+    }
     match (outer, inner) {
-        // Parallel planes: the signed MATERIAL separation, measured
-        // along the outer face's OUTWARD normal — linear in the
-        // authored offsets, so smooth everywhere (C5's ideal M10
-        // citizen).
-        //
-        // **The outward normal, not the chart normal.** A gap is a
-        // statement about material sides, so it is read off the side
-        // the material is on — the same discipline `carrier_eq`'s
-        // plane arm keeps (S10) and for the same reason. Against the
-        // raw chart normal the sign was an artifact of which way each
-        // face's surface happened to be charted: over two disjoint
-        // slabs, half of the parallel pairs read NEGATIVE — C5
-        // "interference" where nothing interferes — and half gave
-        // `gap(a, b) == gap(b, a)`, so the mating roles carried no
-        // information at all.
-        //
-        // With the sense folded in, `g` is how far `inner`'s face lies
-        // along the direction `outer`'s material faces: positive when
-        // the two material sides face each other across empty space,
-        // negative when they have passed through one another.
-        //
-        // **What a role swap does, stated exactly, because the obvious
-        // guess is wrong.** For an OPPOSED pair — the mating
-        // configuration C5 is written for, outward normals pointing at
-        // each other — `g` is SYMMETRIC, and that is correct: the
-        // clearance between two facing faces is one distance, not two
-        // signed ones, and reporting `−2 m` for the far side of a 2 m
-        // gap would be a new lie in place of the old one. For an
-        // ALIGNED pair (both material sides facing the same way — a
-        // flush/containment configuration, not a mate) the swap
-        // negates. Every face pair below keeps that rule.
-        (
-            Carrier::Plane {
-                origin: oo,
-                outward: wo,
-                ..
-            },
-            Carrier::Plane {
-                origin: oi,
-                outward: wi,
-                ..
-            },
-        ) => {
-            if !parallel("bool_plane_parallel", *wo, *wi, arm(outer, inner), band)? {
-                return not_parallel("gap", "bool_plane_parallel", outer, inner);
-            }
-            Ok((*oi - *oo).dot(*wo))
-        }
-        // Two round faces, a plane and a round face: the configuration
-        // they meet in is read off their material sides
-        // ([`round_pair`], [`plane_round`]).
-        (
-            Carrier::Sphere {
-                center: co,
-                round: ro,
-                ..
-            },
-            Carrier::Sphere {
-                center: ci,
-                round: ri,
-                ..
-            },
-        ) => round_pair(ro, ri, (*ci - *co).norm(), outer, band),
-        // Parallel axes only — a skewed "fit" is not a fit, and it
-        // refuses typed rather than reporting the closest approach of
-        // two lines as though it were a clearance.
-        (
-            Carrier::Cylinder {
-                origin: oo,
-                axis: ao,
-                round: ro,
-                ..
-            },
-            Carrier::Cylinder {
-                origin: oi,
-                axis: ai,
-                round: ri,
-                ..
-            },
-        ) => {
-            if !parallel(
-                "carrier_cyl_axis_parallel",
-                *ao,
-                *ai,
-                arm(outer, inner),
-                band,
-            )? {
-                return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
-            }
-            round_pair(ro, ri, axis_offset(*oo, *ao, *oi), outer, band)
-        }
-        (Carrier::Plane { .. }, Carrier::Sphere { .. } | Carrier::Cylinder { .. }) => {
-            plane_round(outer, inner, band).map(|(g, _)| g)
-        }
-        (Carrier::Sphere { .. } | Carrier::Cylinder { .. }, Carrier::Plane { .. }) => {
-            plane_round(inner, outer, band).map(|(g, opposed)| if opposed { g } else { -g })
-        }
         // A plane pose (a split's tool) and a point: the point's signed
         // offset along the plane's normal, in either seat.
         (
@@ -1089,139 +955,127 @@ fn gap<T: Decide>(
     }
 }
 
-/// The funnel site name of the decision which side of a carrier a round
-/// face's centre or axis lies: of a plane, along its outward normal; of
-/// the larger of two round carriers, outside or inside it.
-pub(crate) const GAP_ROUND_SIDE: &str = "gap_round_side";
-
-/// The funnel site name of the decision that a cylinder's axis lies
-/// parallel to a plane.
-pub(crate) const GAP_AXIS_PARALLEL_TO_PLANE: &str = "gap_axis_parallel_to_plane";
-
 /// The class a refusal names for a round face whose centre or axis the
 /// side decision reads on the other carrier.
 const ON_THE_CARRIER: &str = "a round face whose centre or axis lies on the other carrier";
 
-/// **Whether a round face's centre or axis lies beyond a carrier**,
-/// `margin` its signed offset from it: the configuration a pair meets
-/// in, decided at [`GAP_ROUND_SIDE`]. At a touch the margin is the
-/// smaller radius, `±r` against a plane and `±r_small` against the
-/// larger of two round carriers, so a tangency never lands in band; a
-/// centre or an axis on the carrier refuses.
-fn beyond<T: Decide>(
-    margin: T,
-    outer: &Carrier<'_, T>,
-    band: Band,
-) -> Result<bool, PrimitiveRefusal> {
-    match decide(GAP_ROUND_SIDE, Margin::of(margin), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => unsupported_as("gap", outer.class(), ON_THE_CARRIER),
-        Err(source) => Err(PrimitiveRefusal::Escalated(source)),
-    }
-}
-
-/// The funnel site name of the decision which of two nested round
-/// carriers is the larger, the outer's radius against the inner's.
-pub(crate) const GAP_ROUND_LARGER: &str = "gap_round_larger";
-
-/// **Two round faces of one kind**, `d` apart at their centres or axes,
-/// read as every face pair is: the inner carrier's point that touches
-/// the outer at a tangency, read along the outer's outward normal
-/// ([`topo::Round::offset`]'s sign, out of a ball or a pin, into a
-/// socket's or a bore's hollow). Which point that is is the
-/// configuration, decided from the values and not from the roles:
-///
-/// - apart, the smaller carrier's centre outside the larger
-///   ([`beyond`], margin `d − r_large`): the inner's point nearest the
-///   outer's centre, at `d − r_in` from it;
-/// - nested, the inner inside the outer: its farthest point, `d + r_in`;
-/// - nested, the outer inside the inner: its nearest point, `r_in − d`
-///   ([`GAP_ROUND_LARGER`]; of one radius, a fit's convex face is the
-///   one inside, and of two faces of one sense the inner).
-///
-/// A pair whose two faces face each other's material (two rods or two
-/// bores side by side, a pin in a bore) reads the same in either role
-/// order; an aligned pair (two rods nested, nested hollows, a rod in a
-/// bore's wall) negates.
-fn round_pair<T: Decide>(
-    outer: &topo::Round<T>,
-    inner: &topo::Round<T>,
-    d: T,
-    outer_face: &Carrier<'_, T>,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    let (r_out, r_in) = (outer.radius(), inner.radius());
-    let at = if beyond(d - r_out.max(r_in), outer_face, band)? {
-        d - r_in
-    } else {
-        // One radius: a fit's convex face is the one inside; two of one
-        // sense read the inner inside.
-        let inner_inside = match decide(GAP_ROUND_LARGER, Margin::of(r_out - r_in), band) {
-            Ok(Sign::Positive) => true,
-            Ok(Sign::Negative) => false,
-            Ok(Sign::Zero) => inner.convex() || !outer.convex(),
-            Err(source) => {
-                return Err(PrimitiveRefusal::Escalated(source));
-            }
-        };
-        if inner_inside { d + r_in } else { r_in - d }
-    };
-    Ok(if outer.convex() {
-        at - r_out
-    } else {
-        r_out - at
+/// A face carrier as the pose reads it ([`geom_brep::carrier_pose()`]);
+/// `None` for a cell that is no plane, sphere or cylinder face.
+fn posed<T: Decide>(c: &Carrier<'_, T>) -> Option<geom_brep::Posed<T>> {
+    Some(match *c {
+        Carrier::Plane {
+            origin, outward, ..
+        } => geom_brep::Posed::Plane { origin, outward },
+        Carrier::Sphere { center, round, .. } => geom_brep::Posed::Sphere {
+            center,
+            radius: round.radius(),
+            convex: round.convex(),
+        },
+        Carrier::Cylinder { axis, round, .. } => geom_brep::Posed::Cylinder {
+            axis,
+            radius: round.radius(),
+            convex: round.convex(),
+        },
+        _ => return None,
     })
 }
 
-/// **A plane and a round face**, read along the plane's outward normal
-/// at the round carrier's point nearest the plane: `h − r` with the
-/// centre or axis at `h` beyond the plane, `h + r` behind it
-/// ([`beyond`]). A cylinder's axis lies parallel to the plane.
-///
-/// Also whether the pair is opposed: a ball or a pin beyond the plane,
-/// a socket or a bore behind it. An opposed pair reads the same in
-/// either seat, and an aligned one (a stadium's flat into its round
-/// end, a slot's) negates, as two planes do.
-fn plane_round<T: Decide>(
-    plane: &Carrier<'_, T>,
-    round: &Carrier<'_, T>,
+/// **The pose two faces stand in** ([`geom_brep::carrier_pose()`]),
+/// levered over [`arm`]: the one reading [`gap`] reads its value in and
+/// the quieting rule reads the faces' facing off ([`pose`]). `None` where either cell is no
+/// plane, sphere or cylinder face. A refusal names the plane of a plane
+/// and a round face first, and otherwise the pair in its role order.
+fn face_pose<T: Decide>(
+    outer: &Carrier<'_, T>,
+    inner: &Carrier<'_, T>,
     band: Band,
-) -> Result<(T, bool), PrimitiveRefusal> {
-    let Carrier::Plane {
-        origin, outward, ..
-    } = plane
-    else {
-        unreachable!("gap matched a plane")
-    };
-    let (centre, radius, convex) = match round {
-        Carrier::Sphere { center, round, .. } => (*center, round.radius(), round.convex()),
-        Carrier::Cylinder {
-            origin: on,
-            axis,
-            round: r,
-            ..
-        } => {
-            // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-            // points' separation, a sum no extent read spells in this order.
-            let tilt = Margin::levered(
-                axis.dot(*outward),
-                geom_core::Lever::unsourced(arm(plane, round)),
-            );
-            match decide(GAP_AXIS_PARALLEL_TO_PLANE, tilt, band) {
-                Ok(Sign::Zero) => {}
-                Ok(_) => return not_parallel("gap", GAP_AXIS_PARALLEL_TO_PLANE, plane, round),
-                Err(source) => {
-                    return Err(PrimitiveRefusal::Escalated(source));
-                }
-            }
-            (*on, r.radius(), r.convex())
+) -> Option<Result<geom_brep::CarrierPose<T>, PrimitiveRefusal>> {
+    use geom_brep::CarrierPoseRefusal as R;
+    let (a, b) = (posed(outer)?, posed(inner)?);
+    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
+    // points' separation, a sum no extent read spells in this order.
+    let lever = geom_core::Lever::unsourced(arm(outer, inner));
+    let (first, second) = match (outer, inner) {
+        (Carrier::Sphere { .. } | Carrier::Cylinder { .. }, Carrier::Plane { .. }) => {
+            (inner, outer)
         }
-        _ => unreachable!("gap matched a sphere or a cylinder"),
+        _ => (outer, inner),
     };
-    let h = outward.dot(centre - *origin);
-    let out = beyond(h, plane, band)?;
-    Ok((if out { h - radius } else { h + radius }, out == convex))
+    Some(
+        geom_brep::carrier_pose(&a, &b, lever, band).or_else(|refusal| match refusal {
+            R::Unpaired => unsupported("gap", outer, inner),
+            R::NotParallel(predicate) => not_parallel("gap", predicate, first, second),
+            R::OnTheCarrier => unsupported_as("gap", first.class(), ON_THE_CARRIER),
+            R::Escalated(source) => Err(PrimitiveRefusal::Escalated(source)),
+        }),
+    )
+}
+
+/// **C5's gap of two faces, read in their pose**: the inner carrier's
+/// point that touches the outer at a tangency, read along the outer's
+/// OUTWARD normal (the face's sense folded in, never the chart normal: a
+/// gap is a statement about material sides, and against a chart normal
+/// its sign would say how each face was charted).
+///
+/// - Two parallel planes: `(o_i − o_o)·ŵ_o`, linear in the authored
+///   offsets.
+/// - Two round carriers `d` apart: apart, the inner's point nearest the
+///   outer's centre or axis, at `d − r_in` from it; the inner nested
+///   inside, its farthest point, `d + r_in`; the outer nested inside the
+///   inner, its nearest, `r_in − d`. Read out of a ball or a pin, into a
+///   socket's or a bore's hollow.
+/// - A plane and a round face: `h − r` with the centre or axis at `h`
+///   beyond the plane, `h + r` behind it, read from the plane; from the
+///   round face where it is the outer, the same where the two face each
+///   other and negated where they face one way.
+///
+/// So an OPPOSED pair (the pose's facing), each facing the other's
+/// material, reads the same in either role order, and an ALIGNED pair
+/// negates.
+fn face_gap<T: Decide>(pose: &geom_brep::CarrierPose<T>) -> T {
+    use geom_brep::{CarrierPose, Nest, PairSide};
+    match *pose {
+        CarrierPose::Planes(planes) => {
+            let [oo, oi] = planes.origin;
+            (oi - oo).dot(planes.outward[0].vec())
+        }
+        CarrierPose::Rounds(rounds) => {
+            let ([r_out, r_in], d) = (rounds.radius, rounds.d);
+            let at = match rounds.nest {
+                Nest::Apart => d - r_in,
+                Nest::SecondInside => d + r_in,
+                Nest::FirstInside => r_in - d,
+            };
+            if rounds.convex[0] {
+                at - r_out
+            } else {
+                r_out - at
+            }
+        }
+        CarrierPose::PlaneRound(pr) => {
+            let g = if pr.beyond {
+                pr.h - pr.radius
+            } else {
+                pr.h + pr.radius
+            };
+            match (pr.plane, pr.facing()) {
+                (PairSide::First, _) | (PairSide::Second, geom_brep::MaterialPairing::Opposed) => g,
+                (PairSide::Second, geom_brep::MaterialPairing::Aligned) => -g,
+            }
+        }
+    }
+}
+
+/// **The pose two faces' [`gap`] is read in** ([`face_pose`]): the
+/// configuration a `Gap` over them was decided in, which answers which
+/// way their materials face (each arm's `facing`). `None`
+/// where either is no plane, sphere or cylinder face, or the pose refuses.
+pub(crate) fn pose<T: Decide>(
+    outer: &Carrier<'_, T>,
+    inner: &Carrier<'_, T>,
+    band: Band,
+) -> Option<geom_brep::CarrierPose<T>> {
+    face_pose(outer, inner, band)?.ok()
 }
 
 /// **The signed [`gap`] of `outer` against `inner`, as the measure
@@ -1350,7 +1204,7 @@ fn link_reads<T: Decide>(
 ) -> Result<T, PrimitiveRefusal> {
     let link = match reading {
         Cell::Vertex(at, cell) => cell.link(at, band),
-        Cell::Edge([start, end], cell) => cell.link(start + (end - start) * T::from_f64(0.5), band),
+        Cell::Edge([start, end], cell) => cell.link(start.mid(end), band),
     };
     let got = link.map_err(LinkRefusal::from).and_then(|link| match read {
         Cell::Vertex(at, _) => link.offset(at, band),
@@ -1361,7 +1215,10 @@ fn link_reads<T: Decide>(
             LinkRefusal::Undecided(source) => {
                 return Err(PrimitiveRefusal::Escalated(source));
             }
-            LinkRefusal::Unread(TouchUnread::Unreadable) => match reading {
+            // One control ([`TouchUnread::Curved`], what
+            // [`TouchUnread::curved_unread`] reads): a curved
+            // cell the planar reading does not reach, whichever cause.
+            LinkRefusal::Unread(TouchUnread::Curved(_)) => match reading {
                 Cell::Vertex(..) => NO_CORNER,
                 Cell::Edge(..) => NO_WEDGE,
             },
@@ -1377,10 +1234,16 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::ChordScale) => {
                 "a cell with an edge too long or too short to measure"
             }
-            LinkRefusal::Unread(TouchUnread::EdgeTangent(_)) => {
+            LinkRefusal::Unread(TouchUnread::EdgeTangent(_) | TouchUnread::OffInterior) => {
                 "a cell on a curved edge whose direction does not read there"
             }
+            LinkRefusal::Unread(TouchUnread::NormalFault(_)) => {
+                "a cell where one of its faces has no normal the kernel can read"
+            }
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
+            LinkRefusal::Unread(TouchUnread::LoneLoop) => {
+                "a cell on a face with a loop that is a lone vertex"
+            }
         };
         unsupported_as("gap", class, read.class())
     })
@@ -1399,7 +1262,7 @@ fn face_offset<T: Decide>(face: &Carrier<'_, T>, at: Point3<T>) -> Result<T, Pri
                 origin, outward, ..
             },
             None,
-        ) => Ok(outward.dot(at - *origin)),
+        ) => Ok(outward.vec().dot(at - *origin)),
         _ => unreachable!("the arm matched a face"),
     }
 }
@@ -1595,7 +1458,7 @@ mod tests {
         Carrier::Plane {
             origin,
             normal: outward,
-            outward,
+            outward: OutwardNormal::from_chart(outward, true),
             reach: 10.0,
         }
     }
@@ -1618,6 +1481,18 @@ mod tests {
         Carrier::Point {
             at,
             cell: CellOf::Vertex(nobody(), topo::entity::VertexKey::default()),
+        }
+    }
+
+    /// The facing of the pose `outer` and `inner`'s gap is read in.
+    fn facing(
+        outer: &Carrier<'_, f64>,
+        inner: &Carrier<'_, f64>,
+    ) -> Option<geom_brep::MaterialPairing> {
+        match pose(outer, inner, band())? {
+            geom_brep::CarrierPose::Planes(planes) => planes.facing(band()).ok(),
+            geom_brep::CarrierPose::Rounds(rounds) => Some(rounds.facing()),
+            geom_brep::CarrierPose::PlaneRound(plane_round) => Some(plane_round.facing()),
         }
     }
 
@@ -1662,15 +1537,18 @@ mod tests {
         }
         let sphere = |convex| Carrier::Sphere {
             center: p(0.0, 0.0, 0.0),
-            radius: 1.0,
+            reach: 1.0,
             round: topo::Round::sphere(p(0.0, 0.0, 0.0), 1.0, convex),
         };
-        let cylinder = |convex| Carrier::Cylinder {
+        let axis = geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            dir: v(0.0, 0.0, 1.0),
+        };
+        let cylinder = |convex| Carrier::Cylinder {
+            axis,
             radius: 1.0,
             reach: 5.0,
-            round: topo::Round::cylinder(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), 1.0, convex),
+            round: topo::Round::cylinder(axis, 1.0, convex),
         };
         let out = vertex(p(1.01, 0.0, 0.0));
         close(read(&sphere(true), &out), 0.01, "outside a ball");
@@ -1769,19 +1647,19 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
+        let axis = geom::Line { origin, dir: axis };
         Carrier::Cylinder {
-            origin,
             axis,
             radius,
             reach: 10.0,
-            round: topo::Round::cylinder(origin, axis, radius, convex),
+            round: topo::Round::cylinder(axis, radius, convex),
         }
     }
 
     fn ball(center: Point3<f64>, radius: f64, convex: bool) -> Carrier<'static, f64> {
         Carrier::Sphere {
             center,
-            radius,
+            reach: radius,
             round: topo::Round::sphere(center, radius, convex),
         }
     }
@@ -1963,6 +1841,84 @@ mod tests {
             assert!(ab.abs() > 1e-6, "{what}: a reading off the touch, {ab}");
             let want = if opposed { ab } else { -ab };
             close(ba, want, &format!("{what}: swapped against {ab}"));
+            let facing_as = if opposed {
+                geom_brep::MaterialPairing::Opposed
+            } else {
+                geom_brep::MaterialPairing::Aligned
+            };
+            for (order, x, y) in [("a first", &a, &b), ("b first", &b, &a)] {
+                assert_eq!(
+                    facing(x, y),
+                    Some(facing_as),
+                    "{what}, {order}: the facing the swap shows"
+                );
+            }
+        }
+    }
+
+    /// **A plane pair's and a plane and a round face's facing is the
+    /// pose's, and a pair the gap reads in no pose has none.** Two plates
+    /// face to face are opposed and a flush pair aligned, read over the
+    /// arm their parallelism was decided on; a ball on a plate and a pin
+    /// on one are opposed in either seat, a socket centred over a plate is
+    /// aligned, and a bore centred under one opposed. Two plates at 120° whose outward normals point
+    /// apart, which a pairing read at one point called opposed, have no
+    /// pose: the gap refuses them not parallel, and so does the facing.
+    /// Red if the facing is read at a point of one face, or past a pose
+    /// that refused.
+    #[test]
+    fn the_facing_of_two_faces_is_the_pose_their_gap_is_read_in() {
+        let x = v(1.0, 0.0, 0.0);
+        let z = v(0.0, 0.0, 1.0);
+        let floor = plane(p(0.0, 0.0, 0.0), z);
+        let tilt = (2.0 * core::f64::consts::FRAC_PI_3).sin_cos();
+        for (what, a, b, want) in [
+            (
+                "two plates face to face",
+                floor.clone(),
+                plane(p(0.0, 0.0, 0.1), -z),
+                Some(geom_brep::MaterialPairing::Opposed),
+            ),
+            (
+                "a flush pair",
+                floor.clone(),
+                plane(p(0.0, 0.0, 0.1), z),
+                Some(geom_brep::MaterialPairing::Aligned),
+            ),
+            (
+                "a ball on a plate",
+                floor.clone(),
+                ball(p(0.0, 0.0, 1.0), 0.5, true),
+                Some(geom_brep::MaterialPairing::Opposed),
+            ),
+            (
+                "a pin on a plate",
+                floor.clone(),
+                pin(p(0.0, 0.0, 1.0), x, 0.5, true),
+                Some(geom_brep::MaterialPairing::Opposed),
+            ),
+            (
+                "a socket over a plate",
+                floor.clone(),
+                ball(p(0.0, 0.0, 1.0), 0.5, false),
+                Some(geom_brep::MaterialPairing::Aligned),
+            ),
+            (
+                "a bore under a plate",
+                floor.clone(),
+                pin(p(0.0, 0.0, -1.0), x, 0.5, false),
+                Some(geom_brep::MaterialPairing::Opposed),
+            ),
+            (
+                "two plates at 120 degrees",
+                floor.clone(),
+                plane(p(0.0, 0.0, 0.1), v(tilt.0, 0.0, tilt.1)),
+                None,
+            ),
+        ] {
+            for (order, x, y) in [("plate first", &a, &b), ("plate second", &b, &a)] {
+                assert_eq!(facing(x, y), want, "{what}, {order}");
+            }
         }
     }
 
@@ -2026,7 +1982,7 @@ mod tests {
     /// R1 probe: the ruling's margin at a tangency is ±r, so a real
     /// touch never lands in band. A thin rod of r = 0.5 internally
     /// tangent inside a fat one of R = 1 (d = 0.5), read thin-outer:
-    /// `gap_round_side`'s margin is d − r_out = 0.5 − 0.5 = 0. Red: a
+    /// `carrier_pose_round_side`'s margin is d − r_out = 0.5 − 0.5 = 0. Red: a
     /// real tangency refuses in band.
     #[test]
     fn r1_probe_a_real_touch_never_lands_in_band() {
@@ -2074,11 +2030,15 @@ mod tests {
     #[test]
     fn r1_probe_two_meeting_axes_read_zero_and_not_parallel() {
         let axis = |through, dir| Carrier::Pose {
-            pose: Pose::Axis { through, dir },
+            pose: Pose::Axis(crate::pose::AxisLine::through(through, dir)),
             reach: Some(1.0),
         };
-        let a = axis(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
-        let b = axis(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0));
+        let (x, z) = (
+            geom_core::UnitVec3::exact_x(),
+            geom_core::UnitVec3::exact_z(),
+        );
+        let a = axis(p(0.0, 0.0, 0.0), z);
+        let b = axis(p(0.0, 0.0, 0.5), x);
         let got = distance(&a, &b, band()).expect("reads");
         close(got, 0.0, "two axes that meet");
         assert_eq!(
@@ -2086,7 +2046,7 @@ mod tests {
             Some(false),
             "and not parallel"
         );
-        let c = axis(p(0.0, 0.3, 0.0), v(0.0, 0.0, 1.0));
+        let c = axis(p(0.0, 0.3, 0.0), z);
         close(
             distance(&a, &c, band()).expect("reads"),
             0.3,
@@ -2174,7 +2134,7 @@ mod tests {
         );
     }
 
-    /// **R2 probe: a real touch lands in `gap_round_side`'s band.** A
+    /// **R2 probe: a real touch lands in `carrier_pose_round_side`'s band.** A
     /// rod of 0.3 inside one of 0.6, touching inside, read with the thin
     /// one as outer: the margin `d − r_out` is `0.3 − 0.3 = 0`, so the
     /// gap refuses at a tangency. Red if it refuses.

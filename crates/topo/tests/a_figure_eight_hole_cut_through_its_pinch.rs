@@ -7,9 +7,9 @@
 //! keeps one lobe, merged into its face's outer loop: every one of these
 //! divisions runs through the pinch vertex and identifies it, so no ring
 //! is left a bystander touching the division. It pins the identified
-//! case `chord_join::paths_rung`'s premise rests on. The residual, a
-//! division that crosses a ring at a vertex it does not identify, is not
-//! built here (`work/onecopy/not-crossed-means-one-side-at-a-pinch.md`).
+//! case `chord_join::paths_rung`'s premise rests on. A ring crossed at
+//! its vertices, the division divided there or refusing in the band, is
+//! `a_ring_crossed_at_its_vertices_is_divided_or_refused`.
 //!
 //! The plate is built raw (`drill_hole`, described, finished): the public
 //! doors refuse its subtract (`LineWedges` overlap at the pinch line).

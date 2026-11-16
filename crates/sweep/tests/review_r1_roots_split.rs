@@ -112,7 +112,6 @@ fn cyl_spun(spin: f64, about_x: bool) -> topo::Body<f64> {
                 &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
                 tol,
             ),
-            tol,
         )
         .unwrap()
     };
@@ -217,8 +216,7 @@ pub(crate) fn review3_locate(
     };
     let e = x.get_edge(*edge).expect("the edge is the operand's");
     let c = x.get_curve_geom(e.curve).expect("its curve");
-    let f = y.get_face(*face).expect("the face is the other's");
-    let s = y.get_surface(f.surface).expect("its surface");
+    let s = y.face_surface(*face).expect("its surface");
     let short = |s: String| s.chars().take(90).collect::<String>();
     println!(
         "{label}: {operand:?} {decision:?} {:?}\n  edge {edge:?}: {}\n  face {face:?}: {}",

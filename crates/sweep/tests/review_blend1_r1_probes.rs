@@ -12,7 +12,7 @@ use crate::common::three_arc;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{BlendRequest, run_battery, wedge_at};
+use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::{BlendError, BlendSite};
 use sweep::test_support::{disc_of_arcs, extruded, finished, sketch_from_axes};
 use sweep::{Extrusion, extrude};
@@ -79,20 +79,14 @@ fn tilt_raised_cap(
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(
-                body.get_surface(body.get_face(f)?.surface)?,
-                geom::Surface::Plane { .. }
-            )
-            .then_some(f)
+            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
         origin,
         normal,
         u_ref,
-    } = *body
-        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
-        .expect("the cap's plane")
+    } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };
@@ -136,10 +130,7 @@ fn verdict(body: &Body<f64>, rim: EdgeKey) -> Result<(), BlendError> {
 fn r1_tilted_cap_departure_is_the_meridian_reading() {
     for departure in [1e-3, in_band(), 2.0 * tol().eps(), 0.5 * tol().eps()] {
         let (body, _, cap, axis, lever) = tilted_cap(departure);
-        let geom::Surface::Plane { normal, .. } = *body
-            .get_surface(body.get_face(cap).unwrap().surface)
-            .unwrap()
-        else {
+        let geom::Surface::Plane { normal, .. } = *body.face_surface(cap).unwrap() else {
             panic!("a plane")
         };
         let read = normal.cross(axis).norm() * lever;
@@ -336,35 +327,44 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
 
 /// **The in-band convexity-sign escalation renders the TANGENTIAL
 /// sentence, not the chain-flip one.** A 5ε wedge at a 1 m arm
-/// escalates `fillet3_convexity_sign` at the link's own lever, an edge
-/// neither at a definite angle nor definitely tangent, and the
-/// sentence names both ways out (D4 ¶1 addendum). (The wedge decided
-/// `Zero` with the material facing itself is a knife, which the battery
-/// reads on rather than refusing here.) "Split the chain at the convexity
-/// flip" belongs to `ConvexitySignFlip` — a chain whose links all
-/// resolved definitely and disagree — and is advice about a flip no
-/// escalation here decided; this row pins its absence.
+/// escalates the edge's wedge fold, an edge neither at a definite angle
+/// nor definitely tangent, and the sentence names both ways out (D4 ¶1
+/// addendum). "Split the chain at the convexity flip" belongs to
+/// `ConvexitySignFlip` — a chain whose links all resolved definitely and
+/// disagree — and is advice about a flip no escalation here decided;
+/// this row pins its absence.
 #[test]
 fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     let body = cylinder();
     let e = body.edges().next().unwrap().0;
-    let tau = Vec3::new(0.0, 0.0, 1.0);
     let o = Point3::new(0.0, 0.0, 0.0);
     let plane = |normal: Vec3<f64>| geom::Surface::Plane {
         origin: o,
         normal,
         u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
     };
-    let out = |s: &geom::Surface<f64>| geom_brep::implicit_outward_normal(s, true, o);
-    let metre = || geom_core::test_support::fixture_lever(1.0);
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
-    let escalated = wedge_at(out(&x), out(&tilted), tau, metre(), e, band()).unwrap_err();
+    let axis = geom::Curve3::line(o, Vec3::new(0.0, 0.0, 1.0));
+    let side = |surface| geom_brep::SideFace {
+        surface,
+        sense: true,
+    };
+    let walk = geom_brep::WedgeWalk::along_edge(side(&x), side(&tilted), &axis, 0.0, 1.0);
+    let geom_brep::WedgeVerdict::InBand(escalation) =
+        geom_brep::edge_wedge_over(&walk, geom_core::test_support::fixture_lever(1.0), band())
+    else {
+        panic!("a 5ε wedge escalates");
+    };
+    let escalated = BlendError::WedgeUnsettled {
+        edge: e,
+        wedge: sweep::blend::UnsettledWedge::InBand(escalation),
+    };
     let text = escalated.render(geom_brep::recourse::Reading::Build);
-    assert!(
-        matches!(&escalated, BlendError::Escalated { source, .. }
-            if source.predicate == Some("fillet3_convexity_sign")),
-        "{escalated:?}"
+    assert_eq!(
+        escalation.diag().predicate,
+        Some("dihedral_wedge"),
+        "{escalation:?}"
     );
     assert!(
         text.contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
@@ -374,12 +374,6 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         !text.contains(sweep::blend::FILLET3_CONVEXITY_RECOURSE),
         "no flip was decided, so the flip sentence is absent: {text}"
     );
-    // The definite neighbour from the same site: a wedge decided Zero
-    // with the material facing itself is a knife, read on, not refused.
-    let back = plane(Vec3::new(-1.0, 0.0, 0.0));
-    let (flat, _) = wedge_at(out(&x), out(&back), tau, metre(), e, band())
-        .expect("a knife is read, not refused");
-    assert_eq!(flat, sweep::blend::LinkWedge::Knife);
 }
 
 /// **Can a BODY reach the in-band convexity arm?** A profile whose
@@ -392,8 +386,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
 fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
     // Two levers. The profile's `chord_side` meters the vertex's
     // perpendicular miss from the previous chord (d), the battery's
-    // `fillet3_convexity_sign` meters sin(turn) · the edge's own
-    // extent (≈ d / L · h). Separating them by L and h puts the
+    // wedge fold meters sin(turn) · the faces' extent arm. Separating them by L and h puts the
     // first definitely off zero and the second in band.
     for (d, l, h) in [(in_band(), 1.0, 1.0), (1e-6, 10.0, 0.05), (1e-6, 10.0, 0.5)] {
         let lp = bulge_loop(
@@ -474,7 +467,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
             .expect("the vertical edge at the near-collinear vertex");
         let r = verdict(&body, edge);
         eprintln!("(d={d:e}, L={l}, h={h}) battery on the wedge: {r:?}");
-        if let Err(e @ BlendError::Escalated { .. }) = &r {
+        if let Err(e @ (BlendError::Escalated { .. } | BlendError::WedgeUnsettled { .. })) = &r {
             eprintln!(
                 "  renders: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)

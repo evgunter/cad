@@ -152,7 +152,7 @@ fn f1_bound_covers_data_deviation_randomized() {
                 )
             })
             .collect();
-        pts.dedup_by(|a, b| (*a - *b).norm() == 0.0);
+        pts.dedup_by(|a, b| a.equals_exactly(*b));
         let Ok(fit) = NurbsCurve3::approximate(&pts, 3, 1e-2) else {
             continue;
         };

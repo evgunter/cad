@@ -2,10 +2,12 @@
 id: two-planar-lines-meet-by-cramer-at-four-sites
 kind: issue
 title: Two planar lines' meeting parameters are spelled by Cramer's rule at four sites
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6604
 ---
 
 

@@ -87,12 +87,7 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
     let wall = [e.he_plus, e.he_minus]
         .into_iter()
         .filter_map(|h| body.face_of_half_edge(h))
-        .find(|&f| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .find(|&f| matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. })))
         .expect("the round side's cylinder wall");
     let stations: Vec<topo::VertexKey> = rims
         .iter()

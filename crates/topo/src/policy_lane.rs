@@ -50,8 +50,6 @@ pub(crate) enum Origin {
 /// certifies with [`Origin::Kernels`]; a panic names its site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum KernelSite {
-    /// [`crate::transform_rigid`]'s re-mint of each moved edge.
-    RigidTransform,
     /// [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s two children.
     SplitChild,
     /// A graft's re-certification of the source body's edges.
@@ -79,6 +77,9 @@ pub(crate) enum KernelSite {
     SectionRechart,
     /// A shell's re-chart of a promoted rim face, its edges restated.
     RimRechart,
+    /// The re-chart that leaves faces decided one carrier on one record
+    /// (`Body::one_record`), its stranded edges restated.
+    OneRecord,
     /// [`crate::Body::describe_at_rest`](crate::construction::Construct::describe_at_rest)'s restatement.
     AtRest,
     /// The restatement of a wrap edge whose halves an operation parted.
@@ -90,7 +91,6 @@ pub(crate) enum KernelSite {
 impl core::fmt::Display for KernelSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
-            Self::RigidTransform => "transform_rigid",
             Self::SplitChild => "a split child",
             Self::Graft => "a graft",
             Self::ReDescription => "a re-description",
@@ -102,6 +102,7 @@ impl core::fmt::Display for KernelSite {
             Self::SectionSmooth => "a section boundary's smooth join",
             Self::SectionRechart => "a section re-chart",
             Self::RimRechart => "a rim re-chart",
+            Self::OneRecord => "a re-chart onto one surface record",
             Self::AtRest => "describe_at_rest",
             Self::PartedWrap => "a parted wrap edge",
             Self::StoredRestatement => "restate_stored_edge",
@@ -269,11 +270,7 @@ mod tests {
         // The same cube at f64 (D9: the same keys) gives the edge's
         // corners as f64, which the carrier is lifted from.
         let reference = cube::<f64>(tol);
-        let (edge_key, edge) = reference
-            .edges()
-            .next()
-            .map(|(k, e)| (k, e.clone()))
-            .unwrap();
+        let edge_key = reference.edges().next().map(|(k, _)| k).unwrap();
         let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
             .unwrap()
             .surfaces();
@@ -282,8 +279,8 @@ mod tests {
                 .get_point(reference.get_vertex(v).unwrap().point)
                 .unwrap()
         };
-        let p0 = corner(reference.get_half_edge(edge.he_plus).unwrap().start);
-        let p1 = corner(reference.half_edge_end(edge.he_plus).unwrap());
+        let (v0, v1) = crate::query::edge_ends(&reference, edge_key);
+        let (p0, p1) = (corner(v0), corner(v1));
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0])
             .unwrap()

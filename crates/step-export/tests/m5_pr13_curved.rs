@@ -394,9 +394,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             .count();
         let nurbs_faces = body
             .faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface).expect("surface resolves"),
+                    body.face_surface(*fk).expect("surface resolves"),
                     Surface::Nurbs(_)
                 )
             })
@@ -495,7 +495,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let face_args = &recs[face_id].1;
             let surface_id = *refs(face_args).last().expect("surface ref");
             let (kw, args) = &recs[&surface_id];
-            let surface = body.get_surface(face.surface).expect("surface");
+            let surface = body.face_surface(*face_key).expect("surface");
             let a = top_args(args);
             // a[0] is the name, a[1] the placement ref.
             let place = |recs: &HashMap<u64, (String, String)>| {
@@ -677,7 +677,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 89 = notched 1 + washer 2 + cone 1 (the
+    // not vacuous: 92 = notched 1 + washer 2 + cone 1 (the
     // original four) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
     // (the same half-caps, carried through the surgery) + the globe
@@ -690,14 +690,17 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // cap's LOOP is reversed at mint so its plane derives normal-down
     // (outward), and every skinned wall chart's normal S_u × S_v
     // follows the material-left traversal (loft.rs module docs,
-    // "Orientation") — so all six faces keep sense = true.
-    assert_eq!(reversed_seen, 89, "BOUND: the corpus's reversed faces");
+    // "Orientation") — so all six faces keep sense = true. The kiss
+    // assembly adds 3, all planar: the union leaves each of the three
+    // coplanar face pairs at the kissing corner on the first die's
+    // plane record, whose chart faces out of the second die.
+    assert_eq!(reversed_seen, 92, "BOUND: the corpus's reversed faces");
     assert_eq!(
         chart_axis_checked, 89,
         "CHART-AXIS: all 89 reversed faces checked (4 original + die_pips' 42 + the \
          composed die's 42 + the lily lantern's 1; loft_prism contributes 0 — every \
-         face sense-true, see pin A's derivation). Every one is on a CURVED fixture, \
-         which is why this equals the whole-corpus count above."
+         face sense-true, see pin A's derivation). The kiss assembly's 3 are planar, \
+         and the rest of the corpus's reversed faces are on CURVED fixtures."
     );
 
     // ---- APEX: the fifth surface kind, CONICAL_SURFACE, uses the apex

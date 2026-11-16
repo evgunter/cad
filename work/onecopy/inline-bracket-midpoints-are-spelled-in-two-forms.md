@@ -2,10 +2,12 @@
 id: inline-bracket-midpoints-are-spelled-in-two-forms
 kind: issue
 title: Inline bracket midpoints are spelled in two forms, lo + ½(hi − lo) and ½(lo + hi), with one home for the first
-status: open
+status: closed
 opened: 2026-11-04
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6632
 ---
 
 Found in the delta review of PR 6516 (`onecopy/meet-interval`).

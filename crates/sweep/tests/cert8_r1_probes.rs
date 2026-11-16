@@ -22,9 +22,9 @@ use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, face)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
             )
         })
@@ -133,9 +133,7 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
         .expect("the offset square prism builds")
         .body;
     let wall = nurbs_wall(&body);
-    let sref = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap();
+    let sref = body.face_surface(wall).unwrap();
     probe("iso-line-wall", sref);
 
     // The bulged IsoArc (rational) wall, the rational acceptance row.
@@ -152,8 +150,8 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
     let body = sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
-    for (_, face) in body.faces() {
-        if let Some(s @ Surface::Nurbs(p)) = body.get_surface(face.surface)
+    for (fk, _) in body.faces() {
+        if let Some(s @ Surface::Nurbs(p)) = body.face_surface(fk)
             && !p.is_placeholder()
         {
             let inf = geom_brep::chart_stretch_inf(s);
