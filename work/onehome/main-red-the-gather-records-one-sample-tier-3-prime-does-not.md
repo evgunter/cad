@@ -7,6 +7,7 @@ opened: 2026-11-09
 priority: P2
 cost: E
 closed: 2026-11-16
+pr: 7017
 branch: onehome/gather-sample
 ---
 
