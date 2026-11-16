@@ -390,7 +390,7 @@ fn both_pieces_of_the_subtraction_as_one_body() {
         &geom_core::Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI),
         tol,
     );
-    let bottom = crate::transform_rigid(&top, &half_turn, tol).unwrap();
+    let bottom = crate::transform_rigid(&top, &half_turn).unwrap();
     let mut both = top;
     crate::graft_disjoint(&mut both, &bottom).unwrap();
     let census = crate::census::census_and_certify(

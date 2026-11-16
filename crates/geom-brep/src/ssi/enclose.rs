@@ -609,7 +609,9 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
     ) -> [Interval; 3] {
         let form = self.0;
-        let g = form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))));
+        let g = form.constant_gradient().unwrap_or_else(|| {
+            form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))))
+        });
         [g.x, g.y, g.z]
     }
 
@@ -632,6 +634,7 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
         along_u: bool,
     ) -> Interval {
+        super::boundary::count_reading();
         w.map_or_else(Interval::refused, |w| {
             super::boundary::plane_partial(self.gradient(boxes, Some(w)), boxes, w, along_u)
         })
@@ -1031,6 +1034,14 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             u: (u_lo.index(), u_hi.index()),
             v: (v_lo.index(), v_hi.index()),
             clamped,
+        }
+    }
+
+    /// The wall's knot rectangle.
+    pub(crate) fn domain(&self) -> super::exhaust::UvRect {
+        super::exhaust::UvRect {
+            u: self.surface.knots_u_f64_interim().domain(),
+            v: self.surface.knots_v_f64_interim().domain(),
         }
     }
 

@@ -85,7 +85,7 @@ use geom::Surface;
 use geom_brep::SurfaceSide;
 use geom_core::{Circles, Point3, Real, Vec3};
 
-use super::battery::{Convexity, sided};
+use super::battery::{Convexity, ball_side, sided, signed};
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.
@@ -126,6 +126,58 @@ impl<T: Real> EdgeBlend<T> {
             (&self.trim_b, &self.trim_a)
         }
     }
+}
+
+/// **The rolling ball's section of a link's band through `p`**: the
+/// circle of the ball's radius about the spine's point in the plane
+/// through `p` normal to the spine, and that plane's unit normal. A
+/// cylinder band's is its transverse circle (centre the axis foot, normal
+/// the axis), a torus band's its meridian (centre the spine circle at
+/// `p`'s azimuth, normal the azimuth's tangent). `None` for a band with no
+/// rolling ball.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BallSection<T: Real> {
+    pub(crate) centre: Point3<T>,
+    pub(crate) normal: Vec3<T>,
+    pub(crate) radius: T,
+}
+
+impl<T: Real> BallSection<T> {
+    pub(crate) fn of(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Self> {
+        match blend.surface {
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => Some(Self {
+                centre: origin + axis * (p - origin).dot(axis),
+                normal: axis,
+                radius,
+            }),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let radial = torus_radial(center, axis, p);
+                Some(Self {
+                    centre: center + radial * major_radius,
+                    normal: axis.cross(radial).normalize(),
+                    radius: minor_radius,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The unit radial of a torus about `center` and `axis` at `p`'s azimuth.
+pub(crate) fn torus_radial<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
+    let q = p - center;
+    (q - axis * q.dot(axis)).normalize()
 }
 
 /// The corner ball of a uniform trihedral vertex: a sphere patch (the
@@ -337,7 +389,7 @@ pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 /// `r·tan(φ/2)` for the outward-normal angle φ) — derived here once
 /// and consumed by predicate 2.
 ///
-/// `convexity` picks the side through [`Convexity::signed`]: on a
+/// `convexity` picks the side through [`signed`]: on a
 /// concave chain the ball rolls on the far side of both supports, which
 /// is the same formula with `r` negated.
 #[must_use]
@@ -349,11 +401,11 @@ pub fn plane_plane_blend<T: Real>(
     radius: T,
     convexity: Convexity,
 ) -> EdgeBlend<T> {
-    let signed = convexity.signed(radius);
+    let signed = signed(convexity, radius);
     let d = n_a.dot(n_b);
     let one = T::one();
     let center = p - (n_a + n_b) * (signed / (one + d));
-    let side = convexity.ball_side(true);
+    let side = ball_side(convexity, true);
     let (a, b) = (
         SupportTrace::Straight { normal: n_a, side },
         SupportTrace::Straight { normal: n_b, side },
@@ -395,9 +447,9 @@ pub fn plane_plane_blend<T: Real>(
 /// side of both supports the chain's stored convexity verdict picks
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
-/// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
-/// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
-/// and — as the side [`Convexity::ball_side`] — the shared sheet
+/// That is ONE fold, [`signed`] (`±r`), homed beside the chain's
+/// verdict in `battery` and shared with [`plane_plane_blend`], `open::planar::corner_plan`
+/// and — as the side [`ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
 /// SPHERE its material is on is the pair's own second configuration
@@ -529,7 +581,7 @@ pub fn plane_sphere_blend<T: Real>(
 /// [`plane_sphere_room`] alike.
 struct PlaneSphereFold<T: Real> {
     /// The ball's signed depth into the plane's material
-    /// ([`Convexity::signed`]).
+    /// ([`signed`]).
     signed: T,
     /// The sphere centre's height over the plane along `n`.
     depth: T,
@@ -552,15 +604,15 @@ impl<T: Real> PlaneSphereFold<T> {
         sphere_convex: bool,
         convexity: Convexity,
     ) -> Self {
-        // The one fold (`Convexity::signed`): the ball is `r` INTO the
+        // The one fold (`battery::signed`): the ball is `r` INTO the
         // plane's material on a convex chain and `r` out of it on a
         // concave one.
-        let signed = convexity.signed(radius);
+        let signed = signed(convexity, radius);
         let depth = (sphere_c - origin).dot(n);
         // The same fold read against the sphere's stored sense: the ball
         // rests on the sphere's MATERIAL side — inside it — exactly when
         // that sense agrees with the chain's convexity.
-        let side = convexity.ball_side(sphere_convex);
+        let side = ball_side(convexity, sphere_convex);
         Self {
             signed,
             depth,
@@ -632,7 +684,7 @@ pub fn plane_sphere_room<T: Real>(
 /// [`SurfaceSide::Inner`] when the ball's centre lies on the side the
 /// support's chart normal points AWAY from — the support's material side
 /// on a `sense: true` face — and [`SurfaceSide::Outer`] when it lies on
-/// the side the chart normal points into; [`Convexity::ball_side`] is
+/// the side the chart normal points into; [`ball_side`] is
 /// where it is read, from stored structure and never from a sampled
 /// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
 /// it as [`sided`], a conditional negation of the radius or of the
@@ -1051,14 +1103,25 @@ impl<T: Real> Meridian<T> {
     /// **The coaxial arm**: the torus about the circular spine, with
     /// both trimlines as circles coaxial with it.
     ///
-    /// The spine radius `s` is the ball centre's own radial coordinate
-    /// and is stored SIGNED: a centre that has crossed the axis yields a
-    /// negative major radius, which is a torus the surface inventory
-    /// reports rather than one this arm quietly repairs (the `minor ≥
-    /// major` net). `spine_curvature` is `1/s`, so a spine the tube
-    /// swallows reaches predicate 3 as a finite curvature. A spine that
-    /// does not exist at all never reaches this arm: the caller refuses
-    /// it from [`offset_room`] first, as it does [`plane_sphere_blend`]'s.
+    /// The spine is the circle the ball centre sweeps about the axis: of
+    /// radius `|s|`, where `s` is the centre's radial coordinate in the
+    /// sheet. A centre that has crossed the axis (`s < 0`) sweeps the same
+    /// circle as one at `|s|` on the rim's side, so the band surface is
+    /// the torus of major radius `|s|` with its seam turned to the
+    /// centre's side (`u_ref` along the centre's own radial,
+    /// [`ring_radius`]): the point set the signed form would trace, in the
+    /// ring convention's terms, its chart point `(u, π − v)` the signed
+    /// form's `(u, v)`. The trimlines are their circles the same way, of
+    /// radius the contact's distance from the axis with the seam turned to
+    /// its side, which is the signed form's own parametrisation.
+    /// `|s|` forgets which side of the axis the centre is on, which a
+    /// self-intersecting torus needs (the sign picks its lemon from its
+    /// apple), so a spindle mint, should one come, reads the signed `s`
+    /// and never this. `spine_curvature` is `1/|s|`, so a spine the tube
+    /// swallows, on either side of the axis, reaches predicate 3 as a
+    /// finite curvature past `1/r`. A spine that does not exist at all
+    /// never reaches this arm: the caller refuses it from [`offset_room`]
+    /// first, as it does [`plane_sphere_blend`]'s.
     #[must_use]
     pub fn blend(
         &self,
@@ -1075,29 +1138,36 @@ impl<T: Real> Meridian<T> {
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
+            let (rho, toward) = ring_radius((q - self.axis.origin).dot(radial), radial);
             (
-                Curve3::circle(
-                    level(q),
-                    self.axis.dir,
-                    (q - self.axis.origin).dot(radial),
-                    radial,
-                ),
+                Curve3::circle(level(q), self.axis.dir, rho, toward),
                 (q - self.rim).norm(),
             )
         };
+        let (spine, toward) = ring_radius(s, radial);
         EdgeBlend {
             surface: Surface::Torus {
                 center: level(center),
                 axis: self.axis.dir,
-                major_radius: s,
+                major_radius: spine,
                 minor_radius: radius,
-                u_ref: radial,
+                u_ref: toward,
             },
-            spine_curvature: T::one() / s,
+            spine_curvature: T::one() / spine,
             trim_a: trim(a),
             trim_b: trim(b),
         }
     }
+}
+
+/// **A signed radial coordinate `x` as the ring convention stores a
+/// circle about the axis**: its distance `|x|` from the axis, and
+/// `radial` turned to its side, the seam's direction. A circle of signed
+/// radius `x` seamed along `radial` and one of radius `|x|` seamed along
+/// the returned direction are one parametrisation
+/// ([`Meridian::blend`]'s spine and trimlines).
+fn ring_radius<T: Real>(x: T, radial: Vec3<T>) -> (T, Vec3<T>) {
+    (x.abs(), radial * x.unit_sign())
 }
 
 /// **The cross-section of a ruled pair** at one point of the common
@@ -1253,12 +1323,12 @@ pub fn corner_ball<T: Real>(
     convexity: Convexity,
 ) -> CornerBall<T> {
     let [n1, n2, n3] = normals;
-    // The rest DEPTH: the NEGATIVE of the one fold, `Convexity::signed`,
+    // The rest DEPTH: the NEGATIVE of the one fold, `battery::signed`,
     // which every consumer spells as a FOOT displacement
     // (`corner_plan`'s `toward`, `plane_plane_blend`'s `signed`) — a foot
     // displaces opposite the depth by definition of tangency. The one
     // place the fold must stay a negation; `corner_plan` cites it.
-    let signed = -convexity.signed(radius);
+    let signed = -signed(convexity, radius);
     // Right-hand sides: (c − p₁)·n_i = (p_i − p₁)·n_i + signed.
     let anchor = verts[0];
     let rhs = [
@@ -1272,7 +1342,7 @@ pub fn corner_ball<T: Real>(
     let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
     // a concave one — the same fold as the centre's.
-    let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+    let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
     let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {
@@ -1328,7 +1398,7 @@ pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
 /// (both normals are ⊥ `τ̂`). A positive combination of two OUTWARD
 /// normals is outward, so the strip face mints with sense `true` — on
 /// a concave edge as much as on a convex one, which is why the
-/// chamfer never reads [`super::Convexity::blend_sense`]. For a
+/// chamfer never reads [`super::battery::blend_sense`]. For a
 /// symmetric setback the strip plane is the supports' bisector plane,
 /// which is the same statement.
 #[must_use]
@@ -1392,18 +1462,20 @@ pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Poi
 ///
 /// **The chart normal is outward, derived.** The patch plane's normal
 /// is `g = (f₁ − f₀) × (f₂ − f₀)` up to sign, and the sign is fixed by
-/// folding `g` against the supports' outward normal SUM: the patch is
-/// the face that truncates (convex) or fills (concave) the corner, and
-/// in both cases its outward normal lies on the positive side of
-/// `n₀ + n₁ + n₂`. Folding it in as a positive multiple —
-/// `normalize(g·(g·Σn))` — keeps the derivation branch-free and total;
-/// a patch plane orthogonal to `Σn` poisons rather than picking a
-/// side. The face therefore mints with sense `true`, like the strips,
+/// folding `g` against `outward`, a direction on the patch's outward
+/// side: at a uniform corner the supports' outward normal SUM
+/// `n₀ + n₁ + n₂`, since the patch is the face that truncates (convex)
+/// or fills (concave) the corner and in both cases its outward normal
+/// lies on that sum's positive side; at a mixed corner the sum of the
+/// shared face's normal and the odd strip's. Folding it in as a
+/// positive multiple — `normalize(g·(g·outward))` — keeps the
+/// derivation branch-free and total; a patch plane orthogonal to
+/// `outward` poisons rather than picking a side. The face therefore
+/// mints with sense `true`, like the strips,
 /// and this module has no convexity parameter to leave half-derived.
 #[must_use]
-pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], normals: [Vec3<T>; 3]) -> Surface<T> {
+pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> Surface<T> {
     let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
-    let outward = normals[0] + normals[1] + normals[2];
     let normal = (g * g.dot(outward)).normalize();
     Surface::Plane {
         origin: feet[0],

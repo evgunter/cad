@@ -42,8 +42,10 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Margin, Point2, Point3};
 
 use super::boundary::Crossing;
+use super::exhaust::UvRect;
 use super::march::{
-    BranchEnd, MarchContext, RectEnd, RectExit, StepperMode, decide_transversality, march,
+    BranchEnd, BranchTip, MarchContext, RectEnd, RectExit, StepperMode, decide_transversality,
+    march,
 };
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
@@ -52,6 +54,52 @@ use super::{
     BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
 
+/// The most knots [`Ends::graded`] inserts toward one node end (D9).
+pub(crate) const NODE_GRADES: usize = 512;
+
+/// The most samples [`Ends::enter`] settles inside a node's box, each
+/// half the last one's distance from the node (D9): from a box a
+/// sixteenth of a unit chart wide, past `√(εR)` at ε = 1e-12.
+pub(crate) const NODE_SETTLES: usize = 48;
+
+/// How many times the march's tolerance the section's reach across a
+/// sample, `|∇φ|` times its distance from the node, stays above for
+/// [`Ends::enter`] to settle the next one nearer (D9): about `√(εR)`
+/// from the node, where the node's arcs stand apart by some multiple of
+/// the band, so the windows of limb 3's chain there still read them
+/// apart.
+pub(crate) const NODE_SETTLE_FLOOR: f64 = 64.0;
+
+/// How many grades finer [`Ends::graded`] grades a node end within
+/// [`NODE_FINE_CHORDS`] of its last chord of the node than past it (D9):
+/// there a span is about a tenth of its distance from the node, so the
+/// window before the node's box, its hull reaching a span or two past
+/// its own toward the node, sees the node across an angle well inside a
+/// sector between the node's rays, which is the ray the arc's end names
+/// (C5).
+pub(crate) const NODE_GRADE_FINE: u32 = 2;
+
+/// How many of an arc's last chords to its node, the reach of its node
+/// box's neighbourhood ([`crate::ssi::certify::NODE_PAD_REACH`] node-box
+/// half-widths, each [`crate::ssi::certify::NODE_BOX_REACH`] last
+/// chords), [`Ends::graded`] grades finer within (D9).
+pub(crate) const NODE_FINE_CHORDS: f64 =
+    crate::ssi::certify::NODE_PAD_REACH * crate::ssi::certify::NODE_BOX_REACH;
+
+/// The grades [`Ends::finish`] climbs at a node end while limb 3's tube
+/// straddles (D9): at the last, a span is about a fiftieth of its
+/// distance from the node.
+pub(crate) const NODE_GRADE_LEVELS: u32 = 5;
+
+/// Where a march from a crossing ended ([`Ends::march_from`]).
+#[derive(Clone, Copy, Debug)]
+enum Far {
+    /// At the crossing of this index.
+    Crossing(usize),
+    /// On entering the box of this node.
+    Node(usize),
+}
+
 /// What the branches between known ends read, minted once per call,
 /// over the lane's system `S` of `M` equations in `N` unknowns.
 pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
@@ -59,8 +107,12 @@ pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
     pub sys: &'a S,
     /// The march's context, the caller's feature extent among it.
     pub ctx: MarchContext<N>,
-    /// The rectangles the march is bounded by.
-    pub exit: RectExit,
+    /// The rectangles the march is bounded by, and the node boxes it
+    /// ends on entering.
+    pub exit: RectExit<'a>,
+    /// Each node's chart point, by the index of its box among the
+    /// exit's: where an arc entering its box is carried on to.
+    pub node_at: &'a [(f64, f64)],
     /// The operands the certificate reads.
     pub operands: Operands<'a>,
     /// The run band.
@@ -254,7 +306,7 @@ fn inwardness<const N: usize>(
     x: &[f64; N],
     d: &[f64; N],
     ctx: &MarchContext<N>,
-    exit: RectExit,
+    exit: RectExit<'_>,
 ) -> f64 {
     (exit.first..N)
         .map(|i| {
@@ -274,7 +326,7 @@ fn inwardness<const N: usize>(
 fn tangent<const M: usize, const N: usize, S: LocalSystem<M, N>>(
     sys: &S,
     x: &[f64; N],
-    (ctx, exit): (&MarchContext<N>, RectExit),
+    (ctx, exit): (&MarchContext<N>, RectExit<'_>),
     into: bool,
 ) -> [f64; N] {
     let d = Svd::<M, N>::new(sys.jacobian(x)).null_direction();
@@ -297,6 +349,7 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
             sys,
             ctx,
             exit: RectExit::PAIR,
+            node_at: &[],
             operands: Operands::Pair { a, b },
             band,
         }
@@ -305,17 +358,21 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
 
 impl<'a> Ends<'a, ImplicitChartR2<'a>, 1, 2> {
     /// The ends' reader for one residual × NURBS call: the march bounded
-    /// by the wall's rectangle, the state's only coordinates.
+    /// by the wall's rectangle, the state's only coordinates, and ended
+    /// on entering any of the node boxes `nodes`, each arc then carried
+    /// on to its node's chart point in `node_at`.
     pub(crate) fn implicit(
         sys: &'a ImplicitChartR2<'a>,
         ctx: MarchContext<2>,
         wall: &'a SsiOperand<'a, f64>,
         band: Band,
+        (nodes, node_at): (&'a [UvRect], &'a [(f64, f64)]),
     ) -> Self {
         Self {
             sys,
             ctx,
-            exit: RectExit::CHART,
+            exit: RectExit::chart_with(nodes),
+            node_at,
             operands: Operands::Implicit {
                 partner: sys.partner,
                 wall,
@@ -354,8 +411,15 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 .filter(|&j| !used[j])
                 .map(|j| (j, distance(self.sys, &a.state, &crossings[j].state)))
                 .min_by(|x, y| x.1.total_cmp(&y.1));
+            // With no crossing left, the branch ends at a node: marched
+            // alone, with no Hermite candidate between crossings.
             let Some((j, near)) = nearest else {
-                return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+                let (b, branch) = self.marched(a, crossings, &used)?;
+                if b.is_some() {
+                    return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+                }
+                out.push(branch);
+                continue;
             };
             let branch = match self.hermite(a, crossings[j], near) {
                 Ok(branch) => {
@@ -364,7 +428,9 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 }
                 Err(hermite) => match self.marched(a, crossings, &used) {
                     Ok((b, branch)) => {
-                        used[b] = true;
+                        if let Some(b) = b {
+                            used[b] = true;
+                        }
                         branch
                     }
                     Err(march) => return Err(neither(hermite, march, near, self.band)),
@@ -376,29 +442,45 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     }
 
     /// The marched candidate from crossing `a`: its far crossing's
-    /// index, and the branch fitted and certified.
+    /// index (none where it ends at a node), and the branch fitted and
+    /// certified.
     fn marched(
         &self,
         a: Crossing<[f64; N]>,
         crossings: &[Crossing<[f64; N]>],
         used: &[bool],
-    ) -> Result<(usize, SsiBranch), SsiError> {
-        let (b, states) = self.march_from(a, crossings, used)?;
-        let end = BranchEnd::Rim {
-            from: a.at,
-            to: crossings[b].at,
+    ) -> Result<(Option<usize>, SsiBranch), SsiError> {
+        let (far, states) = self.march_from(a, crossings, used)?;
+        let end = match far {
+            Far::Crossing(b) => BranchEnd::Rim {
+                from: a.at,
+                to: crossings[b].at,
+            },
+            Far::Node(k) => BranchEnd::Node {
+                from: BranchTip::Rim(a.at),
+                to: BranchTip::Node(k),
+            },
         };
-        Ok((b, self.finish(&states, end)?))
+        let branch = self.finish(&states, end)?;
+        // A node end uses no crossing: the caller marks `a` alone.
+        Ok((
+            match far {
+                Far::Crossing(b) => Some(b),
+                Far::Node(_) => None,
+            },
+            branch,
+        ))
     }
 
     /// The march from crossing `a`, inward, to the crossing on the side
-    /// it leaves: that crossing's index, and the states.
+    /// it leaves, or to the node whose box it enters: which, and the
+    /// states.
     fn march_from(
         &self,
         a: Crossing<[f64; N]>,
         crossings: &[Crossing<[f64; N]>],
         used: &[bool],
-    ) -> Result<(usize, Vec<[f64; N]>), SsiError> {
+    ) -> Result<(Far, Vec<[f64; N]>), SsiError> {
         let d = Svd::<M, N>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx, self.exit) >= 0.0 {
             1.0
@@ -414,15 +496,25 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             direction,
             self.band,
         )?;
-        let RectEnd::Left { inside, outside } = trace.end else {
+        let (inside, outside) = match trace.end {
+            RectEnd::Left { inside, outside } => (inside, outside),
+            RectEnd::Node {
+                node,
+                inside,
+                outside,
+            } => {
+                let mut states = trace.states;
+                self.enter(&mut states, node, (inside, outside))?;
+                return Ok((Far::Node(node), states));
+            }
             // A march from the wall's boundary that comes back to its
             // start without leaving: no crossing ends it.
-            return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
+            RectEnd::Closed => return Err(SsiError::CrossingUnmatched { from: Some(a.at) }),
         };
         let b = self.match_exit(Some(a), inside, outside, crossings, used)?;
         let mut states = trace.states;
         close_at(self.sys, &mut states, crossings[b].state);
-        Ok((b, states))
+        Ok((Far::Crossing(b), states))
     }
 
     /// The unused crossing on a side the step from `inside` to
@@ -480,10 +572,91 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         }
     }
 
+    /// **A branch carried into node `node`'s box and on to the node**
+    /// (C5's node end): its state where its step from `inside` toward
+    /// `outside` enters the box, the chord's entry point settled onto
+    /// the section, so no gap lies between its tube and the box; then
+    /// samples toward the node's chart point, each half the last one's
+    /// distance from it, settled onto the section; then the node's point
+    /// itself. The samples stop where the section's reach across the
+    /// sample, `|∇φ|` times its distance from the node, is no more than
+    /// [`NODE_SETTLE_FLOOR`] times the march's tolerance (about `√(εR)`
+    /// from the node, `R` the surfaces' relative curvature radius: inside
+    /// it no reading at the band tells the node's arcs apart), where one
+    /// does not settle nearer the node, or after [`NODE_SETTLES`].
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::StepRefinementFailed`] where the entry point does not
+    /// settle onto the section, the step's chord meeting the box away
+    /// from it: the branch would stop short of the box, and the gap
+    /// between them is ground no tube holds.
+    fn enter(
+        &self,
+        states: &mut Vec<[f64; N]>,
+        node: usize,
+        (inside, outside): ([f64; N], [f64; N]),
+    ) -> Result<(), SsiError> {
+        let lost = |to: &[f64; N]| SsiError::StepRefinementFailed {
+            mode: StepperMode::Realized.name(),
+            step_meters: distance(self.sys, &inside, to),
+        };
+        // The march ended on this chord meeting a box, so it has an entry.
+        let (_, at) = self
+            .exit
+            .entry(&inside, &outside)
+            .ok_or_else(|| lost(&outside))?;
+        let x = super::march::newton_refine(self.sys, at, self.ctx.tol).ok_or_else(|| lost(&at))?;
+        close_at(self.sys, states, x);
+        // The node's chart point, over the bounded coordinates; every
+        // other coordinate rides with the last state (the 1×2 lane has
+        // none).
+        let (Some(&(nu, nv)), Some(&last)) = (self.node_at.get(node), states.last()) else {
+            return Ok(());
+        };
+        let (i, j) = (self.exit.first, self.exit.first + 1);
+        let mut centre = last;
+        centre[i] = nu;
+        centre[j] = nv;
+        let chart = |x: &[f64; N]| (x[i] - nu).hypot(x[j] - nv);
+        let mut prev = last;
+        for _ in 0..NODE_SETTLES {
+            let d = chart(&prev);
+            let sq: f64 = self
+                .sys
+                .jacobian(&prev)
+                .iter()
+                .map(|row| row[i] * row[i] + row[j] * row[j])
+                .sum();
+            let reach = sq.sqrt() * d;
+            if reach.partial_cmp(&(NODE_SETTLE_FLOOR * self.ctx.tol.meters()))
+                != Some(core::cmp::Ordering::Greater)
+            {
+                break;
+            }
+            let aim =
+                core::array::from_fn::<f64, N, _>(|k| geom_core::bracket_mid((centre[k], prev[k])));
+            let Some(y) = super::march::newton_refine(self.sys, aim, self.ctx.tol) else {
+                break;
+            };
+            // A sample Newton carries off its halving, to the node or
+            // back out, is no settle of this arc's: the march stops. No
+            // fixture's Newton leaves the window, so no row pins it.
+            let dy = chart(&y);
+            if !(dy > 0.25 * d && dy < 0.75 * d) {
+                break;
+            }
+            states.push(y);
+            prev = y;
+        }
+        states.push(centre);
+        Ok(())
+    }
+
     /// **The branch through an interior `seed`**: a loop where the march
     /// closes; otherwise marched both ways, each half ending at the
-    /// crossing on the side it leaves. The states, and how the branch
-    /// ends.
+    /// crossing on the side it leaves or at the node whose box it
+    /// enters. The states, and how the branch ends.
     ///
     /// # Errors
     ///
@@ -505,35 +678,41 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             )
         };
         let fwd = run(1.0, self.ctx)?;
-        let RectEnd::Left {
-            inside: f_in,
-            outside: f_out,
-        } = fwd.end
-        else {
+        if let RectEnd::Closed = fwd.end {
             return Ok((fwd.states, BranchEnd::Closed));
-        };
+        }
         let bwd = run(-1.0, self.ctx.rest(&fwd))?;
-        let RectEnd::Left {
-            inside: b_in,
-            outside: b_out,
-        } = bwd.end
-        else {
-            return Err(SsiError::CrossingUnmatched { from: None });
-        };
         let mut used = vec![false; crossings.len()];
-        let to = self.match_exit(None, f_in, f_out, crossings, &used)?;
-        used[to] = true;
-        let from = self.match_exit(None, b_in, b_out, crossings, &used)?;
-        let mut back = bwd.states;
-        close_at(self.sys, &mut back, crossings[from].state);
-        back.reverse();
+        let mut tip =
+            |end: RectEnd<N>, states: &mut Vec<[f64; N]>| -> Result<BranchTip, SsiError> {
+                match end {
+                    RectEnd::Left { inside, outside } => {
+                        let c = self.match_exit(None, inside, outside, crossings, &used)?;
+                        used[c] = true;
+                        close_at(self.sys, states, crossings[c].state);
+                        Ok(BranchTip::Rim(crossings[c].at))
+                    }
+                    RectEnd::Node {
+                        node,
+                        inside,
+                        outside,
+                    } => {
+                        self.enter(states, node, (inside, outside))?;
+                        Ok(BranchTip::Node(node))
+                    }
+                    RectEnd::Closed => Err(SsiError::CrossingUnmatched { from: None }),
+                }
+            };
         let mut forth = fwd.states;
-        close_at(self.sys, &mut forth, crossings[to].state);
+        let to = tip(fwd.end, &mut forth)?;
+        let mut back = bwd.states;
+        let from = tip(bwd.end, &mut back)?;
+        back.reverse();
         let mut states = back;
         states.extend_from_slice(&forth[1..]);
-        let end = BranchEnd::Rim {
-            from: crossings[from].at,
-            to: crossings[to].at,
+        let end = match (from, to) {
+            (BranchTip::Rim(from), BranchTip::Rim(to)) => BranchEnd::Rim { from, to },
+            (from, to) => BranchEnd::Node { from, to },
         };
         Ok((states, end))
     }
@@ -552,14 +731,123 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             &self.ctx,
             self.band,
             |states, limbs| {
-                let (carrier, pa, pb) = fit_states(self.sys, states)?;
-                let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
-                let cert =
-                    certify::certify_located(&carrier, lane, self.ctx.extent, self.band, limbs)?;
-                Ok((carrier, pa, pb, cert))
+                let fitted = fit_states(self.sys, states)?;
+                // A node end's grading climbs while the tube straddles
+                // (Self::graded); every other refusal stands at once.
+                let mut level = 0;
+                loop {
+                    let (carrier, pa, pb) = self.graded((end, level), states, fitted.clone())?;
+                    let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
+                    match certify::certify_located(
+                        &carrier,
+                        lane,
+                        self.ctx.extent,
+                        self.band,
+                        limbs,
+                    ) {
+                        Ok(cert) => return Ok((carrier, pa, pb, cert)),
+                        Err(certify::Located {
+                            error: SsiError::TubeStraddles { .. },
+                            ..
+                        }) if matches!(end, BranchEnd::Node { .. })
+                            && level + 1 < NODE_GRADE_LEVELS =>
+                        {
+                            level += 1;
+                        }
+                        Err(refused) => return Err(refused),
+                    }
+                }
             },
         )?;
         Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
+    }
+
+    /// **A fitted triple graded toward its node ends**, at grade `level`:
+    /// knots inserted into the carrier and both pcurves alike
+    /// (evaluation-invariant in ℝ, so the spans stay one list), at
+    /// `t_n ± L·rᵏ` from each node end `t_n`, `L` the domain's length and
+    /// `r = 1 − 1/(3·2^level)`, and [`NODE_GRADE_FINE`] grades finer
+    /// within [`NODE_FINE_CHORDS`] of the states' last chord of the node,
+    /// until the span at the end is no longer against the domain than
+    /// that chord is against the arc's chart length.
+    ///
+    /// Limb 3 encloses the transverse gradient over each span's window.
+    /// Near a node that is about the Hessian times the window's distance
+    /// from the node, and its spread about the Hessian times the window's
+    /// width, so one span from the side to the box straddles wherever the
+    /// node's lines are not the chart's axes. A span `1 − r` of its
+    /// distance from the node keeps the spread a share of the value that
+    /// halves with each level: the first level suits lines far apart,
+    /// and lines nearer each other take more ([`Self::finish`] climbs
+    /// them where the tube straddles; D9, a fixed rule, at most
+    /// [`NODE_GRADES`] knots an end).
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::UnsupportedCertificate`] where the knot insertion
+    /// refuses, which distinct interior knots never make it do.
+    fn graded(
+        &self,
+        (end, level): (BranchEnd, u32),
+        states: &[[f64; N]],
+        triple: FittedBranch,
+    ) -> Result<FittedBranch, SsiError> {
+        let BranchEnd::Node { from, to } = end else {
+            return Ok(triple);
+        };
+        let (Some(&[a0, a1]), Some(&[b0, b1])) = (states.first_chunk(), states.last_chunk()) else {
+            return Ok(triple);
+        };
+        let (carrier, pa, pb) = triple;
+        let (t0, t1) = carrier.domain();
+        let chord = |a: &[f64; N], b: &[f64; N]| (b[0] - a[0]).hypot(b[1] - a[1]);
+        let length: f64 = states.windows(2).map(|w| chord(&w[0], &w[1])).sum();
+        let ratio_at = |level: u32| 1.0 - 1.0 / (3.0 * f64::from(1_u32 << level.min(16)));
+        let (coarse, fine) = (ratio_at(level), ratio_at(level + NODE_GRADE_FINE));
+        let mut add: Vec<f64> = Vec::new();
+        for (tip, t_end, sense, last) in [
+            (from, t0, 1.0, chord(&a0, &a1)),
+            (to, t1, -1.0, chord(&b0, &b1)),
+        ] {
+            if !matches!(tip, BranchTip::Node(_)) || !(last > 0.0 && length > last) {
+                continue;
+            }
+            // Spans shrink by `ratio` toward the end until their share of
+            // the domain is the last chord's, from the sample nearest the
+            // node to the node, of the arc's.
+            let floor = last / length;
+            let near = NODE_FINE_CHORDS * floor;
+            let mut share = coarse;
+            for _ in 0..NODE_GRADES {
+                if share <= floor {
+                    break;
+                }
+                add.push(t_end + sense * (t1 - t0) * share);
+                share *= if share > near { coarse } else { fine };
+            }
+        }
+        if add.is_empty() {
+            return Ok((carrier, pa, pb));
+        }
+        add.sort_by(f64::total_cmp);
+        add.dedup();
+        // Distinct values strictly inside the domain, each raising a
+        // knot's multiplicity by one at most, on unit weights: the
+        // insertion has no refusal to give, and one that came would be a
+        // defect of the knot algebra, named rather than dropped.
+        let refused = |_| SsiError::UnsupportedCertificate {
+            what: "the node grading's knot insertion refused distinct interior knots",
+        };
+        let carrier = carrier.refine_knots(&add).map_err(refused)?;
+        let pa = pa
+            .map(|p| p.refine_knots(&add))
+            .transpose()
+            .map_err(refused)?;
+        let pb = pb
+            .map(|p| p.refine_knots(&add))
+            .transpose()
+            .map_err(refused)?;
+        Ok((carrier, pa, pb))
     }
 
     /// The certificate on a fitted triple, and the branch.

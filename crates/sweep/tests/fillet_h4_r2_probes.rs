@@ -72,7 +72,7 @@ fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
         );
         assert_eq!(
             face.sense, want,
-            "{name}: the band face's sense is the chain's blend_sense()"
+            "{name}: the band face's sense is the chain's blend_sense"
         );
     }
 }

@@ -10,7 +10,9 @@
 //! met on the way telling its own true story or logged under the row
 //! that owns it (the module docs there state the rule). Each case also
 //! states the margin its geometry gives, and the value it quotes and
-//! offers is checked against it.
+//! offers is checked against it, but for the two cases
+//! [`QUOTED_AS_A_LENGTH`] names, whose quote is held to that margin's
+//! magnitude.
 //!
 //! The census is by construction: every refusal kind that quotes a
 //! margin of its own is placed by an exhaustive match ([`quoting`]),
@@ -131,14 +133,20 @@ struct Case {
     key: &'static str,
     /// The margin its first raise quotes, computed from its geometry
     /// (signed): the offer a valued case makes is this margin's `|m|/K`,
-    /// and a withdrawn case executes that value.
+    /// and a withdrawn case executes that value. The two cases
+    /// [`QUOTED_AS_A_LENGTH`] names declare a negative margin and quote
+    /// its magnitude.
     margin: f64,
     door: Door,
     offer: Offer,
 }
 
 impl Case {
-    /// The side of zero its refused margin lies on.
+    /// The side of zero its declared margin lies on: the side of the
+    /// offering arm the census counts it under, which for the two cases
+    /// [`QUOTED_AS_A_LENGTH`] names is not the side their raise quotes,
+    /// so those two negative arms are counted with no case that
+    /// executes them.
     fn positive(&self) -> bool {
         self.margin > 0.0
     }
@@ -389,13 +397,16 @@ cases! {
     // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
     // tolerance; the tolerance it withdrew decides the loop count. On
-    // either side the loops nearly meet at the far ruling (two loops
-    // past it, the figure-eight's lobes short of it), and the germ mint's
-    // march over them cannot prove one arc per tube there.
+    // either side the loops nearly meet at the far ruling. Past it, two
+    // loops, the germ mint's march over them cannot prove one arc per
+    // tube there. Short of it, the figure-eight's lobes, the ruling sweep
+    // that counts them cannot bracket the two branch points a band either
+    // side of the far ruling, and escalates on its discriminant
+    // (`work/sectarms/the-ruling-sweep-cannot-bracket-branch-points-a-band-from-a-node.md`).
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
         Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Refuses("Coincidence(Section)")) =>
         transverse_frame(-D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
@@ -953,7 +964,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         )
     };
     let glue_margin = match read(2e-9, design_band()) {
-        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             geom_core::test_support::upper(diag.margin)
         }
         other => panic!("in band at 2e-9: {other:?}"),
@@ -961,7 +972,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(D, design_band()),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart at D: {:?}",
         read(D, design_band())
@@ -971,7 +982,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(2e-9, tighter),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart below the glue door's offer {below:e}: {:?}",
         read(2e-9, tighter)
@@ -1091,7 +1102,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
     super::super::vtxfac::pierce_germ_dir(
         &s,
         Vec3::new(D.sin(), 0.0, D.cos()),
-        super::super::vtxfac::OutBound::Start,
+        crate::star::CutEnd::Start,
         band(),
     )
     .map(|_| ())
@@ -1426,8 +1437,8 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     )
     .map(|_| ())
     .map_err(|refusal| match refusal {
-        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
-            super::super::ops::seam_refusal(reading, diag)
+        super::super::ops::SeamRefusal::Undecided(escalation) => {
+            super::super::ops::seam_refusal(escalation)
         }
         mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
             panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
@@ -1493,7 +1504,7 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
-        branch: super::super::Branch::Only,
+        branch: geom_brep::SectionPick::Only,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
@@ -1859,6 +1870,16 @@ fn near(got: f64, want: f64) -> bool {
     (got - want).abs() <= 1e-4 * want.abs() + 1e-15
 }
 
+/// The cases declared negative whose first raise quotes their margin's
+/// magnitude: the conic root lane reads a root against an end, and two
+/// roots against each other, by the chord between their points, a
+/// length, so a root past its end and one short of it quote alike. A pin
+/// of what the lane reads, held by
+/// `every_offered_tolerance_passes_just_below_it`. Whether these cases stand for a negative arm
+/// at all is
+/// `work/onecopy/the-conic-root-lanes-chord-rungs-quote-a-length-where-two-offer-cases-declare-a-negative-margin.md`'s.
+const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_a_hair_apart"];
+
 /// **The value a case's first raise quotes and offers is its computed
 /// margin's**: the quoted margin is the one the case computes from its
 /// geometry, and a valued offer is that margin's `|m|/K` at the design
@@ -1866,10 +1887,15 @@ fn near(got: f64, want: f64) -> bool {
 /// an inflated value that still reaches a pass).
 fn check_value(case: &Case, text: &str) -> Result<(), String> {
     let quoted = quoted_margin(text);
-    if !quoted.is_some_and(|m| near(m, case.margin)) {
+    let computed = if QUOTED_AS_A_LENGTH.contains(&case.name) {
+        case.margin.abs()
+    } else {
+        case.margin
+    };
+    if !quoted.is_some_and(|m| near(m, computed)) {
         return Err(format!(
-            "{}: quotes margin {quoted:?}, computed {:e}: {text}",
-            case.name, case.margin
+            "{}: quotes margin {quoted:?}, computed {computed:e}: {text}",
+            case.name
         ));
     }
     let offered = test_utils::offer::offered_below(text);
@@ -2171,7 +2197,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::TouchesItself
-        | BooleanErrorKind::ToolSeatCrossed
+        | BooleanErrorKind::ToolSeatUnread
+        | BooleanErrorKind::ToolFuseRefused
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2182,6 +2209,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::Carve
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
@@ -2203,6 +2231,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Merge
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
+        | BooleanErrorKind::OneRecordUncertified
         | BooleanErrorKind::Join
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
@@ -2477,6 +2506,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_ladder_rows.rs",
+        "a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean",
+        "BooleanDecision::Torus",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2553,7 +2588,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
-    ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
@@ -2654,6 +2688,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "verify_tangency", "LeverArm::TangentLocus", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
@@ -2886,6 +2921,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
+    (
+        "sectors.rs",
+        "order_fault",
+        "BooleanDecision::DirectionSense",
+        1,
+    ),
+    ("sectors.rs", "order_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),

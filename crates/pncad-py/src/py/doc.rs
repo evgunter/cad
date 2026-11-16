@@ -904,6 +904,14 @@ impl AtArg {
             Self::Var(var) => pncad::select::At::Read(var.0),
         }
     }
+
+    /// The read as an operand.
+    pub(crate) fn read(self) -> d::Operand {
+        match self {
+            Self::Node(node) => d::Operand::Node(node.0),
+            Self::Var(var) => d::Operand::Var(var.0),
+        }
+    }
 }
 
 /// **One member of a family, read by index** (REFERENCES DM3, D10
@@ -916,7 +924,7 @@ impl AtArg {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IndexedRead {
-    read: OperandArg,
+    read: AtArg,
     at: Vec<d::Formula>,
 }
 
@@ -932,7 +940,7 @@ pub(crate) enum IndexArg {
 
 impl IndexedRead {
     /// `read` at `index`, each read as a count.
-    fn of(py: Python<'_>, read: OperandArg, index: &IndexArg) -> PyResult<Self> {
+    fn of(py: Python<'_>, read: AtArg, index: &IndexArg) -> PyResult<Self> {
         let at = match index {
             IndexArg::One(one) => vec![one.formula(py, d::Dimension::Count)?],
             IndexArg::Many(many) => many
@@ -948,35 +956,71 @@ impl IndexedRead {
 impl IndexedRead {
     fn __repr__(&self) -> String {
         let read = match &self.read {
-            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
-            OperandArg::Var(var) => format!("Var({})", var.0.full()),
-            OperandArg::Pose(_) | OperandArg::Pick(_) => {
-                unreachable!(
-                    "an indexed read is `[]` on a node or a variable, never a pose or a pick"
-                )
-            }
+            AtArg::Node(node) => format!("NodeId({})", node.0.full()),
+            AtArg::Var(var) => format!("Var({})", var.0.full()),
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
         format!("{read}[{}]", at.join(", "))
     }
 }
 
-/// **A read at a body seat as Python writes it**: an operand read
-/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
-#[derive(FromPyObject, Clone)]
-pub(crate) enum BodyArg {
-    /// One member of a family.
-    Indexed(IndexedRead),
-    /// An operand, read plainly.
-    Read(OperandArg),
+impl IndexedRead {
+    /// **The member this read names, as a materializer reads it**: the
+    /// family's read and the member's index values, each a count `doc`
+    /// holds — a count literal or a free count, the rule a mate side's
+    /// index keeps. A materializer reads no index an expression would
+    /// have to evaluate.
+    pub(crate) fn member(&self, doc: &d::ProfileDoc) -> PyResult<(pncad::select::At, Vec<u32>)> {
+        let member = self.body().written_member(doc).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "a member read here is at counts the document holds (a count, or a free \
+                 count), not {}",
+                self.at
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })?;
+        Ok((self.read.at(), member))
+    }
+
+    /// The family's read, a node or a variable.
+    pub(crate) fn family(&self) -> AtArg {
+        self.read
+    }
+
+    /// The authored read.
+    pub(crate) fn body(&self) -> d::BodyRead<d::Formula> {
+        d::BodyRead::indexed(self.read.read(), self.at.clone())
+    }
 }
+
+/// **A read, or one member of a family, as Python writes it**: `op[i]`
+/// ([`IndexedRead`]) or the read `R` plainly — an operand at a body
+/// seat ([`BodyArg`]), a node or a variable at a name door
+/// ([`SelectAt`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum MemberOr<R> {
+    /// One member of a family.
+    Member(IndexedRead),
+    /// The read, plainly.
+    Plain(R),
+}
+
+/// What a body seat takes.
+pub(crate) type BodyArg = MemberOr<OperandArg>;
+
+/// What a name door reads in: one member of a family, or a node or a
+/// variable read as one body.
+pub(crate) type SelectAt = MemberOr<AtArg>;
 
 impl BodyArg {
     /// The authored read.
     pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
         match self {
-            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
-            Self::Read(read) => d::BodyRead::plain(read.read()),
+            Self::Member(read) => read.body(),
+            Self::Plain(read) => d::BodyRead::plain(read.read()),
         }
     }
 }
@@ -1016,7 +1060,7 @@ impl NodeId {
     /// One member of the family this node's output is, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Node(*self), &index)
+        IndexedRead::of(py, AtArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -1086,7 +1130,8 @@ impl Doc {
                     d::VarDef::Output { .. }
                     | d::VarDef::Select(_)
                     | d::VarDef::Pose(_)
-                    | d::VarDef::Pick(_) => held.kind().dimension(),
+                    | d::VarDef::Pick(_)
+                    | d::VarDef::Source(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1724,7 +1769,7 @@ impl Doc {
     fn sketch_on_face(
         &mut self,
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         face: &str,
         outline: &Bound<'_, PyAny>,
         distance: super::expr::SlotArg,
@@ -1772,13 +1817,20 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
-    /// **A takeover**: each of `copies` (placements) re-pointed to copy
-    /// `result`, which replaces the body they copied, and every
-    /// selection that read one of them rebound where the result carries
+    /// **A takeover**: the source each of `copies` (placements) reads its
+    /// body through (VARIABLES VR4) redefined as a read of `result`, which
+    /// replaces the body they copied, and every selection that read one of
+    /// them, or selected in the source, rebound where the result carries
     /// its entity (a face, an edge or a vertex) as one entity; one the
     /// result splits, ties or consumes stays stale. One action. Answers
     /// each name moved, as `(copy, old name, new name)`, for a name held
     /// outside the document.
+    ///
+    /// Redefining a source re-points every copy reading it, so every copy
+    /// reading a named copy's source is named too, or the call refuses
+    /// `take_over_shared_source` naming one left out. A copy given twice
+    /// refuses `take_over_repeats_copy`, and a node that is no placement
+    /// `unknown_slot` (only a placement reads a source).
     ///
     /// Reading where a name went evaluates the document, under
     /// `resolver=` as `evaluate` takes it: a document with instances
@@ -1795,7 +1847,58 @@ impl Doc {
         result: OperandArg,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Vec<(NodeId, String, String)>> {
-        let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
+        // Each copy's source, once. Redefining a source re-points every
+        // copy reading it, so a source another copy reads is refused unless
+        // that copy is named too.
+        let named: Vec<d::RecipeNodeId> = copies.iter().map(|c| c.0).collect();
+        let mut sources: Vec<d::VarId> = Vec::new();
+        for (at, &copy) in named.iter().enumerate() {
+            if named[..at].contains(&copy) {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::TakeOverRepeatsCopy {
+                        node: self.inner.spoken(copy),
+                    },
+                ));
+            }
+            let Some(source) = self.inner.copied_read(copy) else {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::UnknownSlot {
+                        id: self.inner.spoken(copy),
+                        slot: d::SlotId::Operand(d::OperandSlot::Source),
+                    },
+                ));
+            };
+            let reads = |placement: d::RecipeNodeId| {
+                self.inner.copied_read(placement).is_some_and(|read| {
+                    read == source
+                        || self
+                            .inner
+                            .source_steps(read)
+                            .iter()
+                            .any(|&(step, _)| step == source)
+                })
+            };
+            if let Some(other) = self
+                .inner
+                .placements()
+                .into_iter()
+                .find(|&placement| reads(placement) && !named.contains(&placement))
+            {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::TakeOverSharedSource {
+                        copy: self.inner.spoken(copy),
+                        source: Box::new(self.inner.spoken_var(source)),
+                        other: Box::new(self.inner.spoken(other)),
+                    },
+                ));
+            }
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
         let result = result.read();
         let opts = d::EvalOptions {
             resolver: seam(resolver),
@@ -1804,7 +1907,7 @@ impl Doc {
         let tol = Tol::witness();
         let done = d::take_over(
             &self.inner,
-            &copies,
+            &sources,
             &result,
             &opts,
             &d::CancelToken::new(),
@@ -1843,8 +1946,13 @@ impl Doc {
     /// `Doc.set_product` names. A split's half is placed by its output,
     /// `place(doc.output(split, 1))`.
     ///
-    /// Two placements of one body are two copies. `label=` labels the
-    /// placement in the same call, as `insert`'s does.
+    /// A placement reads its body through a source (VARIABLES VR4): a
+    /// body passed here gets an anonymous source minted for this call, so
+    /// two calls are two copies through two sources; a source passed
+    /// (`VarDecl.source`, or a source named with `rename_var`) is shared,
+    /// and redefining it (`define_var`) re-points every placement reading
+    /// it. `label=` labels the placement in the same call, as `insert`'s
+    /// does.
     #[pyo3(signature = (source, target, constraints=None, *, label=None))]
     fn place(
         &mut self,
@@ -2993,7 +3101,9 @@ impl Node {
     }
 
     /// Constant-radius rolling-ball blends on a SELECTION of
-    /// `target`'s edges.
+    /// `target`'s edges: a body, or one member of a family, `xs[i]`,
+    /// whose edges are named by the member's own names
+    /// (`Evaluation.select(xs[i], ...)`).
     ///
     /// `selection` is edge names as text: the strings
     /// `Evaluation.all_edges` answers with, or the ones a role-name
@@ -3029,7 +3139,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3073,7 +3183,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3128,7 +3238,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
@@ -3173,7 +3283,7 @@ impl Node {
     fn drawn_profile(
         py: Python<'_>,
         frame: OperandArg,
-        faces: Vec<(OperandArg, String)>,
+        faces: Vec<(BodyArg, String)>,
         outline: super::trace::Outline,
     ) -> PyResult<Self> {
         super::trace::drawn_profile(py, frame, faces, outline)
@@ -3606,8 +3716,8 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (a, b, *, at_least=None, at_most=None, equal=None))]
     fn clearance(
-        a: (NodeId, String),
-        b: (NodeId, String),
+        a: (super::measure::CellAt, String),
+        b: (super::measure::CellAt, String),
         at_least: Option<&super::expr::Formula>,
         at_most: Option<&super::expr::Formula>,
         equal: Option<&super::expr::Formula>,
@@ -3723,7 +3833,7 @@ impl Var {
     /// One member of the family this variable holds, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Var(*self), &index)
+        IndexedRead::of(py, AtArg::Var(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -3892,12 +4002,23 @@ impl VarDecl {
         }))
     }
 
-    /// The defining expression, or `None` for a free variable or an
-    /// index.
+    /// **A source** `bracket = B` (VARIABLES VR4): a `Body` variable
+    /// defined as a read of `body` — a node, a port, a member `op[i]`, a
+    /// pick or another source — which placements read their body
+    /// through. Declared under a name, it is how several placements
+    /// share one body (`Doc.place(bracket, …)`), and redefining it
+    /// (`define_var`) re-points every placement reading it.
+    #[staticmethod]
+    fn source(body: BodyArg) -> Self {
+        Self(d::VarDecl::Source(body.read()))
+    }
+
+    /// The defining expression, or `None` for a free variable, an
+    /// index or a source.
     #[getter]
     fn expr(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Free(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Free(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
             d::VarDecl::Defined(expr) => Some(super::expr::Formula(expr.clone())),
         }
     }
@@ -3907,7 +4028,7 @@ impl VarDecl {
     fn value(&self) -> Option<FreeVar> {
         match &self.0 {
             d::VarDecl::Free(free) => Some(FreeVar(free.clone())),
-            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3916,7 +4037,7 @@ impl VarDecl {
     fn count(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { count, .. } => Some(super::expr::Formula(count.clone())),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3926,7 +4047,7 @@ impl VarDecl {
     fn within(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3948,6 +4069,10 @@ impl VarDecl {
                     ),
                 }
             }
+            d::VarDecl::Source(body) => match body.at.len() {
+                0 => format!("VarDecl.source({})", body.read),
+                _ => format!("VarDecl.source(a member of {})", body.read),
+            },
         }
     }
 }

@@ -61,12 +61,8 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    let ball = topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(centre).unwrap(),
-        tol,
-    )
-    .unwrap();
+    let ball = topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(centre).unwrap())
+        .unwrap();
     finished("the ball", ball, tol)
 }
 

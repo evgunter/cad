@@ -150,7 +150,7 @@ fn r1_read_back_at_the_chains_pole_turns_as_the_rotation_does() {
         Coord::Spin(Some(TargetAxis::Z)),
     ];
     let band = pncad::geom_core::Band::linear(Tol::witness()).expect("a band");
-    let read = editor_core::mate::read_back(None, &at, &coords, band);
+    let read = editor_core::mate::read_back(None, &at, &coords, band, Tol::witness());
     let [Some(x), Some(y), Some(z)] = read[..] else {
         panic!("the chain reads: {read:?}")
     };
@@ -201,9 +201,10 @@ fn r1_place_undoes_to_the_exact_prior_document() {
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
     let before = session.committed_doc().clone();
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(body),
-    });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), Operand::Node(body))
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let outcome = session.perform(SessionOp::Undo);

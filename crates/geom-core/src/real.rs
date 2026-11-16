@@ -390,7 +390,7 @@ pub trait Real:
     /// through on purpose (an overflowed norm still ENCLOSES the true
     /// length); this one is for a value that must itself be finite to
     /// be what its type claims — a rigid motion's angle and
-    /// translation (`linalg::RigidMotion`'s mints and decided door), and
+    /// translation (`linalg::RigidMotion`'s mints and `f64` door), and
     /// a length every rung of a door levers by (`topo`'s
     /// `chart_region::edge_lengths`), where an enclosure reaching `∞`
     /// would divide a finite height to zero at its lower end.
@@ -407,6 +407,19 @@ pub trait Real:
     /// pass an unbounded enclosure silently. Each scalar states its
     /// own reading.
     fn is_bounded(self) -> bool;
+
+    /// **Is this scalar an exact zero in every channel it carries?** At
+    /// the point and interval scalars, [`is_exact_zero`] (the value
+    /// channel is the scalar). A scalar that carries more than its value
+    /// overrides it to ask each channel: at the dual scalar the value and
+    /// the derivative both exactly zero, so an exact test made through it
+    /// holds of the function and not only of its value at the point. It
+    /// is how a structural shortcut taken on an exact zero (the least
+    /// turn's identity, [`crate::UnitVec3::is_exactly`]) keeps every
+    /// channel the arithmetic it skips would have carried.
+    fn is_exact_zero_in_every_channel(self) -> bool {
+        is_exact_zero(self)
+    }
 
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
     /// E12's "kept in reserve — discharge by provenance"): a
@@ -1660,6 +1673,29 @@ pub mod bounds_allowlist {
     //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
     //! M6-2/M7-8 entries above with nothing wider.
     //!
+    //! **2026-11 (PR 6532; under the M7-8 / C2 precedent; retroactive Ev
+    //! review) — `geom_brep::edge_nurbs`'s `general_chart_image`**, the
+    //! pcurve mint's image of every carrier on a spline chart, rides at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `chart_image`'s bound and nothing wider. Necessity: its first rung
+    //! IS `chart_image` at that bound, and whether it climbs, its rungs and
+    //! its breaks are structure read in `f64` (the wall's held knot lines,
+    //! the miss at the scalar's midpoint), which [`Real`](super::Real) offers no read for
+    //! but `Bounds::lo`/`hi`; drop `Bounds` (the next tighter bound) and
+    //! neither the first rung's call nor those reads compile, and dropping
+    //! `CertifiedEnclosure` fails that call likewise.
+    //!
+    //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
+    //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's
+    //! certificate for a sphere, cylinder or torus beside a spline chart,
+    //! and `residual_nurbs_limbs`, the body it shares with
+    //! `plane_nurbs_limbs`, ride at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `plane_nurbs_limbs`'s bound and nothing wider. Necessity: the shared
+    //! body is the plane lane's own, which calls `chart_image` and the
+    //! rung-3 door at that bound, and the twin is a second door onto it;
+    //! drop either term and neither call compiles.
+    //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
     //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
@@ -1718,8 +1754,9 @@ pub mod bounds_allowlist {
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
-    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
-    //! disclosed here rather than left to be discovered: check 1's
+    //! not at the grep.** ONE `lo` and ONE `hi` call appear in
+    //! `validate.rs`, and they are disclosed here rather than left to be
+    //! discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
     //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
@@ -1728,7 +1765,11 @@ pub mod bounds_allowlist {
     //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
     //! for the axisymmetric kinds of both, the frame's unit-ness and
     //! orthogonality stated as ε-slack margins at the kind's radius), the
-    //! representability read. The certified half's own
+    //! representability read. Its `hi` decides nothing either: the datum
+    //! passes on `lo` alone, and `hi` only says which refusal a margin not
+    //! passed is reported as, outside the convention where the whole
+    //! bracket is, undecided where it straddles zero (ONEHOME fork 259).
+    //! The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
     //! its convention with zero — a radius that is zero, negative or poison
@@ -1749,7 +1790,7 @@ pub mod bounds_allowlist {
     //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
     //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
     //! counts the file's bracket reads over the code view against the
-    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
+    //! two disclosed here and reds on a third. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.

@@ -312,6 +312,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::Family { .. } => "family",
+        R::NoMember { .. } => "no_member",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -669,6 +671,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::WitnessOnNonSketch { .. } => "witness_on_non_sketch",
         EditError::DuplicateWitnessEntry { .. } => "duplicate_witness_entry",
         EditError::TakeOverRepeatsCopy { .. } => "take_over_repeats_copy",
+        EditError::TakeOverNotASource { .. } => "take_over_not_a_source",
+        EditError::TakeOverSharedSource { .. } => "take_over_shared_source",
+        EditError::SourceReaderRefused { .. } => "source_reader_refused",
         EditError::EmptyWitnessBulk => "empty_witness_bulk",
         EditError::NameUnresolvedInEvaluation { .. } => "name_unresolved_in_evaluation",
         EditError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
@@ -693,6 +698,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // An index's own declaration, and a reader of two indices
         // neither within the other (D10 `[repetition]`).
         EditError::Index { .. } => "index",
+        EditError::SourceRead { .. } => "source_read",
+        EditError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
         EditError::IndicesUnrelated { .. } => "indices_unrelated",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
@@ -1208,6 +1215,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::WitnessOnNonSketch { .. } => None,
         EditError::DuplicateWitnessEntry { .. } => None,
         EditError::TakeOverRepeatsCopy { .. } => None,
+        EditError::TakeOverNotASource { .. } => None,
+        EditError::TakeOverSharedSource { .. } => None,
+        EditError::SourceReaderRefused { .. } => None,
         EditError::EmptyWitnessBulk => None,
         EditError::NameUnresolvedInEvaluation { .. } => None,
         EditError::EvaluationOfAnotherDocument { .. } => None,
@@ -1228,6 +1238,15 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             pncad::document::IndexFault::CountNotCount { .. } => "count_not_count",
             pncad::document::IndexFault::WithinNoIndex => "within_no_index",
         }),
+        EditError::SourceRead { fault, .. } => Some(match fault {
+            pncad::document::SourceFault::Unresolved { .. } => "unresolved",
+            pncad::document::SourceFault::WrittenInPlace => "written_in_place",
+            pncad::document::SourceFault::Kind { .. } => "kind",
+            pncad::document::SourceFault::IndexNotCount { .. } => "index_not_count",
+            pncad::document::SourceFault::IndexRank { .. } => "index_rank",
+            pncad::document::SourceFault::Fresh => "fresh",
+        }),
+        EditError::PlacementReadsNoSource { .. } => None,
         EditError::IndicesUnrelated { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
@@ -1268,6 +1287,8 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::NearFullArc(_) => "near_full_arc",
         ProfileError::InconsistentArc { .. } => "inconsistent_arc",
         ProfileError::ArcBelowSceneResolution { .. } => "arc_below_scene_resolution",
+        ProfileError::InconsistentDirection { .. } => "inconsistent_direction",
+        ProfileError::DirectionBelowSceneResolution { .. } => "direction_below_scene_resolution",
         ProfileError::NonSimple { .. } => "non_simple",
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",
@@ -1325,8 +1346,6 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::SliverJoin { .. } => "sliver_join",
         ExtrudeError::SliverRim { .. } => "sliver_rim",
         ExtrudeError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
-        ExtrudeError::CapPlane { .. } => "cap_plane",
-        ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
         ExtrudeError::Pcurve(_) => "pcurve",
         ExtrudeError::NotFinished { .. } => "not_finished",
@@ -1362,7 +1381,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRim { .. } => "sliver_rim",
         RevolveError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
         RevolveError::PinnedRunStation { .. } => "pinned_run_station",
-        RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",
         RevolveError::NotFinished { .. } => "not_finished",
@@ -1444,6 +1462,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedCorner { .. } => "unsupported_corner",
         BlendError::SpineUnsupported { .. } => "spine_unsupported",
         BlendError::ChamferArmUnsupported { .. } => "chamfer_arm_unsupported",
+        BlendError::WedgeUnsettled { .. } => "wedge_unsettled",
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
@@ -1515,7 +1534,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::TouchesItself => "touches_itself",
-        BooleanErrorKind::ToolSeatCrossed => "tool_seat_crossed",
+        BooleanErrorKind::ToolSeatUnread => "tool_seat_unread",
+        BooleanErrorKind::ToolFuseRefused => "tool_fuse_refused",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1537,7 +1557,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinPairsTied => "join_pairs_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
+        BooleanErrorKind::OneRecordUncertified => "one_record_uncertified",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::Carve => "carve",
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
@@ -1568,12 +1590,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
 pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
         TransformError::Pcurve { .. } => "pcurve",
-        TransformError::Band(_) => "band",
-        TransformError::Certify { .. } => "certify",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
-        TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
 }
@@ -1605,6 +1623,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
         SkinError::PathStationsCoincide { .. } => "path_stations_coincide",
         SkinError::PathFoldsBack { .. } => "path_folds_back",
+        SkinError::PathRollAlongTangent { .. } => "path_roll_along_tangent",
         SkinError::PathUndecided { .. } => "path_undecided",
         SkinError::StationNotFinite { .. } => "station_not_finite",
         SkinError::Band(_) => "band",
@@ -1636,7 +1655,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Band(_) => "band",
         LoftError::Skin(_) => "skin",
         LoftError::Euler(_) => "euler",
-        LoftError::CapPlane(_) => "cap_plane",
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
@@ -1952,6 +1970,8 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
+        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
+        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2033,6 +2053,9 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
+        SnapshotError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
+        SnapshotError::SourceReadKind { .. } => "source_read_kind",
+        SnapshotError::SourceReadRank { .. } => "source_read_rank",
         SnapshotError::SelectionShape { .. } => "selection_shape",
         SnapshotError::SelectionBody { .. } => "selection_body",
         SnapshotError::PoseShape { .. } => "pose_shape",
@@ -2172,7 +2195,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
-        StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
@@ -2237,6 +2259,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+        NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
     }
 }
 
@@ -2573,6 +2596,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
+        InlineError::SelectionSpansMembers { .. } => "selection_spans_members",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
@@ -2591,6 +2615,7 @@ pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
         FlattenError::NotANewSpace { .. } => "not_a_new_space",
         FlattenError::SpaceShared { .. } => "space_shared",
         FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::SelectionSpansMembers { .. } => "selection_spans_members",
         FlattenError::BothNamed { .. } => "both_named",
         FlattenError::Edit { .. } => "flatten_edit",
     }
@@ -3000,6 +3025,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
+        S::SmoothJoin => "smooth_join",
     }
 }
 
@@ -3112,6 +3138,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
         ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
+        ValidationError::SurfaceDatumUndecided { .. } => "surface_datum_undecided",
+        ValidationError::CurveDatumUndecided { .. } => "curve_datum_undecided",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
@@ -3205,6 +3233,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::OrphanEntity { .. } => "orphan_entity",
         ValidationError::MultiplyOwned { .. } => "multiply_owned",
         ValidationError::OrphanGeometry { .. } => "orphan_geometry",
+        ValidationError::Unmovable { .. } => "unmovable",
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
@@ -3491,5 +3520,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
+        F::Input(fault) => input_fault_tag(fault),
+        F::SideIndex { .. } => "side_index",
     }
 }

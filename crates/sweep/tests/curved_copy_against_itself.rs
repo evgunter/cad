@@ -60,7 +60,6 @@ fn shifted(body: &Body<f64>, by: Vec3<f64>) -> Body<f64> {
     topo::transform_rigid(
         body,
         &geom_core::test_support::rigid(&Affine3::translation(by), tol()),
-        tol(),
     )
     .unwrap()
 }
@@ -288,8 +287,7 @@ fn a_curved_body_against_its_copy_in_another_chart_is_one_body() {
     });
     for (label, body, want, turn) in cases.chain([pole_turned]) {
         let turned =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()), tol())
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol())).unwrap();
         for (op, r) in every_op(&body, &turned) {
             let label = format!("{label} against its copy turned, {op}");
             if op.contains('∖') {

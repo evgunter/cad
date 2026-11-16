@@ -292,15 +292,16 @@ impl<T: Decide> Azimuth<T> {
     /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
     /// in band just inside the open end, at angle `−1 + δ`, reads
     /// `τ − 1 + δ`: the turned formula, a hair past the window, which
-    /// placement's marks take back. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
+    /// placement's marks take back. A direction whose length may be zero
+    /// ([`geom_core::structure_nonzero`]'s structure decision) names no
+    /// angle, and every angle names its zero-length vector alike: it reads
+    /// `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)` does at
+    /// `f64` (a pole's zero-radius parallel, a sub-band rim's centre on the
+    /// axis). At `Interval` the rule broadens the same way: an enclosure of
+    /// the length that straddles zero reads `0` too, although the direction
+    /// it encloses may have length. A direction with a component that is not
+    /// finite is no direction of no length: it names none, and reads NaN, as
+    /// [`Self::near`] does.
     pub fn principal(self, band: Band) -> T {
         self.principal_in(Window::Angle, band)
     }
@@ -308,8 +309,10 @@ impl<T: Decide> Azimuth<T> {
     /// The angle read in `window`: as [`Azimuth::principal`] reads in the
     /// angle window, with the cut line through `window`'s own start, so a
     /// direction decided on either side reads in that window and the
-    /// read's one jump is the window's cut. A direction of no length reads
-    /// `0`, in every window.
+    /// read's one jump is the window's cut. The sheet's window is the angle
+    /// window's read renamed by whole turns to within half a turn of zero
+    /// ([`Period::near`], a tie to `π`), so its one jump is at `±π`. A
+    /// direction of no length reads `0`, in every window.
     pub fn principal_in(self, window: Window, band: Band) -> T {
         self.read_in_as(window, "pcurve_chart_cut_side", band)
     }
@@ -378,10 +381,25 @@ impl<T: Decide> Azimuth<T> {
     }
 
     fn read_in_as(self, window: Window, row: &'static str, band: Band) -> T {
+        // Poison first, as `near` reads it: a NaN or infinite component
+        // names no direction, so it reads no angle rather than the chart's
+        // `u_ref`, which is what a zero length reads.
+        if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
+        {
+            return T::from_f64(f64::NAN);
+        }
         if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
-        stable_azimuth_as(row, self.y, self.x, window.start(), band)
+        match window {
+            Window::Angle | Window::Latitude => {
+                stable_azimuth_as(row, self.y, self.x, window.start(), band)
+            }
+            Window::Sheet => Period::angle().near(
+                stable_azimuth_as(row, self.y, self.x, Window::Angle.start(), band),
+                T::zero(),
+            ),
+        }
     }
 }
 
@@ -408,18 +426,24 @@ pub fn separation<T: Real>(theta: T, at: T) -> T {
 /// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
 /// meridian's placed polar angle, the parallel's `asin` and the
 /// projected image's latitude, which is never moved, are one convention.
+/// A spindle sheet's tube angle is closed on `[−v*, v*]`, `v* ≤ π`, so it
+/// is named in `(−π, π]`, centred on zero: that window's cut meets the
+/// sheet only at a horn's cusp, where the chart is singular.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Window {
     /// An angle of a periodic chart.
     Angle,
-    /// A sphere's latitude, and a spindle sheet's tube angle (which it
-    /// holds whole for `v* < π − 1`).
+    /// A sphere's latitude.
     Latitude,
+    /// A spindle sheet's tube angle, `(−π, π]`.
+    Sheet,
 }
 
-/// Every window's start lies in `(−π, 0]`, which `stable_azimuth_as`'s two
-/// formulas need to cover `(start, start + τ]`; a start moved outside it
-/// fails the build.
+/// Every window read by `stable_azimuth_as` from its own start has that
+/// start in `(−π, 0]`, which its two formulas need to cover
+/// `(start, start + τ]`; a start moved outside it fails the build. The
+/// sheet's window, whose start is `−π`, is read in the angle window and
+/// renamed by whole turns ([`Azimuth::principal_in`]).
 const _: () = {
     use core::f64::consts::PI;
     assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
@@ -432,6 +456,7 @@ impl Window {
         match self {
             Window::Angle => T::from_f64(ANGLE_WINDOW_START),
             Window::Latitude => T::from_f64(LATITUDE_WINDOW_START),
+            Window::Sheet => -T::pi(),
         }
     }
 
@@ -468,6 +493,30 @@ mod tests {
     use geom_core::Real;
 
     use super::*;
+
+    /// **A poisoned direction names no angle**: a NaN or infinite
+    /// component reads NaN through the principal read and through `near`
+    /// alike, never the chart's `u_ref`, which is what a direction of no
+    /// length reads (`0`).
+    #[test]
+    fn a_poisoned_direction_reads_no_angle() {
+        let band = Band::least();
+        for (y, x) in [
+            (f64::NAN, 1.0),
+            (0.0, f64::NAN),
+            (f64::INFINITY, 1.0),
+            (1.0, f64::NEG_INFINITY),
+        ] {
+            let az = Azimuth::of(y, x);
+            assert!(az.principal(band).is_nan(), "({y}, {x}) principal");
+            assert!(az.near(0.5).is_nan(), "({y}, {x}) near");
+        }
+        assert_eq!(
+            Azimuth::of(0.0, 0.0).principal(band),
+            0.0,
+            "no length reads u_ref"
+        );
+    }
 
     /// The two doors agree **bit for bit** with the formula
     /// `DESIGN.md`'s parameterization row and the two module headers

@@ -31,7 +31,7 @@
 //! `tog_fig18_worked_example`).
 
 use super::{BooleanOp, Operand, SideCode};
-use crate::boolean::plane_eq::PlaneRelation;
+use geom_brep::CarrierRelation;
 
 /// Which 4-way component an on-sector is lumped into, expressed as the
 /// side code the sector's bounds are rewritten to.
@@ -39,16 +39,16 @@ use crate::boolean::plane_eq::PlaneRelation;
 /// Reading: for an A-sector on B, `Out` means "treated as AoutB";
 /// for a B-sector on A, `Out` means "treated as BoutA".
 ///
-/// Stated for the glue's kept side ([`super::glue::KEPT`]): where the
-/// lump keeps one copy of the region ([`lump_keeps_one`]), the kept
-/// side's sector lumps to the side `op` keeps for its operand and the
-/// other's to the side `op` drops; elsewhere both lump to the side
+/// Stated for the first-written side ([`super::glue::FIRST_WRITTEN`]):
+/// where the lump keeps one copy of the region ([`lump_keeps_one`]),
+/// that side's sector lumps to the side `op` keeps for its operand and
+/// the other's to the side `op` drops; elsewhere both lump to the side
 /// dropped. With A kept this is the book's table, cell for cell:
 /// ∪: AonB⁺→AoutB, AonB⁻→AinB; BonA±→BinA. ∩ and ∖ share a row
 /// (A∖B ≡ A∩revert(B)): AonB⁺→AinB, AonB⁻→AoutB; BonA±→BoutA.
-pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> SideCode {
+pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: CarrierRelation) -> SideCode {
     let kept = super::finish::kept_side(op, on_side);
-    if kept_copy(op, relation) == Some(on_side) {
+    if surviving_copy(op, relation) == Some(on_side) {
         kept
     } else {
         kept.opposite()
@@ -61,12 +61,12 @@ pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> 
 /// (`BooleanNaming::substituted`): where the two faces' materials lie
 /// on the side the op keeps one of, ∪ and ∩ on same-oriented faces and
 /// ∖ on opposed ones (B is reverted). The other arms keep neither copy.
-pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
+pub fn lump_keeps_one(op: BooleanOp, relation: CarrierRelation) -> bool {
     debug_assert!(matches!(
         relation,
-        PlaneRelation::SameOriented | PlaneRelation::SameOpposite
+        CarrierRelation::SameOriented | CarrierRelation::SameOpposite
     ));
-    let aligned = matches!(relation, PlaneRelation::SameOriented);
+    let aligned = matches!(relation, CarrierRelation::SameOriented);
     match op {
         BooleanOp::Union | BooleanOp::Intersect => aligned,
         BooleanOp::Subtract => !aligned,
@@ -75,10 +75,12 @@ pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
 
 /// Which operand's copy of a coincident sector pair's region the Eq.
 /// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]): the
-/// glue's kept side ([`super::glue::KEPT`]), whose description the
-/// overlap carries into the merge.
-pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
-    lump_keeps_one(op, relation).then_some(super::glue::KEPT)
+/// first-written side's ([`super::glue::FIRST_WRITTEN`]). The face it
+/// keeps ends on the record the glue's census keeps
+/// ([`super::glue::GlueCensus`]), moved there by the one-record act
+/// where that is the other side's.
+pub fn surviving_copy(op: BooleanOp, relation: CarrierRelation) -> Option<Operand> {
+    lump_keeps_one(op, relation).then_some(super::glue::FIRST_WRITTEN)
 }
 
 #[cfg(test)]
@@ -86,8 +88,8 @@ pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
 mod tests {
     use super::*;
     use BooleanOp::{Intersect, Subtract, Union};
+    use CarrierRelation::{SameOpposite as Minus, SameOriented as Plus};
     use Operand::{A, B};
-    use PlaneRelation::{SameOpposite as Minus, SameOriented as Plus};
     use SideCode::{In, Out};
 
     /// The lump keeps one copy of a coincident region exactly where the

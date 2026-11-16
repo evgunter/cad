@@ -21,7 +21,7 @@ fn read(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     classify(
         f,
         g,
-        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.0)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.0)),
         None,
         Some(geom_brep::SsiLane::marched()),
         band(),
@@ -394,7 +394,7 @@ fn the_hull_is_the_first_door_and_no_lane_has_no_arm() {
         classify(
             f,
             &dome(),
-            &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.0)),
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), 1.0)),
             None,
             None,
             band(),
@@ -610,5 +610,26 @@ fn a_spline_wall_touching_a_sphere_is_read_as_a_touch() {
     assert!(
         t.name == "spline_critical_value" && (t.at - p(0.5, 0.5, 0.0)).norm() <= 1e-6,
         "the touch at the dome's top: {t:?}"
+    );
+}
+
+/// **A spline node reads through its carried arcs.** The cross saddle
+/// `z = 4(x − ½)(y − ½)` against `z = 0`: the value lists the node at the
+/// centre and its four arcs, each carried on to the node (C5), so the
+/// certificate reads the section through its components, the four arcs
+/// one node-joined part reaching the wall's sides, rather than the
+/// tangency the node was decided by. Red against a node read as R-tan
+/// whose arcs are all carried (the certificate would refuse a section
+/// the join builds).
+#[test]
+fn a_spline_node_reads_through_its_carried_arcs() {
+    let a = [-0.5, 0.0, 0.5];
+    let s = read(&level(0.0), &net(&|i, j| 4.0 * a[i] * a[j]));
+    let Section::Components { parts, single } = &s else {
+        panic!("read through its components: {s:?}");
+    };
+    assert!(
+        *single && parts.len() == 1 && parts[0].reaches.is_some() && !parts[0].unbounded,
+        "the four arcs one node-joined part reaching a side: {s:?}"
     );
 }

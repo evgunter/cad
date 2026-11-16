@@ -302,14 +302,12 @@ fn r2_an_operand_with_a_stale_row_is_refused_at_the_gate() {
     let mut maimed = vessel(1.0, 2.0);
     let (he, element) = maimed
         .joints()
-        .find_map(|(he, e)| match e {
-            topo::JointElement::Shift(deck) => Some((he, deck)),
-            topo::JointElement::Reset(_) => None,
-        })
+        .map(|(he, e)| (he, e.deck()))
+        .next()
         .expect("the vessel carries rows");
     maimed.attach_joint(
         he,
-        topo::JointElement::Shift(topo::Deck {
+        topo::JointElement(topo::Deck {
             u: element.u + 1,
             ..element
         }),
