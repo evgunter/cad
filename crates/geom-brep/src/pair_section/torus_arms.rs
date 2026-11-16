@@ -21,8 +21,15 @@ pub(super) enum ArmRefusal {
     /// A margin decided `Zero`, or undecided: the components pinch.
     Pinch(Pinch),
     /// A crossing of the carriers the closed form cannot place on either
-    /// side of a line it reads the section by, named.
-    Unordered(&'static str),
+    /// side of a line it reads the section by, named, with the side's
+    /// margin's diagnostics where it was undecided rather than decided
+    /// `Zero` ([`Pinch::undecided`]).
+    Unordered {
+        /// The reading.
+        predicate: &'static str,
+        /// The diagnostics, where the side was undecided.
+        undecided: Option<Indeterminate>,
+    },
 }
 
 impl From<Pinch> for ArmRefusal {
@@ -37,7 +44,7 @@ impl From<Pinch> for ArmRefusal {
 pub struct Pinch {
     /// The row, or the predicate left undecided.
     pub name: &'static str,
-    /// The margin's place in the list [`signs`] decided.
+    /// The margin's place in the list [`signs_as`] decided.
     pub index: usize,
     /// The diagnostics, where the margin was undecided.
     pub undecided: Option<Indeterminate>,
@@ -87,16 +94,34 @@ fn first_pinch<R, const N: usize>(
     Ok(out)
 }
 
+/// **Which side of a line the section is read by a crossing stands on**,
+/// `margin`'s sign under `predicate`: positive, or not. A margin decided
+/// `Zero` leaves the crossing unordered, and an undecided one carries its
+/// diagnostics ([`ArmRefusal::Unordered`]), which the value reads as its
+/// escalation.
+pub(super) fn ordered_side_as<T: Decide>(
+    predicate: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<bool, ArmRefusal> {
+    signs_as([(predicate, margin)], band)
+        .map(|[side]| side)
+        .map_err(|p| ArmRefusal::Unordered {
+            predicate,
+            undecided: p.undecided,
+        })
+}
+
 /// **Decides every margin in `ms`**, the first `Zero` or undecided one
 /// the pinch ([`first_pinch`]).
-pub fn signs<T: Decide, const N: usize>(
+pub fn signs_as<T: Decide, const N: usize>(
     ms: [(&'static str, T); N],
     band: Band,
 ) -> Result<[bool; N], Pinch> {
     first_pinch(ms, |(name, m)| (name, decide(name, Margin::of(m), band)))
 }
 
-/// [`signs`], each row `(far, floor, datum)` read across the reach beside
+/// [`signs_as`], each row `(far, floor, datum)` read across the reach beside
 /// `slack` ([`decide_across`]).
 pub fn signs_across<T: Decide, const N: usize>(
     rows: [(&'static str, &'static str, T); N],
@@ -200,14 +225,14 @@ pub(super) fn sphere_arm<T: Decide>(
 ) -> Result<SphereParts<T>, Pinch> {
     let [d_near, d_far] = m.d;
     let cuts = |d: T| (d + r - rho).min(rho - (d - r).abs());
-    let [near, far] = signs(
+    let [near, far] = signs_as(
         [(SPHERE_NEAR, cuts(d_near)), (SPHERE_FAR, cuts(d_far))],
         band,
     )?;
     Ok(match (near, far) {
         (true, true) => SphereParts::AroundAxis,
         (false, false) => {
-            let [between] = signs(
+            let [between] = signs_as(
                 [(
                     "section_torus_sphere_between",
                     (rho - d_near - r).min(d_far - r - rho),
@@ -899,13 +924,13 @@ pub(super) fn square_cylinder_arm<T: Decide>(
     } = wall;
     let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
     let k = (e, z0, rc);
-    let top = reaches_edge(
+    let top = reaches_edge_as(
         "section_torus_square_wall_top",
         z0 + rc - r,
         (e, big_r),
         band,
     )?;
-    let bottom = reaches_edge(
+    let bottom = reaches_edge_as(
         "section_torus_square_wall_bottom",
         rc - z0 - r,
         (e, big_r),
@@ -944,7 +969,7 @@ fn square_folds<T: Decide>(
         let (c1, c2) = (Point2::new(sigma * big_r, T::zero()), Point2::new(e, z0));
         let dist = (c2 - c1).norm();
         let tubes = Circles::new(dist, r, rc);
-        let [cut] = signs([("section_torus_square_wall_tube", tubes.secant())], band)?;
+        let [cut] = signs_as([("section_torus_square_wall_tube", tubes.secant())], band)?;
         if !cut {
             continue;
         }
@@ -962,8 +987,7 @@ fn square_folds<T: Decide>(
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
         for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
-            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_FOLD_HALF))?;
+            let outer = ordered_side_as(SQUARE_FOLD_HALF, sigma * y - big_r, band)?;
             out.push(Fold { plus, y, z, outer });
         }
     }
@@ -976,13 +1000,13 @@ fn square_folds<T: Decide>(
 /// torus there, a pinch; beyond it no line of the wall near that point
 /// meets the torus, and the section is the one of `K` held just short of
 /// the line, a pose the band admits.
-fn reaches_edge<T: Decide>(
+fn reaches_edge_as<T: Decide>(
     name: &'static str,
     m: T,
     (e, big_r): (T, T),
     band: Band,
 ) -> Result<bool, Pinch> {
-    match signs([(name, m)], band) {
+    match signs_as([(name, m)], band) {
         Ok([past]) => Ok(past),
         Err(_)
             if sign_as(
@@ -1058,7 +1082,7 @@ fn inside_strip<T: Decide>(
         match (on(true).as_slice(), on(false).as_slice()) {
             ([], []) => {
                 let (y, rho) = (e - rc, sheet(ring, z0, outer));
-                if signs([("section_torus_square_wall_sheet", rho - y.abs())], band)? == [true] {
+                if signs_as([("section_torus_square_wall_sheet", rho - y.abs())], band)? == [true] {
                     parts.extend(lifts((y, z0, rho), [false, true], at));
                 }
             }
@@ -1094,7 +1118,7 @@ fn across_strip<T: Decide>(
     let [big_r, r] = ring;
     if top != bottom {
         let m = if top { r - (z0 - rc) } else { z0 + rc + r };
-        if !reaches_edge("section_torus_square_wall_meets", m, (e, big_r), band)? {
+        if !reaches_edge_as("section_torus_square_wall_meets", m, (e, big_r), band)? {
             return Ok(Vec::new());
         }
     }
@@ -1111,8 +1135,7 @@ fn across_strip<T: Decide>(
         let w = ((rc - h) * (rc + h)).sqrt();
         for right in [true, false] {
             let y = if right { e + w } else { e - w };
-            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_EDGE_OVER))?;
+            let over = ordered_side_as(SQUARE_EDGE_OVER, big_r - y.abs(), band)?;
             edges.push((
                 psi(y, z),
                 Edge {
@@ -1130,7 +1153,7 @@ fn across_strip<T: Decide>(
         let k = if arcs.len() == 1 {
             0
         } else {
-            let [right] = signs([("section_torus_square_wall_fold_side", f.y - e)], band)?;
+            let [right] = signs_as([("section_torus_square_wall_fold_side", f.y - e)], band)?;
             usize::from(arcs[0][0].right != right)
         };
         on_arc[k].push((psi(f.y, f.z), f));

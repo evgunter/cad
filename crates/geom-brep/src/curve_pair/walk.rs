@@ -79,6 +79,22 @@ impl<'r, 's, T: Decide> Read<'r, 's, T> {
     fn hi(&self) -> SupSpeed<T> {
         self.span.speeds().1
     }
+
+    /// A bound on the curvature over every arc within `reach` metres of
+    /// `u` along the carrier: over the parameters `reach` at the
+    /// carrier's least speed covers ([`geom::carrier_speed::speed_range`],
+    /// the whole carrier's, since `u` need not lie on the span), read by
+    /// [`geom::carrier_speed::curvature_hi_over`], so a spline's crease
+    /// costs only the windows that may hold it. A least speed not above
+    /// zero covers every parameter, and reads the whole carrier's bound.
+    fn curvature_near(&self, u: T, reach: T) -> T {
+        let lo = geom::carrier_speed::speed_range(self.curve()).0.get();
+        let width = reach / lo.max(T::zero());
+        if !geom_core::is_finite_length(width) {
+            return self.curvature;
+        }
+        geom::carrier_speed::curvature_hi_over(self.curve(), (u - width, u + width))
+    }
 }
 
 /// A run `(a, b)` of a span, cut `depth` times.
@@ -269,7 +285,8 @@ fn same<T: Decide>(s: T, t: T) -> bool {
 /// gap's lower bound"): every pair of the pieces lies within `span`
 /// metres, along its carrier, of the polished parameter on it (its run
 /// to the piece's middle and the piece's own reach), and the carriers'
-/// curvature is at most their bounds over the whole carrier. Where the
+/// curvature is at most their bounds over the arcs within `span` of the
+/// pair (`Read::curvature_near`), the premise (P2) states. Where the
 /// sine at the pair, less the turn over `span` twice, is not proved
 /// positive (`curve_pair_walk_basin`) the premise fails and the window
 /// is undecided.
@@ -282,7 +299,7 @@ fn window<T: Decide>(
         Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
-    let curvature = ra.curvature + rb.curvature;
+    let curvature = ra.curvature_near(s, span) + rb.curvature_near(t, span);
     super::polish::bound(
         ("curve_pair_walk_basin", None),
         ra.curve().ders1(s),

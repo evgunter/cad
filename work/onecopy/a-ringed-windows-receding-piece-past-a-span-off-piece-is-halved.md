@@ -2,8 +2,10 @@
 id: a-ringed-windows-receding-piece-past-a-span-off-piece-is-halved
 kind: issue
 title: A ringed window's receding piece past a piece read off the span is halved, where its near end could certify it
-status: open
+status: closed
 opened: 2026-11-10
+closed: 2026-11-16
+branch: onecopy/ringed-near-end
 ---
 
 
@@ -18,3 +20,20 @@ No pose has been found red here: the halving decides these pieces, at its cost. 
 ## Done when
 
 `Window::chained` lets a `Recedes` piece whose near end `Window::off` reads off restart the chain, the reads that move are measured, and a row pins one such piece.
+
+## What `onecopy/ringed-near-end` settled
+
+`Window::chained` lets a `Recedes` piece past a piece read off the span restart the chain where `Window::off` reads its end toward the ring off the carrier past the band's zero. `d` is least at that end, so the piece is off the carrier throughout.
+
+Measured before the change, with the old and new chain computed side by side in each `holds_only` (release, debug assertions on), over all of geom-brep, topo, sweep and editor-core:
+
+| ε | windows | verdicts moved | windows halved less | `piece_off_span` calls |
+|---|---|---|---|---|
+| default | 134,283 | 0 | 15 | 25 → 4 |
+| 1e-12 | 115,747 | 0 | 15 | 25 → 4 |
+| 1e-6 | 113,262 | 0 | 15 | 25 → 4 |
+
+The 15 windows are in four `curve_pair` rows: `plane_rows::two_meetings_across_a_whole_turns_seam_in_a_narrow_window_are_both_read` (8), `plane_rows::two_meetings_across_a_whole_turns_seam_are_both_read` (4), `order_rows::the_needle_far_from_the_origin_reads_as_at_it` (2) and `plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root` (1). Summed window time fell from about 850–870 ms to about 800 ms at each ε, though the old chain always ran first, so the timing is loose.
+
+The change is a saving, not a verdict, so no row is red without it. `window::rows::a_receding_piece_past_a_span_off_piece_restarts_the_chain_by_its_near_end` pins the restart's premises on a real piece (receding outward, not off whole, its end toward the ring off) and the chain's verdict over it.
+

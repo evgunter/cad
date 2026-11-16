@@ -2,10 +2,11 @@
 id: a-cone-face-ending-near-its-apex-refuses-at-fine-delta
 kind: issue
 title: A cone face ending near its apex refuses CertificateExceeded at fine δ: the development triangulates, the chart certifies
-status: parked
+status: closed
 opened: 2026-11-14
 priority: P1
-blocked_on: [the-cone-arm-certifies-the-triangle-its-development-makes]
+closed: 2026-11-16
+pr: 6965
 ---
 
 ## Finding
@@ -60,3 +61,20 @@ and its first row.
    only), inserting the developed centroid (`TrimmedFace::inside_point`).
 3. A lattice graded toward the face's small end, so no triangle spans from
    the section's small end to a far row.
+
+## A ring reaches it (2026-11-14, TESSLANE unit 3)
+
+Since unit 3 a cone face with a ring meshes on the cone row, and the
+same class reaches it. T1's cone and its box moved toward the apex (the
+box's edge at `(0.5·s, h − 1.5·s, 0)`, `reach_probes::t1_toward_the_apex`):
+the ringed ops (both unions, cone ∖ box) mesh at `s = 0.6` and `0.3`; at
+`s = 0.1` and `0.03` they mesh at δ `2·10⁻²` and refuse
+`CertificateExceeded` at `5·10⁻³` and `10⁻³` (bounds `1.1δ` to `4.8δ`, the reviewers' measurement);
+at `s = 0.01` at all three. The ringless ops of `s = 0.1` mesh at every
+δ. At `s = 10⁻³` the door answers `Undecided` (the ring within the band
+of the outer loop). Pinned by
+`reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## Closed (2026-11-16, PR 6965)
+
+The cone arm certifies the flat triangle it emits (`cert::cert_cone`, closed form) and lays its rows a certified chord apart. Every row of the table above meshes at the default eps, 10⁻⁶ and 10⁻¹² where the body builds, and passes `reach_probes::geometry` (`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`). The two cases that were truly over δ on the old mesh (sampled 1.63δ and 1.23δ) are within it. The ringed poses unit 3 added here mesh too. What still refuses is a needle funnel cut 10⁻⁵ above its apex, on its own row: `a-needle-funnel-cut-at-its-apex-refuses-folded`.

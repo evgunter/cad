@@ -222,8 +222,8 @@ by a kernel bug is a different kind of thing from a failure caused by
 the input, and which kind a failure is is always plain: a bug panics,
 as early as it is detectable; an input never panics and gets a typed
 error that names the failing check, the entity and the recourse; valid
-input the kernel has not built yet gets a typed `Unsupported*` refusal
-naming its blocker. These are the project conventions of [failure] and
+input the kernel has not built yet gets a typed refusal whose standing
+is `Refusal::Unbuilt`, naming its blocker. These are the project conventions of [failure] and
 [tolerance.recourse].
 
 ### The code is as simple as it can be `[simple]`
@@ -290,7 +290,7 @@ of them is a defect.
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
 | Which document a held value is of | the identity it carries, never its node ids | [assemblies.pairing] |
 | A document's validity | `persist::check::validate_document`, at save and at load | [engineering] |
-| The frontier | typed `Unsupported*` refusals, grep-able from the tree | [failure] |
+| The frontier | refusals whose standing is `Refusal::Unbuilt` | [failure] |
 
 ### One reading per question `[one-way.readings]`
 
@@ -415,7 +415,10 @@ curve pairs.
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
   that it is a rotation; a certificate; a verdict) is built at the
-  lane scalar, from its own inputs and those choices. A continuous
+  lane scalar, from its own inputs and those choices, and is held as
+  the claim it is (a frame as a `RigidMotion` or `UnitVec3`, never as
+  its entries), so no gate reads it back from entries that, at a box
+  scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it.
 - **The editor-core evaluation service is generic over `Real`.** M10's
@@ -439,7 +442,13 @@ curve pairs.
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
-  any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  any K > 2. At K ≤ 2, two pieces decided at least K·ε apart can both
+  lie within ε of one point, so a reading that names which piece a point
+  lies on (a foot's branch of its carrier, a cut's parameter) would not
+  be unique. Above 2 the band alone makes it so, however many pieces the
+  boundary chains together: the two pieces a point is near are compared
+  with each other, never through a third ([intrinsic.absolute]). K = 10, per-run
+  configuration like ε (`Tolerance.k`).
   K's headroom absorbs f64 rounding by the run's admission rule
   ([simple.conditioned]): a formula whose error is amplified by a vanishing
   quantity (a division by sin θ, |n|², a near-zero determinant) is a
@@ -992,8 +1001,8 @@ tiers".
   exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
-message naming its own blocker ([failure.taxonomy], row 2), so the
-frontier is grep-able from the tree. Its prose inventory is
+message naming its own blocker, and its standing is `Refusal::Unbuilt`
+([failure.taxonomy], row 2). Its prose inventory is
 `docs/KERNEL-VERBS.md` — the "present today" paragraph, the crate
 READMEs, and the standing frontier entries (c)–(f) older citations
 name — and its schedule is the tracker.
@@ -1657,7 +1666,11 @@ in their space moves none of its bits ([determinism]). The frame is no
 part of the operation's meaning: the body up to that rigid map, its
 names and every verdict outside the sliver band are the same in any
 frame, and a minted reference direction is a function of the inputs,
-not of the axes. Where conditioning does not decide, a construction
+not of the axes. An operand in another frame is read into it through
+their relative placement, which moves where the operand stands and
+none of its data: a reading within one operand is made in its own
+coordinates, and only a reading between two goes through their
+relative motion. Where conditioning does not decide, a construction
 computes in its own coordinates and an operation over copies in its
 first operand's as the author lists it. The census at a `⊔`
 ([assertions]) is defined order-free: each pair's verdict is the same
@@ -1767,8 +1780,9 @@ one fixed operand's description for a merged face (chosen by
 a fixed rule that reads keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band. A solid's only shell is its outer
-shell and poses no role question; a shell's role among several is read
+whose one census number lies in band. A finished solid's only shell is its outer
+shell and poses no role question to a door (the at-rest gate reads it:
+that reading is the orientation invariant's); a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
 certified sign of its volume where no ray reads. A ray that passes
 within the band of an edge meets it, half a crossing for each face the
@@ -2004,7 +2018,7 @@ swallowed.
 |---|---|---|
 | **0** | **Can this state be made unrepresentable?** — asked of every state, before the rows below | **change the type.** Preferred over every row below whenever available |
 | 1 | Reachable by input, **invalid** | typed error |
-| 2 | Reachable by input, **valid but unbuilt** | typed `Unsupported*` error |
+| 2 | Reachable by input, **valid but unbuilt** | typed error, standing `Refusal::Unbuilt` |
 | 3 | **Value-domain degeneracy** | poison — NaN / empty |
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
@@ -2028,19 +2042,21 @@ swallowed.
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a
   curable indeterminate unwinds to it and is not reported as invalid
   input.
-- *Row 2 is a naming rule.* `Unsupported*` means "valid input, the
-  kernel has not built this yet" and nothing else, which makes the
-  frontier inventory grep-able. A panicking `not_implemented!` macro is
-  rejected: these refusals are reachable by valid input and must stay
-  recoverable. Where a frontier branch genuinely cannot be reached it
-  is row 4, with a message.
+- *Row 2 is a typed standing.* Each refusal type a valid input can
+  reach states every variant's class in one exhaustive method of the
+  shared `Standing` trait. Row 2 is `Refusal::Unbuilt`; `Limit` is a
+  row-1(b) limit no tolerance moves, ending on its own lever. A standing
+  reads a payload field only where that field is the cause; otherwise
+  the variant splits. Names carry no class. A frontier branch that
+  genuinely cannot be reached is row 4, with a message.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
 - *A site whose firing a correct kernel can reach is not a defect* but
   a precision limit the model controls (row 1, a lever and
-  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2,
-  `NOT_YET_ENDING`), and it takes that row's ending. A file is input, so
+  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2: its blocker's
+  recourse where one exists, else `NOT_YET_ENDING`), and it takes that
+  row's ending. A file is input, so
   a document check, or a check at the import door, is row 1.
 - *A load-bearing check panics in release.* A re-deriving check that
   ships, because removing it would ship a wrong result (a validate

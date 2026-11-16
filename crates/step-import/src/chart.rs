@@ -196,7 +196,7 @@ pub(crate) fn infer_outer(
 ) -> Result<usize, OuternessRefusal> {
     // Outerness is inferred in the chart, and neither spline kind has
     // the closed-form inverse this needs.
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+    if !geom_brep::is_analytic(surface) {
         return Err(OuternessRefusal::UnsupportedChart);
     }
     let (per_u, per_v) = periodic(surface);
