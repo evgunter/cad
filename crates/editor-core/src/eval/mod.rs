@@ -1718,9 +1718,19 @@ pub enum NodeErrorKind {
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
     /// tier 2 alone at the box scalars); the operation that takes it
     /// runs tier 3 on it ([`super::Held::finished`]).
+    ///
+    /// Where the operation read the operand into another operand's frame
+    /// before taking it (a union's or an intersect's fold computes in one
+    /// member's frame and reads every other into it), `into` names the
+    /// operand whose frame that is: the image that does not finish is
+    /// `input`'s, carried through `into`'s placement. The subject is
+    /// still `input`; the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
+        /// The operand whose frame `input` was read into, where the read
+        /// moved it; `None` where it was taken in its own frame.
+        into: Option<RecipeNodeId>,
         /// The finish's findings.
         findings: topo::NotFinished,
     },
@@ -2095,7 +2105,21 @@ impl NodeErrorKind {
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
-        move |findings| Self::UnfinishedLeaf { input, findings }
+        Self::unfinished_in(input, None)
+    }
+
+    /// **A taker's refusal of an operand it read into `into`'s frame**
+    /// ([`NodeErrorKind::UnfinishedLeaf`]): `input`'s image there does
+    /// not finish; `None` where it was read in its own frame.
+    pub(crate) fn unfinished_in(
+        input: RecipeNodeId,
+        into: Option<RecipeNodeId>,
+    ) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf {
+            input,
+            into,
+            findings,
+        }
     }
 }
 
@@ -2364,10 +2388,25 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the body this operation produced is not a finished body: {}",
                 findings.render(geom_brep::recourse::Reading::AtRest)
             ),
-            Self::UnfinishedLeaf { input, findings } => write!(
+            Self::UnfinishedLeaf {
+                input,
+                into: None,
+                findings,
+            } => write!(
                 f,
                 "{} does not finish where this operation takes it: {}",
                 by.node_as(*input, "input"),
+                findings.render(geom_brep::recourse::Reading::AtRest)
+            ),
+            Self::UnfinishedLeaf {
+                input,
+                into: Some(into),
+                findings,
+            } => write!(
+                f,
+                "{}, read into {}'s frame, does not finish there: {}",
+                by.node_as(*input, "input"),
+                by.node(*into),
                 findings.render(geom_brep::recourse::Reading::AtRest)
             ),
             Self::EmptyHalf { input, half } => write!(
