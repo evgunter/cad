@@ -857,3 +857,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Draws** (bytes drawn after the entry above):
   - C0-knot fork: arm byte 101 (two designers), label byte 125 (odd, A = Fable), on `analysis/design-fork/sectarms-c0-knot`. Both designers were dispatched concurrently on `designer-c0.md`, which restates the item's measurements and keeps the item's remedy guesses from them.
   - Rim-pad implementer: byte 178 (Opus), on the model-compare branch; brief `impl-rimpad.md`, branch `sectarms/rim-pad-windows`.
+- 2026-11-16 — **C0-knot fork: the designers agree; sent to Ev as [PR 7042](https://github.com/evgunter/cad/pull/7042)** (row 279, recommendation half).
+  - **Agreed from the first reports:** the defect starts at the fit, and the loop is fitted as a periodic cubic.
+  - **Round 1 crossed** on where periodicity lives: fit-local `ClosedSpline` against a carrier kind.
+  - **Round 2, final:** both checked two facts in the code. Edge certificates are per interval at the edge door, so no transfer is owed. The rejoin case is reachable through `merge_faces`. Both converged on the carrier kind: its own `Curve3` arm, chords as spans. C11 changes (agent-written text).
+  - **Filed P2:** `a-section-chord-cut-as-its-own-net-never-rejoins`, which both answers need fixed.
+  - **Sequencing:** MEASUREDOOR's `tier-3-refuses-a-carrier-with-an-interior-c0-knot` is now `blocked_on` this item too; otherwise valid quadric booleans would fail at rest.
+  - The optional `[edges]` sentence is asked separately in the PR body.
+  - Subscribed to PR 7042.
