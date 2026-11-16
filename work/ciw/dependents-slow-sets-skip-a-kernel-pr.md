@@ -31,7 +31,7 @@ cost: M
 
 This row stays open until the nightly attribution runs.
 
-**Where it runs:** `nightly.yml`'s `attribute` job and `scripts/nightly-attribute.py`. Two readings the policy left open are settled there:
+**Where it runs:** `nightly.yml`'s `attribute` job and `scripts/nightly-attribute.py`. This is an unverified starting point at `b7f0b40673`, on the branch `onecopy/nightly-attribution`. No end-to-end bisect has finished, and it has had no hosted run. Two readings the policy left open are settled there:
 - "names the test's id" means a **live** row (not closed) that names the test's full path, or its leaf as a whole word when the leaf is at least 20 characters. A closed row is not reopened by a mention: a red it once fixed comes back as a new row.
 - A commit whose own diff is `TIER=docs` (`scripts/ci-filter.py`) cannot move a test, so it is not probed. A commit that does not build, or no longer holds the test, is skipped, and the row then names a range.
 
