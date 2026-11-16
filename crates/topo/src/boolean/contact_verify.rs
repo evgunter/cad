@@ -135,9 +135,9 @@ pub fn rest_pair_verdict<T: Decide>(
         // torus first (`ValidationError::DegenerateTorus`), so no row
         // reaches this arm through one; at a dual, `Replay`'s "A tier-3
         // premise at a dual".
-        Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.verdict {
-            geom_brep::TorusVerdict::Undecided(diag) => ContactRefusal::Escalated { diag },
-            geom_brep::TorusVerdict::Refused(_) => ContactRefusal::NotCertifiable {
+        Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.standing() {
+            geom_brep::TorusStanding::Ranked(diag) => ContactRefusal::Escalated { diag },
+            geom_brep::TorusStanding::InvalidInput(_) => ContactRefusal::NotCertifiable {
                 what: "a recorded face's torus is outside the ring convention (a horn or \
                        spindle torus, or one with no tube), which no carrier is compared on",
             },

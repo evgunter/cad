@@ -270,7 +270,7 @@ pub enum NormalAtError {
     /// shape with no regular normal on its tube, refused with the lever
     /// the in-band arm of the same half names. As the convention states a
     /// torus decided outside it
-    /// ([`geom_brep::TorusRefusal::refusal`]): an abort.
+    /// ([`geom_brep::TorusRefusal::standing`]): an abort.
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -328,7 +328,7 @@ pub enum NormalAbort {
     /// Row 1(a), an invalid input: a torus decided outside the ring
     /// convention, a shape the kernel's model never represents, as the
     /// torus convention's own standing states it
-    /// ([`geom_brep::TorusRefusal::refusal`]). It carries the half that
+    /// ([`geom_brep::TorusRefusal::standing`]). It carries the half that
     /// refused and its decided verdict, which a caller renders through
     /// the convention's own clause and lever
     /// ([`geom_brep::TorusConvention::refused`],
@@ -386,10 +386,7 @@ impl NormalAbort {
             Self::InvalidInput {
                 convention,
                 verdict,
-            } => Some(geom_brep::TorusRefusal {
-                convention,
-                verdict: geom_brep::TorusVerdict::Refused(verdict),
-            }),
+            } => Some(geom_brep::TorusRefusal::decided(convention, verdict)),
             Self::KernelFault => None,
         }
     }
@@ -415,21 +412,15 @@ impl NormalAtError {
                 Ok(Refusal::of_crease(*reading))
             }
             Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
+            // A torus decided outside the convention: invalid input, by
+            // its type (`geom_brep::TorusStanding::InvalidInput`).
             Self::DegenerateTorus {
                 convention,
                 verdict,
-            } => match (geom_brep::TorusRefusal {
+            } => Err(NormalAbort::InvalidInput {
                 convention: *convention,
-                verdict: geom_brep::TorusVerdict::Refused(*verdict),
-            })
-            .refusal()
-            {
-                Ok(standing) => Ok(standing),
-                Err(geom_core::ladder::Aborts) => Err(NormalAbort::InvalidInput {
-                    convention: *convention,
-                    verdict: *verdict,
-                }),
-            },
+                verdict: *verdict,
+            }),
             Self::OffSurface => Err(NormalAbort::KernelFault),
         }
     }
@@ -939,7 +930,7 @@ mod tests {
     /// and one whose standing moves reds before a caller names its answer
     /// by it ([`NormalAtError::standing`]). The point off the surface is a
     /// kernel fault; a torus decided outside the ring convention an
-    /// invalid input, as [`geom_brep::TorusRefusal::refusal`] states its
+    /// invalid input, as [`geom_brep::TorusRefusal::standing`] states its
     /// class; every other variant keeps its query.
     #[test]
     fn each_normal_refusal_states_its_abort_row() {

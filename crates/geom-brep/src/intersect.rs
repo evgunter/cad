@@ -3396,7 +3396,7 @@ mod apex_fan_rows {
 mod section_error_standing_rows {
     use super::*;
     use crate::ladder::{Aborts, Refusal};
-    use crate::torus_convention::{TorusConvention, TorusVerdict};
+    use crate::torus_convention::TorusConvention;
 
     /// **Each section refusal stands by its cause**
     /// ([`SectionError::refusal`]): an escalation by its margin, a
@@ -3408,12 +3408,7 @@ mod section_error_standing_rows {
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
         let diag = crate::dihedral::decide("t", Margin::of(5e-9_f64), band)
             .expect_err("a margin between the band's edges is undecided");
-        let torus = |verdict| {
-            SectionError::DegenerateTorus(TorusRefusal {
-                convention: TorusConvention::Tube,
-                verdict,
-            })
-        };
+        let torus = |refusal: TorusRefusal| SectionError::DegenerateTorus(refusal);
         let rows: [(&str, SectionError, Result<Refusal, Aborts>); 25] = [
             (
                 "wrong lane",
@@ -3468,14 +3463,20 @@ mod section_error_standing_rows {
             ),
             (
                 "torus undecided",
-                torus(TorusVerdict::Undecided(diag)),
+                torus(
+                    TorusRefusal::of(TorusConvention::Tube, Err(diag), band)
+                        .expect("an undecided half refuses"),
+                ),
                 Ok(Refusal::Margin(diag)),
             ),
             (
                 "torus decided outside",
-                torus(TorusVerdict::Refused(crate::recourse::Refused::Negative {
-                    margin: MarginDiag::value(-1.0),
-                })),
+                torus(TorusRefusal::decided(
+                    TorusConvention::Tube,
+                    crate::recourse::Refused::Negative {
+                        margin: MarginDiag::value(-1.0),
+                    },
+                )),
                 Err(Aborts),
             ),
             (

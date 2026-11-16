@@ -167,7 +167,7 @@ pub enum EdgeInFaceGap {
     /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
     /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
     /// represents, carried whole. Its standing is the convention's own
-    /// ([`geom_brep::TorusRefusal::refusal`]), and it ends on the
+    /// ([`geom_brep::TorusRefusal::standing`]), and it ends on the
     /// convention's lever. The operand that carried it in is not in scope
     /// here, so the gap names it rather than
     /// [`crate::BooleanError::DegenerateTorus`].
