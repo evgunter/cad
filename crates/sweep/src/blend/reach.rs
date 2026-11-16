@@ -1240,20 +1240,29 @@ fn circular_reach<T: Decide + Bounds>(
     band: Band,
 ) -> Result<Vec<Stretch<T>>, BlendError> {
     // The band's axis, the circle its cross-section revolves about (a
-    // torus's spine, through the ball's centre `st.c`, or a frustum's rim,
+    // torus's spine, through the ball's centre, or a frustum's rim,
     // through P), and how far the cross-section reaches from that circle.
-    let geom::Line { dir: axis, .. } = link.blend.surface.axis_line().ok_or_else(|| {
+    // The arm says which band it is; a torus with no spine point is a
+    // station that disagrees with its own arm.
+    let axis_line = link.blend.surface.axis_line().ok_or_else(|| {
         disagrees(
             EntityId::Edge(link.edge),
             "a circular link's band is not a surface of revolution",
         )
     })?;
-    let on_axis = |x: Point3<T>| link.blend.surface.axis_line().map_or(x, |l| l.foot(x));
-    let (circle, reach) = match st.c {
+    let axis = axis_line.dir;
+    let ball = if link.arm.is_coaxial_torus() {
+        Some(
+            st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?,
+        )
+    } else {
+        None
+    };
+    let (circle, reach) = match ball {
         Some((c, _)) => (c, (st.p - c).norm()),
         None => (st.p, (st.fa - st.p).norm().max((st.fb - st.p).norm())),
     };
-    let center = on_axis(circle);
+    let center = axis_line.foot(circle);
     let big = (circle - center).norm();
     let meridian @ geom::Line { dir: a, .. } = canonical_axis(geom::Line {
         origin: center,
@@ -1285,7 +1294,7 @@ fn circular_reach<T: Decide + Bounds>(
         }
     }
     let ps = sheet(st.p);
-    match st.c {
+    match ball {
         // A torus band: its spine circle through the ball's centre `c`, of
         // the ball's radius.
         Some((c, minor_radius)) => {
@@ -1324,7 +1333,7 @@ fn circular_reach<T: Decide + Bounds>(
         }
         // A frustum's cross-section is the triangle of the rim and its two
         // feet: the supports above, and the generator's line on P's side.
-        _ => {
+        None => {
             let (pa, pb) = (sheet(st.fa), sheet(st.fb));
             let (dr, dz) = (pb.0 - pa.0, pb.1 - pa.1);
             let len = (dr.powi(2) + dz.powi(2)).sqrt();

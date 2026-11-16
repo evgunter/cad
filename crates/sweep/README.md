@@ -368,10 +368,9 @@ per-verb enum.
 never name a verb; `BlendRefusal`'s `Display` prefixes `"fillet: "` or
 `"chamfer: "`. A recourse is a claim about a second request, so every
 shared sentence is true under both verbs; a door one verb lacks is
-conditioned in the sentence (the closed-chain clauses of
-`FILLET3_ASSEMBLY_RECOURSE` and `FILLET3_SEAM_VERTEX_RECOURSE` say a
-chamfer carves only the rim a cylinder meets a plane square to its
-axis in). Ball-only arms keep ball language because no
+conditioned in the sentence without naming either verb (the
+closed-chain clause of `FILLET3_ASSEMBLY_RECOURSE` says a whole rim
+carves "where the verb's arms cover it"). Ball-only arms keep ball language because no
 chamfer run reaches them: `RadiusHeadroom` and `SpineIrregular` are
 metered only when `run_battery_for` sees `BlendKind::Fillet`, and
 `SpineUnsupported` sits behind the chamfer's early return

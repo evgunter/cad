@@ -225,7 +225,7 @@ pub enum BlendArm {
     /// Plane–sphere circular rim → torus patch, circular spine.
     PlaneSphereTorus,
     /// Plane–plane edge → flat strip at equal setback, no spine. The
-    /// chamfer's one arm ([`chamfer_strip`]).
+    /// chamfer's open-chain arm ([`chamfer_strip`]).
     PlanePlaneStrip,
     /// Sphere–cone coaxial rim → torus patch, circular spine.
     SphereConeTorus,
@@ -1418,6 +1418,26 @@ pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
     n.cross(tau).normalize()
 }
 
+/// **A chamfer's two feet** at the edge point `p`: one setback
+/// `distance` along each support's inward unit ([`inward_unit`]), the
+/// FIRST support's `n_a × τ̂` and the second's `−(n_b × τ̂)`, for `τ̂` the
+/// `he_plus` traversal direction and `n_a`, `n_b` the supports' outward
+/// normals. The one home of the feet [`chamfer_strip`] runs its
+/// trimlines through and [`chamfer_frustum`] its trim circles.
+#[must_use]
+pub fn chamfer_feet<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> (Point3<T>, Point3<T>) {
+    (
+        p + inward_unit(n_a, tau) * distance,
+        p - inward_unit(n_b, tau) * distance,
+    )
+}
+
 /// **The plane–plane chamfer strip**: the flat band that replaces a
 /// straight edge at equal setback `distance` along both supports.
 ///
@@ -1445,10 +1465,7 @@ pub fn chamfer_strip<T: Real>(
     n_b: Vec3<T>,
     distance: T,
 ) -> EdgeBlend<T> {
-    let m_a = inward_unit(n_a, tau);
-    let m_b = -inward_unit(n_b, tau);
-    let foot_a = p + m_a * distance;
-    let foot_b = p + m_b * distance;
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, distance);
     EdgeBlend {
         surface: Surface::Plane {
             origin: foot_a,
@@ -1477,9 +1494,8 @@ pub fn chamfer_strip<T: Real>(
 /// circular rim where a cylinder meets a plane square to its axis, at
 /// equal setback `distance` along both supports.
 ///
-/// The feet are [`chamfer_strip`]'s, read at the rim point `sheet.rim`
-/// with the `he_plus` traversal direction `tau`: `p + m_a·distance` and
-/// `p + m_b·distance` for the supports' inward units ([`inward_unit`]).
+/// The feet are the strip's ([`chamfer_feet`]), read at the rim point
+/// `sheet.rim` with the `he_plus` traversal direction `tau`.
 /// Both units are normal to `tau`, which is normal to the meridian
 /// sheet, so both feet lie in the sheet — on the plane one setback off
 /// the rim radially, on the cylinder one setback along the axis — and
@@ -1504,8 +1520,7 @@ pub fn chamfer_frustum<T: Real>(
 ) -> EdgeBlend<T> {
     let radial = sheet.radial();
     let k = sheet.axis.dir;
-    let foot_a = sheet.rim + inward_unit(n_a, tau) * distance;
-    let foot_b = sheet.rim - inward_unit(n_b, tau) * distance;
+    let (foot_a, foot_b) = chamfer_feet(sheet.rim, tau, n_a, n_b, distance);
     let g = foot_b - foot_a;
     let g_r = g.dot(radial);
     let rho_a = (foot_a - sheet.axis.origin).dot(radial);

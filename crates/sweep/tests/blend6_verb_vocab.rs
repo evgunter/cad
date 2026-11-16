@@ -462,3 +462,28 @@ fn l_bracket() -> Body<f64> {
     .body
     .into_body()
 }
+
+/// **A plane–cylinder rim's refusals speak as the chamfer.** The
+/// chamfer's frustum reaches the closed-rim walks' own refusals, whose
+/// recourses the fillet's rims share: a post's top requested in part
+/// stops at a smooth seam vertex, and a boss's foot and top asked in one
+/// call share the boss's wall. Neither may speak as the fillet.
+#[test]
+fn a_plane_cylinder_rims_refusals_speak_as_the_chamfer() {
+    let t = Tol::witness();
+    let post = sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, t);
+    let top = sweep::test_support::circle_arcs_at_z(&post, 1.0);
+    let err = chamfer_edges(&sweep::test_support::at_rest(&post, t), &top[..1], D, t)
+        .expect_err("half a rim stops at a smooth vertex");
+    assert_speaks_as_the_chamfer(&err, "partial rim");
+
+    let boss = sweep::test_support::boss_of_arcs(2, 2.0, 0.4, 1.0, 2.0, t);
+    let rims = [
+        sweep::test_support::z_rim(&boss, 0.4, 2.0, true),
+        sweep::test_support::z_rim(&boss, 0.4, 3.0, true),
+    ]
+    .concat();
+    let err = chamfer_edges(&sweep::test_support::at_rest(&boss, t), &rims, D, t)
+        .expect_err("a boss's foot and top share its wall");
+    assert_speaks_as_the_chamfer(&err, "foot and top in one call");
+}

@@ -764,6 +764,35 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
+/// **A frustum's plane trim stays off the axis**: the plane support of
+/// a frustum link is a face reaching from the rim to the axis at most
+/// where the plane runs inward (a post's or a boss's top), so the band's
+/// setback there must be shorter than the rim's radius. The margin is the
+/// plane trim circle's own radius, `R − s` inward (`R + s` outward,
+/// always clear), and the gap it is read against the rim's radius `R`:
+/// the screen's own reading of a face too narrow for its setback, which
+/// the caller classifies under `fillet3_face_clearance` before any band
+/// is minted. `None` for a link of any other arm.
+fn frustum_plane_room<T: Decide>(
+    body: &Body<T>,
+    link: &Link<T>,
+) -> Result<Option<(FaceKey, T, T)>, BlendError> {
+    if link.arm != BlendArm::CylinderPlaneCone {
+        return Ok(None);
+    }
+    let (carrier, _, _) = carrier_of(body, link.edge)?;
+    let Some(rim) = carrier.as_circle() else {
+        return Ok(None);
+    };
+    Ok([link.face_a, link.face_b].into_iter().find_map(|face| {
+        let planar = body
+            .face_surface(face)
+            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
+        let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
+        planar.then_some((face, trim.radius, rim.radius))
+    }))
+}
+
 // ---------------------------------------------------------------
 // Predicate 3 — spine regularity.
 // ---------------------------------------------------------------
@@ -2234,6 +2263,13 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
     // the chamfer's screen runs on the chamfer's own setbacks.
+    for chain in &chains {
+        for link in chain.links() {
+            if let Some((face, trim, rim)) = frustum_plane_room(body, link)? {
+                face_clearance_margin(face, trim, rim, false, band)?;
+            }
+        }
+    }
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for

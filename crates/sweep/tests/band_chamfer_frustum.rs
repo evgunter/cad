@@ -277,6 +277,25 @@ fn plate_with_holes(holes: &[(f64, f64, f64)]) -> Body<f64> {
     body
 }
 
+/// Every edge of a body bored once by a two-arc drill, the "select all
+/// edges" request, and the same less the bore wall's two smooth seams
+/// (one surface on both sides), which the blend leaves as they are and
+/// records no row for.
+fn every_and_sharp_edges(body: &Body<f64>) -> (Vec<EdgeKey>, Vec<EdgeKey>) {
+    let mut all = topo::query::all_edges(body);
+    all.sort_unstable();
+    let sharp: Vec<EdgeKey> = all
+        .iter()
+        .copied()
+        .filter(|&e| {
+            let (a, b) = topo::readback::edge_sides(body, e).unwrap().surfaces();
+            a != b
+        })
+        .collect();
+    assert_eq!(all.len() - sharp.len(), 2, "the bore wall's two seams");
+    (all, sharp)
+}
+
 /// **A bored plate chamfered all round.** Each of the box's twelve edges
 /// removes the prism `s²/2` along its length; at each corner the three
 /// prisms' ends overlap in the cube of side `s` there, of which the patch
@@ -289,17 +308,7 @@ fn plate_with_holes(holes: &[(f64, f64, f64)]) -> Body<f64> {
 fn a_bored_plate_chamfers_all_round() {
     let (r, s) = (0.3, 0.05);
     let body = plate_with_holes(&[(3.0, 2.0, r)]);
-    let mut all = topo::query::all_edges(&body);
-    all.sort_unstable();
-    let sharp: Vec<EdgeKey> = all
-        .iter()
-        .copied()
-        .filter(|&e| {
-            let (a, b) = topo::readback::edge_sides(&body, e).unwrap().surfaces();
-            a != b
-        })
-        .collect();
-    assert_eq!(all.len() - sharp.len(), 2, "the bore wall's two seams");
+    let (all, sharp) = every_and_sharp_edges(&body);
     let want = -21.0 * s * s + 16.0 / 3.0 * s.powi(3) - 2.0 * ring(s, r + s / 3.0);
     built(
         "the bored plate all round",
@@ -339,17 +348,7 @@ fn the_bracket_with_its_bore_chamfers_all_round_at_its_closed_form() {
         &bore,
         tol(),
     );
-    let mut all = topo::query::all_edges(&bracket);
-    all.sort_unstable();
-    let sharp: Vec<EdgeKey> = all
-        .iter()
-        .copied()
-        .filter(|&e| {
-            let (a, b) = topo::readback::edge_sides(&bracket, e).unwrap().surfaces();
-            a != b
-        })
-        .collect();
-    assert_eq!(all.len() - sharp.len(), 2, "the bore wall's two seams");
+    let (all, sharp) = every_and_sharp_edges(&bracket);
     let want = -24.0 * s * s + 8.0 * s.powi(3) - 2.0 * ring(s, 0.3 + s / 3.0);
     built(
         "the bracket all round",
@@ -445,4 +444,44 @@ fn an_arc_between_lines_refuses_at_the_arc() {
         matches!(got, Err(BlendError::ChamferArmUnsupported { edge, .. }) if edge == arc[0]),
         "the chain refuses at its arc, got {got:?}"
     );
+}
+
+/// **A post's top chamfered past its radius refuses before any band is
+/// minted.** The plane trim of a top runs inward to radius `R − s`, so
+/// the cap is too narrow for the setback once `s ≥ R`: the screen reads
+/// that margin (`fillet3_face_clearance`) and refuses typed, its reading
+/// `R − s`; just below `R` the frustum builds at its ring.
+#[test]
+fn a_posts_top_past_its_radius_refuses_at_the_screen() {
+    let r = 0.5;
+    let post = cylinder_of_arcs_at(2, r, Point2::new(0.0, 0.0), 0.0, 1.0, tol());
+    let top = circle_arcs_at_z(&post, 1.0);
+    let s = 0.49;
+    built(
+        "a post's top just inside its radius",
+        &post,
+        (&top, &top),
+        s,
+        1,
+        -ring(s, r - s / 3.0),
+    );
+    for s in [r, 0.6] {
+        match chamfer(&post, &top, s) {
+            Err(BlendError::FaceClearanceUncertified { margin, .. }) => {
+                let reading = margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .expect("a value");
+                assert!(
+                    (reading - (r - s)).abs() < 1e-12,
+                    "s = {s}: the screen reads {reading} against R − s = {}",
+                    r - s
+                );
+            }
+            other => panic!(
+                "s = {s}: a top too narrow for its setback refuses at the screen, got {other:?}"
+            ),
+        }
+    }
 }

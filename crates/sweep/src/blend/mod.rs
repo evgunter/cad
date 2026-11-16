@@ -1348,7 +1348,7 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into (the rim query, `rim_of`, \
      lists them from any one arc), rather than stopping at the seam, a chart artifact; a \
-     fillet or a plane\u{2013}cylinder chamfer carves it as one band on either material side";
+     blend carves it as one band on either material side";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through (save
@@ -1373,11 +1373,13 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `work/blend/blend-recourses-under-describe-their-doors.md` closed
 /// on, swept across all three sentences that carried it.
 ///
-/// ONE clause is conditioned by verb, because it names a door whose
-/// extent differs between the verbs: a fillet carves the whole latitude
-/// rim of any coaxial revolution pair, a chamfer only a plane's with a
-/// cylinder (telling a chamfer caller to request a plane\u{2013}sphere
-/// rim would name a door that cannot serve them). NEITHER clause conditions on side: both bands,
+/// The closed clause names a door whose extent differs between the
+/// verbs — a fillet carves the whole latitude rim of any coaxial
+/// revolution pair, a chamfer only a plane's with a cylinder — and says
+/// so without naming either verb ("where the verb's arms cover it"):
+/// the sentence rides refusals of both, and a chamfer's must not speak
+/// as the fillet (`blend6_verb_vocab`). A caller whose pair the verb's
+/// arms do not cover meets that verb's own arm refusal first. NEITHER clause conditions on side: both bands,
 /// both corner patches and the closed-rim band all fold the chain's
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
@@ -1404,9 +1406,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces, ending at trivalent \
      plane\u{2013}plane vertices of one convexity, or single cylinder-ruling links at TRANSVERSE \
-     CAPS. For a fillet or a plane\u{2013}cylinder chamfer, a whole latitude rim carves, its rings \
-     clear of the band's setback; junction carry-through and the other run-outs are not \
-     implemented";
+     CAPS. Also a whole latitude rim carves where the verb's arms cover it, its rings clear of \
+     the band's setback; junction carry-through and the other run-outs are not implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
@@ -1434,7 +1435,7 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both
 /// support face's own ring has to be carried through the blend too —
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class).
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, for a fillet, spheres, cylinders and cones) \
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes, spheres, cylinders and cones \
      whose edges are lines and circles \u{2014} a support face's own rings included; cut a \
      feature that leaves any other ring AFTER the blend rather \
      than before it";

@@ -4,8 +4,8 @@
 //! and its births reach the document through the fillet's ring roles: a
 //! `BandFace` per rim, a `BandFoot` and a `BandSlit` per band, a
 //! `BandCross` per wall seam per band. Every name is unique, and a
-//! replay — the document evaluated again, over its prior, and after an
-//! edit of the setback — names the same entities the same way.
+//! replay — the document evaluated again, over its prior, and after a
+//! `SetParam` of the setback — names the same entities the same way.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -161,26 +161,31 @@ fn a_holes_two_rims_chamfer_under_the_ring_roles_and_replay_alike() {
         names,
         "an evaluation over its prior"
     );
-    // The edited node mints under a new id, so its names are compared
-    // with that id, wherever it is cited, read as the node's own.
-    let roles = |names: &[StableName], own: RecipeNodeId| -> Vec<String> {
-        let own = format!("{own:?}");
-        let mut r: Vec<String> = names
-            .iter()
-            .map(|n| format!("{:?} {:?}", n.kind, n.path).replace(&own, "SELF"))
-            .collect();
-        r.sort();
-        r
-    };
-    let (edited, edited_node) = chamfered(0.08, false);
-    let ev = fixture::run(&edited, &EvalOptions::default());
+    // The setback edited in place: the node keeps its id, and the
+    // replay over the prior evaluation names every entity as before.
+    let (edited, _) = fixture::step(
+        doc.clone(),
+        editor_core::DocEdit::SetParam {
+            node,
+            slot: editor_core::SlotId::ChamferDistance,
+            value: len(0.08).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let replayed = fixture::run_with_prior(&edited, &ev);
     assert_eq!(
-        roles(
-            &named(&ev, edited_node, "after a setback edit"),
-            edited_node
+        named(&replayed, node, "after a setback edit"),
+        names,
+        "the setback edited, replayed over the prior"
+    );
+    assert_eq!(
+        named(
+            &fixture::run(&edited, &EvalOptions::default()),
+            node,
+            "after a setback edit, fresh"
         ),
-        roles(&names, node),
-        "the setback edited"
+        names,
+        "the setback edited, evaluated fresh"
     );
 }
 

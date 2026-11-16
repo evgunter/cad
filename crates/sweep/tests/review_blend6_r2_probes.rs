@@ -135,23 +135,19 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
     );
 }
 
-/// **PROBE 2 — the chamfer-purity property rests on an unguarded
-/// unreachability argument.**
+/// **PROBE 2 — the closed-chamfer arm speaks as the chamfer.**
 ///
 /// The surgery's closed-chamfer arm (`surgery.rs`, the `Chamfer` arm
 /// of the closure match) mints `UnsupportedChain`, whose `Display`
-/// appends the CONDITIONED assembly recourse — and that recourse
-/// names both verbs ("for a fillet or a plane–cylinder chamfer, a
-/// whole latitude rim carves"). So if that arm ever fires, a chamfer
-/// caller reads a message containing "fillet", which is exactly what
-/// the unit's own `assert_speaks_as_the_chamfer` forbids.
-///
-/// The arm is argued unreachable (a closed chamfer chain is a rim of
-/// frustum links, and every link of one rim lies on its one cylinder
-/// and one plane). Nothing computes that argument; this row makes the
-/// consequence explicit.
+/// appends the assembly recourse. The chamfer's closed rims are
+/// reachable, and so are that recourse's other `UnsupportedChain`
+/// sites under a chamfer (a frustum rim sharing its host), so its
+/// closed clause names no verb ("where the verb's arms cover it"). This
+/// row holds the rendered text to the purity property
+/// `assert_speaks_as_the_chamfer` states: a chamfer refusal never says
+/// "fillet".
 #[test]
-fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
+fn the_closed_chamfer_arm_speaks_as_the_chamfer() {
     let body = cube::<f64>(L, Tol::witness());
     let edge = query::all_edges(&body)[0];
     let refusal = BlendRefusal {
@@ -164,12 +160,9 @@ fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
     let text = refusal.render(geom_brep::recourse::Reading::Build);
     let without_rosters = text.replace("fillet3_", "");
     assert!(
-        without_rosters.contains("fillet"),
-        "if this row goes red the conditioned clause was reworded and the tension \
-         is gone: {text}"
+        !without_rosters.contains("fillet"),
+        "a chamfer refusal must not speak as the fillet: {text}"
     );
-
-    // And the shipped purity helper's own predicate is what it fails.
     assert!(text.starts_with("chamfer: "), "{text}");
 }
 
