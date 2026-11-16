@@ -798,7 +798,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour's torus is whatever the body carries.
     ///
     /// Standing: as the convention states it
-    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// ([`geom_brep::TorusRefusal::standing`]): ranked by its margin in
     /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.

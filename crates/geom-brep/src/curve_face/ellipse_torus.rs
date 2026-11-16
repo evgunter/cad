@@ -1173,10 +1173,8 @@ mod torus_rows {
                 assert!(
                     matches!(
                         got,
-                        Err(DoorRefusal::Torus(crate::TorusRefusal {
-                            verdict: crate::TorusVerdict::Refused(_),
-                            ..
-                        }))
+                        Err(DoorRefusal::Torus(ref refusal))
+                            if matches!(refusal.standing(), crate::TorusStanding::InvalidInput(_))
                     ),
                     "{what}, {pose}: {got:?}"
                 );
@@ -1186,10 +1184,8 @@ mod torus_rows {
             assert!(
                 matches!(
                     got,
-                    Err(DoorRefusal::Torus(crate::TorusRefusal {
-                        verdict: crate::TorusVerdict::Undecided(_),
-                        ..
-                    }))
+                    Err(DoorRefusal::Torus(ref refusal))
+                        if matches!(refusal.standing(), crate::TorusStanding::Ranked(_))
                 ),
                 "a ring in the gap, {pose}: {got:?}"
             );

@@ -4766,10 +4766,14 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
         ),
         (
             "Carrier/Torus",
-            F::Carrier(TraceFault::Torus(geom_brep::TorusRefusal {
-                convention: geom_brep::TorusConvention::Ring,
-                verdict: geom_brep::TorusVerdict::Undecided(diag()),
-            })),
+            F::Carrier(TraceFault::Torus(
+                geom_brep::TorusRefusal::of(
+                    geom_brep::TorusConvention::Ring,
+                    Err(diag()),
+                    diag().band,
+                )
+                .expect("a half the band left undecided refuses"),
+            )),
         ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];
@@ -6171,25 +6175,25 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "DegenerateTorus/Undecided",
                 R::DegenerateTorus {
                     edge,
-                    refusal: geom_brep::TorusRefusal {
-                        convention: geom_brep::TorusConvention::Ring,
-                        verdict: geom_brep::TorusVerdict::Undecided(named("ring_torus_convention")),
-                    },
+                    refusal: geom_brep::TorusRefusal::of(
+                        geom_brep::TorusConvention::Ring,
+                        Err(named("ring_torus_convention")),
+                        band(),
+                    )
+                    .expect("a half the band left undecided refuses"),
                 },
             ),
             (
                 "DegenerateTorus/Refused",
                 R::DegenerateTorus {
                     edge,
-                    refusal: geom_brep::TorusRefusal {
-                        convention: geom_brep::TorusConvention::Tube,
-                        verdict: geom_brep::TorusVerdict::Refused(
-                            geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
-                                margin: geom_core::MarginDiag::value(5.0e-10),
-                                band: band(),
-                            }),
-                        ),
-                    },
+                    refusal: geom_brep::TorusRefusal::decided(
+                        geom_brep::TorusConvention::Tube,
+                        geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                            margin: geom_core::MarginDiag::value(5.0e-10),
+                            band: band(),
+                        }),
+                    ),
                 },
             ),
             ("Escalated", R::Escalated { source: diag() }),

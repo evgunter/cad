@@ -17,7 +17,7 @@ use geom_brep::intersect::{
 };
 use geom_brep::recourse::Refused;
 use geom_brep::{ClassCarrier, PairSection, SectionRead};
-use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
+use geom_brep::{TorusConvention, TorusStanding};
 use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Real, Vec3};
 
@@ -2370,19 +2370,15 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
 /// The half of the ring convention `err` refused at, and whether it
 /// refused in band (`None`) or decided (`Some(negative)`).
 fn torus_refusal(err: &SectionError) -> (TorusConvention, Option<bool>) {
-    let SectionError::DegenerateTorus(TorusRefusal {
-        convention,
-        verdict,
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the ring-convention refusal, got {err:?}");
     };
-    let decided = match verdict {
-        TorusVerdict::Undecided(_) => None,
-        TorusVerdict::Refused(Refused::Zero(_)) => Some(false),
-        TorusVerdict::Refused(Refused::Negative { .. }) => Some(true),
+    let decided = match refusal.standing() {
+        TorusStanding::Ranked(_) => None,
+        TorusStanding::InvalidInput(Refused::Zero(_)) => Some(false),
+        TorusStanding::InvalidInput(Refused::Negative { .. }) => Some(true),
     };
-    (*convention, decided)
+    (refusal.convention, decided)
 }
 
 /// The ring guard: a spindle torus (`r > R`) and a horn (`r = R`)
@@ -2413,12 +2409,11 @@ fn plane_torus_ring_guard_and_wrong_lane() {
     let near_horn = torus_y(0.3 + 3.0 * eps(), 0.3);
     let err =
         plane_torus_section(&plane, &near_horn, fixture_lever(1.0), band()).expect_err("near horn");
-    let SectionError::DegenerateTorus(TorusRefusal {
-        verdict: TorusVerdict::Undecided(diag),
-        ..
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the ring half undecided, got {err:?}");
+    };
+    let TorusStanding::Ranked(diag) = refusal.standing() else {
+        panic!("expected the ring half undecided, got {refusal:?}");
     };
     assert_eq!(diag.predicate, Some("ring_torus_convention"));
     // Wrong-lane kinds refuse typed, both sides.
@@ -2474,12 +2469,13 @@ fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
         band(),
     )
     .expect_err("in-band tube radius must escalate");
-    let SectionError::DegenerateTorus(TorusRefusal {
-        convention: TorusConvention::Tube,
-        verdict: TorusVerdict::Undecided(diag),
-    }) = err
-    else {
+    let SectionError::DegenerateTorus(refusal) = err else {
         panic!("expected the tube half undecided, got {err:?}");
+    };
+    let (TorusConvention::Tube, TorusStanding::Ranked(diag)) =
+        (refusal.convention, refusal.standing())
+    else {
+        panic!("expected the tube half undecided, got {refusal:?}");
     };
     assert_eq!(diag.predicate, Some("torus_tube_positive"));
 }

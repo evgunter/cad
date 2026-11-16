@@ -116,10 +116,28 @@ pub enum DoorRefusal<X = core::convert::Infallible> {
     /// section carries it. A torus door reads only a ring: its harmonics
     /// take the convention's witness ([`crate::conic_torus_harmonics`]),
     /// and the door asks for it before any pose. The standing is the
-    /// convention's own ([`crate::TorusRefusal::refusal`]): an undecided
+    /// convention's own ([`crate::TorusRefusal::standing`]): an undecided
     /// half is ranked by its margin, and a torus decided outside it is
     /// invalid input.
     Torus(X),
+}
+
+impl<X> DoorRefusal<X> {
+    /// **This refusal with its torus arm split off**: the torus's own
+    /// refusal, or the refusal of a door that reads no torus, which every
+    /// other arm is. A reader of a torus door ends the first its own way
+    /// and hands the second to the reader of every door.
+    ///
+    /// # Errors
+    ///
+    /// The torus arm's `X`.
+    pub fn without_torus(self) -> Result<DoorRefusal, X> {
+        match self {
+            Self::Escalated(diag) => Ok(DoorRefusal::Escalated(diag)),
+            Self::Invariant(what) => Ok(DoorRefusal::Invariant(what)),
+            Self::Torus(torus) => Err(torus),
+        }
+    }
 }
 
 /// What the certified roots of a circle against a surface say about the

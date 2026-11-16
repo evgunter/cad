@@ -4756,10 +4756,10 @@ mod ending_tests {
             ),
             (
                 "torus",
-                SsiError::DegenerateTorus(crate::torus_convention::TorusRefusal {
-                    convention: crate::torus_convention::TorusConvention::Ring,
-                    verdict: crate::torus_convention::TorusVerdict::Refused(zero),
-                }),
+                SsiError::DegenerateTorus(crate::torus_convention::TorusRefusal::decided(
+                    crate::torus_convention::TorusConvention::Ring,
+                    zero,
+                )),
             ),
             ("coincident tori", SsiError::CoincidentTori),
             (

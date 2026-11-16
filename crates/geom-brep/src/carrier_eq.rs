@@ -1574,14 +1574,12 @@ mod tests {
             (spindle, ring, crate::PairSide::First),
         ] {
             match carrier_eq(&x, &y, &ConsumedExtent::arm(1.0), band()) {
-                Err(CarrierEqError::OffRing {
-                    torus,
-                    refusal:
-                        crate::TorusRefusal {
-                            convention: crate::TorusConvention::Ring,
-                            verdict: crate::TorusVerdict::Refused(_),
-                        },
-                }) => assert_eq!(torus, side, "the refusal names the spindle"),
+                Err(CarrierEqError::OffRing { torus, refusal })
+                    if refusal.convention == crate::TorusConvention::Ring
+                        && matches!(refusal.standing(), crate::TorusStanding::InvalidInput(_)) =>
+                {
+                    assert_eq!(torus, side, "the refusal names the spindle");
+                }
                 other => panic!("the spindle on the {side:?} side: {other:?}"),
             }
         }

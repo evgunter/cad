@@ -99,17 +99,26 @@ impl TorusConvention {
 /// it to the one that renders it. Its `Display` is the payload alone, the
 /// half's clause or undecided read ([`Self::said`]); read at a door it
 /// ends in the half's one lever ([`Self::recourse`]).
+///
+/// Its verdict is private: a reader reads it through [`Self::standing`]
+/// (or [`Self::arm`] and [`Self::said`], which this module writes), and a
+/// door builds one through [`Self::of`], [`Self::require`] or
+/// [`Self::decided`]. So the standing is decided here and nowhere else,
+/// by type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TorusRefusal {
     /// The half that refused.
     pub convention: TorusConvention,
     /// How it refused.
-    pub verdict: TorusVerdict,
+    verdict: TorusVerdict,
 }
 
-/// How a half of the ring convention refused.
+/// How a half of the ring convention refused: the convention's own
+/// record, private to this module. Readers elsewhere read
+/// [`TorusStanding`] (`test-utils`'s `torus_verdict_matches` row refuses
+/// the name outside this file, should the type be widened).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum TorusVerdict {
+enum TorusVerdict {
     /// The margin landed in the band, or was poisoned.
     Undecided(Indeterminate),
     /// The margin was decided zero or negative.
@@ -118,6 +127,14 @@ pub enum TorusVerdict {
 
 /// **A torus refusal's standing, with what each class carries**
 /// ([`TorusRefusal::standing`], the one place it is decided).
+///
+/// It is the readers' type, not a second decision: its arms match
+/// `TorusVerdict`'s one for one, because the convention has exactly
+/// two outcomes and each has one class. `TorusVerdict` says what the
+/// margin did (undecided, or decided outside), and stays the
+/// convention's private record. This says what a reader does with it
+/// (rank it, or abort as invalid input), and is the only form a reader
+/// outside this module can name.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TorusStanding {
     /// A half the band left undecided, ranked by its margin (row 1(b)):
@@ -133,8 +150,8 @@ impl TorusRefusal {
     /// **This refusal's standing**, the one home of a torus convention's
     /// class, which every reader of a torus refusal reads, ending it in its
     /// own type: the normal door, the Boolean, the face replacement, the
-    /// frame and contact readers, the section's words. No reader matches
-    /// [`Self::verdict`] itself (`test-utils`'s `torus_verdict_matches` row).
+    /// frame and contact readers, the section's words. The verdict itself
+    /// is private to this module, so no reader can match it.
     #[must_use]
     pub const fn standing(&self) -> TorusStanding {
         match self.verdict {
