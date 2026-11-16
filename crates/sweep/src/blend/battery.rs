@@ -1391,8 +1391,9 @@ fn classify_arm<T: Decide + Bounds>(
             edge,
             supports: CHAMFER_SUPPORTS,
         };
-        return match (sa, sb, carrier) {
-            (Surface::Plane { .. }, Surface::Plane { .. }, _) => Ok((
+        use geom::SurfaceKind::{Cylinder, Plane};
+        return match (sa.kind(), sb.kind(), carrier.as_circle()) {
+            (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
                 chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
                 None,
@@ -1400,38 +1401,17 @@ fn classify_arm<T: Decide + Bounds>(
             // A circle where a cylinder meets a plane: the frustum, once
             // the two are decided to share the circle's axis (the plane
             // square to it), as the fillet's coaxial rows decide it.
-            (
-                Surface::Plane { .. } | Surface::Cylinder { .. },
-                Surface::Plane { .. } | Surface::Cylinder { .. },
-                Curve3::Circle(geom::Circle { frame, .. }),
-            ) if !matches!(
+            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
                 (sa, sb),
-                (Surface::Cylinder { .. }, Surface::Cylinder { .. })
-            ) =>
-            {
-                let sheet = Meridian {
-                    axis: frame.axis_line(),
-                    rim: p,
-                };
-                let (Some((_, da)), Some((_, db))) = (
-                    sheet.trace(sa, ball_side(convexity, senses.0)),
-                    sheet.trace(sb, ball_side(convexity, senses.1)),
-                ) else {
-                    return Err(unsupported());
-                };
-                let margin =
-                    support_coaxiality(edge, da.max(db), band, CHAMFER_SUPPORTS).map_err(|e| {
-                        match e {
-                            BlendError::SpineUnsupported { .. } => unsupported(),
-                            other => other,
-                        }
-                    })?;
-                Ok((
-                    BlendArm::CylinderPlaneCone,
-                    chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
-                    Some((topo::Relation::Coaxial, margin)),
-                ))
-            }
+                (n_a, n_b),
+                senses,
+                circle,
+                (p, tau),
+                radius,
+                convexity,
+                edge,
+                band,
+            ),
             _ => Err(unsupported()),
         };
     }
@@ -1506,6 +1486,51 @@ fn classify_arm<T: Decide + Bounds>(
         )
         .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
     }
+}
+
+/// **The chamfer's frustum row**: a circle where a cylinder meets a
+/// plane, read in the meridian sheet through `p`; the two supports'
+/// departures from the circle's axis decided coaxial under
+/// `fillet3_support_coaxiality`, as the fillet's coaxial rows decide
+/// theirs, and the frustum through the strip's feet minted
+/// ([`chamfer_frustum`]). A pair that does not share the axis is a pair
+/// the chamfer's table does not cover.
+#[allow(clippy::too_many_arguments)]
+fn frustum_arm<T: Decide + Bounds>(
+    (sa, sb): (&Surface<T>, &Surface<T>),
+    (n_a, n_b): (Vec3<T>, Vec3<T>),
+    senses: (bool, bool),
+    circle: &geom::Circle<T>,
+    (p, tau): (Point3<T>, Vec3<T>),
+    radius: T,
+    convexity: Convexity,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
+    let unsupported = || BlendError::ChamferArmUnsupported {
+        edge,
+        supports: CHAMFER_SUPPORTS,
+    };
+    let sheet = Meridian {
+        axis: circle.frame.axis_line(),
+        rim: p,
+    };
+    let (Some((_, da)), Some((_, db))) = (
+        sheet.trace(sa, ball_side(convexity, senses.0)),
+        sheet.trace(sb, ball_side(convexity, senses.1)),
+    ) else {
+        return Err(unsupported());
+    };
+    let margin =
+        support_coaxiality(edge, da.max(db), band, CHAMFER_SUPPORTS).map_err(|e| match e {
+            BlendError::SpineUnsupported { .. } => unsupported(),
+            other => other,
+        })?;
+    Ok((
+        BlendArm::CylinderPlaneCone,
+        chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
+        Some((topo::Relation::Coaxial, margin)),
+    ))
 }
 
 /// Which curved arm a support pair takes in each family, by stored

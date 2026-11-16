@@ -1239,41 +1239,22 @@ fn circular_reach<T: Decide + Bounds>(
     chain: usize,
     band: Band,
 ) -> Result<Vec<Stretch<T>>, BlendError> {
-    // The band's axis, the circle its cross-section revolves about (the
-    // spine, or a frustum's rim), and how far the cross-section reaches
-    // from that circle.
-    let (center, axis, big, reach) = match link.blend.surface {
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            ..
-        } => {
-            let (c, _) = st.c.ok_or_else(|| {
-                disagrees(EntityId::Edge(link.edge), "a torus band's spine point")
-            })?;
-            (center, axis, major_radius, (st.p - c).norm())
-        }
-        Surface::Cone { apex, axis, .. } => {
-            let level = geom::Line {
-                origin: apex,
-                dir: axis,
-            }
-            .foot(st.p);
-            (
-                level,
-                axis,
-                (st.p - level).norm(),
-                (st.fa - st.p).norm().max((st.fb - st.p).norm()),
-            )
-        }
-        _ => {
-            return Err(disagrees(
-                EntityId::Edge(link.edge),
-                "a circular link's band is neither a torus nor a cone",
-            ));
-        }
+    // The band's axis, the circle its cross-section revolves about (a
+    // torus's spine, through the ball's centre `st.c`, or a frustum's rim,
+    // through P), and how far the cross-section reaches from that circle.
+    let geom::Line { dir: axis, .. } = link.blend.surface.axis_line().ok_or_else(|| {
+        disagrees(
+            EntityId::Edge(link.edge),
+            "a circular link's band is not a surface of revolution",
+        )
+    })?;
+    let on_axis = |x: Point3<T>| link.blend.surface.axis_line().map_or(x, |l| l.foot(x));
+    let (circle, reach) = match st.c {
+        Some((c, _)) => (c, (st.p - c).norm()),
+        None => (st.p, (st.fa - st.p).norm().max((st.fb - st.p).norm())),
     };
+    let center = on_axis(circle);
+    let big = (circle - center).norm();
     let meridian @ geom::Line { dir: a, .. } = canonical_axis(geom::Line {
         origin: center,
         dir: axis,
@@ -1304,15 +1285,11 @@ fn circular_reach<T: Decide + Bounds>(
         }
     }
     let ps = sheet(st.p);
-    match (link.blend.surface.clone(), st.c) {
-        (
-            Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            },
-            Some((c, _)),
-        ) => {
+    match st.c {
+        // A torus band: its spine circle through the ball's centre `c`, of
+        // the ball's radius.
+        Some((c, minor_radius)) => {
+            let major_radius = big;
             // The sector, on P's side.
             let pc = sheet(c);
             for f in [st.fa, st.fb] {
