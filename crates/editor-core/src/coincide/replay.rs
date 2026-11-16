@@ -447,18 +447,7 @@ fn carrier_verdict(
         }
         _ => None,
     };
-    let probed = one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated);
-    if let (Some(read), Ok(path)) = (&probed, std::env::var("PROBE_CYLDATA_OUT")) {
-        use std::io::Write as _;
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = writeln!(f, "PROBE-CYLDATA stated={stated} read={read:?}");
-        }
-    }
-    match probed {
+    match one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated) {
         None => kernel(),
         Some(Ok(())) => Some(Ok(())),
         Some(Err((component, why))) => match kernel() {
