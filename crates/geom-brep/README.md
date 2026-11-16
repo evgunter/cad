@@ -945,8 +945,11 @@ definitely on the other, a single point for a crossing or a touch and a
 longer interval for a shared run. A touch's meeting is the in-band arc
 where two distinct curves stay within the band of each other about one
 point of closest approach (the extremum of the one's equation read along
-the other); `meet` returns it as that single point, not as the arc's
-interval. A reader of a touch may read that it exists, its hit kind
+the other); `meet` reports it as a point of that arc together with
+the arc, its positional uncertainty, and its kind is a point meeting,
+not a run. A reader asking a question the arc can straddle reads the
+arc's ends, and escalates where they disagree. A reader of a touch may
+read that it exists, its hit kind
 and its position within the band, which any point of the arc serves;
 whether it crosses, and on which side each curve lies, is the meeting's
 kind, decided once by `meet` and never re-read from the curves'
