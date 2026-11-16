@@ -28,8 +28,8 @@ use geom_core::{
     Vec2,
 };
 
-use crate::Segment;
-use crate::validate::ArcCheck;
+use crate::validate::{ArcCheck, RecordedDirection};
+use crate::{Segment, SegmentDirections};
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
@@ -170,6 +170,24 @@ pub(crate) enum SegIssue<T: Real> {
         /// ([`resolves`]'s margin).
         headroom: MarginDiag,
     },
+    /// A recorded direction disagrees with the vertices it points at
+    /// (`segment_direction` classified the miss definitely off), or is
+    /// the other kind's ([`RecordedDirection::Kind`]).
+    DirectionInconsistent {
+        /// Which direction.
+        which: RecordedDirection,
+    },
+    /// `segment_direction` read a recorded direction off its vertex at
+    /// a magnitude whose `f64` rounding is itself past the band
+    /// (`segment_direction_resolution`).
+    DirectionBelowSceneResolution {
+        /// Which direction.
+        which: RecordedDirection,
+        /// What `segment_direction` classified.
+        margin: MarginDiag,
+        /// What `segment_direction_resolution` classified.
+        headroom: MarginDiag,
+    },
 }
 
 impl<T: Real> From<ShapeIssue<T>> for SegIssue<T> {
@@ -191,6 +209,10 @@ impl<T: Real> SegIssue<T> {
             Self::Shape(issue) => issue.predicate(),
             Self::Inconsistent { check } => check.predicate(),
             Self::BelowSceneResolution { .. } => Gate::ArcCarrierResolution.predicate(),
+            Self::DirectionInconsistent { .. } => Gate::SegmentDirection.predicate(),
+            Self::DirectionBelowSceneResolution { .. } => {
+                Gate::SegmentDirectionResolution.predicate()
+            }
         }
     }
 }
@@ -642,6 +664,249 @@ fn check_carrier<T: Decide>(
     Ok(())
 }
 
+/// The rounding a recorded direction carries into `segment_direction`'s
+/// miss ‖o + ℓ·d − p‖, in ulps of the check's scale, counted as
+/// [`ON_CARRIER_ULPS`] is: the direction's own (a chord's quotient, or a
+/// lowering's rational radial) 4, the length ℓ 2, and the walk's product,
+/// sum and distance 2.
+const DIRECTION_ULPS: f64 = 8.0;
+
+/// **The recorded directions of a table segment, against its vertices**
+/// ([`Consistency::Decide`]): a line's director walked the chord's
+/// length from its start, and an arc's radial walked its rim from the
+/// centre, each must land on the vertex it points at — the
+/// **`segment_direction`** predicate, margin ‖o + ℓ·d − p‖ (meters,
+/// direct), which is Zero exactly when `d` is the unit `(p − o)/ℓ`. A
+/// definite miss is refused typed where the scene resolves it
+/// (**`segment_direction_resolution`**, [`resolves`]'s margin).
+///
+/// An arc `s` reads as a line keeps no carrier, so its radials are not
+/// read either. Directions of the other kind than the stored segment
+/// are refused without a decision ([`RecordedDirection::Kind`]).
+pub(crate) fn check_directions<T: Decide>(
+    s: &Seg<T>,
+    stored: Segment<T>,
+    recorded: SegmentDirections<T>,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    match (stored, recorded, &s.kind) {
+        (Segment::Line, SegmentDirections::Line(d), _) => {
+            check_direction(s.a, s.b, s.len, d, RecordedDirection::Director, band)
+        }
+        (Segment::Arc(_), SegmentDirections::Arc { .. }, SegKind::Line) => Ok(()),
+        (Segment::Arc(_), SegmentDirections::Arc { start, end }, SegKind::Arc(g)) => {
+            let c = g.arc.centre;
+            check_direction(
+                c,
+                s.a,
+                g.arc.rim(s.a),
+                start,
+                RecordedDirection::StartRadial,
+                band,
+            )?;
+            check_direction(
+                c,
+                s.b,
+                g.arc.rim(s.b),
+                end,
+                RecordedDirection::EndRadial,
+                band,
+            )
+        }
+        _ => Err(SegIssue::DirectionInconsistent {
+            which: RecordedDirection::Kind,
+        }),
+    }
+}
+
+/// Whether recorded directions are of the stored segment's kind, the
+/// one structural half of [`check_directions`], which a constructed
+/// segment owes too.
+pub(crate) fn directions_match_kind<T: Real>(
+    stored: Segment<T>,
+    recorded: SegmentDirections<T>,
+) -> bool {
+    matches!(
+        (stored, recorded),
+        (Segment::Line, SegmentDirections::Line(_))
+            | (Segment::Arc(_), SegmentDirections::Arc { .. })
+    )
+}
+
+/// [`check_directions`]' one reading: `d` walked `len` from `o` against `p`.
+fn check_direction<T: Decide>(
+    o: Point2<T>,
+    p: Point2<T>,
+    len: T,
+    d: Vec2<T>,
+    which: RecordedDirection,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    // The one reading, and what "unit" means here: a miss within the
+    // band bounds both the turn and the stretch, (|d| − 1)·ℓ ≤ miss by
+    // the triangle inequality, which is check 1's `Length` measure for a
+    // unit datum at arm ℓ (`geom::convention::frame_margins`).
+    let miss = (o + d * len).distance(p);
+    let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
+        .map_err(SegIssue::escalated)?;
+    match read.sign {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => {
+            let gate = decide_reported(
+                Gate::SegmentDirectionResolution,
+                Margin::of(resolution_headroom(
+                    reach(o).max(reach(p)),
+                    DIRECTION_ULPS,
+                    band,
+                )),
+                band,
+            )
+            .map_err(SegIssue::escalated)?;
+            match gate.sign {
+                Sign::Positive => Err(SegIssue::DirectionInconsistent { which }),
+                Sign::Zero | Sign::Negative => Err(SegIssue::DirectionBelowSceneResolution {
+                    which,
+                    margin: read.margin,
+                    headroom: gate.margin,
+                }),
+            }
+        }
+    }
+}
+
+/// **A direction minted from the vector `w`**: the axis it lies along,
+/// where one component is a Zero the symbolic tier PROVED and the
+/// other's sign is definite, signed by that sign as a literal ±1;
+/// otherwise `quotient`, `w` over its length. The axis carries no width
+/// the geometry lacks, which a quotient of two values that share a
+/// parameter does (`W − W` over a box).
+///
+/// **What it guarantees:** an axis only where the tier proved the zero,
+/// so never a constant where the computation, over the reals, varies with
+/// the parameters (ERROR-DESIGN E12). **What it does not:** one branch at
+/// every valuation. The tier is not asked where the value channel reads a
+/// definite sign, nor, in a deferring session, on an escalation (an eager
+/// session offers it the escalation), so an identity whose `f64` value
+/// rounds off zero, or straddles it in a deferring session, takes the
+/// quotient where another valuation takes the axis. Lane by lane: audit
+/// row F43; the residual:
+/// `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
+///
+/// **The readings** (`segment_direction_axis`, at the least band and
+/// outside the log) run in [`geom_core::sym::aside`]: kept where the
+/// axis is minted, discarded where the quotient is, whose answers the
+/// mint drops. A discarded reading still counts in the session's receipt
+/// ([`geom_core::SymCounts`]), and inside a deferring session its Zero
+/// keeps an entry on the session's list that no reader is obliged to
+/// discharge. Asking for proof only by a counted sign reading is
+/// `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
+fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
+    let (read, aside) = geom_core::sym::aside(|| {
+        geom_core::k_stats::unlogged("F43", || {
+            [
+                read_component(w.x, Band::least()),
+                read_component(w.y, Band::least()),
+            ]
+        })
+    });
+    let axis = match read {
+        [Component::ProvenZero, Component::Signed(s)] => Some(Vec2::new(T::zero(), s)),
+        [Component::Signed(s), Component::ProvenZero] => Some(Vec2::new(s, T::zero())),
+        _ => None,
+    };
+    match axis {
+        Some(axis) => {
+            aside.keep();
+            axis
+        }
+        None => {
+            aside.discard();
+            quotient
+        }
+    }
+}
+
+/// One component of the vector [`axis_or`] mints from, as it reads it.
+enum Component<T> {
+    /// A Zero the symbolic tier proved: an identity of the parameters.
+    ProvenZero,
+    /// A Zero no proof stands behind: zero at this valuation, or an
+    /// identity the tier did not prove (its budget, an opaque atom).
+    UnprovenZero,
+    /// A definite sign, as the literal ±1.
+    Signed(T),
+    /// The reading escalated.
+    Escalated,
+}
+
+/// `c` read against `band` (`segment_direction_axis`), the least band
+/// [`axis_or`] passes it. A Zero is proven where
+/// [`geom_core::sym::deferred::discharge`] says so: it answers a margin
+/// the tier proved as it decided, and inside a deferring session, which
+/// proves nothing as it decides, it runs the tier for that one Zero.
+fn read_component<T: Decide>(c: T, band: Band) -> Component<T> {
+    match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), band) {
+        Err(_) => Component::Escalated,
+        Ok(d) => match d.sign {
+            Sign::Positive => Component::Signed(T::one()),
+            Sign::Negative => Component::Signed(-T::one()),
+            Sign::Zero if geom_core::sym::deferred::discharge(d.margin) => Component::ProvenZero,
+            Sign::Zero => Component::UnprovenZero,
+        },
+    }
+}
+
+/// **`x`'s sign as the literal ±1**, where it reads definite: a choice
+/// between sound spellings ([`geom_core::k_stats::choose`],
+/// `segment_direction_sign`, audit row F43), one reading per call;
+/// `None` at a tie, for the caller's other spelling. A literal rather
+/// than a `copysign` of one, so the symbolic tier reads a constant where
+/// the sign is known, not an opaque atom.
+pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
+    use geom_core::k_stats::{Pick, choose};
+    match choose(Gate::SegmentDirectionSign.predicate(), Margin::of(x), "F43") {
+        Pick::Positive => Some(T::one()),
+        Pick::Negative => Some(-T::one()),
+        Pick::Tie => None,
+    }
+}
+
+/// **The directions a validated segment records**: the ones its
+/// construction or its table recorded, `recorded`, where they are of the
+/// kind `s` reads as; otherwise decided here, once, from what the
+/// segment holds — a line's chord unit (`s.unit`, under the
+/// `vertex_separation` decision already taken), an arc's centre-to-vertex
+/// units over its rim at each end.
+pub(crate) fn validated_directions<T: Decide>(
+    s: &Seg<T>,
+    recorded: Option<SegmentDirections<T>>,
+) -> SegmentDirections<T> {
+    match (&s.kind, recorded) {
+        (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
+        | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
+        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.chord, s.unit)),
+        (SegKind::Arc(g), _) => SegmentDirections::Arc {
+            start: mint_radial(g.arc, s.a),
+            end: mint_radial(g.arc, s.b),
+        },
+    }
+}
+
+/// **The chord's director, minted**: the chord `b − a` over its length,
+/// `unit` ([`ChordFrame`]'s one spelling), or the axis it lies along
+/// ([`axis_or`]). The one mint of a line's direction from its points.
+pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T> {
+    axis_or(chord, unit)
+}
+
+/// **The radial at `p`, minted**: `p − centre` over the rim at `p`
+/// ([`Arc2::rim`]), or the axis it lies along ([`axis_or`]). The one
+/// mint of an arc's direction from its points.
+pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
+    let w = p - arc.centre;
+    axis_or(w, w / arc.rim(p))
+}
+
 /// One read-back of a constructed arc against what was authored, past
 /// the band ([`read_back`]).
 #[derive(Clone, Copy, Debug)]
@@ -964,7 +1229,7 @@ pub(crate) fn sweep_range<T: Decide>(
             Some(Sign::Zero) => inconsistent(),
             _ => SegIssue::escalated(e),
         })?;
-    let (one_turn, rate) = (Period::new(T::tau()), Exact::new(arc.radius));
+    let (one_turn, rate) = (Period::angle(), Exact::new(arc.radius));
     let accepted = Gate::ArcSweepRange
         .read(|name| {
             let rows = TurnRows::exact(name);

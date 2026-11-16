@@ -15,14 +15,15 @@
 //!   the middle's foot gap plus the reach, `√(|H|² + (L·|F|)²)` at most,
 //!   or the foot gap carried along `b` (below);
 //! - **(ii) receding** (`curve_pair_window_recedes`): `d` strictly growing
-//!   away from the ring.
+//!   away from the ring, or, on an arc no ring bounds, up `θ` or down it.
 //!
 //! An arc bounded by no ring must read off throughout, past the band's
 //! escalation rather than its zero: it answers to no found meeting, so a
 //! point within the gap there is a near-miss the band leaves undecided,
 //! and the root goes to the polish, which escalates on it (the parent
-//! module's docs). A piece receding up `θ` or down it reads off there
-//! where its point at the near end does: `d` is least at that end.
+//! module's docs). A piece receding there reads off where its point at
+//! the near end does, `d` being least at that end; otherwise it settles,
+//! and the root goes to the polish.
 //! **Off there is off `b`'s span**, not only its carrier:
 //! where `b`'s carrier runs on past its span beside `a`, a piece whose
 //! carrier readings fail is read against the span by its carrier's point
@@ -234,7 +235,6 @@ impl<T: Decide> Window<'_, T> {
         let speed = self.a.speed_hi();
         let reach = speed * w;
         let q = self.a.point_at(m);
-        let lower = self.span_b.carrier().clearance(q).unwrap_or_else(T::zero) - reach;
         let row = "curve_pair_window_recedes";
         // The height and the level are read locally at the middle,
         // uncharged: their few terms round far below the band, and an
@@ -285,7 +285,7 @@ impl<T: Decide> Window<'_, T> {
             Some(_) => T::from_f64(band.zero()),
             None => T::from_f64(band.escalate()),
         };
-        if positive("curve_pair_window_off", h.lo.max(lower) - z) {
+        if self.off((l, r), z) {
             return Some(Read::Off);
         }
         // Unless the middle's foot on `b`'s carrier is read inside `b`'s
@@ -310,16 +310,19 @@ impl<T: Decide> Window<'_, T> {
         match away {
             Some(up) if recedes(up) => return Some(Read::Recedes),
             Some(_) => {}
-            // With no ring, a piece along which `d` grows is off past `z`
-            // where its near end is: `d` is least there.
+            // With no ring, `d` is least at a receding piece's near end, in
+            // either direction: the piece is off past `z` where that end is.
+            // Otherwise it settles unhalved and the arc goes to the polish:
+            // the piece's least `d` did not read off.
             None => {
-                if (recedes(true) && self.point_off(l, z))
-                    || (recedes(false) && self.point_off(r, z))
-                {
-                    return Some(Read::Off);
-                }
-                if recedes(true) {
-                    return Some(Read::Recedes);
+                for (up, near) in [(true, l), (false, r)] {
+                    if recedes(up) {
+                        return Some(if self.off((near, near), z) {
+                            Read::Off
+                        } else {
+                            Read::Recedes
+                        });
+                    }
                 }
             }
         }
@@ -334,15 +337,24 @@ impl<T: Decide> Window<'_, T> {
             .then_some(Read::OffSpan)
     }
 
-    /// **Whether `a(t)` itself reads off `b`'s carrier past `z`** ((i), at a
-    /// piece of no reach).
-    fn point_off(&self, t: T, z: T) -> bool {
-        let q = self.a.point_at(t);
-        let clear = self.span_b.carrier().clearance(q).unwrap_or_else(T::zero);
-        positive(
-            "curve_pair_window_off",
-            self.height_jet(t)[0].abs().max(clear) - z,
-        )
+    /// **(i) off** (module docs): whether the piece `(l, r)`, a point where
+    /// `l = r`, reads off `b`'s carrier past `z`.
+    fn off(&self, piece: (T, T), z: T) -> bool {
+        positive("curve_pair_window_off", self.off_floor(piece) - z)
+    }
+
+    /// **(i)'s lower bound on `d` over the piece `(l, r)`**: the greater of
+    /// the least `|H|` and the middle's clearance less the piece's reach.
+    fn off_floor(&self, (l, r): (T, T)) -> T {
+        let two = T::from_f64(2.0);
+        let (m, w) = ((l + r) / two, (r - l) / two);
+        let h = taylor(self.height_jet(m), [T::zero(); 4], self.height_fourth(), w);
+        let clear = self
+            .span_b
+            .carrier()
+            .clearance(self.a.point_at(m))
+            .unwrap_or_else(T::zero);
+        h.lo.max(clear - self.a.speed_hi() * w)
     }
 
     /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
@@ -522,8 +534,8 @@ impl<T: Decide> Window<'_, T> {
         }
         let (t0, t1) = self.span_a;
         let level = level_on(self.a, self.b);
-        // The carrier's own period (`Conic::period`).
-        let turn = self.a.period();
+        // A conic's period (`geom::conic_period`).
+        let turn = geom::conic_period();
         // The turns of `t` from the one nearest the span's start up to
         // the span's end, at most `MAX_TURNS`; `None` past that. A copy
         // half a turn or more below the start meets the span only through

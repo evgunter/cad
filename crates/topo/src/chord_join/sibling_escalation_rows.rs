@@ -259,7 +259,7 @@ fn a_wall_ring_vertex_escalating_hands_re_homing_to_the_next() {
             let lone = ring_at(&mut body, face, p0, &[]);
             if !matches!(
                 wall_side(&body, (face, made.face), lone),
-                Err(SplitJoinError::Escalated { .. })
+                Err(JoinError::Escalated { .. })
             ) {
                 continue;
             }

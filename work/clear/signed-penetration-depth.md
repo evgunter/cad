@@ -2,7 +2,8 @@
 id: signed-penetration-depth
 kind: issue
 title: Clearance reports a coincidence, not a signed penetration depth
-status: open
+status: closed
+closed: 2026-11-14
 opened: 2026-09-03
 priority: P1
 cost: H
@@ -76,3 +77,25 @@ depth from the clearance engine (`crates/editor-core/src/clearance.rs`,
 CLEAR's territory), not for one fact with two homes. The band is
 unchanged; `cost: D` re-priced H, since either shape the body names
 needs a point-in-solid or a section reading the engine lacks.
+
+## Closed: not the clearance engine's question (fork row 267, `[ev]` PR)
+
+Both designers agreed that the engine reports no depth.
+- **A witness point's sign carries nothing at a crossing.** Both
+  witness points lie on the other body's boundary, so the sign reads
+  `On`.
+- **A depth would compute a minimum.** E3 says "the minimum is never
+  computed", and for a non-convex body a depth is not one well-defined
+  number.
+- **The row's three consumers are served elsewhere:**
+  - the `⊔` census decides interference;
+  - the at-rest check names each overlap solid by its bounding faces;
+  - `Gap` (CONTACT C5) is the signed depth and direction.
+- **The row's exhibit is a two-body metric query** through the dials
+  door, which only tests reach. Its witness, two face points at
+  distance 0, is the intended one.
+
+What the row was pointing at is a false `Holds`. A body buried in
+another body's material passes `clearance(a, b) ≥ c` today. That is
+filed as
+`a-body-buried-in-another-bodys-material-passes-a-clearance-bound`.

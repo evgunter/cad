@@ -1101,7 +1101,11 @@ impl core::fmt::Display for ClearanceEvent {
 ///
 /// Total: whether `face` names a face of `on`, and whether that face is
 /// planar, are the door's and the evaluation's to refuse.
-pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode {
+pub fn mirror_node(
+    body: Operand,
+    on: pncad::document::BodyRead<Formula>,
+    face: StableName,
+) -> AuthoredNode {
     Node::mirror(
         body,
         crate::matetool::plane_of(Operand::select(on, vec![face])),

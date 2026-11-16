@@ -58,7 +58,7 @@ mod loop_volume_grid {
                 .unwrap_or_else(|e| panic!("{cell}: the loop sweeps: {e:?}"));
             let body = if moved {
                 let motion = RigidMotion::translation(across).expect("a translation");
-                pncad::topo::transform_rigid(&body, &motion, tol)
+                pncad::topo::transform_rigid(&body, &motion)
                     .unwrap_or_else(|e| panic!("{cell}: the loop moves: {e:?}"))
             } else {
                 body

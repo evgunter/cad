@@ -39,7 +39,7 @@ sweep sorted the band-decided parameter differences into four classes:
   - `slit::parting_order` (`PARTING_ORDER`) is metered at the sup of the
     carrier's `speed_range`;
   - `replace_face`'s `iso_row_runs_against` has no certifiable inf rate,
-    so it rides `decide_flagged` under ledger row F41;
+    so it rides `decide_flagged` under ledger row F44;
 - **(d)** already metres, so nothing to do: `offset_derive`.
 
 A probe moved no decision at default ε or 1e-12: 29

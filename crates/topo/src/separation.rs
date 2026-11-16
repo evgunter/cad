@@ -27,7 +27,7 @@
 //!
 //! The certificate is **sufficient, not necessary**. Every face of the
 //! prototype gets a conservative axis-aligned box (the boolean sweep's own
-//! [`crate::boolean::boxes::face_box`], padded); a pair of placements is
+//! [`crate::boxes::face_box`], padded); a pair of placements is
 //! CERTIFIED SEPARATED when no box of one placement's copy can meet any
 //! box of the other's. Boxes are supersets of what they enclose and an
 //! affine image of a superset is a superset of the affine image, so a
@@ -114,7 +114,7 @@ use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
-use crate::boolean::boxes::{face_box, sweep_pad};
+use crate::boxes::{face_box, sweep_pad};
 use crate::entity::SolidKey;
 
 /// The prototype's separation certificate machinery: its padded face

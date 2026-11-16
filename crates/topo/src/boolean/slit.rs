@@ -1714,7 +1714,7 @@ mod torus_rows {
 
     #[test]
     fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
-        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -2318,14 +2318,13 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
                     if lp != outer {
                         return Err(refused(EdgeInFaceGap::Pocket));
                     }
-                    let sense = body.get_face(face).ok_or_else(desync)?.sense;
+                    body.get_face(face).ok_or_else(desync)?;
                     let ring = body
                         .kemr_minting(made_w.he_plus, made_w.he_minus, tol)?
                         .ring;
-                    let piece = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?.face;
                     // The piece is the face's own region on its own chart,
                     // not a hole of it promoted: it keeps the face's side.
-                    body.set_face_sense(piece, sense)?;
+                    let piece = body.mfkrh_piece_minting(ring, tol)?.face;
                     divided = Some(piece);
                 } else {
                     let (ring, he) = if lp == outer {
@@ -2825,7 +2824,7 @@ fn on_span<T: Decide>(
 ///
 /// A spline's floor may read zero, below or poison: no certified inf is
 /// in hand there, so its order rides the finding lane on the parameter's
-/// own sign (`decide_flagged`, ledger row F42), and its Zero is read at
+/// own sign (`decide_flagged`, ledger row F45), and its Zero is read at
 /// the sup as above.
 ///
 /// # Errors
@@ -2847,7 +2846,7 @@ fn parting_order<T: Decide>(
     let order = if geom_core::structure_ascends(T::zero(), inf.get()) {
         decide_reported(PARTING_ORDER, Margin::metered(a - b, inf), band)
     } else {
-        decide_flagged_reported(PARTING_ORDER, a - b, band, "F42")
+        decide_flagged_reported(PARTING_ORDER, a - b, band, "F45")
     }
     .map_err(escalated)?;
     match order.sign {
@@ -3728,7 +3727,7 @@ mod curved_carrier_rows {
                 band(),
             )
         };
-        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let lever = geom_brep::ExtentBall::of_covered(torus.cover().as_ref().ok()).lever();
         let section = |offset: f64, tilt: f64| {
             let plane = geom::Surface::Plane {
                 origin: Point3::new(offset, 0.0, 0.0),
@@ -4301,7 +4300,7 @@ mod parting_order_rows {
     }
 
     /// **A spline whose speed floor certifies nothing orders on the
-    /// parameter's own sign** (ledger row F42). A quadratic that runs out
+    /// parameter's own sign** (ledger row F45). A quadratic that runs out
     /// and back (`P0 = P2`) has a hodograph through the origin, so its
     /// floor is not decided positive; its order rides the finding lane,
     /// and its Zero is still read at the sup.

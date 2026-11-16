@@ -411,7 +411,7 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
     assert_eq!(r1, r2, "the two measures still read one selection");
     assert_eq!(rem.var_named(s.as_str()), Some(r1), "under its name");
     assert_eq!(
-        rem.selection(r1).map(|select| select.body),
+        rem.selection(r1).map(|select| select.body.read),
         rem.output(out.instance, 0),
         "a selection of the instance's body"
     );
@@ -419,7 +419,7 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         rem.vars()
             .values()
             .filter_map(|var| var.def().select())
-            .all(|select| rem.operation_of(select.body).is_some()),
+            .all(|select| rem.operation_of(select.body.read).is_some()),
         "no selection of a dead body is left behind"
     );
 }

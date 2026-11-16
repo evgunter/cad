@@ -455,7 +455,6 @@ fn two_ball_body_classifies_each_shell_independently() {
     let b = topo::transform_rigid(
         &a,
         &geom_core::RigidMotion::translation(geom_core::Vec3::new(4.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let b = finished("the moved ball", b, Tol::witness());

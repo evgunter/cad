@@ -3,7 +3,8 @@
 //! faces, and the ruled band cut off at plane caps ([`ruled`]). The
 //! cut-off both take is [`end_face`]'s. Each carves one blend face — of
 //! one link, or, on the planar band, of several joined on one support
-//! pair — its births recorded in the open-band rows of
+//! pair, or one per link where a planar band's links meet at junctions
+//! onto other supports — its births recorded in the open-band rows of
 //! [`BlendNaming`](crate::blend::naming::BlendNaming) (`feet`, `trims`,
 //! `arcs`, `blends`, `joined_blends`). Everything both rest on — the door, the plans'
 //! admission, the refusal classes, the chord helpers, the description

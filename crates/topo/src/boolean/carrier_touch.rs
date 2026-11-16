@@ -56,10 +56,10 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
-use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
 use crate::body::Body;
+use crate::boxes;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
@@ -390,8 +390,8 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 /// `at`.** Its certified box, padded by the sweep's pad, clear of the
 /// ball's box answers at once. Otherwise a lower bound on the distance
 /// is decided against `radius`, read on the edge's own carrier
-/// ([`crate::splitting::containment::arc_distance_floor`]: a segment, a
-/// conic's own arc, any other carrier's ball and then its arc's
+/// ([`crate::splitting::containment::arc_distance_floor`]: a segment,
+/// any other carrier's cover, and then a spiric's or a spline's arc's
 /// pieces). A carrier with no cover over its span (a spline net carrying
 /// poison) is not clear.
 ///

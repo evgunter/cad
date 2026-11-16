@@ -428,7 +428,7 @@ pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), P
         )?
         .ok_or(PathError::DegenerateArcSpec { value: angle })?;
     let short = Gate::PathArcSweepFull.read(|name| {
-        Period::new(T::tau())
+        Period::angle()
             .strictly_partial(TurnRows::exact(name), sweep, Exact::new(r), band)
             .map_err(|undecided| undecided.diag)
     })?;

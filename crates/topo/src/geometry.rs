@@ -20,8 +20,8 @@
 //!   tier-3 validator re-runs it at rest.
 //! - **Surfaces**: `geom::Surface<T>` — D3's closed analytic
 //!   enum. A face's surface arrives from its construction (operator
-//!   surface parameters, [`crate::construction::FaceSurface`]; Newell-certified
-//!   planes via `geom_brep::newell_plane`) or, for `mvfs`'s seed face,
+//!   surface parameters, [`crate::construction::FaceSurface`]; a sweep's
+//!   planes are its stations' frames) or, for `mvfs`'s seed face,
 //!   starts as the `Surface::Nurbs` representable-unimplemented
 //!   placeholder — the honest "no description yet" state, legal
 //!   mid-construction and rejected by the tier-3 validator if it

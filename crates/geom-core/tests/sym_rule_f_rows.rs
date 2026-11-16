@@ -707,6 +707,7 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
         ("crates/geom/src/chart_point.rs", 1),
         ("crates/geom/src/curves/banded.rs", 1),
         ("crates/geom/src/surfaces.rs", 1),
+        ("crates/mesh/src/walk.rs", 1),
         ("crates/profile/src/sugar.rs", 1),
         ("crates/sweep/src/blend/arms.rs", 3),
         ("crates/sweep/src/revolve/axis.rs", 1),

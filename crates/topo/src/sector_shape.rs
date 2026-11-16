@@ -330,6 +330,64 @@ pub(crate) fn apex_extrema_inside<T: Decide>(
     Ok(rulings)
 }
 
+/// **A partner cone's extremal directions strictly inside a sector of a
+/// tangent plane**: [`apex_extrema_inside`]'s question asked in the other
+/// geometry. Both ask whether the datum's side turns inside the sector,
+/// and they stay two readings because the sectors are two kinds.
+///
+/// - **At a cone's apex** the sector is the cone's fan of rulings between
+///   its bounds, which span no plane. "Inside" is the ruling's azimuth
+///   from the sector's start, read as the chord between rulings
+///   (`sector_apex_window`).
+/// - **In a tangent plane** the sector's bounds are two directions in the
+///   plane of unit normal `n`, and "inside" is the sign of `(start × d)·n`
+///   and of `(d × end)·n` (`bool_sector_within`).
+///
+/// Both are displacements at the sector's arm, levered at the same
+/// length, so neither reading is the other's in another spelling. The
+/// partner's extrema are the directions along the plane's trace on its
+/// cone ([`geom_brep::cone_plane_apex_extrema`]), and a partner whose axis
+/// lies within the band of square to the plane has none
+/// (`bool_sector_partner_tilt`, `‖axis − n(axis·n)‖` at `arm`). The
+/// first extremum inside is returned.
+///
+/// # Errors
+///
+/// A reading in the band, its diagnostics as read.
+pub(crate) fn tangent_extrema_inside<T: Decide>(
+    n: Vec3<T>,
+    (start, end): (Vec3<T>, Vec3<T>),
+    partner: &crate::sector_face::ConeApex<T>,
+    arm: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Option<Vec3<T>>, geom_core::Indeterminate> {
+    let tilt = partner.axis - n * partner.axis.dot(n);
+    if decide(
+        "bool_sector_partner_tilt",
+        Margin::levered(tilt.norm(), arm),
+        band,
+    )? != Sign::Positive
+    {
+        return Ok(None);
+    }
+    let extrema = geom_brep::cone_plane_apex_extrema(&partner.surface(), n)
+        .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"));
+    for d in extrema {
+        let d = d.normalize();
+        let inside = |a: Vec3<T>, b: Vec3<T>| {
+            decide(
+                "bool_sector_within",
+                Margin::levered(a.cross(b).dot(n), arm),
+                band,
+            )
+        };
+        if inside(start, d)? == Sign::Positive && inside(d, end)? == Sign::Positive {
+            return Ok(Some(d));
+        }
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

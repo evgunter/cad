@@ -27,17 +27,34 @@ pub fn lower(margin: MarginDiag) -> f64 {
     }
 }
 
-/// **A matrix a suite holds, admitted at the decided door** at `tol`'s
-/// linear band ([`RigidMotion::check_rigid`]): the question a suite
-/// that builds its map as twelve numbers asks before it moves a body
-/// by it. Panics, naming the refusal, when the map is not admitted.
+/// **A matrix a suite holds, admitted as the rigid motion it is** at
+/// `tol`'s linear band: the question a suite that builds its map as
+/// twelve numbers, at any scalar, asks before it moves a body by it. Its
+/// columns are kept as given when each rigidity margin is within its own
+/// rounding ([`RigidMotion::check_rigid`]'s rule) or, beyond it, levered
+/// by the session box and decided `Zero` at the band. A test door: no
+/// production door re-derives rigidity from entries at a box scalar.
+/// Panics, naming the refusal, when the map is not admitted.
 #[must_use]
 #[allow(clippy::panic)]
 pub fn rigid<T: Decide>(map: &Affine3<T>, tol: Tol) -> RigidMotion<T> {
+    admitted(map, tol).unwrap_or_else(|e| panic!("the map is not admitted as a rigid motion: {e}"))
+}
+
+/// [`rigid`]'s answer, the refusal returned rather than panicked on: for
+/// a suite asking which margin a map that is no rigid motion fails.
+///
+/// # Errors
+///
+/// The refusal, naming the margin.
+#[allow(clippy::panic)]
+pub fn admitted<T: Decide>(
+    map: &Affine3<T>,
+    tol: Tol,
+) -> Result<RigidMotion<T>, crate::RigidMotionError> {
     let band =
         Band::linear(tol).unwrap_or_else(|e| panic!("the run's tolerance forms no band: {e}"));
-    RigidMotion::check_rigid(map, band)
-        .unwrap_or_else(|e| panic!("the map is not admitted as a rigid motion: {e}"))
+    RigidMotion::admitted_for_a_suite(map, band)
 }
 
 /// The Bernstein row on `[a, b] ⊆ [0, 1]` of a `[0, 1]` row, by the
@@ -78,6 +95,17 @@ pub fn refused_point(x: f64) -> crate::Interval {
 #[must_use]
 pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
     crate::Lever(length)
+}
+
+/// **The least turn's conditioning edge at `arm`**: the chord from the
+/// pole, `2·arm/R`, below which [`RigidMotion::least_turn`] refuses
+/// ill-conditioned, `R` the run's rounding reach read through its one
+/// door ([`Tol::rounding_reach`]). Near the pole the chord is the tilt
+/// from backwards, so a row tilts by a fraction or a multiple of it. The
+/// suites' one spelling of the edge.
+#[must_use]
+pub fn least_turn_band_edge(tol: Tol, arm: f64) -> f64 {
+    2.0 * arm / tol.rounding_reach()
 }
 
 /// **The reading of a scale twin's margin streams**: one body at two

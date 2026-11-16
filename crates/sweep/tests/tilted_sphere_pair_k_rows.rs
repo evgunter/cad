@@ -52,12 +52,7 @@ fn ball(r: f64, c: Vec3<f64>) -> Body<Probe> {
         Tol::witness(),
     );
     let to = Vec3::new(p(c.x), p(c.y), p(c.z));
-    topo::transform_rigid(
-        &b,
-        &geom_core::RigidMotion::translation(to).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap()).unwrap()
 }
 
 #[test]

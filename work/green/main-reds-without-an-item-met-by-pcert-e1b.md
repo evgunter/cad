@@ -2,10 +2,11 @@
 id: main-reds-without-an-item-met-by-pcert-e1b
 kind: issue
 title: main reds with no item, met by PCERT E1b's round: the tier-1 census names validate_pseudomanifold, emit_union_borders' corner boss, and three sweep rows at 1e-6 (one builds a wrong volume)
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
+closed: 2026-11-14
 ---
 
 
@@ -60,3 +61,7 @@ and the 1e-6 pin cites that row, not this file. The 1e-12 pin cites
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
 
 Moved from `work/issues/` to `work/green/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed (2026-11-14)
+
+Every test this row names passes at all three ε rows of nightly 43371638371 (main `e36675c1`, 2026-11-13), read from each leg's junit. Whether a fix or a pin greened each is not traced here.

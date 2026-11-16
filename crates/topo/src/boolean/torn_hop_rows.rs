@@ -82,7 +82,7 @@ fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
 /// poison box an uncertified curve gets.
 #[test]
 fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
-    use super::boxes::edge_box;
+    use crate::boxes::edge_box;
     use crate::cover::face_window_steps;
     let mut body = cube();
     let face = first_face(&body);
@@ -116,8 +116,8 @@ fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
 /// curve first.
 #[test]
 fn the_face_box_panics_on_a_torn_boundary_curve() {
-    use super::boxes::face_box;
-    let (mut body, face) = super::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+    use crate::boxes::face_box;
+    let (mut body, face) = crate::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
     assert!(
         face_box(&body, face, 0.0, band()).min_x.is_finite(),
         "a certified box"
@@ -159,7 +159,9 @@ fn describe_edges_panics_on_a_torn_curve() {
 fn point_in_face_panics_on_a_torn_outer_loop() {
     let mut body = cube();
     let face = first_face(&body);
-    let (_, normal) = crate::face_normal::face_plane(&body, face).expect("a cube face is planar");
+    let normal = crate::face_normal::face_plane(&body, face)
+        .expect("a cube face is planar")
+        .normal;
     let members = outer_members(&body, face);
     let corner = |he| {
         let v = body.get_half_edge(he).unwrap().start;
@@ -433,7 +435,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
         .map(|(k, _)| k)
         .find(|&f| {
             crate::face_normal::face_plane(&pierced, f)
-                .is_some_and(|(o, n)| n.z > 0.5 && (o.z - 1.0).abs() < 1e-12)
+                .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - 1.0).abs() < 1e-12)
         })
         .unwrap();
     let contact = VfContact { vertex, face };

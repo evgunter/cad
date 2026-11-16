@@ -19,8 +19,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
-use sweep::blend::Convexity;
 use sweep::blend::arms::{corner_ball, plane_plane_blend, plane_sphere_blend};
+use sweep::blend::{Convexity, blend_sense};
 
 /// The box edge at `x = y = 0` of the solid `x, y > 0`: outward
 /// normals `−x̂`, `−ŷ`, edge along `+ẑ`. The blend is the cylinder of
@@ -119,8 +119,8 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
         panic!("cylinders");
     };
     assert!((oc.x - r).abs() < 1e-15 && (ok.x + r).abs() < 1e-15);
-    assert!(Convexity::Convex.blend_sense());
-    assert!(!Convexity::Concave.blend_sense());
+    assert!(blend_sense(Convexity::Convex));
+    assert!(!blend_sense(Convexity::Concave));
 }
 
 /// The corner ball of the box corner at the origin (solid `x,y,z > 0`)

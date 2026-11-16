@@ -38,7 +38,7 @@
 //!   decides only its deck element), so it admits every body the
 //!   certifying doors build here, and the import door's reach is open
 //!   up to the endpoint band and unmeasured
-//!   (`work/tess/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
+//!   (`work/tesslane/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
 //!   The certifying Euler doors
 //!   admit two on-surface rims a band apart with their junctions in
 //!   the endpoint band, which is a rim-only cap whose two levels are
@@ -547,7 +547,7 @@ fn loop_findings(
             let o = &travs[opens[k]];
             match (&o.kind, &t.kind) {
                 (TravKind::Rim { v_raw: opened }, TravKind::Rim { v_raw: own }) => {
-                    let gap = if chart.v_periodic() {
+                    let gap = if chart.v_domain_wraps() {
                         wrapped(*own, *opened)
                     } else {
                         (own - opened).abs()

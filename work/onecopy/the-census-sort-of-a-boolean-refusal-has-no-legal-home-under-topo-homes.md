@@ -92,3 +92,56 @@ The measured `super::` closure of `boolean/contain.rs` on main at
 
 When `ContainError` reaches the root, `contain_loop.rs`'s
 `names-boolean` pin (which cites this row) falls with it.
+
+## Measured on main at 151631ccb8 (2026-11-10), and the order taken
+
+Production lines (code before the file's first `#[cfg(test)]`, comments
+excluded), and the `super::` reads between the modules in that code:
+
+| module | production lines | reads |
+|---|---|---|
+| `contain` | 1256 | `one_vertex_at`, `region`, `ruled_region`, `solid_contain`, `sphere_region`, `spline_region`, `torus_region` |
+| `region` | 1111 | `solid_contain` |
+| `sphere_region` | 517 | `region`, `solid_contain` |
+| `torus_region` | 546 | `region`, `solid_contain` |
+| `ruled_region` | 710 | `region`, `solid_contain` |
+| `spline_region` | 875 | `contain` |
+| `solid_contain` | 5181 | `boxes`, `kind_word`, `region`, `rim_wedge`, `ruled_region`, `separating`, `sphere_region`, `surface_group`, `torus_region`, `placement_subject`, `placement_ending` |
+| `rim_wedge` | 1143 | `contain` |
+| `surface_group` | 281 | `rim_wedge`, `solid_contain` |
+| `boxes` | 334 | `separating` |
+| `separating` | 383 | (none of these) |
+| `carrier_cross` | 395 | `contain` |
+| `glue` | 453 | `rim_wedge` |
+| `contact_verify` | 785 | (none of these) |
+
+- **One strongly connected component.** {`contain`, `region`,
+  `sphere_region`, `torus_region`, `ruled_region`, `spline_region`,
+  `solid_contain`, `rim_wedge`, `surface_group`} is about 11.6k production
+  lines, about 21k with tests. It moves as one PR. Splitting it would leave
+  a root member reading an engine's `pub(super)` item (`contain` reads
+  `spline_region::spline_face_placement` and
+  `solid_contain::torus_elevation`), which needs a new `pub(crate)` in the
+  engine: refused (`engine-leaves.sh`, and the decision above).
+- **The tangent-line reading cannot go first.** It reads
+  `contain::placement_on_carrier`/`CurvedPlacement`/`ContainError`,
+  `rim_wedge`, `carrier_cross::face_boundary`, `glue::decided_glue`,
+  `contact_verify` and `boxes::sweep_pad`.
+- **What the containment move clears.** 140 root sites name the containment
+  door (`boolean::contain`/`contfp`, `ContainError`, `face_placement`,
+  `PlacementError`, `CurvedPlacement`): census 39, validate 32,
+  test_support_samples 20, review_d18 15, one_region 9, cover 5,
+  census/in_plane 4, splitting/containment 3, contain_loop 3, chart_region
+  3, lib 2, held 2, chord_join/island_rows 2, live 1. Root `names-boolean`
+  was 1393 sites over 59 files, census.rs's pin 432.
+
+**The order**, each its own PR: a pure move, the `git mv` its own commit,
+pins only falling:
+
+1. `separating` and `boxes` to the crate root (this PR's branch,
+   `onecopy/census-sort-home`).
+2. The component above, with `one_vertex_at`, `kind_word`,
+   `placement_subject` and `placement_ending` alongside.
+3. `carrier_cross::face_boundary` to the root, refusing in its own type.
+4. The reading itself, `FaceUnread` reshaped by verdict kind;
+   `contact_verify::tangent_locus_relation` to `geom-brep`.
