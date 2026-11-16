@@ -293,33 +293,50 @@ pub fn segment_kind<T: SpanLocate>(carrier: &Curve3<T>) -> SegmentKind {
 ///
 /// - A conic: `(axis · a·b · (Δ − sin Δ), |Δ|·max(a, b))`
 ///   ([`arc_segment_term`]), odd in the signed span `Δ`; the length is
-///   exact for a circle and an upper bound for an ellipse
-///   ([`Conic::speed_hi`](geom::Conic::speed_hi)).
+///   exact for a circle and an upper bound for an ellipse.
 /// - A non-rational spline: `∫ (P − P(t0)) × P′ dt` over the interval,
 ///   exact per knot span ([`loop_vector_area`]'s rule), negated for a
-///   reversed traversal; the length is the carrier's speed sup
-///   ([`NurbsCurve3::speed_upper_bound`]) times the span.
+///   reversed traversal.
+///
+/// The length is the carrier's speed sup
+/// ([`geom::carrier_speed::speed_range`]: a conic's larger semi-axis, a
+/// spline's control-net bound) times the span.
 pub fn closed_segment_term<T: SpanLocate>(
     (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
     forward: bool,
 ) -> Option<SegmentTerm<T>> {
-    if let Some(conic) = carrier.conic() {
-        let (a, b) = conic.semi_axes();
-        let span = if forward { t1 - t0 } else { t0 - t1 };
-        return Some((
-            arc_segment_term(conic.frame().axis, a * b, span),
-            span.abs() * conic.speed_hi(),
-        ));
-    }
+    let bulge = match carrier.conic() {
+        Some(conic) => {
+            let (a, b) = conic.semi_axes();
+            let span = if forward { t1 - t0 } else { t0 - t1 };
+            arc_segment_term(conic.frame().axis, a * b, span)
+        }
+        None => spline_bulge(carrier, (t0, t1), forward)?,
+    };
+    Some((bulge, length_bound(carrier, (t0, t1))))
+}
+
+/// An upper bound on the length of `carrier` over `(t0, t1)`: its speed
+/// sup times the span.
+fn length_bound<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> T {
+    geom::carrier_speed::speed_range(carrier)
+        .1
+        .to_meters((t1 - t0).abs())
+}
+
+/// A spline arc's bulge where [`nurbs_vector_area`] reads it; `None` for
+/// any other carrier, and for a spline it refuses.
+fn spline_bulge<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    forward: bool,
+) -> Option<Vec3<T>> {
     let Curve3::Nurbs(curve) = carrier else {
         return None;
     };
     let half = nurbs_vector_area(curve, t0, t1, curve.eval(t0)).ok()?;
     let bulge = half + half;
-    Some((
-        if forward { bulge } else { -bulge },
-        curve.speed_upper_bound().to_meters((t1 - t0).abs()),
-    ))
+    Some(if forward { bulge } else { -bulge })
 }
 
 /// A [`SegmentQ`] has no term at a piece count: a piece whose enclosure
@@ -355,6 +372,7 @@ impl SegmentQ {
         (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
         forward: bool,
     ) -> Option<Self> {
+        let length = || length_bound(carrier, (t0, t1));
         Some(match carrier {
             Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
                 Self::Closed(closed_segment_term((carrier, (t0, t1)), forward))
@@ -381,7 +399,7 @@ impl SegmentQ {
                 }))
             }
             Curve3::Nurbs(curve) => {
-                let length = curve.speed_upper_bound().to_meters((t1 - t0).abs());
+                let length = length();
                 if !length.is_certified() {
                     return None;
                 }
