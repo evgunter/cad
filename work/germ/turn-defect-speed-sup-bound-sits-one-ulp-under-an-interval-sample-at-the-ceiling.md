@@ -89,3 +89,5 @@ The shape is the same: the bound reads the ceiling `|a|`, and the sample's upper
 `CAD_TOLERANCE_EPS=1e-12` `ci` runs hit it twice on 2026-11-09, on two
 branches that touch no `carrier_speed::turn_defect_*` code. Neither run
 kept the seed (the log line was filtered out), and six re-runs passed.
+
+- 2026-11-16 — **a seed at the default eps, from TESSLANE's PR 6965** (a diff that touches no `geom` source): hosted `test (kernel)` on its head `8f585255cf` (2026-11-14) drew `0x19eec72bea96df53` and `r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval` failed at the default eps, the sup bound one ulp under an interval sample at the ceiling. The rows above have it at 10⁻⁶ and 10⁻¹² only.

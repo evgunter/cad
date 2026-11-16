@@ -4,6 +4,8 @@ kind: issue
 title: cert_cylinder and cert_sphere clamp a NaN to 0: a cylinder triangle with a side on a ruling certifies at 0 in some corner orders
 status: open
 opened: 2026-11-16
+priority: P1
+cost: M
 ---
 
 

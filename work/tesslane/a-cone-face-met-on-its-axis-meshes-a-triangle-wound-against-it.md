@@ -4,6 +4,8 @@ kind: issue
 title: T1's cone joined to a box whose edge crosses its axis meshes a cone triangle that reach_probes' geometry reads as wound against the face
 status: open
 opened: 2026-11-16
+priority: P1
+cost: E
 ---
 
 

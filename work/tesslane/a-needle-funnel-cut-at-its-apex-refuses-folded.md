@@ -4,6 +4,8 @@ kind: issue
 title: A needle funnel cut 1e-5 above its apex refuses FoldedTriangle or BoundaryEar at every δ tried: its upper half's cone face
 status: open
 opened: 2026-11-16
+priority: P3
+cost: M
 ---
 
 
