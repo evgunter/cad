@@ -337,7 +337,7 @@ pub enum SegmentQ {
     Closed(Option<SegmentTerm<Interval>>),
     /// A spiric arc: [`super::spiric`]'s enclosure of its vector area
     /// about its start point, and its piecewise length bound.
-    Spiric(super::spiric::SpiricEdgeQ),
+    Spiric(Box<super::spiric::SpiricEdgeQ>),
     /// A spline arc, rational or not: [`super::rational_rim`]'s
     /// enclosure of its vector area about its start point, and its
     /// certified length bound.
@@ -368,7 +368,7 @@ impl SegmentQ {
                 offset,
             } => {
                 let rv = |v: Vec3<Interval>| [v.x, v.y, v.z];
-                Self::Spiric(super::spiric::SpiricEdgeQ {
+                Self::Spiric(Box::new(super::spiric::SpiricEdgeQ {
                     centre: rv(*center - carrier.eval(t0)),
                     axis: rv(*axis),
                     normal: rv(*u_ref),
@@ -378,7 +378,7 @@ impl SegmentQ {
                     t0,
                     t1,
                     forward,
-                })
+                }))
             }
             Curve3::Nurbs(curve) => {
                 let length = curve.speed_upper_bound().to_meters((t1 - t0).abs());

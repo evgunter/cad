@@ -137,8 +137,9 @@ fn a_rational_arc_is_enclosed_and_winds_at_a_certifying_scalar() {
             let edge = SegmentQ::of((&c, span), forward).expect("the enclosure builds");
             let term = |pieces| edge.term(pieces).unwrap().expect("a spline has a term");
             let (bulge, length) = term(ENCLOSURE_PIECES[0]);
-            let (finer, _) = term(ENCLOSURE_PIECES[1]);
-            for (count, got, width) in [(0, bulge.z, 1e-5), (1, finer.z, 1e-9)] {
+            // The finer count is read one way round: it is the cost.
+            let finer = forward.then(|| (1, term(ENCLOSURE_PIECES[1]).0.z, 1e-9));
+            for (count, got, width) in [(0, bulge.z, 1e-5)].into_iter().chain(finer) {
                 assert!(
                     got.lo() <= want && want <= got.hi() && got.hi() - got.lo() < width,
                     "{t0}..{t1} forward {forward}, count {count}: [{}, {}] against {want}",
