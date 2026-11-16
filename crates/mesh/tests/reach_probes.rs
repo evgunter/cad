@@ -1270,6 +1270,8 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     use mesh::TessellateError as E;
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
+    // The half above the cut at `h = 10⁻⁵`, at each δ.
+    let refused = ["FoldedTriangle", "BoundaryEar", "FoldedTriangle"];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -1303,13 +1305,11 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                     Err(E::BoundaryEar { .. }) => Some("BoundaryEar"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
-                #[allow(clippy::float_cmp)]
                 let want = if h > 1e-5 || side != "above" {
                     None
-                } else if delta == 2e-4 {
-                    Some("BoundaryEar")
                 } else {
-                    Some("FoldedTriangle")
+                    let at = deltas.iter().position(|&d| d == delta);
+                    Some(refused[at.expect("a δ of the table")])
                 };
                 if exact {
                     assert_eq!(refusal, want, "{what}, δ = {delta:e}");

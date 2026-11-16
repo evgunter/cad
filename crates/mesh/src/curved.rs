@@ -419,11 +419,9 @@ pub(crate) fn tessellate_curved(
                 unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
             }
         }
-        // Sticky-NaN accumulation: `f64::max` would silently drop a
-        // poisoned bound.
-        if bound.is_nan() || worst.is_nan() || bound > worst {
-            worst = bound;
-        }
+        // The face's worst bound, a NaN kept once met (`cert::worse`):
+        // what a refusal reports is what refused.
+        worst = cert::worse(worst, bound);
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
 

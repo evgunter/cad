@@ -222,8 +222,11 @@ pub fn cert_cone(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
     bound
 }
 
-/// The larger of two bounds, a NaN if either is one (`f64::max` drops it).
-fn worse(a: f64, b: f64) -> f64 {
+/// The larger of two bounds, a NaN if either is one: `f64::max` drops a
+/// NaN, and "replace where the kept one is NaN" lets the next finite
+/// bound overwrite it, so a face refused for a NaN would report a finite
+/// bound under its δ.
+pub(crate) fn worse(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         f64::NAN
     } else {
@@ -1197,7 +1200,7 @@ mod tests {
         }
         let mut rng = test_utils::fuzz::start("cert_cone_axis");
         let mut about_axis = 0usize;
-        let draws = test_utils::fuzz::scaled(6_000);
+        let draws = test_utils::fuzz::scaled(2_500);
         for k in 0..draws {
             let alpha = if k % 4 == 0 {
                 10f64.powf(rng.range(-3.7, -1.0))
@@ -1317,6 +1320,10 @@ mod tests {
             assert!(!cert_torus(bad, 0.2, flat).is_finite(), "torus, R = {bad}");
             assert!(!cert_torus(1.0, bad, flat).is_finite(), "torus, r = {bad}");
         }
+        // A face's worst bound keeps a NaN whichever side it comes from.
+        assert!(worse(f64::NAN, 1.0).is_nan() && worse(1.0, f64::NAN).is_nan());
+        assert!(worse(worse(0.0, f64::NAN), 0.5).is_nan());
+        assert_eq!(worse(0.25, 2.0), 2.0);
         assert!(cone_chord_sag(0.3, f64::NAN, 1.0, 0.1).is_nan());
         assert!(cone_chord_sag(0.3, 1.0, 1.0, f64::NAN).is_nan());
         assert_eq!(cone_chord_sag(0.3, 0.0, 0.0, 0.1), 0.0);

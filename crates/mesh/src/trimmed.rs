@@ -1552,10 +1552,9 @@ impl TrimmedFace<'_> {
                     }
                 }
             }
-            // Sticky-NaN accumulation (the curved lane's rule).
-            if bound.is_nan() || measure.worst.is_nan() || bound > measure.worst {
-                measure.worst = bound;
-            }
+            // The attempt's worst bound, a NaN kept once met
+            // (`cert::worse`): what a refusal reports is what refused.
+            measure.worst = cert::worse(measure.worst, bound);
             if refine_lane && verdict == cert::Verdict::Exceeded {
                 refine.push(Self::inside_point(plane, &uv, developed, singular));
             }
