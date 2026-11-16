@@ -28,6 +28,19 @@ So no boolean of a cylinder and a ball in a general pose can be drawn.
 
 The mint is on other ground: `geom-brep`'s `ssi.rs` (`cylinder_sphere_ssi`; SSIARITH, SSIEDGE) and `pair_section.rs` (the SECT family). This row sits here because the refusal is the mesh's and the mint's owner is not yet identified; whoever owns the mint claims it by moving it. `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse these bodies at rest once it lands, so this row is on its path too.
 
+## The fork
+
+A closed fitted section loop is one open clamped interpolant whose two
+free ends coincide (`ssi::refine::fit_branch`), so every closed fitted
+loop carries a C⁰ seam at the march's seed, about 1e-7 rad in tangent.
+A loop with no site hides it under its closed edge's vertex; seating
+(`pair_section::seat_at`, `rotated`) moves it inside an edge as a
+full-multiplicity knot, against Ev's PR 5913 clause (DESIGN
+`[topology]`: an edge carrier is C¹ by its knot structure inside its
+cell). What a closed fitted loop's carrier is, and where the C¹ rule
+is met for the edges cut from it, is the decision; C11's "periodic …
+forms are a designed absence" changes with it.
+
 ## Done when
 
 The six ops of the measured pose mesh and pass `check_mesh`, and the probe is re-pinned to that.
