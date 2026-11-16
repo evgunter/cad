@@ -514,9 +514,7 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
                     PropsError::OffSurface { what }
                     | PropsError::NotIsoRectangle { what }
                     | PropsError::SpanUncertified { what },
-                ) => {
-                    names.contains(what)
-                }
+                ) => names.contains(what),
                 Err(PropsError::Escalated { cause, .. }) => {
                     cause.predicate.is_some_and(|p| names.contains(&p))
                 }

@@ -277,6 +277,10 @@ pub(crate) fn lane_of(
     })
 }
 
+/// One face's route as [`Routes::of`] read it: the face, its lane or
+/// the route's refusal, and the K-funnel recording the read made.
+pub(crate) type Routed = (FaceKey, Result<Lane, TessellateError>, Detached);
+
 /// **Every face's lane, read once per run** ([`lane_of`]), in face-arena
 /// order, with the K-funnel recording each face's read made: the fold
 /// splices it in at that face's turn, before the lane's own, so a
@@ -290,13 +294,7 @@ pub(crate) struct Routes {
 impl Routes {
     /// Routes every face of `body` at `band`: the table, and each face's
     /// answer with its recording, in arena order.
-    pub(crate) fn of(
-        body: &Body<f64>,
-        band: Band,
-    ) -> (
-        Self,
-        Vec<(FaceKey, Result<Lane, TessellateError>, Detached)>,
-    ) {
+    pub(crate) fn of(body: &Body<f64>, band: Band) -> (Self, Vec<Routed>) {
         let routed: Vec<_> = body
             .faces()
             .map(|(fk, _)| {
@@ -323,6 +321,7 @@ impl Routes {
     /// The table alone, at the witness tolerance's band: what a unit
     /// test of one pass reads in place of a run's.
     #[cfg(test)]
+    #[allow(clippy::expect_used)]
     pub(crate) fn witness(body: &Body<f64>) -> Self {
         Self::of(
             body,
