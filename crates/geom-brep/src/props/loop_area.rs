@@ -298,9 +298,16 @@ pub fn segment_kind<T: SpanLocate>(carrier: &Curve3<T>) -> SegmentKind {
 ///   exact per knot span ([`loop_vector_area`]'s rule), negated for a
 ///   reversed traversal.
 ///
-/// The length is the carrier's speed sup
-/// ([`geom::carrier_speed::speed_range`]: a conic's larger semi-axis, a
-/// spline's control-net bound) times the span.
+/// The length is summed over the edge's own stretch
+/// ([`geom::carrier_speed::length_hi`]): a circle's is exact, an
+/// ellipse's and a spline's are upper bounds that are not charged for a
+/// faster stretch elsewhere on the carrier.
+///
+/// At `Interval` the spline arm is the Gauss rule with its nodes and
+/// weights rounded to `f64`, in interval arithmetic: it carries the
+/// rounding of its own operations, not the nodes', so it is a rounded
+/// rule a few units in the last place off the integral and not an
+/// enclosure of it. [`SegmentQ`] is the enclosure.
 pub fn closed_segment_term<T: SpanLocate>(
     (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
     forward: bool,
@@ -316,12 +323,10 @@ pub fn closed_segment_term<T: SpanLocate>(
     Some((bulge, length_bound(carrier, (t0, t1))))
 }
 
-/// An upper bound on the length of `carrier` over `(t0, t1)`: its speed
-/// sup times the span.
+/// An upper bound on the length of `carrier` over `(t0, t1)`, summed
+/// over the edge's own stretch ([`geom::carrier_speed::length_hi`]).
 fn length_bound<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> T {
-    geom::carrier_speed::speed_range(carrier)
-        .1
-        .to_meters((t1 - t0).abs())
+    geom::carrier_speed::length_hi(carrier, t0, t1)
 }
 
 /// A spline arc's bulge where [`nurbs_vector_area`] reads it; `None` for
@@ -356,8 +361,8 @@ pub enum SegmentQ {
     /// about its start point, and its piecewise length bound.
     Spiric(Box<super::spiric::SpiricEdgeQ>),
     /// A spline arc, rational or not: [`super::rational_rim`]'s
-    /// enclosure of its vector area about its start point, and its
-    /// certified length bound.
+    /// enclosure of its vector area about its start point, and the
+    /// certified bound on its length over its own stretch.
     Spline(super::rational_rim::RationalEdgeQ, Interval),
 }
 
@@ -365,8 +370,8 @@ impl SegmentQ {
     /// The edge on `carrier` over `(t0, t1)`, traversed `forward` or
     /// against the parameter. `None` for a spline whose enclosure does
     /// not build: its interval's ends or its knots are not exact
-    /// parameters, its decomposition refuses, or its speed sup is not
-    /// certified.
+    /// parameters, its decomposition refuses, or its length bound is
+    /// not certified.
     #[must_use]
     pub fn of(
         (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
@@ -671,5 +676,34 @@ mod tests {
         let f = loop_vector_area(&[line_edge(a, b, true)], Point3::new(0.0, 1.0, 0.0)).unwrap();
         let r = loop_vector_area(&[line_edge(a, b, false)], Point3::new(0.0, 1.0, 0.0)).unwrap();
         assert_eq!(f.z.to_bits(), (-r.z).to_bits());
+    }
+
+    /// **A conic arc's length term is its own stretch's**: a circle's is
+    /// `R·|Δ|` to the bit, and an ellipse arc about the end of its long
+    /// axis, where it runs at its smaller semi-axis, is charged within a
+    /// tenth of an inscribed polygon's length, where the larger semi-axis
+    /// times the span is fifty times it; a whole turn within a fifth.
+    #[test]
+    fn a_conic_arcs_length_term_is_its_own_stretchs() {
+        let (o, z, x) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let (r, span) = (2.5, (0.3, 1.7));
+        let (_, length) =
+            closed_segment_term((&Curve3::circle(o, z, r, x), span), true).expect("a conic");
+        assert_eq!(length.to_bits(), (r * (span.1 - span.0)).to_bits());
+        let (a, b) = (100.0, 1.0);
+        let flat = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), a, b));
+        for ((t0, t1), slack) in [
+            ((-0.01, 0.01), 1.1),
+            ((3.1, 3.2), 1.1),
+            ((0.0, core::f64::consts::TAU), 1.2),
+        ] {
+            let (_, length) = closed_segment_term((&flat, (t0, t1)), false).expect("a conic");
+            let at = |k: u32| flat.eval(t0 + (t1 - t0) * f64::from(k) / 4096.0);
+            let polygon: f64 = (0..4096).map(|k| (at(k + 1) - at(k)).norm()).sum();
+            assert!(
+                polygon <= length && length < slack * polygon,
+                "{t0}..{t1}: the bound {length} against an inscribed polygon's {polygon}"
+            );
+        }
     }
 }

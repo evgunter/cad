@@ -320,3 +320,153 @@ fn an_arc_standing_off_the_plane_winds_as_its_projection() {
         assert_eq!(sign(&raised), sign(&flat), "{span:?}");
     }
 }
+
+/// The cubic whose first span `[0, ½]` is a shallow arch of height
+/// about `h` over the unit chord, and whose second runs out to `x = far`:
+/// a quiet stretch of a carrier that is fast elsewhere.
+fn quiet_span(h: f64, far: f64) -> Curve3<f64> {
+    spline(
+        vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[
+            [0.0, 0.0, 0.0],
+            [0.33, h, 0.0],
+            [0.67, h, 0.0],
+            [1.0, 0.0, 0.0],
+            [far, 0.0, 0.0],
+        ],
+        vec![1.0; 5],
+    )
+}
+
+/// The rational cubic of seven control points `scale` times an arch over
+/// `x ∈ [1, 6]` from a first point at `x = x0`, its weights spread over
+/// three decades.
+fn wide_weights(scale: f64, x0: f64) -> Curve3<f64> {
+    let ys = [0.0, 1.0, 1.5, 2.0, 1.5, 1.0, 0.0];
+    let pts: Vec<[f64; 3]> = (0..7u8)
+        .map(|i| {
+            let x = if i == 0 { x0 } else { f64::from(i) };
+            [scale * x, scale * ys[usize::from(i)], 0.0]
+        })
+        .collect();
+    spline(
+        vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &pts,
+        vec![1.0, 50.0, 0.02, 3.0, 1.0, 0.05, 1.0],
+    )
+}
+
+/// The inscribed polygon of `n` chords of `carrier` over `(t0, t1)`:
+/// twice its area about `+z` closed by the one chord (the arc run
+/// forward), and its length.
+fn polygon(carrier: &Curve3<f64>, (t0, t1): (f64, f64), n: u32) -> (f64, f64) {
+    let at = |k: u32| carrier.eval(t0 + (t1 - t0) * f64::from(k) / f64::from(n));
+    let origin = at(0);
+    (0..n).fold((0.0, 0.0), |(area, length), k| {
+        let (p, q) = (at(k), at(k + 1));
+        (
+            area + (p - origin).cross(q - origin).z,
+            length + (q - p).norm(),
+        )
+    })
+}
+
+/// The winding about `+z` at `band` of the open run forward along
+/// `carrier` over `span`, closed by its straight chord.
+fn run_winding_at(carrier: &Curve3<f64>, span: (f64, f64), band: geom_core::Band) -> Winding {
+    Body::<f64>::winding_of_steps(
+        &[(carrier.eval(span.0), Some(((carrier, span), true)))],
+        carrier.eval(span.1),
+        None,
+        true,
+        Vec3::unit_z(),
+        band,
+    )
+}
+
+/// The band at `ε = 10⁻⁶` and the run's `K`.
+fn micron_band() -> geom_core::Band {
+    geom_core::Band::linear_at(geom_core::Tol::witness(), 1e-6).unwrap()
+}
+
+/// **An edge's length term is its own stretch's, on the closed lane**:
+/// the edge on the slow first span of a cubic whose second span runs out
+/// to `x = 50` is charged within a quarter of an inscribed polygon's
+/// length, where the carrier's speed sup times the span is over two
+/// hundred times it. At `ε = 10⁻⁶` the run it closes with its chord, a
+/// region of mean width between 20 and 30 ε, winds clockwise, where the
+/// loose lever read it as no area.
+#[test]
+fn a_quiet_span_of_a_fast_carrier_is_not_wound_zero() {
+    let span = (0.0, 0.5);
+    for far in [20.0, 50.0] {
+        let carrier = quiet_span(1e-4, far);
+        assert_eq!(segment_kind(&carrier), SegmentKind::Closed);
+        let (_, lever) = closed_segment_term((&carrier, span), true).unwrap();
+        let (area, length) = polygon(&carrier, span, 4096);
+        assert!(
+            length <= lever && lever < 1.25 * length,
+            "far {far}: the lever {lever} against an inscribed polygon's {length}"
+        );
+        let chord = (carrier.eval(span.1) - carrier.eval(span.0)).norm();
+        let width = area.abs() / (length + chord);
+        assert!(
+            (20e-6..30e-6).contains(&width),
+            "far {far}: the premise, a region 20 to 30 ε wide: {width}"
+        );
+        let wound = run_winding_at(&carrier, span, micron_band());
+        assert!(
+            matches!(
+                wound,
+                Ok(Ok(Decided {
+                    sign: Sign::Negative,
+                    ..
+                }))
+            ),
+            "far {far}: {wound:?}"
+        );
+    }
+}
+
+/// **An edge's length term is its own stretch's, on the enclosure
+/// lane**: the arc `(0.12, 0.9)` of a rational cubic with weights over
+/// three decades, whose first control point stands 0.3 m or 1 m off the
+/// rest, runs past the fast start. Its lever is within a quarter of an
+/// inscribed polygon's length, where the carrier's speed sup times the
+/// span is hundreds to thousands of times it; and at `ε = 10⁻⁶` the run
+/// it closes with its chord, about 5 mm wide, winds clockwise at the
+/// first piece count, where the loose lever escalated at the finest or
+/// read no area.
+#[test]
+fn a_wide_weight_arc_past_a_fast_start_is_decided() {
+    let span = (0.12, 0.9);
+    for start in [-30.0, -100.0] {
+        let carrier = wide_weights(0.01, start);
+        assert_eq!(segment_kind(&carrier), SegmentKind::Enclosed);
+        let (c, lifted_span) = lifted(&carrier, span);
+        let (_, lever) = SegmentQ::of((&c, lifted_span), true)
+            .expect("the enclosure builds")
+            .term(ENCLOSURE_PIECES[0])
+            .unwrap()
+            .expect("a spline has a term");
+        let (area, length) = polygon(&carrier, span, 1 << 14);
+        assert!(
+            length <= lever.lo() && lever.hi() < 1.25 * length,
+            "start {start}: the lever {lever:?} against an inscribed polygon's {length}"
+        );
+        assert!(area < 0.0, "start {start}: the premise, a clockwise run");
+        let wound = run_winding_at(&carrier, span, micron_band());
+        assert!(
+            matches!(
+                wound,
+                Ok(Ok(Decided {
+                    sign: Sign::Negative,
+                    ..
+                }))
+            ),
+            "start {start}: {wound:?}"
+        );
+    }
+}
