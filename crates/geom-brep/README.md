@@ -253,14 +253,18 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the radius of the box it lies in. Its
+node, and the pad a site reads is the widest of the boxes it lies in,
+each the farthest that box's image stands from the carrier. Its
 last box holds the node, and the claim over that box is the node's own
-reading: `∇φ`'s one zero there by the Krawczyk operator, its Hessian
-indefinite and its value decided Zero, re-read about the edge's end
-vertex at rest and stored nowhere. The chain stops where a box no
-longer holds one arc, about `√(εR)` from the node, `R` the surfaces'
-relative curvature radius: a site there and not at the node is
-assigned to no arc and escalates. The ray the arc's end names (C5) is
+reading: `∇φ`'s one zero there by the Krawczyk operator, within the
+band of the carrier's end, its Hessian indefinite and its value decided
+Zero, re-read about the edge's end vertex at rest and stored nowhere.
+The chain stops about `√(εR)` from the node, `R` the surfaces' relative
+curvature radius, by a fixed rule: the arc's samples settle toward the
+node until `|∇φ|` times their distance from it falls to a fixed multiple
+of the band (about `8√(εR)`), and the last box is twice the end span's
+reach, which may be no more than a fixed multiple of that settle reach:
+a site in it and not at the node is assigned to no arc and escalates. The ray the arc's end names (C5) is
 the null ray of the node's Hessian whose sector holds the chain's last
 boxes, and it is the carrier's end tangent; a mismatch refuses.
 With none certified, the narrowest rung probed speaks: its band verdict
@@ -924,12 +928,14 @@ conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
-table, and every candidate it proposes is settled against each span by
+table. A candidate that names a point is settled against each span by
 the point-on-span reading, which composes geom's one-carrier readings
-(the point's foot, and whether it lies on the carrier) with the span's
-reading of its ends, and decides nothing of its own; a point is decided
-off a carrier only on a lower bound on its distance to the whole
-carrier.
+(the point's foot over the span, and whether it lies on the carrier)
+with the span's reading of its ends, and decides nothing of its own; a
+point is decided off a carrier only on a lower bound on its distance to
+the whole carrier. A candidate that names a parameter on each span (a
+polished pair, its polish held to the two spans) is read as that pair:
+its own gap, and each parameter's place on its span, with no foot.
 Line, circle and ellipse pairs are closed forms that solve in one conic's
 angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
@@ -940,7 +946,19 @@ generic one. Two spans meet along stretches. A *stretch* is a longest
 interval of one span which is nowhere definitely off the other; a
 *meeting* is a longest interval of one span which is everywhere
 definitely on the other, a single point for a crossing or a touch and a
-longer interval for a shared run. Each span's ends are read against the
+longer interval for a shared run. A touch's meeting is the in-band arc
+where two distinct curves stay within the band of each other about one
+point of closest approach (the extremum of the one's equation read along
+the other); `meet` reports it as a point of that arc together with
+the arc, its positional uncertainty, and its kind is a point meeting,
+not a run. A reader asking a question the arc can straddle reads the
+arc's ends, and escalates where they disagree. A reader of a touch may
+read that it exists, its hit kind
+and its position within the band, which any point of the arc serves;
+whether it crosses, and on which side each curve lies, is the meeting's
+kind, decided once by `meet` and never re-read from the curves'
+tangents at the reported point. A shared run is one curve over both
+spans. Each span's ends are read against the
 other span before anything else. A stretch holding exactly one meeting
 is reported as that meeting, which takes the whole stretch; a stretch
 holding no meeting, or more than one, escalates, since between two
@@ -950,6 +968,10 @@ cross any number of times, and each crossing in a stretch of its own is
 its own meeting; a candidate nearer a found meeting than the band's
 escalation width cannot be decided distinct from it, so it is not read
 again.
+Its pieces are not thereby cleared: they are cleared by the
+candidate's own window, two-sided or one-sided at a span end the polish
+is held at, with its curvature bound read over the pieces themselves,
+and otherwise the stretch escalates.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.

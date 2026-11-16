@@ -778,7 +778,10 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
 /// the pip rims' circular spine of radius `s` it is `(1 − r/s)·r`,
 /// which is the ring-torus condition `s > r` in meters — so the
 /// torus constructor's degenerate case is REFUSED HERE, before the
-/// surface exists.
+/// surface is used. A spine's curvature is its radius's reciprocal,
+/// never negative: the coaxial arm mints its spine at `|s|` whichever
+/// side of the axis the ball centre lies ([`crate::blend::arms::Meridian::blend`]),
+/// so a spine the tube swallows is refused on either side.
 ///
 /// Note this is a different curvature from predicate 1's: predicate 1
 /// asks about the SUPPORTS' curvature (can the ball sit on them),
@@ -3835,6 +3838,178 @@ mod turn_verdict_rows {
                     assert_eq!(got, decision, "gap {gap:e}, chords {chords:?}");
                 }
                 other => panic!("gap {gap:e}, chords {chords:?}: escalates, got {other:?}"),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod coaxial_spine_rows {
+    use super::*;
+    use crate::blend::arms::{Branch, Meridian, sheet_center};
+    use crate::test_support::{corners, finished, revolved_about_y, rim_arcs_at};
+    use geom_core::Tol;
+
+    /// **A ball centre past the axis mints its spine at its distance from
+    /// the axis** ([`super::super::arms::Meridian::blend`]): a flat
+    /// frustum's base rim, whose ball sits up the cone where the centre
+    /// crosses the axis (`s ≈ −0.12` at `r = 0.3`, `s ≈ −0.87` at
+    /// `r = 0.5`). The band surface is the ring-convention torus of major
+    /// `|s|`, every point of both trimlines lies on it, and predicate 3
+    /// refuses the spine the tube swallows (`|s| < r`) and passes the
+    /// other. The centre is read again here, off the rim's own sheet
+    /// ([`sheet_center`]), so the premise `s < 0` is the fixture's. The
+    /// torus is the signed form's surface chart for chart (its point at
+    /// `(u, π − v)` the signed form's at `(u, v)`), which reads the seam's
+    /// turn, and each trimline is the signed circle's parametrisation at
+    /// a positive radius. Red against the signed mint (negative major,
+    /// passing predicate 3 on either), an unturned seam, and the signed
+    /// trimlines.
+    #[test]
+    fn a_ball_centre_past_the_axis_mints_its_spine_at_its_distance() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let t30 = (core::f64::consts::PI / 6.0).tan();
+        let body = finished(
+            "body",
+            revolved_about_y(
+                corners(&[(0.1, 0.0), (1.0, 0.0), (0.2, 0.8 * t30), (0.1, 0.8 * t30)]),
+                crate::Revolution::Full,
+                tol,
+            ),
+            tol,
+        );
+        let edges = rim_arcs_at(&body, 1.0, 0.0);
+        assert!(!edges.is_empty(), "the base rim");
+        for (r, swallowed) in [(0.3, true), (0.5, false)] {
+            for &edge in &edges {
+                let Resolved::Link(link) = resolve_link(&body, edge, r, band, BlendKind::Fillet)
+                    .unwrap_or_else(|e| panic!("r = {r}: the link resolves, got {e:?}"))
+                else {
+                    panic!("r = {r}: the rim is a wedge, not a smooth seam");
+                };
+                let Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = link.blend.surface
+                else {
+                    panic!("r = {r}: the coaxial arm's band is a torus");
+                };
+                assert!(
+                    major_radius > 0.0,
+                    "r = {r}: the spine's radius, {major_radius}"
+                );
+                // The centre, read off the rim's sheet as the arm reads it.
+                let (carrier, t0, t1) = carrier_of(&body, edge).unwrap();
+                let Curve3::Circle(rim) = carrier else {
+                    panic!("the base rim is a circle");
+                };
+                let p = carrier.eval(geom::mid_param(t0, t1));
+                let sheet = Meridian {
+                    axis: rim.frame.axis_line(),
+                    rim: p,
+                };
+                let radial = sheet.radial();
+                let side = |f: FaceKey| {
+                    let sense = body.get_face(f).unwrap().sense;
+                    let surface = body.face_surface(f).unwrap().clone();
+                    sheet
+                        .trace(&surface, ball_side(link.convexity, sense))
+                        .unwrap()
+                        .0
+                };
+                let (ta, tb) = (side(link.face_a), side(link.face_b));
+                let ball = sheet_center(p, sheet.sheet_normal(), ta, tb, r, Branch::Rim);
+                let s = (ball - sheet.axis.origin).dot(radial);
+                assert!(
+                    s < 0.0,
+                    "r = {r}: the premise, a centre past the axis (s = {s})"
+                );
+                assert!(
+                    (major_radius + s).abs() < 1e-12,
+                    "r = {r}: the spine at |s|"
+                );
+                // The signed form's surface, chart for chart.
+                let signed = Surface::Torus {
+                    center,
+                    axis,
+                    major_radius: s,
+                    minor_radius,
+                    u_ref: radial,
+                };
+                for (i, j) in (0..6).flat_map(|i| (0..6).map(move |j| (i, j))) {
+                    let (u, v) = (f64::from(i) * 1.1, f64::from(j) * 1.1);
+                    let gap = (link.blend.surface.eval(u, core::f64::consts::PI - v)
+                        - signed.eval(u, v))
+                    .norm();
+                    assert!(
+                        gap < 1e-12,
+                        "r = {r}: the chart at ({u}, {v}) moved by {gap}"
+                    );
+                }
+                // Each trimline, the signed circle's parametrisation at a
+                // positive radius.
+                for (trim, _) in [&link.blend.trim_a, &link.blend.trim_b] {
+                    let Curve3::Circle(c) = trim else {
+                        panic!("r = {r}: a coaxial trimline is a circle");
+                    };
+                    assert!(c.radius > 0.0, "r = {r}: a trimline's radius, {}", c.radius);
+                    // The contact: where the circle crosses the rim's
+                    // sheet, at the ball's radius from its centre.
+                    let at = |x: f64| ((c.frame.origin + radial * x) - ball).norm() - r;
+                    let rho = if at(c.radius).abs() < at(-c.radius).abs() {
+                        c.radius
+                    } else {
+                        -c.radius
+                    };
+                    assert!(
+                        at(rho).abs() < 1e-9,
+                        "r = {r}: the trimline holds the contact"
+                    );
+                    let signed = Curve3::circle(c.frame.origin, axis, rho, radial);
+                    for k in 0..8 {
+                        let t = f64::from(k) * 0.8;
+                        let gap = (trim.eval(t) - signed.eval(t)).norm();
+                        assert!(gap < 1e-12, "r = {r}: a trimline at {t} moved by {gap}");
+                    }
+                }
+                assert!(
+                    (link.blend.spine_curvature - 1.0 / major_radius).abs() < 1e-12,
+                    "r = {r}: the spine's curvature is its radius's reciprocal"
+                );
+                // On the band: at the tube's radius from the spine circle's
+                // point in its own meridian half-plane, or, where the tube
+                // crosses the axis (a swallowed spine), in the other.
+                let on_torus = |p: Point3<f64>| {
+                    let w = p - center;
+                    let along = w.dot(axis);
+                    let rho = (w - axis * along).norm();
+                    let off = |s: f64| ((rho - s).powi(2) + along.powi(2)).sqrt() - minor_radius;
+                    let (near, far) = (off(major_radius), off(-major_radius));
+                    if near.abs() < far.abs() { near } else { far }
+                };
+                for (trim, _) in [link.blend.trim_a.clone(), link.blend.trim_b.clone()] {
+                    for k in 0..8 {
+                        let p = trim.eval(f64::from(k) * core::f64::consts::FRAC_PI_4);
+                        assert!(
+                            on_torus(p).abs() < 1e-9,
+                            "r = {r}: a trimline point off the band, by {}",
+                            on_torus(p)
+                        );
+                    }
+                }
+                assert_eq!(
+                    matches!(
+                        spine_regularity(link.blend.spine_curvature, r, band),
+                        Err(BlendError::SpineIrregular { .. })
+                    ),
+                    swallowed,
+                    "r = {r}: predicate 3 refuses exactly the swallowed spine (|s| = {major_radius})"
+                );
             }
         }
     }

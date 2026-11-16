@@ -184,13 +184,15 @@ fn window<'w, T: geom_core::Decide>(
 
 /// The reading of `piece` of `a` against `b`, `axes` its semi-axes, in
 /// `f64` and at interval, each checked against the dense distance
-/// (module docs): the readings made, or the first contradiction.
+/// (module docs): the readings made, or the first contradiction. The piece
+/// is read on an arc no ring bounds, and with `away`, outward from a ring
+/// that way too.
 fn check(
     a: &Curve3<f64>,
     b: &Curve3<f64>,
     (axes, scale): ((f64, f64), f64),
     piece: (f64, f64),
-    away: bool,
+    away: Option<bool>,
     band: Band,
 ) -> Result<Vec<Made>, String> {
     let z = band.zero();
@@ -217,7 +219,12 @@ fn check(
             ("interval", ring, igot, near(iw.off(ipiece, iv(e)), igot)),
         ]
     };
-    let reads: Vec<_> = read(Some(away)).into_iter().chain(read(None)).collect();
+    let reads: Vec<_> = away
+        .map(|away| read(Some(away)))
+        .into_iter()
+        .flatten()
+        .chain(read(None))
+        .collect();
     // A piece neither lane reads has no claim to check: the dense
     // distance is sampled only where one was made.
     if reads.iter().all(|(_, _, read, _)| read.is_none()) {
@@ -289,57 +296,77 @@ struct Made {
 #[test]
 fn each_window_reading_holds_on_a_dense_distance() {
     let mut rng = fuzz::start("curve_pair::pose::window::oracle");
-    let band = Band::new(1e-9, 1e-8).unwrap();
     let draws = fuzz::scaled(60);
-    // Off, on and receding, ringed and unringed, and the unringed offs read
-    // by a piece's near end.
-    let (mut ringed, mut unringed, mut near_end) = ([0usize; 3], [0usize; 3], 0usize);
-    let mut bad = Vec::new();
-    for draw in 0..draws {
-        let (a, b, axes, scale) = pair(&mut rng, band.zero(), false);
-        for _ in 0..20 {
-            let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
-            let (m, half) = if rng.unit() < 0.5 {
-                let m = rng.log_uniform(1e-10, 1e-1) * side;
-                (m, m.abs() * rng.log_uniform(1e-4, 1.0))
-            } else {
-                let m = rng.log_uniform(1e-6, 1.0) * side;
-                (m, m.abs() * rng.log_uniform(0.3, 1.0))
-            };
-            let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
-            match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
-                Ok(made) => {
-                    for m in made {
-                        let counts = if m.ringed { &mut ringed } else { &mut unringed };
-                        counts[m.read as usize % 3] += 1;
-                        near_end += usize::from(m.near_end);
+    // The default band, and the needle's, where an off read past a point
+    // within the escalation would decide a near-miss the band leaves open.
+    // At the needle's band the ringed reading is not held: its `Recedes`
+    // contradictions there on circles of radius ~500 are the open
+    // `work/cpair/a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12.md`.
+    for (band, ringed_too) in [
+        (Band::new(1e-9, 1e-8).unwrap(), true),
+        (Band::new(1e-12, 1e-11).unwrap(), false),
+    ] {
+        // Off, on and receding, ringed and unringed, and the unringed offs read
+        // by a piece's near end.
+        let (mut ringed, mut unringed, mut near_end) = ([0usize; 3], [0usize; 3], 0usize);
+        let mut bad = Vec::new();
+        for draw in 0..draws {
+            let (a, b, axes, scale) = pair(&mut rng, band.zero(), false);
+            for _ in 0..20 {
+                let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+                let (m, half) = if rng.unit() < 0.5 {
+                    let m = rng.log_uniform(1e-10, 1e-1) * side;
+                    (m, m.abs() * rng.log_uniform(1e-4, 1.0))
+                } else {
+                    let m = rng.log_uniform(1e-6, 1.0) * side;
+                    (m, m.abs() * rng.log_uniform(0.3, 1.0))
+                };
+                let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
+                match check(
+                    &a,
+                    &b,
+                    (axes, scale),
+                    (m - half, m + half),
+                    ringed_too.then_some(away),
+                    band,
+                ) {
+                    Ok(made) => {
+                        for m in made {
+                            let counts = if m.ringed { &mut ringed } else { &mut unringed };
+                            counts[m.read as usize % 3] += 1;
+                            near_end += usize::from(m.near_end);
+                        }
                     }
+                    Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
                 }
-                Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
             }
         }
+        println!(
+            "ε {}: off, on, recedes: ringed {ringed:?}, unringed {unringed:?}, \
+         {near_end} unringed offs read by the near end",
+            band.zero()
+        );
+        assert!(
+            bad.is_empty(),
+            "ε {}: {} readings contradicted ({}): {:#?}",
+            band.zero(),
+            bad.len(),
+            fuzz::replay(),
+            &bad[..bad.len().min(8)]
+        );
+        assert!(
+            !ringed_too || ringed.iter().all(|&c| c > 0),
+            "ε {}: every ringed reading drawn ({}): {ringed:?}",
+            band.zero(),
+            fuzz::replay()
+        );
+        assert!(
+            unringed[Read::Off as usize] > 0 && near_end > 0,
+            "ε {}: unringed offs drawn, some read by the near end ({}): {unringed:?}, {near_end}",
+            band.zero(),
+            fuzz::replay()
+        );
     }
-    println!(
-        "off, on, recedes: ringed {ringed:?}, unringed {unringed:?}, \
-         {near_end} unringed offs read by the near end"
-    );
-    assert!(
-        bad.is_empty(),
-        "{} readings contradicted ({}): {:#?}",
-        bad.len(),
-        fuzz::replay(),
-        &bad[..bad.len().min(8)]
-    );
-    assert!(
-        ringed.iter().all(|&c| c > 0),
-        "every ringed reading drawn ({}): {ringed:?}",
-        fuzz::replay()
-    );
-    assert!(
-        unringed[Read::Off as usize] > 0 && near_end > 0,
-        "unringed offs drawn, some read by the near end ({}): {unringed:?}, {near_end}",
-        fuzz::replay()
-    );
 }
 
 /// **No reading contradicts the dense distance at a touch.** Each draw
@@ -379,7 +406,14 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
                     (m, m.abs() * rng.log_uniform(0.3, 1.0))
                 };
                 let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
-                match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
+                match check(
+                    &a,
+                    &b,
+                    (axes, scale),
+                    (m - half, m + half),
+                    Some(away),
+                    band,
+                ) {
                     Ok(made) => {
                         for m in made {
                             let counts = if m.ringed { &mut ringed } else { &mut unringed };
@@ -451,7 +485,7 @@ fn a_level_receding_by_its_bound_holds_on_the_dense_distance() {
     ));
     let band = Band::new(1e-9, 1e-8).unwrap();
     let piece = (-7.095_993_946_033_714e-9, -6.208_204_980_977_168e-9);
-    let got = check(&a, &b, ((r, r), 1.0), piece, false, band);
+    let got = check(&a, &b, ((r, r), 1.0), piece, Some(false), band);
     assert!(got.is_ok(), "{got:?}");
 }
 
@@ -492,7 +526,7 @@ fn a_level_growing_while_its_distance_falls_is_not_receding() {
     ));
     let band = Band::new(1e-9, 1e-8).unwrap();
     let piece = (-0.003_251_514_695_164_516, -0.000_699_372_809_647_522);
-    let got = check(&a, &b, (axes, 10.0), piece, false, band);
+    let got = check(&a, &b, (axes, 10.0), piece, Some(false), band);
     assert!(got.is_ok(), "{got:?}");
 }
 
@@ -685,7 +719,7 @@ fn a_far_thin_touch_reads_its_level_locally() {
         (-2.876_367_476_779_094_8e-9, -2.239_056_786_136_914_6e-9),
         (-1.956_978_469_885_861_5e-9, -1.955_894_014_129_153_5e-9),
     ] {
-        if let Err(why) = check(&a, &b, (axes, axes.0), piece, false, band) {
+        if let Err(why) = check(&a, &b, (axes, axes.0), piece, Some(false), band) {
             panic!("{why}");
         }
     }

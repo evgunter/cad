@@ -138,11 +138,20 @@ pub(crate) fn face_nappe_reading<T: Decide>(
         return Ok(Nappe::Opening);
     };
     let (station_min, station_max) = corner_stations(body, view, axis);
+    // `station_min ≤ station_max` by construction: `corner_stations` folds
+    // one set of corners into its `min` and its `max`. No assertion reads
+    // it, since `T` has no order of its own (an interval brackets).
     // The lowest station decided above the apex puts every corner above
     // it, and the highest decided below puts every corner below: either
     // answers alone, whatever the other read (`station_min ≤
     // station_max`; [`climb`], [`Answering::Any`]). Only where neither
     // does are both read together.
+    //
+    // any-climb-pins: proof min-le-max — no reading answers past a kept
+    // rung here. The min is read first: it answers only decided above,
+    // and it is kept only in band. The max answers only decided below
+    // (`max < −escalate`), and then `min ≤ max` decides the min below
+    // too, so the min passed. A kept min is never followed by an answer.
     let mut signs = [Sign::Zero; 2];
     let extremes = [
         (station_min, Sign::Positive, Nappe::Opening),
