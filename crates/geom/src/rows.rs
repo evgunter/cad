@@ -22,7 +22,7 @@ use strum::VariantArray as _;
 
 /// **The site names one reader decides the ring convention under**, one
 /// per half, so a refusal and its `k_stats` stream name the reading that
-/// met them ([`RingTorus::of_at`]). Minted only by its reader
+/// met them ([`RingTorus::of_at`](crate::surfaces::RingTorus::of_at)). Minted only by its reader
 /// ([`RingReader::sites`]), so no two readers share a name: the roster
 /// of every reader's rows is one const, checked distinct when this crate
 /// compiles ([`ROSTER`]).
@@ -76,7 +76,7 @@ impl RingSites {
 /// on nothing of its callers to hold them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum RingReader {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]), which
+    /// The convention's own rows ([`torus_tube`](crate::surfaces::torus_tube), [`ring_torus`](crate::surfaces::ring_torus)), which
     /// tier 3, the pierce normal and the plane×torus section read.
     Convention,
     /// `topo`'s self-intersection engine, deciding a torus face
@@ -111,7 +111,7 @@ impl RingReader {
     }
 }
 
-/// **The site names one reader of [`spiric_regime`] decides under**, so a
+/// **The site names one reader of [`spiric_regime`](crate::curves::spiric_regime) decides under**, so a
 /// refusal and its `k_stats` stream name the reading that met them:
 /// three distinct names, one per margin.
 /// Minted only by its reader ([`SpiricReader::sites`]), so no two readers
@@ -155,7 +155,7 @@ impl SpiricRegimeSites {
     }
 }
 
-/// **Every reader of [`spiric_regime`]**, each with its own rows
+/// **Every reader of [`spiric_regime`](crate::curves::spiric_regime)**, each with its own rows
 /// ([`Self::sites`]): a new reader is a variant here, which the roster
 /// ([`ROSTER`]) reads off this enum, so its names are
 /// checked against every other reader's when this crate compiles.
@@ -167,7 +167,7 @@ impl SpiricRegimeSites {
 /// on nothing of its callers to hold them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
 pub enum SpiricReader {
-    /// [`Curve3::spiric`]'s mint.
+    /// [`Curve3::spiric`](crate::Curve3::spiric)'s mint.
     Mint,
     /// The Boolean's rider, reading a spiric edge against a curved face.
     BooleanRider,

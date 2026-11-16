@@ -139,9 +139,13 @@ impl<T: Real> Chart<T> {
         }
     }
 
-    /// Whether v is a periodic coordinate (torus minor angle; a spindle
-    /// sheet's is closed between its apexes).
-    pub fn v_periodic(&self) -> bool {
+    /// **Whether the chart's domain wraps in `v`**: the torus's minor
+    /// angle does; a spindle sheet's is closed between its apexes, and a
+    /// sphere's latitude spans `[−π/2, π/2]` without wrapping. This is
+    /// not whether `S` is periodic in `v` (`geom::Surface::angle_periods`,
+    /// which answers `τ` for a sphere's latitude too, as a lifted copy
+    /// reads it): the two questions differ on the sphere and the spindle.
+    pub fn v_domain_wraps(&self) -> bool {
         match self.kind {
             ChartKind::Torus { .. } => true,
             ChartKind::Cylinder { .. }

@@ -704,8 +704,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// side passes.
     fn escalate(&self, row: Row, reading: Iv<T>) -> SweepRefusal {
         let name = row.name();
-        let bound = |m: T| decide_reported(name, Margin::of(m), self.band);
-        SweepRefusal::Escalated(match (bound(reading.lo), bound(reading.hi)) {
+        let bound_as = |m: T| decide_reported(name, Margin::of(m), self.band);
+        SweepRefusal::Escalated(match (bound_as(reading.lo), bound_as(reading.hi)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
                 straddle(row.straddle(), lower, upper, self.band)

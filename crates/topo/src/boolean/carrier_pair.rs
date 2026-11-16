@@ -446,7 +446,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod lever_rows {
     use super::*;
-    use crate::boolean::boxes::tests::torus_wall;
+    use crate::boxes::tests::torus_wall;
     use crate::contact::ContactRefusal;
     use crate::test_support::{CylFrame, cyl_wall_sheet};
     use geom_core::{Point3, Tol, Vec3};
@@ -721,7 +721,7 @@ mod lever_rows {
     /// apart, wherever a run admits it (not at `ε = 10⁻¹²`).
     #[test]
     fn a_sphere_pair_straddles_from_its_first_datum_and_offers_its_tolerance() {
-        use crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet;
+        use crate::boxes::sphere_rect_rows::sphere_zone_sheet;
         let tol = Tol::witness();
         let e = band().zero();
         let pinned = Band::new(e, 1.5 * e).unwrap();

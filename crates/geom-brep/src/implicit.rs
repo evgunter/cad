@@ -690,7 +690,9 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`geom_core::SHORT_CHAIN_ULPS`] is.
+/// [`geom_core::SHORT_CHAIN_ULPS`] is. The torus's floor
+/// ([`ConicTorusHarmonics::f_per_metre_lo`], four operations from the
+/// radii, each off by `u` relative) is divided by it.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
@@ -1504,14 +1506,42 @@ pub struct ConicTorusHarmonics<T> {
     pub sin: [T; 5],
     /// A bound on every magnitude the coefficients are built from (m⁴),
     /// the scale their rounding is charged against
-    /// ([`rounding_charge`]): `(|S| + R² + r²)² + 4R²(|S| + |h|²)` read
-    /// at the coefficients' magnitudes. `R² − r²` is charged at
-    /// `R² + r²`: the rounding of `R²` and `r²` is relative to them, not
-    /// to their difference, which on a fat torus (`r` near `R`) is far
-    /// smaller.
+    /// ([`rounding_charge`]): `|p|·(|S| + R² + r²) + 4R²(|S| + |h|²)`
+    /// read at the coefficients' magnitudes, `p = S + R² − r²`.
+    ///
+    /// `p ⊗ p` rounds at `u·|p|²`, and its inputs' rounding `δp` enters
+    /// it once, as `2|p|·δp`. `δp` is relative to `|S| + R² + r²`, not to
+    /// `|p|`: `R²` and `r²` round relative to themselves, and their
+    /// difference, on a fat torus (`r` near `R`), is far smaller. Both
+    /// are within `|p|·(|S| + R² + r²)`, since `|p| ≤ |S| + R² + r²`. On a
+    /// thin torus that is `(|S| + R² + r²)²`; on a fat one it is linear
+    /// in the radii's rounding rather than square in it.
+    ///
+    /// The bound is first order: it drops `δp ⊗ δp`, which stays below
+    /// `u·|p|·δp`'s scale only while `|p| ≳ δp`. Since `|p| ≥ R² − r²` on a
+    /// ring, that is the premise `R² − r² ≳ u(R² + r²)`. On a torus nearer
+    /// horn than that, the charge is no longer first-order sound.
     pub terms: T,
     /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
-    /// ring torus.
+    /// ring torus, formed as `2r(R − r)(R + r)` and padded down
+    /// ([`CEILING_PAD`]). Each of its four operations is off by `u`
+    /// relative to what it forms. `R − r` is exact once `r ≥ R/2`
+    /// (Sterbenz), and below that it is off by `u` of itself, as any
+    /// rounded difference of two positive lengths is. So the product's
+    /// rounding is relative to `R² − r²` itself, and the padded value
+    /// stands at or below the exact floor and above zero, however near `r`
+    /// is to `R`. `R² − r²` formed as a difference rounds relative to
+    /// `R² + r²`, and there it can stand above the true floor.
+    ///
+    /// **The premise is a product in f64's normal range.** Below about
+    /// `1e-300` the product goes subnormal, its rounding is no longer
+    /// relative, and the floor can stand above the exact value or at zero.
+    /// A ring the band certifies is clear of that: [`geom::RingTorus::of`]
+    /// decides `r` and `R − r` against a band whose ε is at least
+    /// `geom_core::tolerance::COORDINATE_FLOOR` (about 1.1e-13 m), so the
+    /// floor there is at least `4ε³`. The doors that read this floor
+    /// without that decision are filed as
+    /// `work/onecopy/the-torus-floor-is-read-by-doors-no-ring-gate-guards.md`.
     pub f_per_metre_lo: T,
     /// A ceiling on `|F| / |res|` along the whole carrier:
     /// `2r(|C₀ − c| + ‖C − C₀‖ + R)²` (`(ρ + R)² + h² ≤ (|q| + R)²`), the
@@ -1608,7 +1638,9 @@ pub fn conic_torus_harmonics<T: Real>(
             .fold(T::zero(), |acc, &x| acc + x.abs())
     };
     let (s_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(h.0, h.1));
-    let p_abs = s_abs + rr + minor_radius.powi(2);
+    // `p`'s own magnitude, and the scale its inputs round at: `R² − r²`
+    // rounds relative to `R² + r²`, and enters `p ⊗ p` once.
+    let (p_abs, p_inputs) = (abs_sum(p.0, p.1), s_abs + rr + minor_radius.powi(2));
     // `max_θ |a·û cos θ + b·v̂ sin θ|²`: the Gram matrix's larger
     // eigenvalue, `(A + B)/2 + |((A − B)/2, C)|`.
     let off = a * b * u.dot(v);
@@ -1619,8 +1651,15 @@ pub fn conic_torus_harmonics<T: Real>(
     ConicTorusHarmonics {
         cos,
         sin,
-        terms: p_abs.powi(2) + four_rr * (s_abs + h_abs.powi(2)),
-        f_per_metre_lo: two * minor_radius * k,
+        terms: p_abs * p_inputs + four_rr * (s_abs + h_abs.powi(2)),
+        // `R² − r²` as `(R − r)(R + r)`: off by a few `u` RELATIVE to
+        // itself (`R − r` is exact once `r ≥ R/2`, and off by `u` of
+        // itself below), so on a ring it stays positive, and the pad takes
+        // the floor below the exact value (the field's docs).
+        f_per_metre_lo: two
+            * minor_radius
+            * ((major_radius - minor_radius) * (major_radius + minor_radius))
+            / pad,
         f_per_metre_hi: two * minor_radius * reach.powi(2),
         f_per_metre_surface: two
             * minor_radius

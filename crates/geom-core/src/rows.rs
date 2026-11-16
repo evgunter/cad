@@ -7,7 +7,7 @@
 //! would merge their samples under it. Each crate that mints row bundles
 //! holds them in one `rows` module: the bundle types, whose fields are
 //! private to it, and every reader's bundle as a `const` given to
-//! [`row_registry!`], which derives the `ROSTER` of their names and the
+//! [`row_registry!`](crate::row_registry!), which derives the `ROSTER` of their names and the
 //! `const` assertion that fails the crate's build on a name used twice.
 //! editor-core's tree-wide test walks every crate's roster together.
 

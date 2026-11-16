@@ -209,6 +209,29 @@ jobs:
       - name: change filter self-test
         if: '!cancelled()'
         run: python3 scripts/ci-filter.py --selftest
+  any-first-mutant:
+    # Every pin scripts/gates/any-climb-pins.counts names, run under the
+    # first-refusal mutant (`--cfg any_first_mutant`): a pin that stays
+    # green does not reach the answer past a kept rung, which the gate,
+    # reading names only, cannot see. Its own build, so nightly.
+    name: Any pins under the first-refusal mutant
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: every registered pin is red under the mutant
+        run: scripts/any-first-mutant.sh
   rebuild-latency:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
@@ -895,7 +918,7 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, gate-selftests, full-suite-build, full-suite, all-features, k-lint, python, topo-release, step-import, interval, renders]
+    needs: [gate, watertight, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write

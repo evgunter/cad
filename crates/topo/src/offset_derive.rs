@@ -393,7 +393,7 @@ pub(crate) fn holds_the_move<T: Decide>(
     d: T,
     band: Band,
 ) -> bool {
-    let zero_as = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let reach = d.abs();
     let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * reach;
     let through = |q: Point3<T>, m: Vec3<T>, p: Point3<T>| (q - p).dot(m);
@@ -494,7 +494,7 @@ fn normal_in_plane_along<T: Decide>(
             &transposed
         }
     };
-    let zero_as = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let (nu, nv) = net.control_counts();
     if nu < 2 {
         return false;
@@ -540,7 +540,7 @@ fn normal_in_plane_along<T: Decide>(
 /// point are one list, parallel to `n`, and the weights do not vary
 /// along it.
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
-    let zero_as = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let (nu, nv) = wall.control_counts();
     let (ctl, w) = (wall.control(), wall.weights_f64_interim());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
@@ -570,7 +570,7 @@ fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, ban
 /// `value` metres decided zero at `band`, for a hold: anything short
 /// of a decided zero, an undecided margin included, does not hold
 /// ([`holds_the_move`]).
-fn held_zero<T: Decide>(name: &'static str, value: T, band: Band) -> bool {
+fn held_zero_as<T: Decide>(name: &'static str, value: T, band: Band) -> bool {
     matches!(decide(name, Margin::of(value), band), Ok(Sign::Zero))
 }
 

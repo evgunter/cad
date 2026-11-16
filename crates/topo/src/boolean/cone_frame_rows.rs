@@ -649,7 +649,7 @@ fn the_frames_cone_window_holds_its_face() {
     };
     let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
     for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
-        let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+        let (body, face) = crate::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
         let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
@@ -770,7 +770,7 @@ fn a_plane_off_the_apex_reads_one_loop() {
 fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
-        super::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
+        crate::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
     let carrier = wall.proven_face(face).surface().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {

@@ -4435,6 +4435,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join",
             "join_carrier_unsupported",
             "join_desync",
+            "join_pairs_tied",
             "join_partners_tied",
             "join_undecided",
             "line_material_unread",

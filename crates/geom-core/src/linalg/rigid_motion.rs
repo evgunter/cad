@@ -1844,18 +1844,18 @@ mod motion_rows {
     #[test]
     fn an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin() {
         let check = "transform_rigid_col0_unit";
-        let render = |margin: f64| {
+        let render_as = |margin: f64| {
             let source =
                 crate::k_stats::decide(check, crate::predicate::Margin::of(margin), band())
                     .unwrap_err();
             RigidMotionError::Undecided { check, source }.to_string()
         };
-        let in_band = render(0.5 * (band().zero() + band().escalate()));
+        let in_band = render_as(0.5 * (band().zero() + band().escalate()));
         assert!(
             in_band.ends_with(". Recourse: use only a rotation and a translation"),
             "in band: the lever alone: {in_band}"
         );
-        let poisoned = render(f64::NAN);
+        let poisoned = render_as(f64::NAN);
         assert!(
             poisoned.ends_with(&format!(
                 ". Recourse: use only a rotation and a translation; {}",

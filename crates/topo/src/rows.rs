@@ -161,7 +161,7 @@ impl ParityRows {
     }
 }
 
-/// The two of a [`ParityRows`] that [`on_segment`] reads, for a caller
+/// The two of a [`ParityRows`] that [`on_segment`](crate::ray_walk::on_segment) reads, for a caller
 /// that reads a segment's boundary and casts no ray through it, so
 /// mints no `side` or `advance`. A new value is a roster change, as a
 /// [`ParityRows`] value is.
@@ -240,7 +240,7 @@ impl ArcRows {
     }
 }
 
-/// The predicate names one caller of [`wedge_holds_named`] decides its
+/// The predicate names one caller of [`wedge_holds_named`](crate::validate::wedge_holds_named) decides its
 /// four signs under, so each question's K samples stay its own.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WedgeNames {
@@ -253,8 +253,8 @@ pub(crate) struct WedgeNames {
     /// Whether a wedge of no turn is straight or a cusp.
     straight: &'static str,
     /// Where a sign read at both bounds of its lever straddles the band
-    /// ([`decide_agreed`]). Recorded only where a departure is
-    /// [`Departure::Between`]; a caller that hands exact departures alone
+    /// ([`decide_agreed`](crate::validate::decide_agreed)). Recorded only where a departure is
+    /// [`Departure::Between`](crate::validate::Departure::Between); a caller that hands exact departures alone
     /// names a row that never records, and says so at its site.
     straddle: &'static str,
 }
@@ -304,7 +304,7 @@ impl WedgeNames {
 }
 
 /// **The names a ray's planar crossings are decided under**: a schedule
-/// ray's ([`SCHEDULE_ROWS`]) or a ray aimed at the boundary from beyond
+/// ray's ([`SCHEDULE_RAY`]) or a ray aimed at the boundary from beyond
 /// it ([`crate::side_reader::AIMED_ROWS`]), so the reader of the side at infinity, which
 /// every at-rest gate runs, logs apart from point containment.
 #[derive(Clone, Copy)]
@@ -409,7 +409,7 @@ impl RayRows {
 }
 
 /// The rows a caller reads a loop's boundary under: a straight edge's
-/// ([`ray_walk::on_segment`]'s two), a conic edge's, a spiric edge's and
+/// ([`ray_walk::on_segment`](crate::ray_walk::on_segment)'s two), a conic edge's, a spiric edge's and
 /// a spline edge's.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundaryRows {

@@ -71,9 +71,11 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// `evaluate_recorded`), which refuses every node that record built no
 /// value at, inside each part as at the top. So an operand a dual's Boolean, split, blend or shell reads through the
 /// evaluation service is the same bits a certifying finish validated, and
-/// the readers that cite this section need no check of their own. A
-/// caller of this crate's doors at a dual directly holds that contract
-/// itself (`work/onecopy/topos-doors-at-a-dual-take-no-tier-3-evidence-by-type.md`).
+/// the readers that cite this section need no check of their own. That
+/// no production caller reaches this crate's doors at a dual another way
+/// is held by a gate, not by type (`scripts/gates/dual-doors-only-through-the-record.sh`);
+/// the type-level form waits on a ruling
+/// (`work/onecopy/topos-doors-at-a-dual-take-no-tier-3-evidence-by-type.md`).
 ///
 /// At a dual it is the finished body: the base-scalar evaluation it
 /// replays is the validation of record (DUAL-DESIGN DL3). At the box

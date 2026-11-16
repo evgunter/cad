@@ -2067,8 +2067,8 @@ pub(crate) mod undecided_fixtures {
 
     /// The lever-only ending on each of [`readings`].
     pub(crate) const LEVER: [&str; 3] = [
-        "Recourse: move the geometry",
-        "Recourse: move the geometry",
+        geom_core::MOVE_RECOURSE,
+        geom_core::MOVE_RECOURSE,
         "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
          reporting",
     ];

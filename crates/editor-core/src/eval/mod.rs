@@ -3854,7 +3854,12 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecordMispairing {
     /// The record is of another document (DI3, the pairing predicate).
-    Document(Mispaired),
+    Document {
+        /// The document evaluated.
+        expected: crate::ident::DocumentId,
+        /// The document the record is of.
+        found: crate::ident::DocumentId,
+    },
     /// The record refused before building anything
     /// ([`Evaluation::refused_whole`]).
     NotABuild,
@@ -3878,11 +3883,10 @@ pub enum RecordMispairing {
 impl core::fmt::Display for RecordMispairing {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Document(Mispaired { expected, found }) => write!(
-                f,
-                "the build of record is of document {found:?}, not of {expected:?}, the \
-                 document evaluated"
-            ),
+            // The ids stay on the payload: the sentence names the mismatch.
+            Self::Document { .. } => {
+                f.write_str("the build of record is of another document than the one evaluated")
+            }
             Self::NotABuild => f.write_str("the build of record refused before building anything"),
             Self::Unpinned => f.write_str(
                 "the build of record carries no content pin to say which version of the \
@@ -4060,7 +4064,10 @@ impl RecordBinding {
         tol: Tol,
     ) -> Result<Self, RecordMispairing> {
         if let Some(m) = crate::ident::mispaired(doc.id(), record.document) {
-            return Err(RecordMispairing::Document(m));
+            return Err(RecordMispairing::Document {
+                expected: m.expected,
+                found: m.found,
+            });
         }
         if record.whole_refusal {
             return Err(RecordMispairing::NotABuild);

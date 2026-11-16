@@ -87,7 +87,7 @@ pub(crate) struct Circle<T: Real> {
 impl<T: Real> Circle<T> {
     /// The circle's cover: its arc over the whole turn. `None` for a
     /// datum that is not a finite number.
-    pub(in crate::boolean) fn cover(&self) -> Option<Cover<T>> {
+    pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
             &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
             (self.radius, self.radius),
@@ -406,7 +406,7 @@ mod tests {
             tol,
         )
         .unwrap();
-        let key = super::super::boxes::axis_key;
+        let key = crate::boxes::axis_key;
         assert_eq!(
             operand_axes(&cube, &cube, band, key).len(),
             3,

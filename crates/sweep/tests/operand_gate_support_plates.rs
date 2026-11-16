@@ -1,7 +1,7 @@
 //! **A plate on the support plane of a curved solid, at the exact
 //! support**: the row that makes the narrow phase's soundness red-able.
 //!
-//! `boolean::separating::apart` clears a pair when, along some
+//! `separating::apart` clears a pair when, along some
 //! direction, the gap between two items' reaches decides positive. A
 //! reach that under-covers its item by a hair clears a pair that
 //! touches, and only a pair that touches can show it: every clear pair

@@ -871,7 +871,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// crossing, and the walk's narrow phase (`separating`) parts
 /// it along the underside's own normal before the certificate is asked.
 /// Red against the walk reading the box overlap alone, which hands the
 /// pair to the certificate's W0 (whose own row is `section_cert_rows`'

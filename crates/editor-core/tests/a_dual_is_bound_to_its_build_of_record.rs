@@ -150,9 +150,12 @@ fn a_record_of_another_document_refuses_every_node() {
             matches!(
                 r,
                 NodeResult::Failed(NodeError {
-                    kind: NodeErrorKind::RecordMispaired(RecordMispairing::Document(m)),
+                    kind: NodeErrorKind::RecordMispaired(RecordMispairing::Document {
+                        expected,
+                        found,
+                    }),
                     ..
-                }) if m.expected == a.id() && m.found == b.id()
+                }) if *expected == a.id() && *found == b.id()
             ),
             "node {id:?}: {r:?}"
         );

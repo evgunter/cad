@@ -203,7 +203,7 @@ pub(crate) fn read_sections<T: Decide>(
         error: offset.value.error + skew(offset.normal, plane, at),
     }
     .quotient(sine);
-    if crate::validate::resolved(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
+    if crate::validate::resolved_as(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
             .map_err(VertexRefusal::Section);
     }

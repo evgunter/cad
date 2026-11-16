@@ -661,7 +661,7 @@ mod tests {
             (
                 MeetFault::Unsettled(Unsettled::AtApex),
                 format!("{settle} a root at a cone's apex"),
-                "Recourse: move the geometry",
+                geom_core::MOVE_RECOURSE,
             ),
             (
                 MeetFault::Unsettled(Unsettled::Degenerate),

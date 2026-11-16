@@ -143,10 +143,10 @@ impl<T: Real> From<Site<T>> for Around<T> {
 /// A point `ρ` from the axis line and `t` along it stands
 /// `√((ρ − |radius|)² + t²)` from it.
 ///
-/// It is not a [`crate::Circle`], whose axis is unit, whose radius is
-/// positive and which reads a seam: a core is measured about, so no seam
-/// is read, and it is read on a placement whose axis need not be unit,
-/// which a [`Line`] reads (any nonzero direction).
+/// It is not a [`crate::Circle`], whose axis is unit and whose radius is
+/// positive: a core is read on a placement whose axis need not be unit,
+/// which a [`Line`] reads (any nonzero direction), and its radius is read
+/// by its magnitude.
 #[derive(Clone, Copy, Debug)]
 pub struct Core<T: Real> {
     /// Its axis line: its origin the circle's centre, its direction the
@@ -268,11 +268,20 @@ impl<T: Real> Lattice for Covered<T> {
 #[derive(Clone, Debug)]
 pub struct Cover<T: Real>(Node<T>);
 
+/// The region's expression. A meet and a hull hold their operands in
+/// the order they were joined, at least two, and are read as the
+/// left-deep chain they were built as: `a.hull(b).hull(c)` is
+/// `Hull[a, b, c]`, read `(a ∪ b) ∪ c`, its readers folding the operands
+/// left to right. So a chain as long as the entities it joins (an
+/// operand's faces, a face's edges) is one node, not a tree that deep,
+/// and every walk over the expression, its clone and its drop among
+/// them, is as deep as the expression's nesting of kinds rather than its
+/// length.
 #[derive(Clone, Debug)]
 enum Node<T: Real> {
     Piece(Piece<T>),
-    Meet(Box<[Node<T>; 2]>),
-    Hull(Box<[Node<T>; 2]>),
+    Meet(Vec<Node<T>>),
+    Hull(Vec<Node<T>>),
     Convex(Box<Node<T>>),
 }
 
@@ -807,13 +816,25 @@ impl<T: Real> Cover<T> {
     /// What lies in both.
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
-        Self(Node::Meet(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Meet(mut all) => {
+                all.push(other.0);
+                Node::Meet(all)
+            }
+            first => Node::Meet(vec![first, other.0]),
+        })
     }
 
     /// What lies in either.
     #[must_use]
     pub fn hull(self, other: Self) -> Self {
-        Self(Node::Hull(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Hull(mut all) => {
+                all.push(other.0);
+                Node::Hull(all)
+            }
+            first => Node::Hull(vec![first, other.0]),
+        })
     }
 
     /// **The region's convex hull**: what lies on a segment between two
@@ -958,12 +979,23 @@ fn whole_poison(b: Aabb) -> Aabb {
     }
 }
 
+/// **A chain's reading, folded left to right**: `read` of each operand,
+/// joined by `join` in the order they were built, `((x0 ⋅ x1) ⋅ x2) ⋅ …`,
+/// the left-deep form's own order ([`Node`]).
+fn fold<N, R>(all: &[N], read: impl Fn(&N) -> R, join: impl Fn(R, R) -> R) -> R {
+    let mut acc = read(&all[0]);
+    for n in &all[1..] {
+        acc = join(acc, read(n));
+    }
+    acc
+}
+
 impl<T: Real> Node<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
             Node::Piece(p) => p.support(e),
-            Node::Meet(both) => both[0].support(e).min(both[1].support(e)),
-            Node::Hull(both) => both[0].support(e).max(both[1].support(e)),
+            Node::Meet(all) => fold(all, |n| n.support(e), T::min),
+            Node::Hull(all) => fold(all, |n| n.support(e), T::max),
             Node::Convex(inner) => inner.support(e),
         }
     }
@@ -975,16 +1007,16 @@ impl<T: Real> Node<T> {
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.distance_range(site),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A distance from a point or a line is convex, so its
             // greatest over the hull is its greatest over the region; its
             // least is the hull's box's or ball's.
@@ -1004,9 +1036,10 @@ impl<T: Real> Node<T> {
     fn about(&self, sites: &mut Vec<Around<T>>) {
         match self {
             Node::Piece(p) => sites.extend(p.about()),
-            Node::Meet(both) => {
-                both[0].about(sites);
-                both[1].about(sites);
+            Node::Meet(all) => {
+                for n in all {
+                    n.about(sites);
+                }
             }
             Node::Hull(_) | Node::Convex(_) => {}
         }
@@ -1018,16 +1051,25 @@ impl<T: Real> Node<T> {
             // Both balls hold the region, and so does the ball about the
             // meet's box, which is narrower than either piece's where the
             // two overlap only in part.
-            Node::Meet(both) => smaller(
-                smaller(both[0].ball(), both[1].ball()),
-                box_ball(self.world_box()),
-            ),
-            Node::Hull(both) => {
-                let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
+            // Each prefix of the chain is the meet the left-deep form
+            // held there, so its ball is read as that meet's: the smaller
+            // of the prefix's and the next operand's, and of the ball
+            // about the prefix's box.
+            Node::Meet(all) => {
+                let mut ball = all[0].ball();
+                for k in 1..all.len() {
+                    let prefix = &all[..=k];
+                    let boxed =
+                        rows_box(&BoxAxes::World, |e| fold(prefix, |n| n.support(e), T::min));
+                    ball = smaller(smaller(ball, all[k].ball()), box_ball(boxed));
+                }
+                ball
+            }
+            Node::Hull(all) => fold(all, Node::ball, |(c0, r0), (c1, r1)| {
                 let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
-            }
+            }),
             Node::Convex(inner) => inner.ball(),
         }
     }
@@ -1037,14 +1079,16 @@ impl<T: Real> Node<T> {
     fn circle_range(&self, core: &Core<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.circle_range(core),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A circle's distance is not convex, so the hull is read
             // whole.
             Node::Convex(_) => core.through(|site| self.distance_range(site), |e| self.support(e)),

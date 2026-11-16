@@ -65,6 +65,9 @@ use crate::curves::Curve3;
 use crate::frame::Frame;
 
 /// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
+///
+/// Its invariants: the axis is unit, the radius positive, and the seam
+/// (`u_ref`) is carried whether or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement: `origin` the centre, `axis` the unit plane normal

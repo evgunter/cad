@@ -1708,7 +1708,7 @@ mod torus_rows {
 
     #[test]
     fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
-        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),

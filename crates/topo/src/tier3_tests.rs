@@ -2781,7 +2781,7 @@ fn wedge_reading_table() {
         let text = finding.render(geom_brep::recourse::Reading::AtRest);
         match ending {
             Some(defect) => assert!(text.ends_with(defect), "{text}"),
-            None => assert!(text.contains("Recourse: move the geometry"), "{text}"),
+            None => assert!(text.contains(geom_core::MOVE_RECOURSE), "{text}"),
         }
     }
 }

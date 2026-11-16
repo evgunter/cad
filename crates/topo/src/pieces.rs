@@ -343,7 +343,7 @@ fn read_enclosers<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// A certified padded box of a face, `None` where it does not build:
-/// the boolean's sweep boxes ([`crate::boolean::boxes::face_box`]).
+/// the boolean's sweep boxes ([`crate::boxes::face_box`]).
 pub(crate) type FaceBox<'a, T> = &'a dyn Fn(&Body<T>, FaceKey) -> Option<bvh::Aabb>;
 
 /// Each shell's box — the hull of its faces' [`FaceBox`]es — so two

@@ -739,7 +739,7 @@ pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, I
     decide(name, margin, Band::least())
 }
 
-/// **Two parameters compared, read exactly** under `row`: [`prove`] of
+/// **Two parameters compared, read exactly** under `name`: [`prove`] of
 /// `s − t`. A parameter is no distance the band resolves, so the band
 /// plays no part, and only an enclosure that straddles fails to decide.
 /// The one home of the question, read by `geom-brep`'s curve pair (its
@@ -753,8 +753,8 @@ pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, I
 /// # Errors
 ///
 /// [`prove`]'s, where an enclosure of `s − t` holds zero.
-pub fn param_order<T: Decide>(row: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
-    prove(row, Margin::of(s - t))
+pub fn param_order<T: Decide>(name: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
+    prove(name, Margin::of(s - t))
 }
 
 /// What [`choose`] picks: the margin's side, or a tie.

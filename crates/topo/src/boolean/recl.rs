@@ -48,7 +48,7 @@ use super::plane_eq::PlaneRelation;
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
     BoolSector, BoundSupport, FaceShape, Flank, PairRecord, crossing_flank, pair_codes,
-    parallel_same,
+    parallel_same_as,
 };
 use super::tables::{eq15_3_lump, kept_copy};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode, SlitLineGap};
@@ -675,7 +675,7 @@ pub(super) fn recl_edges<T: Decide>(
             // site between the same two points, their chords bit-equal.
             let arm = mentions[i].arm.min(mentions[j].arm);
             if !used[j]
-                && parallel_same(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
+                && parallel_same_as(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
             {
                 used[j] = true;
                 group.push(mentions[j]);
@@ -685,7 +685,7 @@ pub(super) fn recl_edges<T: Decide>(
         // one ray only if every pair reads so.
         for (p, &m) in group.iter().enumerate().skip(1) {
             for &n in &group[p + 1..] {
-                if !parallel_same(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
+                if !parallel_same_as(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a ray event's directions are each on the seed's ray but not \
                                on one another's",
@@ -1729,7 +1729,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
-                let escalation = cause.escalation(band);
+                let escalation = cause.escalation_as(band);
                 if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
                     return unread(why);
                 }
@@ -1929,7 +1929,7 @@ fn resolve_edge_sector<T: Decide>(
         // face it was read On against even where another event's germ,
         // sharing its record, has since rewritten that On (`mark_germ`
         // rewrites every On of a germ record, a second edge's on a ray
-        // `parallel_same` reads apart among them).
+        // `parallel_same_as` reads apart among them).
         None => find_ref_sector(first_read, a_side, f_s, n_own).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",
@@ -2279,7 +2279,7 @@ mod tests {
             matches!(unread, crate::link::Unread::Side { sector: 0, .. }),
             "the first face's side, named: {unread:?}"
         );
-        let diag = unread.escalation(band).expect("an escalation");
+        let diag = unread.escalation_as(band).expect("an escalation");
         assert_eq!(diag.predicate, Some(crate::link::LINK_PLANE));
         let margin = diag
             .margin

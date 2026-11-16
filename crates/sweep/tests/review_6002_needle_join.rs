@@ -1,7 +1,7 @@
-//! Review of PR 6002: probes of `chord_join::arc_leaving`'s two Zero
+//! Review of PR 6002: probes of `chord_join::arc_leaving_as`'s two Zero
 //! arms on a needle cone cut near its apex. Prints one `PROBE` line per
 //! pose; the reviewer reads the lines rather than asserting. The review
-//! read each `arc_leaving` reading (datum, its cosine with the conic's
+//! read each `arc_leaving_as` reading (datum, its cosine with the conic's
 //! tangent, the lever, the sign) through a local, uncommitted print at
 //! that function: every split Section Zero had cosine 1 (the short lever,
 //! not an off-tangent datum), and the boolean's germ arm never read Zero.

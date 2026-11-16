@@ -474,8 +474,10 @@ pub struct LeverOnly {
 /// of the geometry's pose, not shown off the face, so its lever moves the
 /// pose at every door ([`crate::IncidenceRead::ending`]).
 pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
-    lever: "move the geometry so the edge sits clear of that pose by more than the tolerance, \
-            or so no piece of it sits there",
+    lever: geom_core::move_lever!(
+        "so the edge sits clear of that pose by more than the tolerance, \
+            or so no piece of it sits there"
+    ),
 };
 
 /// **A boundary whose incidence on its face is undecided**: an edge's
@@ -484,8 +486,10 @@ pub const INCIDENCE_AT_POSE: LeverOnly = LeverOnly {
 /// at every door. The refusal's own sentence says which of the two was
 /// read; the lever fits both.
 pub const INCIDENCE_UNSHOWN: LeverOnly = LeverOnly {
-    lever: "move the geometry so the boundary lies clearly on the face it bounds at this \
-            tolerance",
+    lever: geom_core::move_lever!(
+        "so the boundary lies clearly on the face it bounds at this \
+            tolerance"
+    ),
 };
 
 impl LeverOnly {
@@ -552,8 +556,12 @@ impl SpanDecision {
     #[must_use]
     pub const fn lever(self) -> &'static str {
         match self {
-            Self::Forward => "move the geometry so this edge runs forward over a clear length",
-            Self::Winding => "move the geometry so this arc stays clearly short of a full turn",
+            Self::Forward => {
+                geom_core::move_lever!("so this edge runs forward over a clear length")
+            }
+            Self::Winding => {
+                geom_core::move_lever!("so this arc stays clearly short of a full turn")
+            }
         }
     }
 

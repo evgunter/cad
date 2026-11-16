@@ -547,7 +547,7 @@ fn loop_findings(
             let o = &travs[opens[k]];
             match (&o.kind, &t.kind) {
                 (TravKind::Rim { v_raw: opened }, TravKind::Rim { v_raw: own }) => {
-                    let gap = if chart.v_periodic() {
+                    let gap = if chart.v_domain_wraps() {
                         wrapped(*own, *opened)
                     } else {
                         (own - opened).abs()

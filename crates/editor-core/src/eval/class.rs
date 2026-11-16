@@ -608,12 +608,10 @@ mod tests {
                 },
             },
             C::RecordRefused => K::RecordRefused,
-            C::RecordMispaired => {
-                K::RecordMispaired(crate::RecordMispairing::Document(crate::ident::Mispaired {
-                    expected: crate::ident::DocumentId(1),
-                    found: crate::ident::DocumentId(2),
-                }))
-            }
+            C::RecordMispaired => K::RecordMispaired(crate::RecordMispairing::Document {
+                expected: crate::ident::DocumentId(1),
+                found: crate::ident::DocumentId(2),
+            }),
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
                 expected: "body",

@@ -334,7 +334,7 @@ pub(super) fn arc_window<T: Decide>(t0: T, t1: T, arm: T, band: Band) -> Result<
         }
     })?;
     let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
-    match Period::new(T::tau()).strictly_partial(rows, span, Exact::new(arm), band) {
+    match Period::angle().strictly_partial(rows, span, Exact::new(arm), band) {
         Ok(true) => Ok(span.get()),
         Ok(false) => Err(TubeError::FullRangeWindow),
         Err(undecided) => Err(escalated(TubeDecision::WindowHeadroom, undecided.diag)),

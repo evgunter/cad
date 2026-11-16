@@ -2073,7 +2073,7 @@ fn loop_u_wrap(
     edges: &BTreeMap<u64, EdgeSpec>,
     band: Option<geom_core::Band>,
 ) -> Option<f64> {
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::PI;
     // 16 divisions per edge put adjacent samples of a full-period
     // rim ~0.39 rad apart — far inside the unwrap threshold below.
     const DIVISIONS: usize = 16;
@@ -2087,7 +2087,7 @@ fn loop_u_wrap(
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
             let u = chart::uv_of(surface, spec.carrier.eval(t), band)?.x;
             if let Some(p) = prev {
-                let d = geom_core::period::Period::new(TAU).near(u - p, 0.0);
+                let d = geom_core::period::Period::<f64>::angle().near(u - p, 0.0);
                 if d.abs() > PI / 2.0 {
                     return None;
                 }

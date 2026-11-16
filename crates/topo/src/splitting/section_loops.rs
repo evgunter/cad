@@ -22,7 +22,7 @@ use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::validate::definitely_positive as positive;
-use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
+use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 
 /// A traversal of a section loop met a dangling key: the scratch body
 /// is torn (a kernel bug).
@@ -252,7 +252,7 @@ pub(super) fn nest<T: Decide, O, H>(
 /// disjoint: `true` only where every pair of their edges is.
 ///
 /// - **Line and circle edges**: tier 3's check 9 contact reading
-///   ([`ring_outer_contact_about`]), which on loops in one plane that
+///   ([`ring_outer_contact_about_as`]), which on loops in one plane that
 ///   carry only these kinds decides every shared point — at a vertex of
 ///   either loop, along an arc, or where two edges cross.
 /// - **A pair with an ellipse edge**, which check 9's edge arms skip:
@@ -277,7 +277,7 @@ pub(super) fn outlines_disjoint<T: Decide>(
     band: geom_core::Band,
 ) -> Result<bool, Torn> {
     if !matches!(
-        ring_outer_contact_about(body, a, b, Some(normal), band),
+        ring_outer_contact_about_as(body, a, b, Some(normal), band),
         RingOuterVerdict::Disjoint
     ) {
         return Ok(false);
@@ -425,7 +425,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
 /// **A torn ring curve panics before the outlines are answered**: on a
 /// holed block's top face, whose ring lies clear inside its outer loop,
 /// a torn curve on the ring panics naming the link. Check 9
-/// (`ring_outer_contact_about`), which [`outlines_disjoint`] asks first,
+/// (`ring_outer_contact_about_as`), which [`outlines_disjoint`] asks first,
 /// reads every curve of both loops as a link and panics there, so the
 /// outline reading's own read of the same link is never reached.
 #[cfg(test)]

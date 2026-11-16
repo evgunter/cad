@@ -194,7 +194,7 @@ fn the_named_mutant_is_a_site() {
     );
 }
 
-/// `incidence::incident`: the incidence test skipped, so a carrier off
+/// `incidence::incident_as`: the incidence test skipped, so a carrier off
 /// the chart reaches the general lane and a class reading's "not yet"
 /// (its rows are `off_chart_class_rows`).
 pub(super) fn skip_incidence() -> bool {

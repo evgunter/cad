@@ -964,7 +964,7 @@ pub(crate) fn sweep_range<T: Decide>(
             Some(Sign::Zero) => inconsistent(),
             _ => SegIssue::escalated(e),
         })?;
-    let (one_turn, rate) = (Period::new(T::tau()), Exact::new(arc.radius));
+    let (one_turn, rate) = (Period::angle(), Exact::new(arc.radius));
     let accepted = Gate::ArcSweepRange
         .read(|name| {
             let rows = TurnRows::exact(name);

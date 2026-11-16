@@ -2,11 +2,14 @@
 id: a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band
 kind: issue
 title: A cone's ruling legs, and the frame a surface curve carries in its section and plane, still answer a crossing at the band's escalation by the chart's frame (narrowed: circle legs start at the foot)
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: H
 design: true
+closed: 2026-11-10
+branch: onecopy/leg-frame-crossing
+pr: 6762
 ---
 
 
@@ -65,3 +68,26 @@ The pins are `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_
 - B, the rulings' origin;
 - C, centre and radius from the foot. Both change the locus, which is what C5 governs ("built from chart coordinates on a surface record", `crates/geom-brep/README.md:917`), so they need an argument for what keeps such a curve on its surface.
 - The frame a `SurfaceCurve` carries in its section and plane: `Section::HalfPlane`'s `toward` azimuth of `u`, a line's plane normal `f.axis × f.radial(u)`, and the crossings read through them. This is the 18/26 that C leaves.
+
+## Closed on the measurement (2026-11-10)
+
+**What is left is the band's edge, not a frame reaching a decision.** Every disagreement the pins count is a query at `±1e-8`, the band's escalation. There one frame decides and another escalates: the reading flips between decided and escalated at the edge of the band, as any band does. None of them is at the band's zero or off the band, so no frame turns one decided answer into another. `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation` (35) and `torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation` (31) pin the counts, so a regression shows as a count that rises.
+
+**Measured on main before closing**, on the two pins' queries (scratch edits, not kept):
+
+| variant | C5 | cone | torus |
+|---|---|---|---|
+| main (A: circle legs start at the foot) | applied | 35 | 31 |
+| B′: a ruling's origin moved to the foot's projection onto the chart's own line (the locus kept, the line analogue of A) | applied | 32 | n/a (no rulings) |
+| B′ and the ruling's plane normal from its own direction (`axis × dir`, not `axis × radial(u)`) | applied | 32 | 31 |
+| B′ and the half-plane's `toward` from the foot's azimuth, not the chart's `u` (cone ruling, torus meridian) | applied | 32 | 31 |
+| B: the ruling's origin at the foot itself (the line moves) | changes the locus | 18 | 31 |
+| C: B and a parallel's or meridian's centre and radius from the closed-form foot | changes the locus | 18 | 26 |
+
+What A leaves sits in the locus itself, in its last ulps. It is not in the parametrisation, the plane or the section.
+
+**Considered and not taken:**
+- **B′:** a line `starting_at` for 3 of the cone's 35 queries.
+- **B and C (option 2):** they build the locus from `geom::Surface::foot`, which re-reads C5 ("a curve on a surface is built from chart coordinates on a surface record", `crates/geom-brep/README.md:917`). They would need an argument for what keeps such a curve on its surface, and they halve the residue at best (cone 35 → 18, torus 31 → 26).
+
+Neither is worth a C5 amendment for a residue that lives only at the band's edge.

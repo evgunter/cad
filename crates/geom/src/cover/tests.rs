@@ -2107,3 +2107,38 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         );
     }
 }
+
+/// **A chain as long as the entities it joins is one node** (`Node`): a
+/// hull of a hundred thousand point covers, built left to right as an
+/// operand's faces are, is cloned, read and dropped on a thread with a
+/// 256 KiB stack. As a left-deep tree, its clone and drop recursed once
+/// per operand and overflowed a test thread's 2 MiB stack at about a
+/// hundred (the `Dual<Interval>` corpus rows that filed
+/// `main-red-two-dual-interval-corpus-rows-overflow-the-stack`). Its
+/// support reads the greatest point's coordinate, as the fold over every
+/// operand must.
+#[test]
+fn a_hull_of_a_hundred_thousand_covers_is_read_and_dropped_on_a_small_stack() {
+    let run = std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let n = 100_000;
+            let chain = (0..n)
+                .map(|i| Cover::points(vec![Point3::new(f64::from(i), 0.0, 0.0)]).unwrap())
+                .reduce(Cover::hull)
+                .unwrap();
+            let copy = chain.clone();
+            let far = copy.support(Vec3::new(1.0, 0.0, 0.0));
+            let near = chain
+                .meet(Cover::points(vec![Point3::new(0.5, 0.0, 0.0)]).unwrap())
+                .support(Vec3::new(1.0, 0.0, 0.0));
+            (far, near)
+        })
+        .unwrap();
+    let (far, near) = run.join().expect("the chain is read on a small stack");
+    assert_eq!(
+        far, 99_999.0,
+        "the hull's support is its greatest operand's"
+    );
+    assert_eq!(near, 0.5, "a meet with a point reads that point's support");
+}
