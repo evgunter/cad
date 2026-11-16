@@ -191,7 +191,7 @@ fn plane_label(ev: &Evaluation<f64>, node: RecipeNodeId, of: &StableName) -> Str
         panic!("{of:?} is no face")
     };
     let body = body_of(ev, node);
-    let s = body.get_surface(body.get_face(f).unwrap().surface).unwrap();
+    let s = body.face_surface(f).unwrap();
     let topo::Surface::Plane { origin, normal, .. } = s else {
         return "curved".to_owned();
     };

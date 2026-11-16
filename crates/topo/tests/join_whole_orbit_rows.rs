@@ -1,5 +1,5 @@
 //! **A pierce run holding every real edge of the orbit, beyond the
-//! star fixture** (review of PR 3770). `classify_vertex_on_face`
+//! star fixture** (review of PR 3770). `mint_pierce`
 //! records such a run as the strut `mev_null` builds; before that, each
 //! row below refused `JoinDesync` ("every chord arc separates a loose
 //! scaffolding pair") or `SeamOrientation`. Two shapes reach it: a

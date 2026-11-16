@@ -11,7 +11,8 @@ cost: E
 Found by VSEAM's PR 6295 lane (2026-11-02); filed by the VSEAM
 orchestrator.
 
-`review_6295_e2e_remove_a_filleted_hole` (a whole-app row in
+`removing_a_filleted_hole_in_the_editor_lands_and_the_fillet_refuses`
+(a whole-app row in
 `crates/viewer/src/app.rs`, compiled only under `--features app`) takes
 about 0.6–1.2 s locally, over the slow-set bar
 (implementer-discipline §2). Listing it in `.config/nextest.toml`'s

@@ -64,7 +64,7 @@ fn assert_ring_senses(body: &Body<f64>, label: &str) -> usize {
         if f.rings.is_empty() {
             continue;
         }
-        let n = match body.get_surface(f.surface) {
+        let n = match body.face_surface(k) {
             Some(&topo::Surface::Plane { normal, .. }) => normal,
             _ => continue,
         };

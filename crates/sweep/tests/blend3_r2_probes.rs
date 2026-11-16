@@ -20,11 +20,10 @@
 //!   with the smaller shape a reviewer would reach for first — an open
 //!   POCKET. Its floor corners ARE all-concave trihedra, so the corner
 //!   door is not what stops it: the floor alone walks into a closed
-//!   sharp chain (G1 refusal), and any completion walks up the struts
-//!   into the rim's MIXED corners. Both refusals are pinned.
-//! - P4: the differential half of "the fillet's admission does not
-//!   move": the same L-bracket mixed corner refuses the fillet with the
-//!   same MixedConvexity tag as before the widening.
+//!   sharp chain (G1 refusal), and the whole component walks up the
+//!   struts into the rim's MIXED corners, which build.
+//! - P4: the L-bracket's mixed corner, its odd edge requested with a
+//!   rim edge, refuses the fillet with the MixedConvexity tag.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -102,7 +101,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 
     let outward = |face: topo::FaceKey| -> Vec3<f64> {
         let f = body.get_face(face).expect("a support face");
-        let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
             panic!("a cavity support face is a plane");
         };
         OutwardNormal::from_chart(*normal, f.sense).vec()
@@ -112,15 +111,14 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
         std::collections::BTreeMap::new();
     for e in &edges {
         let ed = body.get_edge(*e).expect("edge");
-        let h = body.get_half_edge(ed.he_plus).expect("half-edge");
-        let end = body.half_edge_end(ed.he_plus).expect("end");
+        let (start, end) = body.edge_vertices(*e).expect("edge ends");
         let pt = |v| {
             *body
                 .get_vertex(v)
                 .and_then(|x| body.get_point(x.point))
                 .expect("point")
         };
-        let (a, b) = (pt(h.start), pt(end));
+        let (a, b) = (pt(start), pt(end));
         let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
         // The two support faces via the edge's half-edges' parent loops.
         let face_of = |he| {
@@ -151,8 +149,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 /// **P3 — the impossibility argument, attacked with a pocket.** A
 /// pocket `[1,3]² × [2,4]` open to the top face has FOUR floor corners
 /// that are genuinely all-concave trihedra — so the smaller fixture is
-/// not stopped by the corner door reading them wrong. What stops it is
-/// the argument's actual mechanism, and both halves are pinned here:
+/// not stopped by the corner door reading them wrong. Both halves of the
+/// argument are pinned here:
 ///
 /// - requesting the four floor edges alone leaves each floor corner
 ///   with exactly two requested edges, so the battery walks them into
@@ -160,13 +158,13 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 ///   open chains, and each corner — two of its three edges requested,
 ///   the walls square to the floor — is a concave mitre, which builds;
 /// - completing the request — here the WHOLE pocket component, floor,
-///   struts and even the convex rim — reaches the struts' top ends,
-///   which are the rim's mixed corners: the corner door refuses
-///   `MixedConvexity`, and no subset of this body's edge graph avoids
-///   them, because the concave edges and the convex rim are ONE
-///   component.
+///   struts and the convex rim — reaches the struts' top ends, the rim's
+///   mixed corners, with all three of their edges requested, which build
+///   the mixed corner: by pieces, the strips over every edge's length,
+///   less `2d³/3` at each floor corner and `K·d³` more at each rim corner
+///   (`K = 5/3 − 7√2/6`, `band_mixed_corner`).
 #[test]
-fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
+fn p3_a_pockets_floor_mitres_alone_and_the_whole_pocket_builds_through_its_rims_mixed_corners() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
     let body =
@@ -202,28 +200,38 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
-    let err = chamfer_edges(&body, &full, D, Tol::witness())
-        .expect_err("even the whole pocket component meets the rim's mixed corners");
+    let out = chamfer_edges(&body, &full, D, Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "the whole pocket component builds through the rim's mixed corners, got {:?}",
+            e.error
+        )
+    });
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("closed-form props")
+        .enclosure
+        .volume
+    };
+    let k = 5.0 / 3.0 - 7.0 * 2f64.sqrt() / 6.0;
+    let truth = D * D / 2.0 * (16.0 - 8.0) - 4.0 * 2.0 / 3.0 * D.powi(3) + 4.0 * k * D.powi(3);
+    let dv = volume(&out.body.clone().into_body()) - volume(&body.clone().into_body());
     assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }
-        ),
-        "the struts' top ends are mixed corners, got {:?}",
-        err.error
+        (dv - truth).abs() < 1e-12,
+        "the whole pocket's ΔV {dv} is its closed form {truth}"
     );
 }
 
-/// **P4 — the fillet's mixed-corner refusal did not move.** The
+/// **P4 — the fillet's mixed-corner refusal reads its count.** The
 /// L-bracket's inner edge (the fixture #919 pinned the OPENING state
-/// on) still refuses the fillet at the corner door with the same
-/// `MixedConvexity { convex: 2 }` tag the pre-widening classifier
-/// raised — the split touched only the uniform `convex == 0` row.
+/// on), requested with a convex rim edge of its top corner, refuses
+/// the fillet at the corner door with `MixedConvexity { convex: 2 }`:
+/// the inner edge is that corner's odd edge.
 #[test]
-fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
+fn p4_the_l_bracket_inner_edge_with_a_rim_edge_refuses_the_fillet_as_mixed() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -249,9 +257,13 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
         (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
     });
     assert_eq!(inner.len(), 1, "the bracket's one reflex vertical edge");
+    let rim = edges_with_corners(&body, |p| {
+        (p.y - 1.0).abs() < 1e-12 && (p.z - 1.0).abs() < 1e-12 && p.x > 1.0 - 1e-12
+    });
+    assert_eq!(rim.len(), 1, "the top rim edge from the reflex corner");
     let err = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
-        &inner,
+        &[inner[0], rim[0]],
         0.1,
         Tol::witness(),
     )

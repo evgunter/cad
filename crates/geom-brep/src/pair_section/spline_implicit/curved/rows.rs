@@ -666,8 +666,9 @@ fn dome() -> Surface<f64> {
 /// Hessian definite and its value zero, so the sweep decides a touch and
 /// the pass finds no end. The section is that touch, one point
 /// component witnessed at the top, a tangency decided Zero. Red against
-/// the Hessian's sign read the other way (a node pinches), and against a
-/// decided touch left to the general rung.
+/// the Hessian's sign read the other way (a node, read whole, which the
+/// touch's lone point is not), and against a decided touch left to the
+/// general rung.
 #[test]
 fn a_dome_touching_a_sphere_is_one_touch() {
     let got = section(&dome(), &sphere(pt(0.5, 0.5, 1.0), 1.0));
@@ -711,30 +712,54 @@ fn a_top_in_band_of_a_sphere_is_not_decided() {
     );
 }
 
-/// **A saddle at the zero level of a sphere pinches its arcs.** The
-/// saddle `z = (x − ½)² − (y − ½)²` under the sphere of radius 100 resting
-/// on its centre: the centre is a node decided Zero, the section's arcs
-/// crossing there and running out to the sides, and the march that would
-/// list them does not start at a node, so the value refuses them as the
-/// pinch named by the decision. Red against a node's arcs read as the
-/// pass's reach (`Reaching`, which the guard would clear).
+/// **A saddle at the zero level of a sphere lists its node and arcs.**
+/// The cross saddle `z = 4(x − ½)(y − ½)` under the sphere of radius 100
+/// resting on its centre: the centre is a node decided Zero, the
+/// section's four arcs crossing there and running out to the sides'
+/// middles. The value lists the node at the centre, its lines along the
+/// chart's axes, and the four arcs, each ending at it and naming one of its
+/// four rays, every ray claimed once and the four one node-joined set.
+/// Red against a node's arcs read as the pass's reach (`Reaching`, which
+/// the guard would clear), and against the node's arcs left unlisted.
 #[test]
-fn a_saddle_under_a_sphere_pinches_at_its_node() {
-    let g = [0.25, -0.25, 0.25];
+fn a_saddle_under_a_sphere_lists_its_node_and_arcs() {
+    let a = [-0.5, 0.0, 0.5];
     #[allow(clippy::cast_precision_loss)]
     let saddle = patch(2, 2, &|i, j| {
-        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] - g[j]), 1.0)
+        (pt(0.5 * i as f64, 0.5 * j as f64, 4.0 * a[i] * a[j]), 1.0)
     });
-    let got = read(&saddle, &sphere(pt(0.5, 0.5, 100.0), 100.0));
-    assert!(
-        matches!(
-            got,
-            Err(SectionError::Pinched {
-                predicate: "spline_critical_value"
-            })
-        ),
-        "the saddle under the sphere reads {got:?}"
+    let got = pair_section(
+        &saddle,
+        &sphere(pt(0.5, 0.5, 100.0), 100.0),
+        None,
+        Some(SsiLane::marched()),
+        band(),
     );
+    let Ok(SectionRead::Built(s)) = got else {
+        panic!("the saddle under the sphere reads {got:?}");
+    };
+    let [node] = s.nodes() else {
+        panic!("one node: {:?}", s.nodes());
+    };
+    assert!(
+        node.point.distance(pt(0.5, 0.5, 0.0)) <= 1e-9,
+        "{:?}",
+        node.point
+    );
+    let Components::Counted(c) = s.components() else {
+        panic!("{:?}", s.components());
+    };
+    let mut rays: Vec<usize> = c
+        .iter()
+        .filter_map(|c| match c.shape {
+            crate::ComponentShape::Open { ends } => ends.nodes.end.or(ends.nodes.start),
+            _ => None,
+        })
+        .map(|e| crate::SectionNode::<f64>::ray_index(e.line, e.sense))
+        .collect();
+    rays.sort_unstable();
+    assert_eq!(rays, [0, 1, 2, 3], "{c:?}");
+    assert_eq!(s.node_sets().len(), 1);
 }
 
 /// **Klein's half-tube: a creased wall through a sphere is loop-free.**
@@ -875,8 +900,8 @@ fn touch(a: &Surface<f64>, b: &Surface<f64>) -> Result<Point3<f64>, String> {
 /// there, the partner's own Hessian `∇²f` read along the saddle's
 /// tangents plus `∇f` against the saddle's second partials, is definite:
 /// a touch. Without the partner's `∇²f` only the saddle's curvature is
-/// read, the Hessian is indefinite, and the point reads a node, which
-/// pinches. The same holds for a cylinder of that radius lying along `y`,
+/// read, the Hessian is indefinite, and the point reads a node, read
+/// whole with arcs where there are none. The same holds for a cylinder of that radius lying along `y`,
 /// and for a ring torus about the `x` axis whose tube, of that radius,
 /// rests on the centre at its outer equator, its core circle of radius 1
 /// standing up in the plane `x = ½`. Red against each form's

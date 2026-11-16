@@ -121,9 +121,11 @@ pub(crate) fn post_faces<T: Real + Bounds>(
         off.norm() <= reach + slack && t >= t0 - slack && t <= t1 + slack
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => near(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body
@@ -440,6 +442,23 @@ fn cups_on_both_supports_beside_a_cap_cup_and_beside_a_convex_band_go() {
 /// there, its floor crosses the band surface, measured.
 #[test]
 fn a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes() {
+    // Pinned red at 1e-6: the fixture's own boolean returns no finished
+    // body, before any blend runs
+    // (`work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6],
+        "the cups a hair across the trimline",
+        &[
+            "the fixture's boolean builds, got the Boolean's result is not a finished body",
+            "a face's area could not be certified positive at this tolerance",
+        ],
+        a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes_row,
+    );
+}
+
+/// The row [`a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes`] runs, under its pin.
+fn a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes_row() {
     let (_, x, a, _) = CUP;
     for side in Side::BOTH {
         for verb in VERBS {

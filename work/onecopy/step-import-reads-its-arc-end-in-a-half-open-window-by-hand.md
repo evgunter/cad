@@ -2,8 +2,10 @@
 id: step-import-reads-its-arc-end-in-a-half-open-window-by-hand
 kind: issue
 title: step-import's endpoint_params and rim split rename an arc's end into (t0, t0 + τ] by a while-loop, which Period::near about t0 + π cannot reproduce exactly
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-09
+pr: 6626
 ---
 
 

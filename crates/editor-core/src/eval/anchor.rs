@@ -359,15 +359,12 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// sweep's own wall record uses, so a consumer pairs the two by
     /// position and derives nothing.
     ///
-    /// `None` at a position is an answer, and it has four causes:
-    /// the segment is a straight one; it is an arc whose radius the
-    /// program does not author as a scalar at all — a `bulge`, a
-    /// `via`, a `center`; or it is a segment a radius EXTENDED rather
-    /// than drew. The last is the §4 item 4 vertex-move exemption: an
-    /// `arc_fillet`'s incoming spec whose carrier the arriving leg is
-    /// already on moves that leg's end vertex instead of emitting a
-    /// segment, so the radius is authored, enters the content key,
-    /// and reaches no wall — the shape
+    /// `None` at a position is an answer: the segment is a straight
+    /// one, or an arc whose radius the program does not author as a
+    /// scalar at all — a `bulge`, a `via`, a `center`. A radius can
+    /// also reach no wall: an `arc_fillet`'s incoming carrier whose run
+    /// the fillet trims to no length is authored and enters the content
+    /// key, and draws no segment — the shape
     /// `edit_step_segments::every_attached_radius_was_keyed_first`
     /// authors as `keyed_but_never_attached()`.
     /// (`ProfileProgram::segment_radii` says why each answers

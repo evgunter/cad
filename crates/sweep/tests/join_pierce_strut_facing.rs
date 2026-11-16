@@ -10,7 +10,7 @@
 //! walk from the corner's arrival edge decides it.
 //!
 //! - `m = (1, 1.3, −0.7)`: the edges read In and the bisector alone
-//!   Out, the bare-bisector run (`classify_vertex_on_face`'s `_` arm).
+//!   Out, the bare-bisector run (`read_vertex_on_face`'s `_` arm).
 //! - `−m`: the edges read Out and the bisector alone In, the run holds
 //!   the whole orbit (`topo::star`'s strut whose tip stands for the
 //!   rest).
@@ -321,8 +321,8 @@ fn a_pinch_keeps_one_vertex_per_cone() {
             "{order}: the intersection's cones at v"
         );
         assert_eq!(at_v.len(), 2, "{order}: one vertex per cone at v");
-        for (face, f) in body.faces() {
-            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+        for (face, _) in body.faces() {
+            for (l, _, _) in body.face(face).expect("a live face").loops() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     let starts: Vec<_> = body
                         .loop_cycle(first)

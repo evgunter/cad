@@ -54,3 +54,33 @@ buckets faces by shell for the selections and the witnesses, and — if
 curved porous parts measure it — the resumable per-shell sign walk above.
 
 - 2026-11-02 — moved from RESTSHELL to RESTFRONT by `git mv` when RESTSHELL merged into RESTFRONT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTSHELL had fallen far under it).
+
+- 2026-11-09 — **a new, larger per-solid cost since check 10 reads every
+  witness** (`onecopy/shell-winding`, PR 6670). Check 10 used to read each
+  shell's winding at its first decisive witness; under the ratified
+  every-vertex semantics it reads every vertex (`stands::witness_insides_everywhere`
+  / `ladder_agreeing`), each a `point_in_solid_faces` ray cast. PR 6670
+  already reads one witness rung at a time (vertices first, edges/faces
+  only where no vertex places), which roughly halved it, but a valid
+  multi-shell body still casts one ray per vertex per other shell rather
+  than one.
+
+  Profile (callgrind, `sweep` `tangent_charts_shell_onto_their_closed_forms`):
+  `point_in_faces` 81% of the solid's validate, within it `cast_ray` 52%
+  and `selection_reach` + `loop_extent_from` ≈40% — all per-(witness,
+  shell) and q-dependent, so not cacheable across a shell's witnesses.
+  Three `sweep` tests crossed the 0.5 s line and moved to the slow set in
+  that PR: `tangent_charts_shell_onto_their_closed_forms` (0.43 → 1.17 s),
+  `revolve_axis_gaps::the_start_vertex_and_the_authored_winding_change_nothing`
+  (1.09 → 2.04 s), `shell7_r1_diff::shell7_r1_diff_corpus` (1.05 → 1.39 s).
+  The sweep + editor-core `ci` total did not move (211 s either way).
+
+  **The box prefilter this row proposes does not help these bodies.** Their
+  faces are tangent charts / closed forms whose `boolean::boxes::face_box`
+  cover does not build, so the box is poison and prunes nothing (measured:
+  the per-witness side-at-infinity shortcut off the box never fired). The
+  prefilter still helps porous bodies whose covers build; these need a
+  different lever — a resumable per-witness cast that shares the probed
+  shell's geometry across a shell's witnesses, or a census-style crossing
+  detector run ahead of check 10 so a non-crossing shell is read at one
+  witness and only a crossing one reads every vertex.

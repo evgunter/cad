@@ -35,9 +35,7 @@ fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     let Surface::Torus {
         center,
         major_radius,
@@ -314,12 +312,9 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     // Both walls really are spheres with distinct centres.
     let mut sphere_centres: Vec<f64> = source
         .faces()
-        .filter_map(|(k, _)| {
-            let fd = source.get_face(k)?;
-            match source.get_surface(fd.surface)? {
-                Surface::Sphere { center, .. } => Some(center.y),
-                _ => None,
-            }
+        .filter_map(|(k, _)| match source.face_surface(k)? {
+            Surface::Sphere { center, .. } => Some(center.y),
+            _ => None,
         })
         .collect();
     sphere_centres.sort_by(f64::total_cmp);

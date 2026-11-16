@@ -68,7 +68,7 @@ fn every_corner_encodes_and_holds_no_pole<T: topo::AtRestPolicy + Decide + Bound
     let band = Band::linear(Tol::witness()).unwrap();
     for &face in &out.corner_faces {
         let f = body.get_face(face).expect("a minted corner face");
-        let surface = body.get_surface(f.surface).expect("its surface");
+        let surface = body.face_surface(face).expect("its surface");
         let Surface::Sphere {
             center,
             radius,
@@ -164,7 +164,6 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
             let body = topo::transform_rigid(
                 &cube::<f64>(scale, Tol::witness()),
                 &geom_core::test_support::rigid(&a, Tol::witness()),
-                Tol::witness(),
             )
             .unwrap();
             let edges = query::all_edges(&body);
@@ -228,7 +227,6 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
     let clip_at = topo::transform_rigid(
         &clip,
         &geom_core::RigidMotion::translation(Vec3::new(1.5, 1.5, 1.5)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
@@ -249,10 +247,7 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
                     .and_then(|x| void.get_point(x.point))
                     .unwrap()
             };
-            let (a, b) = (
-                void.get_half_edge(e.he_plus).unwrap().start,
-                void.half_edge_end(e.he_plus).unwrap(),
-            );
+            let (a, b) = void.edge_vertices(k).unwrap();
             line && inside(at(a)) && inside(at(b))
         })
         .collect();

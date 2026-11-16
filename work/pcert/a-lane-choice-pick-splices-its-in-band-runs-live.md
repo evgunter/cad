@@ -19,7 +19,7 @@ records nothing). The verdict log still records it as if it did.
 - `crates/geom-brep/src/edge_nurbs.rs` `first_within` (near :1374) climbs
   `crate::ladder::climb(Answering::First, …)`. Under `Answering::First`,
   a kept in-band reading ahead of the answer is spliced **live**
-  (`crates/geom-brep/src/ladder.rs`, the `Answering` doc near :197–204:
+  (`crates/geom-core/src/ladder.rs`, the `Answering` doc near :450–460:
   "the answer rests on it and its run is spliced live").
 - `probe_pick` and `pick_arc_rim` read through `first_within`. So a
   candidate in band (`pcurve_iso_arc_row_direction`,

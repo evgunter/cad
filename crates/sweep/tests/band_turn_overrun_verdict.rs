@@ -93,15 +93,12 @@ pub(crate) fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
         topo::query::all_edges(&body)
             .into_iter()
             .find(|&e| {
-                let he = body.get_edge(e).unwrap().he_plus;
+                let (v0, v1) = body.edge_vertices(e).unwrap();
                 let p = |x| {
                     let q = body.get_point(body.get_vertex(x).unwrap().point).unwrap();
                     [q.x, q.y, q.z]
                 };
-                let (s, t) = (
-                    p(body.get_half_edge(he).unwrap().start),
-                    p(body.half_edge_end(he).unwrap()),
-                );
+                let (s, t) = (p(v0), p(v1));
                 let from = |o: V, f: V| norm(o) < 1e-12 && dot(f, d) > norm(f) * (1.0 - 1e-9);
                 from(s, t) || from(t, s)
             })
@@ -139,11 +136,8 @@ fn closed(c: &Cone, verb: Verb) -> (f64, [f64; 2]) {
 /// edge — so the closed forms on it share nothing with the battery.
 pub(crate) fn cone_of(body: &Body<f64>, edges: [EdgeKey; 2]) -> Cone {
     let ends = |e: EdgeKey| {
-        let he = body.get_edge(e).expect("an edge").he_plus;
-        [
-            body.get_half_edge(he).expect("a half-edge").start,
-            body.half_edge_end(he).expect("an end"),
-        ]
+        let (v0, v1) = body.edge_vertices(e).expect("an edge");
+        [v0, v1]
     };
     let at = |v| {
         let p = body

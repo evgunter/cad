@@ -63,8 +63,6 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
     };
     let center = frame.foot3(seg.a);
     let radius = cls.verts[0].r;
-    let from_far = ends.far - center;
-    swept::register_rim_identity(from_far, radius, tol);
     // The strut runs far to near. A turned far end is the sketch point
     // turned through `theta`, so the strut is that turn's own range run
     // back, on the sketch placement: no turned placement is evaluated.
@@ -72,8 +70,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         MappedCurve::whole(MappedSource::RevolvedPoint {
             point: seg.a,
             place: frame.place,
-            axis_origin: frame.o3,
-            axis_dir: frame.a3,
+            axis: frame.line3(),
             angle,
         })
     };
@@ -83,7 +80,14 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         } else {
             turned(T::zero() - theta)
         }),
-        carrier: Curve3::circle(center, Vec3::zero() - axis_c, radius, from_far.normalize()),
+        // `u_ref` points at the far end: the seam direction `u₃` (the
+        // vertex lies at `r > 0`), turned with it.
+        carrier: Curve3::circle(
+            center,
+            Vec3::zero() - axis_c,
+            radius,
+            ends.place_far.carry(frame.u3),
+        ),
         param_start: T::zero(),
         param_end: theta.abs(),
     };
@@ -91,10 +95,10 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         body,
         r#loop,
         ends.near,
-        placed_segment_spec(seg, ends.place_far, ends.n_far, ends.far, ends.far, tol),
+        placed_segment_spec(seg, ends.place_far, ends.n_far, ends.far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, frame.place, frame.n3, ends.near, ends.near, tol),
+        placed_segment_spec(seg, frame.place, frame.n3, ends.near, tol),
         near_cap,
         tol,
     )?;

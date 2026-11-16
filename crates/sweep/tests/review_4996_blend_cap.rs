@@ -25,9 +25,9 @@ fn tol() -> Tol {
 
 fn cap(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == 1.0
             )

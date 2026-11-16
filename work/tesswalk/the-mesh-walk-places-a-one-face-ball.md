@@ -2,10 +2,13 @@
 id: the-mesh-walk-places-a-one-face-ball
 kind: issue
 title: the mesh walk places a one-face ball (one wrap meridian pole to pole) as the two sides of its wrap, not a zero-width column
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-11-11
 priority: P1
 cost: E
+pr: 6823
+branch: tesswalk/one-face-ball
 ---
 
 
@@ -26,3 +29,36 @@ Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling ope
 ## Released (2026-10-31)
 
 Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)
+
+## Dispatch
+
+2026-11-11, TESSWALK orchestrator. One implementer, lane `tesswalk-ball`, branch `tesswalk/one-face-ball`. The lane will:
+- reproduce the one-face ball's `SingleColumnCurvedFace` on main;
+- port the probe's E7 (`probe/foreign-wraptip`) onto `mesh::walk::loop_polygon`, reading the tip through `Body::both_sides_face`'s `chart_image` view as RESTCURVE's release says, never by a turn of its own;
+- pin the ball watertight with its signed volume.
+
+Review tier: a single style review, since the change sits in the shared mesh walk and must read the tip through the one structural predicate.
+
+## Closed
+
+2026-11-11, PR 6823. Reproduced on main: the one-face ball (the unit ball
+with one meridian killed by `kef_describing` and the survivor restated as
+the wrap edge) is tier-3 valid and refused `SingleColumnCurvedFace` at
+`walk::require_two_columns`. No user-facing door mints it yet (revolve
+mints two bands; import's flip is parked), so the row builds it with Euler
+operators. `mesh::walk::wrap_strip` reads the loop through
+`topo::surface_boundary::chart_image`: an empty image whose two tips are
+vertices on the chart's two singular points (`vertex_at_singular_point` at
+the run's band) is the whole surface, and the walk places the edge's two
+sides a period apart, the far side opening at the far tip, wound by the
+face's sense, with no turn read at the tip. Pinned in
+`crates/mesh/tests/the_one_face_ball.rs`: the ball and its reversal from
+either pole (all four pairings of side direction and sense), the wrap edge
+split off the poles (on main it panicked at the census), a slit between
+the tips that is not the strip, and the hemisphere and cone wrap-tip caps
+byte-identical to main. Mutants (zero-width column, sense dropped, rising
+dropped, sign flipped, constant period, image guard dropped) each kill a
+named row. The one-seam sphere in `loops_with_no_rim.rs` moves from the
+single-column class to the strip, recorded as behaviour outside the
+contract. The spline wrap edge the trimmed lane would meet is filed:
+`a-one-face-ball-on-a-spline-wrap-edge-meets-the-trimmed-lane-unmeasured`.

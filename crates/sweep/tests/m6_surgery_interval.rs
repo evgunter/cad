@@ -69,7 +69,6 @@ mod certified {
         topo::transform_rigid(
             &ball,
             &geom_core::RigidMotion::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))).unwrap(),
-            Tol::witness(),
         )
         .unwrap()
     }
@@ -171,13 +170,11 @@ mod certified {
                 let kind = |he| {
                     let h = blanked.get_half_edge(he)?;
                     let f = blanked.get_loop(h.parent_loop)?.face;
-                    blanked
-                        .get_surface(blanked.get_face(f)?.surface)
-                        .map(|s| match s {
-                            Surface::Plane { .. } => 0u8,
-                            Surface::Sphere { .. } => 1,
-                            _ => 2,
-                        })
+                    blanked.face_surface(f).map(|s| match s {
+                        Surface::Plane { .. } => 0u8,
+                        Surface::Sphere { .. } => 1,
+                        _ => 2,
+                    })
                 };
                 matches!(
                     (kind(e.he_plus), kind(e.he_minus)),

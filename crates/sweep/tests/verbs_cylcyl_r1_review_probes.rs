@@ -45,18 +45,12 @@ fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap()
 }
 
 fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &geom_core::RigidMotion::translation(d).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(b, &geom_core::RigidMotion::translation(d).unwrap()).unwrap()
 }
 
 /// Every crossing pose this reviewer could author must refuse TYPED at a
@@ -72,6 +66,43 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// pose's own `Cylinder`s carried as its bodies are.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
+    // Pinned red off the witness band. At 1e-6 the perpendicular pair's
+    // union holds its closed form in an enclosure wider than the row's
+    // ceiling
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
+    // At 1e-12 the tall thin pair's union refuses its section, a fitted
+    // carrier's limb 2 read in band, where the row wants it built
+    // (`work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`).
+    let eps = Tol::witness().eps();
+    let (stops_at, says): (&[f64], &[&str]) = if test_utils::kernel_limit::at_row(eps, &[1e-12]) {
+        (
+            &[1e-12],
+            &[
+                "tall thin through short fat/union: refused GermSectionUnbuilt, not a frontier refusal",
+                "whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is undecided",
+                "lies inside the ambiguity band (1e-12, 1e-11)",
+            ],
+        )
+    } else {
+        (
+            &[1e-6],
+            &[
+                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534547 pad=6.7e-6 want=81.651534544",
+            ],
+        )
+    };
+    test_utils::pinned_red::row(
+        eps,
+        stops_at,
+        "the crossing poses",
+        says,
+        every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row,
+    );
+}
+
+/// The row [`every_reachable_crossing_pose_refuses_typed_or_answers_correctly`]
+/// runs, under its pin.
+fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row() {
     let tol = Tol::witness();
     let about = |axis: Vec3<f64>, angle: f64| {
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle)
@@ -313,12 +344,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(walls.len(), 2);
@@ -361,9 +387,9 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     };
     let walls: Vec<topo::FaceKey> = below
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                below.get_surface(f.surface),
+                below.face_surface(*fk),
                 Some(geom::Surface::Cylinder { .. })
             )
         })
@@ -455,12 +481,7 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let body = revolved_cyl(1.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
@@ -523,9 +544,9 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // The corner round at (5, 5), by geometry rather than by key.
     let corner = plate
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                plate.get_surface(f.surface),
+                plate.face_surface(*fk),
                 Some(geom::Surface::Cylinder { origin: o, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
                         && (o.x - 6.0).abs() < 1e-9

@@ -19,7 +19,7 @@
 //! an [`UncutFace`](super::UncutFace) row, says it holds. That last read
 //! is checked against the geometry: the dropped face must lie on the
 //! kept face's carrier, and meet its region in area
-//! ([`super::overlap`]). Where the kept face is the only face the result
+//! ([`super::overlap`](fn@super::overlap)). Where the kept face is the only face the result
 //! holds of its operand face, a row whose dropped face fails either
 //! check contradicts the geometry it records, and the face refuses
 //! ([`HeldRefusal::NotUnder`]) rather than name a face lying elsewhere;
@@ -162,7 +162,7 @@ fn on_carrier<T: Decide>(
     (member, m): (&Body<T>, MemberFace),
     band: Band,
 ) -> Result<(), HeldRefusal> {
-    use super::carrier_eq::CarrierRelation;
+    use geom_brep::CarrierRelation;
     match super::carrier_pair::carrier_pair_relation(body, f, member, m.1, band) {
         Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => Ok(()),
         Ok(Ok(CarrierRelation::Distinct)) => Err(HeldRefusal::NotUnder { member_face: m }),

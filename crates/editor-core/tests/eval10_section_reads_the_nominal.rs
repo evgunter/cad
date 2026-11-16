@@ -198,7 +198,7 @@ fn loft_digest(ev: &editor_core::Evaluation<f64>, loft: RecipeNodeId) -> Vec<u64
 fn a_seed_on_a_section_radius_moves_the_lofted_wall() {
     use geom_core::Dual64;
     let (doc, loft) = loft_doc(0.5);
-    let ev = editor_core::evaluate::<Dual64>(
+    let ev = editor_core::test_support::evaluate_bound::<Dual64>(
         &doc,
         None,
         &editor_core::CancelToken::new(),

@@ -226,9 +226,24 @@ pub fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>
             if !(du > 0.0) {
                 return None;
             }
-            Some((pair[1] - pair[0]) * pair_scale(held, p, i)?)
+            derivative_pair(pair[0], pair[1], held, p, i)
         })
         .collect()
+}
+
+/// One entry of a derivative net: `(q1 − q0)·`[`span_derivative_scale`]
+/// for pair `i` of a degree-`p` spline over the `held` knot values —
+/// the step [`derivative_net`] takes per pair, for a caller that reads
+/// only the pairs one span's basis touches. `None` past the vector.
+/// The knot difference is the caller's to have checked.
+pub fn derivative_pair<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
+    q0: P,
+    q1: P,
+    held: &[T],
+    p: usize,
+    i: usize,
+) -> Option<V> {
+    Some((q1 - q0) * pair_scale(held, p, i)?)
 }
 
 /// The derivative scale of pair `i` of a degree-`p` spline over the
@@ -288,6 +303,20 @@ impl<T: Real, const D: usize> QuotientPiece<T, D> {
     /// the weight power as a product of positive weights.
     fn new(numer: Vec<[T; D]>, denom: Vec<T>) -> Option<Self> {
         (!numer.is_empty() && numer.len() == denom.len()).then_some(Self { numer, denom })
+    }
+
+    /// The coefficient RATIO vectors `a_k/b_k`, coordinate by
+    /// coordinate: the quantity over the piece is a convex combination of
+    /// them (module docs), so it lies in their convex hull, and any
+    /// reading of that hull as vectors (a ball about a centre) is a
+    /// function of the vectors rather than of a frame.
+    #[must_use]
+    pub fn ratio_vectors(&self) -> Vec<[T; D]> {
+        self.numer
+            .iter()
+            .zip(&self.denom)
+            .map(|(a, b)| a.map(|x| x / *b))
+            .collect()
     }
 
     /// The numerator's coefficients.
@@ -2008,11 +2037,11 @@ mod tests {
     /// **The halving's scale is the exact power-of-two door.** A line
     /// whose outputs land between the smallest normal and the interval
     /// backend's 2Prod floor (`2^-960`) halves EXACTLY through
-    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded
-    /// — where a general product against the point `2⁻ʳ` would pad every
-    /// one a step outward. So a scale that went back to the general
-    /// product reds here; nothing else does, since above the floor the
-    /// two agree to the bit.
+    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded,
+    /// as the backend's product by a point power of two is at every
+    /// normal magnitude. A scale that padded there (the four-corner fold
+    /// cannot certify a product under the floor) reds here; nothing else
+    /// does, since above the floor the two agree to the bit.
     #[test]
     fn the_halving_scales_through_the_exact_door() {
         let tiny = f64::MIN_POSITIVE * 1024.0;

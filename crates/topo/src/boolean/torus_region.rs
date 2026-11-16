@@ -96,7 +96,7 @@
 use geom_brep::curve_face::plane_crossing::{RootPlace, span_place};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use geom_brep::curve_pair::on_surface::{Section, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
 
 use super::region::{
     self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
@@ -114,26 +114,22 @@ use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
-const CORNER: &str = "bool_torus_region_corner";
+const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_torus_region_arc_span",
-    "bool_torus_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::TORUS_REGION_CONIC;
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: ArcRows = ArcRows {
-    end: "bool_torus_region_spiric_end",
-    clear: "bool_torus_region_spiric_clear",
-    on: "bool_torus_region_spiric_on",
-    leaf: "bool_torus_region_spiric_leaf",
-};
+const SPIRIC: ArcRows = crate::rows::TORUS_REGION_SPIRIC;
 
 /// A trimmed torus face's boundary: every edge of every loop, each with
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, its key and torus: every leg is charted
+    /// on it and every edge keyed by it. The fields below are read off it
+    /// ([`Self::on`]).
+    charted: Charted<T>,
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
@@ -157,7 +153,7 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// plane — a spline — or is neither a circle nor a spiric. A circle or a
 /// spiric is taken as a plane section of this torus, unchecked: every
 /// such edge of a torus face is one at rest (tier 3 places each edge on
-/// both its faces' carriers).
+/// both its faces' carriers (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual")).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -181,33 +177,51 @@ pub(crate) fn torus_face_region<T: Decide>(
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let &geom::Surface::Torus {
-        center,
-        axis,
-        major_radius,
-        minor_radius,
-        u_ref,
-    } = f.surface()
-    else {
+    let geom::Surface::Torus { .. } = f.surface() else {
         return Err(corrupt());
     };
     let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];
     let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &planar)? else {
         return Ok(None);
     };
-    Ok(Some(TorusFaceRegion {
-        center,
-        axis,
-        major: major_radius,
-        minor: minor_radius,
-        u_ref,
-        sense: f.sense(),
-        outer: f.record().outer,
+    Ok(Some(TorusFaceRegion::on(
+        Charted::record(f.record().surface, f.surface()),
+        f.sense(),
+        f.record().outer,
         edges,
-    }))
+    )))
 }
 
 impl<T: Decide> TorusFaceRegion<T> {
+    /// The region on `charted`'s torus bounded by `edges`.
+    ///
+    /// # Panics
+    ///
+    /// Where `charted` is not a torus: the caller reads the record first.
+    fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Edge<T>>) -> Self {
+        let &geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } = charted.surface()
+        else {
+            unreachable!("a torus region is built on a torus record")
+        };
+        Self {
+            charted,
+            center,
+            axis,
+            major: major_radius,
+            minor: minor_radius,
+            u_ref,
+            sense,
+            outer,
+            edges,
+        }
+    }
+
     /// Is `p`, a point on the torus, in the face: `Some(true)` inside,
     /// `Some(false)` outside, `None` on its boundary (module docs).
     ///
@@ -227,7 +241,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let rho = (x.powi(2) + y.powi(2)).sqrt();
         crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(RegionRefusal::Escalated)?;
-        let foot = QueryFoot::read(&self.surface(), p, band);
+        let foot = QueryFoot::read(self.charted.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
@@ -242,14 +256,16 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.surface(), p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::meridian(&self.surface(), p.uv(), forward);
+        let curve =
+            SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -264,7 +280,14 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<Option<(T, bool)>, Fault> {
         let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        match span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band) {
+        // The arc's circle in its own frame, where `(x, y)` is read: its
+        // chords are the arc's.
+        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), lever, Vec3::unit_x());
+        match span_place(
+            &geom_brep::curve_pair::Span::new(&circle, (t0, t1)),
+            theta,
+            band,
+        ) {
             Some(RootPlace::Inside) => Ok(Some((theta, false))),
             Some(RootPlace::AtEnd) => Ok(Some((theta, true))),
             Some(RootPlace::Undecided(diag)) => Err(in_band(diag)),
@@ -373,23 +396,23 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         then_forward: bool,
         band: Band,
     ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
-        let surface = self.surface();
-        let target = QueryFoot::read(&surface, target, band);
+        let surface = self.charted.surface();
+        let target = QueryFoot::read(surface, target, band);
         let ((up, vp), (ut, vt)) = ((p.uv().x, p.uv().y), (target.uv().x, target.uv().y));
         let (first, corner) = if parallel_first {
             (
                 self.parallel(p, first_forward),
-                QueryFoot::of_chart(&surface, geom_core::Point2::new(ut, vp)),
+                QueryFoot::of_chart(surface, geom_core::Point2::new(ut, vp)),
             )
         } else {
             (
                 self.meridian(p, first_forward),
-                QueryFoot::of_chart(&surface, geom_core::Point2::new(up, vt)),
+                QueryFoot::of_chart(surface, geom_core::Point2::new(up, vt)),
             )
         };
         let end = End {
             place: first.course.arc(corner.at()),
-            row: CORNER,
+            row: TORUS_REGION_CORNER,
             open: false,
         };
         let then = move || {
@@ -410,21 +433,15 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_torus_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_torus_region_order", "bool_torus_region_cross");
 
     fn lever(&self) -> T {
         self.minor
     }
 
-    fn surface(&self) -> geom::Surface<T> {
-        geom::Surface::Torus {
-            center: self.center,
-            axis: self.axis,
-            major_radius: self.major,
-            minor_radius: self.minor,
-            u_ref: self.u_ref,
-        }
+    fn charted(&self) -> &Charted<T> {
+        &self.charted
     }
 
     /// An oval across a leg's plane has no closed form, and a parallel
@@ -432,25 +449,11 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
     /// each is read the other way, the leg across the edge's plane. A
     /// meridian leg's plane is normal to the torus everywhere, so every
     /// circle edge is read across it.
-    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, _: Band) -> Result<ReadAcross<T>, Fault> {
+    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, _: Band) -> Result<ReadAcross, Fault> {
         match edge.carrier {
-            geom::Curve3::Spiric {
-                center,
-                u_ref,
-                offset,
-                ..
-            } => Ok(ReadAcross::LegOverEdge {
-                on: center + u_ref * offset,
-                normal: u_ref,
-            }),
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin, axis, .. },
-                ..
-            }) => Ok(match region::Course::curve(&leg.course).section() {
-                Section::TubeSide { .. } => ReadAcross::LegOverEdge {
-                    on: origin,
-                    normal: axis,
-                },
+            geom::Curve3::Spiric { .. } => Ok(ReadAcross::LegOverEdge),
+            geom::Curve3::Circle(_) => Ok(match region::Course::curve(&leg.course).section() {
+                Section::TubeSide { .. } => ReadAcross::LegOverEdge,
                 _ => ReadAcross::EdgeOverLeg,
             }),
             _ => unreachable!("torus_face_region admits circles and spirics only"),
@@ -563,25 +566,42 @@ mod tests {
         }
     }
 
+    /// The region on the torus `(major, minor)` about `z` through the
+    /// origin, its seam at `x`, bounded by `edges`.
+    fn region(major: f64, minor: f64, edges: Vec<Edge<f64>>) -> TorusFaceRegion<f64> {
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        TorusFaceRegion::on(
+            Charted::record(Default::default(), &torus),
+            true,
+            LoopKey::default(),
+            edges,
+        )
+    }
+
     /// The band of the torus between the minor angles `v0 < v1`, every
     /// major angle: its loops run CCW in the chart, so it lies to their
     /// left under the outward normal.
     fn band(v0: f64, v1: f64) -> TorusFaceRegion<f64> {
-        TorusFaceRegion {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            major: R,
-            minor: MINOR,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-            outer: LoopKey::default(),
-            edges: vec![parallel(v0, true, 1), parallel(v1, false, 2)],
-        }
+        region(
+            R,
+            MINOR,
+            vec![parallel(v0, true, 1), parallel(v1, false, 2)],
+        )
     }
 
     /// `p`'s foot on the region's torus, as the door reads it.
     fn foot(region: &TorusFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
-        QueryFoot::read(&Legs::surface(region), p, Band::new(1e-9, 1e-8).unwrap())
+        QueryFoot::read(
+            Legs::charted(region).surface(),
+            p,
+            Band::new(1e-9, 1e-8).unwrap(),
+        )
     }
 
     /// The point at chart `(u, v)`.
@@ -675,16 +695,7 @@ mod tests {
             turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         };
-        TorusFaceRegion {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            major: R,
-            minor: MINOR,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-            outer: LoopKey::default(),
-            edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
-        }
+        region(R, MINOR, vec![circle(0.0, true, 1), circle(phi1, false, 2)])
     }
 
     /// The family's circle at `φ = 0`: its centre, axis and `u_ref`.
@@ -821,16 +832,11 @@ mod tests {
                 Point3::origin() + rot(phi, c0 + (e0 * c + y * s) * big)
             };
             for phi1 in [0.7, 4.0] {
-                let region = TorusFaceRegion {
-                    center: Point3::origin(),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    major: big,
-                    minor: small,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                    sense: true,
-                    outer: LoopKey::default(),
-                    edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
-                };
+                let region = region(
+                    big,
+                    small,
+                    vec![circle(0.0, true, 1), circle(phi1, false, 2)],
+                );
                 let (mut a, mut r, mut wrong) = (0, 0, vec![]);
                 for k in 0..40 {
                     let t = 0.05 + TAU * f64::from(k) / 40.0;
@@ -864,11 +870,7 @@ mod tests {
     fn the_region_decides_the_ring_and_the_axis() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let refusal = |major: f64, minor: f64, p: Point3<f64>| {
-            let region = TorusFaceRegion {
-                major,
-                minor,
-                ..band(0.3, 1.0)
-            };
+            let region = region(major, minor, band(0.3, 1.0).edges);
             match region.contains(p, b) {
                 Err(RegionRefusal::Escalated(diag)) => diag.predicate,
                 other => panic!("({major}, {minor}) at {p:?}: {other:?}"),
@@ -889,10 +891,7 @@ mod tests {
 
     /// A region on the torus `(R, r)` about `z` whose one edge is `edge`.
     fn holding(edge: Edge<f64>) -> TorusFaceRegion<f64> {
-        TorusFaceRegion {
-            edges: vec![edge],
-            ..band(0.0, 1.0)
-        }
+        region(R, MINOR, vec![edge])
     }
 
     /// The circle `center + radius(û cos θ + (axis × û) sin θ)` over
@@ -1116,7 +1115,7 @@ mod tests {
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
-            crate::boolean::boxes::tests::torus_wall(
+            crate::boxes::tests::torus_wall(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),
@@ -1157,5 +1156,139 @@ mod tests {
             matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
             "a parted null edge is a gap in the boundary"
         );
+    }
+
+    /// The parallel at minor angle `v` over the major angles `us`.
+    fn parallel_arc(v: f64, us: (f64, f64), forward: bool, key: u64) -> Edge<f64> {
+        let mut e = arc(
+            Point3::new(0.0, 0.0, MINOR * v.sin()),
+            Vec3::new(0.0, 0.0, 1.0),
+            R + MINOR * v.cos(),
+            Vec3::new(1.0, 0.0, 0.0),
+            us,
+        );
+        e.forward = forward;
+        e.edge = EdgeKey::from(KeyData::from_ffi(key));
+        e
+    }
+
+    /// **A torus face's answer about the band's zero depends on no chart
+    /// frame.** The patch `0.4 < u < 2.9`, `−0.5 < v < 0.8`, two parallels
+    /// and two meridians, is read on the six frames of
+    /// [`geom::test_support::CHART_FRAMES`] (the axis flipped on one), at
+    /// 60 stations along each edge, at `±5e-10`, `±1e-9` and `±5e-9` off
+    /// it, 1440 queries, and every frame answers as the first. (The
+    /// measurement on the row read 2400, adding `±1e-8` and `±2e-8`: at
+    /// `±1e-8` the legs, built from the chart's coordinates, still answer
+    /// by frame, filed.)
+    #[test]
+    fn a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        for (what, p) in patch_edge_queries(&[-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9]) {
+            let first = class(regions[0].contains(p, band));
+            for (k, region) in regions.iter().enumerate().skip(1) {
+                assert_eq!(class(region.contains(p, band)), first, "frame {k}: {what}");
+            }
+        }
+    }
+
+    /// **A torus face's circle legs start at the query's closed-form foot,
+    /// so the crossing's place along them reads no chart frame in their
+    /// start.** The patch of
+    /// [`a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`]
+    /// on its six frames, read at the band's escalation, `±1e-8` off each
+    /// edge at 60 stations (480 queries). A query counts where any frame
+    /// answers otherwise than the first. With the legs started at
+    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
+    /// started at the foot, 31. What is left is the frame a curve
+    /// carries in its section and plane
+    /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+    #[test]
+    fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        let by_frame = patch_edge_queries(&[-1e-8, 1e-8])
+            .into_iter()
+            .filter(|&(_, p)| {
+                let first = class(regions[0].contains(p, band));
+                regions
+                    .iter()
+                    .skip(1)
+                    .any(|r| class(r.contains(p, band)) != first)
+            })
+            .count();
+        assert_eq!(
+            by_frame, KEPT_TORUS,
+            "queries a frame answers at the escalation"
+        );
+    }
+
+    /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
+    /// count.
+    const KEPT_TORUS: usize = 31;
+
+    /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
+    /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
+    fn patch_on_frames() -> Vec<TorusFaceRegion<f64>> {
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: R,
+            minor_radius: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (us, vs) = PATCH;
+        geom::test_support::CHART_FRAMES
+            .iter()
+            .map(|&(t, flip)| {
+                let torus = geom::test_support::reframed(&torus, t, flip);
+                let meridian = |u: f64, forward: bool, key: u64| {
+                    let mut e = meridian_arc(u, vs);
+                    e.forward = forward;
+                    e.edge = EdgeKey::from(KeyData::from_ffi(key));
+                    e
+                };
+                TorusFaceRegion::on(
+                    Charted::record(Default::default(), &torus),
+                    true,
+                    LoopKey::default(),
+                    vec![
+                        parallel_arc(vs.0, us, true, 1),
+                        meridian(us.1, true, 2),
+                        parallel_arc(vs.1, us, false, 3),
+                        meridian(us.0, false, 4),
+                    ],
+                )
+            })
+            .collect()
+    }
+
+    /// [`patch_on_frames`]'s `u` and `v` windows.
+    const PATCH: ((f64, f64), (f64, f64)) = ((0.4, 2.9), (-0.5, 0.8));
+
+    /// Queries `o` off each of the patch's four edges, for each offset in
+    /// `offsets`, at 60 stations along them, each named.
+    fn patch_edge_queries(offsets: &[f64]) -> Vec<(String, Point3<f64>)> {
+        let (us, vs) = PATCH;
+        let mut queries = Vec::new();
+        for i in 0..60 {
+            let t = f64::from(i) / 60.0 + 0.004;
+            let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+            let rho = R + MINOR * v.cos();
+            for &o in offsets {
+                for (what, p) in [
+                    ("parallel v0", at(u, vs.0 + o / MINOR)),
+                    ("parallel v1", at(u, vs.1 + o / MINOR)),
+                    ("meridian u0", at(us.0 + o / rho, v)),
+                    ("meridian u1", at(us.1 + o / rho, v)),
+                ] {
+                    queries.push((format!("{what} at station {t}, {o:e} off"), p));
+                }
+            }
+        }
+        queries
     }
 }

@@ -121,8 +121,7 @@ fn assert_crossing_rows(rows: &[topo::Coincidence], (a, b): (&Body<f64>, &Body<f
     // What the rows cite: each face pair is two unit cylinder walls,
     // one of each operand, and both relations are recorded for each.
     let wall = |body: &Body<f64>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
+        body.face_surface(f)
             .is_some_and(|s| matches!(s, topo::Surface::Cylinder { radius, .. } if *radius == 1.0))
     };
     for r in &crossing {

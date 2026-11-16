@@ -611,7 +611,7 @@ impl<'a> PairLane<'a> {
     /// inside `q`, which holds exactly one solution.
     fn settle_crossing(&self, q: Box4, k: usize, high: bool) -> Result<Crossing, SsiError> {
         let free: Vec<usize> = (0..4).filter(|&i| i != k).collect();
-        let mut x = q.0.map(|(lo, hi)| 0.5 * (lo + hi));
+        let mut x = q.0.map(|(lo, hi)| geom::mid_param(lo, hi));
         let tol = self.ctx.tol.settling();
         let chart = if k < 2 {
             BoundaryChart::First
@@ -788,7 +788,7 @@ impl Section<'_> {
         let seeds = exhaust::seed_pair(&pair, seed_floor)?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
-        self.banked.closed_loops(&ends, seeds, &pass.cells)?;
+        self.banked.closed_loops(&ends, seeds, &pass.cells, &[])?;
 
         let exhaustiveness = lane.account(&self.banked.tubes, &pass.cells)?;
         Ok(PairReading {
@@ -872,7 +872,7 @@ pub(crate) fn branch_witness(
     else {
         return None;
     };
-    let mid = 0.5 * (branch.params.0 + branch.params.1);
+    let mid = geom::mid_param(branch.params.0, branch.params.1);
     let (at_a, at_b) = (pa.eval(mid), pb.eval(mid));
     let m = [at_a.x, at_a.y, at_b.x, at_b.y];
     let chain = super::certify::pair_tube_chain((pa, pb), (pad_a, pad_b))?;
@@ -1181,10 +1181,12 @@ mod r2_line_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let image_b = crate::Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1231,10 +1233,12 @@ mod r2_line_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let image_b = crate::Pcurve::IsoLine {
             p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1336,6 +1340,7 @@ mod r2_ellipse_rows {
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
+            ends: None,
         };
         let row = PairRow::new((&a, image.clone()), (&b, image), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();

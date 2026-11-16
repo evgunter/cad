@@ -66,9 +66,7 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
 
 /// The band face's torus datum.
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, Vec3<f64>, f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
             center,
@@ -118,7 +116,7 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
     // Guard the fixture itself: both walls are the intended spheres.
     let mut spheres: Vec<(f64, f64)> = source
         .faces()
-        .filter_map(|(_, f)| match source.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match source.face_surface(fk) {
             Some(&Surface::Sphere { center, radius, .. }) => Some((center.y, radius)),
             _ => None,
         })
@@ -181,13 +179,11 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
     let posed = transform_rigid(
         &symmetric_lentil(),
         &geom_core::test_support::rigid(&map, tol()),
-        tol(),
     )
     .unwrap();
     let posed = transform_rigid(
         &posed,
         &geom_core::RigidMotion::translation(Vec3::new(0.3, -0.2, 0.5)).unwrap(),
-        tol(),
     )
     .unwrap();
     // The rim rides the pose: a rigid map keeps its radius and carries
@@ -340,8 +336,10 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let sheet = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: Point3::new(0.8, 0.0, 0.0),
     };
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
@@ -509,7 +507,7 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     assert!(
         source
             .faces()
-            .any(|(_, f)| matches!(source.get_surface(f.surface), Some(&Surface::Torus { .. }))),
+            .any(|(fk, _)| matches!(source.face_surface(fk), Some(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
     // Two rims share this radius — the barrel's top at y = 0.6 and its

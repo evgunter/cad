@@ -26,3 +26,5 @@ Where a refusal quotes the glue door's in-band reading, its recourse also names 
 ## The volume backstop left the operation path (2026-10-27)
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The two ops that met CLEAVE's volume-backstop refusal at the looser tolerance no longer meet it (CLEAVE's `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`, closed), so all six may build there; not re-measured.
+
+Evidence (2026-11-10, SEAL PR 6693): the glue door's in-band arm at the corner retired with that PR (`door_refusal`, `Glue::in_band`). An unglued corner now refuses on its own reading, `Coincidence(CornerCrossing)` or `Coincidence(CornerBound)`, which offers "tighten the tolerance below" where a run admits it. The refusal this row names, the door's in-band reading quoted at the corner, is no longer minted there.

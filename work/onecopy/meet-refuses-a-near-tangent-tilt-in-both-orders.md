@@ -1,14 +1,17 @@
 ---
 id: meet-refuses-a-near-tangent-tilt-in-both-orders
 kind: issue
-title: meet refuses four needle tilts in both orders, two on the basin and two on the extreme, where the pair holds one meeting or is apart past the band
-status: open
+title: meet escalates a needle near-miss within two zero widths past the band's escalation
+status: closed
 refs: [6525, 6541]
 opened: 2026-11-04
+closed: 2026-11-10
+branch: onecopy/meet-tilt
+pr: 6740
 ---
 
 
-Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. Narrowed by PR 6541.
+Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. Narrowed by PR 6541, by PR 6623 to the residue below, and closed by `onecopy/meet-tilt`.
 
 ## What PR 6541 settled
 
@@ -19,24 +22,31 @@ The window certified only a plane root beside a found meeting, and a root with n
 
 The spun row's pivot was `a.eval(sa.0)`, the long ellipse's far vertex. That vertex is 3.2e-7 off the near-circle and 5.5e-5 from the shared end, so a tilt parted the end. The row now turns about the shared end, `a.eval(sa.1)`, and reads tilts up to 1e-4 (`order_rows::the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order`).
 
+## What `onecopy/needle-tilts` settled
+
+The two `curve_pair_pose_extreme` escalations (about the cross by ±1e-5, at the shared end) were not the `Range`'s noise charge, which is 1.2e-14 there. The near-circle's height above the long ellipse's plane really dips to −5.0e-12 ≈ `R·tilt²/2`, in the band's gap. A height is only a lower bound on the distance. So an extreme of it in the gap, the other extreme definite past it, now places a touch that its window reads (`pose`'s module docs, "A first harmonic's roots"; `height_extremes`). Both poses read one meeting in both orders. Where the polish's basin is not proved there, the extreme's escalation stands.
+
+## What PR 6623 settled
+
+- **A height's extreme in the gap** (`pose.rs`, `height_extremes`). The near-circle's height above the long ellipse's plane really dips to −5.0e-12 at the shared end turned ±1e-5 about the cross; the `Range`'s noise is 1.2e-14 there. An extreme of a height in the gap, the other definite past it, places a touch its window reads. Where the polish's basin is not proved there, the extreme's escalation is the refusal (`one_curve_rows::two_sphere_sections_read_coplanar_are_one_circle_only_within_the_band`, k = 30, pins it).
+- **The window reads `b`'s span** (`pose/window.rs`, `Window::off_span` on `Curve3::point_walk`). The basin refusals were the long ellipse's span running on beside the near-circle's carrier past its span. An arc no ring bounds reads off the span, halving until it does. A ringed arc's chain ends at a piece read off the span, past which a piece recedes only from one read off the carrier, and any other piece reads off the span (`Window::chained`).
+
+Measured at band 1e-12/1e-11 over both pivots (the shared end, the far vertex), three axes (the tangent, the long ellipse's normal, their cross) and tilts ±1e-8 to ±3.2e-4 at half-decade steps, plus the review's tilts (3e-7, 1e-6, 3e-6, 3e-5, 9.49e-5, 1e-4, 3e-4): every pose whose `span_gap` is in the zero band reads one meeting and every one past the escalation none, in both orders (`order_rows::the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order`).
+
+The fallback to the other conic's reading where the chosen one refuses is not the fix: a chooser asked which reading can certify is the symptom of a crippled reading (the across-key fork, 2026-11-04).
+
 ## What remains
 
-Measured at band 1e-12/1e-11 over three axes (the tangent, the long ellipse's normal, their cross) and tilts ±1e-7, ±1e-6, ±1e-5 and ±1e-4. Each pose's true least gap comes from that row file's independent `span_gap` oracle. Every pose below refuses alike in both orders.
+Measured against `span_gap`, in both orders:
 
-**About the shared end**, every pose holds a meeting (gap 6.2e-15) and should read one. Three refuse:
+- **Past the escalation by under two zero widths.** The near-circle turned +1e-5 about the cross, then moved 1e-6 along the line the two planes share, parts from the long ellipse by 1.19e-11 (1.9e-12 past the escalation) and escalates on its height's extreme where the answer is none. The window's pieces stop at the band's zero (`curve_pair_window_width`), and the span's walk at a piece whose reach is within it, so a margin that small is not resolved.
+- **A foot inside the span, on a wide window.** Turned ±1e-5 about the cross and moved +1e-5 along that line (gaps 4.95e-10 and 3.30e-10), it escalates the same way. The window reads off `b`'s span only where a piece's foot on `b`'s carrier is not read inside the span (`Span::place`); a piece of an arc no ring bounds whose foot is inside, and which reads neither off nor on, ends the window and the root goes to the polish, whose basin the near-parallel tangents leave unproved. Halving such pieces decides these poses but costs `plane_rows::a_seam_vertex_at_a_far_turn_leaves_the_meeting_before_the_seam` 60 times its time (0.03 s to 1.9 s), where the polish decides cheaply.
 
-- axis 1 (the normal) by −1e-4: `Unsettled::Meter { curve_pair_pose_basin }`;
-- axis 2 (the cross) by ±1e-5: `Escalated` on `curve_pair_pose_extreme`, margin −5.0e-12.
+Open: a cheaper certificate for a wide arc whose foot stays inside the span (the carrier's distance is the span's there), or a basin that survives near-parallel tangents.
 
-**About the far vertex**, seven refuse. Six of them part by 3.2e-12 to 5.5e-12, inside the band's gap, so refusing is the band's answer there; four of those six refuse on the basin rather than escalate. One is a true residue:
+## What `onecopy/meet-tilt` settled
 
-- axis 1 by +1e-6: `curve_pair_pose_basin`, gap 5.48e-11 past the escalation, where the answer is none.
+Both residues are one reading. The F33 choice of the conic read across the other's plane is order-free, so the two orders share one reading: the near-circle's height above the long ellipse's plane, with an extreme of −5.0e-12 in the gap. The refusal was one window, read the same in both orders. Its arc has no ring and runs from the window's edge to the near-circle's span end. Each piece of the arc read **receding**: `d` grows up `θ`, the foot inside the span. On an arc with no ring, only off certified, so the root went to the polish and escalated on the extreme.
 
-So four are owed: two basin refusals, where near-parallel tangents leave `polish::bound`'s basin unproved, and two extreme escalations. Neither cause is the window's.
+`d` grows away from the near end, so that end is the closest point. A receding piece of an arc with no ring is therefore off past the escalation where its point at the near end reads off (`window.rs`, `Window::read`, by `Window::off` at that end). The two order-specific rows above read apart in both orders, as does turned −1e-5 and moved 3e-6 (1.9e-12 past the escalation). The poses in the gap still escalate (turned −1e-5, moved 1e-6; moved 3e-7 at either tilt). `order_rows::a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart` pins them. No halving was added, so the seam row's cost is unchanged.
 
-## Owed
-
-- **The basin.** Where the tangents are near-parallel, the polish's basin `sin φ − 2K·span > 0` fails. Either the window should read the root, here a meeting beside a found joint, which the ring should already answer, or the basin wants a premise that survives tangency.
-- **The extreme.** `transverse`'s `Range` reads the height's first harmonic charged with the pose's `noise` (`Range::first_harmonic(.., noise)` → `band_arc`, `extreme_sign(row::EXTREME, …, r.noise)`). At the shared end by ±1e-5 about the cross, it escalates at −5.0e-12. See `a-rounding-charge-through-rounding-charge-escapes-the-bare-epsilon-gate`.
-
-The spun row lists the three shared-end residues by `(axis, tilt)` and accepts a refusal only there. A residue that comes to decide must read one meeting.

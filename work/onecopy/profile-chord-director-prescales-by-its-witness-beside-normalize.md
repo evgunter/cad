@@ -2,11 +2,13 @@
 id: profile-chord-director-prescales-by-its-witness-beside-normalize
 kind: issue
 title: profile's chord_director prescales a chord by its own witness, a second copy of Vec2::normalize's range handling
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
 refs: [6572]
+closed: 2026-11-09
+pr: 6628
 ---
 
 

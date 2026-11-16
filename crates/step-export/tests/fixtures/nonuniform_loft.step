@@ -46,7 +46,7 @@ DATA;
 #39 = FACE_OUTER_BOUND('', #38, .T.);
 #40 = ADVANCED_FACE('', (#39), #5, .T.);
 #41 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));
-#42 = DIRECTION('', (0.0, 0.0, -1.0));
+#42 = DIRECTION('', (-0.0, -0.0, -1.0));
 #43 = DIRECTION('', (1.0, 0.0, 0.0));
 #44 = AXIS2_PLACEMENT_3D('', #41, #42, #43);
 #45 = PLANE('', #44);

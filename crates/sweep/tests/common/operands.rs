@@ -258,11 +258,8 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
     let edge = topo::query::all_edges(&body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let mut ends = [
-                at(body.get_half_edge(he).expect("a half").start),
-                at(body.half_edge_end(he).expect("an end")),
-            ];
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let mut ends = [at(v0), at(v1)];
             ends.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
             ends == [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0)]
         })
@@ -338,11 +335,7 @@ pub fn edge_between<T: Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> Edge
     topo::query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let (p, q) = (
-                body.get_half_edge(he).expect("a half").start,
-                body.half_edge_end(he).expect("an end"),
-            );
+            let (p, q) = body.edge_vertices(e).expect("an edge");
             (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
         })
         .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
@@ -451,11 +444,11 @@ pub fn about_y(
     let body = sweep::test_support::revolved_about_y(profile, rev, tol);
     let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol)).unwrap()
 }
 
 /// `b` turned `angle` about the `z` axis through the origin.
 pub fn turned_about_z(tol: Tol, b: Body<f64>, angle: f64) -> Body<f64> {
     let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
-    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol), tol).unwrap()
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol)).unwrap()
 }

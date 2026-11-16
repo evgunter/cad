@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 62;
+const OP_COUNT: usize = 63;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -243,7 +243,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             placement: node,
             mate: Box::new(seat(node)),
             values: Vec::new(),
-            into_target_space: true,
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
@@ -360,12 +359,19 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
-        SessionOp::Place { body: node.into() },
+        SessionOp::Place {
+            body: node.into(),
+            target: pncad::document::Operand::Var(VarId::WORLD),
+            name: None,
+        },
         SessionOp::SetBundle {
             placement: node,
-            base: Vec::new(),
+            base: viewer::session::PlacementBase {
+                target: pncad::document::Operand::Var(VarId::WORLD),
+                constraints: Vec::new(),
+            },
+            target: viewer::session::PlaceTarget::space(VarId::WORLD),
             constraints: pncad::document::stand().bundle(),
-            into_target_space: false,
         },
         SessionOp::AddDrawnProfile {
             plane: FaceSelection {
@@ -380,6 +386,10 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             bodies: vec![node.into()],
         },
         SessionOp::AddToProduct { node, body: None },
+        SessionOp::RepointPlacements {
+            source: pncad::document::VarId::WORLD,
+            onto: node.into(),
+        },
         SessionOp::AddMirror {
             body: node.into(),
             plane: viewer::session::FaceSelection {
@@ -514,6 +524,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSpaceHidden { .. } => (59, true),
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (60, false),
+        // What the placements place: a document edit, fenced with every
+        // other one.
+        SessionOp::RepointPlacements { .. } => (62, false),
         // An insert door, fenced with every other one.
         SessionOp::AddClearance { .. } => (45, false),
     }
@@ -1036,6 +1049,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
         | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. }
         | SessionOp::CreateLabelled { .. } => false,
     }
 }

@@ -11,7 +11,7 @@
 //!
 //! Over the row's own span instead, the foreign arc's carrier is read
 //! past its edge's end, off the cylinder, and the finding is
-//! `CarrierOffChart`: the shape this row guards against. Only the
+//! `IncidenceRead::Off`: the shape this row guards against. Only the
 //! foreign half guards it: the half-span row's own span lies inside its
 //! edge's, where the carrier is on the cylinder either way, so that half
 //! stays green over either span and holds only that a row cut short is

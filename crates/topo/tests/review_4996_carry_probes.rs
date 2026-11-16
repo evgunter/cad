@@ -27,9 +27,9 @@ fn kiss() -> BooleanBody<f64> {
 
 fn faces_at_x(body: &Body<f64>, x: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == x
             )

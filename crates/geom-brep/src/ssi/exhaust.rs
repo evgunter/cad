@@ -1076,6 +1076,11 @@ impl UvRect {
         u >= self.u.0 && u <= self.u.1 && v >= self.v.0 && v <= self.v.1
     }
 
+    /// Whether the two rectangles meet, sides included.
+    pub(crate) fn meets(self, o: Self) -> bool {
+        self.u.0 <= o.u.1 && o.u.0 <= self.u.1 && self.v.0 <= o.v.1 && o.v.0 <= self.v.1
+    }
+
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
@@ -1083,12 +1088,15 @@ impl UvRect {
     }
 
     fn center(self) -> (f64, f64) {
-        (0.5 * (self.u.0 + self.u.1), 0.5 * (self.v.0 + self.v.1))
+        (
+            geom::mid_param(self.u.0, self.u.1),
+            geom::mid_param(self.v.0, self.v.1),
+        )
     }
 
     fn split(self) -> (Self, Self) {
         if (self.u.1 - self.u.0) >= (self.v.1 - self.v.0) {
-            let m = 0.5 * (self.u.0 + self.u.1);
+            let m = geom::mid_param(self.u.0, self.u.1);
             (
                 Self {
                     u: (self.u.0, m),
@@ -1100,7 +1108,7 @@ impl UvRect {
                 },
             )
         } else {
-            let m = 0.5 * (self.v.0 + self.v.1);
+            let m = geom::mid_param(self.v.0, self.v.1);
             (
                 Self {
                     v: (self.v.0, m),
@@ -1170,7 +1178,7 @@ impl SweepCell for ParamSpan {
         self
     }
     fn split(self) -> (Self, Self) {
-        let m = 0.5 * (self.t.0 + self.t.1);
+        let m = geom::mid_param(self.t.0, self.t.1);
         (Self { t: (self.t.0, m) }, Self { t: (m, self.t.1) })
     }
     fn contained_in(self, o: Self) -> bool {
@@ -1290,14 +1298,14 @@ impl SweepCell for PairCell {
         })
     }
     fn seed(self) -> [f64; 4] {
-        self.b.0.map(|(a, b)| 0.5 * (a + b))
+        self.b.0.map(|(a, b)| geom::mid_param(a, b))
     }
     fn split(self) -> (Self, Self) {
         let k = super::four::heaviest(&super::four::ALL_AXES, |k| {
             (self.b.0[k].1 - self.b.0[k].0) * self.scale[k]
         });
         let (lo, hi) = self.b.0[k];
-        let m = 0.5 * (lo + hi);
+        let m = geom::mid_param(lo, hi);
         let (mut a, mut b) = (self, self);
         a.b.0[k] = (lo, m);
         b.b.0[k] = (m, hi);

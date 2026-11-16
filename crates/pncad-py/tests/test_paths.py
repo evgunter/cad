@@ -203,7 +203,9 @@ class TestTheLatticeWalks(unittest.TestCase):
         # else, so the verb that continues it AUTHORS the carrier:
         # `Radius` re-derives the centre from those two bits, which is
         # why tangency there needs nothing value-matched. Here the
-        # derived centre IS the authored boss centre, exactly.
+        # derived centre IS the authored boss centre, exactly, and the
+        # tip stays a vertex: entry, trim, fillet arc, tip, trim,
+        # fillet arc, leg end.
         loop = (
             Open.at((5.05 * m, -1.6 * m))
             .toward(2.1, 0.8)
@@ -214,7 +216,7 @@ class TestTheLatticeWalks(unittest.TestCase):
             .line(1 * m)
             .line_to(Start)
         )
-        self.assertEqual(loop.vertex_count, 6)
+        self.assertEqual(loop.vertex_count, 7)
 
     def test_sharp_after_an_arc_arrival_takes_an_ordinary_director(self):
         # The interior arc arrival lands on an ordinary directed point

@@ -8,15 +8,16 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, cascade_delete_order};
+use editor_core::continuation::splice;
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
 /// **What the delete button says, and the list it says it about.**
 ///
 /// A destructive action that understates itself is worse than one that
-/// refuses: [`super::SessionOp::DeleteNode`] takes the target's whole
-/// downstream cone, which in a chain-shaped model (a boolean per
-/// feature) is most of the document, so the count belongs on the
-/// button and not only in a tooltip.
+/// refuses: [`super::SessionOp::DeleteNode`] hands each reader of the
+/// target to the body it continues and takes the rest of its downstream
+/// cone (`editor_core::continuation::splice`), which can be most of the document,
+/// so the count belongs on the button and not only in a tooltip.
 ///
 /// The wording lives here rather than in the chrome for the reason
 /// [`super::Refusal::exists_wording`] does: one composition, read by whatever
@@ -46,12 +47,15 @@ impl DeleteAffordance {
     /// (`DocSession::delete_refusal`).
     ///
     /// Neither sentence mentions the features that merely FED the
-    /// target and survive, because this delete
-    /// does not touch them. A delete that reconnected a target's
-    /// consumers to its input instead — splice — is open as issue
-    /// #1324.
+    /// target, or the readers handed to what it continues: the delete
+    /// does not remove them.
     pub(super) fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
-        let cascade = cascade_delete_order(doc, node);
+        // A delete that cannot splice deletes nothing: its button is drawn
+        // disabled with the refusal (`DocSession::delete_refusal`).
+        let cascade = match splice(doc, node) {
+            Ok(Some(splice)) => splice.deleted,
+            Ok(None) | Err(_) => Vec::new(),
+        };
         let spoken = doc.spoken(node);
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.

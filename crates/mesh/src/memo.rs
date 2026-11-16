@@ -743,13 +743,13 @@ impl FaceInputs {
         tol: Tol,
     ) -> Result<Self, TessellateError> {
         let face = body
-            .get_face(fk)
+            .face(fk)
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let mut loops = Vec::with_capacity(1 + face.rings.len());
+        let mut loops = Vec::new();
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in face.loops() {
             let walk = loop_half_edges(body, lk, fk)?;
             // Each half-edge's image as the loop's lift places it — what
             // the trimmed lane walks (`topo::Body::loop_lift`); none for
@@ -810,7 +810,7 @@ impl FaceInputs {
             eps: ambient.eps,
             k: ambient.k,
             surface: surface.clone(),
-            sense: face.sense,
+            sense: face.sense(),
             loops,
         })
     }
@@ -1129,7 +1129,9 @@ impl KeyWriter {
                 self.u8(2);
                 self.nurbs2(c);
             }
-            Pcurve::IsoLine { p0, pl } => {
+            // No mesh lane reads a stated end: the chord pass reads the
+            // map ([`Pcurve::eval`]), so the key holds the map alone.
+            Pcurve::IsoLine { p0, pl, .. } => {
                 self.u8(3);
                 self.p2(*p0);
                 self.v2(*pl);
@@ -1140,6 +1142,7 @@ impl KeyWriter {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => {
                 self.u8(4);
                 self.p2(*p0);
@@ -1147,6 +1150,10 @@ impl KeyWriter {
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
+                self.len(ends.len());
+                for &e in ends {
+                    self.f64(e);
+                }
             }
             Pcurve::Spiric {
                 major,
@@ -1226,7 +1233,7 @@ impl KeyWriter {
                         self.u8(0);
                         self.nurbs3(net);
                     }
-                    FramedCarrier::Circle {
+                    FramedCarrier::Conic {
                         centre,
                         a,
                         b,
@@ -1300,6 +1307,7 @@ mod tests {
             pcurve: Some(Pcurve::IsoLine {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
+                ends: None,
             }),
             lineage: Some(ids[0]),
         }
@@ -1449,6 +1457,7 @@ mod tests {
                 f.loops[0][1].pcurve = Some(Pcurve::IsoLine {
                     p0: Point2::new(3.0, 0.0),
                     pl: Vec2::new(0.0, 1.0),
+                    ends: None,
                 })
             },
             [false, false, true],

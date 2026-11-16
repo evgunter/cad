@@ -43,7 +43,7 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
     let tol = Tol::witness();
     let sphere: Vec<_> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect();
     let mut sets: Vec<Vec<FaceKey>> = sphere.iter().map(|(k, _)| vec![*k]).collect();

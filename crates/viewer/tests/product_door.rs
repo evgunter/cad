@@ -371,7 +371,7 @@ fn a_mated_world_copy_is_added_with_its_bundle_untouched() {
     let bench = common::asm::bench("product-door-mated", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
+    common::commit_mate_in_one_change(
         &mut session,
         common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );
@@ -458,7 +458,7 @@ fn a_copy_something_reads_is_placed_rather_than_moved() {
     let placed: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if source.read == read))
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if doc.through_sources(source.read).read == read))
         .collect();
     let [world] = placed[..] else {
         panic!("one placement of the copy: {placed:?}")
@@ -504,7 +504,7 @@ fn a_split_needs_the_half_a_pick_names() {
     let [copy] = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if source.read == half))
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if doc.through_sources(source.read).read == half))
         .collect::<Vec<_>>()[..]
     else {
         panic!("the half the pick named is placed")

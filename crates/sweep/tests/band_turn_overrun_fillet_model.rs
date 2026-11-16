@@ -713,11 +713,8 @@ fn the_interval_overrun_arc_runs_the_f64_way() {
         let arcs: Vec<V> = topo::query::all_edges(b)
             .into_iter()
             .filter_map(|e| {
-                let he = b.get_edge(e).unwrap().he_plus;
-                let (s, t) = (
-                    at(b.get_half_edge(he).unwrap().start),
-                    at(b.half_edge_end(he).unwrap()),
-                );
+                let (v0, v1) = b.edge_vertices(e).unwrap();
+                let (s, t) = (at(v0), at(v1));
                 (hit(s, t) || hit(t, s)).then(|| {
                     let g = b.get_curve_geom(b.get_edge(e).unwrap().curve).unwrap();
                     let g = g.certified().unwrap();

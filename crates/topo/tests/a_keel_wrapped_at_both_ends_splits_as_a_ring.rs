@@ -121,12 +121,8 @@ fn vertices_at(body: &Body<f64>, p: Point3<f64>) -> usize {
 /// The ends of `edge` of `body`, each as its vertex's point key (a
 /// vertex's copies share one), in key order.
 fn ends(body: &Body<f64>, edge: topo::EdgeKey) -> [topo::PointKey; 2] {
-    let he = body.get_edge(edge).unwrap().he_plus;
-    let mut v = [
-        body.get_half_edge(he).unwrap().start,
-        body.half_edge_end(he).unwrap(),
-    ]
-    .map(|v| body.get_vertex(v).unwrap().point);
+    let (v0, v1) = body.edge_vertices(edge).unwrap();
+    let mut v = [v0, v1].map(|v| body.get_vertex(v).unwrap().point);
     v.sort();
     v
 }

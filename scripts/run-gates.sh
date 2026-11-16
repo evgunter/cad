@@ -30,6 +30,16 @@ fail() {
   rc=1
 }
 
+# A gate whose pin only falls compares against GATE_BASE. ci.yml's
+# `lint` job sets it; a local plain run left without one compares against
+# the merge base with origin/main, the form lib.sh's `gate_base_file`
+# names (a tip of main would read a pin main lowered as a rise).
+if [ "$mode" = plain ] && [ -z "${GATE_BASE:-}" ] \
+    && GATE_BASE=$(git -C "$(dirname "$0")" merge-base HEAD origin/main 2>/dev/null); then
+  export GATE_BASE
+  printf 'GATE_BASE unset: comparing with %s, the merge base with origin/main\n' "$GATE_BASE"
+fi
+
 jobs_max=${GATE_JOBS:-$(nproc 2>/dev/null || echo 1)}
 case "$jobs_max" in ''|*[!0-9]*|0) printf 'GATE_JOBS must be a positive integer, not %s\n' "$jobs_max" >&2; exit 2 ;; esac
 held=$(mktemp -d) || exit 2

@@ -284,7 +284,7 @@ struct SpanBasis {
 
 /// [`SpanBasis`] over `[a, b]` at degree `n`.
 fn span_basis_of(alpha: &Alpha, a: f64, b: f64, n: usize) -> SpanBasis {
-    let m = 0.5 * (a + b);
+    let m = geom::mid_param(a, b);
     let (ia, ib, im) = (
         Interval::from_f64(a),
         Interval::from_f64(b),

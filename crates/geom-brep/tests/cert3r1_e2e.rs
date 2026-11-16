@@ -23,8 +23,10 @@ fn r1_f64_nested_restrict_round_trip() {
     let curve = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
-        axis_origin: Point3::new(1.0, 2.0, 3.0),
-        axis_dir: Vec3::new(2.0, 1.0, -2.0),
+        axis: geom::Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(2.0, 1.0, -2.0),
+        },
         angle: TAU,
     });
     // restrict twice: [0.3, 0.7] then [0.5, 1.0] of that = [0.5, 0.7].
@@ -41,8 +43,10 @@ fn r1_f64_nested_restrict_round_trip() {
     let tiny = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0f64, -1.0),
         place,
-        axis_origin: Point3::new(1.0, 2.0, 3.0),
-        axis_dir: Vec3::new(2.0, 1.0, -2.0),
+        axis: geom::Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(2.0, 1.0, -2.0),
+        },
         angle: 1.0e-8,
     });
     let p0 = tiny.eval(0.0);
@@ -77,8 +81,10 @@ mod interval_lane {
                 ),
                 Vec3::new(iv(0.5), iv(-1.5), iv(3.0)),
             ),
-            axis_origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
-            axis_dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
+            axis: geom::Line {
+                origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
+                dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
+            },
             angle: iv(angle),
         })
     }

@@ -21,7 +21,7 @@ use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::Notation;
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
+use crate::session::{Creation, NodeKindWanted, PlaceTarget, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -144,23 +144,84 @@ pub(crate) fn half_rows(
 }
 
 /// **The boolean tool's picks still waiting for a half**, each called
-/// as its panel line calls it: a member by its place in the list, a
-/// subtraction's seat by its role.
+/// as its panel line calls it ([`boolean_pick_called`]).
 pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
     tool.awaiting_half()
         .into_iter()
-        .map(|i| {
-            let said = match tool.operation() {
-                BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
-                    .name()
-                    .to_owned(),
-                BooleanOp::Union | BooleanOp::Intersect => {
-                    format!("{} {}", Seat::Member.name(), i + 1)
-                }
-            };
-            (i, said)
+        .map(|i| (i, boolean_pick_called(tool, i)))
+        .collect()
+}
+
+/// **Pick `i` of the boolean tool as its panel line calls it**: a
+/// member by its place in the list, a subtraction's seat by its role.
+fn boolean_pick_called(tool: &BooleanTool, i: usize) -> String {
+    match tool.operation() {
+        BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
+            .name()
+            .to_owned(),
+        BooleanOp::Union | BooleanOp::Intersect => format!("{} {}", Seat::Member.name(), i + 1),
+    }
+}
+
+/// **The boolean tool's picks reading a family**, each called as its
+/// panel line calls it, with its family's members by their index values
+/// ([`crate::world::members_of`]) — a family whose count does not
+/// evaluate offers none.
+pub(crate) fn boolean_family_picks(
+    tool: &BooleanTool,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> Vec<(usize, String, Vec<Vec<i64>>)> {
+    tool.family_picks()
+        .into_iter()
+        .map(|(i, family)| {
+            let members = crate::world::members_of(doc, family).unwrap_or_default();
+            (i, boolean_pick_called(tool, i), members)
         })
         .collect()
+}
+
+/// **The most members a member row offers as one button each**: a
+/// larger family is offered as a member number and one read button,
+/// so its row stays one line whatever its count.
+pub(crate) const MEMBER_BUTTONS: usize = 8;
+
+/// **One row per pick reading a family**, offering its members by the
+/// indices a read of each spells (`[1]`): one button per member up to
+/// [`MEMBER_BUTTONS`], else the member's number among `members` (from
+/// zero, held in the row's own memory) and a button reading it. The
+/// answer is the pick and the member a click chose, which it then reads
+/// alone.
+pub(crate) fn member_rows(
+    ui: &mut egui::Ui,
+    waiting: impl IntoIterator<Item = (usize, String, Vec<Vec<i64>>)>,
+) -> Option<(usize, Vec<i64>)> {
+    let mut chosen = None;
+    for (i, said, members) in waiting {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!("{said}: read member"));
+            if members.len() <= MEMBER_BUTTONS {
+                for at in members {
+                    if ui.button(crate::seats::member_said(&at)).clicked() {
+                        chosen = Some((i, at));
+                    }
+                }
+                return;
+            }
+            let id = ui.id().with(("member row", i));
+            let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
+            ui.add(number_field(&mut position, COUNT_DRAG_SPEED).range(0..=members.len() - 1));
+            ui.data_mut(|d| d.insert_temp(id, position));
+            ui.label(format!("of {}", members.len()));
+            if let Some(at) = members.get(position)
+                && ui
+                    .button(format!("read {}", crate::seats::member_said(at)))
+                    .clicked()
+            {
+                chosen = Some((i, at.clone()));
+            }
+        });
+    }
+    chosen
 }
 
 /// **What the boolean tool asks for under `op`**: any number of bodies
@@ -627,6 +688,41 @@ impl ViewerBehavior<'_> {
                 ),
             }),
         );
+        self.place_ask_ui(ui, &tool, &mut edited);
+        if let Some(target) = tool.target() {
+            let doc = self.session.committed_doc();
+            let loaded = tool.loaded_target().cloned();
+            ui.horizontal(|ui| {
+                ui.label(format!(
+                    "into: {}",
+                    crate::matetool::said_target(doc, target)
+                ));
+                let picking = tool.picking_target();
+                if ui
+                    .selectable_label(picking, "pick a body")
+                    .on_hover_text("the next pick names the space of the body it lands on")
+                    .clicked()
+                {
+                    edited.pick_target();
+                }
+                if ui.button("the world").clicked() {
+                    edited.set_target(PlaceTarget::space(pncad::document::VarId::WORLD));
+                }
+                if ui.button("a new space").clicked() {
+                    edited.set_target(PlaceTarget::NewSpace);
+                }
+                if let Some(loaded) = loaded.filter(|loaded| loaded != target)
+                    && ui.button("where it is").clicked()
+                {
+                    edited.set_target(loaded);
+                }
+            });
+        }
+        let off_target = self
+            .session
+            .landed_pair()
+            .map(|(doc, ev)| tool.off_target(doc, ev))
+            .unwrap_or_default();
         for (at, row) in tool.rows().iter().enumerate() {
             ui.horizontal(|ui| {
                 if ui
@@ -655,25 +751,68 @@ impl ViewerBehavior<'_> {
                 }
             });
             mate_picks_row(ui, &tool, at, by, &self.theme);
+            if let Some(&(_, space)) = off_target
+                .iter()
+                .find(|(reading, _)| *reading == crate::matetool::Reading::Mate(at))
+            {
+                self.off_target_row(
+                    ui,
+                    &tool,
+                    &mut edited,
+                    &format!("mate {}'s to", at + 1),
+                    space,
+                );
+            }
         }
+        // A loaded value along a direction or about an axis reads its
+        // space too, and is marked the same way.
+        for (reading, space) in &off_target {
+            if let crate::matetool::Reading::Value(id) = reading {
+                let coord = tool
+                    .door()
+                    .and_then(|door| door.base.constraints.iter().find(|c| c.id == *id))
+                    .and_then(|c| c.value())
+                    .map_or_else(
+                        || "a value".to_owned(),
+                        |v| format!("the {} value", v.coord.name()),
+                    );
+                self.off_target_row(ui, &tool, &mut edited, &coord, *space);
+            }
+        }
+        // A target change leaves the mates reading the space it leaves
+        // as written: one button strikes them all.
+        if let (Some(loaded), Some((doc, ev))) = (tool.loaded_target(), self.session.landed_pair())
+            && let Some(old) = crate::matetool::MateTool::target_space(loaded)
+        {
+            let mut read_off: Vec<crate::matetool::Reading> = Vec::new();
+            for (reading, space) in &off_target {
+                if *space == old && !read_off.contains(reading) {
+                    read_off.push(*reading);
+                }
+            }
+            let reading = read_off.len();
+            if reading > 0
+                && tool.target() != Some(loaded)
+                && ui
+                    .button(format!(
+                        "strike the {reading} that read {}",
+                        doc.spoken_space(old)
+                    ))
+                    .clicked()
+            {
+                edited.strike_reading(doc, ev, old);
+            }
+        }
+        self.copy_of_row(ui, &tool);
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
-        if tool.door().is_some() {
-            let mut into = tool.into_target_space();
-            if ui
-                .checkbox(&mut into, "move the copy into the target's space")
-                .changed()
-            {
-                edited.set_into_target_space(into);
-            }
-        }
-        let proposal = self.session.landed_pair().map(|(doc, ev)| {
-            tool.proposal(doc, ev, self.session.tol())
-                .map_err(|error| error.respoken(doc))
-        });
+        // Read under the draft as this frame's controls left it, the
+        // state the offer below reads: one derivation per edit.
+        let landed = self.session.mate_proposal(&edited);
+        let proposal = landed.as_ref().map(|landed| &*landed.proposed);
         let doc = self.session.committed_doc();
-        let coords: Vec<_> = match &proposal {
+        let coords: Vec<_> = match proposal {
             Some(Ok(proposal)) => proposal
                 .values
                 .iter()
@@ -682,7 +821,7 @@ impl ViewerBehavior<'_> {
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
-        match &proposal {
+        match proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
                 // person reads it ([`crate::matetool::value_text`]);
@@ -745,7 +884,11 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
+                let error = landed.as_ref().map_or_else(
+                    || error.clone(),
+                    |landed| error.clone().respoken(landed.doc),
+                );
+                crate::widgets::message(ui, ToolKind::Mate.refuses(&error).to_string());
             }
             None => {}
         }
@@ -757,26 +900,46 @@ impl ViewerBehavior<'_> {
         let formed = if busy {
             None
         } else {
-            self.session.landed_pair().and_then(|(landed, ev)| {
-                edited.offer(landed, ev, self.session.tol(), |op| {
-                    self.session.bundle_door(op)
-                })
-            })
+            edited.offer_proposed(
+                |tool| self.session.mate_proposal(tool),
+                |op| self.session.bundle_door(op),
+            )
         };
-        // A draft that writes no bundle is said above, as it is derived.
-        let refused = edited
-            .pending()
-            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)));
-        let waiting = formed.is_none() && busy && edited.differs_from_base();
-        if let Some(refusal) = refused {
-            let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
-            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);
-        } else if waiting {
-            let sentence = format!(
-                "{} the change waits for the picture to answer the document",
-                crate::pane::profile::PENDING
-            );
-            crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Advisory);
+        // The viewport draws the draft off the same value; where the
+        // draft draws nothing it draws the document, a committed change
+        // still landing included (`ViewerApp::placement_preview`).
+        let held = edited.draft_standing(
+            busy,
+            |tool| {
+                self.session
+                    .mate_proposal(tool)
+                    .map(|landed| landed.proposed)
+            },
+            |op| self.session.bundle_judgement(op),
+        );
+        let said = match &held {
+            crate::matetool::HeldDraft::Quiet => None,
+            crate::matetool::HeldDraft::Refused(refusal) => Some((
+                format!("{} {refusal}", crate::pane::profile::PENDING),
+                Tone::Actionable,
+            )),
+            crate::matetool::HeldDraft::WaitsUnwritten => Some((
+                format!(
+                    "{} the change waits for the picture to answer the document, and writes no bundle yet: the copy is drawn where the document stands it",
+                    crate::pane::profile::PENDING
+                ),
+                Tone::Advisory,
+            )),
+            crate::matetool::HeldDraft::Waits(_) => Some((
+                format!(
+                    "{} the change waits for the picture to answer the document: the copy is drawn where it would stand",
+                    crate::pane::profile::PENDING
+                ),
+                Tone::Advisory,
+            )),
+        };
+        if let Some((sentence, tone)) = said {
+            crate::widgets::message_toned(ui, sentence, &self.theme, tone);
         }
         let open = edited.differs_from_base() && formed.is_none();
         if crate::pane::profile::discard_control(ui, open) {
@@ -793,6 +956,147 @@ impl ViewerBehavior<'_> {
             *open = edited;
         }
         ui.separator();
+    }
+
+    /// **What a Place asks before it is made** ([`crate::matetool::PlaceAsk`],
+    /// VARIABLES VR4): the name field, opened empty, where the body's one
+    /// source is anonymous and placing it again shares it (VR2: nothing
+    /// proposes a name); a button per source where several read the body.
+    fn place_ask_ui(&mut self, ui: &mut egui::Ui, tool: &MateTool, edited: &mut MateTool) {
+        let doc = self.session.committed_doc();
+        match tool.asking() {
+            None => {}
+            Some(crate::matetool::PlaceAsk::Name { source, .. }) => {
+                let read = doc
+                    .source(*source)
+                    .map_or_else(|| doc.spoken_var(*source), |body| doc.spoken_var(body.read));
+                crate::widgets::message_toned(
+                    ui,
+                    ToolKind::Mate.says(&format_args!(
+                        "placing {read} again shares its source: name it"
+                    )),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+                let mut commit = None;
+                let mut cancel = false;
+                ui.horizontal(|ui| {
+                    let Some(text) = edited.name_text_mut() else {
+                        return;
+                    };
+                    let field = ui.add(egui::TextEdit::singleline(text).desired_width(120.0));
+                    let entered =
+                        field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    let name = pncad::document::VarName::new(text.trim());
+                    let button = ui.add_enabled(name.is_ok(), egui::Button::new("Name and place"));
+                    let button = match &name {
+                        Ok(_) => button,
+                        Err(fault) => button.on_disabled_hover_text(fault.to_string()),
+                    };
+                    if entered || button.clicked() {
+                        commit = name.ok();
+                    }
+                    cancel = ui.button(crate::widgets::CANCEL).clicked();
+                });
+                if let Some(name) = commit
+                    && let Some(op) = edited.place_named(name)
+                {
+                    self.ops.push(op);
+                } else if cancel {
+                    edited.cancel_ask();
+                }
+            }
+            Some(crate::matetool::PlaceAsk::Source { sources, .. }) => {
+                crate::widgets::message_toned(
+                    ui,
+                    ToolKind::Mate.says(&format_args!(
+                        "the body is placed through {} sources: place one",
+                        sources.len()
+                    )),
+                    &self.theme,
+                    Tone::Actionable,
+                );
+                let mut chosen = None;
+                ui.horizontal_wrapped(|ui| {
+                    for &source in sources {
+                        if ui.button(doc.spoken_var(source).to_string()).clicked() {
+                            chosen = Some(source);
+                        }
+                    }
+                    if ui.button(crate::widgets::CANCEL).clicked() {
+                        edited.cancel_ask();
+                    }
+                });
+                if let Some(source) = chosen
+                    && let Some(op) = edited.place_through(doc, source)
+                {
+                    self.ops.push(op);
+                }
+            }
+        }
+    }
+
+    /// **The placement's "copy of" row**: the body its copy copies and the
+    /// source it reads it through (VARIABLES VR4) — named, or the
+    /// placement's own — and the button that re-points that source onto
+    /// the selected body ([`crate::session::DocSession::repoint_button`]),
+    /// disabled with the reason where the offer would withhold it. A named
+    /// source re-pointed here re-points every placement reading it.
+    fn copy_of_row(&mut self, ui: &mut egui::Ui, tool: &MateTool) {
+        let Some(door) = tool.door() else {
+            return;
+        };
+        let doc = self.session.committed_doc();
+        let Some(source) = doc.copied_read(door.placement) else {
+            return;
+        };
+        let body = doc.through_sources(source).read;
+        let through = match doc.var_name(source) {
+            Some(name) => format!(" through {name}"),
+            None => String::new(),
+        };
+        let button = self
+            .session
+            .repoint_button(source, self.session.selection().node());
+        ui.horizontal(|ui| {
+            let copied = doc.operation_of(body).map_or_else(
+                || doc.spoken_var(body).to_string(),
+                |node| doc.spoken(node).to_string(),
+            );
+            ui.label(format!("copy of: {copied}{through}"));
+            crate::widgets::repoint_button(ui, button, self.ops);
+        });
+    }
+
+    /// **One marked reading of another space**: `what` (a mate's `to`, a
+    /// value) is in `space` while the placement is into another, said,
+    /// with `"Into <space>"` beside it as a target change of its own.
+    fn off_target_row(
+        &self,
+        ui: &mut egui::Ui,
+        tool: &MateTool,
+        edited: &mut MateTool,
+        what: &str,
+        space: pncad::document::VarId,
+    ) {
+        let doc = self.session.committed_doc();
+        let into = tool.target().map_or_else(String::new, |target| {
+            crate::matetool::said_target(doc, target)
+        });
+        let read = doc.spoken_space(space);
+        ui.horizontal(|ui| {
+            crate::widgets::message_toned(
+                ui,
+                ToolKind::Mate.says(&format_args!(
+                    "{what} is in {read}; this placement is into {into}"
+                )),
+                &self.theme,
+                Tone::Actionable,
+            );
+            if ui.button(format!("Into {read}")).clicked() {
+                edited.retarget_into(space);
+            }
+        });
     }
 
     /// The `Add part…` door: the open document's own directory,
@@ -1137,6 +1441,10 @@ impl ViewerBehavior<'_> {
         );
         if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
             self.tools.choose_half(pick, half);
+        }
+        let waiting = boolean_family_picks(&tool, self.session.committed_doc());
+        if let Some((pick, at)) = member_rows(ui, waiting) {
+            self.tools.choose_member(pick, at);
         }
         let Some(tool) = self.tools.boolean() else {
             return;
@@ -1828,6 +2136,45 @@ mod tests {
         });
         assert!(drawn.contains("half not chosen"), "{drawn}");
         assert_eq!(chosen, Some((0, SplitHalf::Below)), "{drawn}");
+    }
+
+    /// **A boolean pick reading a family offers its members**, one
+    /// button each, and a click answers the pick and the member's index
+    /// values; a family over [`super::MEMBER_BUTTONS`] offers a member
+    /// number and one read button instead.
+    #[test]
+    fn a_boolean_pick_reading_a_family_offers_its_members() {
+        let tol = Tol::witness();
+        for (count, target, want) in [(2, "[1]", vec![1]), (10, "read [0]", vec![0])] {
+            let (doc, block, _) = crate::test_support::boss_on_block("members-row", tol);
+            let (doc, row) = crate::test_support::row_of_copies(
+                &doc,
+                block,
+                count,
+                (pncad::document::TargetAxis::X, 0.1),
+                tol,
+            );
+            let mut tool = BooleanTool::new();
+            tool.pick(&doc, row);
+            assert!(
+                tool.line(Speaker::of(&doc)).contains("every member"),
+                "{}",
+                tool.line(Speaker::of(&doc))
+            );
+            let mut chosen = None;
+            let drawn = painted_after_clicking(target, |ui| {
+                let waiting = super::boolean_family_picks(&tool, &doc);
+                if let Some(choice) = super::member_rows(ui, waiting) {
+                    chosen = Some(choice);
+                }
+            });
+            assert!(drawn.contains("member 1: read member"), "{drawn}");
+            assert!(
+                !drawn.contains("[9]"),
+                "a large family is not one button per member: {drawn}"
+            );
+            assert_eq!(chosen, Some((0, want)), "{count} members: {drawn}");
+        }
     }
 
     /// The part form paints the index field with its numbering

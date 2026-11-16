@@ -41,7 +41,7 @@ use geom::{Curve3, Surface};
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, Branch, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
-use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
+use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE, ball_side};
 
 const EPS: f64 = 1e-12;
 
@@ -249,8 +249,7 @@ impl Row {
     ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
             let sheet = Meridian {
-                origin,
-                axis,
+                axis: geom::Line { origin, dir: axis },
                 rim: self.rim,
             };
             let (ta, da) = sheet.trace(&self.a, senses.0).expect("a coaxial trace");
@@ -487,8 +486,10 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             Convexity::Convex,
         );
         let sheet = Meridian {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 1.0, 0.0),
+            },
             rim,
         };
         // The plane's stored normal IS `n` and its material side is the
@@ -496,13 +497,13 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         let (tp, _) = sheet
             .trace(
                 &plane(Point3::new(0.0, 0.0, 0.0), n, Vec3::new(1.0, 0.0, 0.0)),
-                Convexity::Convex.ball_side(true),
+                ball_side(Convexity::Convex, true),
             )
             .unwrap();
         let (ts, _) = sheet
             .trace(
                 &sphere(sphere_c, 1.0),
-                Convexity::Convex.ball_side(sphere_sense),
+                ball_side(Convexity::Convex, sphere_sense),
             )
             .unwrap();
         let new = sheet.blend(tp, ts, radius, Branch::Rim);

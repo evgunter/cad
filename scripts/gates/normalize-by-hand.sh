@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # normalize-by-hand.sh — a direction is read through `Vec3::normalize`
-# (or `Vec2::normalize`), never spelled `v / v.norm()` by hand. ONE
+# (or `Vec2::normalize`), and a direction with its length through
+# `direction_and_length`, never spelled `v / v.norm()` by hand. ONE
 # home; ci.yml's `lint` job runs every gate in this directory.
 #
-# THE RULE (`work/onecopy/a-direction-is-normalised-by-hand-beside-vec3-normalize.md`).
-# `geom_core::Vec3::normalize` (`crates/geom-core/src/linalg/vec.rs`) is
-# the home of "this vector's direction". Its body is `self / self.norm()`
+# THE RULE (`work/onecopy/a-direction-is-normalised-by-hand-beside-vec3-normalize.md`,
+# `work/onecopy/a-direction-and-its-length-are-spelled-as-a-pair-at-23-sites.md`).
+# `geom_core::Vec3::direction_and_length` (`crates/geom-core/src/linalg/vec.rs`)
+# is the home of "this vector's direction and length", and `normalize`
+# is its first half. Its body is `(self / n, n)`, `n = self.norm()`,
 # wherever the largest component lies in `(2⁻⁵¹¹, 2⁵¹¹)`, so in range a
 # hand spelling is the same bits, and outside it the home's prescale
-# answers where the hand spelling yields a zero or infinite vector.
-# Production code takes the home; the home's own file is exempt.
+# answers where the hand spelling yields a zero or infinite vector and
+# an infinite or zero length. Production code takes the home; the
+# home's own file is exempt.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (comments and
 # string literals out, `#[cfg(test)]` modules and test-only mounts out,
@@ -20,22 +24,89 @@
 #     between the tokens allowed and rustfmt's wrap across lines read as
 #     one statement;
 #   * `E * (ONE / E.norm())`, ONE a literal `1.0` or a `::one()` call;
-#   * either, with the norm spelled `E.norm_squared().sqrt()`.
+#   * either, with the norm spelled `E.norm_squared().sqrt()`;
+#   * THE PAIR: `let N = E.norm();` (or `E.norm_squared().sqrt()`), and
+#     `E / N`, `E /= N`, `E * (ONE / N)` or `(ONE / N) * E` in a later
+#     statement of the same file, before the next `fn` and before any
+#     `let` pattern binds `N` again (a tuple `let (d, n) = …` included).
+#     A record whose closure takes `N` as a parameter is not read for it.
 #
-# BLIND SPOTS. A parenthesised operand (`(q - p) / (q - p).norm()`):
-# the matcher pairs only an identifier chain, so a compound expression
-# divided by its own norm passes. A norm bound to a name first
-# (`let n = v.norm(); … v / n`): many such sites also use the length,
-# which `normalize` does not return, so the shape is not refused (the
-# row's hit list reads each). A division through a helper, a closure or
-# a macro; an `f64` triple held as `[f64; 3]`. The second pass for the first gap is
-# `grep -rnP '(\([^()]*\))\s*/\s*\1\.norm\(\)' crates/*/src`.
+# BLIND SPOTS, each one a shape that passes:
+#   * A PARENTHESISED OPERAND, `(q - p) / (q - p).norm()` or
+#     `let d = (q - p).norm(); … (q - p) / d`: E is an identifier chain,
+#     so a compound expression passes. The second pass for it,
+#     `grep -rnP '(\([^()]*\))\s*/\s*\1\.norm\(\)' crates/*/src`,
+#     is itself blind to NESTED parentheses inside the operand
+#     (`(a - f(b)) / (a - f(b)).norm()`), since `[^()]*` stops at them.
+#   * A CALL WITH ARGUMENTS in the chain: `c.deriv(t) / c.deriv(t).norm()`
+#     passes, since a chain link is a name or a `()` call only.
+#   * The pair's binding in any other form: a tuple or pattern binding
+#     of the norm, a binding whose norm is taken of a different
+#     expression than the one divided (`let n = w.norm(); … (w * 2.0) / n`),
+#     and a division by a guarded copy of the length
+#     (`v / n.select_le_zero(one, n)`), which is a different zero
+#     behaviour and is meant to pass.
+#   * A RECIPROCAL BOUND TO A NAME, `let inv = 1.0 / n; … w * inv`.
+#   * COMPONENTWISE: `V::new(w.x / n, w.y / n, w.z / n)`, and a norm
+#     spelled by components (`(w.x.powi(2) + …).sqrt()`) or through
+#     `hypot`.
+#   * REACH: any `fn` keyword ends every binding's reach, so a nested
+#     `fn` between the binding and the division hides the pair; and a
+#     closure parameter named `N` hides `N` for the whole record it sits
+#     in, not just the closure's body.
+#   * A division through a helper, a closure or a macro; an `f64`
+#     triple held as `[f64; 3]`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 HOME_FILE=crates/geom-core/src/linalg/vec.rs
-HOME_SUBJECT='the home of a vector'"'"'s direction, Vec3::normalize'
+HOME_SUBJECT='the home of a vector'"'"'s direction and length, Vec3::direction_and_length'
+
+# The pair matcher: reads the statement view (`path:line:text`) on stdin
+# and prints each division that pairs with a `let N = E.norm();` above it.
+# shellcheck disable=SC2016
+PAIR_MATCHER='
+import re, sys
+CHAIN = r"[A-Za-z_][A-Za-z0-9_]*(?:\(\))?(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\(\))?)*"
+NORM = r"\s*\.\s*(?:norm\(\)|norm_squared\(\)\s*\.\s*sqrt\(\))\s*;?\s*$"
+LET = re.compile(r"\blet\s+(?:mut\s+)?([a-z_][a-z0-9_]*)\s*(?::[^=;]*)?=\s*(" + CHAIN + ")" + NORM)
+PATTERN = re.compile(r"\blet\s+(.*?)(?:=|$)")
+CLOSURE = re.compile(r"(?<![|])\|([^|]*)\|(?![|])")
+NAME = re.compile(r"\b[a-z_][a-z0-9_]*\b")
+FN = re.compile(r"\bfn\s")
+ONE = r"(?:1\.0|[A-Za-z0-9_:<>]*::one\(\))"
+path, live = None, {}
+for record in sys.stdin:
+    m = re.match(r"([^:]*):(\d+):(.*)$", record.rstrip("\n"))
+    if not m:
+        continue
+    if m.group(1) != path:
+        path, live = m.group(1), {}
+    text = m.group(3)
+    if FN.search(text):
+        live = {}
+    params = {n for c in CLOSURE.finditer(text) for n in NAME.findall(c.group(1))}
+    for name, expr in list(live.items()):
+        if name in params:
+            continue
+        e = re.escape(expr)
+        end = r"(?![A-Za-z0-9_.(\[])"
+        shapes = (
+            e + r"\s*/=?\s*" + name + end,
+            e + r"\s*\*\s*\(\s*" + ONE + r"\s*/\s*" + name + r"\s*\)",
+            r"\(\s*" + ONE + r"\s*/\s*" + name + r"\s*\)\s*\*\s*" + e + end,
+        )
+        if any(re.search(r"(?<![A-Za-z0-9_.])" + x, text) for x in shapes):
+            print(record.rstrip("\n"))
+            break
+    for b in PATTERN.finditer(text):
+        for n in NAME.findall(b.group(1)):
+            live.pop(n, None)
+    let = LET.search(text)
+    if let:
+        live[let.group(1)] = let.group(2)
+'
 
 gate() {
   gate_require_crate_sources
@@ -51,16 +122,26 @@ gate() {
   GATE_SCAN_FILES=${#files[@]}
   local chain='[A-Za-z_][A-Za-z0-9_]*(\(\))?(\.[A-Za-z_][A-Za-z0-9_]*(\(\))?)*'
   local norm='(norm\(\)|norm_squared\(\)\.sqrt\(\))'
-  local hits
-  hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
-    | gate_grep -E "(^|[^A-Za-z0-9_.])($chain)[[:space:]]*(/[[:space:]]*\\2\\.$norm([^.?[]|\$)|\\*[[:space:]]*\\([[:space:]]*(1\\.0|[A-Za-z0-9_:<>]*::one\\(\\))[[:space:]]*/[[:space:]]*\\2\\.$norm[[:space:]]*\\))" \
+  local view hits pairs
+  view=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
     | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")")
+  hits=$(printf '%s\n' "$view" \
+    | gate_grep -E "(^|[^A-Za-z0-9_.])($chain)[[:space:]]*(/[[:space:]]*\\2\\.$norm([^.?[]|\$)|\\*[[:space:]]*\\([[:space:]]*(1\\.0|[A-Za-z0-9_:<>]*::one\\(\\))[[:space:]]*/[[:space:]]*\\2\\.$norm[[:space:]]*\\))")
+  if ! pairs=$(printf '%s\n' "$view" | python3 -c "$PAIR_MATCHER"); then
+    gate_error "$(gate_name): the pair matcher failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
+    exit 1
+  fi
+  if [ -n "$pairs" ]; then
+    printf '%s\n' "$pairs"
+    gate_error "a direction and its length paired by hand (above): read them as let (dir, len) = v.direction_and_length(), the one home"
+    exit 1
+  fi
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a direction normalised by hand (above): read it as v.normalize() (geom_core::Vec3::normalize / Vec2::normalize), the one home"
     exit 1
   fi
-  gate_ok "no direction normalised by hand outside Vec3::normalize ($GATE_SCAN_FILES files)"
+  gate_ok "no direction, or direction and length, spelled by hand outside Vec3::direction_and_length ($GATE_SCAN_FILES files)"
 }
 
 gate_plant_clean() {
@@ -93,6 +174,44 @@ plant_wrapped() {
   printf 'pub fn dir(w: V) -> V {\n    w\n        / w.norm()\n}\n' >> "$1/crates/clean/src/lib.rs"
 }
 
+plant_pair() {
+  printf 'pub fn dir(w: V) -> (V, f64) {\n    let n = w.norm();\n    let u = w / n;\n    (u, n)\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_pair_reciprocal() {
+  printf 'pub fn dir(w: V) -> Option<V> {\n    let n = w.norm_squared().sqrt();\n    (n > 0.0).then(|| w * (1.0 / n))\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_pair_field_path() {
+  printf 'pub fn dir(s: S) -> V {\n    let len = s.frame.u_ref.norm();\n    F { u: s.frame.u_ref / len, len }\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_pair_one_reciprocal() {
+  printf 'pub fn dir<T>(w: V) -> V {\n    let n = w.norm();\n    w * (T::one() / n)\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_pair_leading_reciprocal() {
+  printf 'pub fn dir(w: V) -> V {\n    let n = w.norm();\n    (1.0 / n) * w\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_pair_compound() {
+  printf 'pub fn dir(mut w: V) -> V {\n    let n = w.norm();\n    w /= n;\n    w\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+# A pair's name bound again (plainly, or by a tuple pattern), read past
+# the next `fn`, divided into a different expression, behind a guarded
+# divisor, or shadowed by a closure parameter is not the pair.
+plant_not_pairs() {
+  {
+    printf 'pub fn a(w: V, x: V) -> V {\n    let n = w.norm();\n    let n = x.norm();\n    w / n\n}\n'
+    printf 'pub fn b(w: V) -> f64 {\n    let n = w.norm();\n    n\n}\npub fn c(w: V, n: f64) -> V {\n    w / n\n}\n'
+    printf 'pub fn d(w: V, x: V) -> V {\n    let n = w.norm();\n    x / n\n}\n'
+    printf 'pub fn e(w: V) -> V {\n    let n = w.norm();\n    w / n.select_le_zero(1.0, n)\n}\n'
+    printf 'pub fn f(w: V, x: V) -> V {\n    let n = w.norm();\n    let (d, n) = x.direction_and_length();\n    w / n + d\n}\n'
+    printf 'pub fn g(w: V, l: &[f64]) -> Vec<V> {\n    let n = w.norm();\n    l.iter().map(|n| w / *n).collect()\n}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
 # A divisor that only begins with the norm, a different numerator, a
 # norm read beside a different vector, prose, a test module, a fixture
 # file and the home itself are not the shape.
@@ -118,9 +237,17 @@ gate_selftest() {
   gate_selftest_case "$want" plant_literal_reciprocal
   gate_selftest_case "$want" plant_wrapped
   gate_selftest_case "$want" plant_squared_root
+  local pair="a direction and its length paired by hand"
+  gate_selftest_case "$pair" plant_pair
+  gate_selftest_case "$pair" plant_pair_reciprocal
+  gate_selftest_case "$pair" plant_pair_field_path
+  gate_selftest_case "$pair" plant_pair_one_reciprocal
+  gate_selftest_case "$pair" plant_pair_leading_reciprocal
+  gate_selftest_case "$pair" plant_pair_compound
+  gate_selftest_passes "a rebound name (plain and by a tuple), a use past the next fn, another numerator, a guarded divisor and a closure parameter" plant_not_pairs
   gate_selftest_passes "a longer divisor, other operands, prose, a test module, fixture files and the home" plant_not_sites
   gate_selftest_homes --narrowed --subject "$HOME_SUBJECT" "$HOME_FILE"
-  printf '%s selftest OK: passes a clean fixture carrying the home, and a longer divisor, other operands, prose, a test module and fixture files; fires on v / v.norm() by name, by field path, wrapped across lines and through norm_squared().sqrt(), and on v * (1 / v.norm()) with T::one() and 1.0; and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the home, and a longer divisor, other operands, prose, a test module and fixture files; fires on v / v.norm() by name, by field path, wrapped across lines and through norm_squared().sqrt(), and on v * (1 / v.norm()) with T::one() and 1.0; fires on the pair let n = v.norm(); … v / n by name, by field path, as v /= n, and as a reciprocal on either side with 1.0, T::one() and through norm_squared().sqrt(), and passes a rebound name (plain and by a tuple), a use past the next fn, another numerator, a guarded divisor and a closure parameter; and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

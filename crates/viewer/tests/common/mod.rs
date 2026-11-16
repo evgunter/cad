@@ -462,6 +462,125 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
     mate
 }
 
+/// **The space `op`'s mate reads, where its placement is not placed
+/// into it**: an `AddMate`'s `to`, or the first mate of a `SetBundle`
+/// whose `to` reads another space.
+fn mate_elsewhere(
+    doc: &Doc<ProfileProgram>,
+    op: &SessionOp,
+) -> Option<(RecipeNodeId, pncad::document::VarId)> {
+    let off = |placement: RecipeNodeId, to: &pncad::document::Operand| {
+        doc.operand_space(to)
+            .filter(|&space| doc.node_space(placement) != Some(space))
+            .map(|space| (placement, space))
+    };
+    match op {
+        SessionOp::AddMate {
+            placement, mate, ..
+        } => off(*placement, &mate.to),
+        SessionOp::SetBundle {
+            placement,
+            target,
+            constraints,
+            ..
+        } => constraints
+            .iter()
+            .filter_map(|c| c.mate())
+            .find_map(|mate| off(*placement, &mate.to))
+            .filter(|&(_, space)| *target != viewer::session::PlaceTarget::space(space)),
+        _ => None,
+    }
+}
+
+/// **An `AddMate` reading another space, made in one change with the
+/// target it needs**: the placement's editor, its first row set to the
+/// space the mate's `to` reads and the mate added, as one `SetBundle`
+/// the door judges — "Into <space>" and the mate drafted together.
+///
+/// # Panics
+///
+/// Where `op` is no such `AddMate`, or the draft does not propose.
+pub fn in_one_change(session: &DocSession, op: SessionOp) -> SessionOp {
+    let doc = session.committed_doc();
+    let (placement, space) = mate_elsewhere(doc, &op).expect("a mate reading another space");
+    let SessionOp::AddMate { mate, values, .. } = op else {
+        panic!("an `AddMate`: {op:?}")
+    };
+    let mut tool = viewer::matetool::MateTool::edit(doc, placement).expect("a placement's editor");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
+    tool.add_written(doc, &mate);
+    for (coord, by) in values {
+        tool.type_value(coord, by);
+    }
+    let (landed, ev) = session.landed_pair().expect("landed");
+    tool.proposal(landed, ev, session.tol())
+        .unwrap_or_else(|error| panic!("the mate proposes over its space: {error}"))
+        .op()
+}
+
+/// **A mate op reading another space, made after the target change it
+/// needs**: the placement's "into" row set to that space as a step of its
+/// own ([`into_space`]), then `op` answered over it — the panel's "Into
+/// <space>" and then the held mate. An `AddMate` is answered as it is (a
+/// bundle the evaluation refuses lands, as `AddMate` admits it); a
+/// `SetBundle` is re-based on the target its own step set.
+///
+/// # Panics
+///
+/// Where `op` reads no other space, or the target change is refused.
+pub fn after_into(session: &mut DocSession, op: SessionOp) -> SessionOp {
+    let (placement, space) =
+        mate_elsewhere(session.committed_doc(), &op).expect("a mate reading another space");
+    into_space(session, placement, space);
+    match op {
+        SessionOp::SetBundle {
+            placement,
+            base,
+            constraints,
+            ..
+        } => SessionOp::SetBundle {
+            placement,
+            base: viewer::session::PlacementBase {
+                target: pncad::document::Operand::Var(space),
+                constraints: base.constraints,
+            },
+            target: viewer::session::PlaceTarget::space(space),
+            constraints,
+        },
+        op => op,
+    }
+}
+
+/// [`in_one_change`], performed.
+pub fn perform_in_one_change(
+    session: &mut DocSession,
+    op: SessionOp,
+) -> viewer::session::OpOutcome {
+    let op = in_one_change(session, op);
+    session.perform(op)
+}
+
+/// [`after_into`], performed.
+pub fn perform_after_into(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
+    let op = after_into(session, op);
+    session.perform(op)
+}
+
+/// [`commit_mate`] of [`in_one_change`].
+pub fn commit_mate_in_one_change(
+    session: &mut DocSession,
+    op: SessionOp,
+) -> pncad::document::MateRef {
+    let op = in_one_change(session, op);
+    commit_mate(session, op)
+}
+
+/// [`commit_mate`] of [`after_into`].
+pub fn commit_mate_after_into(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let op = after_into(session, op);
+    commit_mate(session, op)
+}
+
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
     // A placement's editor writes its bundle whole; a mate is added to it.
@@ -824,7 +943,10 @@ pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     drawn_copies(doc)
         .into_iter()
-        .map(|placement| viewer::world::seat_of(doc, placement))
+        .map(|placement| {
+            viewer::world::copy_source(doc, placement, 0)
+                .map_or(placement, |source| source.operation)
+        })
         .collect()
 }
 
@@ -837,16 +959,26 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 ///
 /// # Panics
 ///
-/// Unless exactly one placement places `body`.
+/// Unless exactly one world placement places `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
     // An instance is a placement: its copies are drawn on it.
     if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
         return body;
     }
-    let [copy] = viewer::world::placements_of(doc, body)[..] else {
-        panic!("{body:?} is placed once")
+    let [copy] = world_placements(doc, body)[..] else {
+        panic!("{body:?} is placed into the world once")
     };
     copy
+}
+
+/// **The placements of `body` into the world**, in document order: the
+/// copies of it ([`viewer::world::placements_of`]) whose copy stands
+/// there ([`viewer::world::world_copy`]).
+pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
+    viewer::world::placements_of(doc, body)
+        .into_iter()
+        .filter(|&copy| viewer::world::world_copy(doc, copy).is_some())
+        .collect()
 }
 
 /// **`body`'s one world copy, placed by hand where nothing copies it**:
@@ -859,12 +991,31 @@ pub fn world_copy(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    match viewer::world::placements_of(doc, body)[..] {
+    match world_placements(doc, body)[..] {
         [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => {
             inserted(doc, world_place(pncad::document::Operand::Node(body)), tol)
         }
         _ => (doc.clone(), copy_of(doc, body)),
     }
+}
+
+/// **The viewer's Place of `body` where it stands, named `name` where it
+/// asks for one** ([`viewer::world::place_asks`], the placement editor's
+/// rule): where `body`'s one source is anonymous and already read, this
+/// placement makes it shared, and the person types `name` (VR2).
+pub fn place_named(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+    name: &'static str,
+) -> SessionOp {
+    let body = body.into();
+    let mut op = SessionOp::place_where_it_stands(doc, body.clone()).expect("a body in a space");
+    if let (SessionOp::Place { name: asked, .. }, viewer::world::PlaceAsks::Name(_)) =
+        (&mut op, viewer::world::place_asks(doc, &body))
+    {
+        *asked = Some(pncad::document::VarName::from_static(name));
+    }
+    op
 }
 
 /// **A `Place` of `read` into the world by the identity bundle** — the
@@ -896,7 +1047,7 @@ pub fn world_copy_in(
     session.pump();
     let doc = session.committed_doc();
     let placed = matches!(doc.node(body), Some(Node::InstantiatePart { .. }))
-        || !viewer::world::placements_of(doc, body).is_empty();
+        || !world_placements(doc, body).is_empty();
     if !placed {
         let outcome = session.perform(SessionOp::AddToProduct {
             node: body,
@@ -939,7 +1090,7 @@ pub fn world_copy_by_hand_in(
 ///
 /// Where several placements copy `node`: the row has to say which.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    match viewer::world::placements_of(doc, node)[..] {
+    match world_placements(doc, node)[..] {
         [] => node,
         [copy] => copy,
         _ => panic!("{node:?} is copied more than once: say which copy"),
@@ -1069,16 +1220,78 @@ pub fn transformed_at(
     body: Option<u32>,
     values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
+    transform(session, node, body, values, None, None)
+}
+
+/// [`transformed`] with the editor's first row set to `into` in the same
+/// change as the values: the copy placed into another body's space,
+/// standing on its axes by those values — what a combine with that body
+/// needs, since a combine moves no copy. `name` is what the person types
+/// where the Place asks for one: a body placed a second time shares its
+/// source by name (VARIABLES VR4).
+pub fn transformed_into(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+    into: pncad::document::VarId,
+    name: Option<&'static str>,
+) -> SessionOp {
+    transform(session, node, None, values, Some(into), name)
+}
+
+/// [`moved_to`] into `into`'s axes ([`transformed_into`]).
+pub fn moved_in_space(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    by: [f64; 3],
+    into: pncad::document::VarId,
+) -> RecipeNodeId {
+    let op = transformed_into(session, node, &slides(by), into, None);
+    let SessionOp::SetBundle { placement, .. } = &op else {
+        panic!("the editor writes a bundle: {op:?}")
+    };
+    let placement = *placement;
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    placement
+}
+
+/// The Transform tool's change, its target set to `into` where given,
+/// a Place that asks for a name answered `name`.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
+fn transform(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+    into: Option<pncad::document::VarId>,
+    name: Option<&'static str>,
+) -> SessionOp {
     session.pump();
     let tol = session.tol();
     let (doc, _) = session.landed_pair().expect("landed");
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
-    if let Some(place) = tool.take_place() {
+    let place = match tool.take_place(doc) {
+        Some(place) => Some(place),
+        None => match (tool.asking(), name) {
+            (None, _) => None,
+            (Some(viewer::matetool::PlaceAsk::Name { .. }), Some(name)) => Some(
+                tool.place_named(pncad::document::VarName::from_static(name))
+                    .expect("the asked Place, named"),
+            ),
+            (Some(ask), _) => panic!("the Place of {node:?} asks first: {ask:?}"),
+        },
+    };
+    if let Some(place) = place {
         let placement = placed_by(session, place);
         tool.placed(session.committed_doc(), placement);
     }
     let (doc, ev) = session.landed_pair().expect("landed");
+    if let Some(into) = into {
+        tool.set_target(viewer::session::PlaceTarget::space(into));
+    }
     for (coord, by) in values {
         tool.type_value(coord.clone(), by.clone());
     }
@@ -1122,6 +1335,33 @@ pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> R
     placement
 }
 
+/// **`placement` re-targeted into `space` through its editor's first
+/// row**, one change, performed (not pumped after) — what a person does before
+/// a combine reads the copy in another space, since a combine moves no
+/// copy.
+///
+/// # Panics
+///
+/// Where the door refuses the change.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
+pub fn into_space(
+    session: &mut DocSession,
+    placement: RecipeNodeId,
+    space: pncad::document::VarId,
+) {
+    session.pump();
+    let mut tool = viewer::matetool::MateTool::edit(session.committed_doc(), placement)
+        .expect("a placement's editor");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let op = tool
+        .offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+        .unwrap_or_else(|| panic!("the target change passes: {:?}", tool.pending()));
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}
+
 /// **Place `body` and open the placement editor on what it made**, as a
 /// pick on the body as itself does: the Place performed and pumped, and
 /// the editor on the placement, no mate row. Answers the editor and the
@@ -1134,10 +1374,26 @@ pub fn place_and_edit(
     session: &mut DocSession,
     body: pncad::document::Operand,
 ) -> (viewer::matetool::MateTool, RecipeNodeId) {
-    let placement = placed_by(session, SessionOp::Place { body });
+    let op =
+        SessionOp::place_where_it_stands(session.committed_doc(), body).expect("a body in a space");
+    let placement = placed_by(session, op);
     let mut tool = viewer::matetool::MateTool::new();
     tool.placed(session.committed_doc(), placement);
     (tool, placement)
+}
+
+/// **The editor's target set to the space its first live row's `to`
+/// reads, where that is not the target**, as one change of the draft
+/// made with the rest of it ([`viewer::matetool::MateTool::set_target`]).
+/// A row that wants the panel's two-step "Into <space>" calls
+/// `MateTool::retarget_into` instead.
+pub fn into_to_space(session: &DocSession, tool: &mut viewer::matetool::MateTool) {
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let &(_, space) = tool
+        .off_target(doc, ev)
+        .first()
+        .expect("a live row reads another space than the target");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
 }
 
 /// **`op`, a `SessionOp::Place`, performed and pumped**: the placement

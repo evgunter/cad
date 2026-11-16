@@ -1026,9 +1026,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let hit = answers[0];
     let picked = &picked[0];
     let expected_point = ray.origin + ray.dir * hit.t();
-    assert_eq!(
-        picked.point.to_array().map(f64::to_bits),
-        expected_point.to_array().map(f64::to_bits),
+    assert!(
+        picked.point.same_bits(expected_point),
         "the hit point is the chord point as the ray reaches it: {:?}",
         picked.point
     );
@@ -1066,8 +1065,34 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// two crossings are further apart than the near-coplanar triangle is
 /// large. `a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it`
 /// is the other side of the same line, where they are not.
+///
+/// **Pinned to its premise's stop at every ε row**
+/// (`work/vgeom/the-wide-candidate-row-lost-its-near-coplanar-triangle-before-the-vertex.md`).
+/// The aimed vertex is on the inner rim of the bumped ring's far cap.
+/// That cap's four rim circles now take their `u_ref` from the arc's
+/// sketch start radial carried by the turned station frame, where they
+/// took it from the vector to the placed start vertex; the two differ by one to three ulps (`0.9807852804032304` →
+/// `…303`, `0.19509032201612878` → `…872`), every other stored value
+/// the mesher reads is bit-identical, and the planar mesher does not
+/// read the stored plane at all. The rim's chord points moved by that
+/// rounding, the cap and band triangulations around the vertex with
+/// them, and on that mesh this ray's near-coplanar candidates answer at
+/// the vertex and `0.031` beyond it, none short of it, so the class the
+/// row carries has no fixture here.
 #[test]
 fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the ring's wide candidate",
+        &["the wide candidate still answers 0.031 short of the vertex"],
+        a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row,
+    );
+}
+
+/// The row [`a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex`]
+/// runs, under its pin.
+fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row() {
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
@@ -1244,15 +1269,35 @@ const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 /// are a CERTIFIED TIE between two FACES, and nothing breaks it: the
 /// door names both and chooses neither.
 ///
-/// This is the class `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
-/// names. It is not resolved by preferring the narrow claim any more —
+/// This is the class the ring's row above carries, on the other side of
+/// the line. It is not resolved by preferring the narrow claim any more —
 /// the width was a rule the user did not ask for — it is DISCLOSED:
 /// the aimed vertex is among the answers, and so is the edge-on face
 /// in front of it. A door comparing rounded `t` reds here (it answers
 /// the wide candidate alone); a door that kept the width key reds here
 /// (it answers the vertex alone).
+///
+/// **Pinned to its premise's stop at every ε row**, on the same filing
+/// and by the same mechanism as the ring's row above: `tube_arc`'s far
+/// cap's two rim circles now take their `u_ref` from the turned station
+/// frame, one ulp from the vector to the placed start vertex they read before
+/// (`0.5403023058681397` → `…398`), every other stored value the mesher
+/// reads is bit-identical, and on the mesh that gives no near-coplanar
+/// candidate answers `TUBE_ARC_WIDE_CANDIDATE_T` on this ray.
 #[test]
 fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "tube_arc's wide candidate",
+        &["the near-coplanar candidate still answers short of the vertex"],
+        a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both_row,
+    );
+}
+
+/// The row [`a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both`]
+/// runs, under its pin.
+fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both_row() {
     let tol = Tol::witness();
     let c = corpus::documents()
         .into_iter()

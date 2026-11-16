@@ -106,6 +106,8 @@ mod eval_seam;
 mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gesture_placements.rs"]
+mod gesture_placements;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "gui_variables.rs"]
@@ -128,6 +130,8 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
@@ -155,6 +159,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "place_live.rs"]
 mod place_live;
+#[path = "placement_target.rs"]
+mod placement_target;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "probe_6356.rs"]
@@ -231,3 +237,5 @@ mod view_toggles;
 mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "source_readers.rs"]
+mod source_readers;

@@ -203,9 +203,8 @@ pub fn breakpoint_at<T: SpanLocate>(
     // Certified apart from every wide bracket, so only a point run can
     // be `u`, for every member.
     Ok(knots
-        .runs()
-        .find(|(value, _)| value.point_value().map(f64::to_bits) == Some(u.to_bits()))
-        .map(|(value, _)| value))
+        .breakpoints()
+        .find(|value| value.point_value().map(f64::to_bits) == Some(u.to_bits())))
 }
 
 /// Where a split at `u` falls in the held knots: how many copies of `u`

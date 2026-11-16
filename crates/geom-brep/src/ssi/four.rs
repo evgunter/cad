@@ -285,13 +285,13 @@ fn mean_value_excludes<T: CertifiedBounds>(
     free: [usize; 3],
     jac: &[[Interval; 4]; 3],
 ) -> bool {
-    let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
+    let mid = |s: (f64, f64)| geom::mid_param(s.0, s.1);
     let mut m = x;
     for &k in &free {
         m = m.holding(k, mid(x.0[k]));
     }
     let f = pair.residual(m);
-    let col = |c: usize| [0, 1, 2].map(|r| 0.5 * (jac[r][c].lo() + jac[r][c].hi()));
+    let col = |c: usize| [0, 1, 2].map(|r| geom::mid_param(jac[r][c].lo(), jac[r][c].hi()));
     let cross = |a: [f64; 3], b: [f64; 3]| {
         [
             a[1] * b[2] - a[2] * b[1],
@@ -355,14 +355,14 @@ fn image<T: CertifiedBounds>(
     free: [usize; 3],
     jac: [[Interval; 4]; 3],
 ) -> Option<Box4> {
-    let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
+    let mid = |s: (f64, f64)| geom::mid_param(s.0, s.1);
     let mut m = x;
     for &k in &free {
         m = m.holding(k, mid(x.0[k]));
     }
     let f = pair.residual(m);
     let j: [[Interval; 3]; 3] = core::array::from_fn(|r| core::array::from_fn(|c| jac[r][free[c]]));
-    let jm: [[f64; 3]; 3] = j.map(|row| row.map(|v| 0.5 * (v.lo() + v.hi())));
+    let jm: [[f64; 3]; 3] = j.map(|row| row.map(|v| geom::mid_param(v.lo(), v.hi())));
     let y = inverse3(jm)?;
     let d: [Interval; 3] =
         free.map(|k| Interval::from_bounds(x.0[k].0, x.0[k].1) - Interval::point(mid(x.0[k])));
@@ -885,7 +885,7 @@ pub(crate) fn row_piece(ends: [[(f64, f64); 2]; 4]) -> (Box4, [f64; 4]) {
             (p.0.min(q.0), p.1.max(q.1))
         }
     });
-    let mid = |x: (f64, f64)| x.0 * 0.5 + x.1 * 0.5;
+    let mid = |x: (f64, f64)| geom::mid_param(x.0, x.1);
     let chord = ends.map(|e| {
         let [p, q] = e;
         if nan(e) {
@@ -1038,7 +1038,7 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
                 Step::Settled
             }
             None if depth < ROW_DEPTH => {
-                let half = lo * 0.5 + hi * 0.5;
+                let half = geom::mid_param(lo, hi);
                 Step::Halve([(lo, half, depth + 1), (half, hi, depth + 1)])
             }
             None if give_up => Step::Stop(()),
@@ -1101,7 +1101,7 @@ fn unreadable(wall: usize, e: super::SsiError) -> RowUnreadable {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
+pub(in crate::ssi) mod tests {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
     use geom_core::{CertifiedBounds, Interval, Point3, Real};
@@ -1111,7 +1111,7 @@ mod tests {
     use super::{Box4, EXIT_PIECES, PairBoxes, face_roots, narrow, one_arc_pair};
 
     /// The bilinear patch through `corner(i, j)` at `(u, v) = (i, j)`.
-    fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
+    pub(in crate::ssi) fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
         let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
             .map(|(i, j)| {

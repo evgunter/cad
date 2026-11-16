@@ -31,8 +31,8 @@ pub fn assert_certificates_fresh(
             continue;
         };
         let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let start = p(body.get_half_edge(e.he_plus).unwrap().start);
-        let end = p(body.half_edge_end(e.he_plus).unwrap());
+        let (start, end) = body.edge_vertices(dk).unwrap();
+        let (start, end) = (p(start), p(end));
         let fresh = c
             .recertify(
                 start,

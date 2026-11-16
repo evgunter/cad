@@ -2,10 +2,12 @@
 id: the-spiric-two-oval-regime-is-decided-in-three-places
 kind: issue
 title: The spiric two-oval regime is decided in three places under three site names, with no shared predicate
-status: open
+status: closed
 opened: 2026-11-04
 priority: P3
 cost: C
+closed: 2026-11-09
+pr: 6621
 ---
 
 
@@ -35,3 +37,12 @@ the mint admits read out of regime at the rider, or the reverse. One
 home, a predicate beside `Curve3::spiric` that the other two call,
 would hold it once. The section's `decide_across` floor would then be
 that predicate's to state.
+
+## Closed (2026-11-09, PR 6621)
+
+`geom::spiric_regime` (beside `Curve3::spiric`) holds the regime once.
+Each reader passes its own site names (`SpiricRegimeSites`) and a
+`swing`; the section passes its levered tilt. The mint,
+`plane_torus_section` and `topo`'s `spiric_on_curved` read it, each
+with a `geom::RingTorus`. `decide_across` moved to `geom_core::k_stats`
+so `geom` can reach it.

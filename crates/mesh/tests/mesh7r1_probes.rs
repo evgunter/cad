@@ -36,7 +36,7 @@ use topo::{Body, FaceKey};
 // R1-DOOR-ONLY-BEGIN
 fn door_verdict(body: &Body<f64>, fk: FaceKey) -> Result<(), geom_brep::props::PropsError> {
     let face = body.get_face(fk).unwrap();
-    let surface = body.get_surface(face.surface).unwrap();
+    let surface = body.face_surface(fk).unwrap();
     let (outer, _) = topo::props::loop_edges(body, face.outer).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     geom_brep::props::require_iso_rectangle(surface, &outer, band)

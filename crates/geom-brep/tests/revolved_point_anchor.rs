@@ -39,8 +39,10 @@ fn rim(half: f64) -> MappedCurve<Interval> {
     MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
-        axis_origin: Point3::new(w(1.0), w(2.0), w(3.0)),
-        axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        axis: geom::Line {
+            origin: Point3::new(w(1.0), w(2.0), w(3.0)),
+            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        },
         angle: iv(TAU),
     })
 }
@@ -58,8 +60,10 @@ fn rim_at(at: [f64; 3]) -> MappedCurve<Interval> {
     MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
-        axis_origin: Point3::new(iv(1.0 + x), iv(2.0 + y), iv(z)),
-        axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        axis: geom::Line {
+            origin: Point3::new(iv(1.0 + x), iv(2.0 + y), iv(z)),
+            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        },
         angle: iv(TAU),
     })
 }
@@ -142,8 +146,10 @@ fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
         MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(iv(2.0), iv(2.0)),
             place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
-            axis_origin: Point3::new(w(1.0), w(2.0), w(3.0)),
-            axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+            axis: geom::Line {
+                origin: Point3::new(w(1.0), w(2.0), w(3.0)),
+                dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+            },
             angle: iv(angle),
         })
     };
@@ -532,8 +538,10 @@ fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
             let c = MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(iv(2.0), iv(-1.5)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
-                axis_origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                axis: geom::Line {
+                    origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                },
                 angle: iv(angle),
             });
             let p = Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2])))
@@ -636,8 +644,10 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
     let rim = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
-        axis_origin: Point3::new(iv(1.0), iv(2.0), iv(3.0)),
-        axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        axis: geom::Line {
+            origin: Point3::new(iv(1.0), iv(2.0), iv(3.0)),
+            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        },
         angle: Interval::tau(),
     });
     // [¼, ¾], then its [½, 1]: angles [π, 3π/2].
@@ -678,8 +688,10 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
     let rim64 = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0, 2.0),
         place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-        axis_origin: Point3::new(1.0, 2.0, 3.0),
-        axis_dir: Vec3::new(0.0, 0.0, 1.0),
+        axis: geom::Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        },
         angle: TAU,
     });
     let strut64 = MappedCurve::whole(MappedSource::ExtrudedPoint {

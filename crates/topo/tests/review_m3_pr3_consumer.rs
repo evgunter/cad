@@ -11,7 +11,7 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties, plane_section, split,
+    Body, JoinError, SplitError, SplitPart, SplitPlane, mass_properties, plane_section, split,
     validate_closed, validate_geometric,
 };
 
@@ -38,11 +38,8 @@ fn audit_geometry(body: &Body<f64>) {
     for (_, e) in body.edges() {
         assert!(body.get_curve_geom(e.curve).is_some(), "dangling curve key");
     }
-    for (_, f) in body.faces() {
-        assert!(
-            body.get_surface(f.surface).is_some(),
-            "dangling surface key"
-        );
+    for (fk, _) in body.faces() {
+        assert!(body.face_surface(fk).is_some(), "dangling surface key");
     }
     let mut live_p: Vec<_> = body.vertices().map(|(_, v)| v.point).collect();
     live_p.sort();
@@ -183,7 +180,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
         &plane_y(1.0),
         Tol::witness(),
     ) {
-        Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
+        Err(SplitError::Join(JoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
         Err(e) => eprintln!(

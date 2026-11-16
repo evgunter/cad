@@ -2,10 +2,13 @@
 id: the-spline-polynomial-identity-certificate-has-two-homes
 kind: issue
 title: spline_off_carrier and slit::carrier_on_surface are two homes for one polynomial-identity certificate, each with its own sample schedule
-status: open
+status: closed
 opened: 2026-11-04
 priority: P3
 cost: M
+closed: 2026-11-06
+pr: 6577
+branch: onecopy/spline-certificates
 ---
 
 Filed by SPLICE's `splice/rim-arc-on-cylinder` (PR 6481), from its review.

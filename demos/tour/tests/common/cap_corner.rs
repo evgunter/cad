@@ -11,7 +11,7 @@ use pncad::topo::{Body, FaceKey, Surface};
 /// Each pair of a plane face and a spline face of `body`.
 pub fn cap_wall_pairs(body: &Body<f64>) -> Vec<(FaceKey, FaceKey)> {
     let kind = |f: FaceKey| {
-        let s = body.get_surface(body.get_face(f).expect("a live face").surface);
+        let s = body.face_surface(f);
         match s.expect("a live surface") {
             Surface::Plane { .. } => Some(true),
             Surface::Nurbs(_) => Some(false),

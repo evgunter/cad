@@ -478,9 +478,9 @@ pub(super) fn area_midpoint_taylor<E>(
             let hv = c_vhi - c_vlo;
             let c = cell(AreaBox {
                 u: cut_window(c_ulo, c_uhi),
-                umid: c_ulo.midpoint(c_uhi),
+                umid: geom::mid_param(c_ulo, c_uhi),
                 v: cut_window(c_vlo, c_vhi),
-                vmid: c_vlo.midpoint(c_vhi),
+                vmid: geom::mid_param(c_vlo, c_vhi),
             })?;
             // The cell width as an ENCLOSURE, not a rounded float:
             // the cells share their cut points, so they tile the

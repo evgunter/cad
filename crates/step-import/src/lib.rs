@@ -410,7 +410,7 @@ pub enum NormalizationKind {
     /// — so the records' deltas still sum to the body's totals.
     JoinedEdges,
     /// **An edge carrier split at its interior C⁰ knots** (Ev's PR 5913
-    /// ruling; `docs/DESIGN.md` [topology]): a B-spline carrier with an
+    /// ruling; `docs/DESIGN.md` `[topology]`): a B-spline carrier with an
     /// interior knot run of multiplicity at least its degree has no
     /// derivative there by its structure, so the edge is cut into its
     /// sub-arcs, a vertex at each knot. Exact: each sub-arc is a
@@ -426,7 +426,40 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
+    /// **An assembly placement whose stated fields `build_axes` moved**
+    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
+    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
+    /// normalized, the reference direction projected perpendicular and
+    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
+    /// whose fields as stated are no rigid frame within their own
+    /// rounding was moved by that construction. A STEP `direction` is a
+    /// ratio vector, so the normalization is the file's own semantics,
+    /// not a heal; it is reported so the move is on record. `moved_by` is
+    /// measured against the frame as the reader adopted its fields,
+    /// unnormalized: its columns the reference direction, the axis
+    /// crossed with it and the axis. The reader adopts a `direction`
+    /// within ε_in of unit verbatim and normalizes any other, and adopts
+    /// a reference within ε_in of perpendicular verbatim and projects any
+    /// other, so the matrix is the file's own fields wherever they lie
+    /// within ε_in and the reader's correction of them elsewhere. Over the
+    /// session box `moved_by` is the farthest a point moves between that
+    /// matrix and the built frame, summed over the pair. A file's ε_in bounds no such move
+    /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
+    /// Keyed by the transformation's instance id, not a face; its census
+    /// pair is empty, since no face, edge or vertex changes.
+    PlacementReMinted {
+        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
+        transform: u64,
+        /// The move (metres): over the session box, the farthest a point
+        /// moves between a frame's matrix as adopted and its built one,
+        /// summed over the pair.
+        moved_by: f64,
+    },
 }
+
+/// The K row a placement frame's two directions are decided under where
+/// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
+pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -458,7 +491,9 @@ pub enum SingularityFound {
 /// with the imported body's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states.
+    /// The `ADVANCED_FACE` entity instance the file states; on
+    /// [`NormalizationKind::PlacementReMinted`], which names no face, the
+    /// `ITEM_DEFINED_TRANSFORMATION`'s.
     pub face: u64,
     /// What was re-minted.
     pub kind: NormalizationKind,
@@ -791,22 +826,16 @@ pub fn import_step(
             // to make: one entry per placed INSTANCE, each naming a
             // solid and the frame that copy sits in. N occurrences of
             // one component representation are N entries over the same
-            // solid index, and each is built into a body of its OWN —
-            // fresh topology, fresh arena keys, no structure shared
-            // between copies. Sharing was never on the table: a
-            // `SolidSpec`'s maps are keyed by the file's entity ids,
-            // so two copies assembled into one arena would collide id
-            // for id.
+            // solid index, and each is a body of its OWN — fresh
+            // topology, fresh arena keys, no structure shared between
+            // copies. Sharing was never on the table: a `SolidSpec`'s
+            // maps are keyed by the file's entity ids, so two copies
+            // assembled into one arena would collide id for id.
             //
-            // Each instance then goes through the kernel's own
-            // placement doors (M7-4 Leg D): the map is decided rigid at
-            // `RigidMotion::check_rigid`, and `transform_rigid`
-            // RE-CERTIFIES every carrier against the mapped geometry,
-            // so a placed copy is as first-class as an unplaced one —
-            // and a map this reader let through that the kernel will
-            // not becomes a typed refusal, never a silently skewed
-            // body. N instances is N re-certifications, paid per copy
-            // because each copy is a different body.
+            // Each placement is the motion its placement pair minted
+            // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is
+            // rigid by construction, and the per-solid finish below moves a
+            // finished copy by it.
             //
             // The copies meet in one arena through
             // `topo::graft_disjoint` — the disjoint half of the
@@ -818,56 +847,88 @@ pub fn import_step(
             let mut body = topo::Body::new();
             let mut record = Vec::with_capacity(model.instances.len());
             // The joins each solid's build ended with, reported once per
-            // solid however many instances place it: every copy is built
-            // from the same spec, so joins the same vertices.
+            // solid: each is built once.
             let mut normalizations = model.normalizations.clone();
-            let mut joined = std::collections::BTreeSet::new();
+            // Each distinct solid is built once. Where the per-solid
+            // subject is owed, it is finished once, on its first placed
+            // instance (so it is asked in the box where it stands), and
+            // that finished copy is moved to every other instance: a
+            // finished body moved by an isometry stays finished and asks
+            // only the session box again.
+            let mut finished: std::collections::BTreeMap<
+                usize,
+                (topo::AtRestBody<f64>, Option<geom_core::RigidMotion<f64>>),
+            > = std::collections::BTreeMap::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
                 let file = geom_core::FileCoincidence::new(eps_in);
-                let (one, joins) = assemble::build_one_solid(spec, tol, file)?;
-                if joined.insert(instance.solid) {
-                    normalizations.extend(joins);
-                }
-                let one = match instance.placed {
+                let motion = match instance.placed {
                     Some(entities::Placed {
-                        map: Some(map),
+                        map: Some(motion),
                         transform,
                         ..
-                    }) => {
-                        let band = geom_core::Band::linear(tol).map_err(|source| {
-                            StepImportError::Placement {
-                                transform,
-                                source: topo::TransformError::Band(source),
-                                file,
-                            }
-                        })?;
-                        let motion =
-                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
-                                StepImportError::PlacementMap { transform, source }
-                            })?;
-                        topo::transform_rigid(&one, &motion, tol).map_err(|source| {
-                            StepImportError::Placement {
-                                transform,
-                                source,
-                                file,
-                            }
-                        })?
-                    }
-                    _ => one,
+                    }) => Some((motion, transform)),
+                    _ => None,
                 };
-                // The per-solid subject of the shared gate (below),
-                // asked about the PLACED copy — the body that ships —
-                // when `topo::per_part_gate_owed` says the aggregate
-                // owes it. The instance count IS the shipped body's
-                // solid count: `topo::graft_disjoint` below refuses any
-                // copy that is not exactly one solid (derivation:
-                // `work/gather/product-gate-says-verbatim-then-states-the-difference.md`).
-                let one = if topo::per_part_gate_owed(model.instances.len()) {
-                    gate(one, Some(spec.id), tol)?.into_body()
-                } else {
-                    one
+                // The motion from the copy first finished to this one, a
+                // product of minted motions: only an overflow refuses.
+                let not_finite = |transform: u64| StepImportError::Structure {
+                    id: transform,
+                    what: "an assembly placement whose motion from the copy first finished is \
+                           not a finite number — its placements stand too far from the origin \
+                           to compose",
                 };
+                let one =
+                    match finished.get(&instance.solid) {
+                        Some((source, at)) => {
+                            let relative = |m: &geom_core::RigidMotion<f64>| {
+                                at.map_or(Ok(*m), |at| at.inverse().and_then(|i| m.compose(i)))
+                            };
+                            let relative = match (&motion, at) {
+                                (None, None) => None,
+                                (Some((m, transform)), _) => {
+                                    Some(relative(m).map_err(|_| not_finite(*transform))?)
+                                }
+                                (None, Some(at)) => Some(at.inverse().map_err(|_| {
+                                    not_finite(instance.placed.map_or(0, |p| p.transform))
+                                })?),
+                            };
+                            match relative {
+                                None => source.clone(),
+                                Some(r) => topo::FinishedBody::moved(source, &r, tol).map_err(
+                                    |findings| StepImportError::TierInvalid {
+                                        solid: Some(spec.id),
+                                        errors: findings.into_findings(),
+                                    },
+                                )?,
+                            }
+                            .into_body()
+                        }
+                        None => {
+                            let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
+                            normalizations.extend(joins);
+                            let one =
+                                match &motion {
+                                    Some((m, transform)) => topo::transform_rigid(&built, m)
+                                        .map_err(|source| StepImportError::Placement {
+                                            transform: *transform,
+                                            source,
+                                            file,
+                                        })?,
+                                    None => built,
+                                };
+                            if topo::per_part_gate_owed(model.instances.len()) {
+                                let one = gate(one, Some(spec.id), tol)?;
+                                finished.insert(
+                                    instance.solid,
+                                    (one.clone(), motion.as_ref().map(|(m, _)| *m)),
+                                );
+                                one.into_body()
+                            } else {
+                                one
+                            }
+                        }
+                    };
                 topo::graft_disjoint(&mut body, &one).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
@@ -887,7 +948,7 @@ pub fn import_step(
                     occurrence: instance.placed.and_then(|p| p.occurrence),
                     relationship: instance.placed.map(|p| p.relationship),
                     transform: instance.placed.map(|p| p.transform),
-                    placement: instance.placed.and_then(|p| p.map),
+                    placement: motion.map(|(m, _)| m.to_affine()),
                 });
             }
             // **The shared at-rest validation gate** (M7-7, the #260
@@ -916,12 +977,10 @@ pub fn import_step(
             // from; the aggregate subject is the shipped body.
             //
             // The per-solid subject is the PLACED copy (M8): the body
-            // that ships is the union of exactly these, so gating them
-            // before placement would gate something else. It costs
-            // nothing in verdicts — `transform_rigid` admits only
-            // det = +1 maps and re-certifies every carrier against the
-            // mapped geometry, so no tier-3 verdict is a function of
-            // the placement — and it costs nothing in honesty.
+            // that ships is the union of exactly these. The first copy
+            // of each solid is finished where it stands, and every other
+            // is that finished copy moved, which carries its verdict and
+            // asks the session box where the copy stands.
             //
             // **The 3′ form, recording what it decides** (D7 step 4,
             // D1 (iii)): the aggregate body is finished, then held to

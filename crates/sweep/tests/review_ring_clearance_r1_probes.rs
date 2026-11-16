@@ -63,7 +63,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> [FaceKey; 2] {
 /// stored sense bit (`same_sense`), not from any sampled geometry.
 fn plane_outward(body: &Body<f64>, f: FaceKey) -> Vec3<f64> {
     let fd = body.get_face(f).unwrap();
-    let Surface::Plane { normal, .. } = body.get_surface(fd.surface).unwrap() else {
+    let Surface::Plane { normal, .. } = body.face_surface(f).unwrap() else {
         panic!("not a plane")
     };
     geom_brep::OutwardNormal::from_chart(*normal, fd.sense).vec()
@@ -95,7 +95,7 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
 /// along `+x`) and the dome's tangent (running toward the pole) is
 /// material exactly when the pole lies on the flat top's MATERIAL
 /// side (`−n`), i.e. the rim is convex iff `sign(pole.y − 1)·n.y < 0`.
-/// The carved band's own sense bit (`Convexity::blend_sense`, true on
+/// The carved band's own sense bit (`battery::blend_sense`, true on
 /// a convex chain) and the sign of the volume delta must agree with
 /// that reading.
 #[test]
@@ -106,12 +106,7 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         assert_eq!(arcs.len(), 2);
         let [fa, fb] = faces_of(&body, arcs[0]);
-        let is_plane = |f: FaceKey| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-                Surface::Plane { .. }
-            )
-        };
+        let is_plane = |f: FaceKey| matches!(body.face_surface(f).unwrap(), Surface::Plane { .. });
         let (top, dome) = if is_plane(fa) { (fa, fb) } else { (fb, fa) };
         assert!(
             is_plane(top) && !is_plane(dome),

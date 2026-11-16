@@ -84,7 +84,7 @@
 //! factor entry refuses when it is not finite
 //! ([`Real::is_bounded`](geom_core::Real::is_bounded)), a pivot when it
 //! is not nonzero for every value it stands for
-//! ([`geom_core::spline::structure_nonzero`]). At a point scalar those
+//! ([`geom_core::structure_nonzero`]). At a point scalar those
 //! read the value
 //! channel; at an enclosure scalar an entry wider than a point solves,
 //! and where the substitutions summarise a dropped term against it they
@@ -201,7 +201,7 @@ pub(crate) fn factor<T: SpanLocate>(
             lu[row + j - f] = s;
         }
         let pivot = lu[row + i - f];
-        if !geom_core::spline::structure_nonzero(pivot) {
+        if !geom_core::structure_nonzero(pivot) {
             return Err(LsqError::LsqDegenerate {
                 pivot_index: i,
                 pivot: pivot.value_channel(),

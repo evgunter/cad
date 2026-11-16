@@ -13,7 +13,7 @@
 //! extent (`topo::wedge_reach`), at least the wall's distance to its
 //! far rim, and that distance times the dihedral's sine is the
 //! extrusion's height, which the gate decides past `K·ε`: so
-//! `dihedral_class` decides `Transverse` at every rim and every K,
+//! `classify_dihedral` decides a corner at every rim and every K,
 //! and the last row measures that end to end on both sides of the
 //! crossover `K* = √φ` below which a rim levered at its own length
 //! would read smooth.
@@ -21,14 +21,14 @@
 //! Each row builds a body through the public door and reads BOTH
 //! instruments at every cap rim: the description the arm actually
 //! stored (`Intersection` iff the transverse arm ran) and
-//! `dihedral_class` re-run on the arm's own inputs (the certified
+//! `classify_dihedral` re-run on the arm's own inputs (the certified
 //! carrier's mid-parameter witness, the faces' extent as the meter).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::cap_rims::{chart_counts, description, face_across, face_edges};
 use geom_brep::{
-    DihedralClass, EdgeDescription, MustCarryVerdict, dihedral_class, must_carry_over_edge,
+    DihedralClass, EdgeDescription, MustCarryVerdict, classify_dihedral, must_carry_over_edge,
 };
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{
@@ -58,14 +58,8 @@ struct RimInputs {
 
 fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
     let wall = face_across(body, edge, cap);
-    let s_cap = body
-        .get_surface(body.get_face(cap).unwrap().surface)
-        .unwrap()
-        .clone();
-    let s_wall = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
+    let s_cap = body.face_surface(cap).unwrap().clone();
+    let s_wall = body.face_surface(wall).unwrap().clone();
     let curve = body
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .unwrap()
@@ -90,7 +84,9 @@ fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
 fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClass, String> {
     let band = Band::linear(Tol::witness()).unwrap();
     let r = rim_inputs(body, cap, edge);
-    dihedral_class(&r.s_cap, &r.s_wall, r.witness, r.extent, band).map_err(|e| format!("{e:?}"))
+    classify_dihedral(&r.s_cap, &r.s_wall, r.witness, r.extent, band)
+        .map(|d| d.class())
+        .map_err(|e| format!("{e:?}"))
 }
 
 /// The must-carry rule's verdict over one cap rim, on the arm's own
@@ -431,10 +427,7 @@ fn only_line_walls_carry_the_admitted_tilt() {
     .expect("an admitted tilt extrudes");
     let (mut cylinders, mut tilted_planes) = (0usize, 0usize);
     for &face in built.side_faces().iter().flatten() {
-        let surface = built
-            .body
-            .get_surface(built.body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = built.body.face_surface(face).unwrap();
         match surface {
             geom::Surface::Cylinder { axis, .. } => {
                 cylinders += 1;

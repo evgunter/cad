@@ -376,11 +376,7 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
     let gap = topo::EdgeInFaceGap::SplineFace;
     match topo::union(&cyl, &brick, tol) {
         Err(BooleanError::EdgeInFace { edge, face, gap: g }) if g == gap => {
-            let kind = |f: topo::FaceKey| {
-                cyl.get_face(f)
-                    .and_then(|d| cyl.get_surface(d.surface))
-                    .map(geom::Surface::kind)
-            };
+            let kind = |f: topo::FaceKey| cyl.face_surface(f).map(geom::Surface::kind);
             let sides = topo::readback::edge_sides(&cyl, edge).expect("the edge is the cylinder's");
             let (fa, fb) = sides.faces();
             let mut own = [kind(fa), kind(fb)];
@@ -399,9 +395,7 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
                 kind(face) == Some(SurfaceKind::Nurbs) && face != fa && face != fb,
                 "the face is the cylinder's other spline wall"
             );
-            let e = cyl.get_edge(edge).expect("the arc");
-            let start = |h| cyl.get_half_edge(h).expect("its half-edge").start;
-            let (a, b) = (start(e.he_plus), start(e.he_minus));
+            let (a, b) = cyl.edge_vertices(edge).expect("the arc");
             let of = |v| cyl.faces_of_vertex(v).unwrap_or_default();
             assert!(
                 of(a).contains(&face) && of(b).contains(&face),

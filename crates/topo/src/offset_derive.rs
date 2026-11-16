@@ -26,6 +26,7 @@ use geom_brep::SectionReading;
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
+use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
 
 use crate::SurfaceKey;
 use geom_core::k_stats::decide;
@@ -45,6 +46,10 @@ pub enum SectionVerdict {
     /// The section has no branch near the edge: the moved surface no
     /// longer meets the neighbour there.
     NoBranch,
+    /// Two branches of the section are decided equally near the edge: a
+    /// precision limit (row 1), whose lever is `offset_section_branch`'s
+    /// distance between them.
+    BranchesTied,
     /// The section near the edge is a tangency, which is classification
     /// data rather than a curve an edge can carry.
     Tangent,
@@ -87,6 +92,9 @@ impl SectionVerdict {
                  trace's seed): {e}"
             ),
             Self::NoBranch => f.write_str("the moved surface no longer meets the neighbour there"),
+            Self::BranchesTied => {
+                f.write_str("two branches of the section lie equally near the edge")
+            }
             Self::Tangent => f.write_str("the moved surface only touches the neighbour there"),
             Self::Corner { corner } => write!(
                 f,
@@ -347,7 +355,7 @@ impl<T: Real> SectionLane<T> {
 }
 
 /// `value` metres decided zero at `band`.
-fn zero<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
+fn zero_as<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
     Ok(matches!(decide(name, Margin::of(value), band)?, Sign::Zero))
 }
 
@@ -385,16 +393,16 @@ pub(crate) fn holds_the_move<T: Decide>(
     d: T,
     band: Band,
 ) -> bool {
-    let zero = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let reach = d.abs();
     let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * reach;
     let through = |q: Point3<T>, m: Vec3<T>, p: Point3<T>| (q - p).dot(m);
     match (moved, held) {
         (Surface::Plane { normal, .. }, Surface::Plane { normal: m, .. }) => {
-            zero("offset_holds_plane_plane", normal.dot(*m) * reach)
+            zero_as("offset_holds_plane_plane", normal.dot(*m) * reach)
         }
         (Surface::Plane { normal, .. }, Surface::Cylinder { axis, .. }) => {
-            zero("offset_holds_plane_cylinder", across(*normal, *axis))
+            zero_as("offset_holds_plane_cylinder", across(*normal, *axis))
         }
         (Surface::Plane { normal, .. }, Surface::Nurbs(wall)) => {
             translates_along(wall, *normal, reach, band)
@@ -407,9 +415,9 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_cylinder_across", across(*m, *axis))
-                || (zero("offset_holds_cylinder_along", m.dot(*axis) * reach)
-                    && zero("offset_holds_cylinder_axis", through(*q, *m, *origin)))
+            zero_as("offset_holds_cylinder_across", across(*m, *axis))
+                || (zero_as("offset_holds_cylinder_along", m.dot(*axis) * reach)
+                    && zero_as("offset_holds_cylinder_axis", through(*q, *m, *origin)))
         }
         (
             Surface::Sphere { center, .. },
@@ -418,7 +426,7 @@ pub(crate) fn holds_the_move<T: Decide>(
                 normal: m,
                 ..
             },
-        ) => zero("offset_holds_sphere_centre", through(*q, *m, *center)),
+        ) => zero_as("offset_holds_sphere_centre", through(*q, *m, *center)),
         (
             Surface::Cone { apex, axis, .. },
             Surface::Plane {
@@ -427,8 +435,8 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_cone_along", m.dot(*axis) * reach)
-                && zero("offset_holds_cone_axis", through(*q, *m, *apex))
+            zero_as("offset_holds_cone_along", m.dot(*axis) * reach)
+                && zero_as("offset_holds_cone_axis", through(*q, *m, *apex))
         }
         (
             Surface::Torus { center, axis, .. },
@@ -438,9 +446,9 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_torus_centre", through(*q, *m, *center))
-                && (zero("offset_holds_torus_along", m.dot(*axis) * reach)
-                    || zero("offset_holds_torus_across", across(*m, *axis)))
+            zero_as("offset_holds_torus_centre", through(*q, *m, *center))
+                && (zero_as("offset_holds_torus_along", m.dot(*axis) * reach)
+                    || zero_as("offset_holds_torus_across", across(*m, *axis)))
         }
         (Surface::Nurbs(_) | Surface::Approx(_), Surface::Plane { normal: m, .. }) => {
             match (moved.spline_chart(), row) {
@@ -486,16 +494,16 @@ fn normal_in_plane_along<T: Decide>(
             &transposed
         }
     };
-    let zero = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let (nu, nv) = net.control_counts();
     if nu < 2 {
         return false;
     }
     let (a0, a1) = net.knot_values_u().domain();
     // The boundary row and the one next in from it.
-    let (first, second) = if zero("offset_holds_row_at_start", at - a0) {
+    let (first, second) = if zero_as("offset_holds_row_at_start", at - a0) {
         (0, 1)
-    } else if zero("offset_holds_row_at_end", at - a1) {
+    } else if zero_as("offset_holds_row_at_end", at - a1) {
         (nu - 1, nu - 2)
     } else {
         return false;
@@ -511,8 +519,8 @@ fn normal_in_plane_along<T: Decide>(
             let step = *p1 - *p0;
             let length = step.norm();
             if w0 != w1
-                || zero("offset_holds_row_step", length)
-                || !zero(
+                || zero_as("offset_holds_row_step", length)
+                || !zero_as(
                     "offset_holds_row_direction",
                     step.cross(m).norm() * reach / length,
                 )
@@ -532,7 +540,7 @@ fn normal_in_plane_along<T: Decide>(
 /// point are one list, parallel to `n`, and the weights do not vary
 /// along it.
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
-    let zero = |name, value| held_zero(name, value, band);
+    let zero_as = |name, value| held_zero_as(name, value, band);
     let (nu, nv) = wall.control_counts();
     let (ctl, w) = (wall.control(), wall.weights_f64_interim());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
@@ -547,8 +555,8 @@ fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, ban
                 let first = ctl[at(0, j)] - ctl[at(0, 0)];
                 // The step's direction off `n`, levered by the move.
                 let off = step.cross(n).norm() * reach / step.norm();
-                if !zero("offset_holds_wall_step", (step - first).norm())
-                    || !zero("offset_holds_wall_direction", off)
+                if !zero_as("offset_holds_wall_step", (step - first).norm())
+                    || !zero_as("offset_holds_wall_direction", off)
                 {
                     return false;
                 }
@@ -562,7 +570,7 @@ fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, ban
 /// `value` metres decided zero at `band`, for a hold: anything short
 /// of a decided zero, an undecided margin included, does not hold
 /// ([`holds_the_move`]).
-fn held_zero<T: Decide>(name: &'static str, value: T, band: Band) -> bool {
+fn held_zero_as<T: Decide>(name: &'static str, value: T, band: Band) -> bool {
     matches!(decide(name, Margin::of(value), band), Ok(Sign::Zero))
 }
 
@@ -574,7 +582,7 @@ fn running_with<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
-    let half = (t0 + t1) * T::from_f64(0.5);
+    let half = geom::mid_param(t0, t1);
     let (mid, tangent) = old.ders1(half);
     let Some(at) = candidate.param_near(mid, T::zero()) else {
         return Ok(Err(SectionVerdict::Unsupported {
@@ -596,8 +604,10 @@ fn running_with<T: Decide>(
     )
 }
 
-/// Of `candidates`, the one passing nearest the old carrier's middle;
-/// a tie inside the band is refused rather than picked.
+/// Of `candidates`, the one passing nearest the old carrier's middle
+/// ([`argmin_decided`], free of nothing): two left in contention refuse,
+/// a decided tie as [`SectionVerdict::BranchesTied`] and an in-band pair
+/// on its margin.
 fn nearest<T: Decide>(
     candidates: Vec<Curve3<T>>,
     old: &Curve3<T>,
@@ -609,27 +619,31 @@ fn nearest<T: Decide>(
     // angle alone reads an ellipse's point up to `(1 + a/b)` times
     // farther off. A carrier with no closed-form parameter is refused.
     let reach = |c: &Curve3<T>| c.param_near(mid, T::zero()).map(|t| c.foot(mid, t).gap());
-    let mut best: Option<(Curve3<T>, T)> = None;
+    let mut reached = Vec::with_capacity(candidates.len());
     for c in candidates {
         let Some(r) = reach(&c) else {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "a closed-form section whose carrier has no closed-form parameter",
             }));
         };
-        best = match best {
-            None => Some((c, r)),
-            Some((b, rb)) => match decide("offset_section_branch", Margin::of(rb - r), band)? {
-                Sign::Positive => Some((c, r)),
-                Sign::Negative => Some((b, rb)),
-                Sign::Zero => {
-                    return Ok(Err(SectionVerdict::Unsupported {
-                        what: "two branches of the section lie equally near the edge",
-                    }));
-                }
-            },
-        };
+        reached.push((c, r));
     }
-    Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch))
+    let cmp = |a: &(Curve3<T>, T), b: &(Curve3<T>, T)| {
+        decide("offset_section_branch", Margin::of(a.1 - b.1), band).map_err(Undecided::of)
+    };
+    match argmin_decided(reached, cmp, FreeOf::Nothing) {
+        Ok(best) => Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch)),
+        Err(Unpicked::Contested { in_band: None, .. }) => Ok(Err(SectionVerdict::BranchesTied)),
+        // One scalar's difference ranks in no cycle.
+        Err(Unpicked::Cyclic) => unreachable!("a branch's reach ranks in no cycle"),
+        Err(
+            Unpicked::Contested {
+                in_band: Some(diag),
+                ..
+            }
+            | Unpicked::Aborted(diag),
+        ) => Err(diag),
+    }
 }
 
 /// **The closed-form section** of the moved analytic surface `new` and
@@ -653,8 +667,8 @@ fn nearest<T: Decide>(
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
-    old: &Curve3<T>,
-    span: (T, T),
+    (old, span): (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
@@ -696,36 +710,27 @@ pub(crate) fn section_closed<T: Decide>(
             }));
         }
     };
-    // The old edge's span, which the plane×cylinder and plane×cone arms
-    // read the pose over, as `route_pose` did. A line pair through a
-    // cone's apex is read again over the new edge's span once its ends
-    // are known (`replace_face`'s `pair_over_its_span`).
-    let span_reach = || geom_brep::Reach::Span {
-        carrier: old.clone(),
-        t0: span.0,
-        t1: span.1,
-    };
+    // `region` is the old edge's, which the plane×cylinder and
+    // plane×cone arms read the pose over, as `route_pose` did. A line
+    // pair through a cone's apex is read again over the new edge's span
+    // once its ends are known (`replace_face`'s `pair_over_its_span`).
     let candidates: Vec<Curve3<T>> = match other {
         Surface::Plane { .. } => match plane_plane(plane, other, old, span, extent, band)? {
             Ok(line) => vec![line],
             Err(v) => return Ok(Err(v)),
         },
-        Surface::Cylinder { .. } => {
-            match c5::plane_cylinder_section(plane, other, &span_reach(), band) {
-                Ok(
-                    c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c),
-                ) => {
-                    vec![c]
-                }
-                Ok(c5::PlaneCylinderSection::ParallelLines { l1, l2 }) => vec![l1, l2],
-                Ok(c5::PlaneCylinderSection::TangentLine(_)) => {
-                    return Ok(Err(SectionVerdict::Tangent));
-                }
-                Ok(c5::PlaneCylinderSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
-                Err(e) => return closed(e),
+        Surface::Cylinder { .. } => match c5::plane_cylinder_section(plane, other, region, band) {
+            Ok(c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c)) => {
+                vec![c]
             }
-        }
-        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, &span_reach(), band) {
+            Ok(c5::PlaneCylinderSection::ParallelLines { l1, l2 }) => vec![l1, l2],
+            Ok(c5::PlaneCylinderSection::TangentLine(_)) => {
+                return Ok(Err(SectionVerdict::Tangent));
+            }
+            Ok(c5::PlaneCylinderSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+            Err(e) => return closed(e),
+        },
+        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, region, band) {
             Ok(c5::PlaneConeSection::ApexLinePair { l1, l2 }) => vec![l1, l2],
             Ok(
                 c5::PlaneConeSection::AxisNormalCircle(c) | c5::PlaneConeSection::TiltedEllipse(c),
@@ -893,7 +898,7 @@ pub(crate) fn analytic_root<T: Decide>(
     let (p, d) = carrier.ders1(t);
     let g = geom_brep::implicit_gradient(surface, p);
     let gap = geom_brep::implicit_residual(surface, p).abs() / g.norm();
-    if !zero("offset_corner_on_surface", gap, band)? {
+    if !zero_as("offset_corner_on_surface", gap, band)? {
         return Ok(Err(CornerVerdict::NoRoot));
     }
     let sine = g.dot(d) / (g.norm() * d.norm());
@@ -927,7 +932,7 @@ fn plane_wall_section<'w, 's>(
         unreachable!("the spline lane is handed a plane")
     };
     let mid = old.mid_point(t0, t1);
-    let tangent = old.deriv(0.5 * (t0 + t1));
+    let tangent = old.deriv(geom::mid_param(t0, t1));
     let carrier = match level_row(wall, origin, normal, extent, band)? {
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
@@ -1043,7 +1048,7 @@ fn pair_section<'w, 's>(
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
-    let tangent = old.deriv(0.5 * (t0 + t1));
+    let tangent = old.deriv(geom::mid_param(t0, t1));
     // The rectangles bound the search; the window a plane would need
     // is the extent about the middle, and bounds nothing here.
     let domain = SsiDomain {
@@ -1108,7 +1113,7 @@ fn level_row(
         for j in 0..nv {
             let h0 = (ctl[j] - origin).dot(normal);
             for i in 1..nu {
-                if !zero(
+                if !zero_as(
                     "offset_section_level_row",
                     (ctl[i * nv + j] - origin).dot(normal) - h0,
                     band,
@@ -1198,7 +1203,7 @@ fn bisect(
     let (mut a, mut b) = bracket;
     let fa = phi(a);
     for _ in 0..64 {
-        let m = 0.5 * (a + b);
+        let m = geom::mid_param(a, b);
         if m <= a || m >= b {
             break;
         }
@@ -1267,7 +1272,7 @@ fn plane_spline_root(
     };
     let near = |r: &&geom_brep::ssi::SectionRoot| {
         let (a, b) = r.bracket;
-        (0.5 * (a + b) - seed).abs()
+        (geom::mid_param(a, b) - seed).abs()
     };
     if let Some(root) = roots.iter().min_by(|a, b| near(a).total_cmp(&near(b))) {
         return Ok(SplineRoot::At(bisect(
@@ -1522,11 +1527,7 @@ mod square {
                 holds_the_move(&moved, &held, None, 0.1, band),
                 "{name}: holds"
             );
-            let reach = geom_brep::Reach::Span {
-                carrier: carrier.clone(),
-                t0,
-                t1,
-            };
+            let reach = geom_brep::Reach::of_span(&carrier, (t0, t1)).expect("the span is covered");
             let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
                 .expect("the pose is decided");
             assert!(route.implemented, "{name}: {}", route.note);

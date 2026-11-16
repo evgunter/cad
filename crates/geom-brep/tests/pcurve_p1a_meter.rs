@@ -204,12 +204,11 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     assert!(
         matches!(
             &err,
-            CertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Sphere,
-                carrier: geom::CurveKind::Ellipse,
-                why: "the carrier's points are not at the sphere's radius from its centre",
-                margin: Some(geom_brep::OffMargin::Past(m)),
-            } if (m.diagnostic_f64_for_error_text().value().unwrap_or(f64::NAN) - (2f64.sqrt() - 1.0)).abs() < 1e-12
+            CertifyError::Incidence(r)
+                if r.kinds() == Some((geom::SurfaceKind::Sphere, geom::CurveKind::Ellipse))
+                    && r.why() == Some("the carrier's points are not at the sphere's radius from its centre")
+                    && matches!(r.read(), geom_brep::IncidenceRead::Off(Some(m))
+                        if (m.diagnostic_f64_for_error_text().value().unwrap_or(f64::NAN) - (2f64.sqrt() - 1.0)).abs() < 1e-12)
         ),
         "the refusal must name the (chart, carrier) pair it could not state, and its miss: {err:?}"
     );

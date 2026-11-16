@@ -36,12 +36,8 @@ pub(crate) fn beside_raw(
     by: Vec3<f64>,
 ) -> (Body<f64>, SolidKey) {
     let mut out = body.clone();
-    let placed = topo::transform_rigid(
-        other,
-        &geom_core::RigidMotion::translation(by).unwrap(),
-        tol(),
-    )
-    .expect("a rigid map");
+    let placed = topo::transform_rigid(other, &geom_core::RigidMotion::translation(by).unwrap())
+        .expect("a rigid map");
     let key = topo::graft_disjoint(&mut out, &placed).expect("the placed copy grafts");
     (out, key)
 }
@@ -100,7 +96,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             "face sense={} rings={} surface={:?}",
             d.sense,
             d.rings.len(),
-            body.get_surface(d.surface)
+            body.face_surface(f)
         ));
     }
     for (k, e) in body.edges() {
@@ -159,7 +155,7 @@ pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64
     let data = body.get_shell(shell).unwrap();
     for &face in &data.faces {
         let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
             continue;
         };
         if normal.cross(axis).norm() > 1e-9 {
@@ -186,7 +182,7 @@ pub(crate) fn wearers(body: &Body<f64>, solid: SolidKey, chart: topo::SurfaceKey
 pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKey> {
     for face in faces_of(body, solid) {
         let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
             continue;
         };
         if normal.x.abs() > 1e-9 || normal.y.abs() > 1e-9 || (origin.z - z).abs() > 1e-9 {

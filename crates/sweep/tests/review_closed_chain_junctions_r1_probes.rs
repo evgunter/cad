@@ -51,9 +51,8 @@ fn corner_fill(big_r: f64, rho: f64, inward: bool) -> f64 {
 /// An edge's two end vertices, read off the BODY (`he_plus` start and
 /// end), not off any link record.
 fn body_ends(body: &Body<f64>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    let ed = body.get_edge(e).unwrap();
-    let s = body.get_half_edge(ed.he_plus).unwrap().start;
-    let t = body.half_edge_end(ed.he_plus).unwrap();
+    let _ = body.get_edge(e).unwrap();
+    let (s, t) = body.edge_vertices(e).unwrap();
     (s, t)
 }
 
@@ -397,8 +396,9 @@ fn rounded_square(a: f64, c: f64) -> Body<f64> {
 
 /// **Closed rims whose links are lines AND arcs** — the stadium's
 /// four-link rim and the rounded square's eight-link rim — pair by
-/// the body's incidence in every request order; and what the public
-/// door says about them is recorded.
+/// the body's incidence in every request order, and the public door
+/// fillets them whole: every line-into-arc junction is judged between
+/// the two links that meet there, and the bands share its section.
 #[test]
 fn r1_mixed_line_and_arc_closed_rims_pair_by_the_bodys_incidence() {
     for (name, body, n) in [
@@ -414,24 +414,17 @@ fn r1_mixed_line_and_arc_closed_rims_pair_by_the_bodys_incidence() {
             assert_eq!(chains[0].junctions.len(), n, "{name}");
             assert_pairing_is_the_bodys(&body, &order, &chains, name);
         }
-        // The door refuses the mixed rim as a chain it has no band for
-        // (measured: `UnsupportedChain`, "a closed chain's blend is not
-        // a torus") — and NOT as `ChainNotG1`: the pairing judged every
-        // line-into-arc junction between the two links that meet there.
-        match fillet_edges(
+        let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &rim,
             RHO,
             tol(),
-        ) {
-            Err(BlendRefusal {
-                error: BlendError::UnsupportedChain { .. },
-                ..
-            }) => {}
-            other => panic!(
-                "{name}: the mixed rim refuses at the door, not at a junction; got {other:?}"
-            ),
-        }
+        )
+        .unwrap_or_else(|e| panic!("{name}: the mixed rim fillets whole, got {e:?}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{name}: tier 3: {e:?}"));
+        let rec = out.naming.as_ref().expect("the carve's records");
+        assert_eq!(rec.blends.len(), n, "{name}: one band face per link");
+        assert_eq!(rec.sections.len(), n, "{name}: one section per junction");
     }
 }
 
@@ -545,11 +538,9 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
         );
         assert_eq!(chains[0].junctions.len(), open.len() - 1, "{name}");
         assert_pairing_is_the_bodys(&body, &open, &chains, name);
-        // Measured: the door refuses at an END of the chain as a corner
-        // it cannot classify (`UnsupportedCorner`, run-out policy named)
-        // — never at a junction — so no open chain with a junction
-        // carves today, which is the PR's premise for narrowing the
-        // open-chain acceptance to a pairing pin.
+        // The request stops part way along the smooth outline, so the
+        // door refuses at an END of the chain as a tangent run requested
+        // in part — never at a junction.
         let ends = match chains[0].closure {
             ChainClosure::Open { head, tail } => [head, tail],
             ChainClosure::Closed => unreachable!(),
@@ -561,11 +552,15 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
             tol(),
         ) {
             Err(BlendRefusal {
-                error: BlendError::UnsupportedCorner { vertex, .. },
+                error:
+                    BlendError::UnsupportedRunOut {
+                        at: topo::EntityId::Vertex(vertex),
+                        detail,
+                    },
                 ..
             }) => assert!(
-                ends.contains(&vertex),
-                "{name}: refused at an end, not a junction"
+                ends.contains(&vertex) && detail == sweep::blend::battery::PARTIAL_TANGENT_RUN,
+                "{name}: refused at an end as a tangent run requested in part, not at a junction"
             ),
             other => panic!("{name}: the open chain refuses at its run-out, got {other:?}"),
         }

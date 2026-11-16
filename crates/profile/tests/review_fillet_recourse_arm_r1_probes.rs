@@ -278,6 +278,7 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
                 align,
                 lever,
                 lever_of,
+                corner,
             },
         ..
     } = zero
@@ -285,6 +286,18 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         panic!("expected the turn-within-tolerance reason, got {zero:?}")
     };
     assert_eq!(lever_of, TurnLever::ShorterLeg, "the arc door's lever");
+    // The arc door derives the corner before its turn gate, and names
+    // it: the ray's crossing with the circle, ahead of its start.
+    let y = 2.0_f64 - 1e-4;
+    let ahead = Point2::new(-(4.0 - y * y).sqrt(), y);
+    assert!(
+        corner.is_some_and(|at| at.distance(ahead) < 1e-9),
+        "the corner whose turn it is: {corner:?}"
+    );
+    assert!(
+        zero.to_string().contains("its turn at corner ("),
+        "the sentence names it: {zero}"
+    );
     // At y = 2 − δ on the radius-2 circle the tangent leans off the
     // reversed ray by sin θ = √(4δ − δ²) / 2.
     let sin_theta = (4.0e-4_f64 - 1.0e-8).sqrt() / 2.0;

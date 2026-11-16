@@ -87,11 +87,13 @@ const CHAIN: [Stretch; 6] = [
         source: include_str!("../src/replace_face.rs"),
         sentinels: None,
         eps_reads: 1,
-        eps_reads_are: "one DECIDE margin, `offset_vertex_agreement` in `gap_within_eps`, which \
-                        every coincidence the door decides calls (the corners' pairwise \
-                        agreement, a carrier end standing in for a root, an edge read at its \
-                        corners, an untouched edge read at a moved corner) — a coincidence \
-                        threshold in metres, which is ε by its own right and not the fit target",
+        eps_reads_are: "one DECIDE margin, `offset_vertex_agreement` in \
+                        `gap_within_eps_margin`, which every coincidence the door decides \
+                        reads, through `gap_within_eps` for one gap and `gaps_apart` for every \
+                        gap of a set (the corners' pairwise agreement, a carrier end standing \
+                        in for a root, an edge read at its corners, an untouched edge read at \
+                        a moved corner) — a coincidence threshold in metres, which is ε by \
+                        its own right and not the fit target",
     },
     Stretch {
         file: "crates/topo/src/offset_axial.rs",
@@ -173,21 +175,39 @@ fn no_signature_on_the_shell_chain_takes_an_f64_tolerance() {
     for stretch in &CHAIN {
         let mut hits: Vec<String> = Vec::new();
         let (region, first_line) = stretch.region();
-        let code = test_utils::source::code_only(region);
-        // Which `fn` the current line belongs to, so a numeric-target
-        // routine's own signature can be exempted by NAME rather than
-        // by hoping it does not look like a door's.
-        let mut in_instrument = false;
+        // The routines whose head and body are a numeric-target
+        // instrument's, by NAME, as whole-file extents from the `fn`
+        // keyword to the close of the body (`test_utils::source::fn_items`,
+        // the shared walk): a line is the instrument's when it falls in
+        // one, so an item's extent decides it rather than the nearest
+        // `fn` line above, which a closure, a nested `fn` or the next
+        // item's doc block would mislead. Walked over the whole file,
+        // since a sentinel region may cut an item in two.
+        let whole = test_utils::source::code_only(stretch.source);
+        let instruments: Vec<std::ops::Range<usize>> = test_utils::source::fn_items(&whole)
+            .unwrap_or_else(|why| panic!("{}: {why}", stretch.file))
+            .into_iter()
+            .filter(|(name, _)| name.ends_with("_at"))
+            .map(|(name, body)| {
+                let head = whole[..body.start]
+                    .rfind(&format!("fn {name}"))
+                    .expect("an item's head precedes its body");
+                head..body.end
+            })
+            .collect();
+        // The region is a slice of the source: its offset is exact.
+        let region_start = region.as_ptr() as usize - stretch.source.as_ptr() as usize;
+        let code = &whole[region_start..region_start + region.len()];
+        let mut offset = region_start;
         for (n, line) in code.lines().enumerate() {
-            if let Some(rest) = line.split_once("fn ") {
-                let name: String = rest
-                    .1
-                    .chars()
-                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                    .collect();
-                in_instrument = name.ends_with("_at");
-            }
-            if in_instrument {
+            // A line is the instrument's when it overlaps one: a head
+            // line starts before its `fn` (`pub fn x_at(`).
+            let span = offset..offset + line.len();
+            offset += line.len() + 1;
+            if instruments
+                .iter()
+                .any(|item| item.start < span.end.max(span.start + 1) && span.start < item.end)
+            {
                 continue;
             }
             // Every `ident: f64` on the line, at any position.

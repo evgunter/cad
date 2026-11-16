@@ -154,11 +154,8 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
             .filter(|edges: &Vec<_>| edges.len() == 2)
             .collect();
         let ends = |e: topo::EdgeKey| {
-            let he = walls.get_edge(e).unwrap().he_plus;
-            let mut v = [
-                walls.get_half_edge(he).unwrap().start,
-                walls.half_edge_end(he).unwrap(),
-            ];
+            let (v0, v1) = walls.edge_vertices(e).unwrap();
+            let mut v = [v0, v1];
             v.sort();
             v
         };

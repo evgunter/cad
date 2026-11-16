@@ -29,9 +29,9 @@ use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, face)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
             )
         })
@@ -135,8 +135,8 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     )
     .expect("builds")
     .body;
-    for (_, face) in body.faces() {
-        if let Some(s @ Surface::Nurbs(p)) = body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        if let Some(s @ Surface::Nurbs(p)) = body.face_surface(fk) {
             if p.is_placeholder() {
                 continue;
             }
@@ -168,9 +168,7 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     .expect("builds")
     .body;
     let wall = nurbs_wall(&body2);
-    let s = body2
-        .get_surface(body2.get_face(wall).unwrap().surface)
-        .unwrap();
+    let s = body2.face_surface(wall).unwrap();
     sample_check("BOWED", s);
 }
 

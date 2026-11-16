@@ -1016,9 +1016,11 @@ mod tests {
             "from_cols_array reads columns"
         );
         let [c0, c1, c2] = m.cols();
-        assert_eq!(
-            [c0.to_array(), c1.to_array(), c2.to_array()],
-            stored,
+        assert!(
+            [c0, c1, c2]
+                .iter()
+                .zip(stored)
+                .all(|(c, s)| c.equals_exactly(Vec3::from_array(s))),
             "cols order"
         );
         assert_eq!(

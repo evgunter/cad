@@ -34,8 +34,8 @@ fn donut() -> sweep::Revolved<f64> {
 /// orientation, so the fan set is a closed polyhedron).
 fn fan_at(body: &Body<f64>, o: Point3<f64>) -> f64 {
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -50,9 +50,9 @@ fn fan_at(body: &Body<f64>, o: Point3<f64>) -> f64 {
 /// looked at directly instead of through its sum.
 fn fan_per_face(body: &Body<f64>, o: Point3<f64>) -> Vec<(topo::FaceKey, f64)> {
     let mut out = Vec::new();
-    for (fk, face) in body.faces() {
+    for (fk, _) in body.faces() {
         let mut six_v = 0.0;
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -354,8 +354,8 @@ fn r1_sweeps_the_revolve_fixtures_for_more_structural_zeros() {
         let near = fan_at(&t.body, o);
         // Body scale, for a relative floor: the bbox of its probes.
         let mut d2: f64 = 0.0;
-        for (_, face) in t.body.faces() {
-            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (fk, _) in t.body.faces() {
+            for (lk, _, _) in t.body.face(fk).expect("a live face").loops() {
                 for p in loop_probe_points(&t.body, lk) {
                     d2 = d2.max((p - o).dot(p - o));
                 }

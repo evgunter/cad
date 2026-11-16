@@ -2,16 +2,6 @@
 //! [`geom_brep::enters_material`] (F3), nothing sign-copied; the
 //! derivation is this module's docs.
 //!
-//! **[`face_extent`] is not one of those rules, and this is not its
-//! home.** It is the `Margin::levered` lever arm for the
-//! coplanarity/sense predicates, and two of its four callers are
-//! outside this module (`chord_join`'s section chooser, twice) — a
-//! shared core hosted inside one of its consumers. **That cost has already shown once**: the
-//! function's error contract was extended, documented on the function,
-//! and discarded by both outside callers, which `map_err` it into
-//! their own refusals. Named here rather than moved; moving it is a
-//! placement decision with its own callers to re-audit.
-//!
 //! # Rule (a) — coplanar sectors, derived
 //!
 //! A sector whose face lies in the split plane belongs to the closure
@@ -43,9 +33,9 @@
 //!
 //! After rule (a), a remaining ON entry is an edge in the plane whose
 //! flanking sectors are not coplanar; its cyclic neighbour entries are
-//! never ON. (A `WideBisector` duplicate whose bisector lies exactly in
-//! the plane also arrives here as On, as the book stores duplicates
-//! indistinguishably in the same array.) The entry goes where the
+//! never ON. (A divider the star cut a corner at arrives here as On only
+//! where its descended side rides the plane, and goes with its corner's
+//! bounds.) The entry goes where the
 //! material at the edge goes, and two facts decide that: the side `S`
 //! of its two neighbours, which are directions into the two flanking
 //! faces, and the edge's wedge (`edge_wedge`): whether the two faces
@@ -162,17 +152,18 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign};
 
-use super::neighborhood::{chord, sector_face};
 use super::{
-    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane,
-    SplitReduceError, TangencyReadings,
+    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorReading, SplitPlane, SplitReduceError,
+    TangencyReadings,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{BoundaryMember, Proven, proven};
-use crate::sector_face::{ConeApex, VertexFace};
+use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::face_reach::{UncoveredFace, face_extent};
+use crate::live::{Proven, proven};
+use crate::sector_face::{ConeApex, SectorCarrier};
+use crate::star::{Bound, Star, StarFace};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -189,35 +180,35 @@ use crate::validate::decide;
 /// tangency again. A wall that bends away from its material is a knife
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 ///
-/// A wall's rows read its face extent over its edges' spans alone,
-/// while the split's chords through the same wall read the agreed
-/// section (`chord_join::agreed_section`), so a sector read grazed here
-/// can still escalate at its chord.
+/// A wall's rows read its face extent off its cover, as the split's
+/// chords through the same wall do (`chord_join::wall_face_section`).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
-    vertex: VertexKey,
-    entries: &mut [SectorEntry],
-    rays: &[Vec3<T>],
+    star: &Star<T>,
+    classes: &mut [PlaneSide],
     band: Band,
 ) -> Result<Vec<WallReading<T>>, SplitReduceError> {
-    let n = entries.len();
+    let vertex = star.vertex;
+    let n = classes.len();
     let mut readings = Vec::with_capacity(n);
     // The edges lying in the plane, as classified before this rule
     // rewrites any entry: where a knife edge's contact runs.
-    let in_plane: Vec<bool> = entries
+    let in_plane: Vec<bool> = classes
         .iter()
-        .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
+        .zip(&star.bounds)
+        .map(|(&c, b)| c == PlaneSide::On && b.real)
         .collect();
     for k in 0..n {
-        let (face, at_vertex, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        let sector = &star.sectors[k];
+        let (face, is_plane) = (sector.face, sector.carrier == SectorCarrier::Plane);
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
             reading,
         };
         let sliver = |diag| refuse(SectorReading::Escalated(diag));
-        let extent = face_extent(body, vertex, face)?;
+        let extent = face_extent(body, vertex, face, band)?;
         // Distinct K name from the shared sector rungs' `sector_arm`
         // (the shorter-chord arm): this margin is the FACE extent.
         // Still lane-prefixed, and correctly so — the boolean lane has
@@ -242,15 +233,15 @@ pub(super) fn apply_rule_a<T: Decide>(
             [k, (k + 1) % n]
                 .into_iter()
                 .filter(|&j| in_plane[j])
-                .map(|j| proven(&body.half_edges, entries[j].he, EntityId::HalfEdge).edge)
+                .map(|j| proven(&body.half_edges, star.bounds[j].he, EntityId::HalfEdge).edge)
                 .find(|&e| straight(body, e))
                 .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge)
         };
-        let n_face = match at_vertex {
-            VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => n_face,
-            VertexFace::Apex(apex) => {
-                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
-                    .map_err(sliver)?;
+        let n_face = match sector.at {
+            StarFace::Tangent(n_face) => n_face,
+            StarFace::Apex(apex) => {
+                let bounds = [&star.bounds[k], star.start(k)];
+                let reading = apex_reading(plane, &apex, bounds, band).map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {
@@ -363,22 +354,22 @@ pub(super) fn apply_rule_a<T: Decide>(
         // parallel ([`Parallel::material_side`]).
         let (class, _) = parallel.material_side().map_err(sliver)?;
         readings.push(WallReading::InPlane);
-        entries[k].class = class;
-        entries[(k + 1) % n].class = class;
+        classes[k] = class;
+        classes[(k + 1) % n] = class;
     }
     Ok(readings)
 }
 
-/// Rule (a) at a cone's apex, for the sub-sector between the entry rays
-/// `bounds`: an edge's chord, or an extremal ruling the walk subdivided
-/// at (`neighborhood::wide_entries`, the apex lane's own). A cone is
-/// never coplanar with the plane, and the apex has no tangent plane: the
-/// plane grazes the face along a ruling where the face's side is
-/// extremal, and every such ruling is an entry's ray. At an extremal
-/// ruling `g` the plane's normal has no component round the axis, so the
-/// sine between it and the outward normal along `g` is `|n·ĝ|`, the
-/// quantity the walk read the entry's side by, levered at the same reach
-/// (the ray's length). So the sub-sector is grazed where the outward
+/// Rule (a) at a cone's apex, for the sub-sector between the star's
+/// `bounds`: an edge, or a ruling the star cut the corner at (its halving
+/// or quarters, or an extremal ruling of the plane, `Star::refine`). A
+/// cone is never coplanar with the plane, and the apex has no tangent
+/// plane: the plane grazes the face along a ruling where the face's side
+/// is extremal, and every such ruling is a bound. At an extremal ruling
+/// `g` the plane's normal has no component round the axis, so the sine
+/// between it and the outward normal along `g` is `|n·ĝ|`, the quantity
+/// the split read the bound's side by, levered at the same reach (the
+/// bound's). So the sub-sector is grazed where the outward
 /// normal along either bounding ray is parallel to the plane's at that
 /// ray's reach (`split_sector_coplanar`) — where the walk read that
 /// entry On — and otherwise clear. The two are not one predicate: the
@@ -392,15 +383,15 @@ pub(super) fn apply_rule_a<T: Decide>(
 fn apex_reading<T: Decide>(
     plane: &SplitPlane<T>,
     apex: &ConeApex<T>,
-    bounds: [Vec3<T>; 2],
+    bounds: [&Bound<T>; 2],
     band: Band,
 ) -> Result<WallReading<T>, Indeterminate> {
-    let [first, second] = bounds.map(|ray| {
+    let [first, second] = bounds.map(|bound| {
         geom_brep::normal_alignment(
             "split_sector_coplanar",
             plane.normal.get(),
-            apex.normal_along(ray),
-            crate::boolean::sectors::departure_arm_lever(ray),
+            apex.normal_along(bound.dir),
+            bound.reach.lever(),
             band,
         )
     });
@@ -441,7 +432,7 @@ impl<T: Decide> ParallelFace<T> {
     ///
     /// Exactly one of the two vectors carries an orientation (S10), and
     /// the types say which. The face's normal is its outward normal,
-    /// minted from chart × sense in `neighborhood::sector_face`, so the
+    /// minted from chart × sense in `crate::sector_face::resolve`, so the
     /// verdict inverts on a reversed face. The split plane's normal
     /// DEFINES the Above/Below convention and carries no sense to thread,
     /// so it travels as a bare vector in the `dir` slot.
@@ -472,45 +463,51 @@ fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
 /// (a)'s per-entry report of what it read of each face.
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
-    vertex: VertexKey,
-    entries: &mut [SectorEntry],
+    star: &Star<T>,
+    (classes, unresolved): (&mut [PlaneSide], &[bool]),
     readings: &[WallReading<T>],
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let n = entries.len();
+    let vertex = star.vertex;
+    let n = classes.len();
     for k in 0..n {
-        if entries[k].class == PlaneSide::On && entries[(k + 1) % n].class == PlaneSide::On {
+        if classes[k] == PlaneSide::On && classes[(k + 1) % n] == PlaneSide::On {
             return Err(SplitReduceError::ConsecutiveOnSectors { vertex });
         }
     }
     for k in 0..n {
-        if entries[k].class != PlaneSide::On {
+        if classes[k] != PlaneSide::On {
             continue;
         }
         let k_prev = (k + n - 1) % n;
-        let prev = entries[k_prev];
-        let next = entries[(k + 1) % n].class;
-        entries[k].class = match (prev.class, next) {
+        let (prev, next) = (classes[k_prev], classes[(k + 1) % n]);
+        classes[k] = match (prev, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                // A duplicate stands inside one face's sector, with no
-                // edge to read: its own sub-sector's wall reading decides,
-                // as both faces' walls do at a smooth edge.
-                match entries[k].kind {
-                    SectorEntryKind::WideBisector => {
-                        wall_graze(body, vertex, &[(entries[k].he, readings[k])], side)?
+                if star.bounds[k].real {
+                    match edge_wedge(body, star, k, band)? {
+                        Some(true) => side,
+                        Some(false) => side.opposite(),
+                        None => wall_graze(
+                            body,
+                            vertex,
+                            &[
+                                (star.bounds[k_prev].he, readings[k_prev]),
+                                (star.bounds[k].he, readings[k]),
+                            ],
+                            side,
+                        )?,
                     }
-                    SectorEntryKind::Edge => {
-                        match edge_wedge(body, vertex, prev.he, entries[k].he, band)? {
-                            Some(true) => side,
-                            Some(false) => side.opposite(),
-                            None => wall_graze(
-                                body,
-                                vertex,
-                                &[(prev.he, readings[k_prev]), (entries[k].he, readings[k])],
-                                side,
-                            )?,
-                        }
-                    }
+                } else if unresolved[k] {
+                    // A divider whose descent read nothing past its tie
+                    // has no second-order side: its wall decides, as for a
+                    // smooth edge, and refuses where it disagrees.
+                    wall_graze(body, vertex, &[(star.bounds[k].he, readings[k])], side)?
+                } else {
+                    // A divider still On after its descent rides the
+                    // plane: its face lies on `S` at both of its
+                    // sub-sectors' far bounds and in the plane along it at
+                    // most, so no material across from `S` reaches it.
+                    side
                 }
             }
             _ => PlaneSide::Below,
@@ -519,30 +516,30 @@ pub(super) fn apply_rule_b<T: Decide>(
     Ok(())
 }
 
-/// The wedge of the edge of orbit half-edge `he` at `vertex`: `None`
-/// where its two faces are tangent-continuous
-/// ([`geom_brep::DihedralClass::Smooth`]), else whether the material
-/// wedge is under 180°. `prev` is the orbit half-edge before `he`,
-/// whose CW-after sector is `he`'s own face.
+/// The wedge of the edge that is bound `k` of `star`: `None` where its
+/// two faces are tangent-continuous ([`geom_brep::Dihedral::Tangent`]),
+/// else whether the material wedge is under 180°. The sector before the
+/// bound is its own face's, the sector after it its mate's.
 ///
 /// Smooth or not is the dihedral classifier's own question, read
-/// through [`geom_brep::classify_dihedral`] with the edge's extent, as
-/// the tier-3 validator reads it, so the two cannot disagree on one
-/// edge. That classifier is unsigned, and which side of 180° a corner
-/// is on is not its question: that sign is [`enters_material`] of the
+/// through [`geom_brep::classify_dihedral`] levered at the faces' extent
+/// ([`crate::edge_wedge_reach`]), the lever tier 3's check 4 reads it
+/// at. That classifier is unsigned, and which side of 180° a corner is
+/// on is not its question: that sign is [`enters_material`] of the
 /// direction into the mate's face, across the edge, against the own
-/// face's outward normal, metered over the same folded lever arm.
-/// Where either face is a cone at its apex, both are read along the
-/// edge's ray ([`VertexFace::normal_along`]).
+/// face's outward normal, metered over the folded lever arm of the same
+/// extent. Where either face is a cone at its apex, both are read along
+/// the edge's ray ([`StarFace::normal_along`]).
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
-    vertex: VertexKey,
-    prev: HalfEdgeKey,
-    he: HalfEdgeKey,
+    star: &Star<T>,
+    k: usize,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let (own_face, own_at, _) = sector_face(body, vertex, prev, band)?;
-    let (mate_face, mate_at, _) = sector_face(body, vertex, he, band)?;
+    let vertex = star.vertex;
+    let n = star.bounds.len();
+    let (own, mate) = (&star.sectors[(k + n - 1) % n], &star.sectors[k]);
+    let (own_face, own_at, mate_face, mate_at) = (own.face, own.at, mate.face, mate.at);
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face: mate_face,
@@ -550,18 +547,18 @@ fn edge_wedge<T: Decide>(
     };
     let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
-    let (_, along, _) = chord(body, vertex, he)?;
-    let extent = crate::boolean::sectors::departure_arm_lever(along);
+    let along = star.bounds[k].ray();
+    let edge = proven(&body.half_edges, star.bounds[k].he, EntityId::HalfEdge).edge;
+    let Some(extent) = crate::edge_wedge_reach(body, edge) else {
+        unreachable!("the star read {edge:?}'s departure off its certified carrier")
+    };
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on
     // and undefined at the apex itself.
     let p = body.resolve_vertex_point(vertex, Proven);
     let p = match (own_at, mate_at) {
-        (
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
-        ) => p,
+        (StarFace::Tangent(_), StarFace::Tangent(_)) => p,
         _ => p + along,
     };
     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
@@ -659,302 +656,9 @@ fn tangency_readings<T: Decide>(a: WallReading<T>, b: WallReading<T>) -> Tangenc
     }
 }
 
-/// The face-extent lever arm for the coplanarity/sense predicates: the
-/// farthest distance from the base vertex to any point of the face's
-/// boundary — its vertices, and each curved edge's far reach
-/// ([`face_reach_from`]), so a one-vertex face bounded by a closed edge has
-/// the arm its edge spans, not zero — the largest displacement a
-/// normal-angle error can induce across this face (D4 ¶1's "face
-/// extent" arm, computed, named).
-///
-/// The arm must be an OVER-estimate of that displacement: it divides
-/// out of the caller's angular residuals ([`Margin::levered`]), so an
-/// under-claimed arm shrinks the margin and makes a face that is not
-/// parallel to the split plane likelier to decide `Zero` — a wrong
-/// answer, not a loud one. Two loop shapes have to be read with that
-/// in mind rather than walked past:
-///
-/// - A [`LoopBoundary::Empty`] **ring** is an isolated vertex, and
-///   that vertex is part of the face's boundary — it contributes its
-///   own distance like any other boundary vertex.
-/// - A [`LoopBoundary::Empty`] **outer** loop means the face has no
-///   outer boundary at all, so its locus is unbounded and no finite
-///   arm over-estimates anything. That is refused, not measured.
-///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one. The split's doors run tier 2
-///   on an operand that carries no verdict, but this read does not
-///   assume its caller's gate (a test-support door reaches it past
-///   that gate), which is why the refusal is here rather than assumed.
-///
-/// The refusal is [`UnboundedFace`], naming the face
-/// and the loop's lone vertex. Every caller resolves `vertex` and
-/// `face` in the same `&Body` call, by a refusal of its own or as a
-/// record it just read, so every hop past them is a link, and a miss
-/// panics.
-///
-/// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
-/// [`Margin::levered`]: geom_core::Margin::levered
-pub(crate) fn face_extent<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    face: FaceKey,
-) -> Result<Lever<T>, UnboundedFace> {
-    face_reach_from(body, face, body.resolve_vertex_point(vertex, Proven))
-}
-
-/// [`face_extent`] from any point `at`: the farthest `face`'s boundary
-/// stands from it, each certified edge levered as its
-/// [`geom_brep::Reach::Span`] is. The refusal is [`face_extent`]'s.
-///
-/// On a plane or a cylinder that is the face's own reach: the line or
-/// ruling through an interior point meets the boundary both ways, and a
-/// distance is convex along it. So an edge there is read over the span
-/// it holds ([`geom_brep::Reach::span_reach_from`]: a circle arc
-/// exactly, an ellipse arc by its quarters' chords and bulges, a
-/// segment's ends). Elsewhere the face
-/// can stand farthest inside its boundary (a sphere's or a torus's far
-/// side, a cone's apex), and an edge is levered round its whole carrier
-/// ([`geom_brep::Reach::lever_from`]).
-pub(crate) fn face_reach_from<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: Point3<T>,
-) -> Result<Lever<T>, UnboundedFace> {
-    let over_span = matches!(
-        body.proven_face(face).surface(),
-        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
-    );
-    boundary_lever(body, face, at, |curve| {
-        let span = span_of(curve);
-        if over_span {
-            span.span_reach_from(at)
-        } else {
-            span.lever_from(at)
-        }
-    })
-}
-
-/// [`face_reach_from`] with every edge levered round its whole carrier
-/// ([`geom_brep::Reach::lever_from`]) whatever the face it bounds: the
-/// measure the germ frame reads beside the span's, serving only where
-/// the two agree. The refusal is [`face_extent`]'s.
-pub(crate) fn face_reach_round_from<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: Point3<T>,
-) -> Result<Lever<T>, UnboundedFace> {
-    boundary_lever(body, face, at, |curve| span_of(curve).lever_from(at))
-}
-
-/// **How far a face reaches from `at` either way along `axis`** (unit):
-/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
-/// over `face`'s boundary, each at least zero: its vertices, and each
-/// certified edge's carrier over the span it holds
-/// ([`geom_brep::Reach::range_along`] of its [`geom_brep::Reach::Span`]),
-/// so a curved edge's bulge past every vertex is reached. A coordinate
-/// along an axis has no interior extremum on a plane or a cylinder about
-/// that axis, so the boundary's bounds are the face's. They lever a tilt
-/// of `axis` read at `at`'s foot on it, whose reading moves by the tilt
-/// times the axial distance: never inside the face, never past
-/// [`face_reach_from`] the same point, and exact wherever the boundary's
-/// edges are segments and conic arcs. A spiric edge is read at its
-/// torus's support and a spline at its whole control net, which can
-/// reach past the span the edge holds.
-///
-/// The refusal is [`face_extent`]'s, on the same loop shapes.
-pub(crate) fn face_axial_range<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: Point3<T>,
-    axis: geom_core::Vec3<T>,
-) -> Result<(T, T), UnboundedFace> {
-    let along = |p: Point3<T>| (p - at).dot(axis);
-    let above = boundary_reach(body, face, along, |curve| {
-        span_of(curve).range_along(at, axis).1
-    })?;
-    let below = boundary_reach(
-        body,
-        face,
-        |p| -along(p),
-        |curve| -span_of(curve).range_along(at, axis).0,
-    )?;
-    Ok((below, above))
-}
-
-/// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
-/// `(x − apex)·axis` over `face`, read off its boundary as
-/// [`face_axial_range`] reads it, each edge over the span it holds, so
-/// a working body's null scaffolding is read as its chord.
-///
-/// A face on the cone itself can hold the apex inside its boundary (a
-/// tip bounded by its rim alone), where its range is not its
-/// boundary's: the axis coordinate peaks on a smooth surface only at
-/// the boundary, and the apex is not smooth. So a face on a cone keeps
-/// its boundary's range only where the face cover's apex rule
-/// (`cover::cone_may_hold_apex`: every loop closes in the chart) says
-/// it holds no apex; anywhere else the range is widened to hold it. A
-/// face on any other surface keeps its boundary's range.
-///
-/// # Errors
-///
-/// A face whose outer loop is a lone vertex ([`face_extent`]).
-pub(crate) fn cone_axial_window<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    cone: &geom::Surface<T>,
-    band: Band,
-) -> Result<(T, T), UnboundedFace> {
-    let &geom::Surface::Cone { apex, axis, .. } = cone else {
-        unreachable!("a window along a cone's axis is asked of a cone")
-    };
-    // A floor under every boundary reading, so the folds below start
-    // past nothing the boundary holds.
-    let floor = T::zero() - face_reach_from(body, face, apex)?.length();
-    let along = |p: Point3<T>| (p - apex).dot(axis);
-    let hi = boundary_fold(
-        body,
-        face,
-        floor,
-        (along, |curve| span_of(curve).range_along(apex, axis).1),
-        Real::max,
-    )?;
-    let lo = T::zero()
-        - boundary_fold(
-            body,
-            face,
-            floor,
-            (
-                |p| T::zero() - along(p),
-                |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
-            ),
-            Real::max,
-        )?;
-    let own @ geom::Surface::Cone { .. } = body.proven_face(face).surface() else {
-        return Ok((lo, hi));
-    };
-    if crate::cover::cone_may_hold_apex(body, face, own, band) {
-        Ok((lo.min(T::zero()), hi.max(T::zero())))
-    } else {
-        Ok((lo, hi))
-    }
-}
-
-/// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
-/// measured from `at` against `cone`'s axis: its window along the axis
-/// ([`cone_axial_window`]), narrowed to `within` where the caller knows
-/// the consumed region lies inside a second window too, and
-/// [`face_reach_from`] `at` as its lever.
-///
-/// # Errors
-///
-/// A face whose outer loop is a lone vertex ([`face_extent`]).
-pub(crate) fn cone_face_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: Point3<T>,
-    (cone, within): (&geom::Surface<T>, Option<(T, T)>),
-    band: Band,
-) -> Result<geom_brep::Reach<T>, UnboundedFace> {
-    let &geom::Surface::Cone { apex, axis, .. } = cone else {
-        unreachable!("the plane×cone arm's reach is asked of a cone")
-    };
-    let (lo, hi) = cone_axial_window(body, face, cone, band)?;
-    let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
-    let at_axis = (at - apex).dot(axis);
-    Ok(geom_brep::Reach::of_face(
-        at,
-        (at_axis - lo, hi - at_axis),
-        face_reach_from(body, face, at)?,
-    ))
-}
-
-/// A certified edge as the reach of the span it holds.
-fn span_of<T: Decide>(curve: &geom_brep::EdgeCurve<T>) -> geom_brep::Reach<T> {
-    let (t0, t1) = curve.params();
-    geom_brep::Reach::Span {
-        carrier: curve.carrier().clone(),
-        t0,
-        t1,
-    }
-}
-
-/// The farthest `face`'s boundary reaches by a measure: `point` of each
-/// boundary vertex, `edge` of each certified edge, refusing a face whose
-/// outer loop is a lone vertex ([`face_extent`]'s docs).
-fn boundary_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    point: impl Fn(Point3<T>) -> T,
-    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
-) -> Result<T, UnboundedFace> {
-    boundary_fold(body, face, T::zero(), (point, edge), Real::max)
-}
-
-/// The farthest `face`'s boundary reaches from `at`, as a lever: each
-/// boundary vertex's distance, and `edge` of each certified edge, folded
-/// as a read of their union ([`Lever::max`]). The refusal is
-/// [`boundary_reach`]'s.
-fn boundary_lever<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: Point3<T>,
-    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> Lever<T>,
-) -> Result<Lever<T>, UnboundedFace> {
-    let vertex = |p| geom_brep::ExtentBall::point(p).lever_from(at);
-    let floor = geom_brep::ExtentBall::point(at).lever();
-    boundary_fold(body, face, floor, (vertex, edge), Lever::max)
-}
-
-/// [`boundary_reach`] from `floor` rather than zero: the greatest, by
-/// `max`, of `floor` and every boundary reading.
-fn boundary_fold<T: Decide, R: Copy>(
-    body: &Body<T>,
-    face: FaceKey,
-    floor: R,
-    (point, edge): (
-        impl Fn(Point3<T>) -> R,
-        impl Fn(&geom_brep::EdgeCurve<T>) -> R,
-    ),
-    max: impl Fn(R, R) -> R,
-) -> Result<R, UnboundedFace> {
-    let view = body.proven_face(face);
-    let mut extent = floor;
-    for (_, members, role) in view.boundary_by_loop() {
-        for member in members {
-            let p = match member {
-                // An unbounded face has no finite lever arm.
-                BoundaryMember::Isolated { vertex: lone, .. } if role.is_outer() => {
-                    return Err(UnboundedFace { face, vertex: lone });
-                }
-                BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge {
-                    he,
-                    half,
-                    ek,
-                    edge: data,
-                } => {
-                    if let Some(curve) = body.edge_curve_linked(ek, data).certified() {
-                        extent = max(extent, edge(curve));
-                    }
-                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
-                }
-            };
-            extent = max(extent, point(p));
-        }
-    }
-    Ok(extent)
-}
-
-/// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct UnboundedFace {
-    pub(crate) face: FaceKey,
-    pub(crate) vertex: VertexKey,
-}
-
-impl From<UnboundedFace> for SplitReduceError {
-    fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
-        Self::UnboundedFace { face, vertex }
+impl From<UncoveredFace> for SplitReduceError {
+    fn from(UncoveredFace { face, why }: UncoveredFace) -> Self {
+        Self::UncoveredFace { face, why }
     }
 }
 
@@ -962,146 +666,8 @@ impl From<UnboundedFace> for SplitReduceError {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Tol;
-
-    /// **The face extent panics on a ring link that does not resolve**,
-    /// where it stepped over it.
-    #[test]
-    fn the_face_extent_panics_on_a_torn_ring_link() {
-        use crate::live::OPERATORS_KEEP_LINKS;
-        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
-        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
-        let face = body.faces().next().map(|(k, _)| k).unwrap();
-        let vertex = body.vertices().next().map(|(k, _)| k).unwrap();
-        assert!(face_extent(&body, vertex, face).is_ok(), "a bounded face");
-        let named = tear_ring(&mut body, face);
-        assert_torn_op_panics(
-            "face_extent",
-            &mut body,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| face_extent(b, vertex, face),
-        );
-    }
-
-    /// **A face's axial range reaches its rim's bulge past every vertex,
-    /// and not round the wall.** The wall about `z` trimmed at `φ`, its
-    /// rim one closed ellipse on the seam vertex (`oblique_rim_wall`), the
-    /// rim's highest point at `φ > 0` and its lowest at `φ < 0`: from that
-    /// vertex the rim reaches `2·tan |φ|` down the axis (its low crest) or
-    /// up it (its high one) and nothing the other way, which the vertex
-    /// alone (zero) misses, and [`face_extent`]'s distance round the rim,
-    /// `2/cos φ`, over-states.
-    #[test]
-    fn a_faces_axial_extent_reaches_its_rims_bulge() {
-        for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2, -0.2, -1.2] {
-            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
-            let at = body.resolve_vertex_point(vertex, Proven);
-            let (below, above) =
-                face_axial_range(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
-            let euclid = face_extent(&body, vertex, face).unwrap().length();
-            let bulge = 2.0 * phi.tan().abs();
-            let (far, near) = if phi > 0.0 {
-                (below, above)
-            } else {
-                (above, below)
-            };
-            assert!(
-                (far - bulge).abs() <= 1e-12 * bulge && near.abs() <= 1e-12,
-                "φ = {phi}: the rim reaches {below} below and {above} above, not the bulge {bulge}"
-            );
-            assert!(
-                (euclid - 2.0 / phi.cos()).abs() <= 1e-12 * euclid,
-                "φ = {phi}: the face extent {euclid} is the distance round the rim"
-            );
-        }
-    }
-
-    /// **A face's reach reads an arc over its span only where the
-    /// boundary bounds the face.** One face whose boundary is the arc of
-    /// the unit circle about `z` from `(1, 0, 0)` a hundredth of a turn
-    /// round, read from its start. On a cylinder about `z` (a rim arc)
-    /// the face reaches the arc's far end, its chord. On the unit sphere
-    /// (an equator arc) a face can stand farthest inside its boundary,
-    /// out to the far side 2 away, so the arc is levered round its whole
-    /// turn.
-    #[test]
-    fn a_faces_reach_reads_an_arc_over_its_span_only_on_a_ruled_face() {
-        use geom_core::Vec3;
-        let carrier = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
-        let t1 = 0.01 * core::f64::consts::TAU;
-        let chord = (carrier.eval(t1) - carrier.eval(0.0)).norm();
-        for (surface, want) in [
-            (
-                geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
-                chord,
-            ),
-            (
-                geom::Surface::Sphere {
-                    center: Point3::origin(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                    axis: Vec3::unit_z(),
-                },
-                2.0,
-            ),
-        ] {
-            let mut body = Body::<f64>::new();
-            let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
-            body.set_face_surface(
-                seed.face,
-                crate::construction::FaceSurface::New {
-                    surface: surface.clone(),
-                    sense: true,
-                },
-            )
-            .unwrap();
-            let wall = body.get_face(seed.face).unwrap().surface;
-            let rim_plane = body.add_surface(geom::Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-            });
-            body.mev(
-                crate::construction::MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                carrier.eval(t1),
-                geom_brep::EdgeCurveSpec {
-                    description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        pair: geom_brep::SurfacePair::new(wall, rim_plane),
-                        selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, t1)),
-                    },
-                    carrier: carrier.clone(),
-                    param_start: 0.0,
-                    param_end: t1,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
-            let got = face_extent(&body, seed.vertex, seed.face).unwrap().length();
-            let slack = (1.0 - (t1 / 8.0).cos()) + 1e-15;
-            assert!(
-                got >= want - 1e-15 && got <= want + slack,
-                "{surface:?}: the face reaches {got} from the arc's start, not {want}"
-            );
-        }
-    }
-
-    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
-        classes
-            .iter()
-            .map(|&class| SectorEntry {
-                he: HalfEdgeKey::default(),
-                kind: SectorEntryKind::Edge,
-                class,
-            })
-            .collect()
-    }
+    use crate::entity::FaceKey;
+    use geom_core::{Point3, Tol};
 
     use PlaneSide::{Above as A, Below as B, On as O};
 
@@ -1168,18 +734,25 @@ mod tests {
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
         let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
-        let entries =
-            super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
-        let n = entries.len();
-        let k = entries
+        let tips = crate::sector_shape::SlitTips::of(&fx.body);
+        let hood =
+            super::super::neighborhood::classify(&fx.body, &plane, &sides, base, &tips, band)
+                .unwrap();
+        let n = hood.classes.len();
+        let k = hood
+            .star
+            .bounds
             .iter()
-            .position(|e| {
-                e.kind == SectorEntryKind::Edge && fx.body.half_edge_end(e.he) == Some(far)
-            })
+            .position(|b| b.real && fx.body.half_edge_end(b.he) == Some(far))
             .expect("the in-plane edge is in the orbit");
-        let (prev, next) = (entries[(k + n - 1) % n], entries[(k + 1) % n]);
-        let convex = edge_wedge(&fx.body, base, prev.he, entries[k].he, band).unwrap();
-        (prev.class, next.class, convex, entries[k].class)
+        let convex = edge_wedge(&fx.body, &hood.star, k, band).unwrap();
+        let classes = &hood.classes;
+        (
+            classes[(k + n - 1) % n],
+            classes[(k + 1) % n],
+            convex,
+            classes[k],
+        )
     }
 
     /// The derived rule (b) table (module docs), one fixture per row,
@@ -1254,97 +827,72 @@ mod tests {
         }
     }
 
+    /// **A divider whose descent read nothing past its tie goes by its
+    /// wall; one that rides the plane goes with its corner.** On the
+    /// oblique rim's straight wall corner, with the divider On between two
+    /// bounds Above and the wall read clear of a tilted plane, rule (b)
+    /// sends the riding divider Above, with its bounds, and the unresolved
+    /// one by its wall's reading (`wall_graze`), Below: the second order
+    /// it lacks is not supplied by convention.
+    #[test]
+    fn an_unresolved_divider_goes_by_its_wall() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
+        let star = Star::walk(
+            &body,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            band,
+        )
+        .unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let StarFace::Tangent(n_wall) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        let plane = corner_plane((1.0, 2.0, 3.0));
+        let readings: Vec<_> = (0..star.bounds.len())
+            .map(|_| reading(&plane, n_wall, 1.0, band))
+            .collect();
+        assert!(
+            matches!(readings[k], WallReading::Clear(_)),
+            "the wall reads clear"
+        );
+        let read = |unresolved: bool| {
+            let mut classes = vec![PlaneSide::Above; star.bounds.len()];
+            classes[k] = PlaneSide::On;
+            let mut ties = vec![false; star.bounds.len()];
+            ties[k] = unresolved;
+            apply_rule_b(&body, &star, (&mut classes, &ties), &readings, band).unwrap();
+            classes[k]
+        };
+        assert_eq!(
+            read(false),
+            PlaneSide::Above,
+            "a riding divider goes with its bounds"
+        );
+        assert_eq!(
+            read(true),
+            PlaneSide::Below,
+            "an unresolved one goes by its wall"
+        );
+    }
+
     /// Consecutive ON entries are the loud invariant failure, never a
     /// silent walk-on.
     #[test]
     fn consecutive_on_refuses() {
-        let mut e = entries(&[O, O, B]);
-        let body = Body::<f64>::new();
+        let mut e = [O, O, B];
+        let (body, star) = corner_star();
         let band = Band::linear(Tol::witness()).unwrap();
         let readings = vec![WallReading::<f64>::InPlane; e.len()];
-        let err = apply_rule_b(&body, VertexKey::default(), &mut e, &readings, band).unwrap_err();
+        let err = apply_rule_b(&body, &star, (&mut e, &[false; 3]), &readings, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 
     // ============ The lever arm may not be under-claimed ============
-
-    /// **An unbounded face has no lever arm.** `mvfs` seeds a face
-    /// whose OUTER loop is a lone vertex, so the face's locus is the
-    /// whole carrier: no finite distance over-estimates the
-    /// displacement an angular error induces across it. `face_extent`
-    /// used to walk past that loop and answer `0`, which is the
-    /// under-claiming direction — a zero arm makes every angular
-    /// residual decide `Zero`, i.e. coplanar.
-    ///
-    /// The zero answer was loud at ONE caller by accident (`apply_rule_a`
-    /// gates on `split_sector_extent` being definitely positive) and
-    /// silent at the other two, in `chord_join`, which pass the extent
-    /// straight into `section_case`. The refusal is at the source.
-    #[test]
-    fn an_unbounded_face_has_no_lever_arm() {
-        let mut body = Body::<f64>::new();
-        let seed = body
-            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
-            .unwrap();
-        assert!(matches!(
-            body.get_loop(seed.r#loop).unwrap().boundary,
-            crate::entity::LoopBoundary::Empty { .. }
-        ));
-        assert!(
-            matches!(
-                face_extent(&body, seed.vertex, seed.face),
-                Err(UnboundedFace { face, vertex }) if face == seed.face && vertex == seed.vertex
-            ),
-            "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
-        );
-    }
-
-    /// **An isolated RING vertex is boundary, so it contributes.** The
-    /// same `continue` also walked past a lone-vertex ring, whose
-    /// vertex is a real point of the face's boundary and can be the
-    /// farthest one. Planted on the cube's seed face, at the corner
-    /// diagonally opposite the base vertex, it is strictly farther
-    /// than every vertex of that face's own cycle — so the row is not
-    /// vacuous, and it asserts that gap rather than just the maximum.
-    #[test]
-    fn an_isolated_ring_vertex_contributes_its_distance() {
-        let mut cube = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness());
-        // The BOTTOM face, whose own cycle stops at the far bottom
-        // corner; the seed (top) face already reaches the body's
-        // farthest vertex, which would make the row vacuous.
-        let face = cube.mefs[0].face;
-        let base = cube.seed.vertex;
-        let before = face_extent(&cube.body, base, face).unwrap().length();
-        // The farthest vertex in the whole body from `base`.
-        let p_base = *cube
-            .body
-            .get_point(cube.body.get_vertex(base).unwrap().point)
-            .unwrap();
-        let (far, far_d) = cube
-            .body
-            .vertex_points()
-            .map(|(k, p)| (k, (p - p_base).norm()))
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-            .unwrap();
-        assert!(
-            far_d > before,
-            "the fixture's precondition: the planted vertex must be farther \
-             than the face's own cycle ({far_d} vs {before})"
-        );
-        let ring = cube.body.add_loop(
-            crate::entity::Loop {
-                boundary: crate::entity::LoopBoundary::Empty { vertex: far },
-                face,
-            },
-            crate::provenance::Provenance::Primordial { op: "h14-row" },
-        );
-        cube.body.get_face_mut(face).unwrap().rings.push(ring);
-        let after = face_extent(&cube.body, base, face).unwrap().length();
-        assert!(
-            (after - far_d).abs() < 1e-12,
-            "the ring's lone vertex sets the arm: {after} vs {far_d}"
-        );
-    }
 
     /// The unit cube's corner at the origin (faces x = 0, y = 0, z = 0,
     /// each reaching √2 from it) and its orbit.
@@ -1353,7 +901,10 @@ mod tests {
         let vertex = body
             .vertices()
             .map(|(k, _)| k)
-            .find(|&v| (body.resolve_vertex_point(v, Proven) - Point3::origin()).norm() == 0.0)
+            .find(|&v| {
+                body.resolve_vertex_point(v, Proven)
+                    .equals_exactly(Point3::origin())
+            })
             .expect("the cube has a corner at the origin");
         let orbit = body.vertex_orbit_linked(vertex);
         (body, vertex, orbit)
@@ -1368,15 +919,17 @@ mod tests {
         )
     }
 
-    fn on_entries(orbit: &[HalfEdgeKey]) -> Vec<SectorEntry> {
-        orbit
-            .iter()
-            .map(|&he| SectorEntry {
-                he,
-                kind: SectorEntryKind::Edge,
-                class: PlaneSide::On,
-            })
-            .collect()
+    /// The cube corner's star: three convex sectors, no dividers.
+    fn corner_star() -> (Body<f64>, Star<f64>) {
+        let (body, vertex, _) = cube_corner();
+        let star = Star::walk(
+            &body,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap();
+        (body, star)
     }
 
     /// The orbit half-edge whose sector's face has outward normal `n`,
@@ -1390,12 +943,18 @@ mod tests {
         orbit
             .iter()
             .find_map(|&he| {
-                let (_, n_face, _) =
-                    sector_face(body, vertex, he, Band::linear(Tol::witness()).unwrap()).unwrap();
+                let n_face = crate::sector_face::resolve(
+                    body,
+                    vertex,
+                    he,
+                    Band::linear(Tol::witness()).unwrap(),
+                )
+                .unwrap()
+                .at_vertex;
                 let crate::sector_face::VertexFace::Tangent(n_face) = n_face else {
                     panic!("a cube corner has a tangent plane on every face")
                 };
-                ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
+                (n_face.vec().equals_exactly(n)).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
     }
@@ -1441,14 +1000,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "decided zero (margin 1.414")]
     fn a_face_extent_decided_zero_panics() {
-        let (body, vertex, orbit) = cube_corner();
+        let (body, star) = corner_star();
         let band = Band::new(2.0, 4.0).unwrap();
         let _ = apply_rule_a(
             &body,
             &corner_plane((0.0, 0.0, 1.0)),
-            vertex,
-            &mut on_entries(&orbit),
-            &[],
+            &star,
+            &mut [PlaneSide::On; 3],
             band,
         );
     }
@@ -1510,16 +1068,15 @@ mod tests {
     /// nonzero gate, keeping the margin, at every diagonal normal.
     #[test]
     fn a_plane_face_too_short_to_read_its_sense_escalates_its_zero() {
-        let (body, vertex, orbit) = cube_corner();
+        let (body, star) = corner_star();
         let band = Band::new(1.1, 1.3).unwrap();
         for n in DIAGONALS {
             let label = format!("normal {n:?}");
             match apply_rule_a(
                 &body,
                 &corner_plane(n),
-                vertex,
-                &mut on_entries(&orbit),
-                &[],
+                &star,
+                &mut [PlaneSide::On; 3],
                 band,
             ) {
                 Err(e) => too_short_to_read(&label, &e),

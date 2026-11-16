@@ -153,10 +153,7 @@ fn touches(
         (v - volume).abs() < 1e-9,
         "{what}: volume {v}, want {volume}"
     );
-    let kind = |f: topo::FaceKey| {
-        let face = body.body().get_face(f).unwrap();
-        body.body().get_surface(face.surface).unwrap().kind()
-    };
+    let kind = |f: topo::FaceKey| body.body().face_surface(f).unwrap().kind();
     let ff: Vec<_> = contacts
         .rows()
         .iter()
@@ -387,17 +384,35 @@ fn far_origin_rod(
     )
 }
 
-/// The rod's carrier origin 300 and 3000 behind the touch, leaning a
+/// The rod's carrier origin 300 and 900 behind the touch, leaning a
 /// tenth of ε: a line rebuilt from the carrier's origin would stand
 /// tens of ε off the plate's face at the touch. Every order carries the
 /// pair's one record.
 #[test]
 fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
+    // Pinned red: the body's volume escalates in band
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the far-off carrier",
+        &[
+            "back 900: plate, rod, block: refused",
+            "VolumeUncomputable",
+            "props_cylinder_circle_off_axis",
+        ],
+        a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row,
+    );
+}
+
+/// The row [`a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line`] runs, under its pin.
+fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row() {
     let eps = Tol::witness().eps();
     let lean = 0.1 * eps;
-    // A rod 3000 long is no finished body at ε 1e-12 (its volume's
-    // off-axis reading escalates), so the far row reads 1000 there.
-    let far = if eps < 1e-10 { 1000.0 } else { 3000.0 };
+    // The far row stays in the session box, which admits no coordinate
+    // past 1 km (`[tolerance.units]`); 900 behind, the lean still puts a
+    // line rebuilt from the origin 90 ε off the face.
+    let far = 900.0;
     for back in [300.0, far] {
         let (doc, plate) = plate();
         let (doc, rod) = far_origin_rod(doc, plate, lean, back);

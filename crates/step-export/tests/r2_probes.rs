@@ -38,16 +38,13 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     );
     let walls: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     for k in walls {
-        let flipped = body.flipped_face_sense_for_tests(k).expect("live face");
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face");
         let errs = validate_geometric(&flipped, tol).unwrap_err();
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol = topo::test_support::measure_unvalidated(
@@ -75,7 +72,9 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     println!("R2 ball: clean volume {v0:?}");
     let bands: Vec<_> = b.faces().map(|(k, _)| k).collect();
     for k in bands {
-        let flipped = b.flipped_face_sense_for_tests(k).expect("live face");
+        let flipped = b
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face");
         let errs = validate_geometric(&flipped, tol);
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol = topo::test_support::measure_unvalidated(

@@ -109,3 +109,26 @@ shapes above; or run
 (8 booleans; 157 s at 1e-12 on the nightly's runner on 2026-11-01).
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## 2026-11-04: the march's 3-D sweeps retiring does not move it
+
+The SECTARMS cylinder × sphere lane (branch
+`sectarms/cylinder-sphere-ruling-sweep`) retired this pair's
+`seed_r3`/`account_r3` from the section value's march. The pair now
+marches from the ruling sweep's witnesses. The table's four operations
+were timed on the branch and on its merge base (`aef1e58929`) one after
+the other on the same 4-core box. Each was built at opt-level 2 with
+debug assertions and overflow checks off and timed alone by a
+throwaway example, not committed:
+
+| operation | default ε, base → branch | ε 1e-12, base → branch |
+|---|---|---|
+| ball ∪ rod | 8.97 → 8.41 s | 60.23 → 59.52 s |
+| ball ∖ rod | 3.54 → 3.72 s | 29.66 → 30.11 s |
+| ball ∪ stub | 4.84 → 5.13 s | 35.28 → 33.66 s |
+| ball ∖ stub | 2.10 → 2.09 s | 16.17 → 16.86 s |
+
+Every one still stops at the same `VolumeUncomputable` on both. The
+differences are within the box's noise. That fits the profile above:
+the march is a small share of the time, and the certificates are the
+cost.

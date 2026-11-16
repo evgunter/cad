@@ -116,6 +116,8 @@
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
 //! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
+//! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex), which bounds (\|d\| − 1)·ℓ, check 1's unit measure at arm ℓ | direct |
+//! | `segment_direction_resolution` | K·ε/(8·2⁻⁵²) less the reading's magnitude | direct |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
@@ -136,7 +138,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
-//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in the fillet CONSTRUCTORS, not here |
+//! | `fillet_leg_fit` | leg length − tangent setback (the run) | linear band, the one `vertex_separation` reads a segment on; fired in the fillet CONSTRUCTORS, not here |
 //! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
 //! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
 //! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |
@@ -177,7 +179,7 @@
 use core::borrow::Borrow;
 use core::fmt;
 
-use crate::gate::{Escalation, Gate, decide};
+use crate::gate::{Escalation, Gate, decide, prove};
 use geom_core::{
     Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
     Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
@@ -198,6 +200,22 @@ use geom_core::{
 )]
 pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
      arc with a smaller radius (a flatter arc stores its centre farther out)";
+
+/// The recourse of [`ProfileError::DirectionBelowSceneResolution`] for a
+/// line's director: its miss is read at the magnitude of its two
+/// vertices, so moving the profile nearer the origin is what shrinks it,
+/// and a segment that records no direction has it decided from its
+/// vertices, which reads nothing at that magnitude.
+const DIRECTOR_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or record \
+     no direction on the segment and let validation decide it from its vertices";
+
+/// The recourse of [`ProfileError::DirectionBelowSceneResolution`] for an
+/// arc's radial: its miss is read at the magnitude of the centre and the
+/// vertex, so a far centre (a flat arc's) raises it as much as a far
+/// profile does.
+const RADIAL_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, author the \
+     arc with a smaller radius (a flatter arc stores its centre farther out), or record no \
+     direction on it and let validation decide it from its vertices";
 
 /// The recourse of an undecided read in the path door's read-back of a
 /// constructed arc (`seg::read_back_arc`): the read sits inside the
@@ -226,7 +244,7 @@ use crate::seg::{
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{ConstructedLoop, Profile, ProfileLoop, SketchPlane};
+use crate::{ConstructedLoop, Profile, ProfileLoop, SegmentDirections, SketchPlane};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -300,6 +318,47 @@ impl ArcCheck {
     }
 }
 
+/// Which of a segment's recorded directions validation refused
+/// ([`ProfileError::InconsistentDirection`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecordedDirection {
+    /// A line's director (`segment_direction`).
+    Director,
+    /// An arc's radial at its start vertex (`segment_direction`).
+    StartRadial,
+    /// An arc's radial at its end vertex (`segment_direction`).
+    EndRadial,
+    /// The directions are the other kind's: a director on an arc, or
+    /// radials on a line.
+    Kind,
+}
+
+impl RecordedDirection {
+    /// What resolves a reading of this direction the scene cannot make
+    /// ([`ProfileError::DirectionBelowSceneResolution`]).
+    fn scene_resolution_recourse(self) -> &'static str {
+        match self {
+            Self::Director | Self::Kind => DIRECTOR_SCENE_RESOLUTION_RECOURSE,
+            Self::StartRadial | Self::EndRadial => RADIAL_SCENE_RESOLUTION_RECOURSE,
+        }
+    }
+}
+
+impl fmt::Display for RecordedDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Director => "its recorded director does not run from its start to its end",
+            Self::StartRadial => {
+                "its recorded start radial does not run from its centre to its start vertex"
+            }
+            Self::EndRadial => {
+                "its recorded end radial does not run from its centre to its end vertex"
+            }
+            Self::Kind => "it records the directions of the other kind of segment",
+        })
+    }
+}
+
 impl fmt::Display for ArcCheck {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
@@ -350,6 +409,48 @@ impl fmt::Display for FilletLeg {
             Self::Incoming => "incoming leg",
             Self::Outgoing => "outgoing leg",
         })
+    }
+}
+
+/// Which legs of a fillet corner a trim overruns: one of them or both,
+/// never neither, so an overrun that names no leg is unwritable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverrunLegs {
+    /// Only this leg's anchor is eaten.
+    One(FilletLeg),
+    /// Both legs' anchors are eaten.
+    Both,
+}
+
+impl OverrunLegs {
+    /// The overrun of a corner whose `[incoming, outgoing]` legs are
+    /// overrun as given, or `None` where neither is.
+    #[must_use]
+    pub const fn of(incoming: bool, outgoing: bool) -> Option<Self> {
+        match (incoming, outgoing) {
+            (true, true) => Some(Self::Both),
+            (true, false) => Some(Self::One(FilletLeg::Incoming)),
+            (false, true) => Some(Self::One(FilletLeg::Outgoing)),
+            (false, false) => None,
+        }
+    }
+
+    /// Whether `leg` is overrun.
+    #[must_use]
+    pub fn contains(self, leg: FilletLeg) -> bool {
+        match self {
+            Self::One(one) => one == leg,
+            Self::Both => true,
+        }
+    }
+
+    /// The overrun legs' `[incoming, outgoing]` indices, in that order.
+    pub fn indices(self) -> impl Iterator<Item = usize> {
+        [FilletLeg::Incoming, FilletLeg::Outgoing]
+            .into_iter()
+            .enumerate()
+            .filter(move |(_, leg)| self.contains(*leg))
+            .map(|(k, _)| k)
     }
 }
 
@@ -481,6 +582,31 @@ pub enum ProfileError {
         at: SegmentRef,
         /// The check that refused it.
         check: ArcCheck,
+    },
+    /// A segment's recorded direction disagrees with its vertices
+    /// ([`RecordedDirection`]): decided definitely off for a table, or of
+    /// the wrong kind. The direction is redundant with the vertices and
+    /// is verified rather than trusted, as a carrier is.
+    InconsistentDirection {
+        /// The offending segment.
+        at: SegmentRef,
+        /// Which direction.
+        which: RecordedDirection,
+    },
+    /// `segment_direction` read a recorded direction off its vertex at a
+    /// magnitude where `f64` rounding alone is past the band
+    /// (`segment_direction_resolution`), so the direction is refused as
+    /// unreadable here rather than as inconsistent.
+    DirectionBelowSceneResolution {
+        /// The segment.
+        at: SegmentRef,
+        /// Which direction.
+        which: RecordedDirection,
+        /// What `segment_direction` classified.
+        margin: MarginDiag,
+        /// What `segment_direction_resolution` classified, as
+        /// [`ProfileError::ArcBelowSceneResolution`]'s `headroom`.
+        headroom: MarginDiag,
     },
     /// A consistency check read a stored arc off its vertices, but at a
     /// magnitude where `f64` rounding alone is past the band
@@ -630,6 +756,22 @@ impl fmt::Display for ProfileError {
                  this scene's magnitude cannot resolve (the largest magnitude at which the \
                  check's f64 rounding stays inside the tolerance band, less the one it was read at: \
                  {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
+            ),
+            Self::InconsistentDirection { at, which } => write!(
+                f,
+                "{at} disagrees with its vertices, as {which}. Recourse: author the segment \
+                 through the path lattice, which records the directions its verbs drew it along"
+            ),
+            Self::DirectionBelowSceneResolution {
+                at,
+                which,
+                margin,
+                headroom,
+            } => write!(
+                f,
+                "{at} records a direction this scene's magnitude cannot read, as {which} by \
+                 {margin} (headroom {headroom}). Recourse: {}",
+                which.scene_resolution_recourse()
             ),
             Self::InconsistentArc { at, check } => write!(
                 f,
@@ -792,12 +934,31 @@ pub struct ValidatedSegment<T: Real> {
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
     pub kind: SegmentKind<T>,
+    /// The unit directions the segment records, of `kind`'s kind: a
+    /// line's director, an arc's radial at each end. The ones its
+    /// construction made, carried verbatim, or for a segment that
+    /// recorded none (or an arc read as a line) decided once, here, from
+    /// its vertices ([`SegmentDirections`]). A consumer that needs a
+    /// direction reads it here. A table's is checked by one reading at the band, the miss
+    /// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
+    /// chord or radius), and that is what "unit" means here: the miss
+    /// bounds both the direction's turn and its stretch, since
+    /// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
+    /// check 1's measure for a unit datum at arm ℓ
+    /// (`geom::convention::frame_margins`). So a radial accepted here is
+    /// one check 1 accepts as a `u_ref` at that radius. What it does not
+    /// promise: check 1 length-reads no plane or line, so a director
+    /// stored as a plane's normal is a unit only at its chord's lever.
+    /// An accepted direction is stored as written, never normalised or
+    /// re-minted.
+    pub directions: SegmentDirections<T>,
 }
 
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: every stored field through
-    /// `from_f64` — the endpoints, and an arc's carrier and sweep
-    /// ([`Arc2::map`]) — and the classification and turn carried.
+    /// `from_f64` — the endpoints, an arc's carrier and sweep
+    /// ([`Arc2::map`]) and the recorded directions — and the
+    /// classification and turn carried.
     /// Nothing is re-derived. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
         let kind = match self.kind {
@@ -811,6 +972,7 @@ impl ValidatedSegment<f64> {
             start: self.start.map(U::from_f64),
             end: self.end.map(U::from_f64),
             kind,
+            directions: self.directions.map(U::from_f64),
         }
     }
 }
@@ -1176,11 +1338,21 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// turns, the joint sets — carried. The decisions were made along
     /// this channel (C6), so they hold of it as they hold of the form.
     ///
+    /// **A recorded direction is the one exception to "no single point
+    /// refuses".** Where its components are points they are read as
+    /// they are. Where they are not (validation's own mint of a quotient
+    /// over points, or a verb's direction over a box), the channel's
+    /// direction is minted again at the channel's own points by the one
+    /// mint validation uses (`seg::mint_director`, `seg::mint_radial`),
+    /// so it agrees with what the `f64` witness stores to that mint's
+    /// rounding.
+    ///
     /// # Errors
     ///
-    /// [`ValueNotAPoint`] naming the first value with no single point
-    /// (poison, or an enclosure wider than a point): a canonical form's
-    /// values are validated ones, so there is no `f64` form to mint.
+    /// [`ValueNotAPoint`] naming the first stored scalar other than a
+    /// direction with no single point (poison, or an enclosure wider
+    /// than a point): a canonical form's values are validated ones, so
+    /// there is no `f64` form to mint.
     pub fn value_channel(&self) -> Result<ValidatedProfile<f64>, ValueNotAPoint> {
         let point2 =
             |p: Point2<T>, site: ValueNotAPoint| match (p.x.point_value(), p.y.point_value()) {
@@ -1216,10 +1388,44 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                             turn,
                         },
                     };
+                    let (start, end) = (point2(s.start, site)?, point2(s.end, site)?);
+                    // A direction is a point where its construction held
+                    // one; one validation minted from points is their
+                    // quotient's enclosure, and its channel is that mint
+                    // at the channel's points, as validation at `f64`
+                    // makes it.
+                    let vec2 = |v: Vec2<T>, mint: Vec2<f64>| match (
+                        v.x.point_value(),
+                        v.y.point_value(),
+                    ) {
+                        (Some(x), Some(y)) => Vec2::new(x, y),
+                        _ => mint,
+                    };
+                    let directions = match (s.directions, kind) {
+                        (SegmentDirections::Line(d), SegmentKind::Line) => {
+                            let frame = seg::ChordFrame::of(start, end);
+                            SegmentDirections::Line(vec2(
+                                d,
+                                seg::mint_director(frame.chord, frame.unit),
+                            ))
+                        }
+                        (
+                            SegmentDirections::Arc { start: rs, end: re },
+                            SegmentKind::Arc { arc, .. },
+                        ) => SegmentDirections::Arc {
+                            start: vec2(rs, seg::mint_radial(arc, start)),
+                            end: vec2(re, seg::mint_radial(arc, end)),
+                        },
+                        (directions, kind) => unreachable!(
+                            "a validated segment records the directions of its own kind: \
+                             {directions:?} on {kind:?}"
+                        ),
+                    };
                     Ok(ValidatedSegment {
-                        start: point2(s.start, site)?,
-                        end: point2(s.end, site)?,
+                        start,
+                        end,
                         kind,
+                        directions,
                     })
                 })
                 .collect::<Result<Vec<_>, ValueNotAPoint>>()?;
@@ -1456,9 +1662,6 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         if !plane_is_finite(&plane) {
             return Err(ProfileError::PlaneNotFinite);
         }
-        // The exact-order band for the containment representative
-        // (module docs): no representable f64 lies strictly inside it.
-        let exact = Band::least();
 
         // No loops is the empty region: there is nothing to decide.
         if loops_in.is_empty() {
@@ -1535,7 +1738,7 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let idx = match guide.loop_at(li) {
                 Some(rec) => rec.representative,
-                None => lex_min_index(&lp.vertices, exact, li)?,
+                None => lex_min_index(&lp.vertices, li)?,
             };
             // A recorded index out of range describes another program.
             let Some(v) = lp.vertices.get(idx) else {
@@ -1870,17 +2073,35 @@ pub(crate) fn build_loop_segs<T: Decide>(
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        segs.push(
-            build_loop_seg(&lp.vertices, &lp.segments, k, consistency, band).map_err(|issue| {
-                let at = SegmentRef {
-                    loop_index,
-                    segment_index: k,
-                };
-                seg_refusal(issue, at, |source| {
-                    ProfileError::escalated(EscalationSite::Segment(at), source)
-                })
-            })?,
-        );
+        let at = SegmentRef {
+            loop_index,
+            segment_index: k,
+        };
+        let refuse = |issue| {
+            seg_refusal(issue, at, |source| {
+                ProfileError::escalated(EscalationSite::Segment(at), source)
+            })
+        };
+        let s = build_loop_seg(&lp.vertices, &lp.segments, k, consistency, band).map_err(refuse)?;
+        // A recorded direction is one more redundancy of the stored
+        // form: a table's is decided here, once, and a constructed one
+        // holds by its construction, which owes only its kind.
+        if let Some(recorded) = lp.directions()[k] {
+            match consistency {
+                Consistency::Decide => {
+                    seg::check_directions(&s, lp.segments[k], recorded, band).map_err(refuse)?;
+                }
+                Consistency::ByConstruction => {
+                    if !seg::directions_match_kind(lp.segments[k], recorded) {
+                        return Err(ProfileError::InconsistentDirection {
+                            at,
+                            which: RecordedDirection::Kind,
+                        });
+                    }
+                }
+            }
+        }
+        segs.push(s);
     }
     Ok(segs)
 }
@@ -1900,6 +2121,19 @@ fn seg_refusal<T: Real>(
         SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
         SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
         SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
+        SegIssue::DirectionInconsistent { which } => {
+            ProfileError::InconsistentDirection { at, which }
+        }
+        SegIssue::DirectionBelowSceneResolution {
+            which,
+            margin,
+            headroom,
+        } => ProfileError::DirectionBelowSceneResolution {
+            at,
+            which,
+            margin,
+            headroom,
+        },
         SegIssue::BelowSceneResolution {
             check,
             margin,
@@ -2151,13 +2385,11 @@ fn point_in_loop<T: Decide>(
 /// Compares two points in the canonical lexicographic order (least x,
 /// then least y) through the exact-order band (module docs) — the
 /// **`canonical_order_x`** / **`canonical_order_y`** predicates.
-fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, Escalation> {
-    match decide(Gate::CanonicalOrderX, Margin::of(p.x - q.x), exact)? {
+fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
+    match prove(Gate::CanonicalOrderX, Margin::of(p.x - q.x))? {
         Sign::Negative => Ok(true),
         Sign::Positive => Ok(false),
-        Sign::Zero => {
-            Ok(decide(Gate::CanonicalOrderY, Margin::of(p.y - q.y), exact)? == Sign::Negative)
-        }
+        Sign::Zero => Ok(prove(Gate::CanonicalOrderY, Margin::of(p.y - q.y))? == Sign::Negative),
     }
 }
 
@@ -2165,12 +2397,11 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, 
 /// containment representative point.
 fn lex_min_index<T: Decide>(
     vertices: &[Point2<T>],
-    exact: Band,
     loop_index: usize,
 ) -> Result<usize, ProfileError> {
     let mut best = 0;
     for i in 1..vertices.len() {
-        if lex_less(vertices[i], vertices[best], exact).map_err(|source| {
+        if lex_less(vertices[i], vertices[best]).map_err(|source| {
             ProfileError::escalated(EscalationSite::Loop { loop_index }, source)
         })? {
             best = i;
@@ -2233,6 +2464,7 @@ fn canonicalize_loop<T: Decide>(
     // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
     let n = chain.vertices.len();
+    let made = chain.directions().to_vec();
     let (vertices, stored) = (chain.vertices, chain.segments);
     // The joints `judge_joints` decided on the INPUT chain, carried to
     // the canonical one by the reindexing `reversed()` applies (joint
@@ -2327,6 +2559,7 @@ fn canonicalize_loop<T: Decide>(
             start: s.a,
             end: s.b,
             kind,
+            directions: seg::validated_directions(&s, made.get(k).copied().flatten()),
         });
     }
     if let Some(rec) = recorded

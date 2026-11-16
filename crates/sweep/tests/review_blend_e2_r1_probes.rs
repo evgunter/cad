@@ -91,7 +91,7 @@ fn cycle_points(body: &Body<f64>, lp: LoopKey) -> Vec<Point3<f64>> {
 /// normal, flipped by the face's `sense` bit.
 fn stored_outward(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).unwrap();
-    let Surface::Plane { normal, .. } = body.get_surface(f.surface).unwrap() else {
+    let Surface::Plane { normal, .. } = body.face_surface(face).unwrap() else {
         panic!("an extrusion cap is a plane");
     };
     geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec()
