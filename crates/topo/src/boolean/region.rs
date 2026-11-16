@@ -1019,7 +1019,8 @@ impl<T: Decide> Round<T> {
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
         let ahead = (y - self.circle.frame.origin).dot(self.circle.frame.v_ref());
-        self.circle.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
+        let turn = geom::conic_period::<T>().length();
+        self.circle.radius * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
 }
 
@@ -1055,7 +1056,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// Places are arc lengths, so an angle is a place over the radius.
     fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
         match end {
-            None => ((T::zero(), T::tau()), true),
+            None => ((T::zero(), geom::conic_period::<T>().length()), true),
             Some(place) => ((T::zero(), place / self.circle.radius), false),
         }
     }
