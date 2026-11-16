@@ -285,7 +285,7 @@ of them is a defect.
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
 | Which document a held value is of | the identity it carries, never its node ids | [assemblies.pairing] |
 | A document's validity | `persist::check::validate_document`, at save and at load | [engineering] |
-| The frontier | refusals whose standing is `Refusal::Unbuilt`, grep-able from the tree | [failure] |
+| The frontier | refusals whose standing is `Refusal::Unbuilt` | [failure] |
 
 ### One reading per question `[one-way.readings]`
 
@@ -972,8 +972,7 @@ tiers".
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker, and its standing is `Refusal::Unbuilt`
-([failure.taxonomy], row 2), so the frontier is grep-able from the tree:
-it is every site that mints `Refusal::Unbuilt`. Its prose inventory is
+([failure.taxonomy], row 2). Its prose inventory is
 `docs/KERNEL-VERBS.md` — the "present today" paragraph, the crate
 READMEs, and the standing frontier entries (c)–(f) older citations
 name — and its schedule is the tracker.
@@ -1995,19 +1994,13 @@ swallowed.
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a
   curable indeterminate unwinds to it and is not reported as invalid
   input.
-- *Row 2 is a typed standing.* Every refusal type a valid input can
-  reach states each variant's class in one exhaustive standing method
-  (a shared `Standing` trait, so a type without one does not compile
-  where refusals reach the user). Row 2 is `Refusal::Unbuilt`; `Limit`
-  is a row-1(b) limit no tolerance moves, ending on its own lever. A
-  standing reads a payload field only where that field is the cause;
-  otherwise the variant splits. Names say what happened and carry no
-  class. The frontier inventory is every site that mints
-  `Refusal::Unbuilt`: grep-able, and complete within each type by the
-  compiler. A panicking `not_implemented!` macro is rejected: these
-  refusals are reachable by valid input and must stay recoverable.
-  Where a frontier branch genuinely cannot be reached it is row 4, with
-  a message.
+- *Row 2 is a typed standing.* Each refusal type a valid input can
+  reach states every variant's class in one exhaustive method of the
+  shared `Standing` trait. Row 2 is `Refusal::Unbuilt`; `Limit` is a
+  row-1(b) limit no tolerance moves, ending on its own lever. A standing
+  reads a payload field only where that field is the cause; otherwise
+  the variant splits. Names carry no class. A frontier branch that
+  genuinely cannot be reached is row 4, with a message.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
