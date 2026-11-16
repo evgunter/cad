@@ -57,6 +57,9 @@ pub(super) fn pair<T: Decide>(
     pair_held(a, b, start, keep, (None, None))
 }
 
+/// A parameter run a polish is held to, `None` for none.
+pub(super) type Hold<T> = Option<(T, T)>;
+
 /// [`pair`], **held** to the parameter runs `hold` names, one per
 /// carrier (`None` holds nothing): each iterate is clamped into its run,
 /// so a step that would leave it stops exactly at the run's end and the
@@ -68,7 +71,7 @@ pub(super) fn pair_held<T: Decide>(
     b: impl Fn(T) -> (Point3<T>, Vec3<T>),
     (mut s, mut t): (T, T),
     keep: impl Fn(T) -> bool,
-    (hold_a, hold_b): (Option<(T, T)>, Option<(T, T)>),
+    (hold_a, hold_b): (Hold<T>, Hold<T>),
 ) -> (T, T) {
     let clamp =
         |x: T, hold: Option<(T, T)>| hold.map_or(x, |(lo, hi)| x.max(lo.min(hi)).min(lo.max(hi)));
@@ -121,7 +124,7 @@ pub(super) fn pair_held<T: Decide>(
 
 /// Whether `x` reaches past the run `hold` holds it to, read on
 /// brackets; `false` where nothing holds it or a bracket is poison.
-fn outside<T: Decide>(x: T, hold: Option<(T, T)>) -> bool {
+fn outside<T: Decide>(x: T, hold: Hold<T>) -> bool {
     let Some((lo, hi)) = hold else {
         return false;
     };
