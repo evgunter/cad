@@ -73,3 +73,5 @@ document is bounded by a revolve carrier's endpoint pinning. The row
 opens again when one is, for example when an M10 driver document or a
 PROPS study revolves a profile whose ceiling a revolve carrier sets.
 
+
+- 2026-11-14 — **The rim identity is no longer registered** (BOXFINISH `boxfinish/sweep-frames`). The latitude carriers take their `u_ref` from the revolve's frame (`u₃`, turned to the far station), not from `(q − center).normalize()`, so a latitude through its point is `center + r·u₃ = q`, which the plain form proves; `swept::register_rim_identity` and its three call sites are deleted, and `revolve_washer::m10_9_the_revolve_carriers_state_their_rim_identity` went with them (measured: door open and door shut read 497/457 on the washer). The span identity this row defers is unchanged in kind: the far end is `carrier.eval(param_end)`, still never handed the far vertex.

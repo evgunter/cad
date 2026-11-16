@@ -147,6 +147,29 @@ fn a0_alone() -> SymRules {
 /// witness: plain 2898/1612 → 2835/2803, shipped 2954/1556 →
 /// 2891/2747. The symbolic count falls by the witness reads the tier
 /// proved, which no station's read reproduces; A0's yield holds at 56.
+///
+/// Then a validated segment began recording its directions, and
+/// validation's mint reads each side chord's components and the other's
+/// sign exactly and outside the log (audit row F43): plain 2835/2803 →
+/// 2863/2831, shipped 2891/2747 → 2919/2775, the same at every ε row;
+/// A0's yield holds at 56.
+///
+/// Then a line rim's span and direction are stated from its sketch
+/// segment (PR 6953): plain 2863/2831 → 2926/2894, shipped 2919/2775 →
+/// 2982/2838 (it moved 2835/2803 → 2898/2866 before F43, the same 63 on
+/// each channel: the two compose). Over the slab's box a replay's extrude no longer refuses
+/// at segment 0's rim corner (`dihedral_sign`); it reads one edge further
+/// (`carrier_endpoint_*` +1, `carrier_on_surface_*` +9, the wedge reads
+/// +7/+6/+7, `interval_span_forward` and `ssi_hull_sup` +1, over the
+/// whole box with no rule) before refusing for its own later reason, so
+/// each channel decides 63 more. Every leaf's verdict, and A0's yield of
+/// 56, hold.
+/// Then the extrude keeps its sketch frame: its caps are the frame and
+/// its walls the frame turning their segments, so the tilted face's
+/// normal is exact over the box, limb 2 reads its net, and the root box
+/// certifies in ONE leaf again, fitting no plane on the way: plain
+/// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
+/// one replay's.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -177,14 +200,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=2835 numeric=2803 frozen=0",
+        "decisions symbolic=460 numeric=504 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=2891 numeric=2747 frozen=0",
-        "56 of the 2803 numeric refusals are comparisons of two rational CONSTANTS, which \
-         A0 decides exactly"
+        "decisions symbolic=468 numeric=496 frozen=0",
+        "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
+         decides exactly"
     );
     assert_eq!(
         shipped,

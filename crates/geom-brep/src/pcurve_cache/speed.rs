@@ -622,7 +622,7 @@ pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
             let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
             all(&[p0.x, p0.y, pa.x, pa.y, pb.x, pb.y, pl.x, pl.y])
         }
-        Pcurve::IsoLine { p0, pl } => all(&[p0.x, p0.y, pl.x, pl.y]),
+        Pcurve::IsoLine { p0, pl, .. } => all(&[p0.x, p0.y, pl.x, pl.y]),
         Pcurve::IsoArc {
             p0,
             pd,

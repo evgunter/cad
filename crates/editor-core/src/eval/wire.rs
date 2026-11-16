@@ -870,10 +870,10 @@ where
                 refusal: Box::new(refusal),
             })
         })?;
-        let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+        let arm = crate::mate::solve::bundle_arm(reach, &mates, &values).map_err(|f| fault(*f))?;
         for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
             if let Some(found) =
-                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b, tol)?
             {
                 chart = Some(found);
                 break;
@@ -3496,12 +3496,21 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// holds where the two are one frame, else what it holds moved once
     /// at the placement's door ([`super::Framed::read_in`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
-    fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
+    ///
+    /// `frame_of` is the operand whose frame `computing` is: a refusal of
+    /// an image the read moved names it beside this member
+    /// ([`NodeErrorKind::UnfinishedLeaf`]'s `into`).
+    fn taken_in(
+        &self,
+        (computing, frame_of): (&super::Framed<T>, RecipeNodeId),
+        tol: Tol,
+    ) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
         let own = read.same(self.framed.holding());
+        let into = (!own).then_some(frame_of);
         let body = read
             .finished(tol)
-            .map_err(NodeErrorKind::unfinished(self.node))?;
+            .map_err(NodeErrorKind::unfinished_in(self.node, into))?;
         let framed = if own {
             self.framed.clone()
         } else {
@@ -4097,18 +4106,23 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // every other member into it through `relative`.
     let (members, apart) = match members {
         [] => return empty(),
-        [one] => return lone_member(id, &one.taken_in(&one.framed, tol)?),
+        [one] => return lone_member(id, &one.taken_in((&one.framed, one.node), tol)?),
         [first, ..] => {
-            let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
-                .unwrap_or(&first.framed)
-                .clone();
+            let chosen = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed);
+            // The member whose frame it is, which a refused image names.
+            let frame_of = members
+                .iter()
+                .find(|m| core::ptr::eq(&m.framed, chosen))
+                .map_or(first.node, |m| m.node);
+            let computing = chosen.clone();
             let apart = match op {
                 BooleanOp::Union => images_apart(members, &computing, tol)?,
                 BooleanOp::Intersect | BooleanOp::Subtract => topo::Apart::default(),
             };
             let finished = members
                 .iter()
-                .map(|m| m.taken_in(&computing, tol))
+                .map(|m| m.taken_in((&computing, frame_of), tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             (finished, apart)
         }

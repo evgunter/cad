@@ -716,3 +716,89 @@ fn a_held_tip_in_band_leaves_its_pole_unread() {
         "+x held, −x in band: +x decides"
     );
 }
+
+/// **The two tip readings agree at rest** (`topo::validate`'s `wraps`
+/// says why they are two): on every wrap-bearing body here, each
+/// `(vertex, edge)` either reading calls a tip is a tip by both, the
+/// corner the strut's facing asks at and the valence-1 end tiers 2 and
+/// 3 read. The one-face ball's lone wrap edge has two tips, the
+/// hemisphere's pole and the cone's apex one each; the extruded circle's
+/// seam strut, the full revolve's periodic meridians and the ring
+/// torus's wrap edges have none, so the corner reading must not call
+/// their ends tips either.
+#[test]
+fn the_two_tip_readings_agree_on_every_wrap_bearing_body() {
+    let circle = |c: (f64, f64), r: f64| {
+        profile::test_support::bulge_loop(vec![
+            (Point2::new(c.0 - r, c.1), 1.0),
+            (Point2::new(c.0 + r, c.1), 1.0),
+        ])
+    };
+    let validated = |loops| {
+        profile::Profile::new(profile::SketchPlane::<f64>::xy(), loops)
+            .validate(tol())
+            .unwrap()
+    };
+    let revolved = |loops| {
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        sweep::revolve(&validated(loops), axis, Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body()
+    };
+    let one_segment = profile::RawLoop::new([(
+        Point2::new(1.0, 0.0),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: 2.0 * PI,
+        }),
+    )]);
+    let cylinder = sweep::extrude(
+        &validated(vec![one_segment]),
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let tube = revolved(vec![profile::RawLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])]);
+    let bodies = [
+        ("the one-face ball", one_face_ball().0, 2),
+        ("the hemisphere", one_wrap_edge(hemisphere(), true).0, 1),
+        ("the cone", one_wrap_edge(cone(), true).0, 1),
+        ("the extruded circle", cylinder, 0),
+        ("the revolved annulus", tube, 0),
+        ("the ring torus", revolved(vec![circle((2.0, 0.0), 0.5)]), 0),
+    ];
+    for (what, body, tips) in bodies {
+        let wrap_edges = body
+            .edges()
+            .filter(|&(e, _)| {
+                let c = body.get_curve_geom(body.get_edge(e).unwrap().curve);
+                c.and_then(topo::CurveGeom::certified)
+                    .is_some_and(|c| c.description().is_wrap())
+            })
+            .count();
+        assert!(wrap_edges > 0, "{what}: the body bears a wrap edge");
+        let readings = topo::test_support::wrap_tip_readings(&body);
+        for &(v, e, corner, valence) in &readings {
+            assert_eq!(
+                corner, valence,
+                "{what}: at {v:?} along {e:?} the corner reads {corner}, the valence {valence}"
+            );
+        }
+        assert_eq!(readings.len(), tips, "{what}: its tips, {readings:?}");
+    }
+}

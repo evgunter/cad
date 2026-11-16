@@ -1257,6 +1257,37 @@ pub enum EdgeUncovered {
     Ends,
 }
 
+impl EdgeUncovered {
+    /// **This refusal's standing, by its cause**
+    /// ([`geom_core::ladder::Refusal`]): null scaffolding, and a carrier
+    /// whose every unknown is an unbounded locus, are readings not built
+    /// (row 2), a limit; a control net carrying poison, a datum that is
+    /// not a finite number and an end vertex that is not a finite point
+    /// are stored-data faults (row 4), and a carrier refusal that mixes
+    /// the two classes aborts until it is split.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a stored-data fault and a mixed
+    /// carrier refusal.
+    pub(crate) fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        use geom::cover::Unknown;
+        use geom_core::ladder::{Aborts, Refusal};
+        match self {
+            Self::Scaffold => Ok(Refusal::Limit),
+            Self::Carrier(why)
+                if why
+                    .unknowns()
+                    .iter()
+                    .all(|(_, what)| matches!(what, Unknown::Unbounded)) =>
+            {
+                Ok(Refusal::Limit)
+            }
+            Self::Carrier(_) | Self::Ends => Err(Aborts),
+        }
+    }
+}
+
 impl core::fmt::Display for EdgeUncovered {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

@@ -477,7 +477,6 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         col,
         &hes,
         &qs,
-        &qs,
         frame,
         theta,
         axis_c,
@@ -803,7 +802,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[0], place, frame.n3, qw[0], qw[1], tol),
+        placed_segment_spec(&segs[0], place, frame.n3, qw[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -815,7 +814,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -842,7 +841,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: hes[i],
             },
             qpi[i],
-            revolved_strut_spec(wire.points[i], verts[i].r, qw[i], frame, half, axis_c, tol),
+            revolved_strut_spec(wire.points[i], verts[i].r, frame, half, axis_c),
             tol,
         )?;
         struts.push(Some(m));
@@ -885,6 +884,9 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // An arc centred on the axis is a meridian of its sphere, and the
         // half turn fixes its centre: its angle-π copy takes the angle-0
         // copy's centre, so the two are arcs of one circle in one plane.
+        // Its start radial, where the start is pinned, lies along the axis,
+        // which the turn fixes too: it takes the angle-0 copy's.
+        let radial = if pinned(i) { place.into() } else { far };
         let spec = match walls[i] {
             WallClass::Wall {
                 kind: WallKind::Sphere { .. },
@@ -894,11 +896,11 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 far,
                 n_pi,
                 |c| frame.world(c),
+                radial,
                 qpi[i],
-                qpi[i + 1],
                 tol,
             ),
-            _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], qpi[i + 1], tol),
+            _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
         };
         let mef = body.mef(MefSite::Chords { he1, he2 }, spec, surface, tol)?;
         faces.push(mef.face);
@@ -957,10 +959,6 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             })
             .he_minus;
         let center = frame.foot3(wire.points[i]);
-        let rim = qpi[i] - center;
-        // The same rim identity as `revolve::surfaces`', at the same
-        // guarantee (its comment carries the argument).
-        crate::swept::register_rim_identity(rim, verts[i].r, tol);
         let spec = EdgeCurveSpec {
             // The return half of the whole turn's own range, on the
             // sketch placement: no turned placement is evaluated.
@@ -973,7 +971,9 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 })
                 .restrict(T::from_f64(0.5), T::one()),
             ),
-            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, rim.normalize()),
+            // `u_ref` points at the turned vertex: the seam direction
+            // `u₃` (the vertex lies at `r > 0`), turned with it.
+            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, far.carry(frame.u3)),
             param_start: T::zero(),
             param_end: half.abs(),
         };

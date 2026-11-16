@@ -114,6 +114,7 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
             "leaf",
             NodeErrorKind::UnfinishedLeaf {
                 input: editor_core::RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
+                into: None,
                 findings,
             }
             .to_string(),
