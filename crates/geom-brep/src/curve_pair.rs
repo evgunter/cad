@@ -595,9 +595,21 @@ impl<T: Decide> Found<T> {
                 }
             }
             if class.starts_with("basin-unproved") && std::env::var_os("CAD_RING_PROBE_REFUSE").is_some() {
-                self.probe_refused.get_or_insert(MeetFault::Unsettled(Unsettled::Meter {
-                    row: "ring_probe_neither",
-                }));
+                let escalated = std::env::var_os("CAD_RING_PROBE_ESCALATE")
+                    .and_then(|_| {
+                        geom_core::k_stats::decide(
+                            "ring_probe_escalated",
+                            geom_core::Margin::of(T::from_f64(f64::NAN)),
+                            band,
+                        )
+                        .err()
+                    })
+                    .map(MeetFault::Escalated);
+                self.probe_refused.get_or_insert(escalated.unwrap_or(MeetFault::Unsettled(
+                    Unsettled::Meter {
+                        row: "ring_probe_neither",
+                    },
+                )));
             }
             return;
         }
