@@ -5,11 +5,11 @@
 //!
 //! The union is built in its first member's frame, the turned copy's, so
 //! the member carried through the boxed turn is the CLEAR copy. Its
-//! cylinder's axis, read through the turn, is the datum left undecided,
-//! and the refusal names that copy as its input. That the named input is
-//! the copy that was not turned is
-//! `work/onehome/an-unfinished-leaf-names-the-copy-that-was-not-turned.md`;
-//! this row pins what the evaluation does today.
+//! cylinder's axis, read through the turn, is the datum left undecided.
+//! The refusal names that copy as its input, the subject whose image
+//! does not finish, and the turned copy as the operand whose frame it was
+//! read into, so the person is told both halves
+//! (`work/onehome/an-unfinished-leaf-names-the-copy-that-was-not-turned.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -80,7 +80,12 @@ fn a_turned_discs_union_names_the_member_carried_through_the_turn() {
     assert!(ev.node_error(turned).is_none(), "the turned copy builds");
     assert!(ev.node_error(clear).is_none(), "the clear copy builds");
     let refusal = ev.node_error(union).expect("the union refuses");
-    let editor_core::NodeErrorKind::UnfinishedLeaf { input, findings } = &refusal.kind else {
+    let editor_core::NodeErrorKind::UnfinishedLeaf {
+        input,
+        into,
+        findings,
+    } = &refusal.kind
+    else {
         panic!(
             "the union refuses its unfinished member: {:?}",
             refusal.kind
@@ -89,6 +94,11 @@ fn a_turned_discs_union_names_the_member_carried_through_the_turn() {
     assert_eq!(
         *input, clear,
         "the refusal names the member carried through the boxed turn"
+    );
+    assert_eq!(
+        *into,
+        Some(turned),
+        "and the member whose frame it was read into"
     );
     assert!(
         findings.as_slice().iter().any(|f| matches!(
@@ -102,7 +112,11 @@ fn a_turned_discs_union_names_the_member_carried_through_the_turn() {
     );
     let text = refusal.kind.to_string();
     assert!(
-        text.contains("does not finish") && !text.contains("extru"),
+        text.contains("read into") && text.contains("frame, does not finish there"),
+        "the text says which frame the input was read into: {text}"
+    );
+    assert!(
+        !text.contains("extru"),
         "the text names the input, not how it was made: {text}"
     );
 }

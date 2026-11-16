@@ -1777,9 +1777,22 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "UnfinishedLeaf/read into another's frame",
+            NodeErrorKind::UnfinishedLeaf {
+                input: RecipeNodeId::new(0, tagged(3)),
+                into: Some(RecipeNodeId::new(0, tagged(4))),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
+        row(
             "UnfinishedLeaf/NegativeVolume",
             NodeErrorKind::UnfinishedLeaf {
                 input: RecipeNodeId::new(0, tagged(3)),
+                into: None,
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
                         solid: topo::SolidKey::default(),
