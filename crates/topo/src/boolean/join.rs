@@ -6560,6 +6560,54 @@ mod self_check_rows {
             "the straight chord"
         );
     }
+
+    /// **A carried chord across a ring of a planar face takes the planar
+    /// ring lane.** A square planted as a ring in a brick's top face,
+    /// matched between two of its halves with no outer loop between
+    /// them: the face's surface picks the lane, so the carried closing
+    /// is handed the planar ring lane with the face's outward normal,
+    /// where a face read by its path carrier alone refused a plane.
+    #[test]
+    fn a_carried_chord_across_a_planar_faces_ring_takes_the_planar_ring_lane() {
+        let tol = Tol::witness();
+        let mut prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let top = prism.top_face;
+        let first_of = |body: &crate::Body<f64>, l| match body.get_loop(l).unwrap().boundary {
+            crate::LoopBoundary::Cycle { first } => first,
+            crate::LoopBoundary::Empty { .. } => panic!("the loop is a cycle"),
+        };
+        let at = first_of(&prism.body, prism.body.get_face(top).unwrap().outer);
+        let rim =
+            [(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)].map(|(x, y)| Point3::new(x, y, 1.0));
+        crate::test_support_fixtures::plant_ring_face(&mut prism.body, at, &rim, tol);
+        let body = &prism.body;
+        let [ring] = body.get_face(top).unwrap().rings[..] else {
+            panic!("the top face holds the planted ring alone");
+        };
+        let cycle = body.loop_cycle(first_of(body, ring)).unwrap();
+        let lane = super::choose_roles(
+            (body, super::super::Operand::A),
+            ((cycle[0], cycle[2]), None),
+            &slotmap::SecondaryMap::new(),
+            None,
+            super::RingClosure::Chord,
+            band(),
+        );
+        assert!(
+            matches!(
+                lane,
+                Ok(super::RoleLane::Ring { face, normal })
+                    if face == top && [normal.x, normal.y, normal.z] == [0.0, 0.0, 1.0]
+            ),
+            "the lane's refusal, if it refused: {:?}",
+            lane.err()
+        );
+    }
 }
 
 #[cfg(test)]
