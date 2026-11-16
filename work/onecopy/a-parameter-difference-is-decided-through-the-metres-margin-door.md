@@ -36,12 +36,28 @@ sweep sorted the band-decided parameter differences into four classes:
   Landed on branch `onecopy/param-difference`:
   - `nurbs_iso::iso_boundary_row` (`iso_row_at_domain_end`) is metered at
     the chart's sup stretch along the axis;
-  - `slit::parting_order` (`PARTING_ORDER`) is metered at the sup of the
-    carrier's `speed_range`;
+  - `slit::parting_order` decides each acted-on side at the bound
+    that makes it sound, over the carrier's `speed_range`:
+    - the order (`bool_parting_order`) at the inf;
+    - an order in band is read again for one point
+      (`bool_parting_one_point`) at the sup;
+    - where the two disagree, it escalates on both bounds
+      (`bool_parting_straddle`);
+    - a spline whose floor is not decided positive has no certified
+      inf, so its order rides `decide_flagged` under ledger row F45 on
+      the parameter's own sign, and its Zero is still read at the sup;
   - `replace_face`'s `iso_row_runs_against` has no certifiable inf rate,
     so it rides `decide_flagged` under ledger row F44;
 - **(d)** already metres, so nothing to do: `offset_derive`.
 
-A probe moved no decision at default ε or 1e-12: 29
-`iso_row_at_domain_end` readings and 112 `parting_order` readings at
-each.
+A probe compared main's `Margin::of` outcome with the landed one at
+every call over the 7-crate ci sets:
+- `iso_row_at_domain_end`: 29 readings at default ε and at 1e-12, no
+  moves;
+- `parting_order` (the whole outcome: order, one point or
+  escalation): 112 readings at each of default ε, 1e-12 and 1e-6, no
+  moves.
+
+All 112 `parting_order` readings are on line carriers, whose inf and
+sup are one speed. So the probe cannot see the split, the straddle or
+the flagged lane; the pins in `slit::parting_order_rows` read those.

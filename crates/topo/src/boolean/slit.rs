@@ -2413,7 +2413,8 @@ struct Division {
 /// [`EdgeInFaceGap::AtACrossing`], and [`EdgeInFaceGap::EndOnBoundary`]
 /// where a crossing is the edge's own end ([`crossing_named`]);
 /// [`BooleanError::Escalated`] where a meeting, a vertex on an edge, or
-/// an order along one is in band; the splits' refusals.
+/// an order along one is in band, or where an order's two bounds disagree
+/// ([`parting_order`]'s straddle); the splits' refusals.
 fn divide<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     records: &mut ContactRecords,
@@ -2429,7 +2430,6 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&f| (f, body.proven_face(f).edge_set()))
         .collect();
-    // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
     // the edge itself lies in all of them, and is named against the
     // first.
@@ -2729,7 +2729,8 @@ fn crossing_named<T: Decide>(
 /// # Errors
 ///
 /// `at_one_point()` where `t` is one of them; [`BooleanError::Escalated`]
-/// where an order is in band.
+/// where an order is in band, or where its two bounds disagree (in band at
+/// the inf, apart at the sup: [`parting_order`]'s straddle).
 fn slot_from_far_end<T: Decide>(
     carrier: &geom::Curve3<T>,
     placed: impl Iterator<Item = T>,
@@ -4299,33 +4300,63 @@ mod parting_order_rows {
         assert!(is_one_point(&read(&thin, 1e-11)));
     }
 
-    /// **A spline whose speed floor certifies nothing orders on the
-    /// parameter's own sign** (ledger row F45). A quadratic that runs out
-    /// and back (`P0 = P2`) has a hodograph through the origin, so its
-    /// floor is not decided positive; its order rides the finding lane,
-    /// and its Zero is still read at the sup.
-    #[test]
-    fn a_spline_with_no_certified_floor_orders_on_the_flagged_lane() {
-        let there_and_back = geom::Curve3::Nurbs(std::sync::Arc::new(
+    /// A quadratic that runs out to `(reach, 0, 0)` and back (`P0 = P2`):
+    /// its hodograph passes through the origin, so its speed floor is not
+    /// decided positive, and its sup is about `2·reach`.
+    fn there_and_back(reach: f64) -> geom::Curve3<f64> {
+        let c = geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(
                 geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
                     .unwrap(),
                 vec![
                     Point3::origin(),
-                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(reach, 0.0, 0.0),
                     Point3::origin(),
                 ],
                 vec![1.0; 3],
             )
             .unwrap(),
         ));
-        let floor = geom::carrier_speed::speed_range(&there_and_back).0.get();
+        let floor = geom::carrier_speed::speed_range(&c).0.get();
         assert!(
             !geom_core::structure_ascends(0.0, floor),
             "the premise: floor {floor}"
         );
-        assert!(read(&there_and_back, 1e-6).unwrap());
-        assert!(!read(&there_and_back, -1e-6).unwrap());
-        assert!(is_one_point(&read(&there_and_back, 1e-11)));
+        c
+    }
+
+    /// **A spline whose speed floor certifies nothing orders on the
+    /// parameter's own sign** (ledger row F45), and reads its Zero again
+    /// at the sup. Two scales tell the lane apart from a metered order:
+    /// - a slow one (sup about `2e-3`), where a gap of `1e-7` is past the
+    ///   escalation in parameter but within the zero in metres at the
+    ///   sup: the flagged lane orders it, a sup-metered order would read
+    ///   one point;
+    /// - a fast one (sup about `200`), where a gap of `5e-10` is within
+    ///   the zero in parameter and `1e-7` m at the sup: the flagged lane's
+    ///   Zero is read at the sup and escalates on both bounds, where a
+    ///   sup-metered order would order it and a raw Zero taken as one
+    ///   point would refuse as one point.
+    ///
+    /// The lane's own spelling (`decide_flagged` rather than
+    /// `Margin::of`, which classifies the same value) is the census's to
+    /// pin, not a reading's.
+    #[test]
+    fn a_spline_with_no_certified_floor_orders_on_the_flagged_lane() {
+        let unit = there_and_back(1.0);
+        assert!(read(&unit, 1e-6).unwrap());
+        assert!(!read(&unit, -1e-6).unwrap());
+        assert!(is_one_point(&read(&unit, 1e-11)));
+        let slow = there_and_back(1e-3);
+        assert!(read(&slow, 1e-7).unwrap(), "{:?}", read(&slow, 1e-7));
+        assert!(!read(&slow, -1e-7).unwrap());
+        let fast = there_and_back(100.0);
+        assert!(
+            is_escalated(&read(&fast, 5e-10)),
+            "{:?}",
+            read(&fast, 5e-10)
+        );
+        assert!(is_escalated(&read(&fast, -5e-10)));
+        assert!(is_one_point(&read(&fast, 1e-12)));
     }
 }
