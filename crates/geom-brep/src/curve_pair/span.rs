@@ -347,8 +347,16 @@ impl<'a, T: Decide> Span<'a, T> {
     ///
     /// Whether `t` is AT an end is [`Self::place_param`]'s question, read
     /// by the chord to the end's point; this door is for a reader that
-    /// needs the gap's size against the band. It reads no period: `t` is
-    /// named on the span's own branch by its caller.
+    /// needs the gap's size against the band.
+    ///
+    /// **It reads no period; its premise is the caller's naming.** Its
+    /// callers name `t` at or past the span's start, a turn on at most
+    /// (`Period::at_or_above(t, t0)`), not about the span's middle. So
+    /// the one place an enclosure can lie astride two copies is the start
+    /// itself, which the caller reads as an end first; off it a box is
+    /// named whole on the copy the span runs from, and its other copy lies
+    /// a full turn on, past any span's stop. A caller that names `t`
+    /// otherwise owes the copy reading ([`Self::place_param`] holds it).
     #[must_use]
     pub fn end_gap(&self, t: T, end: SpanEnd, meter: GapMeter) -> Margin<T> {
         self.end_gap_widened(t, end, T::zero(), meter)

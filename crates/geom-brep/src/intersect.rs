@@ -614,7 +614,9 @@ pub fn route_pose<T: Decide>(
         // Refused BEFORE the pose was classified: an operand guard the
         // arm runs ahead of its pose trileans. The pose is unknown, and
         // a gate must not admit what it cannot classify.
-        Err(SectionError::DegenerateOperand { what }) => refused(what),
+        Err(SectionError::DegenerateOperand { what } | SectionError::ConeAtTheBand { what }) => {
+            refused(what)
+        }
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::RadiusEscalated { .. }
@@ -686,7 +688,21 @@ pub enum SectionError {
     /// `r = R = 0` and mints a radius-zero locus from them. `what`
     /// carries the whole finding — which clause failed and what it was
     /// measured on — because the clauses are not all about radii.
+    ///
+    /// Mixed, so it aborts ([`Self::refusal`]): a guard decided negative
+    /// (row 1(a)) beside a radius guard decided `Zero`, a poisoned height
+    /// and a partner the form does not read.
     DegenerateOperand {
+        /// Which clause of the convention failed, and on what.
+        what: &'static str,
+    },
+    /// A cone's aperture or seam guard decided `Zero`: at this band the
+    /// cone stands on its convention's edge (a half-angle at zero or a
+    /// right angle, a seam on its axis), where a tighter band may part
+    /// it, so it stands in band. Its decided-negative sibling is
+    /// [`Self::DegenerateOperand`]. It renders its in-band lever: a
+    /// cone moved clearly inside its convention, or a smaller tolerance.
+    ConeAtTheBand {
         /// Which clause of the convention failed, and on what.
         what: &'static str,
     },
@@ -727,7 +743,9 @@ pub enum SectionError {
         predicate: &'static str,
     },
     /// A crossing of the carriers the closed form cannot place on either
-    /// side of a line it reads the section by, named.
+    /// side of a line it reads the section by, named: the side decided
+    /// `Zero`, so a tighter band may place it (an undecided side is
+    /// [`Self::Escalated`]).
     Unordered {
         /// The reading.
         predicate: &'static str,
@@ -751,6 +769,69 @@ pub enum SectionError {
 impl From<EllipseInvalid> for SectionError {
     fn from(e: EllipseInvalid) -> Self {
         Self::Carrier(e)
+    }
+}
+
+impl SectionError {
+    /// **What this refusal is to a ladder** ([`crate::ladder::Refusal`]),
+    /// per cause and exhaustive, so a cause added here states its
+    /// standing before it compiles: an escalation by its margin, a
+    /// reading the band may part in band, an arm not built (or not built
+    /// that far) a limit, and a caller's defect, an invalid operand or a
+    /// constructor that disagrees with its arm an abort.
+    ///
+    /// **A cause that mixes classes stands as an abort**, since a ladder
+    /// must never read past what may be a fault or an in-band
+    /// coincidence: [`Self::DegenerateOperand`] (a guard decided
+    /// negative beside a radius decided `Zero`, a poisoned height, a
+    /// partner the form does not read), [`Self::Pinched`] (a tangency decided `Zero`
+    /// beside readings that drop an undecided margin) and
+    /// [`Self::Unaccounted`] (an accounting that did not close beside a
+    /// branch that did not certify).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a caller's defect, an invalid
+    /// operand, a constructor's disagreement or a mixed cause, and a
+    /// torus's own aborts ([`TorusRefusal::refusal`]).
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag)
+            | Self::RadiusEscalated { diag, .. }
+            | Self::Carrier(EllipseInvalid::Escalated(diag))
+            | Self::Spiric(SpiricInvalid::Escalated(diag)) => Ok(Refusal::Margin(*diag)),
+            Self::DegenerateTorus(refusal) => refusal.refusal(),
+            // A tighter band may part each.
+            Self::CoincidentSurfaces | Self::Unordered { .. } | Self::ConeAtTheBand { .. } => {
+                Ok(Refusal::InBand)
+            }
+            // An arm not built, or not built that far (row 2). `Limit`
+            // until row 2 is typed (`Refusal::Unbuilt`,
+            // `work/onecopy/row-2-is-a-typed-standing-in-code.md`).
+            Self::RoutesToGeneralRung { .. }
+            | Self::NoMarch { .. }
+            | Self::BeyondOperandExtent { .. } => Ok(Refusal::Limit),
+            // An ellipse past what the representation carries (row 1(b),
+            // no margin).
+            Self::Carrier(EllipseInvalid::SemiAxisNotFinite) => Ok(Refusal::Limit),
+            // A caller's defect (row 4), and a constructor refusing what
+            // its arm classified as its own: two readings that disagree.
+            Self::WrongLane { .. }
+            | Self::NoRegion { .. }
+            | Self::Carrier(EllipseInvalid::MinorNotPositive)
+            | Self::Spiric(
+                SpiricInvalid::MinorNotPositive
+                | SpiricInvalid::NotARing
+                | SpiricInvalid::ThroughAxis
+                | SpiricInvalid::NotTwoOvals
+                | SpiricInvalid::FrameNotOrthogonal,
+            ) => Err(Aborts),
+            // Mixed (above).
+            Self::DegenerateOperand { .. } | Self::Pinched { .. } | Self::Unaccounted { .. } => {
+                Err(Aborts)
+            }
+        }
     }
 }
 
@@ -794,6 +875,13 @@ impl SectionError {
             Self::DegenerateOperand { what } => {
                 write!(f, "a section operand is degenerate: {what}")
             }
+            Self::ConeAtTheBand { what } => write!(
+                f,
+                "a section's cone stands on the edge of its convention at this \
+                 tolerance: {what}. Recourse: open the cone clearly off its axis and \
+                 clearly short of a right angle, with its seam clearly off its axis, or \
+                 run the operation at a smaller tolerance"
+            ),
             Self::BeyondOperandExtent { what } => write!(
                 f,
                 "{what}, outside the extent the section was sized for, where its closed \
@@ -2245,31 +2333,40 @@ pub fn plane_cone_section<T: Decide>(
     const PN_APERTURE_SIN: &str = "pn_aperture_sin";
     const PN_APERTURE_COS: &str = "pn_aperture_cos";
     const PN_SEAM_OFF_AXIS: &str = "pn_seam_off_axis";
-    for (name, margin, what) in [
+    // Each clause's words for a margin decided `Zero` (at the
+    // convention's edge) and decided negative (outside it).
+    for (name, margin, at_edge, outside) in [
         (
             PN_APERTURE_SIN,
             sin_a,
-            "the cone's half-angle does not definitely open off its axis, so the \
-             apex lane's division by sin α is not decided",
+            "the cone's half-angle is zero within the tolerance, so the apex lane's \
+             division by sin α is not decided",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
         ),
         (
             PN_APERTURE_COS,
             cos_a,
-            "the cone's half-angle is not definitely under a right angle, so the \
+            "the cone's half-angle is a right angle within the tolerance, so the \
              axis-normal circle's division by cos α is not decided",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
         ),
         (
             PN_SEAM_OFF_AXIS,
             seam_width,
-            "the cone's seam does not definitely leave its axis, so where its \
+            "the cone's seam lies along its axis within the tolerance, so where its \
              azimuth zero lies is not decided",
+            "the cone's seam width reads negative, which no frame holds",
         ),
     ] {
         match decide(name, Margin::levered(margin, extent), band)
             .map_err(SectionError::Escalated)?
         {
             Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            // Decided `Zero`, a tighter band may part the cone from its
+            // convention's edge; decided negative, it is outside it.
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
         }
     }
     let c = a.dot(n);
@@ -3060,29 +3157,38 @@ pub fn cone_cylinder_section<T: Decide>(
     const COC_APERTURE_SIN: &str = "coc_aperture_sin";
     const COC_APERTURE_COS: &str = "coc_aperture_cos";
     const COC_SEAM_OFF_AXIS: &str = "coc_seam_off_axis";
-    for (name, margin, what) in [
+    // Each clause's words for a margin decided `Zero` (at the
+    // convention's edge) and decided negative (outside it).
+    for (name, margin, at_edge, outside) in [
         (
             COC_APERTURE_SIN,
             sin_a,
-            "the cone's half-angle does not definitely open off its axis, so the \
-             station's division by sin α is not decided",
+            "the cone's half-angle is zero within the tolerance, so the station's \
+             division by sin α is not decided",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
         ),
         (
             COC_APERTURE_COS,
             cos_a,
-            "the cone's half-angle is not definitely under a right angle, so cot α's \
+            "the cone's half-angle is a right angle within the tolerance, so cot α's \
              sign — and with it which nappe each circle is on — is not decided",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
         ),
         (
             COC_SEAM_OFF_AXIS,
             seam_width,
-            "the cone's seam does not definitely leave its axis, so the circles' \
+            "the cone's seam lies along its axis within the tolerance, so the circles' \
              azimuth zero is not decided",
+            "the cone's seam width reads negative, which no frame holds",
         ),
     ] {
         match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            // Decided `Zero`, a tighter band may part the cone from its
+            // convention's edge; decided negative, it is outside it.
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
         }
     }
 
@@ -3282,5 +3388,171 @@ mod apex_fan_rows {
         // Touching: axes exactly 0.8 apart.
         let touch = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.8), h2.cos()));
         assert!(touch.disc.abs() < 1e-14, "{touch:?}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod section_error_standing_rows {
+    use super::*;
+    use crate::ladder::{Aborts, Refusal};
+    use crate::torus_convention::{TorusConvention, TorusVerdict};
+
+    /// **Each section refusal stands by its cause**
+    /// ([`SectionError::refusal`]): an escalation by its margin, a
+    /// reading the band may part in band, an arm not built a limit, and a
+    /// caller's defect, an invalid operand, a constructor's disagreement
+    /// or a mixed cause an abort.
+    #[test]
+    fn each_section_refusal_stands_by_its_cause() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let diag = crate::dihedral::decide("t", Margin::of(5e-9_f64), band)
+            .expect_err("a margin between the band's edges is undecided");
+        let torus = |verdict| {
+            SectionError::DegenerateTorus(TorusRefusal {
+                convention: TorusConvention::Tube,
+                verdict,
+            })
+        };
+        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 25] = [
+            (
+                "wrong lane",
+                SectionError::WrongLane { expected: "a pair" },
+                Err(Aborts),
+            ),
+            (
+                "escalated",
+                SectionError::Escalated(diag),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "radius escalated",
+                SectionError::RadiusEscalated {
+                    radius: SectionRadius::Cylinder,
+                    diag,
+                },
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "general rung",
+                SectionError::RoutesToGeneralRung {
+                    pair: "p",
+                    why: "w",
+                },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "no region",
+                SectionError::NoRegion { pair: "p" },
+                Err(Aborts),
+            ),
+            (
+                "degenerate operand, mixed",
+                SectionError::DegenerateOperand { what: "w" },
+                Err(Aborts),
+            ),
+            (
+                "a cone at its convention's edge",
+                SectionError::ConeAtTheBand { what: "w" },
+                Ok(Refusal::InBand),
+            ),
+            (
+                "beyond extent",
+                SectionError::BeyondOperandExtent { what: "w" },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "coincident",
+                SectionError::CoincidentSurfaces,
+                Ok(Refusal::InBand),
+            ),
+            (
+                "torus undecided",
+                torus(TorusVerdict::Undecided(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "torus decided outside",
+                torus(TorusVerdict::Refused(crate::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                })),
+                Err(Aborts),
+            ),
+            (
+                "carrier escalated",
+                SectionError::Carrier(EllipseInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "carrier minor",
+                SectionError::Carrier(EllipseInvalid::MinorNotPositive),
+                Err(Aborts),
+            ),
+            (
+                "carrier not finite",
+                SectionError::Carrier(EllipseInvalid::SemiAxisNotFinite),
+                Ok(Refusal::Limit),
+            ),
+            (
+                "spiric escalated",
+                SectionError::Spiric(SpiricInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "spiric minor",
+                SectionError::Spiric(SpiricInvalid::MinorNotPositive),
+                Err(Aborts),
+            ),
+            (
+                "spiric ring",
+                SectionError::Spiric(SpiricInvalid::NotARing),
+                Err(Aborts),
+            ),
+            (
+                "spiric axis",
+                SectionError::Spiric(SpiricInvalid::ThroughAxis),
+                Err(Aborts),
+            ),
+            (
+                "spiric ovals",
+                SectionError::Spiric(SpiricInvalid::NotTwoOvals),
+                Err(Aborts),
+            ),
+            (
+                "spiric frame",
+                SectionError::Spiric(SpiricInvalid::FrameNotOrthogonal),
+                Err(Aborts),
+            ),
+            (
+                "pinched, mixed",
+                SectionError::Pinched { predicate: "p" },
+                Err(Aborts),
+            ),
+            (
+                "unordered, decided zero",
+                SectionError::Unordered { predicate: "p" },
+                Ok(Refusal::InBand),
+            ),
+            (
+                "no march",
+                SectionError::NoMarch { scalar: "s" },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "unaccounted, mixed",
+                SectionError::Unaccounted {
+                    cause: String::new(),
+                },
+                Err(Aborts),
+            ),
+            (
+                "carrier from the constructor",
+                SectionError::from(EllipseInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+        ];
+        for (label, error, want) in rows {
+            assert_eq!(error.refusal(), want, "{label}");
+        }
     }
 }

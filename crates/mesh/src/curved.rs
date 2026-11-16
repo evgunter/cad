@@ -424,11 +424,9 @@ pub(crate) fn tessellate_curved(
                 unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
             }
         }
-        // Sticky-NaN accumulation: `f64::max` would silently drop a
-        // poisoned bound.
-        if bound.is_nan() || worst.is_nan() || bound > worst {
-            worst = bound;
-        }
+        // The face's worst bound, a NaN kept once met (`cert::worse`):
+        // what a refusal reports is what refused.
+        worst = cert::worse(worst, bound);
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
 
@@ -1064,7 +1062,7 @@ fn overused_identified_edge(
 /// here: a count of 1 on either axis empties the interior grid's
 /// `1..nu × 1..nv` ranges, so the OTHER axis' schedule is computed
 /// and dropped — the sphere and torus arms at `nu == 1`, and
-/// `trimmed::uniform_candidates`, are the members. The cylinder and
+/// `trimmed::lattice_candidates`, are the members. The cylinder and
 /// cone arms take no rows by their theorems, so their `nu` is the
 /// face's column count and nothing more; the rest stay
 /// certificate-backstopped (measured watertight and in-tolerance —
@@ -1092,8 +1090,8 @@ fn grid_counts(
         Analytic::Cone { .. } => {
             if bare_sides {
                 // `(nu, 1)`, the cylinder's shape and for its reason: no
-                // rows. `cert::cert_cone` never reads v beyond the
-                // triangle's largest radius, and with both rims chorded
+                // rows. `cert::cert_cone` charges a chord across `Δu` no
+                // more than its larger radius's sagitta, and with both rims chorded
                 // on this step (`chords`' one rule) and
                 // nothing on the sides between them, the strip argument
                 // at `sizing::sagitta_step` holds every triangle to one

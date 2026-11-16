@@ -2960,6 +2960,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3437,6 +3438,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -4609,7 +4611,7 @@ fn solve_corners<T: Decide>(
                         unreachable!("a root is sought only where a surface or the edge moves")
                     };
                     let surface = surface_of(k);
-                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    if !geom_brep::is_analytic(surface) {
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {
