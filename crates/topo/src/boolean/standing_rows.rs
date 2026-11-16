@@ -163,8 +163,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let section =
-        |source| -> BooleanError { crate::JoinError::Section { face, source }.into() };
+    let section = |source| -> BooleanError { crate::JoinError::Section { face, source }.into() };
     let more: [(&str, BooleanError, Result<Refusal, Aborts>); 15] = [
         (
             "a result no model represents, non-manifold",

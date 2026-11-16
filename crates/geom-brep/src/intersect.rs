@@ -805,13 +805,15 @@ impl SectionError {
             Self::CoincidentSurfaces | Self::Unordered { .. } | Self::ConeAtTheBand { .. } => {
                 Ok(Refusal::InBand)
             }
-            // An arm not built, or not built that far (row 2), and an
-            // ellipse past what the representation carries (row 1(b), no
-            // margin).
+            // An arm not built, or not built that far (row 2). `Limit`
+            // until row 2 is typed (`Refusal::Unbuilt`,
+            // `work/onecopy/row-2-is-a-typed-standing-in-code.md`).
             Self::RoutesToGeneralRung { .. }
             | Self::NoMarch { .. }
-            | Self::BeyondOperandExtent { .. }
-            | Self::Carrier(EllipseInvalid::SemiAxisNotFinite) => Ok(Refusal::Limit),
+            | Self::BeyondOperandExtent { .. } => Ok(Refusal::Limit),
+            // An ellipse past what the representation carries (row 1(b),
+            // no margin).
+            Self::Carrier(EllipseInvalid::SemiAxisNotFinite) => Ok(Refusal::Limit),
             // A caller's defect (row 4), and a constructor refusing what
             // its arm classified as its own: two readings that disagree.
             Self::WrongLane { .. }
