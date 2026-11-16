@@ -854,3 +854,6 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **P0 fork to designers:** `a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses` (`design: true`). Every seated closed quadric loop carries a full-multiplicity knot inside an edge, so those booleans build but never mesh.
   - **P1 unit:** `a-rim-arcs-pad-is-its-widest-certifying-rung` (letter M, tier single FULL). The rim arc's pad is narrowed per sub-span window, the move PR 6897 made toward a node. It is single because it follows that shape, though the pad bounds a site's arc assignment, so the review must probe soundness.
   - Bytes are drawn after this entry.
+- **Draws** (bytes drawn after the entry above):
+  - C0-knot fork: arm byte 101 (two designers), label byte 125 (odd, A = Fable), on `analysis/design-fork/sectarms-c0-knot`. Both designers were dispatched concurrently on `designer-c0.md`, which restates the item's measurements and keeps the item's remedy guesses from them.
+  - Rim-pad implementer: byte 178 (Opus), on the model-compare branch; brief `impl-rimpad.md`, branch `sectarms/rim-pad-windows`.
