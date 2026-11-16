@@ -46,3 +46,14 @@ curved lane's pole-cap handling (`curved::pole_columns`) carried into
 the trimmed lane's polygon.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## A face holding a pole inside it refuses at the door (2026-11-14, TESSLANE unit 3)
+
+The trimmed lane now reads a face's domain from `topo::Body::face_lift`,
+which refuses a loop that does not close in the chart before any polygon
+is drawn: a loop about a pole inside the face winds the chart's `u`
+period, so the face refuses `TessellateError::DomainUnread` with the
+door's `OuterOpen` (`a-curved-faces-domain-is-read-from-every-loop`).
+`SphereTrimCause::PoleInside`, the polygon-side test this row names, is
+retired with it. The seam traversed twice and the image past a pole
+mid-edge stand as they were.
