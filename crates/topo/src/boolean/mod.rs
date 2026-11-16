@@ -279,7 +279,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
+    flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
