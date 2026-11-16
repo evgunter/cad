@@ -2,11 +2,11 @@
 id: the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved
 kind: unit
 title: the trimmed lattice keeps a clearance from the boundary, and tessellate refuses a face whose triangle f64 cannot wind
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: H
-blocked_on: [6966]
+branch: tesslane/lattice-clearance
 ---
 
 
