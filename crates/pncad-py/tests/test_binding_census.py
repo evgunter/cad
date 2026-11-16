@@ -617,7 +617,7 @@ BOUND_AS = {
     "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
-    "PlaneRelation": "Coincidence.relation",
+    "CarrierRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `placement` and `output_ix`, or `node`.
@@ -1412,6 +1412,10 @@ BOUND_AS = {
     # Why an index is refused as declared crosses at the carrier's
     # second word (`count_not_count`, `within_no_index`).
     "IndexFault": "EditError.inner_variant",
+    # Why a source is refused as declared crosses at the carrier's second
+    # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
+    # `fresh`).
+    "SourceFault": "EditError.inner_variant",
     # Why a family's members could not be listed: the evaluator turns
     # it into its node refusal (`MemberCountFault::node_error`), so it
     # crosses as the tags `index_count` / `index_count_out_of_range`.
@@ -1456,6 +1460,11 @@ BOUND_AS = {
     "save": "Doc.save",
     "select": "Evaluation.select",
     "select_where": "Evaluation.select_where",
+    # A member read, `row[i]`, at the same two doors; a family read
+    # whole refuses at them (`SelectRefusal.reason` `family`).
+    "select_member": "Evaluation.select",
+    "select_where_member": "Evaluation.select_where",
+    "one_body": "Evaluation.select",
     "step_string": "Evaluation.step_string",
     "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
@@ -2780,8 +2789,11 @@ NOT_BOUND = {
     # `inconsistent_arc` with its check left behind. `Gate`,
     # `EscalatedAt` and `ArcRead` are the same footing: the escalation
     # arms' gate and site, and the read-back arms' read, crossing as
-    # the arm's word with the field left behind.
+    # the arm's word with the field left behind. `RecordedDirection`
+    # is `InconsistentDirection`'s and `DirectionBelowSceneResolution`'s,
+    # on `ArcCheck`'s footing.
     "ArcCheck": INTERIOR,
+    "RecordedDirection": INTERIOR,
     "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalatedAt": INTERIOR,
@@ -2925,10 +2937,6 @@ NOT_BOUND = {
     # leaf (the switch at `topo::AtRestPolicy::leaf`): Python reads it as
     # the `Body` it derefs to, never as the enum.
     "Held": INTERIOR,
-    # A body read into a frame (`Framed::read_in`, the read-out
-    # `body_in_space`): a value's own `Held`, or its body mapped as
-    # construction state. Python reads it as the `Body` it derefs to.
-    "ReadIn": INTERIOR,
     "in_space": INTERIOR,
     "Composing": INTERIOR,
     # What an evaluation built, counted (debug builds only): a row's
@@ -3021,6 +3029,9 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
+    # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
+    # (`wedge_unsettled`) already names at the Python seam.
+    "UnsettledWedge": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
@@ -3032,6 +3043,14 @@ NOT_BOUND = {
     "ValidatedProfile": INTERIOR,
     "edge_name": INTERIOR,
     "face_name": INTERIOR,
+    # A member's own table, and an entity between it and the family's:
+    # the doors `Evaluation.select(row[i], ...)` reads through, and the
+    # viewer's turn of a pick on a drawn member into `row[i]` and the
+    # member's own name. A Python author selects from `row[i]` and is
+    # answered in the member's own names directly.
+    "member_table": INTERIOR,
+    "member_entity": INTERIOR,
+    "family_entity": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     # The same walk with the name it reached at the member's instance:
@@ -3642,6 +3661,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
     "EditError::PickPath": "EditError.variant",
+    "EditError::PlacementReadsNoSource": "EditError.variant",
+    "EditError::SourceRead": "EditError.variant",
     "EditError::ProductRead": "EditError.variant",
     "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",
@@ -3712,6 +3733,9 @@ MEMBERS_BOUND_AS = {
     "EditError::WitnessOnNonSketch": "EditError.variant",
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::TakeOverRepeatsCopy": "EditError.variant",
+    "EditError::TakeOverNotASource": "EditError.variant",
+    "EditError::TakeOverSharedSource": "EditError.variant",
+    "EditError::SourceReaderRefused": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",
@@ -3760,6 +3784,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::VarNameConflict": "InlineError.variant",
     "InlineError::UnreadPose": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
+    "InlineError::SelectionSpansMembers": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
@@ -3772,6 +3797,7 @@ MEMBERS_BOUND_AS = {
     "FlattenError::NotANewSpace": "FlattenError.variant",
     "FlattenError::SpaceShared": "FlattenError.variant",
     "FlattenError::ReadUncarried": "FlattenError.variant",
+    "FlattenError::SelectionSpansMembers": "FlattenError.variant",
     "FlattenError::BothNamed": "FlattenError.variant",
     "FlattenError::Edit": "FlattenError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
@@ -3884,6 +3910,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
     "SelectRefusal::Frame": "SelectRefusal.reason",
+    "SelectRefusal::Family": "SelectRefusal.reason",
+    "SelectRefusal::NoMember": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",
@@ -3926,7 +3954,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
-    "StepImportError::PlacementMap": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
@@ -3967,6 +3994,9 @@ MEMBERS_BOUND_AS = {
     # validation.rs`).
     "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
+    "ValidationError::Unmovable": "ValidationFinding.variant",
+    "ValidationError::SurfaceDatumUndecided": "ValidationFinding.variant",
+    "ValidationError::CurveDatumUndecided": "ValidationFinding.variant",
     "ValidationError::DanglingDescription": "ValidationFinding.variant",
     "ValidationError::UncertifiableSurface": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDescription": "ValidationFinding.variant",

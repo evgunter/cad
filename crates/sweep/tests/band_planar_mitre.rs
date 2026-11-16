@@ -41,7 +41,7 @@ use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, 
 use crate::common::operands::{leaning_turn, parallelepiped};
 
 /// What two band prisms meeting at a right trihedron overlap in.
-fn overlap(verb: Verb) -> f64 {
+pub(crate) fn overlap(verb: Verb) -> f64 {
     match verb {
         Verb::Chamfer => D.powi(3) / 3.0,
         Verb::Fillet => (5.0 / 3.0 - PI / 2.0) * D.powi(3),

@@ -14,9 +14,9 @@
 # registered pin with the mutant restricted to that pin's own registered
 # functions (the plan `AFM_PLAN`, `<pin>=<file>:<lo>-<hi>,…`, compiled into
 # the mutant build; the climb's caller read through `#[track_caller]`, the
-# running test through its thread's name), and fails on each one that passes (it does not pin
-# its site; a pin red only for another site it passes through stays green
-# here) or that no package ran (it names no test). A control run of the
+# running test through its thread's name), and fails on each one that
+# passes (it does not pin its site; a pin red only for another site it
+# passes through stays green here) or that no package ran (it names no test). A control run of the
 # same pins without the mutant comes first, and a pin red there fails too:
 # a red with another cause (a main red) says nothing about the mutant.
 #
@@ -52,9 +52,6 @@ for pin in pins:
 # shallower (a fn, a `mod`, an attribute, an `impl` or a type), so the last
 # fn before a test module does not take the module in.
 FN = re.compile(r"^(\s*)(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_0-9]+)")
-# A range also ends at the next item that is no fn at the fn's indentation
-# or shallower: a `mod` (a `#[cfg(test)] mod tests` after the last fn), an
-# attribute line, an `impl`, a type.
 END = re.compile(r"^(\s*)(?:#\[|(?:pub(?:\([^)]*\))?\s+)?(?:mod|impl|struct|enum|trait|type|const|static)\b)")
 sites = {}
 with open(sys.argv[1]) as fh:
@@ -91,46 +88,49 @@ args=()
 for p in $packages; do args+=(-p "$p"); done
 filter=$(tr ' ' '|' <<<"$pins")
 
-control=$(mktemp)
-mutant=$(mktemp)
-trap 'rm -f "$control" "$mutant"' EXIT
-run() { # run LOG [RUSTFLAGS…]: every pin, its outcomes to LOG
-  local log=$1
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+run() { # run NAME [RUSTFLAGS…]: every pin; its log and junit report to $work/NAME.*
+  local name=$1 report=target/nextest/ci/junit.xml # nextest's store, under the workspace root
   shift
+  rm -f "$report"
   set +e
-  RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --no-fail-fast \
+  RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --profile ci --no-fail-fast \
     --run-ignored all --ignore-default-filter \
     --success-output never --failure-output never \
-    -E "test(/::($filter)\$/)" >"$log" 2>&1
+    -E "test(/::($filter)\$/)" >"$work/$name.log" 2>&1
   set -e
+  cp "$report" "$work/$name.xml" 2>/dev/null || true
 }
 # The control: every pin, plain. A pin red without the mutant is red for
 # some other reason (a main red), so its red under the mutant says
 # nothing about the mutant; it fails here instead.
-run "$control"
+run control
 # The mutant, in its own target dir so it does not rebuild the plain one,
 # built with the plan (`AFM_PLAN`, read by `geom_core::ladder` at compile
 # time): each pin's own registered sites, so a pin fires the mutant only
 # there, and one red only for another site it passes through stays green
 # and fails.
 plan=$(tr ' ' ';' <<<"$sites")
-AFM_PLAN="$plan" CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run "$mutant" --cfg any_first_mutant
+AFM_PLAN="$plan" CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run mutant --cfg any_first_mutant
 
-python3 - "$control" "$mutant" $pins <<'PY'
-import re, sys
-pins = sys.argv[3:]
-def outcomes(path, what):
-    log = open(path, errors="replace").read()
-    ran = {}
-    for m in re.finditer(r"^\s*(PASS|FAIL|SIGABRT|SIGSEGV|TIMEOUT)\b.*?::([A-Za-z_0-9]+)\s*$", log, re.M):
-        ran.setdefault(m.group(2), set()).add(m.group(1))
-    if not ran:
-        print(log[-4000:])
-        print(f"any-first-mutant: the {what} run read no test (the build failed?)", file=sys.stderr)
+python3 - "$work" $pins <<'PY'
+import os, sys, xml.etree.ElementTree as ET
+work, pins = sys.argv[1], sys.argv[2:]
+def outcomes(what):
+    """{test leaf: {"PASS" | "FAIL"}} from the run's junit report."""
+    report = os.path.join(work, f"{what}.xml")
+    if not os.path.exists(report):
+        print(open(os.path.join(work, f"{what}.log"), errors="replace").read()[-4000:])
+        print(f"any-first-mutant: the {what} run wrote no junit report (the build failed?)", file=sys.stderr)
         sys.exit(1)
+    ran = {}
+    for case in ET.parse(report).getroot().iter("testcase"):
+        red = case.find("failure") is not None or case.find("error") is not None
+        ran.setdefault(case.get("name").rsplit("::", 1)[-1], set()).add("FAIL" if red else "PASS")
     return ran
-control = outcomes(sys.argv[1], "control")
-mutant = outcomes(sys.argv[2], "mutant")
+control = outcomes("control")
+mutant = outcomes("mutant")
 bad = []
 for pin in pins:
     plain, mutated = control.get(pin), mutant.get(pin)

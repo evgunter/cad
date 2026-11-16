@@ -568,7 +568,7 @@ enum SlackRefusal {
 }
 
 /// Why a reading with no curvature charge read no side: the first
-/// order ([`first_order`]) or the descent ([`Tie::descend`]). Every arm
+/// order ([`first_order_as`]) or the descent ([`Tie::descend`]). Every arm
 /// carries the indeterminate it was read on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ReadFault<T: geom_core::Real> {
@@ -630,7 +630,7 @@ pub(crate) enum BoundSideFault<T: geom_core::Real> {
     ChargeEscalated(Indeterminate),
 }
 
-/// [`first_order`]'s reading: a side with the bound's displacement off
+/// [`first_order_as`]'s reading: a side with the bound's displacement off
 /// the face's tangent plane, in metres, and the predicate and decision
 /// it was read on; or a tie.
 type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;
@@ -639,7 +639,7 @@ type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;
 /// bound's displacement off the face's tangent plane in metres, or a tie.
 /// The displacement is decided on `rd` ([`metric::settle_as`]): a side the
 /// band decides and the slack does not is tied, its slack the tie's.
-fn first_order<T: Decide>(
+fn first_order_as<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
     face: FaceDatum<T>,
@@ -647,8 +647,12 @@ fn first_order<T: Decide>(
 ) -> Result<Settled<T>, ReadFault<T>> {
     let n = face.reference.vec();
     let lever = reach.lever();
+    // The two rows the support picks between, spelled where the census
+    // reads them.
+    const BOOL_CHORD_SIDE: &str = "bool_chord_side";
+    const BOOL_ENTERS_MATERIAL: &str = "enters_material";
     let (predicate, d) = match reach {
-        BoundSupport::Chord { base, far } => ("bool_chord_side", Distance::of(far, base, n)),
+        BoundSupport::Chord { base, far } => (BOOL_CHORD_SIDE, Distance::of(far, base, n)),
         BoundSupport::Extent(_) | BoundSupport::Conic { .. } | BoundSupport::Bisector { .. } => {
             geom_brep::departure_arm(lever, rd.band).map_err(|escalation| {
                 ReadFault::Departure {
@@ -658,7 +662,7 @@ fn first_order<T: Decide>(
                 }
             })?;
             (
-                "enters_material",
+                BOOL_ENTERS_MATERIAL,
                 Distance::departure(Departure::Rise(dir), n, lever),
             )
         }
@@ -787,7 +791,7 @@ pub(crate) fn read<T: Decide>(
     let band = rd.band;
     let arm = reach.lever();
     let length = arm.length();
-    let (side, displacement, predicate, decided) = match first_order(dir, reach, face, rd) {
+    let (side, displacement, predicate, decided) = match first_order_as(dir, reach, face, rd) {
         Ok(Ok(off)) => off,
         Ok(Err(tie)) => return Ok(FirstOrder::Tied(tie)),
         Err(fault) => return Err(BoundSideFault::Read(fault)),
@@ -872,7 +876,7 @@ pub(crate) fn read_plane_side<T: Decide>(
 ) -> Result<BoundSide, ReadFault<T>> {
     let face = FaceDatum::of_plane(reference);
     let rd = Reading::plain(band);
-    let tie = match first_order(dir, reach, face, rd) {
+    let tie = match first_order_as(dir, reach, face, rd) {
         Ok(Ok((side, ..))) => return Ok(BoundSide::Off(side)),
         Ok(Err(tie)) => tie,
         Err(fault) => Tie::of_unread_reach(dir, reach, face, fault, rd).ok_or(fault)?,

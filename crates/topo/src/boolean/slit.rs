@@ -2320,14 +2320,13 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
                     if lp != outer {
                         return Err(refused(EdgeInFaceGap::Pocket));
                     }
-                    let sense = body.get_face(face).ok_or_else(desync)?.sense;
+                    body.get_face(face).ok_or_else(desync)?;
                     let ring = body
                         .kemr_minting(made_w.he_plus, made_w.he_minus, tol)?
                         .ring;
-                    let piece = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?.face;
                     // The piece is the face's own region on its own chart,
                     // not a hole of it promoted: it keeps the face's side.
-                    body.set_face_sense(piece, sense)?;
+                    let piece = body.mfkrh_piece_minting(ring, tol)?.face;
                     divided = Some(piece);
                 } else {
                     let (ring, he) = if lp == outer {
@@ -3687,7 +3686,7 @@ mod curved_carrier_rows {
                 band(),
             )
         };
-        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let lever = geom_brep::ExtentBall::of_covered(torus.cover().as_ref().ok()).lever();
         let section = |offset: f64, tilt: f64| {
             let plane = geom::Surface::Plane {
                 origin: Point3::new(offset, 0.0, 0.0),

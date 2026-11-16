@@ -45,6 +45,8 @@ reaches it. A census depends on them by text.
 All four (with `flagged_census`, PR 6603) were red together on
 `1b31bac52e`.
 
+The slow set's reach on a PR is decided in `dependents-slow-sets-skip-a-kernel-pr.md`'s policy (Ev, 2026-11-12): no PR runs a crate's whole slow set, and the nightly attributes each newly red slow test to its merge. So a PR that moves a census's site is reached by the nightly attribution, not by its gate. Option A below is the kind of cheap per-PR selection `trimmed-slow-canary-for-a-seeded-crate` asks for, and the options stay as the census-specific alternatives.
+
 ## Options
 
 - **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** Where a marker exists it already says which paths move the test; the slow set ignores it. But only `certified_endpoint_census.rs` carries a `gated_to!` today. `bounds_census.rs`, `sym_rule_f_rows.rs` and `flagged_census.rs` carry none, so as the tree stands A catches one census of the four. The other three each need a marker added: a hand-kept path list, which a check like `the_suite_is_gated_to_every_crate_it_walks` can hold to the walk. With all four marked, about 10 s on any kernel PR.
@@ -67,3 +69,14 @@ A behaviour test in the slow set has the same blind spot: `sweep::all a_loft_com
 - **The mover.** PR 6484 (`bc927bc4b3`, 2026-11-03) changed what `topo::pcurves` certifies at the mint, so the test reads 18 Zeros where it pins 10. The PR touched six of sweep's test files and still did not seed this row. It added two (the test module `tests/a_wall_row_read_in_band_takes_the_lane_a_miss_takes.rs` and the fixture `tests/common/semicircle_wall.rs`) and modified four (`tests/a_wall_seam_takes_the_column_it_lies_on.rs`, `tests/all.rs`, `tests/common/mod.rs` and `tests/euler_site_row_frontiers.rs`): its added lines never spell the test's name, so its CI never ran the test.
 - **How long it stood.** The nightly went red the next day. Two lanes filed it separately on 2026-11-04, and it stood red for six days (`work/green/main-red-a-lofted-arc-walls-rim-zeros-count-eighteen.md`).
 - **What the options above catch.** Option A, as written, does not reach this case: no `gated_to!` marker could name every path that moves the decisions a loft makes, which is most of topo and geom-brep. The gap is the slow set's `is_new` rule for every cross-crate slow test, not only the source walks.
+
+## Evidence: PR 6818 (TINT, 2026-11-11)
+
+A fourth instance: `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`.
+
+- PR 6532 (PCERT, `bcbbe4fe5c`) added the sole-`T: Bounds` door
+  `crates/geom-brep/src/edge_nurbs.rs` `knot_lines` and gave it no roster
+  line. Main stayed red from that merge until PR 6818 wrote the line.
+- That census had already been fixed twice in the preceding eight days
+  for the same reason (`5cf5c2fbc5`, `11b103efcb`).
+

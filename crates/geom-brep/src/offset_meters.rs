@@ -111,7 +111,9 @@
 //! critical distance on the folding side.
 //!
 //! `κ` is bounded through the two fundamental forms, both read off the
-//! same cell enclosures, in the **closed form** rather than as a
+//! partials as BALLS about their coefficient vectors
+//! ([`crate::patch_bound::PatchCell::balls`]; a rotation moves them only
+//! by rounding, `[tolerance.residuals]`), in the **closed form** rather than as a
 //! quotient of separately bounded quadratic forms
 //! (`cell_curvature` carries the derivation and the measured reason):
 //!
@@ -122,10 +124,10 @@
 //! κ± = H ± √(H² − K),   H = B/2A,   K = C/A
 //! ```
 //!
-//! **This is the one place the two meters compose**: the normal `n` in
-//! `II` is the normalized normal, enclosed as `M_c / [floor, sup]`,
-//! and `A` is taken as `[floor², sup²]` — meter 1's floor is what
-//! makes both exist.
+//! **This is the one place the two meters compose**: `II`'s entries
+//! are read as `(m·S_xx)/‖m‖` with `m = S_u × S_v` and
+//! `‖m‖ ∈ [floor, sup]`, and `A` is taken as `[floor², sup²]` — meter
+//! 1's floor is what makes both exist.
 //!
 //! This is the fillet battery's radius-headroom shape one dimension
 //! up: there, a blend radius against a spine's curvature; here, an
@@ -134,11 +136,11 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq};
+use geom_core::interval::{cross, div_down, max_bound, min_bound};
 use geom_core::{Band, Indeterminate, Margin, Readable, SupSpeed};
 
 use crate::dihedral::decide_reported;
-use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
+use crate::patch_bound::{Ball, PatchBoundError, PatchCell, patch_cells_refined};
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
@@ -660,20 +662,29 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     if !(n.floor > 0.0) || !cell.m_sup.is_finite() {
         return None;
     }
-    // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
-    // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
-    // this division legal (interval arithmetic refuses a zero-touching divisor).
+    // Every form is read from the partials as BALLS about their
+    // coefficient vectors (`PatchCell::balls`), never from per-coordinate
+    // boxes folded into a dot product or a norm, so a rotation moves the
+    // curvature range only by rounding (DESIGN `[tolerance.residuals]`).
+    let [b_u, b_v, b_uu, b_uv, b_vv] = cell.balls;
+    if !cell.balls.iter().all(Ball::is_certified) {
+        return None;
+    }
+    // `L = (m·S_uu)/‖m‖` and its two siblings, `m = S_u × S_v`, with
+    // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes this
+    // division legal (interval arithmetic refuses a zero-touching
+    // divisor).
     let mag = Interval::from_bounds(n.floor, cell.m_sup);
-    let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
+    let m_ball = b_u.cross(&b_v);
     let (l, m, nn) = (
-        dot(&unit, &cell.s_uu),
-        dot(&unit, &cell.s_uv),
-        dot(&unit, &cell.s_vv),
+        m_ball.dot(&b_uu) / mag,
+        m_ball.dot(&b_uv) / mag,
+        m_ball.dot(&b_vv) / mag,
     );
     let forms = FundamentalForms {
-        e: norm_sq(&cell.s_u),
-        f: dot(&cell.s_u, &cell.s_v),
-        g: norm_sq(&cell.s_v),
+        e: b_u.norm_sq(),
+        f: b_u.dot(&b_v),
+        g: b_v.norm_sq(),
         l,
         m,
         n: nn,
@@ -1372,6 +1383,14 @@ mod tests {
             s_v_sup: 1.0,
             m_sup: 1.0,
             m_inf: 1.0,
+            balls: [
+                p(1.0, 0.0, 0.0),
+                p(0.0, 1.0, 0.0),
+                p(0.0, 0.0, 0.0),
+                p(0.0, 0.0, 0.0),
+                p(0.0, 0.0, 0.0),
+            ]
+            .map(|b| Ball::of_box(&b)),
         };
         let at = geom_core::Point3::new(0.5, 0.5, 10.0);
         assert_eq!(cell_distance(&net, &cell, at), 10.0, "the certified cell");
@@ -1403,6 +1422,14 @@ mod tests {
             s_v_sup: 1.0,
             m_sup: 1.0,
             m_inf: 1.0,
+            balls: [
+                p(1.0, 0.0, 0.0),
+                p(0.0, 1.0, 0.0),
+                p(0.0, 0.0, 0.0),
+                p(0.0, 0.0, 0.0),
+                p(0.0, 0.0, 0.0),
+            ]
+            .map(|b| Ball::of_box(&b)),
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1414,6 +1441,7 @@ mod tests {
             s_u_sup: f64::NAN,
             m_sup: f64::NAN,
             m_inf: 0.0,
+            balls: [Ball::refused(); 5],
             ..healthy
         };
         for (order, cells) in [

@@ -365,7 +365,8 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
-    let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
+    let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
+    else {
         return Ok(Departure::EdgeKindUnread);
     };
     let tau = T::from_f64(core::f64::consts::TAU);
@@ -675,7 +676,7 @@ fn contains<T: Decide>(
 /// The face's reach along `locus`; `None` when one of its boundary
 /// edges is a curve the read does not place (neither a line nor a
 /// circle).
-fn reach<T: Decide>(
+fn reach_as<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     locus: Locus<T>,
@@ -1142,9 +1143,9 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     );
     use geom_brep::WedgeVerdict as V;
     match geom_brep::edge_wedge_over(&walk, reach, band) {
-        V::Crease(_) => Ok(RimRouting::Transverse),
+        V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
-        V::End(end) => Ok(RimRouting::Cusp(end)),
+        V::End { end, .. } => Ok(RimRouting::Cusp(end)),
         V::Lamina => Ok(RimRouting::Lamina),
         V::Mixed(stations) => Ok(RimRouting::Mixed(stations)),
         V::InBand(escalation) => Err(escalation.diag()),
@@ -1155,7 +1156,8 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 /// circle's reach from its centre.
 #[cfg(test)]
 fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
-    geom_brep::ExtentBall::of_circle(rim.center, rim.radius).twice_lever_from(rim.center)
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).twice_lever_from(rim.center)
 }
 
 #[cfg(test)]

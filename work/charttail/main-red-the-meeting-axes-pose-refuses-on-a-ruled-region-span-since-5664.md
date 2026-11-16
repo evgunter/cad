@@ -66,3 +66,8 @@ builds at the default ε and 1e-6: `bool_ruled_region_span`'s whole-turn
 enclosure was `Conic::param_in`'s floor about the span's middle, which now
 reads through `Period::near`. The pin there is narrowed to 1e-12, where
 GERM's row still stops it.
+
+**The 1e-12 pin moved (GREEN `green/eps-1e-12`, 2026-11-14).** At 1e-12
+the row's first stop is now operand B's volume (`VolumeUncomputable`,
+`props_chart_loop_whole`, since PR 6505), and its pin cites BOXFINISH's
+bead row and GERM's endpoint row, not this one.

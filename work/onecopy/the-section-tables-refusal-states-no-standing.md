@@ -25,3 +25,14 @@ A ladder reads it through the apex section's table refusal (`ApexSectionReading:
 ## What closing it takes
 
 A per-variant `SectionError::refusal()` in geom-brep, each variant's class stated in its doc. Then `SplitJoinError::Section` delegates to it. Measure the vertex-on-face climb's outcomes before and after.
+
+## A consumer matching `Unaccounted` by its text (2026-11-12)
+
+CLEAVETAIL's lily-wall8 lane re-pinned lily wall 8
+(`demos/tour/src/lily.rs`, `wall_probes`) on `GermSectionUnbuilt { why:
+Refused(Unaccounted { cause }) }`, where `cause` is a rendered
+`SsiError::CellBudget`. The pin can tell the budget from the other
+causes `Unaccounted` carries only by `cause.contains("cell budget")`;
+a typed cause (or a standing that says "a budget, not a decision")
+would let it match the variant.
+

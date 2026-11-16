@@ -9,7 +9,8 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (refused).
+//! refused), or along the wall's circle's tangent (a rest: one order
+//! down the wall bends away under the corner's faces).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -129,7 +130,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
 
 /// The self-touch reading of the corner as `ties` hold it: what the
 /// planar reading answered, and the solid's verdict.
-fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, SelfTouch) {
+fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, TouchVerdict) {
     let geo = snapshot(body);
     let keys = touch_keys(&geo, ties, &[corner]).expect("the corner's keys");
     let at = geo.vmap[&corner];
@@ -142,6 +143,25 @@ fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, SelfT
         planar,
         self_touch_verdict(body, &geo, ties, s, &keys, at, band()),
     )
+}
+
+/// What the whole census finds of `body`'s solid crossing itself at
+/// `corner`, moved onto `other`'s point key so that the sweep reaches the
+/// point with no record ([`sweep_self_touch_points`]).
+fn swept(mut body: Body<f64>, corner: VertexKey, other: VertexKey) -> Vec<ValidationError> {
+    let (old, key) = (body.vertices[corner].point, body.vertices[other].point);
+    body.vertices[corner].point = key;
+    body.points.remove(old);
+    census_and_certify(&body, &Default::default(), band(), Tol::witness(), None)
+        .into_iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::BoundaryCrossesItself { .. }
+                    | ValidationError::BoundaryCrossesItselfUndecided { .. }
+            )
+        })
+        .collect()
 }
 
 /// The rows at `at`: where the corner's edges point and what the
@@ -166,25 +186,26 @@ fn rows_hold(at: Seat) {
     // band) and by three of its escalation (decided).
     let lift = |by: f64| [[by, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     let (zero, escalate) = (band().zero(), band().escalate());
-    let rest = |v: &SelfTouch| matches!(v, SelfTouch::Read(TouchVerdict::Rest(_)));
-    let in_band = |v: &SelfTouch| *v == SelfTouch::Read(TouchVerdict::Unread(TouchUnread::InBand));
-    let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
-    let tangency =
-        |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable));
-    type Reads = fn(&SelfTouch) -> bool;
+    let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));
+    let in_band = |v: &TouchVerdict| *v == TouchVerdict::Unread(TouchUnread::InBand);
+    let crossing = |v: &TouchVerdict| *v == Crossing;
+    let refused = |v: &TouchVerdict| {
+        *v == TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    };
+    type Reads = fn(&TouchVerdict) -> bool;
     let rows: Vec<(&str, [[f64; 3]; 3], Reads)> = match at {
         Seat::Corner => vec![
             ("off", off, rest),
             ("into", corner_into, crossing),
             ("straddling", straddle, crossing),
             ("along the arc", circle, rest),
-            ("along the arc, into", circle_into, tangency),
+            ("along the arc, into", circle_into, refused),
         ],
         Seat::Arc => vec![
             ("off", off, rest),
             ("into", into, crossing),
             ("along the arc", circle, rest),
-            ("along the arc, into", circle_into, tangency),
+            ("along the arc, into", circle_into, refused),
             ("along the arc, under the post", circle_under, rest),
             ("down the wall's plane, under the post", under, rest),
             (
@@ -198,7 +219,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, tangency),
+            ("along the circle", circle, rest),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
@@ -255,9 +276,9 @@ fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
 /// crosses; an edge along the wall's ruling lies in the wall as the
 /// wall keeps it, so the corner reads as its other edges place it; an
 /// edge along the wall's circle leaves the wall only to second order,
-/// which no reading here parts, and refuses. Red where the wall's normal
-/// reads the other way, a crossing reads as a rest, or the tangency
-/// reads at all.
+/// where the wall bends away under the corner's faces: a rest. Red where
+/// the wall's normal reads the other way, a crossing reads as a rest, or
+/// the circle's tangency is kept at first order or read the other way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
     rows_hold(Seat::Wall);
@@ -303,16 +324,18 @@ fn an_edge_leaves_its_vertex_along_its_tangent_there() {
 }
 
 /// **A corner whose two edges leave its vertex along one tangent is a
-/// cusp, left to second order**: a lamina in `z = 0` bounded by the unit
+/// cusp, read one order down**: a lamina in `z = 0` bounded by the unit
 /// circle's arc from `(1, 0)` to `(0, 1)`, the line on to `(1, 1)` and
 /// the line back down to `(1, 0)`, which leaves that vertex along the
 /// arc's own tangent there; a parallelepiped's corner below the lamina
 /// on that vertex, in its solid, tied to it. The arc and the line bend
 /// apart only to second order, so which side of the tangent the face
-/// lies on is no first-order reading's. Red where the cusp reads as half
-/// a turn, or as a whole one.
+/// lies on is no first-order reading's; the lamina's two faces, on each
+/// other there, are read by no lens, and the point refuses undecided
+/// through the whole census. Red where the cusp reads as half a turn,
+/// or as a whole one, or the point passes unread.
 #[test]
-fn a_cusp_corner_is_left_to_second_order() {
+fn a_cusp_corner_is_read_one_order_down() {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::test_support_fixtures::line;
     let tol = Tol::witness();
@@ -425,9 +448,15 @@ fn a_cusp_corner_is_left_to_second_order() {
         TouchUnread::Curved(CurvedUnread::Unreadable),
         "a planar face's curved edge held at its corner"
     );
-    assert_eq!(
-        verdict,
-        SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable))
+    let why = TouchUnread::Curved(CurvedUnread::Unreadable);
+    assert_eq!(verdict, TouchVerdict::Unread(why));
+    let found = swept(body, corner, cusp);
+    assert!(
+        matches!(
+            &found[..],
+            [ValidationError::BoundaryCrossesItselfUndecided { why: w, .. }] if *w == why
+        ),
+        "the cusp refuses undecided: {found:?}"
     );
 }
 
@@ -438,7 +467,7 @@ fn a_cusp_corner_is_left_to_second_order() {
 /// turned to each half. A point off it, which the span does not certify
 /// on its interior, is [`TouchUnread::EdgeTangent`], never
 /// [`crate::CurvedUnread::Unreadable`]: no second-order reading parts it, so it
-/// must not reach [`SelfTouch::SecondOrder`].
+/// must not refuse as one.
 #[test]
 fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_itself() {
     fn rows<T: Decide + crate::props::AtRestPolicy + core::fmt::Debug>(
@@ -688,9 +717,13 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
 /// **A thorn of the solid's own, its three faces horns at its tip,
 /// reads whole one order down**: a parallelepiped's corner grafted on
 /// at the tip, away from the thorn's ray, rests; one round the ray, its
-/// material holding the thorn, refuses. Near the origin and a kilometre
-/// off it. Red where a horn reads as the whole turn, a thorn's side
-/// reads the other way, or the cone round it is not read.
+/// material holding the thorn, crosses it, through the whole census too.
+/// The census finds exactly one more crossing, and it is expected: the
+/// box's far corner, `e₀ + e₁ + e₂` from the tip, lands on the thorn's
+/// line edge inside the thorn, where the two solids' boundaries cross
+/// too. Near the origin and a kilometre off it. Red where a horn reads as
+/// the whole turn, a thorn's side reads the other way, the cone round it
+/// is not read, or the thorn inside the corner's material passes.
 #[test]
 fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
     let away = [
@@ -713,15 +746,42 @@ fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
             "{far} off: a sphere face"
         );
         assert!(
-            matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
+            matches!(verdict, TouchVerdict::Rest(_)),
             "{far} off, the corner away: {verdict:?}"
         );
+        let found = swept(body, corner, ties.vv[0].1);
+        assert!(found.is_empty(), "{far} off, the corner away: {found:?}");
         let (body, corner, ties) = thorn_and_corner(c, round);
         let (_, verdict) = read(&body, corner, &ties);
         assert_eq!(
             verdict,
-            SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            TouchVerdict::Crossing,
             "{far} off, the corner round the thorn"
+        );
+        let body_tip = body.points[body.vertices[ties.vv[0].1].point];
+        let tip = witness(body_tip);
+        let found = swept(body, corner, ties.vv[0].1);
+        let corner_far = body_tip + round[0] + round[1] + round[2];
+        let parse = |w: &str| -> Option<Point3<f64>> {
+            let xyz: Vec<f64> = w
+                .trim_matches(|c| c == '(' || c == ')')
+                .split(", ")
+                .map(|t| t.parse().ok())
+                .collect::<Option<_>>()?;
+            Some(Point3::new(*xyz.first()?, *xyz.get(1)?, *xyz.get(2)?))
+        };
+        let at: Vec<Point3<f64>> = found
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::BoundaryCrossesItself { witness, .. } => parse(witness),
+                _ => None,
+            })
+            .collect();
+        let near = |q: Point3<f64>| at.iter().any(|&r| (r - q).norm() < 1e-9);
+        assert!(
+            found.len() == 2 && at.len() == 2 && near(body_tip) && near(corner_far),
+            "{far} off, the corner round the thorn crosses at its tip {tip} and at the \
+             box's far corner {corner_far:?}: {found:?}"
         );
     }
 }
@@ -777,7 +837,7 @@ fn a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop() {
     );
     assert_eq!(
         verdict,
-        SelfTouch::Read(TouchVerdict::Unread(TouchUnread::LoneLoop)),
+        TouchVerdict::Unread(TouchUnread::LoneLoop),
         "the tangent cones refuse the wall's lone vertex as a lone loop"
     );
 }
@@ -857,21 +917,41 @@ fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
                 })
                 .collect();
         if crosses {
-            assert_eq!(
-                verdict,
-                SelfTouch::Read(TouchVerdict::Crossing),
-                "reaching in"
-            );
+            assert_eq!(verdict, TouchVerdict::Crossing, "reaching in");
             assert!(
                 matches!(&found[..], [ValidationError::BoundaryCrossesItself { .. }]),
                 "reaching in: {found:?}"
             );
         } else {
             assert!(
-                matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
+                matches!(verdict, TouchVerdict::Rest(_)),
                 "turned away: {verdict:?}"
             );
             assert!(found.is_empty(), "turned away: {found:?}");
         }
     }
+}
+
+/// **A bound is a circle's only on a circle** ([`super::on_circle`],
+/// `link::Bound::circle`): the oblique rim, an ellipse, is none, nor is
+/// a half-disc post's line; its bottom arc is one. Two ellipse arcs
+/// agreeing at a point to second order part at third, so only a circle
+/// may be kept by its bend (`link::second_order::one_circle`). Red where
+/// every edge reads as a circle's, or none does.
+#[test]
+fn a_bound_is_a_circles_only_on_a_circle() {
+    let (rim, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<f64>(0.4);
+    for (e, _) in &rim.edges {
+        assert!(!on_circle(&rim, e), "the oblique rim {e:?} is an ellipse");
+    }
+    let post = crate::tier3_tests::half_disc(R, H, (0.0, 0.0, 0.0), false, Tol::witness());
+    let kinds: Vec<bool> = post.edges.keys().map(|e| on_circle(&post, e)).collect();
+    assert!(
+        kinds.contains(&true),
+        "the post's arcs are circles': {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&false),
+        "the post's lines are not: {kinds:?}"
+    );
 }

@@ -810,3 +810,39 @@ fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
         }
     }
 }
+
+/// **The standoff is the gap at the image's anchor, not over the span**:
+/// a line leaning radially at rate `δ` that crosses the wall at `t = k`,
+/// read over `[k − h, k + h]` with `|k| = 1.5`, `h = 0.2` and `δ =
+/// 0.45·zero`, so the span holds no origin. Over the span it stands off
+/// the wall by `h·δ` at most, and its lean from the ruling through its
+/// origin is `(|k| + h)·δ`: together `0.855·zero`. But its origin stands
+/// `|k|·δ` off, and check 4 bounds the meridian form's miss by the lean
+/// and that standoff, `1.44·zero`. So the class gate reads the standoff
+/// at the origin: in band, the general lane, which certifies or ends
+/// "not yet". Red under a gate that took the standoff from the span's
+/// incidence: it reads Zero and takes the meridian form, whose
+/// certificate is in band.
+#[test]
+fn a_line_whose_span_holds_no_origin_reads_its_origins_standoff() {
+    let surface = cylinder();
+    let Surface::Cylinder { origin, radius, .. } = surface else {
+        unreachable!("a cylinder")
+    };
+    let (h, delta) = (0.2, 0.45 * zero());
+    for phi in [0.3, -2.0] {
+        let (s, c) = f64::sin_cos(phi);
+        let r = Vec3::new(c, s, 0.0);
+        for k in [1.5, -1.5] {
+            for sigma in [1.0, -1.0] {
+                let carrier = Curve3::line(
+                    origin + r * (radius - sigma * k * delta),
+                    Vec3::unit_z() + r * (sigma * delta),
+                );
+                let span = (k - h, k + h);
+                let what = format!("φ {phi}, crossing at {k}, leaning {sigma}·δ, over {span:?}");
+                takes_the_general_lane(&what, &carrier, span, &surface);
+            }
+        }
+    }
+}

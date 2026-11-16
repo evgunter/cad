@@ -242,8 +242,15 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 /// copy of `row[1]`) and its slide and spin, and the other block, held
 /// by a rest and three values against the base.
 ///
-/// - Each placement's chart (`mate_chart_pole`) is on its
-///   own log.
+/// - Each placement's chart is on its own log: its unit-norm checks
+///   (`pose_unit_norm`), which the chart decides where it mints its mated
+///   and across directions (`Chart::sides`, `Chart::charted`). Each
+///   copy's mated direction is its target's exactly, so each least turn
+///   is the identity, which owes no pole verdict
+///   (`RigidMotion::least_turn`), and none is on either log. The witness
+///   proves what `mate_chart_pole` proved before: a decision the fold's
+///   chart made lands on the row of the placement that folded, since only
+///   that placement's evaluation logs to it.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
 ///   is minted (`mate_axes_parallel`) on either log.
@@ -262,8 +269,8 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let on = |got: &[&str], p: &str| got.contains(&p);
     for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
-            on(got, "mate_chart_pole"),
-            "the {what} charts its values on its own log: {got:?}"
+            on(got, "pose_unit_norm") && !on(got, "mate_chart_pole"),
+            "the {what} charts its values on its own log, its identity turn owing no pole verdict: {got:?}"
         );
     }
     assert!(
@@ -287,7 +294,8 @@ fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNo
 /// **A reused placement carries the log a fresh evaluation of it
 /// carries.** The cap's bundle is a coaxial mate against a family's
 /// member and its slide and spin values, so its log holds the values'
-/// charts. A constraint added to ANOTHER placement leaves the
+/// charts: unit-norm checks, its identity least turn owing no pole
+/// verdict. A constraint added to ANOTHER placement leaves the
 /// cap's reads and key as they were, so the memo serves it, and the
 /// served row carries the decisions its fold recorded — the ones a
 /// fresh evaluation of it records.
@@ -307,7 +315,7 @@ fn a_reused_placement_carries_the_log_a_fresh_one_does() {
     );
     let fresh_log = log(&fresh, s.cap);
     assert!(
-        fresh_log.iter().any(|v| v.predicate == "mate_chart_pole"),
+        fresh_log.iter().any(|v| v.predicate == "pose_unit_norm"),
         "the fold charts the cap's values: {fresh_log:?}"
     );
     assert_eq!(
