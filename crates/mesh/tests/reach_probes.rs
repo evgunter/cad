@@ -1263,6 +1263,62 @@ fn a_notched_or_holed_pipe_wall_meshes() {
     );
 }
 
+/// **A sphere face notched by parallels and meridians meshes on the
+/// sphere row.** The `z`-poled ball less a quarter-turn wedge of a box
+/// whose two side planes hold the axis — once from below the south pole
+/// to a parallel, across the chart's seam and beside it, and once from a
+/// parallel past the north pole: the ball's face keeps a re-entrant
+/// corner at the parallel, bounded by rims and meridians alone. The
+/// shape door decides that face is no rectangle (`props_rim_level`), so
+/// it goes to the trimmed lane's sphere arm, and every op meshes at
+/// every δ and is the body's ([`geometry`]). The cone and the torus have
+/// no such row: the boolean refuses a box through either wall
+/// (`CurvedPierceUnsupported`), so no door builds their notch.
+#[test]
+fn a_notched_sphere_face_meshes_on_the_sphere_row() {
+    let ball = finished(
+        "the ball",
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    for (what, z, turn) in [
+        ("from below, across the seam", (-2.0, 0.3), -0.785),
+        ("from below, beside the seam", (-2.0, 0.3), 0.3),
+        ("from above", (0.3, 2.0), 2.0),
+    ] {
+        let wedge = posed(
+            "the wedge",
+            brick((0.0, 3.0), (0.0, 3.0), z, tol()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
+        );
+        let cut = op_of(&ball, &wedge, "A ∖ B");
+        let notched = cut
+            .faces()
+            .filter(|(fk, f)| {
+                let surface = cut.face_surface(*fk).expect("a live face");
+                f.rings.is_empty()
+                    && surface.kind() == SurfaceKind::Sphere
+                    && geom_brep::props::require_iso_rectangle(
+                        surface,
+                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        band,
+                    ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level",
+                    })
+            })
+            .count();
+        assert!(notched > 0, "{what}: the cut keeps a notched sphere face");
+        assert_six(
+            &format!("{what} (A the ball)"),
+            &ball,
+            &wedge,
+            &[5e-3, 1e-3, 2e-4],
+            &core::array::from_fn(|_| Got::Meshed),
+        );
+    }
+}
+
 /// **A cone wall holding a ring of ellipse arcs meshes on the cone row**
 /// (`sweep`'s `cone_join_lane`, pose T1): the unions and cone ∖ box keep
 /// the ring, and the trimmed lane meshes the face in the cone's
