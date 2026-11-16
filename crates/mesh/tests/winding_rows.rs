@@ -222,18 +222,17 @@ fn a_node_within_rounding_of_a_loop_vertex_is_not_laid() {
 
 /// **A face too narrow to hold a node keeps its sizing: its certificate
 /// bounds it.** A rod's wall between two parallel tilted cuts `w` apart
-/// is a band oblique to the chart, an eighth of a lattice row high at the
-/// widths below, so every node that falls in it is inside the clearance
-/// of one cut or the other and none is laid. Its triangles stand on the
-/// two cuts' chord points and on the points the ear cure adds, and each
-/// is certified within δ as any other: the worst reads `0.67` of the
-/// face's cell bound at `w = 0.005`, `δ = 10⁻³`, where the headroom
-/// allows 2, and at `w` from `0.2` down to `0.002` and δ from `10⁻²` to
-/// `10⁻⁴` none passes `1.96`. The mesh is the body's ([`geometry`]).
+/// is a band oblique to the chart, a twentieth of a lattice row high at
+/// the widths below, so every node that falls in it is inside the
+/// clearance of one cut or the other and none is laid. Its triangles
+/// stand on the two cuts' chord points and on the points the ear cure
+/// adds, and each is certified within δ as any other: the worst reads
+/// `0.67` of the face's cell bound at `w = 0.002`, `δ = 10⁻³`, where the
+/// headroom allows 2. The mesh is the body's ([`geometry`]).
 #[test]
 fn a_band_narrower_than_its_clearance_meshes_within_its_certificate() {
     let n = Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos());
-    for (w, deltas) in [(0.005, &[1e-3][..]), (0.002, &[1e-3, 1e-4][..])] {
+    for (w, deltas) in [(0.002, &[1e-3][..]), (0.0005, &[1e-3, 1e-4][..])] {
         let whole = finished("the rod", rod(0.5, -1.0, 2.0), tol());
         let cut = |at: f64| topo::test_support::split_plane(Point3::origin() + n * at, n, tol());
         let above = topo::splitting::split(&whole, &cut(0.0), tol()).expect("the rod splits");

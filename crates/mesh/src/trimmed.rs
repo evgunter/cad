@@ -359,13 +359,15 @@ pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 /// **How far a lattice node keeps from the face's boundary**, in its own
 /// steps: a node is laid only where the box this share of its step each
 /// way, per chart axis, meets no side or point of the trim polygon and no
-/// crease line ([`TrimmedFace::lay`]; `crates/mesh/README.md`
-/// `[mesh.sizing]`). **Quality, and a debt**: the value nobody has to
-/// choose is 1/2, a node not laid where the boundary crosses its own
-/// cell, and that waits on the bound for a boundary run
+/// crease line ([`lay`]; `crates/mesh/README.md` `[mesh.sizing]`).
+/// **Quality, and a debt.** The value is temporary: the worst triangle
+/// beside the boundary grows with it, and this one is small enough that
+/// a face which meshes with no clearance still does. The value nobody
+/// has to choose is 1/2, a node not laid where the boundary crosses its
+/// own cell, and that waits on the bound for a boundary run
 /// (`work/tesslane/the-boundary-clearance-goes-to-half-a-step-with-the-boundary-run-bound.md`).
-/// Read through [`boundary_clearance`], in [`TrimmedFace::lay`] alone.
-pub(crate) const BOUNDARY_CLEARANCE: f64 = 0.25;
+/// Read through [`boundary_clearance`], by [`TrimmedFace::lay`] alone.
+pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 
 /// [`BOUNDARY_CLEARANCE`], or under `cfg(test)` an override a row sets to
 /// lay the lattice some other way (`tests::CLEARANCE`).
@@ -4262,8 +4264,8 @@ pub(super) mod tests {
     /// ([`super::lay`], `crates/mesh/README.md` `[mesh.sizing]`): on an
     /// oblique quadrilateral holding a triangular ring, under a lattice
     /// whose steps differ by axis, the nodes laid are those whose box of
-    /// `c` own steps each way no side clips, at the shipped clearance and
-    /// either side of it. Every loop is read (a ring's sides drop nodes),
+    /// `c` own steps each way no side clips, at the shipped clearance, at
+    /// twice it and at four times. Every loop is read (a ring's sides drop nodes),
     /// the box is per axis (the steps differ), and a wider clearance lays
     /// no node a narrower one does not.
     #[test]
@@ -4278,7 +4280,8 @@ pub(super) mod tests {
         let nodes = super::uniform_candidates((0.0, 4.0), (0.0, 3.0), 37, 23);
         let plane = super::CdtPlane::Lattice { metric: 1.0 };
         let mut before: Option<Vec<(f64, f64)>> = None;
-        for c in [0.5, super::BOUNDARY_CLEARANCE, 0.0625] {
+        let shipped = super::BOUNDARY_CLEARANCE;
+        for c in [4.0 * shipped, 2.0 * shipped, shipped] {
             let laid = super::lay(&nodes, c, plane, &trim, &HashSet::new(), None);
             let (mut near_outer, mut near_ring) = (0, 0);
             for n in &nodes {
@@ -4339,7 +4342,9 @@ pub(super) mod tests {
             .map(|t| (pa.x + t * (pb.x - pa.x), pa.y + t * (pb.y - pa.y)))
             .map(|(x, y)| (x.atan2(y) / sin_alpha, x.hypot(y)))
             .collect();
-        let c = super::BOUNDARY_CLEARANCE;
+        // A quarter of a step, whatever the lane ships: the row is about
+        // which plane the box is read in.
+        let c = 0.25;
         let step = (0.11, 0.03);
         let holds = |n: &Node, grow: f64| {
             let half = (c * step.0 * grow, c * step.1 * grow);
