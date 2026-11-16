@@ -503,15 +503,17 @@ fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
         ),
         "issue 1598: the complement refuses typed; got {mp:?}"
     );
+    // Issue 1571: the arc premise is verified at props, and a face that
+    // fails it is routed to the trimmed lane rather than walked; this
+    // Euler-built body stores no chart image, so that lane's chord pass
+    // refuses it typed.
     let got = mesh::tessellate(&body, 0.1, tol).map(|_| ());
     assert!(
         matches!(
-            got,
-            Err(TessellateError::UnsupportedCurvedShape {
-                source: geom_brep::props::PropsError::NotOneChartBranch { .. },
-                ..
-            })
+            &got,
+            Err(TessellateError::UnsupportedCurve { note, .. })
+                if note.contains("carries no stored pcurve cache")
         ),
-        "issue 1571: the arc premise is verified at props and refused typed; got {got:?}"
+        "issue 1571: the arc premise routes the face away from the walk; got {got:?}"
     );
 }

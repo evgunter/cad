@@ -13,24 +13,26 @@
 //! five homes:
 //!
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
-//!    Asked BEFORE the walk, on rim structure, through the predicate's
-//!    own door `geom_brep::props::require_iso_rectangle` (the S58
-//!    single home of `props_rim_level`, which also requires every rim
-//!    to encode the SAME material side, `props_rim_side`), refusing
-//!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
-//!    the predicate itself rather than leaning on the boolean's or
-//!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
+//!    Asked BEFORE the walk, by the router, on rim structure, through
+//!    the predicate's own door `geom_brep::props::require_iso_rectangle`
+//!    (the S58 single home of `props_rim_level`, which also requires
+//!    every rim to encode the SAME material side, `props_rim_side`).
 //! 2. **BRANCH** — *does each boundary edge's traversed ARC stay on
-//!    one branch of the chart?* Also asked BEFORE the walk, on each
-//!    edge's stored span, through `geom_brep::props::
-//!    require_one_chart_branch` and refusing the same
-//!    [`TessellateError::UnsupportedCurvedShape`] with props'
-//!    `NotOneChartBranch` inside it (issue 1571). A certified iso
-//!    CARRIER is not an arc on one branch: a sphere meridian's great
-//!    circle contains both poles and a cone generator's line passes
-//!    through the apex, and everything below reads ONE chart
-//!    coordinate per edge. This door is `mesh`'s and the flux lane
-//!    must not cite it — the argument is at the predicate.
+//!    one branch of the chart?* Also asked BEFORE the walk by the
+//!    router, on each edge's stored span, through `geom_brep::props::
+//!    require_one_chart_branch` (issue 1571). A certified iso CARRIER
+//!    is not an arc on one branch: a sphere meridian's great circle
+//!    contains both poles and a cone generator's line passes through
+//!    the apex, and everything below reads ONE chart coordinate per
+//!    edge. This door is `mesh`'s and the flux lane must not cite it —
+//!    the argument is at the predicate.
+//!
+//!    The two doors' answer IS the face's lane ([`iso_rectangle_shape`],
+//!    read by `tessellate::lane_of`): a face both pass comes here, a
+//!    face either decides is no such rectangle goes to the chart lane
+//!    (`crate::trimmed`), and a face neither can decide, or whose stored
+//!    data contradicts itself, refuses
+//!    [`TessellateError::UnsupportedCurvedShape`] with the door's cause.
 //! 3. **A MERIDIAN** — *does the loop carry a meridian traversal at
 //!    all?* Asked BY the walk, on its traversal kinds
 //!    (`walk::require_a_meridian`), refusing
@@ -200,19 +202,11 @@ pub(crate) fn tessellate_curved(
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
-    // THE SHAPE DOOR AND THE BRANCH DOOR, before the walk (module
-    // docs, questions 1 and 2). Props' rim-structure predicate decides
-    // whether this face's domain is an iso-rectangle at all, and
-    // refuses every edge whose CARRIER is not a rim or a meridian
-    // carrier of this surface. Everything the walk then does —
-    // `iso_side_starts`' collapse of same-kind runs in particular —
-    // assumes more: that each traversed ARC stays on one iso curve of
-    // the chart. The shape door does not certify that (a great-circle
-    // arc may cross a pole mid-edge and pass it), and props'
-    // `require_one_chart_branch` is where it IS certified — cited
-    // inside the call below, so both premises are established here
-    // rather than inherited (issue 1571).
-    require_iso_rectangle_face(body, fk, face.outer, surface, tol.band)?;
+    // Questions 1 and 2 (module docs) are the route's: a face reaches
+    // this lane only where both doors passed (`tessellate::lane_of`, by
+    // [`iso_rectangle_shape`]), so everything the walk does below — the
+    // collapse of same-kind runs in `iso_side_starts` above all — reads a
+    // loop of rims and meridians each on one chart branch.
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
@@ -512,12 +506,25 @@ pub(crate) fn tessellate_curved(
     Ok(patch)
 }
 
-/// **The SHAPE door and the BRANCH door**: this face's outer loop,
-/// handed to `geom_brep::props::require_iso_rectangle` — the S58
-/// single home of the iso-rectangle predicate, with the sense-free
-/// rim-side unanimity beside it — and then to
-/// `geom_brep::props::require_one_chart_branch`, each refusal wrapped
-/// typed as [`TessellateError::UnsupportedCurvedShape`].
+/// A curved face's shape at the two doors ([`iso_rectangle_shape`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Shape {
+    /// An iso-parameter rectangle whose every boundary arc stays on one
+    /// branch of the chart: this lane's domain.
+    Rectangle,
+    /// Decided to be no such rectangle: the chart lane's.
+    NoRectangle,
+}
+
+/// **The SHAPE door and the BRANCH door, read as the route**: this
+/// face's outer loop, handed to `geom_brep::props::require_iso_rectangle`
+/// — the S58 single home of the iso-rectangle predicate, with the
+/// sense-free rim-side unanimity beside it — and then to
+/// `geom_brep::props::require_one_chart_branch`. `tessellate::lane_of`
+/// asks it once per ringless analytic curved face, and the answer is the
+/// face's lane: [`Shape::Rectangle`] is this lane's, [`Shape::NoRectangle`]
+/// the chart lane's (`crate::trimmed`), which reads the domain from the
+/// stored images and needs no rectangle.
 ///
 /// **Two questions, asked in order** (issue 1571). The first certifies
 /// each edge's CARRIER as an iso curve and the rim structure as a
@@ -531,60 +538,49 @@ pub(crate) fn tessellate_curved(
 /// branch door decides arc membership on carriers the parse has
 /// certified, so asking it second is asking it of a classified edge.
 ///
+/// **The doors' refusals, by what they decide.** A face is
+/// [`Shape::NoRectangle`] exactly when a door DECIDES it is none —
+/// valid input this lane is not built for (D2 addendum row 2):
+/// `NotIsoRectangle` (a carrier of no iso kind, a notch, rims that
+/// encode different sides), `Unimplemented` (a spline or spiric
+/// carrier) and `NotOneChartBranch` (an arc through the chart
+/// singularity). Every other refusal is not a verdict on the face's
+/// shape — a decision in band (`Escalated`), or stored data that
+/// contradicts itself (`OffSurface`, `SpanUncertified`, the rest) — and
+/// refuses [`TessellateError::UnsupportedCurvedShape`] with the door's
+/// cause, never a lane taken because the door could not answer. The
+/// match names every variant, so one props adds is classified here
+/// before it compiles.
+///
 /// **The branch door is the walk's, and NOT `mass_properties`'.** The
 /// extent derivations fold the singularity in and measure such a face
 /// exactly, so the flux lane admits what this lane refuses, and both
 /// are right about the same face — the argument is at the predicate.
 ///
-/// This is the line issue 727's ruling asked for: `mesh` cites the
-/// predicate itself, so the lane's floor is its own. When the
-/// certified-quadrature lane learns notched iso domains, the change
-/// that lets this lane see them — or route them — is here, visibly,
-/// rather than a limit in the boolean or in tier 3 quietly ceasing to
-/// keep such faces away. The loop is flattened by
-/// [`topo::props::loop_edges`], the same half-edge cycle the walk
-/// reads, so the door and the walk cannot disagree about which edges
-/// the face has; the band is props' own ([`SizingTols::band`]), so
-/// the decision is metered against the flux lane's band — no comparand
-/// and no margin of `mesh`'s. The geometry is not the flux lane's: the
-/// door reads the face as stored, and the flux lane reads each face
-/// moved by `−c`, its shell's reference (`topo::props`'
-/// `shell_reference`). The flux lane asks neither door (they are
-/// `mesh`'s alone, above), so no one predicate is read on both, and
-/// there is no decision the two could round apart.
+/// The loop is flattened by [`topo::props::loop_edges`], the same
+/// half-edge cycle the walk reads, so the door and the walk cannot
+/// disagree about which edges the face has; the band is props' own
+/// ([`SizingTols::band`]), so the decision is metered against the flux
+/// lane's band — no comparand and no margin of `mesh`'s. The flux lane
+/// asks neither door, so no one predicate is read on both, and there is
+/// no decision the two could round apart.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
 /// door says so at its definition, so a partial sphere wedge meshes
 /// here on the door's answer alone (the flux lane measures it by
 /// Gauss–Bonnet, as it does any circle-bounded sphere face).
 ///
-/// An empty loop is reported by this lane's own name for that state
+/// An empty loop is reported by this crate's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
 /// would otherwise call it corruption.
-///
-/// **The name promises one predicate and this fn asks two, on
-/// purpose.** It is kept rather than renamed because it is the line
-/// issue 727's ruling points at by name, and because a rename to
-/// something like `require_curved_face_doors` would say less: what a
-/// caller needs to know is that the S58 predicate is cited HERE, and
-/// the branch door is cited in the same breath because no face may
-/// reach the walk having passed only one. Read the name as the site
-/// (the shape-door call site) and this paragraph as the contents.
-///
-/// Five `require_*` spellings meet at this door — props'
-/// `require_iso_rectangle`, `require_one_chart_branch` and
-/// `require_rims_at_extremes`, this fn and [`require_swept_rectangle`]
-/// — and the shared prefix is the point: each is a typed precondition
-/// answering `Result<(), E>` with nothing computed, the props three on
-/// the face's rim structure and its arcs, the mesh two on the face and
-/// on the walk. The suffix names the question.
-fn require_iso_rectangle_face(
+pub(crate) fn iso_rectangle_shape(
     body: &Body<f64>,
     fk: FaceKey,
     lk: LoopKey,
     surface: &Surface<f64>,
     band: Band,
-) -> Result<(), TessellateError> {
+) -> Result<Shape, TessellateError> {
+    use geom_brep::props::PropsError as P;
     let lp = body
         .get_loop(lk)
         .ok_or(TessellateError::MissingEntity { what: "loop" })?;
@@ -600,9 +596,33 @@ fn require_iso_rectangle_face(
         LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
         LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
-    let refuse = |source| TessellateError::UnsupportedCurvedShape { face: fk, source };
-    geom_brep::props::require_iso_rectangle(surface, &outer, band).map_err(refuse)?;
-    geom_brep::props::require_one_chart_branch(surface, &outer, band).map_err(refuse)
+    let doors = geom_brep::props::require_iso_rectangle(surface, &outer, band)
+        .and_then(|()| geom_brep::props::require_one_chart_branch(surface, &outer, band));
+    match doors {
+        Ok(()) => Ok(Shape::Rectangle),
+        Err(P::NotIsoRectangle { .. } | P::Unimplemented | P::NotOneChartBranch { .. }) => {
+            Ok(Shape::NoRectangle)
+        }
+        Err(
+            source @ (P::Escalated { .. }
+            | P::OffSurface { .. }
+            | P::SpanUncertified { .. }
+            | P::NappeSpanning
+            | P::SphereLoop { .. }
+            | P::ConeLoop { .. }
+            | P::HolesExceedFace
+            | P::SenseContradicted
+            | P::SenseInverted
+            | P::SeamRegionOvercovered { .. }
+            | P::SeamRegionCoverUnresolved
+            | P::SeamRegionSensesDisagree
+            | P::RingWoundWithFace
+            | P::ChartLoopOpen
+            | P::LoopsWindChart
+            | P::DegenerateFace
+            | P::QuadratureUnsupported { .. }),
+        ) => Err(TessellateError::UnsupportedCurvedShape { face: fk, source }),
+    }
 }
 
 /// The walk entries that do NOT lie on the boundary of the UV bounding
@@ -750,8 +770,8 @@ fn entries_off_bbox(
 ///
 /// **This is the WALK-CONSISTENCY question, and only that** (issue
 /// 726). The SHAPE question — *is the domain an iso-rectangle at all* —
-/// is asked before the walk by [`require_iso_rectangle_face`], on rim
-/// structure, through `geom_brep::props`' own door; what reaches here
+/// is asked before the walk by the router ([`iso_rectangle_shape`]), on
+/// rim structure, through `geom_brep::props`' own door; what reaches here
 /// is a face whose domain props has certified rectangular, and the
 /// question left is whether the walk traced it: whether every iso side
 /// came out straight (#653's ulp wobble, the reason the bar is SPATIAL
@@ -790,10 +810,8 @@ fn entries_off_bbox(
 /// modules' limits — the boolean's `CurvedPierceUnsupported`, tier 3's
 /// `VolumeUncomputable { NotIsoRectangle }`, which tier 3 no longer
 /// raises on a cylinder, cone or sphere, whose closed forms read any
-/// boundary of their kind — now refuse at the shape door in this
-/// crate; when either of those limits moves, the line
-/// that has to change is [`require_iso_rectangle_face`]'s call in
-/// [`tessellate_curved`], and it is in `mesh`.
+/// boundary of their kind — are routed to the chart lane by the shape
+/// door in this crate ([`iso_rectangle_shape`]).
 ///
 /// **The `walk::iso_side_starts` collapse on two non-iso CARRIERS
 /// cannot defeat it any more; the collapse on a non-iso ARC still
@@ -806,7 +824,7 @@ fn entries_off_bbox(
 /// it before a polygon exists — `tests::the_lens_walk_refuses_for_
 /// want_of_a_meridian_behind_the_shape_door`; beside a meridian side
 /// the merged pair would reach this check and pass it.) The shape door
-/// refuses that face on
+/// decides that face is no rectangle on
 /// `props_rim_axis_parallel` before the walk runs, on every kind
 /// (structural: per-edge CARRIER certification — a torus Villarceau
 /// lens refuses `props_rim_fit`). The SHAPE door does not certify that
@@ -815,8 +833,8 @@ fn entries_off_bbox(
 /// `mid_azimuth` would read the pole's `u` and the closing column
 /// would disagree by π — so a second door certifies it:
 /// `props::require_one_chart_branch`, cited beside the first in
-/// [`require_iso_rectangle_face`] and refusing that arc typed before
-/// any mesh is minted (issue 1571; the rows are
+/// [`iso_rectangle_shape`], which routes that face away from this walk
+/// (issue 1571; the rows are
 /// `mesh/tests/mesh11_arc_branch.rs`, and the seam between the two
 /// doors on one face is `mesh7r1_probes::a_pole_crossing_arc_is_
 /// refused_by_the_branch_door_not_the_shape_door`). The qualification
@@ -1272,10 +1290,9 @@ mod tests {
     type WalkOf = (Vec<UvPoint>, Vec<(f64, f64)>);
 
     /// Every face this lane would take, walked to its UV polygon — the
-    /// `tessellate` prologue (mesh ids, then the chord pass) run for
-    /// the walk alone. The two `continue`s below are exactly the
-    /// router's own screens (`tessellate.rs`), so a face that survives
-    /// them is a face `tessellate_curved` receives.
+    /// `tessellate` prologue (mesh ids, the route, then the chord pass)
+    /// run for the walk alone. A face the route hands this lane is a face
+    /// `tessellate_curved` receives.
     ///
     /// `name` is the fixture's, carried into the failure message: a
     /// face that does not walk says which body it belongs to.
@@ -1293,6 +1310,15 @@ mod tests {
     /// [`curved_walks`] with each face's walk kept as the walk's own
     /// answer, for a row whose subject is a walk that refuses.
     fn curved_walk_results(body: &Body<f64>) -> Vec<(FaceKey, Result<WalkOf, TessellateError>)> {
+        walk_results(body, crate::tessellate::Routes::witness(body))
+    }
+
+    /// The walk of every face `routes` hands this lane, on the chord pass
+    /// a run on those routes would make.
+    fn walk_results(
+        body: &Body<f64>,
+        routes: crate::tessellate::Routes,
+    ) -> Vec<(FaceKey, Result<WalkOf, TessellateError>)> {
         let eps = Eps::at(Tol::witness());
         let band = Band::linear(Tol::witness()).unwrap();
         let mut positions = Vec::new();
@@ -1305,6 +1331,7 @@ mod tests {
         let chords = crate::chords::compute_chords(
             body,
             0.025,
+            &routes,
             &vids,
             &mut positions,
             &mut crate::nurbs_cert::FaceBounds::new(),
@@ -1313,11 +1340,11 @@ mod tests {
         .ids;
         let mut out = Vec::new();
         for (fk, face) in body.faces() {
-            if crate::trimmed::has_trim_carrier(body, fk).unwrap() {
+            if routes.lane(fk) != Some(crate::tessellate::Lane::Curved) {
                 continue;
             }
             let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
-                continue;
+                panic!("face {fk:?} has no iso chart to walk")
             };
             let walk = loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band)
                 .map(|poly| {
@@ -2659,14 +2686,23 @@ mod tests {
     /// own zero-height bounding box, which the spatial check
     /// ([`require_swept_rectangle`]) cannot tell from a rectangle and
     /// the CDT triangulates to nothing — and that polygon is what the
-    /// refusal stands in front of. The shape door refuses the same
-    /// face earlier still, on its rims' CARRIERS; it does not establish
+    /// refusal stands in front of. The shape door decides the same face
+    /// is no rectangle earlier still, on its rims' CARRIERS, so the route
+    /// never hands it to this walk; the door does not establish
     /// the walk's arc premise (issue 1571), and this row does not claim
     /// it does.
     #[test]
     fn the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door() {
         let (body, face) = crate::witness_bodies::oblique_lens();
-        let walked = curved_walk_results(&body);
+        // The route sends both lens faces to the trimmed lane (below);
+        // handed to this lane all the same, the walk refuses the lens on
+        // its own terms.
+        let routes = body
+            .faces()
+            .fold(crate::tessellate::Routes::witness(&body), |r, (fk, _)| {
+                r.with(fk, crate::tessellate::Lane::Curved)
+            });
+        let walked = walk_results(&body, routes);
         let (_, lens) = walked
             .iter()
             .find(|(fk, _)| *fk == face)
@@ -2681,21 +2717,22 @@ mod tests {
         );
         let surface = body.face_surface(face).unwrap();
         let outer = body.get_face(face).unwrap().outer;
+        let band = Band::linear(Tol::witness()).unwrap();
         assert_eq!(
-            require_iso_rectangle_face(
-                &body,
-                face,
-                outer,
+            geom_brep::props::require_iso_rectangle(
                 surface,
-                Band::linear(Tol::witness()).unwrap()
+                &topo::props::loop_edges(&body, outer).unwrap().0,
+                band
             ),
-            Err(TessellateError::UnsupportedCurvedShape {
-                face,
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_axis_parallel",
-                },
+            Err(geom_brep::props::PropsError::NotIsoRectangle {
+                what: "props_rim_axis_parallel",
             }),
-            "the shape door refuses the lens on rim structure, before any walk"
+            "the shape door decides the lens is no rectangle on rim structure"
+        );
+        assert_eq!(
+            iso_rectangle_shape(&body, face, outer, surface, band),
+            Ok(Shape::NoRectangle),
+            "so the router sends it away from the walk"
         );
     }
 }

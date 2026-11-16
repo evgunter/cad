@@ -2153,8 +2153,15 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords =
-            crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
+        let chords = crate::chords::compute_chords(
+            &body,
+            0.05,
+            &crate::tessellate::Routes::witness(&body),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (fk, _) = body
             .faces()
             .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))

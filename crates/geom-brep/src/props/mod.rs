@@ -312,15 +312,17 @@ pub enum PropsError {
     ///
     /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     Unimplemented,
-    /// The boundary shape is outside the M2 iso-rectangle inventory,
-    /// a stored-data consistency residual of an inventory premise is
-    /// definitely nonzero, or a
-    /// stored span is outside certification's per-edge bounds
-    /// `0 < Δt ≤ τ` (`props_meridian_span_forward` /
-    /// `props_meridian_span_winding` on a sphere meridian arc, the
-    /// `props_meridian_pieces_*` names on a reconstructed torus
-    /// meridian) — an arc no closed form here may fold. The payload
-    /// names the structural expectation that failed.
+    /// The boundary shape is outside the M2 iso-rectangle inventory:
+    /// a carrier that is no rim or meridian of the face's chart (an
+    /// ellipse, a tilted circle, a line off a ruling), a rim away from
+    /// the face's two extreme levels (a notch), rims that encode
+    /// different material sides, or a torus face with no meridian.
+    /// Every arm is a decided verdict on a face as stored — valid
+    /// input this inventory has no closed form for, never a face it
+    /// could not read ([`Self::Escalated`]) or one whose stored data
+    /// contradicts itself ([`Self::OffSurface`],
+    /// [`Self::SpanUncertified`]). The payload names the structural
+    /// expectation that failed.
     ///
     /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
     /// same reason. Where a margin decided the refusal, `what` is that
@@ -330,7 +332,7 @@ pub enum PropsError {
     /// this `Decide`-generic lane does not read a margin back as
     /// `f64`.
     ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -359,6 +361,29 @@ pub enum PropsError {
     /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     OffSurface {
         /// Which incidence failed (static description).
+        what: &'static str,
+    },
+    /// **A stored edge span is outside certification's per-edge bounds**
+    /// `0 < Δt ≤ τ` (`props_rim_span_*` on a rim, `props_meridian_span_*`
+    /// on a sphere or torus meridian arc), or the pieces of one split
+    /// edge do not assemble one such span (`props_meridian_pieces_*` on
+    /// a reconstructed torus meridian). Certification admits no edge
+    /// with such a span, so the stored data contradicts the
+    /// certification it was stored under: a defect of the kernel or of
+    /// the file the body was read from.
+    ///
+    /// Split from [`Self::NotIsoRectangle`], at the raising sites, for
+    /// the reason [`Self::OffSurface`] was: a face outside the
+    /// inventory is valid input on an unbuilt lane, and a span no
+    /// certification admits is not, and no consumer could tell the two
+    /// apart from one variant.
+    ///
+    /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
+    /// reason.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
+    SpanUncertified {
+        /// Which span bound failed (the deciding predicate's name).
         what: &'static str,
     },
     /// A cone face's `v` range definitely spans both nappes — not a
@@ -674,6 +699,7 @@ impl PropsError {
         match self {
             Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
             Self::Unimplemented
+            | Self::NotIsoRectangle { .. }
             | Self::NotOneChartBranch { .. }
             | Self::QuadratureUnsupported { .. } => Ok(crate::ladder::Refusal::Limit),
             Self::NappeSpanning
@@ -687,7 +713,7 @@ impl PropsError {
             | Self::LoopsWindChart
             | Self::DegenerateFace
             | Self::OffSurface { .. }
-            | Self::NotIsoRectangle { .. }
+            | Self::SpanUncertified { .. }
             | Self::SphereLoop { .. }
             | Self::ConeLoop { .. }
             | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
@@ -719,6 +745,11 @@ impl PropsError {
                 f,
                 "a boundary edge does not lie on its own face's surface ({what}). \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SpanUncertified { what } => write!(
+                f,
+                "a boundary edge's stored parameter span is one no certified edge has \
+                 ({what}). {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::SphereLoop { what } => write!(
                 f,
@@ -1129,6 +1160,9 @@ mod tests {
             },
             PropsError::OffSurface {
                 what: "props_rim_fit",
+            },
+            PropsError::SpanUncertified {
+                what: "props_rim_span_winding",
             },
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",

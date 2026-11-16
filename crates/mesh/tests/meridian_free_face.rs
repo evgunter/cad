@@ -342,20 +342,22 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
     }
 }
 
-/// **The torus member is refused one door earlier, on the same fact.**
-/// A torus face whose loop is rims only never reaches the walk: props'
-/// torus parse — the prologue of the shape door this lane cites —
-/// refuses a face with no meridian by that name, so the answer is
-/// [`TessellateError::UnsupportedCurvedShape`] and the walk's guard is
-/// behind it. Measured on the outer equator and on the top rim.
+/// **The torus member never reaches the walk, on the same fact.** A
+/// torus face whose loop is rims only is no rectangle: props' torus
+/// parse — the prologue of the shape door — decides a face with no
+/// meridian by that name, so the route sends it to the trimmed lane and
+/// the walk's guard is behind it. There the loop's lift winds the chart
+/// once about the axis and closes on no sheet, so the domain read
+/// refuses `OuterOpen`: one rim bounds no region of a torus. Measured
+/// on the outer equator and on the top rim.
 ///
 /// **A disposition pin, not a row for the walk's guard**: removing
 /// `walk::require_a_meridian` cannot redden it, because the walk is
-/// never called. What reddens it is the shape door ceasing to refuse
+/// never called. What reddens it is the shape door ceasing to decide
 /// this face — the day the walk's guard would start answering for a
 /// torus.
 #[test]
-fn a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact() {
+fn a_rim_only_torus_face_is_routed_away_from_the_walk_on_the_same_fact() {
     let torus = Surface::Torus {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
@@ -363,17 +365,28 @@ fn a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact() {
         minor_radius: 0.5,
         u_ref: x_axis(),
     };
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for (name, circle) in [("outer equator", rim(0.0, 2.5)), ("top", rim(0.5, 2.0))] {
         let body = one_circle_cut(&circle, torus.clone(), None);
+        let face = first_face_on(&body, SurfaceKind::Torus);
+        let (outer, _) =
+            topo::props::loop_edges(&body, body.get_face(face).unwrap().outer).unwrap();
         assert_eq!(
-            mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ()),
-            Err(TessellateError::UnsupportedCurvedShape {
-                face: first_face_on(&body, SurfaceKind::Torus),
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "torus face without a meridian",
-                },
+            geom_brep::props::require_iso_rectangle(&torus, &outer, band),
+            Err(geom_brep::props::PropsError::NotIsoRectangle {
+                what: "torus face without a meridian",
             }),
-            "{name}"
+            "{name}: the door"
+        );
+        let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+        assert!(
+            matches!(
+                &got,
+                Err(TessellateError::DomainUnread { face: f, cause })
+                    if *f == face
+                        && matches!(**cause, topo::pcurves::RingPlacementError::OuterOpen { .. })
+            ),
+            "{name}: {got:?}"
         );
     }
 }

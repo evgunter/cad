@@ -1228,51 +1228,27 @@ fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
     );
 }
 
-/// **A bar through a pipe's wall**, the three bars of
+/// **A bar through a pipe's wall meshes in every op**, the three bars of
 /// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`
 /// and the brick turned 0.3 rad about `x` (`sweep`'s `verbs_germarms`).
-/// The notched walls refuse at the curved lane's shape door
-/// (`require_iso_rectangle_face`, on `props_rim_level`); the holed
-/// walls, rings of rulings and arcs or of ellipse arcs alike, mesh on
-/// the trimmed lane's cylinder arm. ∩ and bar ∖ pipe mesh, the turned
-/// bar's through the trimmed lane's cylinder arm.
+/// The notched walls, an iso domain that is no rectangle, are decided so
+/// at the curved lane's shape door (`props_rim_level`) and routed to the
+/// trimmed lane's cylinder arm; the holed walls, rings of rulings and
+/// arcs or of ellipse arcs alike, go there for their rings. ∩ and
+/// bar ∖ pipe mesh, the turned bar's through the same arm.
 #[test]
-fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
+fn a_notched_or_holed_pipe_wall_meshes() {
     let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
     let deltas = [5e-3, 1e-3, 2e-4];
-    let notch = Got::NotIsoRectangle(SurfaceKind::Cylinder);
-    let ring = Got::Meshed;
-    let by = |wall: &Got| {
-        [
-            wall.clone(),
-            wall.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            wall.clone(),
-            Got::Meshed,
-        ]
-    };
-    for (what, x, y, z, wall) in [
-        (
-            "the bar through",
-            (-1.1, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
-        (
-            "the bar half in",
-            (0.5, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
+    let meshed = core::array::from_fn(|_| Got::Meshed);
+    for (what, x, y, z) in [
+        ("the bar through", (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
+        ("the bar half in", (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
         (
             "the bar off the axis",
             (-1.1, 1.1),
             (0.15, 0.7),
             (-0.4, 0.1),
-            &ring,
         ),
     ] {
         let bar = finished("the bar", brick::<f64>(x, y, z, tol()), tol());
@@ -1281,7 +1257,7 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
             &pipe,
             &bar,
             &deltas,
-            &by(wall),
+            &meshed,
         );
     }
     let turned = posed(
@@ -1294,7 +1270,7 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
         &pipe,
         &turned,
         &deltas,
-        &by(&ring),
+        &meshed,
     );
 }
 

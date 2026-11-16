@@ -3,9 +3,10 @@
 //! `walk.rs` needs every boundary edge to be an iso curve of the chart
 //! traversed on ONE branch. `props::require_iso_rectangle` certifies
 //! the CARRIER; `props::require_one_chart_branch` certifies the
-//! traversed ARC, and `curved::require_iso_rectangle_face` cites both
-//! in that order. These rows are the two π-rad witnesses the walk's
-//! ledger names, from the outside, through the public `tessellate`.
+//! traversed ARC, and `curved::iso_rectangle_shape` asks both in that
+//! order and routes the face by their answer. These rows are the two
+//! π-rad witnesses the walk's ledger names, from the outside, through
+//! the public `tessellate`.
 //!
 //! Each witness is a body that used to reach the walk: with debug
 //! assertions on it panicked at the cross-face identification census
@@ -13,9 +14,11 @@
 //! mesh `Ok`; at finer δ it refused `CertificateExceeded`, a refusal
 //! about the chord certificate rather than about the premise. What
 //! these rows pin is that neither outcome is reachable any more: the
-//! refusal is typed, names the premise, and comes before any mesh is
-//! minted — at EVERY δ, which is the part `CertificateExceeded` never
-//! gave.
+//! doors decide each face is no rectangle, so the route sends it to the
+//! trimmed lane, never the walk — at EVERY δ, which is the part
+//! `CertificateExceeded` never gave. Both bodies are assembled through
+//! the Euler doors, which store no chart image, so the trimmed lane's
+//! chord pass refuses them typed before any mesh is minted.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -26,36 +29,50 @@ use geom_core::Tol;
 use mesh::TessellateError;
 use topo::{Body, FaceKey};
 
-/// Every face of `body` refuses at the shape door with the branch
-/// predicate's own error, at every δ — the refusal is a fact about the
-/// body's boundary statement, not about a chord budget.
-fn refuses_the_branch_premise(name: &str, body: &Body<f64>, faces: [FaceKey; 2]) {
+/// What the two doors, in order, answer on `face`'s outer loop.
+fn doors(body: &Body<f64>, face: FaceKey) -> Result<(), PropsError> {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let (outer, _) = topo::props::loop_edges(body, body.get_face(face).unwrap().outer).unwrap();
+    let surface = body.face_surface(face).unwrap();
+    geom_brep::props::require_iso_rectangle(surface, &outer, band)
+        .and_then(|()| geom_brep::props::require_one_chart_branch(surface, &outer, band))
+}
+
+/// `tessellate` refuses `body` at every δ before any mesh is minted, in
+/// the trimmed lane's chord pass: the route took its faces away from the
+/// walk, and the Euler-built body stores no chart image to chord by.
+fn routed_away_from_the_walk(name: &str, body: &Body<f64>) {
     let tol = Tol::witness();
     for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
-        let got = mesh::tessellate(body, delta, tol);
-        match got {
-            Err(TessellateError::UnsupportedCurvedShape {
-                face,
-                source: PropsError::NotOneChartBranch { .. },
-            }) => assert!(
-                faces.contains(&face),
-                "{name} at δ={delta}: refused a face that is not one of {faces:?}"
+        match mesh::tessellate(body, delta, tol) {
+            Err(TessellateError::UnsupportedCurve { note, .. })
+                if note.contains("carries no stored pcurve cache") => {}
+            other => panic!(
+                "{name} at δ={delta}: expected the trimmed lane's chord pass to refuse, got \
+                 {other:?}"
             ),
-            other => {
-                panic!("{name} at δ={delta}: expected the branch premise refusal, got {other:?}")
-            }
         }
     }
 }
 
 /// **Witness 1, the Euler-door body** (issue 1571's own construction):
 /// the unit sphere whose ONE meridian edge is a great-circle arc over
-/// the north pole. Before this unit the door admitted both faces and
-/// the walk ran; now the door names the premise and no mesh is minted.
+/// the north pole. The shape door admits both faces and the branch door
+/// decides the arc leaves its branch, so neither face reaches the walk.
 #[test]
-fn the_pole_crossing_half_cap_refuses_at_the_door() {
+fn the_pole_crossing_half_cap_is_decided_off_one_branch_at_the_door() {
     let (body, cap, rest) = pole_crossing_half_cap();
-    refuses_the_branch_premise("half-cap", &body, [cap, rest]);
+    for face in [cap, rest] {
+        assert!(
+            matches!(
+                doors(&body, face),
+                Err(PropsError::NotOneChartBranch { .. })
+            ),
+            "half-cap face {face:?}: {:?}",
+            doors(&body, face)
+        );
+    }
+    routed_away_from_the_walk("half-cap", &body);
 }
 
 /// **Witness 2's sibling on the other kind** — the cone bow tie, whose
@@ -64,41 +81,30 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 /// mis-read the half-cap (a debug build panicked at the issue-897
 /// census at δ = 0.5, `CertificateExceeded` below it).
 ///
-/// **The shape door now reaches this body first, and by its own
-/// name.** `require_iso_rectangle` requires every rim to encode the
-/// same material side, and the bow tie's second face states two rims
-/// that do not: its refusal is `props_rim_side`, raised before
-/// `require_one_chart_branch` is asked. What the row pins is unchanged
-/// — no mesh is minted, at every δ, and the refusal is typed and names
-/// a premise rather than a chord budget — but the premise it names is
-/// the shape one. The branch premise's own cone witness is the
-/// props-level row `an_apex_crossing_generator_is_not_one_chart_branch`
-/// (`geom-brep`), on a hand-built bow whose rims do not contradict;
-/// this body no longer reaches the branch door through `tessellate`,
-/// and the row for a body that does is
+/// **The shape door reaches this body first, and by its own name.**
+/// `require_iso_rectangle` requires every rim to encode the same
+/// material side, and the bow tie's faces state two rims that do not:
+/// its verdict is `props_rim_side`, decided before
+/// `require_one_chart_branch` is asked. The branch premise's own cone
+/// witness is the props-level row
+/// `an_apex_crossing_generator_is_not_one_chart_branch` (`geom-brep`),
+/// on a hand-built bow whose rims do not contradict; this body does not
+/// reach the branch door through `tessellate`, and the row for a body
+/// that does is
 /// `work/tesslane/apex-crossing-branch-premise-has-no-body-level-witness.md`.
 #[test]
-fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
+fn the_apex_crossing_bowtie_is_decided_no_rectangle_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
-    let tol = Tol::witness();
-    for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
-        match mesh::tessellate(&body, delta, tol) {
-            Err(TessellateError::UnsupportedCurvedShape {
-                face,
-                source:
-                    PropsError::NotIsoRectangle {
-                        what: "props_rim_side",
-                    },
-            }) => assert!(
-                [f0, f1].contains(&face),
-                "bow tie at δ={delta}: refused a face that is not one of {:?}",
-                [f0, f1]
-            ),
-            other => {
-                panic!("bow tie at δ={delta}: expected the shape premise refusal, got {other:?}")
-            }
-        }
+    for face in [f0, f1] {
+        assert_eq!(
+            doors(&body, face),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_side"
+            }),
+            "bow tie face {face:?}"
+        );
     }
+    routed_away_from_the_walk("bow tie", &body);
 }
 
 /// **The props-side finding is closed by the side reader, not by this

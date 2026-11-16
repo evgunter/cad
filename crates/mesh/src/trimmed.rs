@@ -1,7 +1,7 @@
-//! **Trimmed curved-face tessellation** (M5 PR 11, C12.6): faces whose
-//! boundary carries a conic or B-spline trim carrier, or that hold a
-//! ring, are not swept UV rectangles, so the iso walk cannot traverse
-//! them — instead the face's **domain** provides the trim polygon in UV:
+//! **Trimmed curved-face tessellation** (M5 PR 11, C12.6): faces that
+//! are no swept UV rectangle — a conic or B-spline trim carrier, a
+//! notch, a ring — cannot be traversed by the iso walk; instead the
+//! face's **domain** provides the trim polygon in UV:
 //! every loop's lift, the rings placed in the outer loop's sheet
 //! (`topo::Body::face_lift`), each half-edge's image evaluated at exactly
 //! the shared per-edge chord parameters; and the CDT + even-odd
@@ -35,8 +35,9 @@
 //! NURBS faces route here unconditionally, iso-rectangle or not, because
 //! the swept-rectangle walk has no NURBS chart; RATIONAL faces since
 //! M8-5, whose Hessian bound is the second-order quotient statement over
-//! the homogeneous nets). An analytic face routes here by its outer
-//! loop's carriers, or by holding a ring (`crate::tessellate::lane_of`).
+//! the homogeneous nets). An analytic face routes here when it holds a
+//! ring or the curved lane's doors decide it is no iso-rectangle of its
+//! chart (`crate::tessellate::lane_of`).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves
@@ -242,7 +243,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use geom::Curve3;
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
@@ -257,7 +257,7 @@ use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count};
-use crate::tessellate::{Patch, PatchVertex};
+use crate::tessellate::{Lane, Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
 /// Retry budget for the rebuild loop (module docs). **Termination.**
@@ -327,37 +327,14 @@ pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 /// this lane meshes on an analytic chart (one whose surface has no spline
 /// chart), δ for every other face. The one statement those arms size
 /// their lattices at and the chord pass chords the face's boundary at
-/// (`chords::edge_target`).
-pub(crate) fn face_target(
-    body: &Body<f64>,
-    fk: FaceKey,
-    delta: f64,
-) -> Result<f64, TessellateError> {
-    let surface = crate::tessellate::face_surface(body, fk)?;
-    let headroom = surface.spline_chart().is_none()
-        && crate::tessellate::lane_of(body, fk, surface)? == crate::tessellate::Lane::Trimmed;
-    Ok(if headroom {
+/// (`chords::edge_target`), each reading the face's lane from the run's
+/// route (`tessellate::Routes`).
+pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
+    if lane == Lane::Trimmed && surface.spline_chart().is_none() {
         delta * UNPROVED_HEADROOM
     } else {
         delta
-    })
-}
-
-/// Does this face's outer loop carry a circle tilted against the face's
-/// chart — one whose stored image is the chart's inverse of the carrier
-/// ([`Pcurve::Projected`]) rather than an iso line's closed form? On a
-/// sphere that is every circle that is neither a parallel nor a
-/// meridian, and it is the structural mark the dispatch routes on.
-pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    Ok(crate::walk::loop_half_edges(body, face.outer, fk)?
-        .into_iter()
-        .any(|(hek, _, _)| {
-            body.pcurve(hek)
-                .is_some_and(|c| matches!(c.pcurve(), Pcurve::Projected(_)))
-        }))
+    }
 }
 
 /// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
@@ -365,41 +342,13 @@ pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, T
 /// ([`face_target`]). The chord pass reads the same steps to bound each
 /// boundary chord's UV step (`chords::tighten`), so the lattice and the
 /// trim polygon are sized from one value.
-pub(crate) fn arm_steps(
-    body: &Body<f64>,
-    fk: FaceKey,
-    row: &AnalyticRow<'_>,
-    delta: f64,
-) -> Result<(f64, f64), TessellateError> {
+pub(crate) fn arm_steps(row: &AnalyticRow<'_>, target: f64) -> (f64, f64) {
     #[cfg(test)]
     let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) = row.steps(face_target(body, fk, delta)?);
-    Ok((hu * scale, hv * scale))
-}
-
-/// Does this face's outer loop carry a non-iso trim carrier (conic or
-/// B-spline)? Structural kind test — the C5 dispatch discipline, no
-/// numeric fallback.
-pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
-        let curve = body
-            .get_edge(ek)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|g| g.certified())
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(
-            curve.carrier(),
-            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. }
-        ) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    let (hu, hv) = row.steps(target);
+    (hu * scale, hv * scale)
 }
 
 /// **A trimmed face's domain**: its outer loop's lift and each ring's,
@@ -504,7 +453,8 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol.delta)?);
+            let (hu, hv) =
+                a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let nv = ceil_count(v1 - v0, hv)?;
             // The other half of #678's shape on the cylinder, checked
@@ -2899,8 +2849,15 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 5e-3, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            5e-3,
+            &crate::tessellate::Routes::witness(&body),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut rims = 0;
         for (ek, edge) in body.edges() {
             let curve = body
@@ -3044,21 +3001,30 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                .unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            delta,
+            &crate::tessellate::Routes::witness(&body),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let (mut faces, mut worst) = (0, 0.0f64);
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;
             }
             faces += 1;
             let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-            let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+            let (hu, hv) = super::arm_steps(
+                &row,
+                super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
+            );
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -3214,7 +3180,7 @@ pub(super) mod tests {
                 else {
                     continue;
                 };
-                if crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                if crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
                     != crate::tessellate::Lane::Trimmed
                 {
                     continue;
@@ -3275,22 +3241,31 @@ pub(super) mod tests {
                     positions.push(p);
                 }
                 let mut bounds = crate::nurbs_cert::FaceBounds::new();
-                let chords: ChordPass =
-                    crate::chords::compute_chords(&body, delta, &vids, &mut positions, &mut bounds)
-                        .unwrap();
+                let chords: ChordPass = crate::chords::compute_chords(
+                    &body,
+                    delta,
+                    &crate::tessellate::Routes::witness(&body),
+                    &vids,
+                    &mut positions,
+                    &mut bounds,
+                )
+                .unwrap();
                 for (fk, face) in body.faces() {
                     let surface = body.face_surface(fk).unwrap();
                     if !matches!(
                         surface,
                         geom::Surface::Cone { .. } | geom::Surface::Torus { .. }
-                    ) || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                    ) || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
                         != crate::tessellate::Lane::Trimmed
                     {
                         continue;
                     }
                     faces += 1;
                     let row = crate::chart_table::AnalyticRow::of(&body, fk, surface).unwrap();
-                    let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
+                    let (hu, hv) = super::arm_steps(
+                        &row,
+                        super::face_target(surface, crate::tessellate::Lane::Trimmed, delta),
+                    );
                     for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap()
                     {
                         let image = body.pcurve(hek).unwrap().pcurve();
@@ -3323,7 +3298,11 @@ pub(super) mod tests {
                             .certified()
                             .unwrap()
                             .carrier();
-                        let target = super::face_target(&body, fk, delta).unwrap();
+                        let target = super::face_target(
+                            surface,
+                            crate::tessellate::Routes::witness(&body).lane(fk).unwrap(),
+                            delta,
+                        );
                         // The new arms size at the lane's headroom, as the
                         // cylinder and sphere arms do: it stands in for
                         // the containment lemma no arm has yet.
@@ -3674,13 +3653,20 @@ pub(super) mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 1e-2, &vids, &mut positions, &mut bounds).unwrap();
+        let chords: ChordPass = crate::chords::compute_chords(
+            &body,
+            1e-2,
+            &crate::tessellate::Routes::witness(&body),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
         let mut with_poles = 0;
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             if !matches!(surface, geom::Surface::Sphere { .. })
-                || crate::tessellate::lane_of(&body, fk, surface).unwrap()
+                || crate::tessellate::Routes::witness(&body).lane(fk).unwrap()
                     != crate::tessellate::Lane::Trimmed
             {
                 continue;

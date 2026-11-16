@@ -25,7 +25,6 @@ use topo::construction::Construct;
 
 use common::witness_bodies::{keyway, oblique_lens};
 use common::*;
-use geom_brep::props::PropsError;
 use geom_core::Tol;
 use mesh::TessellateError;
 
@@ -161,24 +160,23 @@ fn the_witness_bodies_are_topologically_valid_and_tier3_refuses_them() {
     }
 }
 
-/// **Ordering.** The door runs before `Chart::of` and before the walk,
-/// so on a face that would ALSO have tripped a later refusal the caller
-/// now sees the shape refusal. The keyway is the case in tree: on this
-/// build it refuses at the door; its walk (the same body on main)
-/// refused `UnsupportedCurvedDomain`. Both are typed refusals of the
-/// same body, and this row records which one a caller gets now.
+/// **Ordering.** The door routes the face before `Chart::of` and before
+/// the walk, so a face the door decides is no rectangle never reaches
+/// the walk. The keyway is the case in tree: its walk (the same body
+/// before the door existed) refused `UnsupportedCurvedDomain`; now the
+/// route sends it to the trimmed lane, which reads its domain from the
+/// stored chart images, and the Euler-built keyway stores none.
 #[test]
-fn the_keyway_refuses_at_the_door_rather_than_at_the_spatial_check() {
+fn the_keyway_is_routed_before_the_spatial_check() {
     let (body, face) = keyway();
     let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
     println!("keyway: {got:?}");
-    assert_eq!(
-        got,
-        Err(TessellateError::UnsupportedCurvedShape {
-            face,
-            source: PropsError::NotIsoRectangle {
-                what: "props_rim_level"
-            },
-        })
+    assert!(
+        matches!(
+            &got,
+            Err(TessellateError::DomainUnread { face: f, cause })
+                if *f == face && matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+        ),
+        "{got:?}"
     );
 }

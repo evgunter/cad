@@ -351,9 +351,13 @@ pub fn boundary_material_sign_holding<T: Decide>(
 /// # Errors
 ///
 /// [`PropsError::NotIsoRectangle`] naming the failed structural
-/// expectation; [`PropsError::Escalated`] when a classification lands
-/// in the ambiguity band (escalate, never guess);
-/// [`PropsError::Unimplemented`] for a NURBS carrier or surface.
+/// expectation, and [`PropsError::Unimplemented`] for a NURBS carrier or
+/// surface: each a decided verdict that the face is no iso-rectangle of
+/// this inventory, the carrier kinds read first
+/// ([`require_iso_carrier_kind`]); [`PropsError::Escalated`] when a
+/// classification lands in the ambiguity band (escalate, never guess);
+/// [`PropsError::OffSurface`] and [`PropsError::SpanUncertified`] where
+/// the stored boundary contradicts its own surface or its certification.
 ///
 /// **There is no recourse lane for a genuinely notched iso domain, and
 /// a line here used to say there was.** It named the certified
@@ -371,6 +375,9 @@ pub fn require_iso_rectangle<T: Decide>(
     outer: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
+    for e in outer {
+        require_iso_carrier_kind(surface, &e.carrier)?;
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
@@ -423,6 +430,66 @@ pub fn require_iso_rectangle<T: Decide>(
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// What a cylinder parse refuses an ellipse arc with.
+const CYLINDER_ELLIPSE: &str = "cylinder boundary carries an ellipse arc (curved cut) — route \
+                                through topo::mass_properties, whose quadrature lane consumes \
+                                the stored pcurves this key-free pass cannot see";
+
+/// What a cone parse refuses an ellipse arc with.
+const CONE_ELLIPSE: &str = "cone boundary carries an ellipse arc (a tilted-section cut) — not \
+                            a rim or a generator, so this iso parse has no reading of it \
+                            (`cone_face_closed_form` measures such a face by its vector area)";
+
+/// What a sphere parse refuses a carrier that is no circle with.
+const SPHERE_NOT_A_CIRCLE: &str = "sphere boundary edge is not a circle";
+
+/// What a torus parse refuses a carrier that is no circle with.
+const TORUS_NOT_A_CIRCLE: &str = "torus boundary edge is not a circle";
+
+/// **Whether `carrier`'s KIND is one `surface`'s iso parse reads** — a
+/// line or a circle on a cylinder or a cone, a circle on a sphere or a
+/// torus — refusing every other kind as that parse's own arm does.
+///
+/// [`require_iso_rectangle`] asks it of every edge before any parse
+/// decides anything, so a face carrying a carrier of no iso kind is
+/// refused for that, decided structurally, wherever the loop starts:
+/// otherwise an earlier edge's classification in band would answer
+/// [`PropsError::Escalated`] for a face that is no iso-rectangle at any
+/// band. The parses keep their own arms, which a direct call of the
+/// flux lane reads.
+fn require_iso_carrier_kind<T: Real>(
+    surface: &Surface<T>,
+    carrier: &Curve3<T>,
+) -> Result<(), PropsError> {
+    let refused = |what| Err(PropsError::NotIsoRectangle { what });
+    match (surface, carrier) {
+        (Surface::Cylinder { .. } | Surface::Cone { .. }, Curve3::Line(_) | Curve3::Circle(_))
+        | (
+            Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. },
+            Curve3::Circle(_),
+        )
+        // Not this function's question: the door answers a plane and a
+        // spline chart by its own arms.
+        | (Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_), _) => Ok(()),
+        (Surface::Cylinder { .. }, Curve3::Ellipse(..)) => refused(CYLINDER_ELLIPSE),
+        (Surface::Cone { .. }, Curve3::Ellipse(..)) => refused(CONE_ELLIPSE),
+        (
+            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. },
+            Curve3::Nurbs(_) | Curve3::Spiric { .. },
+        )
+        | (Surface::Torus { .. } | Surface::Spindle { .. }, Curve3::Nurbs(_)) => {
+            Err(PropsError::Unimplemented)
+        }
+        (Surface::Sphere { .. }, Curve3::Line(_) | Curve3::Ellipse(..)) => {
+            refused(SPHERE_NOT_A_CIRCLE)
+        }
+        (
+            Surface::Torus { .. } | Surface::Spindle { .. },
+            Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. },
+        ) => refused(TORUS_NOT_A_CIRCLE),
     }
 }
 
@@ -540,10 +607,11 @@ pub fn require_iso_rectangle<T: Decide>(
 /// branch boundary its span crosses (valid input, unbuilt lane — D2
 /// addendum row 2: the recourse is to state the side as two edges
 /// meeting at the singularity, which every consumer reads);
-/// [`PropsError::NotIsoRectangle`] naming `props_meridian_span_forward`
+/// [`PropsError::SpanUncertified`] naming `props_meridian_span_forward`
 /// or `props_meridian_span_winding` for a sphere meridian span outside
 /// certification's per-edge bounds `0 < Δt ≤ τ` (decided inside the
-/// pole helper, so both doors answer one name), or on a plane; [`PropsError::Escalated`] when the rim/meridian
+/// pole helper, so both doors answer one name);
+/// [`PropsError::NotIsoRectangle`] on a plane; [`PropsError::Escalated`] when the rim/meridian
 /// classification or the span bound lands in the ambiguity band
 /// (escalate, never guess); [`PropsError::Unimplemented`] for a NURBS
 /// surface.
@@ -1935,9 +2003,7 @@ fn cylinder_boundary<T: Decide>(
             // direct key-free call keeps the typed refusal.
             Curve3::Ellipse(..) => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut) — route \
-                           through topo::mass_properties, whose quadrature lane consumes \
-                           the stored pcurves this key-free pass cannot see",
+                    what: CYLINDER_ELLIPSE,
                 });
             }
             // A spiric lies on no cylinder or cone: refused beside the
@@ -3159,12 +3225,7 @@ fn cone_boundary<T: Decide>(
                 levels.push(v);
             }
             Curve3::Ellipse(..) => {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
-                           not a rim or a generator, so this iso parse has no reading of \
-                           it (`cone_face_closed_form` measures such a face by its \
-                           vector area)",
-                });
+                return Err(PropsError::NotIsoRectangle { what: CONE_ELLIPSE });
             }
             // A spiric lies on no cylinder or cone: refused beside the
             // spline, typed.
@@ -4622,7 +4683,7 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
 
 /// **The rim span door**: [`require_circle_span`] at a coaxial
 /// circle's own radius `r_c`, as `props_rim_span_forward` /
-/// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
+/// `props_rim_span_winding`, refusing [`PropsError::SpanUncertified`].
 /// Asked by [`Rim::decided`] at every rim mint, and by
 /// [`require_cone_conic_spans`] wherever the cone reads a circle's span
 /// without minting a rim.
@@ -4636,7 +4697,7 @@ fn require_rim_span<T: Decide>(
         r_c,
         band,
         ["props_rim_span_forward", "props_rim_span_winding"],
-        |what| PropsError::NotIsoRectangle { what },
+        |what| PropsError::SpanUncertified { what },
     )
 }
 
@@ -4644,7 +4705,7 @@ fn require_rim_span<T: Decide>(
 /// meridian circle's radius — the sphere's `R`, the torus's minor
 /// radius — as `props_meridian_span_forward` /
 /// `props_meridian_span_winding`, refusing
-/// [`PropsError::NotIsoRectangle`]. Asked by
+/// [`PropsError::SpanUncertified`]. Asked by
 /// [`sphere_meridian_pole_margins`] and by [`torus_classify`] on every
 /// torus meridian edge.
 fn require_meridian_span<T: Decide>(
@@ -4657,7 +4718,7 @@ fn require_meridian_span<T: Decide>(
         radius,
         band,
         ["props_meridian_span_forward", "props_meridian_span_winding"],
-        |what| PropsError::NotIsoRectangle { what },
+        |what| PropsError::SpanUncertified { what },
     )
     .map(|_| ())
 }
@@ -4936,7 +4997,7 @@ fn sphere_boundary<T: Decide>(
                 // spline, typed.
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
-                    what: "sphere boundary edge is not a circle",
+                    what: SPHERE_NOT_A_CIRCLE,
                 },
             });
         };
@@ -5899,10 +5960,10 @@ fn torus_classify<'a, T: Decide>(
                 // carrying one routes to the quadrature lane, whose
                 // spiric arm measures it (`super::spiric`).
                 Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
-                    what: "torus boundary edge is not a circle",
+                    what: TORUS_NOT_A_CIRCLE,
                 },
                 _ => PropsError::NotIsoRectangle {
-                    what: "torus boundary edge is not a circle",
+                    what: TORUS_NOT_A_CIRCLE,
                 },
             });
         };
@@ -6122,7 +6183,7 @@ fn fold_chain<T: Decide>(
                 PropsCheck::Inventory,
             )? != Sign::Zero
             {
-                return Err(PropsError::NotIsoRectangle {
+                return Err(PropsError::SpanUncertified {
                     what: "props_meridian_pieces_meet",
                 });
             }
@@ -6143,7 +6204,7 @@ fn fold_chain<T: Decide>(
                 "props_meridian_pieces_forward",
                 "props_meridian_pieces_winding",
             ],
-            |what| PropsError::NotIsoRectangle { what },
+            |what| PropsError::SpanUncertified { what },
         )?;
     }
     Ok(TorusMeridian {
