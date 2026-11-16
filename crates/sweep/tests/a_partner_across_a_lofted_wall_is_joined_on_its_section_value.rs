@@ -8,7 +8,9 @@
 //! at the at-rest certificate of the chord the join mints: a plane's arc
 //! across a curved wall stops at the plane × spline lane's own image.
 //! Neither is the join's. Two arcs of one pair closer than the pads their
-//! points are read within carry neither, by name.
+//! points are read within carry neither, by name. A brick wholly inside
+//! a wall's face meets it in a closed loop, a ring of the wall the join
+//! walls off as an island.
 //!
 //! Each run is at the witness tolerance. Red against main before
 //! the section value carried the pair: each refused at the join, where a
@@ -211,4 +213,156 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
         "the flared wall: the join mints the carried chord, which the plane × spline lane \
          reads: {refusal:?}"
     );
+}
+
+/// Whether the run stopped past the join, at the inside/outside test
+/// that cannot cross a spline face
+/// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
+fn stops_at_containment(refusal: &BooleanError) -> bool {
+    matches!(
+        refusal,
+        BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+            kind: geom::SurfaceKind::Nurbs,
+            ..
+        })
+    )
+}
+
+/// **A brick wholly inside the flat wall's face closes a ring on the
+/// wall**: its four planes meet the wall in a closed loop of four
+/// carried arcs, and the chord that closes the loop walls an island off
+/// the wall, wound by paths along the wall's own iso curves. Every
+/// operation passes the join and stops at the inside/outside test.
+///
+/// Red against: a ring lane with no winding on a spline wall, where each
+/// run refused `CurvedBooleanUnsupported` naming the wall. Which way
+/// round the island winds is not read here, since the stop comes before
+/// any reader of the wall's two faces: topo's
+/// `a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal`
+/// holds it.
+#[test]
+fn a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = finished(
+        "the brick",
+        topo::test_support::brick_with_fresh_keys::<f64>(
+            (-0.25, 0.25),
+            (0.75, 1.25),
+            (0.75, 1.25),
+            t,
+        ),
+        t,
+    );
+    for (what, run) in [
+        ("prism ∪ brick", topo::union(&prism, &brick, t)),
+        ("prism ∖ brick", topo::subtract(&prism, &brick, t)),
+        ("prism ∩ brick", topo::intersect(&prism, &brick, t)),
+        ("brick ∪ prism", topo::union(&brick, &prism, t)),
+        ("brick ∖ prism", topo::subtract(&brick, &prism, t)),
+    ] {
+        let refusal = run.expect_err("no ray crosses the prism's spline walls");
+        assert!(
+            stops_at_containment(&refusal),
+            "{what}: the island closes on the wall and the join completes, the inside/outside \
+             test refusing the wall: {refusal:?}"
+        );
+    }
+}
+
+/// **A fork with two prongs inside the flat wall's face closes two
+/// rings on the wall**: when the first island is walled off, the other
+/// prong's pierce rings are bystanders on the wall, each placed out of
+/// the island by a path on the wall. The union passes the join and stops
+/// at the inside/outside test.
+///
+/// Red against: a re-homing with no reading on a spline wall, where the
+/// first island's chord refused `RingIslandUnread` naming the wall.
+#[test]
+fn a_fork_inside_a_lofted_walls_face_closes_two_rings_on_the_wall() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = |x, y| {
+        finished(
+            "a brick",
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, (0.75, 1.25), t),
+            t,
+        )
+    };
+    let joined = |a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>| {
+        topo::union(a, b, t)
+            .expect("two bricks sharing a face unite")
+            .body()
+            .expect("a union is never empty")
+            .body
+            .clone()
+    };
+    let bridge = brick((-0.6, 0.6), (1.5, 1.8));
+    let fork = joined(
+        &joined(&brick((-0.6, -0.3), (0.75, 1.5)), &bridge),
+        &brick((0.3, 0.6), (0.75, 1.5)),
+    );
+    let refusal =
+        topo::union(&prism, &fork, t).expect_err("no ray crosses the prism's spline walls");
+    assert!(
+        stops_at_containment(&refusal),
+        "both islands close on the wall and the join completes, the inside/outside test \
+         refusing the wall: {refusal:?}"
+    );
+}
+
+/// **A fork with one prong inside the flat wall's face and one across
+/// its bottom rim refuses by name**: the rim prong's chords run from the
+/// wall's rim back to it, so the face one of them walls off is bounded
+/// by the wall's own rim edges beside the chords, and re-homing the
+/// inside prong's rings against that face reads a rim edge, which is no
+/// certified section of the wall. `RingIslandUnread` naming a spline
+/// face, in `prism ∪ fork` and `prism ∖ fork`
+/// (`work/sectarms/re-homing-a-ring-on-a-spline-wall-refuses-where-the-new-face-holds-a-rim-edge.md`).
+#[test]
+fn a_fork_inside_and_across_the_rim_of_a_lofted_wall_refuses_its_re_homing_by_name() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = |x, y, z| {
+        finished(
+            "a brick",
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
+            t,
+        )
+    };
+    let joined = |a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>| {
+        topo::union(a, b, t)
+            .expect("two bricks sharing a face unite")
+            .body()
+            .expect("a union is never empty")
+            .body
+            .clone()
+    };
+    let z = (0.75, 1.25);
+    let fork = joined(
+        &joined(
+            &brick((-0.6, -0.3), (0.75, 1.5), z),
+            &brick((-0.6, 0.6), (1.5, 1.8), z),
+        ),
+        &brick((0.3, 0.6), (0.75, 1.5), (-0.25, 1.25)),
+    );
+    for (what, run) in [
+        ("prism ∪ fork", topo::union(&prism, &fork, t)),
+        ("prism ∖ fork", topo::subtract(&prism, &fork, t)),
+    ] {
+        let refusal = run.expect_err("the re-homing reads no rim edge");
+        let BooleanError::Join(join) = &refusal else {
+            panic!("{what}: the join refuses the re-homing: {refusal:?}");
+        };
+        assert!(
+            matches!(
+                join.error(),
+                JoinError::RingIslandUnread {
+                    kind: geom::SurfaceKind::Nurbs,
+                    ..
+                }
+            ),
+            "{what}: the re-homing names the wall: {refusal:?}"
+        );
+    }
 }

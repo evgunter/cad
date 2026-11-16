@@ -47,3 +47,17 @@ re-derives its certificate from scratch at rest.
 A carried plane × spline chord certifies at rest in a time comparable
 to the whole reading's per-branch cost, or the census returns within
 a factor of two of main's.
+
+## On the hosted runner (2026-11-14, GREEN `green/nightly-jobs`)
+
+`spline_subtract_intersect_census::every_op_of_a_spline_operand_refuses_typed_or_builds_right`,
+from the nightly legs' junit reports:
+
+| nightly | head | default eps | 1e-12 |
+|---|---|---|---|
+| 43161026932 (11-12) | `da77d875` | 103 s | 96 s |
+| 43371638371 (11-13) | `e36675c1` | 219 s | 1072 s |
+
+So on the runner it doubled at the default eps and grew elevenfold at
+1e-12 between those two heads. That made it the second-longest test of
+the 1e-12 leg on 11-13.

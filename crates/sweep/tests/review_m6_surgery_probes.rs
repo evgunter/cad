@@ -666,11 +666,9 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         for &m in &meridians {
             let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "radius {r}: {margin} is not structural zero"
+                margin, None,
+                "radius {r}: a co-surface meridian is read by identity, no margin read"
             );
         }
     }
@@ -683,7 +681,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         RIM_R,
         Tol::witness(),
     );
-    println!("P7: meridian margins bit-zero at all radii; every-edge builds");
+    println!("P7: meridians read smooth by identity at all radii; every-edge builds");
 }
 
 /// P8: a duplicated edge in the request refuses before the battery.

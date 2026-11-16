@@ -6919,18 +6919,20 @@ pub trait AtRestPolicy: Decide {
     /// scalar. `None` leaves a face–face pair unread.
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
-    /// **This scalar's clearance engine, or `None` where it does not
+    /// **This scalar's clearance measure, or `None` where it does not
     /// answer** — the ONE seam the `Some` comes from, read by a
-    /// clearance assertion's evaluation, the engine's dials door and the
-    /// shell's cavity gate.
+    /// clearance assertion's evaluation and the engine's dials door.
+    /// The yes/no embedding verdict is the other door, bounded on
+    /// certification rights rather than answered per scalar
+    /// ([`crate::clearance::embedded`]).
     ///
-    /// The engine's answer is a verdict over a box, decided from
-    /// enclosures, so the door answers at the enclosure scalars and
-    /// wherever the symbolic tier wraps one. `None` at a dual is
-    /// certification rights (DL1), as [`AtRestPolicy::shell_door`]'s
-    /// is. `None` at `f64` and at the recording scalar is not a right
-    /// but a shape: a point build evaluates one parameter point, where a
-    /// search finds a near pair, not a verdict, and a clearance there
+    /// A clearance is a verdict over a box, decided from enclosures, so
+    /// the door answers at the enclosure scalars and wherever the
+    /// symbolic tier wraps one. `None` at a dual is certification rights
+    /// (DL1), as [`AtRestPolicy::shell_door`]'s is. `None` at `f64`, at
+    /// the recording scalar and at `Sym<f64>` is not a right but a shape:
+    /// a point build evaluates one parameter point, where a search finds
+    /// a near pair, not a verdict over the box, and a clearance there
     /// reads its third state naming the certifying lane.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 

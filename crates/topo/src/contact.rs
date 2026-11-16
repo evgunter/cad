@@ -79,10 +79,10 @@ impl GlueClass {
     /// The carrier relation a one-carrier class glues under: its
     /// [`Self::relation`] as the carrier ladder spells it. `None` for a
     /// tangency, whose carriers are distinct.
-    pub(crate) const fn carrier_relation(self) -> Option<crate::boolean::CarrierRelation> {
+    pub(crate) const fn carrier_relation(self) -> Option<geom_brep::CarrierRelation> {
         match self.relation() {
-            crate::Relation::SameOriented => Some(crate::boolean::CarrierRelation::SameOriented),
-            crate::Relation::SameOpposite => Some(crate::boolean::CarrierRelation::SameOpposite),
+            crate::Relation::SameOriented => Some(geom_brep::CarrierRelation::SameOriented),
+            crate::Relation::SameOpposite => Some(geom_brep::CarrierRelation::SameOpposite),
             _ => None,
         }
     }

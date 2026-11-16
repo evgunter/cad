@@ -50,11 +50,14 @@ that what you need belongs at the root or below.
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
-| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
-| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
+| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
+| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves/decision.rs` (`branches_astride_as`), `src/pcurves/lift.rs` (`lifted_images`) |
 | The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
-| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_travels`): the hull of a face's boundary images on its chart and each loop's net azimuth travel, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
-| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
+| A loop's position in its face's chart | `src/pcurves/lift.rs` (`Lift`): the chain of the loop's chart images, each moved by the joint elements summed along it (`src/joint.rs`), and the face's boundary in the chart, through a pole or an apex along the face's turn there. `Lift::read` takes the rows a finished body stores, with no band, and a missing row is loud; `Lift::decided` runs the mint's own walk at the caller's band over a loop or an open run, mid-operation, and stores nothing. The caller names which, and neither falls back to the other. Every window, hull and winding is a method on it, and so is every joint's chart point: where a row meets a column it is the meet of the two lines those images hold fixed, exact wherever both lines are, and elsewhere it is the image's value there. A row or column image stores the line it holds and one map along it, and no ends. A chart closed in a direction states its period by its domain's two ends, so an image on one end moved a whole period lies exactly on the other. `decide_joint` is the one decision of a joint's branch |
+| A face's rings in its outer loop's sheet | `src/pcurves_rings.rs` (`Body::face_lift`, `FaceLift`, `PlacedRing`, `RingPlacementError`, `place_ring`): each ring's lift moved by the one whole number of periods per closed channel that puts its first point in the region the outer loop's lift bounds, decided against the outer loop alone in the chart's cover. An analytic chart reads the point by the ray parity over the lifted rows' chart boxes, each clearance metered by the chart's inf-side arms; a spline chart reads it by its trim (`src/spline_trim.rs`), which places its own rings by the same rule. An outer loop or a ring that does not close in the chart, a ring no shift places, one two shifts place, and a spline trim that is not read (`SplineTrimGap`: a placeholder chart, no Bézier cells, a period stated but not decided, a lift that winds, a row moved by a period on a channel the chart states but does not decide closed or onto the twin sheet, an image with no piece reading, a box with no value, naming the ring where it is a ring's chain) each answer typed; the work bounds of both readers live beside the rule, and the ray parity both run is `src/chain_parity.rs` (`ray_parity_as` over each family's `ChainPiece`) |
+| A point against a spline face's trim | `src/spline_trim.rs` (`Trim`, `bezier_cells`, `Patch`, `ring_decks`): a face's loops in its spline chart as rational Bézier pieces, each ring moved into its outer loop's cover by the ring rule, and a query placed by the ray parity of its centre (`src/chain_parity.rs`), every piece decided clear of it in metres through the chart's inf-side arms over a window; the chart's Bézier cells, which meter the window's arms and the boolean's carrier walk (`src/boolean/spline_region.rs`), each box widened by its `f64` rounding |
+| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_window`): the first-channel hull of the outer loop's lift, decided at the reader's band since its readers run mid-operation too, refusing in its own `ChartWindowError` |
+| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves/tier3.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Shells carved out of a solid | `src/carve.rs` (`carve`, `single_solid`, `CarveError`, `NotOneSolid`): the sub-body a set of a solid's shells spans, and the one solid an operation's operand is read as |
@@ -720,13 +723,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    is in band, or whose side the door reads in band, is
    `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
-   between the edge's two halves by the incidence the loop walk resets
-   that joint by, `WrapTipOffChartSingularity`,
+   between the edge's two halves by the incidence the loop walk takes
+   the face's turn at that joint by, `WrapTipOffChartSingularity`,
    `WrapTipWithoutChartSingularity` on a surface with no singular point,
    or `WrapTipUndecided`, whose ending passes zero alone;
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
-   at-vertex placement, the reset and the tip rule all read),
+   at-vertex placement, the joint decision and the tip rule all read),
    **one region per face** off the plane (each surface cycle on the
    face's side of every other, read by the point-in-face doors cut to
    one cycle, a torus's essential cycles as one pair:
@@ -1094,7 +1097,7 @@ tangent sample and oppose at another, the solid's material on both
 sides of a face (`MaterialOnBothSides`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
-  (`carrier_eq::INVENTORY`), each datum and the pair's displacement over
+  (`geom_brep::carrier_eq::INVENTORY`), each datum and the pair's displacement over
   the consumed extent — position data at a pivot, plus the angular data
   levered from it to the extent's far reach, plus the radius differences
   — decided Zero; senses opposed as an exact bit; overlap definitely
@@ -1255,10 +1258,11 @@ backs. `SameSide` refuses, naming the verdict in the refusal's typed
 `side` field; it is interpenetration evidence, which the assembly layer
 reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
-`CensusEscalated`. The side is read by handing both faces' `Face::sense`
-bits to the tangency token `classify_dihedral` returns
-(`geom_brep::Tangency::pairing`), so the pairing is asked only where the
-dihedral read smooth. The census reads sides in three
+`CensusEscalated`. The side is the pair's carrier relation
+(`boolean::carrier_pair_relation`, the reading the confirm pass's
+`pair_contact` reads the same pair by), read over both faces at each
+crossing the pair is asked about: `SameOpposite` is `OppositeSides`, `SameOriented` is
+`SameSide`, and two distinct planes answer for nothing. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`, a cylinder or cone face the edge is a ruling of read as
@@ -1272,7 +1276,7 @@ point tied inside a curved edge read as its faces' tangent cones
 down where it ties at a cusp corner or along a ray
 (`link::second_order`), two sheets on one wedge read as the lens or
 lune their bends make, two planar faces on each other refused as the planar link
-refuses them, a cone's apex read as the nappe of its rulings, and refused
+refuses them, a cone's apex read as the nappes of its rulings, and refused
 undecided where none of these decides (`BoundaryCrossesItselfUndecided`,
 its cause the reading's; no such point is passed). Every other use of a
 face's normal in the coincidence sweeps is sense-invariant.
@@ -1286,12 +1290,15 @@ names (`TouchUnread`):
 - **no tangent plane** (`CurvedUnread::NoTangentPlane`): a vertex in the
   band of a cone's axis; a face held inside in band of its axis, centre
   or apex (`census::vertex_normal`, `census::foot_normal`); a cone's
-  apex its nappe does not decide (`rest::whole_nappe`, `rest::at_apex`):
+  apex its nappes do not decide (`rest::whole_nappes`, `rest::at_apex`):
   a nappe not held whole (one half alone, halves on two carriers, of two
-  senses or with rulings read together, a second apex), a ruling
-  decidedly on the other nappe, a horn beside it, a half-plane cutting
-  it, a needle alone (no rest round it to read its void against), or
-  the axis read on a sector of the rest rather than in a region;
+  senses or with rulings read together), a ruling decidedly on the other
+  nappe, a horn beside a nappe, a half-plane cutting one, a needle
+  inside no other nappe with no rest round it to read its void against,
+  an axis read on a sector of the rest rather than in a region, or
+  nappes round one that make no chain (`rest::nesting`; no decided
+  geometry reaches it, since two nappes holding a third are nested or
+  across each other, and the arm refuses rather than guesses);
 - **no sector arm** or **not placed** (`CurvedUnread::NoSectorArm`,
   `CurvedUnread::Unplaced`): a corner face `sector_face::resolve`
   refuses, a surface with no sector arm or a spline edge with no chart
@@ -1313,7 +1320,10 @@ names (`TouchUnread`):
   (`second_order::parts`); two whole tangent planes on one plane (two
   kissing balls at any pose included, `rest::first_order`); two sectors
   lying on each other where one is no plane and no lens or lune reads
-  them (`rest::one_material`); a lens or lune whose bends do not decide
+  them (`rest::one_material`: a sheet on a whole tangent plane among
+  them, but one on a planar face along a line, below); a sheet on a
+  planar face along a line whose ray another sector holds inside it
+  (`second_order::along_a_line`); a lens or lune whose bends do not decide
   it (a pinch read off Zero, ends or middle read decided but disagreeing,
   a polar value Zero beside a curved pinch, a cap facing the wrong way,
   a face with no certified bend: `second_order::kind`), a sector in two
@@ -1531,6 +1541,43 @@ from its edge out (`link::corner_fan`), so with that sector's edge
 turned off a quarter from the other's the mouth falls inside a wedge,
 and the pair is refused undecided, in that pose only.
 
+The sector that runs on may also be a planar face's whole plane, the
+point inside the face, with a curved sheet's one wedge `W` on it the
+other way round, bounded at one end by a line edge: **a sheet on a
+planar face along a line** (`second_order::along_a_line`). The ridge of a
+cylinder wall tangent to its floor along its tip ends so. `W`'s two ends
+close as follows.
+
+- A **line**: the sheet is bounded there by a line edge. The line lies
+  in the plane as the faces keep it (first order's line edge in a planar
+  face's plane), so both faces hold it and `q` reads Zero along it
+  (Meusnier), as at a pinch of two lines. The plane runs on past it.
+- A **mouth** at the other end: the plane runs on past the sheet's edge
+  there, and `b` reads decided, `σ`.
+
+`b₁` then reads as beside a pinch: `σ`, or Zero where the sheet is
+developable. A cylinder or a cone holds the line as a ruling, its
+tangent plane one along it and at `p` the planar face's, so the two
+faces are tangent along the whole line and the sheet's form is
+`κ(u·g)²`, `g` square to the ruling: one sign over all of `W`, zero
+along the line alone. So the sheets part over `W` as a lune's do. The
+remainder holds the plane less `W`, the rest of its turn from one end
+round to the other, bounded at each by the sheet's edge there. Cutting
+the plane along the line would hide a sheet that crosses it there, so no
+other sector may hold the line's ray inside it: such a link refuses. A
+sector bounded along the line leaves the plane at an angle `δ > 0` (in
+the plane it is a slit, a second pair or a sheet on a sheet, each
+refused). Leaving on the sheet's side, it stands `t·tan δ` over a point
+`t` from the line where the lune is of order `t²` thick, so it stays
+out of the lune. Leaving through the plane, into the planar face's
+material, it crosses the face along the line, and that is not what the
+angle rules out: it is refused by the lune's kind against its region
+(`rest::lensed`). The remainder then closes the plane's rest against
+that sector below the plane, so the wedge's middle reads outside the
+remainder's material, and a void lune needs material round it. Not read, and
+refused as sheets lying on each other: a sheet on a curved face's whole
+tangent plane, and one neither of whose ends, or both, is a line.
+
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are
 their faces' own, and each face fills its tangent sector near the point
@@ -1604,6 +1651,52 @@ holds), and a sector whose plane cuts the nappe and whose wedges may
 pass it by. A plane whose side the charge leaves in band, a plane
 tangent to the cone along a ruling among them, or rulings in band of
 each other, refuses in band.
+
+A link may hold several nappes: two cones' apexes at the point, or both
+nappes of one carrier (`rest::whole_nappes`). The lobes are grouped into
+nappes, each held whole as above about its own axis, all read at one arm
+`l`, the lobes' least reach, and each against every sector's plane as
+one nappe is. Two nappes `Cᵢ` and `Cⱼ`, of unit axes `aᵢ`, `aⱼ` an angle
+`θ` apart and half-angles `αᵢ`, `αⱼ`, are read by where `Cⱼ`'s rulings
+stand against `Cᵢ` (`rest::rulings_against`). A point at the arm an
+angle `ψ` off `aᵢ` stands `l·sin(αᵢ − ψ)` inside `Cᵢ`: positive exactly
+inside it, and no larger in size than the point's distance from the
+nappe. `Cᵢ` is a surface of revolution, so that height is read with the
+point turned about `aᵢ` into the meridian plane of `Cᵢ`'s first ruling:
+the distance of `p + l(cos ψ·aᵢ + sin ψ·e)`, `e` the unit toward that
+ruling square to `aᵢ`, from the cone's tangent plane along the ruling
+(inward unit normal `aᵢ·sin αᵢ − e·cos αᵢ`). Over `Cⱼ`'s rulings `ψ` runs
+from `|θ − αⱼ|`, the near ruling, to `θ + αⱼ`, the far one (while that
+is under half a turn), and `sin(αᵢ − ψ)` falls as `ψ` grows to
+`αᵢ + π/2`. So:
+
+- the near ruling read decidedly outside `Cᵢ` puts every ruling of `Cⱼ`
+  outside it, past the band;
+- the far ruling read decidedly ahead of the plane through `p` square
+  to `aᵢ` (so `θ + αⱼ` is under a quarter turn, and the ruling read is
+  the farthest) and decidedly inside `Cᵢ` puts every ruling of `Cⱼ`
+  inside it, past the band: `Cⱼ` lies in `Cᵢ` and meets its nappe only
+  at `p`;
+- the near ruling decidedly inside with the far one decidedly outside,
+  or decidedly behind that plane (some ruling of `Cⱼ` stands so, and all
+  of `Cᵢ` is ahead of it), has rulings of `Cⱼ` on both sides of `Cᵢ`'s
+  nappe. Both nappes are whole and are the faces themselves, so the two
+  faces cross along a ruling between: a crossing.
+
+Each two nappes must read apart (each one's rulings outside the other)
+or nested (one's inside the other); any other reading refuses in band,
+two nappes tangent along a ruling among them. A nappe is its own
+blow-up, so nothing is charged but the ties' slack. Each nappe then
+bounds a convex cone that meets no sheet of the link but at `p`, and the
+cones are disjoint or nested, so the windings are read off the nesting:
+crossing a thorn's nappe inward raises the winding by one, a needle's
+lowers it. A nappe inside no other must read its axis as one nappe
+does, outside the rest's material for a thorn and inside it for a
+needle; a nappe whose least nappe round it is a thorn must be a needle,
+and the other way round. Any other is a crossing: its cone less the
+nappes nested in it, which are strictly smaller, is a solid angle that
+winds a third value. With no other sector, nappes inside no other that
+are all thorns rest, and a needle among them refuses.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

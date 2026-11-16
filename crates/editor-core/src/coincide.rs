@@ -1422,7 +1422,7 @@ pub fn construction<P: crate::ProfilePayload>(
                     source: Some(source),
                 }) => {
                     maps.push(Map::World(at));
-                    source
+                    doc.through_sources(source).read
                 }
                 // A part's entity enters at its instance, where the
                 // walk stops: its name is the part's, in the part's ids.

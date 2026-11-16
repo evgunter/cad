@@ -86,4 +86,4 @@ Residue:
 - `conic-speed-hi-reads-the-signed-larger-semi-axis`, claimed into this
   directory and closed here on the invariant;
 - `work/tang/a-sphere-ring-bounded-by-an-ellipse-is-unread-by-the-chord-join.md`;
-- `work/tesssize/an-ellipse-edge-on-a-sphere-or-torus-face-skips-the-lattice-step.md`.
+- `work/tesslane/an-ellipse-edge-on-a-sphere-or-torus-face-skips-the-lattice-step.md`.

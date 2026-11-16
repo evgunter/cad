@@ -158,7 +158,10 @@ fn r2_lamina_message_versus_the_measured_volume() {
         tol,
     )
     .volume;
-    let flipped = p.body.flipped_face_sense_for_tests(p.face_side[1]).unwrap();
+    let flipped = p
+        .body
+        .flipped_face_sense_for_tests(p.face_side[1], geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
     let v_flipped = crate::test_support::measure_unvalidated(

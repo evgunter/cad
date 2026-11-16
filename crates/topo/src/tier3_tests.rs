@@ -2174,7 +2174,9 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter()
@@ -2348,7 +2350,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// (crate-private, or asked only of a tangency token), so what this row
 /// pins is the rest: a class read (`classify_dihedral`),
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
-/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// `gradient_alignment(`, `normals_alignment(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
 /// back into either file's production code reds here. The link's
 /// reading one order down (`link/second_order.rs`) reads another picture
@@ -2408,8 +2410,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         ".convexity(",
         "\"dihedral_sign\"",
         ".pairing(",
-        "pairing_as(",
-        "classify_material_pairing_as(",
+        "gradient_alignment(",
+        "normals_alignment(",
         "Station::on(",
         "material_kappa_rel(",
     ];
@@ -2422,6 +2424,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "src/validate.rs",
         &[
             ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 0),
             ("WedgeWalk::along_edge(", 0),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2430,7 +2433,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/edge_wedge.rs",
         &[
-            ("edge_wedge_over(", 1),
+            ("edge_wedge_over_as(", 1),
+            ("edge_wedge_over(", 0),
             ("WedgeWalk::along_edge(", 1),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2440,6 +2444,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "src/boolean/rim_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
+            ("edge_wedge_over_as(", 0),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],
@@ -2684,7 +2689,9 @@ fn kissing_cylinder_pillow(
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),
         [seg.edge, split.edge],
@@ -2714,9 +2721,11 @@ fn wedge_reading_table() {
         .expect("the fixture has edges")
         .0;
     let read = |verdict, wrap, conventional| wedge_reading(verdict, edge, wrap, conventional);
+    let margin = geom_core::MarginDiag::value(1e-3);
+    let crease = |convexity| V::Crease { convexity, margin };
     let settled = [
-        (V::Crease(Convexity::Convex), M::Transverse),
-        (V::Crease(Convexity::Concave), M::Transverse),
+        (crease(Convexity::Convex), M::Transverse),
+        (crease(Convexity::Concave), M::Transverse),
         (
             V::Seam {
                 bend: Bend::Determinate,
@@ -2731,8 +2740,20 @@ fn wedge_reading_table() {
             },
             M::SmoothUnderdetermined,
         ),
-        (V::End(WedgeEnd::Cusp), M::Tangent),
-        (V::End(WedgeEnd::Slit), M::Tangent),
+        (
+            V::End {
+                end: WedgeEnd::Cusp,
+                margin,
+            },
+            M::Tangent,
+        ),
+        (
+            V::End {
+                end: WedgeEnd::Slit,
+                margin,
+            },
+            M::Tangent,
+        ),
     ];
     for (verdict, mark) in settled {
         assert_eq!(
@@ -2748,7 +2769,7 @@ fn wedge_reading_table() {
     }
     assert!(
         matches!(
-            read(V::Crease(Convexity::Convex), false, true),
+            read(crease(Convexity::Convex), false, true),
             (
                 M::Transverse,
                 Some(ValidationError::TransverseNotIntrinsic { .. })
@@ -2863,19 +2884,19 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         ("in band", 30.0, cos30 * arm / k),
     ] {
         let wall = leaning(degrees);
-        let geom_brep::Dihedral::Tangent(tangency) = geom_brep::classify_dihedral(
-            &floor,
-            &wall,
-            origin,
-            geom_core::test_support::fixture_lever(arm),
-            band,
-        )
-        .unwrap() else {
-            panic!("{label}: check 4 reaches the pairing");
+        // Both planes hold the y axis: the walk along it reads every
+        // station tangent, and the pairing stops it.
+        let axis = geom::Curve3::line(origin, Vec3::unit_y());
+        let side = |surface| geom_brep::SideFace {
+            surface,
+            sense: true,
         };
-        let stop = tangency
-            .pairing([true, true], band)
-            .expect_err("the pairing stops the walk");
+        let walk = geom_brep::WedgeWalk::along_edge(side(&floor), side(&wall), &axis, 0.0, 1.0);
+        let geom_brep::WedgeVerdict::InBand(stop) =
+            geom_brep::edge_wedge_over(&walk, geom_core::test_support::fixture_lever(arm), band)
+        else {
+            panic!("{label}: the pairing stops the walk");
+        };
         assert_eq!(stop.rung(), geom_brep::WedgeRung::Pairing, "{label}");
         let text = crate::validate::dihedral_finding(edge, stop)
             .render(geom_brep::recourse::Reading::AtRest);
@@ -4249,7 +4270,10 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
     let mut concave = Vec::new();
     for (edge, e) in body.edges() {
         let verdict = crate::edge_wedge(&body, edge, band).expect("a live edge");
-        let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
+        let geom_brep::WedgeVerdict::Crease {
+            convexity: sign, ..
+        } = verdict
+        else {
             panic!("every edge of a prism is a crease: {verdict:?}");
         };
         if sign == geom_brep::Convexity::Concave {

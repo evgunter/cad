@@ -45,8 +45,9 @@
 //! same stored verdict on its own arms (it rests in the void on a
 //! concave chain — BLEND-4 for open chains, FILLET-H4 for closed rims).
 //! What stays outside is a mixed corner whose odd edge is requested
-//! with another of its edges, which is the mixed corner's own rule
-//! rather than the convexity one.
+//! with one other of its edges, or with both where a link is curved or
+//! the face the other two share leans off square to it: the mixed
+//! corner's own rule, not the convexity one.
 //!
 //! Everything else refuses typed and names itself: a curved support
 //! ([`crate::blend::BlendError::ChamferArmUnsupported`] — the chamfer over curved

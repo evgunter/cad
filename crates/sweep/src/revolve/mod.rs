@@ -145,10 +145,11 @@ mod upgrade;
 
 use core::fmt;
 
-use crate::swept::CapPlaneError;
 use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
-use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Point3, Real, Sign, Tol, Vec2,
+};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
@@ -246,7 +247,7 @@ pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> 
     /// a vertex is `crates/editor-core/src/names/README.md`'s.
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
-    pub kind: RevolvedKind,
+    pub kind: RevolvedKind<T>,
     /// The scalar the body is at.
     pub(crate) scalar: core::marker::PhantomData<fn() -> T>,
 }
@@ -377,7 +378,7 @@ pub(super) fn bands_of(walls: &[Option<FaceKey>], runs: &[Vec<usize>]) -> Vec<Ba
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
 /// the module docs).
 #[derive(Debug)]
-pub enum RevolvedKind {
+pub enum RevolvedKind<T: Real> {
     /// θ < 2π: wedge caps plus both meridian chains.
     Partial {
         /// The start cap — on the sketch plane; carries the profile's
@@ -397,6 +398,10 @@ pub enum RevolvedKind {
         /// surface record (`topo::Body::one_record_across`). `None`
         /// where they are two.
         coplanar_caps: Option<topo::Coincidence>,
+        /// The joint centres, start then end: the outer section's centre
+        /// ([`partial::section_centre`]) carried to each station, which
+        /// [`revolved_caps`] reports as each cap's frame origin.
+        joints: [Point3<T>; 2],
     },
     /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
     /// one full-period band: `walls`/`rims` carry the complete
@@ -440,9 +445,11 @@ pub enum RevolvedKind {
 /// own vocabulary.
 #[derive(Clone, Copy, Debug)]
 pub struct WedgeFrames<T: Real> {
-    /// The start cap's carrier frame (the sketch plane).
+    /// The start joint: the section's centre on the sketch plane, the
+    /// start cap's normal.
     pub start: Pose<T>,
-    /// The end cap's carrier frame (the sketch plane rotated by θ).
+    /// The end joint: the section's centre turned by θ, the end cap's
+    /// normal.
     pub end: Pose<T>,
 }
 
@@ -464,9 +471,13 @@ impl From<ReadbackError> for WedgeCapsError {
 }
 
 /// **Where did the partial revolve's wedge caps land?** — the joint
-/// frames of a tube: each cap plane's origin and normal, which is
-/// exactly the tube's end tangent there when the profile is a
-/// cross-section.
+/// frames of a tube: at each end, the outer section's centre carried
+/// to that station (a circle's centre; else the mean of its vertices
+/// and arc apexes), stated from the construction, with the cap's normal,
+/// which is exactly the tube's end tangent there when the profile is a
+/// cross-section, and its reference direction and sense. The centre is
+/// not the cap plane's chart origin, which is its station frame's
+/// origin and need not lie in the face.
 ///
 /// The op-specific half of the read: the cap faces live inside
 /// [`RevolvedKind::Partial`], so the case analysis is the door's
@@ -512,14 +523,23 @@ pub fn revolved_caps<T: topo::AtRestPolicy, B: core::ops::Deref<Target = Body<T>
     r: &Revolved<T, B>,
 ) -> Result<WedgeFrames<T>, WedgeCapsError> {
     let RevolvedKind::Partial {
-        start_cap, end_cap, ..
+        start_cap,
+        end_cap,
+        joints: [start, end],
+        ..
     } = r.kind
     else {
         return Err(WedgeCapsError::NoCaps);
     };
+    let at = |face, origin| -> Result<Pose<T>, WedgeCapsError> {
+        Ok(Pose {
+            origin,
+            ..face_pose(&r.body, face)?
+        })
+    };
     Ok(WedgeFrames {
-        start: face_pose(&r.body, start_cap)?,
-        end: face_pose(&r.body, end_cap)?,
+        start: at(start_cap, start)?,
+        end: at(end_cap, end)?,
     })
 }
 
@@ -723,7 +743,8 @@ pub enum RevolveError {
     /// whose material pairings or ends differ name a material verdict no
     /// station established.
     ///
-    /// Defense-in-depth (the `CapPlane` posture): the join's circle is
+    /// Defense-in-depth (a typed error for a state no validated profile
+    /// reaches, rather than a panic): the join's circle is
     /// carried by a symmetry flow of both surfaces, so every station
     /// reads alike. Reaching this means the inputs carried something a
     /// validated profile cannot, and it is surfaced rather than stored
@@ -735,8 +756,9 @@ pub enum RevolveError {
         mixed: geom_brep::MixedStations,
     },
     /// A station INSIDE a run of walls (two segments one carrier
-    /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
-    /// posture: a wall through an on-axis station carries on past the
+    /// holds) sits pinned on the axis (defense-in-depth, a typed error
+    /// for a state no validated profile reaches: a wall through an
+    /// on-axis station carries on past the
     /// axis, which the half-plane checks refuse first for every
     /// validated profile).
     PinnedRunStation {
@@ -744,12 +766,6 @@ pub enum RevolveError {
         loop_index: usize,
         /// Canonical index of the station vertex.
         vertex_index: usize,
-    },
-    /// A cap plane could not be certified or oriented (unreachable for
-    /// validated profiles — surfaced rather than trusted).
-    CapPlane {
-        /// The cap-plane failure.
-        source: CapPlaneError,
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure
@@ -1047,7 +1063,6 @@ impl RevolveError {
                 "loop {loop_index} vertex {vertex_index} joins two walls of one run but lies \
                  on the axis, so the run's wall has no strut there"
             ),
-            Self::CapPlane { source } => write!(f, "{source}"),
             Self::Op { source } => {
                 write!(
                     f,
@@ -1117,7 +1132,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 /// [`RevolveError`] — closed and typed: degenerate/sliver axis and
 /// angle, half-plane violations, sliver radii, an arc end on the axis
 /// at no apex of its sheet, non-manifold axis contact, sliver
-/// dihedrals, Newell failures, and every operator/certification
+/// dihedrals, and every operator/certification
 /// refusal.
 ///
 /// # Panics

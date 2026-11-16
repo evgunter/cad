@@ -563,26 +563,25 @@ fn reflected_image<T: Real>(
     }
 }
 
-/// **How a surface's face carries its orientation**, the one
-/// classification [`crate::Body::revert`] and the reflection read.
+/// **How a reflection maps a surface's chart.** The reflection's own
+/// classification: how a face reverses is revert's to say
+/// ([`crate::revert`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OrientationClass {
-    /// A plane: its stored normal is the outward side, so it carries
-    /// its own reversal, and a reflection writes it so its chart is
-    /// unmoved ([`map_surface`]).
+enum OrientationClass {
+    /// A plane: a reflection writes it so its chart is unmoved
+    /// ([`map_surface`]).
     Plane,
-    /// A cylinder, cone, sphere, torus or spindle: the outward side rides the
-    /// face's `sense`, and a reflection maps the frame forward,
-    /// reversing the azimuth `u` (MIRROR-DESIGN P1).
+    /// A cylinder, cone, sphere, torus or spindle: a reflection maps
+    /// the frame forward, reversing the azimuth `u` (MIRROR-DESIGN P1).
     Analytic,
-    /// A spline net or a fit: the outward side rides `sense`, and a
-    /// reflection maps the net by its points, its chart unmoved.
+    /// A spline net or a fit: a reflection maps the net by its points,
+    /// its chart unmoved.
     Net,
 }
 
 impl OrientationClass {
     /// The class of `s`.
-    pub(crate) fn of<T: Real>(s: &Surface<T>) -> Self {
+    fn of<T: Real>(s: &Surface<T>) -> Self {
         match s {
             Surface::Plane { .. } => Self::Plane,
             Surface::Cylinder { .. }

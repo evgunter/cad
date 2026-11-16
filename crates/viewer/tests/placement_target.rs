@@ -39,8 +39,7 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 
 /// One Place of `body` into its own space, landed.
 fn placed(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let op = SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-        .expect("a body in a space");
+    let op = common::place_named(session.committed_doc(), body, "bracket");
     let out = session.perform(op);
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -139,13 +138,13 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
         VarId::WORLD,
         "premise: a construction is in a space of its own"
     );
-    let op = SessionOp::place_where_it_stands(session.committed_doc(), bolt.into())
-        .expect("a body in a space");
+    let op = common::place_named(session.committed_doc(), bolt, "bracket");
     assert_eq!(
         op,
         SessionOp::Place {
             body: bolt.into(),
-            target: Operand::Var(own)
+            target: Operand::Var(own),
+            name: None,
         },
         "the viewer's Place names the body's own space"
     );
@@ -575,16 +574,12 @@ fn a_mated_product_copy_outside_the_world_keeps_its_recourse() {
     );
 }
 
-/// **A value read off the old space is marked and struck like a mate**:
-/// a copy placed by a slide along another body's edge direction in the
-/// bolt's space, re-targeted into the world. The value reads the bolt's
-/// space, so the change is held with that value marked; "strike the 1
-/// that read <old>" measures its freedom afresh, and the change lands.
-#[test]
-fn a_value_read_off_the_old_space_is_marked_and_struck() {
+/// **A copy placed by a slide along another body's edge direction in
+/// the bolt's space**: the session, the copy, and the bolt's space its
+/// value reads.
+fn valued_off_the_bolts_space(seed: &str, tol: Tol) -> (DocSession, RecipeNodeId, VarId) {
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
-    let tol = Tol::witness();
-    let mut session = common::inline_without_door(Doc::empty_derived("target-value", tol), tol);
+    let mut session = common::inline_without_door(Doc::empty_derived(seed, tol), tol);
     let bolt = common::xy_box_in(&mut session, BOLT);
     session.pump();
     let c1 = placed(&mut session, bolt);
@@ -596,7 +591,7 @@ fn a_value_read_off_the_old_space_is_marked_and_struck() {
         PoseRole::Normal,
     );
     let values = vec![(pncad::document::Coord::SlideAlong(along), common::len(0.01))];
-    let (mut session, c2) = with(
+    let (session, c2) = with(
         &session,
         Node::place(
             BodyRead::plain(Operand::Node(bolt)),
@@ -605,6 +600,18 @@ fn a_value_read_off_the_old_space_is_marked_and_struck() {
         ),
         tol,
     );
+    (session, c2, space)
+}
+
+/// **A value read off the old space is marked and struck like a mate**:
+/// a copy placed by a slide along another body's edge direction in the
+/// bolt's space, re-targeted into the world. The value reads the bolt's
+/// space, so the change is held with that value marked; "strike the 1
+/// that read <old>" measures its freedom afresh, and the change lands.
+#[test]
+fn a_value_read_off_the_old_space_is_marked_and_struck() {
+    let tol = Tol::witness();
+    let (mut session, c2, space) = valued_off_the_bolts_space("target-value", tol);
     let was = stands(&session, c2).expect("copy 2 stands");
     let mut tool = MateTool::edit(session.committed_doc(), c2).expect("a placement");
     tool.set_target(PlaceTarget::space(VarId::WORLD));
@@ -634,6 +641,63 @@ fn a_value_read_off_the_old_space_is_marked_and_struck() {
     assert!(
         near(&now, &was),
         "measured where it stood: {now:?} vs {was:?}"
+    );
+}
+
+/// **A changed input derives a fresh proposal**: the editor's bundle is
+/// kept per draft state (`DocSession::mate_proposal`), and a retarget and
+/// a struck value each change that state, so each derives a new bundle
+/// over the change rather than answering the one kept before it.
+#[test]
+fn a_retarget_and_a_struck_value_each_derive_a_fresh_proposal() {
+    use viewer::matetool::ValueFrom;
+    let tol = Tol::witness();
+    let (session, c2, space) = valued_off_the_bolts_space("target-fresh-proposal", tol);
+    let kept = |tool: &MateTool| {
+        session
+            .mate_proposal(tool)
+            .expect("a run has landed")
+            .proposed
+    };
+    let mut tool = MateTool::edit(session.committed_doc(), c2).expect("a placement");
+    let loaded = kept(&tool);
+    assert!(
+        std::sync::Arc::ptr_eq(&loaded, &kept(&tool)),
+        "premise: one draft state answers its kept proposal"
+    );
+    let world = PlaceTarget::space(VarId::WORLD);
+    tool.set_target(world.clone());
+    let retargeted = kept(&tool);
+    assert!(
+        !std::sync::Arc::ptr_eq(&loaded, &retargeted),
+        "a retarget derives afresh"
+    );
+    let retargeted = (*retargeted)
+        .as_ref()
+        .expect("the retargeted draft proposes");
+    assert_eq!(retargeted.target, world, "over the new target");
+    let (doc, ev) = session.landed_pair().expect("landed");
+    tool.strike_reading(doc, ev, space);
+    let [id] = tool.struck_values()[..] else {
+        panic!("one value struck: {:?}", tool.struck_values())
+    };
+    assert!(
+        retargeted
+            .values
+            .iter()
+            .any(|row| row.from == ValueFrom::Loaded(id)),
+        "premise: before the strike the value is the loaded one: {:?}",
+        retargeted.values
+    );
+    let struck = kept(&tool);
+    let struck = (*struck).as_ref().expect("the struck draft proposes");
+    assert!(
+        struck
+            .values
+            .iter()
+            .all(|row| row.from != ValueFrom::Loaded(id)),
+        "a struck value derives afresh, its freedom measured: {:?}",
+        struck.values
     );
 }
 
@@ -699,10 +763,11 @@ fn the_combine_refuses_a_copy_in_another_space() {
         "the union is in the plate's space"
     );
     assert!(
-        doc.placements()
-            .into_iter()
-            .any(|p| doc.copied_read(p) == doc.read_of_node(loose)
-                && doc.node_space(p) == Some(room)),
+        doc.placements().into_iter().any(|p| doc
+            .copied_read(p)
+            .map(|s| doc.through_sources(s).read)
+            == doc.read_of_node(loose)
+            && doc.node_space(p) == Some(room)),
         "the body nothing placed is placed into the first operand's space"
     );
 }

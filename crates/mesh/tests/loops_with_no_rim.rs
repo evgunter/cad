@@ -42,7 +42,7 @@
 //! Without the guard each refusing row answers with a hole where the face
 //! is: the cross-face census catches it where debug assertions run, and
 //! `tessellate` returns `Ok` with an empty patch where they do not
-//! (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md` has
+//! (`work/tesslane/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md` has
 //! both measurements). The bodies come through the Euler doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

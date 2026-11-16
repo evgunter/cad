@@ -8,9 +8,11 @@ group: gui/author
 prefix: doors/
 tag: (DOORS orchestrator)
 ab_band: 10600-10699
-paths: [crates/viewer/src/pane/create.rs, crates/viewer/src/forms.rs, crates/viewer/src/drafts.rs, crates/viewer/src/idpass.rs, crates/viewer/src/session.rs, crates/viewer/src/session/author.rs, crates/viewer/src/session/refuse.rs, crates/viewer/src/tree.rs, crates/viewer/src/sketch.rs, crates/viewer/src/seats.rs, crates/viewer/src/pane/viewport.rs, crates/viewer/src/marks.rs, crates/viewer/src/props.rs, crates/viewer/src/widgets.rs]
+paths: [crates/viewer/src/matetool.rs, crates/viewer/src/pane/properties.rs, crates/viewer/src/pane/create.rs, crates/viewer/src/forms.rs, crates/viewer/src/drafts.rs, crates/viewer/src/idpass.rs, crates/viewer/src/session.rs, crates/viewer/src/session/author.rs, crates/viewer/src/session/refuse.rs, crates/viewer/src/tree.rs, crates/viewer/src/sketch.rs, crates/viewer/src/seats.rs, crates/viewer/src/pane/viewport.rs, crates/viewer/src/marks.rs, crates/viewer/src/props.rs, crates/viewer/src/widgets.rs]
 keep_out: [opened 2026-10-02 at AUTHOR's exit (Ev, in chat) as the half of AUTHOR's cut that waited on kernel rows, and joined on 2026-10-26 by AUTHTAIL (AUTHOR's other successor on the same files), and cut on 2026-11-01 when HELD took the held-pick, picked-pose and preview rows - every row moved with its id and body unchanged, a viewer half of a kernel row rides its kernel unit rather than reaching across - SPACES owns where a body lands and what the picture draws, and on Ev's answer to its PR 6209 it takes the generalised takeover (re-point along the seen path), so the rows parked on 6209 are re-read against that answer, while the P0 takeover rebind is DOORS' and re-seats HELD's held picks, the viewer's reported defects and its entrenching architecture are CHROME's, app.rs session.rs pane/create.rs pane/viewport.rs and marks.rs stay shared with CHROME VIEW VSEAM and VGEOM, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
+
+On 2026-11-14 PLACING closed and re-homed its six live rows here, with ids and bodies kept (`docs/doc-ledger/placing-leaves-the-tracker.md`). They are the placement editor's residue: one P1, deferred, and five P3s, three of which are design forks. PLACING's `matetool.rs` and `pane/properties.rs` joined this program's paths with them.
 
 **The doors a person needs to author geometry without leaving the
 viewer.** AUTHOR closed on 2026-10-02 and cut its rows into two

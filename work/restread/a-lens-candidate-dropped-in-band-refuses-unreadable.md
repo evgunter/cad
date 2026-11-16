@@ -62,3 +62,11 @@ review found these instances:
   reads as `InBand`. The fix: return the `Unread` from `material_round`
   and map it through `Unread::refusal`, or through a `TouchUnread`
   conversion, at each site.
+
+## One more instance (branch `restread/self-touch-valid-bodies`)
+
+`second_order::along_a_line` takes a sheet on a planar face's whole
+plane as a candidate only where `rest::in_plane_of` reads every ray of
+it on the plane and `wedge_side` reads the two the other way round. A
+reading in band drops the candidate as `pair`'s does, and the sheets
+then refuse `Curved(Unreadable)` as lying on each other.

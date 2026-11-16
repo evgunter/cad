@@ -25,7 +25,7 @@
 //! pinning), so it mints every gap the certifying doors construct, and
 //! the import door, which re-mints through it, no longer refuses
 //! `R·Δv ≥ ε` there. Its reach through import is unmeasured since
-//! (`work/tess/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
+//! (`work/tesslane/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
 //!
 //! **Through the Euler doors the shape is a rim-only cap**: a sphere
 //! face whose one loop is two rim arcs and no meridian. With the gap

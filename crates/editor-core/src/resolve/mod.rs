@@ -2873,6 +2873,10 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::EndArc {
                 vertex: a,
                 edge: b,
+            }
+            | RoleSeg::HostFoot {
+                vertex: a,
+                edge: b,
             } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
@@ -3534,5 +3538,27 @@ mod flip_lane_rows {
             Some("split_vertex_side")
         );
         assert_eq!(first_cause(vec![(node, flip(sign))]), None);
+    }
+
+    /// **The blend's convexity is a building decision, and its flip is a
+    /// cause**: the blend reads the same fold as tier 3 but records each
+    /// corner's sign under its own name, since the sign decides which
+    /// side its ball rolls on. A flip of it is picked ahead of a corner
+    /// sign seen first, and alone it is the cause.
+    #[test]
+    fn a_blend_convexity_flip_is_a_cause() {
+        let node = RecipeNodeId::new(0, 7);
+        let blend = sweep::blend::BlendDecision::ConvexitySign.predicate();
+        assert_ne!(
+            blend,
+            geom_brep::DIHEDRAL_SIGN,
+            "the blend keeps its own name"
+        );
+        let found = vec![(node, flip(geom_brep::DIHEDRAL_SIGN)), (node, flip(blend))];
+        assert_eq!(first_cause(found).map(|(_, f)| f.predicate), Some(blend));
+        assert_eq!(
+            first_cause(vec![(node, flip(blend))]).map(|(_, f)| f.predicate),
+            Some(blend)
+        );
     }
 }

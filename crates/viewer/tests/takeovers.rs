@@ -213,12 +213,17 @@ fn taken_over(
     let (onto, offer) = made
         .minted
         .iter()
-        .find_map(|&node| Some((node, viewer::world::repoint_offer(doc, node)?)))
+        .find_map(|&node| {
+            Some((
+                node,
+                viewer::world::repoint_offer(doc, node, pncad::geom_core::Tol::witness())?,
+            ))
+        })
         .expect("the gesture's result offers the re-point");
     let made = doc.clone();
     let outcome = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
-        onto,
+        source: offer.rows[0].source,
+        onto: onto.into(),
     });
     (made, outcome)
 }
@@ -1014,10 +1019,10 @@ fn assert_reads_the_halves(
     );
 }
 
-/// What the placement `copy` copies.
+/// What the placement `copy` copies, down its source.
 fn source_of(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> pncad::document::VarId {
     match doc.node(copy) {
-        Some(Node::Place { source, .. }) => source.read,
+        Some(Node::Place { source, .. }) => doc.through_sources(source.read).read,
         other => panic!("the copy is a placement: {other:?}"),
     }
 }

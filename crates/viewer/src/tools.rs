@@ -774,9 +774,9 @@ impl Tools {
     /// **The Place the open placement editor's pick asked for**, taken
     /// ([`MateTool::take_place`]): queued in the batch of the pick that
     /// asked for it.
-    pub fn take_place(&mut self) -> Option<SessionOp> {
+    pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
         match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.take_place(),
+            Some(OpenTool::Mate(tool)) => tool.take_place(doc),
             _ => None,
         }
     }

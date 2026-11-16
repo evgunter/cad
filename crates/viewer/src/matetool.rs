@@ -815,6 +815,29 @@ pub enum Reading {
     Value(ConstraintId),
 }
 
+/// **Where the placement editor's draft stands with the document**
+/// ([`MateTool::draft_standing`]): what the panel says of it, and what
+/// the picture draws of the draft. Where the draft draws nothing, the
+/// picture draws the document, which may be a committed change still
+/// landing (`DocSession::bundle_landing`).
+#[derive(Debug, Clone)]
+pub enum HeldDraft {
+    /// Nothing to say: the draft is its bundle; or the picture answers
+    /// the document, so the panel offers the draft as it is made; or it
+    /// waits and writes what the placement holds already.
+    Quiet,
+    /// The door refuses the draft — its last offer, or, while it waits,
+    /// the door's judgement of it — said as one refusal. The draft
+    /// draws nothing.
+    Refused(Arc<Refusal>),
+    /// It waits for the picture and derives no bundle yet (a seat
+    /// empty, said as it is derived). The draft draws nothing.
+    WaitsUnwritten,
+    /// It waits for the picture, and the door's scratch solve stands
+    /// every copy as this says: the picture draws them there.
+    Waits(Arc<crate::session::Stood>),
+}
+
 /// **Why a draft is held**: a refusal, one value however often it is
 /// said — two held drafts are the same state when they hold the same
 /// refusal, not two equal ones.
@@ -861,6 +884,8 @@ pub struct MateTool {
     /// The body a pick asked to place and the space it stands in, until
     /// the Place is taken ([`Self::take_place`]).
     placing: Option<(Operand, VarId)>,
+    /// What a Place asks the person before it is taken ([`PlaceAsk`]).
+    asking: Option<PlaceAsk>,
     /// The kind a fresh row opens with.
     kind: VarKind,
     /// Whether the next pick names the target's space rather than
@@ -872,6 +897,33 @@ impl Default for MateTool {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// **What a Place asks before it is made** (VARIABLES VR4): the source
+/// the new placement shares is the person's to name or to choose.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlaceAsk {
+    /// The body's one source is anonymous and already read: the new
+    /// placement shares it once the person names it (VR2), in the field
+    /// opened empty, since nothing proposes a name.
+    Name {
+        /// The body to place.
+        body: Operand,
+        /// The space it stands in.
+        space: VarId,
+        /// The source it shares.
+        source: VarId,
+        /// The name typed so far.
+        text: String,
+    },
+    /// Several sources read the body: each is offered as the body to
+    /// place.
+    Source {
+        /// The space the body stands in.
+        space: VarId,
+        /// The sources, in id order.
+        sources: Vec<VarId>,
+    },
 }
 
 /// A typed editor refusal (closed enum, D4 ¶3).
@@ -1233,6 +1285,36 @@ impl MateProposal {
     }
 }
 
+/// **A draft's bundle derived once and shared** by every reader of one
+/// draft state ([`crate::session::DocSession::mate_proposal`]).
+pub type Proposed = Arc<Result<MateProposal, MateToolError>>;
+
+/// **A proposal with the landed document it was derived against**: one
+/// value, so an offer cannot judge it against another document.
+#[derive(Debug, Clone)]
+pub struct LandedProposal<'d> {
+    /// The landed document.
+    pub doc: &'d Doc<ProfileProgram>,
+    /// The draft's bundle derived against it.
+    pub proposed: Proposed,
+}
+
+/// **What [`MateTool::proposal`] reads of the tool**, and all it reads:
+/// the proposal is derived from this value alone, so a memo keyed by it
+/// (`DocSession::mate_proposal`) cannot miss an input.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProposalInputs(Option<DraftInputs>);
+
+/// The draft's part of [`ProposalInputs`].
+#[derive(Debug, Clone, PartialEq)]
+struct DraftInputs {
+    door: PlaceDoor,
+    rows: Vec<MateRow>,
+    typed: Vec<(Coord, Formula)>,
+    target: PlaceTarget,
+    struck_values: Vec<ConstraintId>,
+}
+
 /// **A target as the editor's first row says it**: the space by
 /// [`Doc::spoken_space`], or "a new space".
 #[must_use]
@@ -1376,10 +1458,10 @@ fn door_picked(
     )
 }
 
-/// **The entity `pick` names as an `on` side reads it**: off the shape
-/// a `Place` copies, by the shape's own name for it (a copy carries its
-/// body's names), on the output it copies where the shape's operation
-/// defines several (a split's halves) ([`crate::world::copy_source`]);
+/// **The entity `pick` names as an `on` side reads it**: in the source a
+/// `Place` reads (VARIABLES VR4), by the shape's own name for it (a copy
+/// and a source carry the body's names), in the member of the source's
+/// family it copies where it copies one ([`crate::world::copy_source`]);
 /// an instance's or a body's own read otherwise, and a copy whose body
 /// does not resolve as itself.
 fn on_read(
@@ -1390,12 +1472,19 @@ fn on_read(
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     match doc.node(pick.node()) {
         Some(Node::Place { .. }) => {
-            let (at, port) = crate::world::copy_source(doc, pick.node(), pick.on().body())
-                .map_or((pick.node(), pick.on().body()), |copied| {
-                    (copied.operation, copied.body)
-                });
+            let copied = crate::world::copy_source(doc, pick.node(), pick.on().body());
+            let (at, port) = copied.map_or((pick.node(), pick.on().body()), |copied| {
+                (copied.operation, copied.body)
+            });
             let (at, port) = crate::world::seat_read(doc, at, Some(port));
-            let body = crate::seats::Output::named(port).read(at);
+            // The `on` side selects in the source the placement reads
+            // (`bracket.top`, VARIABLES VR4), a member of a family's source
+            // in that member, so a redefinition of the source moves no
+            // side's body.
+            let body = match copied {
+                Some(copied) => Operand::Var(copied.var),
+                None => crate::seats::Output::named(port).read(at),
+            };
             Some((
                 SitedRef::new(at, pick.name().clone()),
                 picked_read(doc, ev, body, pick)?,
@@ -1600,8 +1689,8 @@ pub fn value_text(doc: &Doc<ProfileProgram>, by: &Formula) -> String {
 }
 
 /// **What a person typed in `coord`'s field, as its value**: the text
-/// read by the one parser over the document's variables, at the
-/// freedom's dimension.
+/// read by the one parse every text door runs
+/// (`crate::session::parse_text`), at the freedom's dimension.
 ///
 /// # Errors
 ///
@@ -1612,8 +1701,7 @@ pub fn typed_value(
     coord: Coord,
     text: &str,
 ) -> Result<Formula, TypedValueError> {
-    let by = pncad::document::parse_formula(text, &doc.var_scope())
-        .map_err(|error| TypedValueError::Parse(Box::new(error)))?;
+    let by = crate::session::parse_text(doc, text).map_err(TypedValueError::Parse)?;
     let wanted = coord.dimension();
     // A bare `0` is every dimension's zero: the text a zero value's field
     // shows ([`value_text`]) reads back as that zero.
@@ -1633,8 +1721,8 @@ pub fn typed_value(
 /// Why a typed value field's text is no value (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TypedValueError {
-    /// The text does not parse.
-    Parse(Box<pncad::document::ParseError>),
+    /// The text does not parse, said as the slot door says it.
+    Parse(crate::session::ParseRefusal),
     /// The text is a quantity of another dimension than the freedom's.
     Dimension {
         /// The freedom.
@@ -1647,7 +1735,7 @@ pub enum TypedValueError {
 impl core::fmt::Display for TypedValueError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Parse(error) => write!(f, "{error}"),
+            Self::Parse(refusal) => write!(f, "{refusal}"),
             Self::Dimension { coord, found } => write!(
                 f,
                 "the {} is a {}, and the text is a {found}",
@@ -1674,6 +1762,7 @@ impl MateTool {
         Self {
             draft: None,
             placing: None,
+            asking: None,
             kind: VarKind::Plane,
             picking_target: false,
         }
@@ -1771,13 +1860,78 @@ impl MateTool {
     }
 
     /// **The Place a pick asked for**, taken: one placement of the body
-    /// into the space it stands in ([`SessionOp::Place`]). The editor
-    /// opens on the placement it makes ([`Self::placed`]).
-    pub fn take_place(&mut self) -> Option<SessionOp> {
-        self.placing.take().map(|(body, space)| SessionOp::Place {
-            body,
-            target: Operand::Var(space),
-        })
+    /// into the space it stands in ([`SessionOp::Place`]), through the
+    /// source it shares ([`crate::world::source_to_place`]). Where that
+    /// source is anonymous and read already, or several sources read the
+    /// body, the Place waits on the person instead ([`Self::asking`]). The
+    /// editor opens on the placement it makes ([`Self::placed`]).
+    pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
+        let (body, space) = self.placing.take()?;
+        match crate::world::place_asks(doc, &body) {
+            crate::world::PlaceAsks::Source(sources) => {
+                self.asking = Some(PlaceAsk::Source { space, sources });
+                None
+            }
+            crate::world::PlaceAsks::Name(source) => {
+                self.asking = Some(PlaceAsk::Name {
+                    body,
+                    space,
+                    source,
+                    text: String::new(),
+                });
+                None
+            }
+            crate::world::PlaceAsks::Nothing => Some(SessionOp::Place {
+                body,
+                target: Operand::Var(space),
+                name: None,
+            }),
+        }
+    }
+
+    /// **What the Place waits on**, if anything ([`PlaceAsk`]).
+    #[must_use]
+    pub fn asking(&self) -> Option<&PlaceAsk> {
+        self.asking.as_ref()
+    }
+
+    /// The name field's text, where the Place asks for a name.
+    pub fn name_text_mut(&mut self) -> Option<&mut String> {
+        match &mut self.asking {
+            Some(PlaceAsk::Name { text, .. }) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// **The Place named `name`**: the asked Place, sharing the source
+    /// under the name the person typed.
+    pub fn place_named(&mut self, name: pncad::document::VarName) -> Option<SessionOp> {
+        match self.asking.take() {
+            Some(PlaceAsk::Name { body, space, .. }) => Some(SessionOp::Place {
+                body,
+                target: Operand::Var(space),
+                name: Some(name),
+            }),
+            other => {
+                self.asking = other;
+                None
+            }
+        }
+    }
+
+    /// **The Place of the source the person chose** among several: placed
+    /// through it, asking for its name where it is anonymous.
+    pub fn place_through(&mut self, doc: &Doc<ProfileProgram>, source: VarId) -> Option<SessionOp> {
+        let Some(PlaceAsk::Source { space, .. }) = self.asking.take() else {
+            return None;
+        };
+        self.placing = Some((Operand::Var(source), space));
+        self.take_place(doc)
+    }
+
+    /// The asked Place abandoned.
+    pub fn cancel_ask(&mut self) {
+        self.asking = None;
     }
 
     /// **A Place landed**: the editor opens on `placement`, the
@@ -2340,6 +2494,26 @@ impl MateTool {
         tol: Tol,
         door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
     ) -> Option<SessionOp> {
+        self.offer_proposed(
+            |tool| {
+                Some(LandedProposal {
+                    doc,
+                    proposed: Arc::new(tool.proposal(doc, ev, tol)),
+                })
+            },
+            door,
+        )
+    }
+
+    /// [`Self::offer`], with the draft's bundle and the landed document
+    /// it was derived against answered by `propose` (the session's memo,
+    /// `DocSession::mate_proposal`); a draft `propose` cannot answer is
+    /// not offered yet.
+    pub fn offer_proposed<'d>(
+        &mut self,
+        propose: impl FnOnce(&Self) -> Option<LandedProposal<'d>>,
+        door: impl FnOnce(&SessionOp) -> Result<(), Refusal>,
+    ) -> Option<SessionOp> {
         if !self
             .draft
             .as_ref()
@@ -2347,10 +2521,11 @@ impl MateTool {
         {
             return None;
         }
-        let proposed = self.proposal(doc, ev, tol);
+        let LandedProposal { doc, proposed } = propose(self)?;
         let placement = self.door().map(|door| door.placement);
-        let formed = proposed
-            .map_err(|error| Refusal::Draft(Box::new(error)))
+        let formed = (*proposed)
+            .as_ref()
+            .map_err(|error| Refusal::Draft(Box::new(error.clone())))
             .map(|proposal| {
                 let Some(draft) = self.draft.as_ref() else {
                     unreachable!("an unsettled draft is open")
@@ -2413,6 +2588,46 @@ impl MateTool {
             .and_then(|draft| draft.offer.refused())
             .filter(|_| self.differs_from_base())
             .map(|held| &*held.0)
+    }
+
+    /// **Where the draft stands with the document** — the one value the
+    /// panel's line and the picture's drawing of the draft both read,
+    /// asked with the session's busy state, so they cannot disagree.
+    /// A refusal of its last offer holds it, said (a draft that writes
+    /// no bundle yet is said as it is derived, not here). Otherwise a
+    /// draft that differs from its bundle while the picture is `busy`
+    /// answering an older document waits, not yet offered: its bundle,
+    /// derived against the landed pair as the panel's rows are, is
+    /// judged by `judge` (`DocSession::bundle_judgement`, which keeps
+    /// the judgement the offer then reads). `propose` derives the bundle
+    /// against the landed pair (`DocSession::mate_proposal`).
+    pub fn draft_standing(
+        &self,
+        busy: bool,
+        propose: impl FnOnce(&Self) -> Option<Proposed>,
+        judge: impl FnOnce(&SessionOp) -> crate::session::BundleJudgement,
+    ) -> HeldDraft {
+        let refused = self
+            .draft
+            .as_ref()
+            .and_then(|draft| draft.offer.refused())
+            .filter(|held| !matches!(*held.0, Refusal::Draft(_)));
+        if let Some(held) = refused.filter(|_| self.differs_from_base()) {
+            return HeldDraft::Refused(Arc::clone(&held.0));
+        }
+        if !(busy && self.differs_from_base()) {
+            return HeldDraft::Quiet;
+        }
+        let Some(op) =
+            propose(self).and_then(|proposed| (*proposed).as_ref().ok().map(MateProposal::op))
+        else {
+            return HeldDraft::WaitsUnwritten;
+        };
+        match judge(&op) {
+            Ok(Some(stood)) => HeldDraft::Waits(stood),
+            Ok(None) => HeldDraft::Quiet,
+            Err(refusal) => HeldDraft::Refused(Arc::new(refusal.into())),
+        }
     }
 
     /// The op the draft's last change formed, while it is landing.
@@ -2748,6 +2963,34 @@ impl MateTool {
         })
     }
 
+    /// **What [`Self::proposal`] reads of the tool** ([`ProposalInputs`]).
+    /// Every field of the draft is named here, so a new one is either
+    /// read or set aside on purpose.
+    #[must_use]
+    pub fn proposal_inputs(&self) -> ProposalInputs {
+        ProposalInputs(self.draft.as_ref().map(|draft| {
+            let PlaceDraft {
+                door,
+                rows,
+                loaded_rows: _,
+                typed,
+                active: _,
+                target,
+                loaded_target: _,
+                struck_values,
+                held_back: _,
+                offer: _,
+            } = draft;
+            DraftInputs {
+                door: door.clone(),
+                rows: rows.clone(),
+                typed: typed.clone(),
+                target: target.clone(),
+                struck_values: struck_values.clone(),
+            }
+        }))
+    }
+
     /// **The editor's bundle, derived from the draft** against the landed
     /// pair `doc`, `ev`: each live row's mate, and the value rows on the
     /// freedoms they leave — typed, loaded, or measured where the copy
@@ -2762,7 +3005,7 @@ impl MateTool {
         ev: &Evaluation<f64>,
         tol: Tol,
     ) -> Result<MateProposal, MateToolError> {
-        let Some(draft) = self.draft.as_ref() else {
+        let ProposalInputs(Some(draft)) = self.proposal_inputs() else {
             return Err(MateToolError::NoDoor);
         };
         let live: Vec<(usize, &MateRow)> = draft

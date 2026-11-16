@@ -917,7 +917,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
             vertex: x,
             support: y,
         }
-        | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
+        | RoleSeg::EndArc { vertex: x, edge: y }
+        | RoleSeg::HostFoot { vertex: x, edge: y } => under(x) || under(y),
         // A set.
         RoleSeg::EdgeCrossing(run) => run
             .iter()

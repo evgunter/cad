@@ -2,7 +2,9 @@
 id: a-blend-section-edge-states-a-structural-shared-row
 kind: unit
 title: A blend's section edge states a structural shared row, certified on analytic charts at any contact order
-status: open
+status: closed
+closed: 2026-11-12
+pr: 6520
 opened: 2026-11-04
 priority: P0
 cost: H
@@ -22,3 +24,5 @@ Claimed by BAND (band-meridian lane, 2026-11-04). It sits on SELECT's ground (un
 - A construction states the row through `geom_brep::analytic_shared_row`.
 
 **Done when:** the stadium junction (cylinder against torus along the meridian) certifies as a touching shared row at `f64` and `Interval`, and the `band/closed-mixed-chain` lane states it in `attach_contact`.
+
+Closed by the BAND orchestrator (2026-11-12): delivered through PR 6520. The certifying unit (`band/structural-section-row`, commits 18d346cfde and ba4cf41630) merged into 6520's branch, and 6520 states the section through `geom_brep::analytic_shared_row` (`crates/sweep/src/blend/surgery.rs`). The stadium junction is certified in `crates/geom-brep/tests/a_blend_section_is_a_shared_row_of_its_bands.rs`. The row was left open when 6520 merged.

@@ -524,15 +524,26 @@ pub enum SessionOp {
     /// space ([`SessionOp::place_where_it_stands`]), so the copy stands
     /// where the body is; the placement editor
     /// ([`crate::matetool::MateTool`]) then opens on the placement it
-    /// made, and every mate is added there. A body placed already gets a
-    /// second placement, the way it got its first. A `body` that is
-    /// itself a copy refuses [`Refusal::PlaceOnACopy`]: a copy is edited
-    /// by its own placement.
+    /// made, and every mate is added there. A `body` that is itself a
+    /// copy refuses [`Refusal::PlaceOnACopy`]: a copy is edited by its
+    /// own placement.
+    ///
+    /// The placement reads its body through a source (VARIABLES VR4). A
+    /// body no source reads gets an anonymous source of its own. A body
+    /// one source reads is placed through it, so the placements share it:
+    /// a named source as it is, an anonymous one named `name` in the same
+    /// step, which a second reader needs (VR2) — without a name the door
+    /// refuses `EditError::SharedVarNeedsName`. A body several sources read
+    /// refuses [`Refusal::SeveralSources`], naming them: the person places
+    /// one of them. A `body` that is a source is placed through it.
     Place {
-        /// The body, as a seat reads it.
+        /// The body, as a seat reads it, or a source.
         body: Operand,
         /// The space the copy is placed into: a `Space` read.
         target: Operand,
+        /// The name an anonymous source takes when this placement makes it
+        /// shared; `None` otherwise.
+        name: Option<VarName>,
     },
     /// **The placement editor's change**, committed live: `placement`
     /// re-targeted where `target` is not the target it holds (the target
@@ -1053,19 +1064,20 @@ pub enum SessionOp {
         /// outputs (a split's halves); `None` for a tree row.
         body: Option<u32>,
     },
-    /// **Re-point the placements of `body` onto `onto`** (Ev, PR 6353):
-    /// the explicit step a feature on a body picked as itself offers
-    /// (`crate::world::repoint_offer`). Every placement reading the
-    /// variable `body` names has its source re-pointed to `onto`
-    /// through the kernel's takeover (`Recording::take_over`), which
-    /// rebinds what reads each copy, and each copy's mates read their
-    /// `on` side off `onto` where it carries the face. One action, one
-    /// undo. No feature gesture does this unasked.
+    /// **Redefine the source `source` as a read of `onto`** (Ev, PR 6353
+    /// and PR 6581: `bracket = F`): the explicit step a feature on a body
+    /// picked as itself offers, one per source
+    /// (`crate::world::repoint_offer`), and what a source's body field
+    /// writes. Every placement reading the source copies `onto` from now
+    /// on, through the kernel's takeover (`Recording::take_over`): the
+    /// `DefineVar` and the `Rebind`s of what reads the copies and of what
+    /// selects in the source (each copy's mate `on` sides), in one action
+    /// and one undo. No feature gesture does this unasked.
     RepointPlacements {
-        /// The body whose placements are re-pointed, as a seat reads it.
-        body: Operand,
-        /// The node whose body they place from now on.
-        onto: RecipeNodeId,
+        /// The source redefined.
+        source: VarId,
+        /// The body it reads from now on, as a seat reads it.
+        onto: Operand,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1286,6 +1298,7 @@ impl SessionOp {
         Some(Self::Place {
             body,
             target: Operand::Var(space),
+            name: None,
         })
     }
 

@@ -102,7 +102,7 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
 /// overlapping in `vab`), each read through `outcome`: `SOUND`; and meshed,
 /// unless the result holds a window in a curved face, which the mesher
 /// refuses typed (`TessellateError::RingOnCurvedFace`,
-/// `work/tess/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`).
+/// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`).
 fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
     let (a, b) = (fin("A", a), fin("B", b));
     for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {

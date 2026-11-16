@@ -870,10 +870,10 @@ where
                 refusal: Box::new(refusal),
             })
         })?;
-        let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+        let arm = crate::mate::solve::bundle_arm(reach, &mates, &values).map_err(|f| fault(*f))?;
         for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
             if let Some(found) =
-                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b, tol)?
             {
                 chart = Some(found);
                 break;
@@ -2235,7 +2235,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
     };
     Ok((
         at,
-        resolve_in(name, doc, selection.body.read, &table, refuse)?,
+        resolve_in(name, doc, doc.selected_body(selection).read, &table, refuse)?,
     ))
 }
 
@@ -2347,14 +2347,18 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, selection.body.read, table, |error| {
-                NodeErrorKind::SelectResolve {
+            ladder::resolve_key(
+                name,
+                doc,
+                doc.selected_body(selection).read,
+                table,
+                |error| NodeErrorKind::SelectResolve {
                     slot,
                     var,
                     reference,
                     error,
-                }
-            })
+                },
+            )
         })
         .collect::<Result<_, _>>()?;
     Ok(Selected {
@@ -2630,24 +2634,20 @@ where
         band: b,
         budgets: crate::clearance::ClearanceConfig::default().budgets,
     };
-    // The sweep's decisions are its report's, not the node's log
-    // (audit row F30).
-    let report = geom_core::k_stats::unlogged("F30", || {
-        lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
-            let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
-            let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
-            crate::clearance::closest_pair(
-                (&**bx, &**by),
-                faces,
-                lane.on_face_stations(candidate),
-                (ask, b),
-                &over,
-            )
-        })
+    let report = lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
+        let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
+        let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
+        crate::clearance::closest_pair(
+            (&**bx, &**by),
+            faces,
+            lane.on_face_stations(candidate),
+            (ask, b),
+            &over,
+        )
     });
     let param =
         || witness.map_or_else(crate::clearance::ParamWitness::nominal, |w| w.param.clone());
-    // **The drive's cue** (audit row F30's one exception): an upper
+    // **The drive's cue** (audit row F41's one exception): an upper
     // bound whose proving pair held at one point of the box only is no
     // verdict over the box, and a narrower box can decide it. The
     // sweep's own readings stay out of the node's log; this one reading
@@ -3009,12 +3009,12 @@ pub(super) fn selection_member<T: Decide>(
     select: &crate::var::Select,
     params: &crate::expr::VarEnv<T>,
 ) -> Result<Option<(RecipeNodeId, Vec<i64>)>, NodeErrorKind> {
-    if !select.body.is_indexed() {
+    let body = doc.selected_body(select);
+    if !body.is_indexed() {
         return Ok(None);
     }
-    let family = super::read_at(doc, slot, select.body.read)?;
-    let at = select
-        .body
+    let family = super::read_at(doc, slot, body.read)?;
+    let at = body
         .at
         .iter()
         .enumerate()
@@ -3026,6 +3026,25 @@ pub(super) fn selection_member<T: Decide>(
         })
         .collect::<Result<Vec<i64>, _>>()?;
     Ok(Some((family, at)))
+}
+
+/// **The index values of a source's member read** (VARIABLES VR4), each
+/// `Count` evaluated under `params`.
+fn source_indices<T: Decide>(
+    seat: crate::OperandSlot,
+    body: &crate::BodyRead<crate::VarId>,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Vec<i64>, NodeErrorKind> {
+    body.at
+        .iter()
+        .enumerate()
+        .map(|(k, &index)| {
+            crate::expr::eval_var_count(index, params).map_err(|source| NodeErrorKind::Expr {
+                slot: SlotId::Index { seat, k },
+                source,
+            })
+        })
+        .collect()
 }
 
 /// **The place of the member a selection's body read picks** among its
@@ -3131,9 +3150,14 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, row) in rows {
-        // A selection is read in the body it states.
+        // A selection is read in the body it states, and a source as the
+        // body it reads: a member read of a source by its own indices.
         let select = doc.selection(row);
-        let var = select.map_or(row, |select| select.body.read);
+        let sourced = match select {
+            Some(select) => doc.selected_body(select),
+            None => doc.through_sources(row),
+        };
+        let var = sourced.read;
         if let Some(pick) = doc.pick(var) {
             let placement = super::read_at(doc, seat, var)?;
             let indexed = node
@@ -3152,6 +3176,10 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
         // selection's, by its own indices.
         let member = match select {
             Some(select) => selection_member(doc, seat, select, params)?,
+            None if sourced.is_indexed() => Some((
+                super::read_at(doc, seat, var)?,
+                source_indices(seat, &sourced, params)?,
+            )),
             None => match node.body_read(seat).filter(|read| read.is_indexed()) {
                 Some(read) => Some((
                     super::read_at(doc, seat, var)?,
@@ -3314,7 +3342,7 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
                 &at,
             )?],
         )),
-        None => project_ports(&[select.body.read], doc, results),
+        None => project_ports(&[doc.selected_body(select).read], doc, results),
     }
 }
 
@@ -3468,12 +3496,21 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// holds where the two are one frame, else what it holds moved once
     /// at the placement's door ([`super::Framed::read_in`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
-    fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
+    ///
+    /// `frame_of` is the operand whose frame `computing` is: a refusal of
+    /// an image the read moved names it beside this member
+    /// ([`NodeErrorKind::UnfinishedLeaf`]'s `into`).
+    fn taken_in(
+        &self,
+        (computing, frame_of): (&super::Framed<T>, RecipeNodeId),
+        tol: Tol,
+    ) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
         let own = read.same(self.framed.holding());
+        let into = (!own).then_some(frame_of);
         let body = read
             .finished(tol)
-            .map_err(NodeErrorKind::unfinished(self.node))?;
+            .map_err(NodeErrorKind::unfinished_in(self.node, into))?;
         let framed = if own {
             self.framed.clone()
         } else {
@@ -4069,18 +4106,23 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // every other member into it through `relative`.
     let (members, apart) = match members {
         [] => return empty(),
-        [one] => return lone_member(id, &one.taken_in(&one.framed, tol)?),
+        [one] => return lone_member(id, &one.taken_in((&one.framed, one.node), tol)?),
         [first, ..] => {
-            let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
-                .unwrap_or(&first.framed)
-                .clone();
+            let chosen = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed);
+            // The member whose frame it is, which a refused image names.
+            let frame_of = members
+                .iter()
+                .find(|m| core::ptr::eq(&m.framed, chosen))
+                .map_or(first.node, |m| m.node);
+            let computing = chosen.clone();
             let apart = match op {
                 BooleanOp::Union => images_apart(members, &computing, tol)?,
                 BooleanOp::Intersect | BooleanOp::Subtract => topo::Apart::default(),
             };
             let finished = members
                 .iter()
-                .map(|m| m.taken_in(&computing, tol))
+                .map(|m| m.taken_in((&computing, frame_of), tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             (finished, apart)
         }

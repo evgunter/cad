@@ -67,6 +67,13 @@ pub enum Operand {
         /// The path to the piece, outermost first.
         of: Vec<VarId>,
     },
+    /// **A source authored at this seat** (D10 `[placement.placement]`,
+    /// VARIABLES VR4): a read of the body `body` reads — a body, a member
+    /// `xs[k]`, a pick or another source. The door mints one anonymous
+    /// source variable ([`crate::VarDef::Source`]) and the seat reads it,
+    /// so a body placed at two seats this way is two sources; two
+    /// placements share one by reading it by id or name.
+    Source(Box<BodyRead<crate::Formula>>),
 }
 
 impl From<RecipeNodeId> for Operand {
@@ -110,6 +117,7 @@ impl Operand {
                 .flat_map(|(_, read, _, _)| read.selected_names())
                 .collect(),
             Self::Pick { placement, .. } => placement.selected_names(),
+            Self::Source(body) => body.read.selected_names(),
             Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
         }
     }
@@ -121,6 +129,13 @@ impl Operand {
             placement: Box::new(placement.into()),
             of,
         }
+    }
+
+    /// A source reading the body `body` reads: a plain read, or one
+    /// member of a family ([`BodyRead::indexed`]).
+    #[must_use]
+    pub fn source(body: impl Into<BodyRead<crate::Formula>>) -> Self {
+        Self::Source(Box::new(body.into()))
     }
 
     /// The selection of `names` in the body `body` reads: a plain read,
@@ -156,6 +171,10 @@ impl core::fmt::Display for Operand {
             Self::Pick { placement, of } => match of.as_slice() {
                 [piece] => write!(f, "the pick of {piece} in {placement}"),
                 _ => write!(f, "the pick of a {}-step path in {placement}", of.len()),
+            },
+            Self::Source(body) => match body.at.len() {
+                0 => write!(f, "a source of {}", body.read),
+                _ => write!(f, "a source of a member of {}", body.read),
             },
             Self::Pose(def) => match def.kind() {
                 Some(kind) => write!(

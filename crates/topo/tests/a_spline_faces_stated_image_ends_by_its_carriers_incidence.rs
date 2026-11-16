@@ -122,6 +122,7 @@ fn stated<T: AtRestPolicy + Bounds>(
         Pcurve::IsoLine {
             p0: Point2::new(o.x, o.y),
             pl: Vec2::new(d.x, d.y),
+            ends: None,
         }
     } else {
         let (a, b) = (carrier.eval(t0), carrier.eval(t1));

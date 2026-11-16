@@ -469,7 +469,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // both of the first two decide Positive, and the subtraction
     // rounds the inner radius onto the outer. Nothing downstream may
     // be relied on to catch it: the observed refusals for that class
-    // come from the pcurve mint and the cap-plane Newell fit, AFTER
+    // came from the pcurve mint and the cap plane's fit, AFTER
     // the frame, both classifications and the mint have run, and the
     // cavity's `Carried { Positive }` would by then have been carried
     // for a pair of coincident circles. ----
