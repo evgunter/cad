@@ -39,6 +39,7 @@
 
 use geom_brep::LeverBounds;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
@@ -918,12 +919,15 @@ fn tip_wraps<T: Decide>(
             turned = turned + across.atan2(ahead);
         }
     }
+    // The runs' turning is an angle by construction: one turn of it is
+    // its period.
+    let turn = Period::<T>::angle();
     let whole = if outer {
-        T::tau()
+        turn.length()
     } else {
-        T::zero() - T::tau()
+        T::zero() - turn.length()
     };
-    let half_turns = (whole - turned) / T::pi();
+    let half_turns = (whole - turned) / turn.half();
     match (
         sign(half_turns + halves, T::one(), band)?,
         sign(half_turns - halves, T::one(), band)?,
