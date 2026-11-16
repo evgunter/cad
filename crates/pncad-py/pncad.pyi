@@ -544,7 +544,7 @@ class TessellateError(PncadError):
     `variant` is the refusing arm's tag —
     `invalid_chordal_tolerance`, `unsupported_surface`,
     `unsupported_nurbs_face`, `unsupported_curve`,
-    `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
+    `null_scaffold_edge`, `domain_unread`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
     `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
     `self_touching_trim_loop`
