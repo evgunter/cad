@@ -517,7 +517,7 @@ pub(crate) fn roots<K: Ord + Copy>(rows: &[(K, K)]) -> Vec<K> {
 ///
 /// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// [`crate::chord_join::JoinError::LineageRow`]) it is a kernel
 /// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
 /// raises it, it refuses rows its caller wrote, and goes back to the one
 /// who holds them. Neither is reached by a move of a model, so nothing
@@ -568,7 +568,7 @@ impl LineageRows {
 ///
 /// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// [`crate::chord_join::JoinError::LineageRow`]) it is a kernel
 /// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
 /// raises it, it refuses rows its caller wrote, and goes back to the one
 /// who holds them. Neither is reached by a move of a model, so nothing
@@ -1367,13 +1367,13 @@ mod tests {
     /// **A refused row reads the same in every lane that carries it.**
     /// One sentence for the row ([`RowRefusal`]'s `Display`), inside
     /// the Boolean's refusal, the chord join's, and the join's lifted
-    /// into the Boolean's (`BooleanError`'s `From<SplitJoinError>`, which hands
+    /// into the Boolean's (`BooleanError`'s `From<JoinError>`, which hands
     /// it over as the Boolean's own [`crate::BooleanError::LineageRow`]).
     /// Red if a lane spells the row again, or the lift nests it.
     #[test]
     fn a_refused_row_reads_alike_in_every_lane_that_carries_it() {
         use crate::boolean::BooleanError;
-        use crate::chord_join::SplitJoinError;
+        use crate::chord_join::JoinError;
         let f = faces(1);
         let refusal = RowRefusal {
             rows: LineageRows::FaceDivisions,
@@ -1388,7 +1388,7 @@ mod tests {
                 Cell::Face(f[0])
             )
         );
-        let lifted = BooleanError::from(SplitJoinError::LineageRow(refusal));
+        let lifted = BooleanError::from(JoinError::LineageRow(refusal));
         assert!(
             matches!(
                 lifted,
@@ -1399,7 +1399,7 @@ mod tests {
         );
         for shown in [
             lifted.render(geom_brep::recourse::Reading::Build),
-            SplitJoinError::LineageRow(refusal).render(geom_brep::recourse::Reading::Build),
+            JoinError::LineageRow(refusal).render(geom_brep::recourse::Reading::Build),
         ] {
             assert!(shown.contains(&row), "{shown}");
             assert!(shown.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{shown}");

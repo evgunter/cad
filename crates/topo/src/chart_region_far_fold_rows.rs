@@ -2,7 +2,7 @@
 //! from every member: each image is placed over its own edge's span in
 //! the chart's principal window (C4), so whichever half-edge the walk
 //! starts on, the polygon is the twin's, and
-//! [`super::cylinder_pair_overlap`]'s fold ([`super::period_fold`])
+//! [`super::cylinder_pair_overlap`]'s fold ([`super::period_fold_as`])
 //! decides no far gap.
 
 use geom_core::{Band, Tol};

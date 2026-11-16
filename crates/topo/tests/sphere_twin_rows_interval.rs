@@ -212,13 +212,14 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
     tight_k::<Interval>("Interval", eps);
 }
 
-/// **A split at the pole carries a reset.** The half cap's meridian arc
-/// crosses the north pole at `t = π/3`; splitting it there puts the new
-/// vertex on the chart's singular set, so the joint between the two
-/// children is a reset, decided at the split point on the carrier
+/// **A split at the pole carries the face's turn.** The half cap's
+/// meridian arc crosses the north pole at `t = π/3`; splitting it there
+/// puts the new vertex on the chart's singular set, so the joint between
+/// the two children is the turn there on the face's side, on the
+/// principal sheet, decided at the split point on the carrier
 /// (`split_cache`), and tier 3, which re-decides it at the new vertex,
 /// reads the body clean. Read at any other point of the carrier the
-/// joint would be an ordinary identity, which tier 3 refuses.
+/// joint would be the twin, which tier 3 refuses.
 /// The half cap with its meridian arc split at parameter `t` (the arc
 /// crosses the north pole at `t = π/3`).
 fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
@@ -256,9 +257,10 @@ fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     );
     for he in at_the_pole {
         let element = body.joint(he).expect("the split writes each child's joint");
+        let deck = element.deck();
         assert!(
-            element.is_reset(),
-            "{lane}: the joint at the pole is a reset: {element:?}"
+            !deck.twin && deck.v == 0,
+            "{lane}: the joint at the pole is a turn on the principal sheet: {element:?}"
         );
     }
     assert_eq!(
@@ -272,10 +274,12 @@ fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
 /// half cap split at the pole, `mev` adds a strut from the pole vertex
 /// down the meridian at azimuth `π/2`, and the site mint decides the
 /// joints of its two new halves at the vertices they enter at: the half
-/// leaving the pole is a reset there (every azimuth names the pole), and
-/// the turn at the strut's tip is ordinary. The new vertex does not exist
-/// before the surgery, so the mint reads each new half's entry off its
-/// carrier, at the end the half starts from.
+/// leaving the pole takes a turn there, the turn at the strut's tip is
+/// ordinary, and the half after the strut takes the rest of the turn the
+/// pole joint held before, so the three sum to it: the strut lies in the
+/// face's sector and splits it. The new vertex does not exist before the
+/// surgery, so the mint reads each new half's entry off its carrier, at
+/// the end the half starts from.
 fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let f = T::from_f64;
@@ -288,6 +292,9 @@ fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str)
         Vec3::new(f(0.0), f(0.0), f(1.0)),
     );
     let tip = Point3::new(f(0.0), f(theta.sin()), f(theta.cos()));
+    let before = body
+        .joint(made.he_plus)
+        .expect("the split writes the pole joint");
     let strut = body
         .mev(
             MevSite::Fan {
@@ -305,14 +312,18 @@ fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str)
     let turning = body
         .joint(strut.he_minus)
         .expect("the site mint writes the strut's joints");
-    assert!(
-        leaving.is_reset(),
-        "{lane}: the strut leaves the pole on a reset: {leaving:?}"
-    );
     assert_eq!(
         turning,
         topo::JointElement::IDENTITY,
         "{lane}: the turn at the strut's tip is ordinary"
+    );
+    let onward = body
+        .joint(made.he_plus)
+        .expect("the site mint writes the joint out of the strut");
+    assert_eq!(
+        leaving.then(turning).then(onward),
+        before,
+        "{lane}: the turns either side of the strut sum to the turn it split"
     );
     let band = geom_core::Band::linear(tol).unwrap();
     assert_eq!(

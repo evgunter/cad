@@ -389,7 +389,7 @@ pub(crate) fn planar_interior_point<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Point3<T>>, LadderRefusal> {
-    let Some((_, normal)) = face_plane(body, face) else {
+    let Some(geom_brep::PlaneDesc { normal, .. }) = face_plane(body, face) else {
         return Ok(None);
     };
     face_interior_point(body, face, normal, band)
@@ -831,7 +831,7 @@ mod rung_three_rows {
 
     fn interior(body: &Body<f64>, face: FaceKey) -> Option<Point3<f64>> {
         let band = Band::linear(Tol::witness()).unwrap();
-        let (_, normal) = face_plane(body, face).unwrap();
+        let normal = face_plane(body, face).unwrap().normal;
         face_interior_point(body, face, normal, band).unwrap()
     }
 

@@ -10,9 +10,9 @@
 # restarted the misses only: Ev ruled the next full readout "at 20 (as
 # now) or 2 more m tier misses".
 first: 3
-triggers: [104, 144, 165]
-units_restart: [144, 165]
-misses_restart: [104, 144, 165]
+triggers: [104, 144, 165, 458]
+units_restart: [144, 165, 458]
+misses_restart: [104, 144, 165, 458]
 ---
 
 The full readouts that close a window of the dual-review log's foot. The

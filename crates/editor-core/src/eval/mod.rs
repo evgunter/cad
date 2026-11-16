@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::{Framed, Held, ReadIn};
+pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -166,6 +166,10 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// Each output variable of the evaluated document and the port that
     /// defines it: what [`Self::table`] reads a variable through.
     reads: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
+    /// Each source of the evaluated document reading an output whole, and
+    /// that output's port ([`crate::Doc::source_ports`]): a source's table
+    /// is its body's.
+    sourced: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
     /// **Each node's space, as the recipe derives it**
     /// ([`crate::Doc::spaces`]): what [`Self::across_spaces`] reads.
     spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
@@ -257,7 +261,10 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
     /// The output and the port `var` reads, as the evaluated document
     /// defined it.
     pub fn read_port(&self, var: crate::VarId) -> Option<(RecipeNodeId, u8)> {
-        self.reads.get(&var).copied()
+        self.reads
+            .get(&var)
+            .or_else(|| self.sourced.get(&var))
+            .copied()
     }
 
     /// The variable `node`'s port `port` defines, in the evaluated
@@ -919,8 +926,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
 
     /// **This value read whole**: in a member's view of its family, the
     /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection naming its
-    /// members read it so.
+    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
     }
@@ -1047,6 +1054,7 @@ impl Evaluation<f64> {
             appearance: AppearanceResolution::default(),
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
+            sourced: Arc::default(),
             spaces: Arc::default(),
             parts: parts::Carried::none(),
             resolver: None,
@@ -1558,9 +1566,8 @@ pub enum NodeErrorKind {
     /// The mirror refused: the kernel's reflection door
     /// (`topo::mirror_body`), its refusal verbatim.
     Mirror(TransformError),
-    /// A placement's rigid motion was not minted (a part of it is not
-    /// a finite number) or not admitted (a literal frame, or a map the
-    /// mate solve composed, that the decided door refuses).
+    /// A placement's rigid motion was not minted: a part of it, or of a
+    /// motion the mate solve composed, is not a finite number.
     Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,
@@ -1697,23 +1704,33 @@ pub enum NodeErrorKind {
         at: Vec<(crate::VarId, i64)>,
     },
     /// The body this operation produced is not a finished body: an
-    /// operation that maps or assembles a body itself (a placement's
-    /// read into a frame, a mirror, a graft of pieces) finishes it at its
-    /// own end ([`topo::AtRestPolicy::finish`]). Every finding, each read
-    /// through its family.
+    /// operation that assembles a body itself (a graft of pieces)
+    /// finishes it at its own end ([`topo::AtRestPolicy::finish`]), and
+    /// one that moves a finished body (a placement's read into a frame,
+    /// a mirror, the twist) asks the session box again
+    /// ([`topo::FinishedBody::moved`]). Every finding, each read through
+    /// its family.
     NotFinished {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
     /// **An operand that does not finish where this operation takes a
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
-    /// tier 2 alone at the box scalars), or a body read into this
-    /// operation's frame through a placement's map, construction state
-    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
-    /// tier 3 on it ([`super::ReadIn::taken`]).
+    /// tier 2 alone at the box scalars); the operation that takes it
+    /// runs tier 3 on it ([`super::Held::finished`]).
+    ///
+    /// Where the operation read the operand into another operand's frame
+    /// before taking it (a union's or an intersect's fold computes in one
+    /// member's frame and reads every other into it), `into` names the
+    /// operand whose frame that is: the image that does not finish is
+    /// `input`'s, carried through `into`'s placement. The subject is
+    /// still `input`; the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
+        /// The operand whose frame `input` was read into, where the read
+        /// moved it; `None` where it was taken in its own frame.
+        into: Option<RecipeNodeId>,
         /// The finish's findings.
         findings: topo::NotFinished,
     },
@@ -2084,11 +2101,25 @@ pub enum NodeErrorKind {
 }
 
 impl NodeErrorKind {
-    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// **A taker's refusal** ([`Held::finished`]):
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
-        move |findings| Self::UnfinishedLeaf { input, findings }
+        Self::unfinished_in(input, None)
+    }
+
+    /// **A taker's refusal of an operand it read into `into`'s frame**
+    /// ([`NodeErrorKind::UnfinishedLeaf`]): `input`'s image there does
+    /// not finish; `None` where it was read in its own frame.
+    pub(crate) fn unfinished_in(
+        input: RecipeNodeId,
+        into: Option<RecipeNodeId>,
+    ) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf {
+            input,
+            into,
+            findings,
+        }
     }
 }
 
@@ -2357,12 +2388,26 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the body this operation produced is not a finished body: {}",
                 findings.render(geom_brep::recourse::Reading::AtRest)
             ),
-            Self::UnfinishedLeaf { input, findings } => write!(
-                f,
-                "{} does not finish where this operation takes it: {}",
-                by.node_as(*input, "input"),
-                findings.render(geom_brep::recourse::Reading::AtRest)
-            ),
+            Self::UnfinishedLeaf {
+                input,
+                into,
+                findings,
+            } => {
+                let input = by.node_as(*input, "input");
+                match into {
+                    None => write!(f, "{input} does not finish where this operation takes it: ")?,
+                    Some(into) => write!(
+                        f,
+                        "{input}, read into {}'s frame, does not finish there: ",
+                        by.node(*into)
+                    )?,
+                }
+                write!(
+                    f,
+                    "{}",
+                    findings.render(geom_brep::recourse::Reading::AtRest)
+                )
+            }
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "the split's {} half ({}) holds no material",
@@ -3775,8 +3820,29 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     program: &ProfileProgram,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
-    Ok(wire::trace::drawn(doc, &ev.nodes, program, &ev.env, tol)?
-        .map_or_else(Vec::new, |d| d.faces))
+    // `doc` may be `ev`'s document with a probe lowered into it, whose
+    // member reads mint their indices as counts `ev` never bound: each
+    // is a count the document holds (`edit::written_count`), bound here
+    // as the run binds it.
+    let unbound: Vec<(crate::VarId, i64)> = doc
+        .var_ids()
+        .into_iter()
+        .filter(|var| !ev.env.bindings.contains_key(var) && !ev.env.refused.contains_key(var))
+        .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
+        .collect();
+    let env = match unbound.is_empty() {
+        true => std::borrow::Cow::Borrowed(&ev.env),
+        false => {
+            let mut env = ev.env.clone();
+            env.bindings.extend(
+                unbound
+                    .into_iter()
+                    .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
+            );
+            std::borrow::Cow::Owned(env)
+        }
+    };
+    Ok(wire::trace::drawn(doc, &ev.nodes, program, &env, tol)?.map_or_else(Vec::new, |d| d.faces))
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -4655,6 +4721,7 @@ where
         appearance: resolved_appearance,
         env,
         reads: Arc::new(doc.output_ports()),
+        sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
@@ -4891,6 +4958,7 @@ where
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
+        sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
@@ -5382,7 +5450,7 @@ where
         node,
         &crate::param_source::definitions_of(doc),
         &|var| doc.selection(var),
-        &|var| doc.pick(var),
+        &|var| doc.pick(doc.through_sources(var).read),
         &slot_values,
         &nominal_values,
         input.payload(),
@@ -5639,12 +5707,15 @@ mod tag {
         /// upstream list carries), `SELECTION` and its names, or
         /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
         /// tree in field order, then each scalar's value and its
-        /// nominal under [`slot`]'s `NOMINAL`.
+        /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
+        /// member ([`crate::VarDef::Source`]), its number of indices and
+        /// each index's value.
         pose {
             READ = 1,
             OUTPUT = 2,
             SELECTION = 3,
             DEFINITION = 4,
+            SOURCE = 5,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
         pose_arm retires [4, 8, 9] {
@@ -7322,6 +7393,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::EndArc => 33,
         S::Mitre => 49,
         S::TurnFoot => 50,
+        S::BandSection => 58,
+        S::HostFoot => 59,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -7574,11 +7647,13 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(vertex);
             h.name(support);
         }
-        RoleSeg::EndArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } | RoleSeg::HostFoot { vertex, edge } => {
             h.name(vertex);
             h.name(edge);
         }
-        RoleSeg::Mitre { vertex } | RoleSeg::TurnFoot { vertex } => {
+        RoleSeg::Mitre { vertex }
+        | RoleSeg::TurnFoot { vertex }
+        | RoleSeg::BandSection { vertex } => {
             h.name(vertex);
         }
         RoleSeg::BandFace(names) => {

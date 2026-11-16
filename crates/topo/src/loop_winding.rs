@@ -206,7 +206,6 @@ fn spiric_segment_term(
         t0,
         t1,
         forward,
-        wall: None,
     };
     let length = spiric::spiric_length_bound(&edge, pieces)?;
     let [x, y, z] = spiric::spiric_vector_area(&edge, pieces);

@@ -56,7 +56,7 @@ fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         what,
-        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&pose, tol), tol).unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&pose, tol)).unwrap(),
         tol,
     )
 }

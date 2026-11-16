@@ -36,7 +36,6 @@ crates/topo/src/props.rs at_rest 1
 crates/topo/src/replace_face.rs build 1
 crates/topo/src/splitting/finish.rs at_rest 1
 crates/topo/src/splitting/mod.rs build 1
-crates/topo/src/transform.rs build 1
 crates/topo/src/validate.rs at_rest 13
 crates/topo/src/validate.rs build 4
 crates/viewer/src/lib.rs at_rest 1

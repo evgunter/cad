@@ -403,7 +403,7 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 ///
 /// The clearance is decided in band, so the refusal is that decision's
 /// own escalation (`pm_census_ef_pierce_curve_clear`), kept by
-/// `span_clear`'s ladder (PR 6739's review, F1). Before, an undecided
+/// `span_clear_as`'s ladder (PR 6739's review, F1). Before, an undecided
 /// clearance read as "not clear", and the census refused on the span's
 /// straddle row instead.
 #[test]
@@ -461,7 +461,7 @@ fn a_side_with_no_closed_form_clearance_is_not_read_clear() {
         let lever = 0.01 * pair.e.len;
         let half = 5.0 * band.zero() / lever / 2.0;
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,
@@ -728,7 +728,7 @@ fn a_spans_reach_counts_the_band_and_the_slope() {
         let lever = slope * pair.e.len;
         let half = height * band.zero() / lever / 2.0;
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,
@@ -776,7 +776,7 @@ fn a_span_overhanging_its_edges_start_is_read_over_the_overhang() {
         let pair = Pair::new(&prism.body, prism.top_face, ends);
         let lever = T::from_f64(1e-13);
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,

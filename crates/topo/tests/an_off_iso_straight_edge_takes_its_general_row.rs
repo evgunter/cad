@@ -28,7 +28,7 @@ use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 /// The lamina at `T`, lifted `lift` off the chart along its normal, with
 /// its two faces and the `he_plus` of its row, column and diagonal.
-fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
+pub(crate) fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
     let tol = Tol::witness();
     let on =
         |(x, y, z): (f64, f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
@@ -112,8 +112,8 @@ fn kind<T: AtRestPolicy + geom_core::Bounds>(image: &Pcurve<T>) -> Kind {
     // endpoint is the value.
     let lo = |x: T| x.lo();
     match image {
-        Pcurve::IsoLine { p0, pl } if lo(pl.y) == 0.0 => Kind::Row(lo(p0.y)),
-        Pcurve::IsoLine { p0, pl } if lo(pl.x) == 0.0 => Kind::Column(lo(p0.x)),
+        Pcurve::IsoLine { p0, pl, .. } if lo(pl.y) == 0.0 => Kind::Row(lo(p0.y)),
+        Pcurve::IsoLine { p0, pl, .. } if lo(pl.x) == 0.0 => Kind::Column(lo(p0.x)),
         Pcurve::General(_) => Kind::General,
         other => panic!("not an image the schedule derives here: {other:?}"),
     }

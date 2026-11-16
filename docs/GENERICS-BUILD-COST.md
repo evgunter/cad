@@ -175,7 +175,7 @@ signature, and it has nothing to do with `Real`.
 | all `Probe` instantiations | 36,227 | 3.6% |
 
 topo's five largest functions are the `Display` impls for
-`ValidationError`, `BooleanError`, `EulerOpError`, `SplitJoinError`,
+`ValidationError`, `BooleanError`, `EulerOpError`, `JoinError`,
 `SplitReduceError` — **26,077 lines, 27.4% of that crate's IR, one copy
 each**, more than `f64` (16,574) and `Probe` (14,779) *combined*.
 

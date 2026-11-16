@@ -134,9 +134,9 @@ fn mass_props_payload(e: &MassPropsError) {
     }
 }
 
-// topo::SplitJoinError carries geom_brep::SectionError.
-fn split_join_payload(e: &pncad::topo::SplitJoinError) {
-    if let pncad::topo::SplitJoinError::Section { source, .. } = e {
+// topo::JoinError carries geom_brep::SectionError.
+fn split_join_payload(e: &pncad::topo::JoinError) {
+    if let pncad::topo::JoinError::Section { source, .. } = e {
         named::<&pncad::geom_brep::SectionError>(source);
     }
 }
@@ -389,8 +389,10 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::MaterialSide => "material_side",
+        BlendDecision::LinkBend => "link_bend",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
+        BlendDecision::BallRoom => "ball_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -633,10 +635,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         CornerConfig::NEdgeVertex { valence: 4 }.policy(),
         Some(RunOutPolicy::RunOutStopAtVertex)
     );
-    assert_eq!(
-        CornerConfig::MixedConvexity { convex: 2 }.policy(),
-        Some(RunOutPolicy::RunOutFeather)
-    );
+    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
@@ -1049,7 +1048,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
 
     // Keep the remaining pins referenced.
     named(mass_props_payload as fn(&MassPropsError));
-    named(split_join_payload as fn(&pncad::topo::SplitJoinError));
+    named(split_join_payload as fn(&pncad::topo::JoinError));
     named(section_payload as fn(&pncad::geom_brep::SectionError));
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom::FitError));
@@ -1297,13 +1296,14 @@ fn a_revolve_result_is_matchable_through_the_prelude() {
 /// The case split, matched exhaustively with every field's type
 /// spelled from the prelude — the pin that a caller can read the
 /// handles out and not merely see which arm it got.
-fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
+fn revolved_kind_is_matchable(kind: &RevolvedKind<f64>) -> &'static str {
     match kind {
         RevolvedKind::Partial {
             start_cap,
             end_cap,
             start_meridians,
             end_meridians,
+            ..
         } => {
             named::<FaceKey>(*start_cap);
             named::<FaceKey>(*end_cap);
@@ -1537,6 +1537,14 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+        NormalizationKind::PlacementReMinted {
+            transform,
+            moved_by,
+        } => {
+            named::<&u64>(transform);
+            named::<&f64>(moved_by);
+            "placement_re_minted"
+        }
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -6898,7 +6906,13 @@ mod unit_vector_witness_through_the_facade {
         // The least turn takes the witness itself, with no second
         // decision of the direction.
         let start = pncad::geom_core::RigidMotion::axes_xy(ao)
-            .turned_onto(dir, "facade_turned_onto", band)
+            .turned_onto(
+                dir,
+                pncad::geom_core::Lever::session_box(),
+                "facade_turned_onto",
+                band,
+                Tol::witness(),
+            )
             .unwrap();
         assert!((start.w().get() - dir.get()).norm() < 1e-15);
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
@@ -7510,7 +7524,7 @@ mod pattern_presets_are_recognised_as_themselves {
     fn cap_axis(body: RecipeNodeId) -> Operand {
         Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
             of: Operand::Select {
-                body: Box::new(Operand::Node(body)),
+                body: Box::new(Operand::Node(body).into()),
                 names: vec![pncad::prelude::StableName {
                     kind: pncad::select::EntityKind::Face,
                     node: body,
