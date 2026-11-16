@@ -286,7 +286,7 @@ impl<T: Decide> Window<'_, T> {
             Some(_) => T::from_f64(band.zero()),
             None => T::from_f64(band.escalate()),
         };
-        if self.off((l, r), z) {
+        if self.off_by((l, r), h.lo, z) {
             return Some(Read::Off);
         }
         // Unless the middle's foot on `b`'s carrier is read inside `b`'s
@@ -341,21 +341,28 @@ impl<T: Decide> Window<'_, T> {
     /// **(i) off** (module docs): whether the piece `(l, r)`, a point where
     /// `l = r`, reads off `b`'s carrier past `z`.
     fn off(&self, piece: (T, T), z: T) -> bool {
-        positive("curve_pair_window_off", self.off_floor(piece) - z)
-    }
-
-    /// **(i)'s lower bound on `d` over the piece `(l, r)`**: the greater of
-    /// the least `|H|` and the middle's clearance less the piece's reach.
-    fn off_floor(&self, (l, r): (T, T)) -> T {
+        let (l, r) = piece;
         let two = T::from_f64(2.0);
         let (m, w) = ((l + r) / two, (r - l) / two);
         let h = taylor(self.height_jet(m), [T::zero(); 4], self.height_fourth(), w);
+        self.off_by(piece, h.lo, z)
+    }
+
+    /// (i) over the piece `(l, r)`, `h_lo` the least `|H|` on it: whether
+    /// the greater of `h_lo` and the middle's clearance less the piece's
+    /// reach is past `z`.
+    fn off_by(&self, (l, r): (T, T), h_lo: T, z: T) -> bool {
+        let two = T::from_f64(2.0);
+        let (m, w) = ((l + r) / two, (r - l) / two);
         let clear = self
             .span_b
             .carrier()
             .clearance(self.a.point_at(m))
             .unwrap_or_else(T::zero);
-        h.lo.max(clear - self.a.speed_hi() * w)
+        positive(
+            "curve_pair_window_off",
+            h_lo.max(clear - self.a.speed_hi() * w) - z,
+        )
     }
 
     /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
@@ -791,12 +798,13 @@ mod rows {
 
     /// **A receding piece past a piece read off the span restarts the chain
     /// by its end toward the ring.** The fillet pair of the receding row
-    /// above: `θ ∈ [3·10⁻⁵, 6·10⁻⁵]` recedes outward from `J`, and its
-    /// end toward `J` is off the circle past the zero band. Past a piece
-    /// read off the circle's span, that end restarts the chain, so the
-    /// piece holds without being read off the span and a receding piece
-    /// past it holds from it. The halving would decide it too, so this row
-    /// pins the restart, not a verdict main lacks.
+    /// above: `θ ∈ [2.5·10⁻⁵, 5·10⁻⁵]` recedes outward from `J` and does
+    /// not read off whole, while its end toward `J` is off the circle past
+    /// the zero band. Past a piece read off the circle's span, that end
+    /// restarts the chain, and the chain holds. The halving decides this
+    /// piece too, so the row is green without the restart: it pins the
+    /// restart's premises on a real piece and the chain's verdict over it,
+    /// and the restart's saving is measured, not asserted.
     #[test]
     fn a_receding_piece_past_a_span_off_piece_restarts_the_chain_by_its_near_end() {
         let x = -178.819_660_112_501_03;
@@ -827,23 +835,17 @@ mod rows {
             height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
         };
         let level = super::super::level_on(&ka, &kb);
-        let (piece, next) = ((3e-5, 6e-5), (6e-5, 1.2e-4));
-        for p in [piece, next] {
-            assert_eq!(
-                w.read(p, Some(true), &level, band()),
-                Some(Read::Recedes),
-                "{p:?} recedes outward"
-            );
-        }
+        let piece = (2.5e-5, 5e-5);
+        assert_eq!(
+            w.read(piece, Some(true), &level, band()),
+            Some(Read::Recedes),
+            "the piece recedes outward and does not read off whole"
+        );
         assert!(
             w.off((piece.0, piece.0), band().zero()),
             "the piece's end toward the ring is off the circle"
         );
-        let reads = [
-            ((1e-5, 3e-5), Read::OffSpan),
-            (piece, Read::Recedes),
-            (next, Read::Recedes),
-        ];
+        let reads = [((1e-5, 2.5e-5), Read::OffSpan), (piece, Read::Recedes)];
         assert!(
             w.chained(&reads, true, band()),
             "the chain restarts at the piece by its end toward the ring"

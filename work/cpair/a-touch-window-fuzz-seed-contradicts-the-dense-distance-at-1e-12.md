@@ -71,3 +71,7 @@ red this row on `CAD_FUZZ_SEED=0xc8d7ad5a8a57245d CAD_FUZZ_EFFORT=1`,
 at the oracle's ε 1e-12 reading: draw 19 reads `Recedes` on
 `(1.05e-6, 1.20e-6)` for a circle of radius 727 m centred about 675 m
 from the origin. The seed replays deterministically.
+
+## 2026-11-16 — the same family off a touch (onecopy/ringed-near-end)
+
+The non-touch row `each_window_reading_holds_on_a_dense_distance`, run at the needle's band (1e-12/1e-11), drew one contradiction on seed `CAD_FUZZ_SEED=0x57955e51f786ba3a CAD_FUZZ_EFFORT=1`. Draw 51 is a circle of radius ≈662 against an ellipse with semi-axes (72.3, 48.3). Its ringed `Recedes` reading on `(1.926e-7, 2.016e-7)` (away true) contradicts the dense distance. That row now holds only the unringed reading at 1e-12 and leaves the ringed one to this item. Fixing this item should restore the ringed reading there.
