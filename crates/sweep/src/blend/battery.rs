@@ -1392,6 +1392,12 @@ fn classify_arm<T: Decide + Bounds>(
             supports: CHAMFER_SUPPORTS,
         };
         use geom::SurfaceKind::{Cylinder, Plane};
+        let coaxial = |departure: T| {
+            support_coaxiality(edge, departure, band, CHAMFER_SUPPORTS).map_err(|e| match e {
+                BlendError::SpineUnsupported { .. } => unsupported(),
+                other => other,
+            })
+        };
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
@@ -1409,8 +1415,8 @@ fn classify_arm<T: Decide + Bounds>(
                 (p, tau),
                 radius,
                 convexity,
-                edge,
-                band,
+                coaxial,
+                unsupported,
             ),
             _ => Err(unsupported()),
         };
@@ -1490,13 +1496,13 @@ fn classify_arm<T: Decide + Bounds>(
 
 /// **The chamfer's frustum row**: a circle where a cylinder meets a
 /// plane, read in the meridian sheet through `p`; the two supports'
-/// departures from the circle's axis decided coaxial under
+/// departures from the circle's axis decided by `coaxial` (the caller's
 /// `fillet3_support_coaxiality`, as the fillet's coaxial rows decide
-/// theirs, and the frustum through the strip's feet minted
-/// ([`chamfer_frustum`]). A pair that does not share the axis is a pair
-/// the chamfer's table does not cover.
+/// theirs), and the frustum through the strip's feet minted
+/// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
+/// the chamfer's table does not cover (`unsupported`).
 #[allow(clippy::too_many_arguments)]
-fn frustum_arm<T: Decide + Bounds>(
+fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
     senses: (bool, bool),
@@ -1504,13 +1510,9 @@ fn frustum_arm<T: Decide + Bounds>(
     (p, tau): (Point3<T>, Vec3<T>),
     radius: T,
     convexity: Convexity,
-    edge: EdgeKey,
-    band: Band,
+    coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+    unsupported: impl Fn() -> BlendError,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
-    let unsupported = || BlendError::ChamferArmUnsupported {
-        edge,
-        supports: CHAMFER_SUPPORTS,
-    };
     let sheet = Meridian {
         axis: circle.frame.axis_line(),
         rim: p,
@@ -1521,11 +1523,7 @@ fn frustum_arm<T: Decide + Bounds>(
     ) else {
         return Err(unsupported());
     };
-    let margin =
-        support_coaxiality(edge, da.max(db), band, CHAMFER_SUPPORTS).map_err(|e| match e {
-            BlendError::SpineUnsupported { .. } => unsupported(),
-            other => other,
-        })?;
+    let margin = coaxial(da.max(db))?;
     Ok((
         BlendArm::CylinderPlaneCone,
         chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
