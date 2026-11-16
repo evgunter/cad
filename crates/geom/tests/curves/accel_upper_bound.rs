@@ -396,3 +396,95 @@ fn a_negative_speed_floor_bounds_no_curvature() {
         "a negative floor bounds no curvature: read {bound:e}, sampled {sampled:e}"
     );
 }
+
+/// The greatest certified LOWER end of `‖C″(t)‖` over `n + 1` parameters
+/// of the run `(t0, t1)`.
+fn sampled_floor_over(c: &NurbsCurve3<f64>, (t0, t1): (f64, f64), n: usize) -> f64 {
+    let ci = c.map_scalar(<Interval as Real>::from_f64);
+    #[allow(clippy::cast_precision_loss)]
+    (0..=n)
+        .map(|i| {
+            let t = (t0 + (t1 - t0) * i as f64 / n as f64).clamp(t0, t1);
+            ci.deriv2(Interval::from_f64(t)).norm().lo()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// **A crease costs only the runs that hold it**
+/// (`NurbsCurve3::accel_upper_bound_over`). On the nine-point full
+/// circle, whose double knots at `¼, ½, ¾` are creases at degree 2 and
+/// whose whole-domain bound is infinite, a run inside one quarter reads
+/// a finite bound at both scalars, at least the sampled sup of `‖C″‖`
+/// there; so does a run that ends on a crease, whose `C′` is one-sided
+/// there. A run across a crease reads no finite bound. On the rational
+/// cubic with an interior knot of multiplicity one, which is no crease,
+/// the whole domain reads `accel_upper_bound` bit for bit, and a run
+/// inside one span reads at most that.
+#[test]
+fn a_crease_costs_only_the_runs_that_hold_it() {
+    let h = 0.5f64.sqrt();
+    let circle = curve(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+        &[
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ],
+        vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
+    );
+    let ci = circle.map_scalar(<Interval as Real>::from_f64);
+    let at = |run: (f64, f64)| {
+        ci.accel_upper_bound_over((Interval::from_f64(run.0), Interval::from_f64(run.1)))
+    };
+    for run in [(0.3, 0.45), (0.25, 0.45), (0.55, 0.75), (0.0, 0.25)] {
+        let (b, f) = (at(run), circle.accel_upper_bound_over(run));
+        assert!(b.is_certified(), "{run:?}: the bound refused: {b:?}");
+        let floor = sampled_floor_over(&circle, run, 2000);
+        assert!(
+            b.hi().is_finite() && b.hi() >= floor,
+            "{run:?}: bound {b:?} under the sampled sup {floor}"
+        );
+        assert!(
+            (f - b.hi()).abs() <= 1e-9 * b.hi(),
+            "{run:?}: the f64 door {f} and the Interval door {b:?} disagree"
+        );
+    }
+    for run in [(0.2, 0.3), (0.0, 1.0), (0.45, 0.55)] {
+        assert!(
+            circle.accel_upper_bound_over(run).is_infinite(),
+            "{run:?} holds a crease, and bounds no |C″|"
+        );
+        assert!(
+            !at(run).hi().is_finite(),
+            "{run:?} holds a crease, and bounds no |C″| at Interval"
+        );
+    }
+    let cubic = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[(0.0, 0.0), (0.5, 1.0), (1.5, 1.2), (2.0, -0.4), (3.0, 0.3)],
+        vec![1.0, 2.5, 0.6, 1.8, 1.0],
+    );
+    let whole = cubic.accel_upper_bound();
+    assert_eq!(
+        cubic.accel_upper_bound_over(cubic.domain()).to_bits(),
+        whole.to_bits(),
+        "the whole domain of an uncreased spline reads the whole bound"
+    );
+    for run in [(0.0, 0.3), (0.5, 0.9)] {
+        let part = cubic.accel_upper_bound_over(run);
+        assert!(
+            part <= whole && part >= sampled_floor_over(&cubic, run, 2000),
+            "{run:?}: {part} outside [sampled sup, {whole}]"
+        );
+    }
+}

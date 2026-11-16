@@ -187,6 +187,22 @@ pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
 
+/// A bound on the carrier's curvature over the parameters `[t0, t1]`:
+/// [`curvature_hi`]'s, except on a spline, whose `|C″|` is read over the
+/// run alone ([`crate::NurbsCurve3::accel_upper_bound_over`]) against
+/// [`speed_range`]'s floor. A crease costs only the runs not proved clear
+/// of it, so a spline with a crease bounds a finite curvature on a run
+/// inside a smooth stretch of it. On every other carrier the bound does
+/// not depend on the run.
+pub fn curvature_hi_over<T: SpanLocate>(carrier: &crate::Curve3<T>, run: (T, T)) -> T {
+    match Kind::of(carrier) {
+        Kind::Nurbs(n) => {
+            n.accel_upper_bound_over(run) / n.speed_lower_bound().get().max(T::zero()).powi(2)
+        }
+        kind => kind.curvature_hi(),
+    }
+}
+
 /// A carrier read by what bounds its rates: a conic by its semi-axes.
 enum Kind<'a, T: Real> {
     Line(Vec3<T>),
