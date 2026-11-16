@@ -1328,6 +1328,7 @@ mod mark_kind_rows {
         Indeterminate {
             margin: geom_core::MarginDiag::value(5e-10),
             band: Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band")),
+            // UNDECIDED-NAME: a fixture's label; the row reads the mark's kind and margin, not the name
             predicate: Some("ray_order"),
             terminal_sliver: false,
         }
