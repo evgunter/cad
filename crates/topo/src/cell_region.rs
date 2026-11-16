@@ -23,7 +23,7 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    [`crate::contain::curved_face_placement`] on a curved carrier),
 //!    says which; a station the curved door reads off its own carrier
 //!    is the kernel's defect, and panics.
 //!
@@ -165,7 +165,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// [`crate::contain::curved_face_placement`] on a curved carrier. `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
