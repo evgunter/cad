@@ -101,3 +101,5 @@ B's round 4: 294,678 tokens as reported for the resumed run, 327 s.
 `[ev]` PR 6966 (`tesslane/ev-flat-triangles`): `crates/mesh/README.md` gains `[mesh.winding]`, the clearance bullet of `[mesh.sizing]` and its constant; row 269 of `docs/DESIGN-FORK-LOG.md` carries the recommendation half, labels only. The PR body carries each designer's round-4 `For Ev` section verbatim under its label and names no model. The mapping above (Fable = C; the two Opus designers A and B; each as the harness transcripts report it: A and B `claude-opus-5-5`, C `claude-fable-5-2`) goes into the row only after Ev decides.
 
 Token counts for the row, first report / last reported total: A 200,501 / 268,377; B 220,956 / 294,678; C 318,459 / 470,718. The totals are the harness's figure for each resumed run, which appears to be the running context and not a sum over runs.
+
+2026-11-16: the row is **275** on the `[ev]` branch after a merge of main, which had taken 269 to 273 in the meantime. Ev asked two questions on the PR on 2026-11-15 (does the winding promise replace the normal; what the lattice is), answered by the orchestrator in a comment on 2026-11-16; no decision yet.
