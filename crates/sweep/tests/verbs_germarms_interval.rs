@@ -5,7 +5,9 @@
 //! the discriminant's half-chord depth), so the lane's honesty depends
 //! on the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
 //! point-on-chart certificate behind the per-point outward normal),
-//! `bool_wall_root_in_span` (a root's two gaps to the span's ends), and
+//! the span's reading of a wall root against its ends
+//! (`geom_brep::curve_pair::Span::place_param`, once
+//! `bool_wall_root_in_span`), and
 //! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for
 //! the first time.
 //!

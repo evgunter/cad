@@ -123,7 +123,7 @@ pub mod variety;
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
-    ConsumedExtent, carrier_eq,
+    ConsumedExtent, CylinderPairData, carrier_eq,
 };
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use carrier_pose::{
