@@ -2,15 +2,15 @@
 id: the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved
 kind: unit
 title: the trimmed lattice keeps a clearance from the boundary, and tessellate refuses a face whose triangle f64 cannot wind
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: H
-blocked_on: [6966]
+branch: tesslane/lattice-clearance
 ---
 
 
-Waits on Ev's answer to PR 6966, which puts `crates/mesh/README.md` `[mesh.winding]` and the clearance bullet of `[mesh.sizing]` to them (`docs/DESIGN-FORK-LOG.md` row 278). Specced when the answer is in; what follows is what the three designers agreed an implementer needs.
+Builds the two rules PR 6966 puts into `crates/mesh/README.md`: `[mesh.winding]` and the clearance bullet of `[mesh.sizing]` (`docs/DESIGN-FORK-LOG.md` row 278). Ev answered on that PR on 2026-11-16: a temporary clearance now (1/16), with a plan for 1/2. What follows is what the three designers agreed an implementer needs, and then the unit.
 
 ## What it is
 
@@ -26,3 +26,26 @@ The designers' numbers are in `work/tesslane/log.md` (2026-11-14, "Design fork, 
 ## Closes
 
 `a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area` (filed on PR 6960).
+
+## Unit (2026-11-16, TESSLANE)
+
+**Letter H. Tier: dual review.** It moves the bytes of every trimmed face that has a lattice node near its boundary, adds a refusal on every lane, and is the code behind text Ev ratifies. A filter that drops one node too many leaves a triangle the certificate refuses or, worse, a region the lattice no longer sizes; a winding verdict read at the wrong scale refuses sound meshes or passes a noise normal.
+
+Branch `tesslane/lattice-clearance`, cut from `tesslane/ev-flat-triangles` (PR 6966, the page's text) with `tesslane/domain-loops` (PR 6960, unit 3) merged in. Merge main as those land. Two lanes are in the same files: PR 6965 (`tesslane/cone-near-apex`: `cert.rs`, the cone rows, `trimmed::lattice_candidates`, the kept-triangle rule) and unit 4 (`tesslane/route-by-domain`: `tessellate::lane_of` and the route).
+
+**The page is the contract.** `crates/mesh/README.md` on this branch states both rules; build what it says. Where the code cannot be made to match a sentence of it, stop and report: the page is Ev's, and a change to it goes back to PR 6966, not into this diff.
+
+**Owed by the unit, beyond the sections above:**
+
+- **Measure first, on this branch's base.** Reproduce the clearance table (486 analytic trimmed faces: nodes not laid, worst certificate in cell bounds, faces refusing, at none, 1/16, 1/8, 1/4, 3/8, 1/2) and the two frusta (the cut one's 226 triangles under ε, the whole one's unresolved triangles in its cap at δ 1e-8), from `work/tesslane/log.md`'s entry and its own probes. Say where your numbers differ and why: unit 3 has landed under you since they were taken.
+- **`trimmed::BOUNDARY_CLEARANCE` is 1/16**, a named constant read in one place, and temporary (Ev, PR 6966, 2026-11-16, after this unit's own measurement showed 1/4 refusing faces main meshes: "the specific temporary value doesn't matter"). Nothing but the constant and the goldens may depend on it, and the PR body gives the worst certificate and the refusing faces at 1/8 and 1/4 as well, as measurements.
+- **What the clearance is measured against.** Every side and point of the trim polygon, rings included (`TrimPolygon`, every loop), and every crease line, in the chart the lattice is laid in; on the cone, say which geometry the box is in (the chart's or the development's) and why that is the one the triangulation's flat triangles are made in. A period seam and a singular row are boundary of the polygon like any side: say what a node beside each does.
+- **A face must not lose its sizing.** A narrow face (a strip under two clearances wide, a ring close to the outer loop) can lose every node. Say what bounds its triangles then, measured on a body that reaches it, and whether the certificate's refusal is the answer or a face that meshed on main now refuses; a new refusal of a face main meshes is reported with its body, never absorbed.
+- **The winding verdict has one definition and three readers:** the join in `tessellate` (every lane, and a memo hit), `TrimmedFace::emit`'s fold decision, and the public check. No second spelling of the allowance or the scale. The refusal is its own variant with the face, reaches `pncad-py` as its own tag, and its text is true of the body that raises it (`memories/refusal-text-is-not-cause.md`). Pin it on the whole frustum at δ 1e-8 (a planar cap, so the trimmed lane's check cannot be what catches it) and show the cut frustum does not refuse.
+- **What retires, said per mechanism:** the exact-duplicate drop, the node-on-a-side retry, the crease move. For each: unreachable and removed, or kept as a typed refusal with the body that reaches it. A backstop nothing reaches is not kept on a hunch.
+- **Mutants.** The clearance set to zero (the no-area rows of `reach_probes` go red: say which); the clearance applied to refinement points too; the verdict's scale off by a factor either way; the join check skipped on a memo hit. Say what catches each.
+- **What moves.** Every trimmed face with a node inside the clearance. Name each golden and pin that moves (D9's trimmed bodies, `docs/tess-budget-data`, the tour's pins, `reach_probes`' counts) and, for each, why the new mesh is right: its certificate, `reach_probes::geometry`, the triangle count against the old. Regenerate goldens last, after the final merge of main, and never to make a red row green that you have not explained (`memories/output-stability-as-justification.md`). A rectangle-lane or planar face that moves a byte is a stop.
+- **The spline arm.** Measure it under the rule before applying the rule there, as the section above says, and report the table; if it refuses faces at 1/4, say so and leave the arm out with a filed row sooner than tune it.
+- **Done when** `a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area`'s bodies (the torus ring at δ 10⁻³, the tilted sphere pair at δ 0.04) mesh with no unresolved triangle and their `Got::NoArea` pins are gone; the public check passes over every mesh the mesh suite builds; `reach_probes`' `MIN_SHAPE` is replaced by it; the whole frustum refuses typed in its window and meshes outside it; `FacePatch`'s doc and the STL writer's cite the promise.
+- **Closes** `a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area` and `the-stl-writers-doc-names-a-contract-nothing-states`.
+- **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, topo, stl, `demos/tour` and the viewer job (`cargo clippy -p viewer --features app --all-targets -- -D warnings`); `cargo nextest run -p mesh` whole, and the viewer's tests; the `mesh budget meter + certificate falsifier` job's steps and the `tools` job's steps from `.github/workflows/ci.yml` (excluded roots whose tests mesh bodies); the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well, each stating what it expects at each; sweep's rows over the bodies you touch. A test costing 0.5 s or more goes in the slow set with its measured time.

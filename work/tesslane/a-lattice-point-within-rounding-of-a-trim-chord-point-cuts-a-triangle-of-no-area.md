@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: M
 design: true
-blocked_on: [6966]
+blocked_on: [the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved]
 ---
 
 
@@ -77,3 +77,5 @@ this row's decision. A candidate within rounding of a side but away from
 its ends is the same class, unmeasured.
 
 - 2026-11-16 — **weighed and before Ev.** Three designers weighed it (`docs/DESIGN-FORK-LOG.md`, the row PR 6966 adds) and agreed after four rounds on two rules: the lattice keeps clear of the boundary, and every triangle's winding is resolved above the rounding of its own positions, checked where faces join the mesh. Both are text of `crates/mesh/README.md`, so they are PR 6966, which also carries the unit that builds them.
+
+- 2026-11-16 — **PR 6966 merged with Ev's answer.** Both rules are on the design page (`crates/mesh/README.md`: `[mesh.winding]`, and the clearance bullet of `[mesh.sizing]` with a temporary constant of 1/16 that goes to 1/2). The unit that builds them is dispatched (`the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved`) and closes this row.
