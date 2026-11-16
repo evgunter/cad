@@ -1268,15 +1268,11 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// or an ellipse. It names the band's shape rather than either verb,
 /// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
-/// and `band_planar_cut_off`, which build each end it names. The
-/// smooth-run clause is conditioned without naming a verb ("where the
-/// verb's arms cover it"): a fillet's arms cover an open run of lines
-/// and arcs, a chamfer's only its lines, so a chamfer caller is not sent
-/// on to the run's arc and `ChamferArmUnsupported`.
+/// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
      blending all three edges where they round alike, two that round alike meeting on the third \
-     or clearly apart, or one ending at a flat face, requesting its whole smooth run where the \
-     verb's arms cover it, in one operation";
+     or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
+     operation";
 /// The recourse at a mixed-convexity corner requested in a way that does
 /// not build ([`CornerConfig::MixedConvexity`]). It names the three
 /// requests there that build, one edge alone (the cut-off), the two
