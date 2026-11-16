@@ -59,7 +59,9 @@ impl Gap {
     /// is in band, else a graze.
     pub(super) const fn mark(self, other: Self) -> Mark {
         match (self.0, other.0) {
-            (Within::InBand(gap), _) | (Within::Zero, Within::InBand(gap)) => Mark::Wedge(gap),
+            (Within::InBand(gap), _) | (Within::Zero, Within::InBand(gap)) => {
+                Mark::SetAside(crate::side_reader::MarkKind::Wedge, gap)
+            }
             (Within::Zero, Within::Zero) => Mark::Graze,
         }
     }

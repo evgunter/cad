@@ -88,3 +88,12 @@ points' 3-D positions rather than the stored image; either retires
 the budget and the folds together.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## As a ring (2026-11-14, TESSLANE unit 3)
+
+A tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`, on
+`ball_poled_z(√2)`, rings a ball face about 0.006 rad from its pole. The
+ringed ops (both unions, ball ∖ tube) refuse `FoldedTriangle` at
+δ `2·10⁻²` and mesh at `5·10⁻³` and `10⁻³`; turned 0 about `z`, they mesh
+at every δ. Pinned by
+`reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
