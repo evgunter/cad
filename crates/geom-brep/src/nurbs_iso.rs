@@ -341,7 +341,9 @@ impl<T: Real> std::error::Error for IsoRowError<T> {}
 /// The coincidence `at = a₀` / `at = a₁` is a named margined decide
 /// (`iso_row_at_domain_end`), not an equality: a stored parameter and a
 /// held end knot are two values, and asking whether they name the same
-/// chart line is a question with a band.
+/// chart line is a question with a band. The parameter gap is metered at
+/// the chart's sup stretch along the axis ([`NurbsSurface::stretch_sup`]),
+/// so the band reads metres on the surface, not knot units.
 ///
 /// # Errors
 ///
@@ -361,8 +363,17 @@ pub fn iso_boundary_row<T: Decide>(
     };
     let (a0, a1) = held.structure_f64_interim().domain();
     let (h0, h1) = held.domain();
+    // A parameter of the chart is no length: the gap from the end knot
+    // is metered at the chart's certified sup stretch along that axis
+    // (D4 (iii)), so a Zero puts the two rows within the band of each
+    // other on the surface.
+    let (stretch_u, stretch_v) = fit.stretch_sup();
+    let stretch = match axis {
+        ChartAxis::U => stretch_u,
+        ChartAxis::V => stretch_v,
+    };
     let is_end = |end: T| -> Result<bool, IsoRowError<T>> {
-        let margin = Margin::of(at - end);
+        let margin = Margin::metered_sup(at - end, stretch);
         let sign = decide("iso_row_at_domain_end", margin, band)
             .map_err(|source| IsoRowError::Escalated { source })?;
         Ok(sign == Sign::Zero)

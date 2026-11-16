@@ -10,7 +10,10 @@
 //! - on an analytic chart, the **lattice** a lane lays from those steps
 //!   ([`AnalyticRow::lattice_steps`]: rows every `lever·h_u` on a ruled
 //!   chart, square in 3-D at the face's widest radius; periodic steps
-//!   capped at `sizing::MAX_ANGULAR_STEP`) and the plane the trimmed
+//!   capped at `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane
+//!   lays over a face's `v` window ([`AnalyticRow::lattice_rows`]: that
+//!   step's, or on the cone graded to the row's own radius) and the
+//!   plane the trimmed
 //!   lane's triangulation runs in: the chart in its **metric**
 //!   ([`AnalyticRow::metric`]), or on the cone its **development**
 //!   ([`AnalyticRow::development`]);
@@ -59,7 +62,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, face_cells, lattice_budget, lattice_metric};
 use crate::sizing::{
-    cap_angular, cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps,
+    cap_angular, ceil_count, cone_grid_step, sagitta_step, sphere_grid_steps, torus_grid_steps,
 };
 use crate::types::TessellateError;
 
@@ -346,6 +349,13 @@ impl<'a> AnalyticRow<'a> {
     /// bound; on a torus and a spindle sheet both periodic steps capped at
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
+    ///
+    /// A cone's row step has two readers. The curved lane lays rows
+    /// uniform in `v` at it (`curved::grid_counts`, a face with a point on
+    /// a side between its rims); that face has no worst-triangle theorem
+    /// (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`),
+    /// its certificate is what holds it, and its rows are left as they
+    /// are. The trimmed lane lays [`Self::lattice_rows`] from it, graded.
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
             Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
@@ -353,6 +363,82 @@ impl<'a> AnalyticRow<'a> {
             }
             Analytic::Torus { .. } | Analytic::Spindle { .. } => (cap_angular(hu), cap_angular(hv)),
             Analytic::Sphere { .. } => (hu, hv),
+        }
+    }
+
+    /// **The interior rows of the trimmed lane's lattice over the face's
+    /// `v` window `(v0, v1)`**, from the lattice steps `(hu, hv)`
+    /// ([`Self::lattice_steps`]), ascending.
+    ///
+    /// Every chart but the cone: uniform, `⌈(v1 − v0)/hv⌉` gaps.
+    ///
+    /// **The cone: uniform in `√|v|`**, in `⌈2·(√v₁ − √v₀)·√v_w/hv⌉`
+    /// gaps, `v_w = hv/(hu·sin α)` the slant the row step was laid at (the
+    /// face's widest). Two rows at roots `s` and `s + Δs` then stand
+    /// `Δs·(2s + Δs) ≤ hv·√(v_m/v_w)` apart, `v_m` the slant midway
+    /// between them in `s`: `hv` at the widest radius, shorter toward the
+    /// apex, and at most twice the uniform count over a window.
+    ///
+    /// *What is proved.* A chord of 3-D length `L` from radius `ρ₁` to a
+    /// larger one, `Δu` round the axis, sags at most
+    /// `cos α·L²/(4ρ₁·(1 + |cos(Δu/2)|))` (`cert::cone_chord_sag`, with
+    /// `L² ≥ 4ρ₁ρ₂·sin²(Δu/2)`). At `L = hv·√(ρ₁/ρ_max)` that is
+    /// `cos α·ρ_max·hu²/(4·(1 + |cos(Δu/2)|))`: the lattice's own sag at
+    /// its widest radius, to second order in `hu`, for a chord along the
+    /// surface (`Δu → 0`), and up to twice it for one half a turn round.
+    ///
+    /// *What is the rule's choice.* That gap, the length of the chord the
+    /// target allows along the surface at the gap's own radius, is laid
+    /// between rows. Nothing proves a triangle beside the boundary has no
+    /// side longer than a gap, or none far round the axis: the rows shape
+    /// the triangulation, the certificate is the guarantee, and the arm
+    /// keeps `trimmed::UNPROVED_HEADROOM`. Rows uniform in `v` lay that
+    /// gap at the widest radius alone; beside a small end the first row
+    /// then stands many such chords from the boundary, the triangulation
+    /// joins it to boundary points far round the axis, and a face ending
+    /// near its apex holds triangles truly past δ.
+    ///
+    /// **No row within the radius every chord certifies at.** A chord
+    /// with an end at radius `ρ` sags under `2·cos α·ρ`
+    /// (`cert::cone_chord_sag`: `sin² ≤ 1`, and the other radius is under
+    /// the sum), so where that is within the lattice's own sag at its
+    /// widest radius, a row adds triangles and moves no bound.
+    ///
+    /// # Errors
+    ///
+    /// `sizing::ceil_count`'s, for a count past `sizing::MAX_COUNT`.
+    pub(crate) fn lattice_rows(
+        &self,
+        (v0, v1): (f64, f64),
+        (hu, hv): (f64, f64),
+    ) -> Result<Vec<f64>, TessellateError> {
+        #[allow(clippy::cast_precision_loss)]
+        let lerp = |a: f64, b: f64, j: usize, n: usize| a + (b - a) * (j as f64 / n as f64);
+        match self.kind() {
+            Analytic::Cone { half_angle, .. } => {
+                // `√|v|` signed: one formula for a window on either nappe
+                // (a face lies on one, and its window may end at the apex).
+                let root = |v: f64| v.signum() * v.abs().sqrt();
+                let (s0, s1) = (root(v0), root(v1));
+                let widest = hv / (hu * half_angle.sin());
+                let n = ceil_count(2.0 * (s1 - s0) * widest.sqrt(), hv)?;
+                // `2·cos α·ρ ≤ cos α·ρ_max·(1 − cos(hu/2))`, in slants.
+                let certified = 0.5 * cert::cone_chord_sag(1.0, widest, widest, hu);
+                Ok((1..n)
+                    .map(|j| {
+                        let s = lerp(s0, s1, j, n);
+                        s * s.abs()
+                    })
+                    .filter(|v| v.abs() > certified)
+                    .collect())
+            }
+            Analytic::Cylinder { .. }
+            | Analytic::Sphere { .. }
+            | Analytic::Torus { .. }
+            | Analytic::Spindle { .. } => {
+                let n = ceil_count(v1 - v0, hv)?;
+                Ok((1..n).map(|j| lerp(v0, v1, j, n)).collect())
+            }
         }
     }
 
@@ -633,6 +719,192 @@ mod tests {
         assert!(
             checked > 100,
             "the triangles deviate measurably ({checked}), so a scaled certificate reds"
+        );
+    }
+
+    /// **What the cone arm's rows hold** ([`AnalyticRow::lattice_rows`]),
+    /// read by geometry and not by the rule's own arithmetic. On cones
+    /// from a needle to flat, over windows from a frustum's to one starting
+    /// `10⁻⁶` of the way up, on either nappe, with `T` the lattice's sag at
+    /// its widest radius:
+    ///
+    /// - **a chord no longer than a gap sags within its share of `T`.**
+    ///   From a row (or the window's end) at radius `ρ_a` to any point at
+    ///   a larger radius within the 3-D length of the gap above it, `Δu`
+    ///   round the axis, the chord's largest distance from the cone
+    ///   (searched along the chord) is at most
+    ///   `T·(ρ_m/ρ_a)·2/(1 + |cos(Δu/2)|)`, `ρ_m` the gap's mid-root
+    ///   radius, times `(hu/4)²/sin²(hu/4)` (`cos α·ρ_max·hu²/8` over `T`,
+    ///   under 1.3 %). Rows uniform in `v`, or half as many, red here;
+    /// - **no coarser row set does**: the widest gap in `√v` is within one
+    ///   gap in the count of `hv/(2·√v_w)`, and the gap at the widest
+    ///   radius is the lattice step. Twice the rows red here;
+    /// - **the floor is where every chord certifies.** No row lies at a
+    ///   radius `ρ` with `2·cos α·ρ ≤ T`, the first kept row is the first
+    ///   past it, and a chord from under that radius to anywhere sags
+    ///   within `T`. A floor twice as high, or none, reds here;
+    /// - the rows ascend strictly inside the window, and the other
+    ///   nappe's are their mirror image.
+    ///
+    /// Every other arm's rows are uniform in `v`.
+    #[test]
+    fn the_cone_arms_rows_stand_a_certified_chord_apart() {
+        let frame = (
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        // The largest distance from the cone along the chord between two
+        // of its points, each `(u, v)`: a ternary search of a concave
+        // function of the chord's parameter.
+        let sag = |alpha: f64, a: (f64, f64), b: (f64, f64)| -> f64 {
+            let (sin, cos) = alpha.sin_cos();
+            let at = |(u, v): (f64, f64)| (v * sin * u.cos(), v * sin * u.sin(), v * cos);
+            let (p, q) = (at(a), at(b));
+            let off = |t: f64| {
+                let (x, y, z) = (
+                    p.0 + (q.0 - p.0) * t,
+                    p.1 + (q.1 - p.1) * t,
+                    p.2 + (q.2 - p.2) * t,
+                );
+                sin * z - cos * x.hypot(y)
+            };
+            let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+            for _ in 0..70 {
+                let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                if off(m1) < off(m2) {
+                    lo = m1;
+                } else {
+                    hi = m2;
+                }
+            }
+            off(0.5 * (lo + hi))
+        };
+        let mut rng = test_utils::fuzz::start("cone_rows");
+        let (mut gaps_read, mut under_floor) = (0usize, 0usize);
+        for half_angle in [0.002, 0.4, core::f64::consts::FRAC_PI_4, 1.4] {
+            let cone = Surface::Cone {
+                apex: frame.0,
+                axis: frame.1,
+                half_angle,
+                u_ref: frame.2,
+            };
+            for (widest, low, target) in [
+                (2.0_f64, 1.0, 1e-3),
+                (2.0, 0.0, 1e-3),
+                (1.5, 1.5e-6, 2.5e-5),
+                (300.0, 0.02, 1e-2),
+            ] {
+                let what = format!("α {half_angle}, window ({low}, {widest}), target {target}");
+                let (sin, cos) = half_angle.sin_cos();
+                let row = AnalyticRow::new(&cone, widest * sin).unwrap();
+                let (hu, hv) = row.lattice_steps(row.steps(target));
+                let rows = row.lattice_rows((low, widest), (hu, hv)).unwrap();
+                // The lattice's own sag at its widest radius: the rim
+                // chord across one column there.
+                let lattice_sag = sag(half_angle, (0.0, widest), (hu, widest));
+                assert!(
+                    rows.windows(2).all(|w| w[0] < w[1])
+                        && rows.iter().all(|&v| v > low && v < widest),
+                    "{what}: the rows ascend inside the window"
+                );
+                // `cos α·ρ_max·hu²/8` over that sag: the lemma's bound is
+                // the first, 1.3 % above the second at the angular cap.
+                let second_order = (0.25 * hu / (0.25 * hu).sin()).powi(2);
+                let floor = 0.5 * lattice_sag / (sin * cos);
+                assert!(
+                    rows.iter().all(|&v| v > floor * (1.0 - 1e-9)),
+                    "{what}: a row within the slant {floor:e} every chord certifies at"
+                );
+                let stops: Vec<f64> = core::iter::once(low)
+                    .chain(rows.iter().copied())
+                    .chain(core::iter::once(widest))
+                    .collect();
+                let root_step = hv / (2.0 * widest.sqrt());
+                let mut widest_root_gap = 0.0_f64;
+                for pair in stops.windows(2) {
+                    let (below, above) = (pair[0], pair[1]);
+                    if below <= floor {
+                        // The gap the floor leaves: every chord from under
+                        // it certifies.
+                        for _ in 0..20 {
+                            let from = (0.0, floor * rng.unit());
+                            let to = (rng.range(-3.0, 3.0), widest * rng.unit());
+                            let found = sag(half_angle, from, to);
+                            assert!(
+                                found <= lattice_sag * (1.0 + 1e-9),
+                                "{what}: a chord from {from:?} to {to:?} sags {found:e}, past                                  {lattice_sag:e}"
+                            );
+                            under_floor += 1;
+                        }
+                        continue;
+                    }
+                    widest_root_gap = widest_root_gap.max(above.sqrt() - below.sqrt());
+                    let gap = above - below;
+                    let mid = (0.5 * (above.sqrt() + below.sqrt())).powi(2);
+                    for _ in 0..3 {
+                        // A point at a larger slant within the gap's 3-D
+                        // length of the lower row's point.
+                        let up = gap * rng.unit();
+                        let reach = ((gap * gap - up * up).max(0.0)).sqrt();
+                        let to_v = below + up;
+                        let half = (0.5 * reach / (sin * (below * to_v).sqrt())).min(1.0);
+                        let du = 2.0 * half.asin() * rng.unit();
+                        let found = sag(half_angle, (0.0, below), (du, to_v));
+                        let share = (mid / below) * 2.0 / (1.0 + (0.5 * du).cos().abs());
+                        assert!(
+                            found <= lattice_sag * share * second_order * (1.0 + 1e-9),
+                            "{what}: from the row at {below:e}, a chord {du:e} round to                              {to_v:e} sags {found:e}, past {share} of {lattice_sag:e}"
+                        );
+                    }
+                    gaps_read += 1;
+                }
+                if rows.len() > 3 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let count = stops.len() as f64;
+                    assert!(
+                        widest_root_gap <= root_step * (1.0 + 1e-12)
+                            && widest_root_gap >= root_step * (1.0 - 1.0 / (count - 2.0)),
+                        "{what}: the widest gap in √v, {widest_root_gap:e}, is the step                          {root_step:e} less at most one gap's share"
+                    );
+                    let top = widest - rows[rows.len() - 1];
+                    assert!(
+                        top <= hv && top >= hv * (1.0 - 2.0 / (count - 2.0)),
+                        "{what}: the gap at the widest radius, {top:e}, is the lattice                          step {hv:e}"
+                    );
+                    let before = (rows[0].sqrt() - widest_root_gap).max(0.0).powi(2);
+                    assert!(
+                        before <= low * (1.0 + 1e-9) || before <= floor,
+                        "{what}: the first kept row {:e} is the first past the floor                          {floor:e}",
+                        rows[0]
+                    );
+                }
+                let mirrored = row.lattice_rows((-widest, -low), (hu, hv)).unwrap();
+                assert!(
+                    mirrored.len() == rows.len()
+                        && mirrored
+                            .iter()
+                            .rev()
+                            .zip(&rows)
+                            .all(|(m, v)| (m + v).abs() <= 1e-12 * widest),
+                    "{what}: the v < 0 nappe's rows are the mirror image"
+                );
+            }
+        }
+        assert!(
+            gaps_read > 500 && under_floor > 100,
+            "gaps ({gaps_read}) and chords from under the floor ({under_floor}) were read"
+        );
+        let cylinder = Surface::Cylinder {
+            origin: frame.0,
+            axis: frame.1,
+            radius: 1.0,
+            u_ref: frame.2,
+        };
+        let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
+        assert_eq!(
+            row.lattice_rows((1.0, 2.0), (0.1, 0.3)).unwrap(),
+            vec![1.25, 1.5, 1.75]
         );
     }
 

@@ -488,3 +488,94 @@ fn a_crease_costs_only_the_runs_that_hold_it() {
         );
     }
 }
+
+/// `c`'s span `(lo, hi)` cut out as its own curve, its parameters kept
+/// ([`NurbsCurve3::split_at`] at each end inside the domain).
+fn span_cut(c: &NurbsCurve3<f64>, (lo, hi): (f64, f64)) -> NurbsCurve3<f64> {
+    let (d0, d1) = c.domain();
+    let right = if lo > d0 {
+        c.split_at(lo).unwrap().1
+    } else {
+        c.clone()
+    };
+    if hi < d1 {
+        right.split_at(hi).unwrap().0
+    } else {
+        right
+    }
+}
+
+/// **Each span's bound is its own span's** (`NurbsCurve3::accel_upper_bound_over`
+/// over one span). On a clamped cubic with three interior knots whose
+/// spans bend very differently, a creased degree-1 polyline, and a
+/// rational quadratic with an interior knot, the bound over each
+/// nonempty span is the whole-domain bound of that span cut out as its
+/// own curve (`split_at` at its ends, parameters kept), to rounding: the
+/// same quotient on the same interval. A span's bound read off another
+/// span's pieces differs from its cut's, so the row fails where pieces
+/// are assigned to the wrong spans.
+#[test]
+fn each_spans_bound_is_its_own_span_cut_out() {
+    let cubic = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.7, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[
+            (0.0, 0.0),
+            (0.1, 2.0),
+            (0.3, -1.5),
+            (1.0, 0.2),
+            (2.0, 0.3),
+            (3.0, 0.35),
+            (4.0, 0.4),
+        ],
+        vec![1.0; 7],
+    );
+    let polyline = curve(
+        vec![0.0, 0.0, 0.3, 0.55, 1.0, 1.0],
+        1,
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (2.0, 1.5)],
+        vec![1.0; 4],
+    );
+    let rational = curve(
+        vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0],
+        2,
+        &[(1.0, 0.0), (1.0, 0.8), (0.2, 1.4), (-0.6, 0.9)],
+        vec![1.0, 0.6, 1.7, 1.0],
+    );
+    for (name, c) in [
+        ("cubic", &cubic),
+        ("polyline", &polyline),
+        ("rational", &rational),
+    ] {
+        let values = c.knot_values().values().to_vec();
+        let spans: Vec<(f64, f64)> = values
+            .windows(2)
+            .filter(|k| k[0] < k[1])
+            .map(|k| (k[0], k[1]))
+            .collect();
+        assert!(spans.len() >= 2, "{name}: more than one span");
+        let mut reads = Vec::new();
+        for &span in &spans {
+            let own = c.accel_upper_bound_over(span);
+            let cut = span_cut(c, span).accel_upper_bound();
+            assert!(
+                own.is_finite() && (own - cut).abs() <= 1e-9 * cut.max(1.0),
+                "{name} {span:?}: the span reads {own:e}, its cut {cut:e}"
+            );
+            assert!(
+                own >= sampled_floor_over(c, span, 2000),
+                "{name} {span:?}: {own:e} under the sampled sup"
+            );
+            reads.push(own);
+        }
+        if name == "cubic" {
+            let (lo, hi) = reads
+                .iter()
+                .fold((f64::INFINITY, 0.0f64), |(l, h), &r| (l.min(r), h.max(r)));
+            assert!(
+                hi > 4.0 * lo,
+                "the cubic's spans bend differently: {reads:?}"
+            );
+        }
+    }
+}
