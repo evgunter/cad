@@ -2,7 +2,8 @@
 id: the-lemniscate-node-row-exceeds-the-accounting-budget-at-1e-12
 kind: issue
 title: the lemniscate's node row exceeds the chart accounting's cell budget at ε 1e-12
-status: open
+status: closed
+closed: 2026-11-16
 priority: P2
 cost: M
 opened: 2026-11-10
@@ -41,3 +42,15 @@ Measure where the accounting's cells go at 1e-12 (along the loops'
 tubes, about the node box, or about the enclosed minima), and either
 cover that ground with what the reading already proves or show the
 budget is the limit; then lift the pin.
+
+## Closed (2026-11-16, `sectarms/spline-node-carry`)
+
+PR 6897's fix pass carries the lemniscate's arcs to its node. The arcs
+are graded finer only within two last chords of the node, the pad
+narrows at an eighth of the distance only within one node-box half, and
+the node's box is bound to its settle reach. With those, the row
+`node_rows::a_loop_through_a_node_names_both_its_ends` lists and
+carries at ε 1e-12. Its pin is removed, and so is the pin of
+`a_lemniscate_a_hundredth_across_is_listed_and_carried`, which also
+passes at 1e-12.
+
