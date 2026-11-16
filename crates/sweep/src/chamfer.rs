@@ -44,8 +44,10 @@
 //! take that clause per verb, and the fillet's rolling ball folds the
 //! same stored verdict on its own arms (it rests in the void on a
 //! concave chain — BLEND-4 for open chains, FILLET-H4 for closed rims).
-//! What stays outside is a MIXED corner, which is the run-out question
-//! rather than the convexity one.
+//! What stays outside is a mixed corner whose odd edge is requested
+//! with one other of its edges, or with both where a link is curved or
+//! the face the other two share leans off square to it: the mixed
+//! corner's own rule, not the convexity one.
 //!
 //! Everything else refuses typed and names itself: a curved support
 //! ([`crate::blend::BlendError::ChamferArmUnsupported`] — the chamfer over curved

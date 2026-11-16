@@ -3,7 +3,7 @@
 test-suite integrity
 
 Re-scoped 2026-09-20 by TINT's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size). Nothing dispatched: the two P1 slow-set reds closed with PR 6818 (2026-11-11).
 
 ## The slate
 
@@ -11,7 +11,9 @@ Re-scoped 2026-09-20 by TINT's priority-seam cut
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `test-utils-is-production-source-to-every-narrowing-gate` | D | test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts |
+| P1 | `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` | E | closed (PR 6818): the steeper tilts' union pinned a refusal's Debug text |
+| P1 | `bounds-census-stale-roster-lines` | E | closed (PR 6818): bounds_census's roster lagged a new sole-bracket door |
+| P3 | `test-utils-is-production-source-to-every-narrowing-gate` | M | test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts |
 | P3 | `C18` | D | Close the three residues of H12's own enumeration left open by #734, all coverage or prose |
 | P3 | `D380` | E | Rename the band-keyed test rows whose names assert the arm the default epsilon does not take |
 | P3 | `D381` | E | Pin RecipeEditRef::ForeignNode at both mid-evaluation doors of editor-core's shared name ladder |

@@ -127,95 +127,36 @@ pub const JOINT_SIGMA: f64 = 1.0e-2;
 /// neither always met nor never met.
 pub const POSITION_BOUND: f64 = 1.0e-3;
 
-/// **The widest box of this chain that certifies whole, as a fraction
-/// of the real study.**
+/// **The certified enclosure of each joint pin's centre over the WHOLE
+/// study** — `(half-width along the chain, half-width across it)`, in
+/// metres, pin 1 (the base) first.
 ///
-/// MEASURED by [`crate::chaintol`], not chosen: its module header
-/// carries the measurement and what bounds it. Named here because
-/// [`crate::mcchain`] draws it to scale, and a number a picture is
-/// built around should not be a literal buried in the drawing code.
-///
-/// **At the DEFAULT ε**, like every other measured number here: the
-/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
-/// reason `chaintol`'s header gives ("What sets the wall"). So the
-/// cell asks at every ε whether this published box still certifies
-/// there rather than reasoning about it.
-pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
-
-/// **The same measurement at 1, 2, 3 and 4 links** — one number in
-/// four spellings.
-///
-/// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
-/// `n` links, is `3.998e-4` m at two, three and four links alike. What
-/// that number IS, is half of [`PIN_RADIUS`] — a property of THIS
-/// document's geometry, not of the tier: the ratio is
-/// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
-/// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
-/// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
-/// radius. [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
-/// is capped by the study itself rather than by the wall, and sits at
-/// `0.450` of the radius.
-///
-/// (An earlier reading of this table said the constant thing was an
-/// ANGLE — "about 1.9° of accumulated swing, however many joints it is
-/// spread over". It is not: the swing doubles with the pin radius, to
-/// `3.81°`. The invariance across link counts is real; the angle was
-/// the shipped radius in disguise.)
-///
-/// MEASURED by [`crate::chaintol`] and pinned there;
-/// [`CERTIFIABLE_FRACTION`] is the last row.
-///
-/// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
-/// the last row of it.
-pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
-
-/// **The tip's certified lateral half-width, over the pin radius** —
-/// the same at every link count whose box the WALL sets, and the
-/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
-///
-/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
-/// there with a paste-ready re-baseline; it is not derived from the
-/// two constants beside it, because what it asserts is that those two
-/// stand in this ratio AT EVERY LINK COUNT, which neither of them
-/// says. The one-link chain is excluded on purpose: its box is the
-/// study, not the wall.
-///
-/// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
-
-/// **The certified enclosure of each joint pin's centre at that box**
-/// — `(half-width along the chain, half-width across it)`, in metres,
-/// pin 1 (the base) first.
-///
-/// MEASURED by [`crate::chaintol`] over the box
-/// [`CERTIFIABLE_FRACTION`] names, and pinned there. This is the
-/// certified half of the picture Ev asked for: an enclosure per link,
-/// growing down the chain, drawn by [`crate::mcchain`] beside the
-/// advisory cloud. It is named here for the same reason
-/// `CERTIFIABLE_FRACTION` is — a number a picture is built around
-/// should not be a literal buried in the drawing code — and it is
-/// ungated for the same reason too: the sheet is drawn in a default
+/// MEASURED by [`crate::chaintol`] over the analyzed box, `±3σ` at
+/// every joint, in one leaf, and pinned there: the whole study
+/// certifies at every link count, so this is not a narrowed box but the
+/// study itself. It is the certified half of the picture Ev asked for,
+/// drawn by [`crate::mcchain`] beside the advisory cloud, and named here
+/// so a number a picture is built around is not a literal buried in the
+/// drawing code; it is ungated because the sheet is drawn in a default
 /// build.
 ///
-/// **The across-the-chain half-widths run 1 : 3 : 6 : 10**, which is
-/// the lever sum at pin `k`, `Σ_{j=1..k−1} (k−j)` = `k(k−1)/2` — the
-/// WORST-CASE one, every joint at its own extreme at once — while the
-/// advisory σ at the same pins runs
+/// **The across-the-chain half-widths run 1 : 3 : 6 : 10**, the lever
+/// sum at pin `k`, `k(k−1)/2` — the WORST CASE, every joint at its own
+/// extreme at once — while the advisory σ at the same pins runs
 /// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
 /// linear sum and a root-sum-square is E11's subject, and on this
-/// document it is visible on the sheet rather than only in a report.
-/// The enclosures are TIGHT, not padded: `3.996e-5` m is exactly
-/// `L · 3σ_c · 1` at the certified box's own σ, to every digit the
-/// measurement carries. Along the chain they are microns: the sheet
-/// draws each side under `mcchain`'s pixel floor AT that floor,
-/// centred on the pin, says in its legend which sides are floored, and
-/// prints the true half-widths in its table.
+/// document it is visible on the sheet. The enclosures are TIGHT, not
+/// padded: pin 2's `3.599e-4` m is `L · sin 3σ` to the digits measured.
+/// Along the chain they are microns: the sheet draws each side under
+/// `mcchain`'s pixel floor AT that floor, centred on the pin, says in
+/// its legend which sides are floored, and prints the true half-widths
+/// in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (0.0, 0.0),
-    (6.653231802815351e-8, 3.995961969247516e-5),
-    (3.3266085237848575e-7, 1.198788590774255e-4),
-    (9.314487635844748e-7, 2.3975816125464358e-4),
-    (1.995959949908921e-6, 3.9959841242371446e-4),
+    (5.399512198630413e-6, 3.599432427966454e-4),
+    (2.6992701871137587e-5, 1.0795058087348878e-3),
+    (7.555916129959456e-5, 2.1580401500059846e-3),
+    (1.6185420901621006e-4, 3.5945756733878806e-3),
 ];
 
 /// **The pin's axis, read off the body the kernel built** — ONE rule,

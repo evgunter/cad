@@ -349,7 +349,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
     }
 }
 
-/// **A face's carrier and sense** — the stored surface the face is a
+/// **A face's stored surface and sense** — the surface the face is a
 /// region of, copied out whole, beside the face's orientation sense
 /// (`geom_brep::implicit_outward_normal` folds the two). A definitional
 /// re-read, as [`face_pose`] is: what a reader that cuts the carrier in
@@ -358,7 +358,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale face key.
-pub fn face_carrier<T: Real>(
+pub fn face_stored_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Surface<T>, bool), ReadbackError> {

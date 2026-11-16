@@ -71,3 +71,14 @@ The base six ray-wall pairs are owned by
 since 2026-10-28 (PR 5966), which also pins the row at today's 62.
 
 **The ray-wall twins row is no longer this row's (2026-11-06).** `curve_foot_branch` scales since PR 6349 and is not recorded since PR 6482; the row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
+
+**The slanted bores' pin no longer cites this row (GREEN `green/eps-1e-12`,
+2026-11-14).** From PR 6466 (`sectarms/cylinder-node-listing`, merge
+`c053873aa`) on, the 3° B ∖ A cell refuses its volume
+(`props_chart_junction_closed`) and does not reach the pieces probe;
+every other 3° cell refuses the same way. The pin names that refusal and
+cites NEARPOINT's
+`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12.md`.
+This row's `bisector_nodes` entry is therefore not what main produces.
+Whether the probe-ray exhaustion stands behind the volume refusal is
+unreadable until the refusal goes.

@@ -60,6 +60,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    NameCarrier::Const("SWEEP_STATION_ROLL"),
+    NameCarrier::Const("SWEEP_STATION_STILL"),
     // The loft's pinned rim is an identity over its control rows, read
     // by `geom_brep::ladder::read_identity` under this constant's name.
     NameCarrier::Const("LOFT_RIM_PINNED"),
@@ -141,7 +143,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),
     ("sweep_path_turn", PATH),
-    ("cap_plane_orientation", CAP),
+    ("sweep_station_roll", PATH),
+    ("sweep_station_still", PATH),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
@@ -154,8 +157,6 @@ const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveEr
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const PATH: &str = "the path sweep's station tangents, chords and turns, typed on `SkinError`";
-const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
-                   the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 
@@ -192,12 +193,20 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
+        BlendDecision::LinkBend,
+        sweep::blend::FILLET3_LINK_BEND_RECOURSE,
+    ),
+    (
         BlendDecision::KnifeEnd,
         sweep::blend::FILLET3_KNIFE_END_RECOURSE,
     ),
     (
         BlendDecision::KnifeRoom,
         sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
+        BlendDecision::BallRoom,
+        sweep::blend::FILLET3_BALL_ROOM_RECOURSE,
     ),
     (
         BlendDecision::RingClearance,
@@ -268,9 +277,10 @@ fn site_census() -> PredicateCensus {
 }
 
 /// **The census reads the closed decision tables as the types do**: the
-/// names the declared `Table` carriers add to the census are exactly the three types'
-/// `ALL` predicates, so the coverage row resolves a reference to one
-/// against the table itself.
+/// names the declared `Table` carriers add to the census, with the arms
+/// spelled through a `geom_brep` const ([`GEOM_BREP_ARMS`]), are exactly
+/// the three types' `ALL` predicates, so the coverage row resolves a
+/// reference to one against the table itself or geom-brep's census.
 #[test]
 fn the_census_reads_the_decision_tables_as_the_types_do() {
     let tables: Vec<NameCarrier> = CARRIERS
@@ -292,8 +302,32 @@ fn the_census_reads_the_decision_tables_as_the_types_do() {
         .chain(TubeDecision::ALL.iter().map(|d| d.predicate()))
         .map(str::to_string)
         .collect();
-    assert_eq!(read, want);
+    let elsewhere: BTreeSet<String> = GEOM_BREP_ARMS.iter().map(|n| (*n).to_string()).collect();
+    assert_eq!(
+        read.union(&elsewhere).cloned().collect::<BTreeSet<_>>(),
+        want,
+        "a table arm that spells no literal must be one of GEOM_BREP_ARMS"
+    );
+    assert!(
+        read.is_disjoint(&elsewhere),
+        "a GEOM_BREP_ARMS name is spelled as a literal in a table now — drop it from the list"
+    );
 }
+
+/// The blend table's arms that spell a `geom_brep` const rather than a
+/// literal: geom-brep's roster reads those consts as declared carriers,
+/// so the name is in the census union through it, not through this table.
+const GEOM_BREP_ARMS: &[&str] = &[geom_brep::DIHEDRAL_WEDGE, geom_brep::TANGENT_SECOND_ORDER];
+
+/// **Decisions that word one question `geom_brep` decides**, under its
+/// one name: the second-order separation of two faces meeting smoothly,
+/// at a contact edge the surgery describes and at a requested edge the
+/// wedge fold reads. One quantity, one population. Listed rather than
+/// read from the source: `BlendDecision::predicate` spells each name
+/// through a `geom_brep` constant, and nothing at run time says which
+/// arm is a `geom_brep` question; the assertion checks each pair shares.
+const SHARED_QUESTIONS: &[(BlendDecision, BlendDecision)] =
+    &[(BlendDecision::ContactSecondOrder, BlendDecision::LinkBend)];
 
 /// An escalation carrying `name`, its margin inside the run's band.
 fn escalation(name: Option<&'static str>) -> Indeterminate {
@@ -325,7 +359,9 @@ fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
 /// through theirs, so none may appear at a decide site as a literal:
 /// one that did would be a gate metered outside its closed type. Every other name is listed with its door, and a listed
 /// name nothing decides is a stale entry. The blend's names are
-/// distinct, since two decisions under one name would fuse two K rows.
+/// distinct, since two decisions under one name would fuse two K rows,
+/// except where two decisions word one `geom_brep` question
+/// ([`SHARED_QUESTIONS`]).
 #[test]
 fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
     let census = site_census();
@@ -335,9 +371,16 @@ fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
         census.names
     );
     let blend: BTreeSet<&str> = BlendDecision::ALL.iter().map(|d| d.predicate()).collect();
+    for (a, b) in SHARED_QUESTIONS {
+        assert_eq!(
+            a.predicate(),
+            b.predicate(),
+            "{a:?} and {b:?} word one question"
+        );
+    }
     assert_eq!(
         blend.len(),
-        BlendDecision::ALL.len(),
+        BlendDecision::ALL.len() - SHARED_QUESTIONS.len(),
         "two blend decisions share a k_stats name"
     );
     let listed: BTreeSet<&str> = OTHER_DOORS.iter().map(|(n, _)| *n).collect();
@@ -470,13 +513,14 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 
 /// The decisions that pass on a negative sign as well as a positive one:
 /// the convexity sign on either side, the material side either way, a
-/// knife's end either way (a cusp or a slit), and the contact edge's
-/// second-order separation on any definite sign.
+/// knife's end either way (a cusp or a slit), and the second-order
+/// separation of a contact edge or a link on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
     BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
+    BlendDecision::LinkBend,
 ];
 
 /// **No tolerance is offered where none decides the margin passing**,

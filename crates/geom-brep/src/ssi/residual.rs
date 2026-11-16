@@ -53,6 +53,9 @@ pub(crate) struct ImplicitForm {
     /// orthogonal to the axis, `e₁ = e₂ × e₀`, `e₂` the axis.
     frame: [Vec3<Interval>; 3],
     form: Form,
+    /// The stored surface's `f` at the frame's origin: zero, except on a
+    /// plane read at a pivot ([`ImplicitForm::lifted`]).
+    lift: Interval,
 }
 
 /// **The four forms**, their scalars as certification enclosures: the
@@ -187,7 +190,28 @@ impl ImplicitForm {
             origin: vector(Vec3::new(origin.x, origin.y, origin.z)),
             frame,
             form,
+            lift: Interval::point(0.0),
         })
+    }
+
+    /// **The plane read at a pivot, lifted onto its stored plane**: the
+    /// same form, with `lift` the stored plane's `f` at this one's
+    /// origin, so that `f + lift` is the stored plane's `f`
+    /// ([`ImplicitForm::plus_lift`]).
+    pub(crate) fn lifted(self, lift: Interval) -> Self {
+        Self { lift, ..self }
+    }
+
+    /// The stored surface's `f`, from this form's `f`: the value an
+    /// exact empty answer reads the sign of. A distance read against the
+    /// band reads this form's own `f`, its band padded by the lift.
+    pub(crate) fn plus_lift(&self, f: Interval) -> Interval {
+        f + self.lift
+    }
+
+    /// `lift` ([`ImplicitForm::lifted`]).
+    pub(crate) fn lift(&self) -> Interval {
+        self.lift
     }
 
     /// The form.
@@ -306,6 +330,16 @@ impl ImplicitForm {
         self.frame[0] * g.x + self.frame[1] * g.y + self.frame[2] * g.z
     }
 
+    /// `∇f` in world coordinates where it is the same at every point: the
+    /// plane's, the frame's third axis (its unit normal). `None` for a
+    /// curved form, whose gradient turns with the point.
+    pub(crate) fn constant_gradient(&self) -> Option<Vec3<Interval>> {
+        match self.form {
+            Form::Plane => Some(self.frame[2]),
+            Form::Cylinder { .. } | Form::Sphere { .. } | Form::Torus { .. } => None,
+        }
+    }
+
     /// An upper bound on `‖∇f‖` over the frame box `q`; `NaN` where it
     /// does not certify. The frame encloses an exactly orthonormal one,
     /// so the frame's coordinates carry the world length.
@@ -350,7 +384,7 @@ impl ImplicitForm {
         let over = self
             .form
             .meters()
-            .over(Interval::point(mag), rho, (0.0, 0.0), |lever| {
+            .over(Interval::point(mag), rho, (0.0, 0.0), |lever, _| {
                 if lever.is_certified() && lever.lo() > 0.0 {
                     Ok(lever)
                 } else {

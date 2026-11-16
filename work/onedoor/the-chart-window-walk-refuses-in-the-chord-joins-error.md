@@ -2,7 +2,8 @@
 id: the-chart-window-walk-refuses-in-the-chord-joins-error
 kind: issue
 title: "[topo.homes] chart_window, a shared reading, refuses in the chord join's SplitJoinError"
-status: open
+status: closed
+closed: 2026-11-13
 opened: 2026-11-03
 ---
 
@@ -18,3 +19,7 @@ Found by `onedoor/carrier-and-window` (2026-11-03), which moved the walk and lef
 The variants the walk raises are `Corrupt`, `Escalated`, `SectionInvariant`, `RunImageNotYet`, `RunImageIncidence`, `ApexUnlifted` and `PoleEdgesCoincide`; the last two are window-only. The question is whether the walk gets a `ChartWindowError` of its own, with `SplitJoinError` wrapping it at the chord join's island winding, which is the one reader that is the chord join. That change moves refusals, which is why it is a row and not part of the move.
 
 `corrupt_face`, the chord join's `SplitJoinError::Corrupt` constructor, is the walk's one other import from `chord_join` (`chart_window`'s `face_loop_azimuth_windows` and `face_azimuth_images`, for a face key that does not resolve); a `ChartWindowError` takes it with the rest.
+
+## Closed (ONEDOOR, 2026-11-13)
+
+Closed by PR 6900: `chart_window` keeps no walk and refuses in its own `ChartWindowError`, and the chord join maps a singular miss to `JoinError::SingularTurn`.

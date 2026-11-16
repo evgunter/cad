@@ -85,6 +85,8 @@ mod issue896_pole_guard;
 mod issue897_s65_cost;
 #[path = "k_funnel_composition.rs"]
 mod k_funnel_composition;
+#[path = "lift_probes.rs"]
+mod lift_probes;
 #[path = "lofted_circle.rs"]
 mod lofted_circle;
 #[path = "loops_the_meridian_guard_admits.rs"]
@@ -157,6 +159,8 @@ mod r2_mesh2_probes;
 mod r2_mesh6_probes;
 #[path = "r2_split_door.rs"]
 mod r2_split_door;
+#[path = "reach_probes.rs"]
+mod reach_probes;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]
@@ -173,6 +177,8 @@ mod review_m3_pr1_mesh;
 mod revolves;
 #[path = "sizing_theorem_rows.rs"]
 mod sizing_theorem_rows;
+#[path = "the_one_face_ball.rs"]
+mod the_one_face_ball;
 #[path = "wedge.rs"]
 mod wedge;
 

@@ -92,13 +92,19 @@ fn winding(body: &Body<f64>, lk: LoopKey) -> Option<Winding> {
     Some(Winding::of(elements?))
 }
 
-/// The loops whose elements wind them: a whole period, or a reset.
+/// The loops whose elements wind them a whole period.
 fn wrapping_loops(body: &Body<f64>) -> Vec<LoopKey> {
     anchors(body)
         .into_iter()
         .filter(|(lk, _)| winding(body, *lk).is_some_and(|w| !w.is_zero()))
         .map(|(lk, _)| lk)
         .collect()
+}
+
+/// Whether some joint of `body` carries first-channel periods: a turn
+/// at a pole or an apex, or a seam crossing.
+fn turns_somewhere(body: &Body<f64>) -> bool {
+    body.joints().any(|(_, element)| element.deck().u != 0)
 }
 
 /// What `loop_windings` answers for every face of `body`: each loop's
@@ -178,29 +184,29 @@ fn assert_reverted(label: &str, body: &Body<f64>) {
 }
 
 /// **The two-arc sphere and its door-built cavity.** Each sphere lune's
-/// loop resets at the pole, where its meridians meet; reversed, it reads
+/// loop turns at the pole, where its meridians meet; reversed, it reads
 /// the `NegativeVolume` alone, and its images are the cavity's bit for
 /// bit.
 #[test]
 fn reverted_sphere_and_its_cavity_report_only_the_complement() {
     let sphere = two_arc_sphere();
     assert!(
-        !wrapping_loops(&sphere).is_empty(),
-        "the sphere's lunes reset at the pole"
+        turns_somewhere(&sphere),
+        "the sphere's lunes turn at the pole"
     );
     assert_reverted("sphere", &sphere);
     assert_reverted("cavity", &door_cavity(&sphere, 0.05));
 }
 
 /// **A cone through its apex, the same way.** The apex is the cone's
-/// azimuth-free joint, and the wall's loop resets there as a sphere
+/// azimuth-free joint, and the wall's loop turns there as a sphere
 /// lune's does at the pole.
 #[test]
 fn reverted_apex_cone_reports_only_the_complement() {
     let cone = apex_cone();
     assert!(
-        !wrapping_loops(&cone).is_empty(),
-        "the cone wall's loop resets at the apex"
+        turns_somewhere(&cone),
+        "the cone wall's loop turns at the apex"
     );
     assert_reverted("cone", &cone);
 }

@@ -2,11 +2,13 @@
 id: the-side-reader-cannot-read-a-solids-orientation-over-a-box
 kind: issue
 title: The side reader cannot read a solid's orientation over a macroscopic box: every aimed ray's boundary margin blows up
-status: open
+status: closed
 opened: 2026-11-02
 priority: P0
-cost: H
+cost: M
 refs: [6371]
+branch: boxfinish/aimed-ray
+closed: 2026-11-15
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -54,3 +56,83 @@ not the box's. Unmeasured.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
+
+## Measured again (2026-11-14, main `b363f5fa`, switch off), and re-scoped to the ray
+
+BOXFINISH's M1 lane (`boxfinish/probe-switch-off`, `probe/M1-REPORT.md`).
+What the text above says is corrected here:
+
+- **The slab does not spend the 32-leaf budget and certify 0.** It
+  certifies in four leaves, by the volume. The margins quoted above are
+  not today's.
+- **The width has two sources, and this row keeps one.** The stored
+  plane normals carry the box
+  (`the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`).
+  The other is the ray's own construction, below.
+- **"Aim at exact points" alone is measured insufficient.**
+- **The tour's stop is not the side reader's.** It is check 1 on a
+  cylinder's `u_ref`, in the row just named. The derived-frame rows
+  refuse at the widened cube, which is the slab again.
+
+**The ray loses what it was built from** (`side_reader::aimed_ray`). On
+the slab's bottom cap the aim, the normal and `out` are exact (width
+1e-16), and still:
+
+- `beyond` is `[1.392, 1.544]`, so `from` is (0.04, 0.04, 0.30) wide;
+- `d = (aim − from).normalize()` is (0.026, 0.024, 0.204) wide, though
+  it equals `−out`;
+- the crossing point `p = from + d·t` is (0.23, 0.21, 1.80) wide,
+  though it equals the aim;
+- six `side_at_infinity_edge` gaps read `[0, 1.6..3.0]`, and the ray is
+  set aside on `side_at_infinity_winding`, `MarginDiag(Invalid)`, raised
+  by `turned_inside` over `loop_turn`'s atan2 sum (inferred: a box that
+  holds the origin).
+
+By hand substitution on the slab, normals as stored: the ray as built
+certifies in four leaves by the volume; with `d = −out`, four leaves by
+the rays (205 to 220 ms a leaf, against 465 to 540); with a ray
+constant across the box, two leaves by the rays (55 to 61 ms a leaf).
+With the normals substituted too, one leaf.
+
+**The unit.** An aimed ray keeps, across the box, what it is by
+construction: its direction is `−out`, and it meets its own face at its
+aim. **The test that says it is closed:** over the slab at the stored
+normals, the rays read at a width where every one is set aside today,
+and no ray reads a side it should not: a body whose side differs
+across the box still refuses. Branch `boxfinish/aimed-ray`.
+
+**Letter M; review tier: dual (sequential).** The side reader decides a
+solid's orientation at every at-rest gate, so an unsound ray is a live
+wrong answer, and its rays have been wrong before in ways a read of the
+diff did not show.
+
+## Closed (2026-11-15, PR 6958): the ray's half
+
+An aimed ray is the line through its aim along `−out`, started twice the
+reach behind it (`geom::Ray::starting`); it is no longer rebuilt from
+boxed ends. And an undecided ray-to-edge gap no longer reads as "the ray
+passes this edge": the ray is set aside (`solid_contain::edge_meets`),
+which the first review showed the first head needed.
+
+**What it delivers, measured.** Rays read where every ray was set aside:
+the door slab at depth 1 ± 0.025 reads by its bottom cap's ray and is
+taken; a fixture brick reads all six aims at ± 0.025. With the switch
+off, the ± 0.05 slab certifies in two half leaves by rays (four by the
+volume before); its root still bisects. No ray reads a side no member
+has, on every search two reviews ran.
+
+**What it does not deliver.** This row's first closing test (the slab
+certifying in one leaf, the boss's rungs, the tour's share) is not met by
+the ray alone. One of six rays reads at half the width; the rest are set
+aside because the door's stored normals and edge lines carry the box.
+That is held by:
+- `the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box`
+  (the stored normals and lines);
+- `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`
+  (the aim's step, the aimed face's advance, the loops' turn);
+- `a-curved-edges-straddling-gap-is-read-as-met-in-band-over-a-box`
+  (P0: the curved twin of the unsound reading, unreachable today);
+- `the-census-reads-an-edges-direction-off-its-two-ends` and
+  `an-undecided-same-side-overlap-records-nothing-in-the-aligned-face-pair-arm`.
+The three rows of the first closing test are re-run with the switch off
+once the extrude-mint row lands (`tier-3-at-every-box-replay-leaf-multiplies-the-decisions`).

@@ -100,8 +100,7 @@ fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
     let n = n.normalize();
     let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
     let m = Affine3::translation(NORTH - Point3::origin()) * turn_onto(n);
-    let moved =
-        topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap();
+    let moved = topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol())).unwrap();
     finished("the half-space", moved, tol())
 }
 
@@ -469,7 +468,7 @@ fn needle_and_block(
     .unwrap();
     let block = finished(
         "the block",
-        topo::transform_rigid(&block, &turn, tol()).unwrap(),
+        topo::transform_rigid(&block, &turn).unwrap(),
         tol(),
     );
     (

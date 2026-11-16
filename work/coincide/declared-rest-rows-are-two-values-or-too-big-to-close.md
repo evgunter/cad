@@ -29,3 +29,5 @@ Owed: for each row, which is it?
 
 Separate them with the probe. A row of kind (ii) belongs on SYM's
 slate, or is a reason for rung 1 to read the offset datum on its own.
+
+- 2026-11-14 — **The budget arm moved** (BOXFINISH `boxfinish/sweep-frames`): with a sweep's caps their sketch frames turned rather than Newell fits to boxed corners, the declared-rest plane rows' residuals fit the door's budget and come back read whole and not shown zero (recourse `OneConstruction`, not `Budget`): `coincidence_door::two_blocks_resting_on_one_floor_are_one_plane_at_their_bases`, `a_ring_serving_two_pierces_records_their_fusion_unproven` and `glue_on_zero_rows::a_flush_rest_glues_and_records_its_unproven_rows` re-pinned. So "too big to close" no longer holds on those rows; "two values" is what is left.

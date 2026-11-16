@@ -48,38 +48,12 @@ use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
-/// A tube's mass properties at f64, through the typed door wherever tier 3
-/// finishes the tube. The one refusal this file records is read through the
-/// raw door: at ε 1e-12, tier 3's volume check escalates on the major-1300
-/// case's tubes, hollow and solid (`VolumeUncomputable`), though the
-/// measurement converges
-/// (`work/spiricarm/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md`).
-/// Any other refusal panics.
-fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
+/// A tube's mass properties at f64, through the typed door.
+fn measured(body: &topo::Body<f64>) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
-    match topo::finish(topo::Body::clone(body), tol) {
-        Ok(finished) => topo::test_support::pinned_volume("props", &finished, tol),
-        Err(errors) => {
-            let named = major == 1300.0
-                && tol.get().eps == 1e-12
-                && errors
-                    .iter()
-                    .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. }));
-            assert!(
-                named,
-                "R={major}: tier 3 refuses the tube outside the case this file records: {errors:?}"
-            );
-            // Raw door: tier 3 refuses the major-1300 tube at ε 1e-12 (VolumeUncomputable), the one case the assert above admits.
-            topo::test_support::measure_unvalidated(
-                body,
-                tol,
-                topo::test_support::pinned_resolution(tol),
-            )
-            .expect("props")
-            .met()
-            .expect("the pinned resolution is met")
-        }
-    }
+    let finished = topo::finish(topo::Body::clone(body), tol)
+        .unwrap_or_else(|errors| panic!("tier 3 refuses the tube: {errors:?}"));
+    topo::test_support::pinned_volume("props", &finished, tol)
 }
 
 /// One case: major radius, outer minor radius, wall, and the window
@@ -87,8 +61,7 @@ fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
 type Case = (f64, f64, f64, Option<(f64, f64)>);
 
 /// None of them the unit fixture's, spanning ~2 decades of scale and
-/// a thin wall. The km-scale ring (R = 1300) this file's refusal arms
-/// record lies past the session box, and is not a case.
+/// a thin wall.
 const CASES: [Case; 4] = [
     (3.7, 0.9, 0.31, Some((-0.4, 2.9))),
     (0.02, 0.004, 0.0015, Some((0.1, 0.35))),
@@ -96,31 +69,13 @@ const CASES: [Case; 4] = [
     (0.02, 0.004, 0.0015, None),
 ];
 
-/// The ε rows a case is pinned to refuse at as limb 2's kernel limit:
-/// on the 1.3 km ring (outside the session box) an arc window's ends put
-/// meridian circles on the torus walls, which limb 2 bounds at about
-/// 5.4e-9 m, the torus composite's conditioning over the circles' own
-/// rounding
-/// (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
-/// past the band at the default ε and at 1e-12. A full period has no
-/// such circle, and builds at both.
-fn kernel_limit_rows(major: f64, window: Option<(f64, f64)>) -> &'static [f64] {
-    if major > 1e3 && window.is_some() {
-        &[1e-9, 1e-12]
-    } else {
-        &[]
-    }
-}
-
-/// The hollow tube, or `None` where it refuses, as it must, as the
-/// kernel limit at one of its case's rows ([`kernel_limit_rows`]).
-fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Option<Revolved<f64>> {
-    let window_arg = window;
+/// The hollow tube.
+fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Revolved<f64> {
     let window = match window {
         None => TubeWindow::Full,
         Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
     };
-    let got = tube_along_arc_hollow::<f64>(
+    tube_along_arc_hollow::<f64>(
         tube_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_z(),
@@ -132,38 +87,10 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
         outer,
         wall,
         Tol::witness(),
-    );
-    // The full-period 1.3 km ring at ε = 1e-12, pinned to refuse: the
-    // door finishes its result, and check 7's quadrature escalates there
-    // on the rim span's winding (`props_rim_span_winding`, in band),
-    // `VolumeUncomputable` alone. The P0 row
-    // `work/boxfinish/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
-    // is the reader that lifts it; this pin turns red when it lands.
-    if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
-        match &got {
-            Err(sweep::TubeError::Revolve(sweep::RevolveError::NotFinished { findings }))
-                if findings
-                    .iter()
-                    .all(|f| matches!(f, topo::ValidationError::VolumeUncomputable { .. })) =>
-            {
-                return None;
-            }
-            Ok(_) => panic!(
-                "the full 1.3 km hollow tube at ε 1e-12 is pinned to refuse VolumeUncomputable, \
-                 and it built: the hairline-revolve row landed, so lift this pin"
-            ),
-            Err(other) => panic!(
-                "the full 1.3 km hollow tube at ε 1e-12 is pinned to refuse VolumeUncomputable \
-                 alone: {other:?}"
-            ),
-        }
-    }
-    test_utils::kernel_limit::pinned(
-        got,
-        Tol::witness().eps(),
-        kernel_limit_rows(major, window_arg),
-        &format!("the hollow tube R {major} ro {outer} wall {wall} {window:?}"),
     )
+    .unwrap_or_else(|e| {
+        panic!("the hollow tube R {major} ro {outer} wall {wall} {window:?}: {e:?}")
+    })
 }
 
 fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
@@ -194,10 +121,8 @@ fn tori(body: &Body<f64>) -> Vec<(f64, f64)> {
 fn closed_forms_at_varied_geometry() {
     for (major, outer, wall, window) in CASES {
         let inner = outer - wall;
-        let Some(t) = hollow(major, outer, wall, window) else {
-            continue;
-        };
-        let props = measured(&t.body, major);
+        let t = hollow(major, outer, wall, window);
+        let props = measured(&t.body);
         let ring = outer * outer - inner * inner;
         let (v, a) = match window {
             Some((t0, t1)) => {
@@ -225,9 +150,7 @@ fn the_bore_differences_out_against_the_solid_door() {
     for (major, outer, wall, window) in CASES {
         let Some((t0, t1)) = window else { continue };
         let inner = outer - wall;
-        let Some(h) = hollow(major, outer, wall, window) else {
-            continue;
-        };
+        let h = hollow(major, outer, wall, window);
         let s = tube_along_arc::<f64>(
             tube_frame(
                 Point3::new(0.0, 0.0, 0.0),
@@ -241,8 +164,8 @@ fn the_bore_differences_out_against_the_solid_door() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let hp = measured(&h.body, major);
-        let sp = measured(&s.body, major);
+        let hp = measured(&h.body);
+        let sp = measured(&s.body);
         rel_close(
             sp.volume - hp.volume,
             (t1 - t0) * major * PI * inner * inner,
@@ -262,7 +185,7 @@ fn intent_bits_survive_adversarial_values() {
     let outer = 0.300_000_000_000_000_04;
     let wall = 0.1;
     for window in [None, Some((0.7, 3.3))] {
-        let t = hollow(major, outer, wall, window).expect("the hollow tube builds");
+        let t = hollow(major, outer, wall, window);
         let walls = tori(&t.body);
         assert_eq!(walls.len(), 4);
         let recovered = outer - wall; // the caller's own recovery
@@ -391,9 +314,7 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         if window.is_some() {
             continue;
         }
-        let Some(t) = hollow(major, outer, wall, window) else {
-            continue;
-        };
+        let t = hollow(major, outer, wall, window);
         assert_eq!(t.body.shells().count(), 2);
         assert_eq!(t.cavities.len(), 1);
         assert_ne!(t.cavities[0].shell, t.shell);
@@ -427,17 +348,6 @@ mod certified {
 
     use crate::common::interval::{iv, p3, v3};
 
-    /// MEASURED (this review, interval + ε = 1e-12): BOTH km-scale
-    /// cases (R = 1300) refuse typed in shared machinery — the
-    /// windowed one at the start cap's `newell_plane_residual`
-    /// (enclosure ±6.9e-12 vs a 1e-12 band, `Revolve(CapPlane {
-    /// Escalated .. })`), the full-period one at the attachment
-    /// gate's `interval_span_winding` (±1.16e-12). The row pins that
-    /// this is the SHARED envelope and not the hollow door's: when
-    /// the hollow door refuses a km case, the SOLID door must refuse
-    /// the same fixture too — red if the wall's extra loop ever
-    /// starts refusing where the solid door builds. The
-    /// tight-enclosure check runs on the cases inside the envelope.
     #[test]
     fn enclosures_contain_and_stay_tight() {
         for (major, outer, wall, window) in CASES {
@@ -461,72 +371,21 @@ mod certified {
                 iv(wall),
                 Tol::witness(),
             );
-            let eps = Tol::witness().eps();
-            let t = match built {
-                Ok(t) => t,
-                // The measured envelope edge (fn docs): km scale,
-                // sub-femto band, TYPED — and shared: the solid
-                // door must refuse the identical fixture.
-                // At the default ε too, the 1.3 km ring's torus walls bound
-                // past the band at the interval scalar: limb 2's kernel
-                // limit, the torus composite's conditioning
-                // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-                Err(e @ TubeError::Revolve(_))
-                    if major >= 1000.0
-                        && (eps <= 1e-12
-                            || test_utils::kernel_limit::is_kernel_limit_at(
-                                test_utils::kernel_limit::Scalar::Enclosure,
-                                &e,
-                            )) =>
-                {
-                    let solid = tube_along_arc::<Interval>(
-                        tube_frame(
-                            p3(0.0, 0.0, 0.0),
-                            v3(0.0, 0.0, 1.0),
-                            v3(1.0, 0.0, 0.0),
-                            Tol::witness(),
-                        ),
-                        iv(major),
-                        win,
-                        iv(outer),
-                        Tol::witness(),
-                    );
-                    assert!(
-                        matches!(solid, Err(TubeError::Revolve(_))),
-                        "R={major}: the hollow door refused but the solid door did not — \
-                         the refusal is NOT the shared machinery's envelope"
-                    );
-                    continue;
-                }
-                Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
-            };
+            let t = built.unwrap_or_else(|e| panic!("refusal at Interval for R={major}: {e}"));
             // The revolve's leaf at Interval is tier 2 alone
             // (`topo::AtRestPolicy::leaf`); the measurement finishes it.
-            let m = match topo::finish(topo::Body::clone(&t.body), Tol::witness()) {
-                Ok(finished) => topo::mass_properties(
-                    &finished,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness()),
-                )
-                .expect("props"),
-                Err(errors) => {
-                    assert!(
-                        major == 1300.0
-                            && window.is_none()
-                            && errors.iter().all(|e| {
-                                matches!(e, topo::ValidationError::OrientationUndecided { .. })
-                            }),
-                        "R={major} win={window:?}: tier 3 refuses the tube at Interval outside the case this row records: {errors:?}"
-                    );
-                    // Raw door: at Interval, tier 3 cannot decide the full-period major-1300 thin wall's orientation (OrientationUndecided), the one case the assert above admits.
-                    topo::test_support::measure_unvalidated(
-                        &t.body,
-                        Tol::witness(),
-                        topo::test_support::pinned_resolution(Tol::witness()),
+            let finished =
+                topo::finish(topo::Body::clone(&t.body), Tol::witness()).unwrap_or_else(|errors| {
+                    panic!(
+                        "R={major} win={window:?}: tier 3 refuses the tube at Interval: {errors:?}"
                     )
-                    .expect("props")
-                }
-            };
+                });
+            let m = topo::mass_properties(
+                &finished,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("props");
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

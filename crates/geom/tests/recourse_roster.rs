@@ -39,6 +39,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("off_as"),
     NameCarrier::Call("tube_half_as"),
     NameCarrier::Call("read_as"),
+    // `geom_core::k_stats::straddle`, the straddle door: it records under
+    // the name it is handed as `decide*` does, and the census reads no
+    // door but `decide*` (`work/onecopy/the-census-reads-no-prove-or-choose-call.md`).
+    NameCarrier::Call("straddle"),
 ];
 
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";

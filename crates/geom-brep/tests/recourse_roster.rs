@@ -61,13 +61,40 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    NameCarrier::Const("POSE_AXES_PARALLEL"),
+    NameCarrier::Const("POSE_AXIS_ALONG_PLANE"),
+    NameCarrier::Const("POSE_PLANES_FACING"),
+    NameCarrier::Const("POSE_PLANES_PARALLEL"),
+    NameCarrier::Const("POSE_ROUND_LARGER"),
+    NameCarrier::Const("POSE_ROUND_SIDE"),
+    NameCarrier::Const("TANGENT_GAP_ORIENTATION"),
+    NameCarrier::Const("GRADIENT_ALIGNMENT_LEVER"),
+    NameCarrier::Const("DIHEDRAL_WEDGE"),
+    NameCarrier::Const("TANGENT_SECOND_ORDER"),
+    NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    // The carrier ladder's data names, and each kind's reach row with
+    // its straddle row (`carrier_eq.rs`).
+    NameCarrier::Const("CARRIER_CONE_APEX"),
+    NameCarrier::Const("CARRIER_CONE_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CONE_HALF_ANGLE"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_OFFSET"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CYL_RADIUS"),
+    NameCarrier::Const("CARRIER_SPHERE_CENTER"),
+    NameCarrier::Const("CARRIER_SPHERE_RADIUS"),
+    NameCarrier::Const("CONE_REACH"),
+    NameCarrier::Const("CYL_REACH"),
+    NameCarrier::Const("PLANE_REACH"),
+    NameCarrier::Const("SPHERE_REACH"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("apart_in_order_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
+    NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
+    NameCarrier::Call("convexity"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
@@ -80,13 +107,15 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("old_pole_arc_full_as"),
     NameCarrier::Call("old_rim_only_closed_as"),
     NameCarrier::Call("old_span_as"),
-    NameCarrier::Call("pairing_reading_as"),
     NameCarrier::Call("reaches_edge_as"),
     NameCarrier::Call("plane_cone_section"),
     NameCarrier::Call("require_positive_as"),
     NameCarrier::Call("require_solid_angle_as"),
-    NameCarrier::Call("run_spiric_checks_as"),
+    NameCarrier::Call("gradient_alignment"),
+    NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
+    NameCarrier::Call("spline_point_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
@@ -162,10 +191,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("near_as"),
     NameCarrier::Call("normal_alignment"),
     NameCarrier::Call("off_as"),
-    NameCarrier::Call("pairing_of_normals"),
     NameCarrier::Call("positive_as"),
     NameCarrier::Call("radius_guard"),
     NameCarrier::Call("read_as"),
+    NameCarrier::Call("read_samples_as"),
     NameCarrier::Call("section_of"),
     NameCarrier::Call("sign_as"),
     NameCarrier::Call("spread_signs"),
@@ -187,6 +216,8 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name (`.turn()`, \
      `.straddle()`), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
+const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
+                             `cone_data`, whose names are declared consts";
 const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
                       forwards its caller's name";
 const CLOSED_TYPE: &str = "a closed type's `name()`, `floor()`, `straddle()` or `predicate()`, whose \
@@ -202,6 +233,12 @@ const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates,
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
+const FOLD_NAMES: &str = "a `FoldNames` field, whose names are read at its literals: \
+                          `FoldNames::SHAPE`'s declared consts here, a building reader's in its \
+                          own crate";
+const LOOP_ROWS: &str = "a `for (name, …) in [(\"lit\", …), …]` loop handing its binding to a \
+                         door, whose literals the census does not read \
+                         (`work/onecopy/the-census-reads-no-loop-over-a-literal-array-of-names.md`)";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
@@ -212,6 +249,16 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    ("carrier_eq.rs: coincident_over_extent_as: row", FORWARDS),
+    (
+        "carrier_eq.rs: coincident_over_extent_as: straddle",
+        FORWARDS,
+    ),
+    ("carrier_eq.rs: pair_door_reading: c1", CARRIER_CALL),
+    (
+        "carrier_eq.rs: read_identity#1(margins.iter().copied())",
+        IDENTITY_DATA,
+    ),
     (
         "pair_section/torus_arms.rs: reaches_edge_as: [(name, m)]",
         FORWARDS,
@@ -254,6 +301,11 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("curve_face/composite.rs: settle: row", CLOSURE_FORWARDS),
+    ("description.rs: harmonic_row: name", CLOSURE_FORWARDS),
+    (
+        "row_contact.rs: row_clear_of_singularities: name",
+        CLOSURE_FORWARDS,
+    ),
     ("curve_face/spline_face.rs: settle: row", CLOSURE_FORWARDS),
     ("curve_pair/on_surface.rs: decided: row", FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
@@ -264,11 +316,13 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
-    ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
+    ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
+    ("dihedral.rs: normals_alignment: name", FORWARDS),
     (
-        "dihedral.rs: classify_material_pairing_as: name",
-        CROSS_CRATE,
+        "carrier_pose.rs: directions_parallel: what.name()",
+        CLOSED_TYPE,
     ),
+    ("dihedral.rs: convexity: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
     ("dihedral.rs: decide_magnitude: name", FORWARDS),
     ("dihedral.rs: decide_magnitude_reported: name", FORWARDS),
@@ -276,10 +330,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_nonzero_reported: name", FORWARDS),
     ("dihedral.rs: decide_positive: name", FORWARDS),
     ("dihedral.rs: decide_reported: name", FORWARDS),
-    ("dihedral.rs: gate: name", FORWARDS),
-    ("dihedral.rs: pairing_of_normals: name", FORWARDS),
-    ("dihedral.rs: pairing_reading_as: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
+    ("edge_wedge.rs: after_positive: self.end", FOLD_NAMES),
+    ("edge_wedge.rs: edge_wedge_over_as: names.sign", FOLD_NAMES),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
         "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: Interval::from_bounds(0.0, 0.0)",
@@ -298,6 +351,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("edge_nurbs.rs: limb2_enclosure_as: predicate", FORWARDS),
     ("edge_nurbs.rs: measured_ends: end", NOT_A_NAME),
     ("edge_nurbs.rs: probe_pick: what", CARRIER_CALL),
+    ("edge_nurbs.rs: residual_nurbs_limbs: margin", NOT_A_NAME),
     (
         "enters.rs: enters_material_order2: Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm)",
         NOT_A_NAME,
@@ -397,7 +451,19 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("pair_section/ruling.rs: positive: row.name()", CLOSED_TYPE),
+    (
+        "pair_section/ruling.rs: a_spheres_discriminant_extremes_are_the_poses_reaches: x",
+        NOT_A_NAME,
+    ),
+    (
+        "pair_section/ruling.rs: a_loop_is_witnessed_at_the_near_ruling: x",
+        NOT_A_NAME,
+    ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
+    (
+        "pair_section/spline_implicit.rs: ray_of: name",
+        CLOSURE_FORWARDS,
+    ),
     (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
         NOT_A_NAME,
@@ -442,7 +508,6 @@ const INDIRECT: &[(&str, &str)] = &[
         "patch_bound.rs: patch_cells_across_creases: n",
         CARRIER_CALL,
     ),
-    ("pcurve_cache.rs: certify: spiric", CARRIER_CALL),
     ("pcurve_cache.rs: chart_incidence: name", FORWARDS),
     ("pcurve_cache.rs: check_residual_as: name", FORWARDS),
     ("pcurve_cache.rs: class_gate: name", FORWARDS),
@@ -458,8 +523,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache.rs: read_identity#2(data)", IDENTITY),
     ("pcurve_cache.rs: read_identity#3(gates)", IDENTITY),
     ("pcurve_cache.rs: read_shown: carrier", CARRIER_CALL),
-    ("pcurve_cache.rs: recertify: spiric", CARRIER_CALL),
-    ("pcurve_cache.rs: run_spiric_checks_as: name", FORWARDS),
+    ("pcurve_cache.rs: spiric_copies: name", LOOP_ROWS),
     (
         "pcurve_cache.rs: spiric_chart_pcurve: carrier",
         CARRIER_CALL,
@@ -468,6 +532,8 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurve_cache.rs: torus_oblique_circle: name",
         CLOSURE_FORWARDS,
     ),
+    ("pcurve_cache/closed_bound.rs: two_ovals: name", LOOP_ROWS),
+    ("pcurve_cache/closed_bound.rs: unit_winding: name", FORWARDS),
     (
         "pcurve_cache/envelope_lemma_fuzz.rs: cone_section: &plane",
         CARRIER_CALL,
@@ -486,7 +552,15 @@ const INDIRECT: &[(&str, &str)] = &[
         FORWARDS,
     ),
     (
+        "pcurve_cache/spline_incidence.rs: read_samples_as: name",
+        FORWARDS,
+    ),
+    (
         "pcurve_cache/spline_incidence.rs: spline_incidence_as: name",
+        FORWARDS,
+    ),
+    (
+        "pcurve_cache/spline_incidence.rs: spline_point_incidence_as: name",
         FORWARDS,
     ),
     ("props/closure.rs: loop_turns: name", CLOSURE_FORWARDS),
