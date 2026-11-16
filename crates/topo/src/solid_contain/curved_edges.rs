@@ -591,7 +591,7 @@ mod straddle_rows {
 #[allow(clippy::panic)]
 mod nearest_rows {
     use super::{Cross, Nearest, nearest};
-    use crate::boolean::solid_contain::{Mark, RayHit};
+    use crate::solid_contain::{Mark, RayHit};
     use crate::entity::FaceKey;
     use crate::ray_walk::RayFault;
     use crate::side_reader::MarkKind;

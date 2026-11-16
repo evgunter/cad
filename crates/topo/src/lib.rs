@@ -580,7 +580,7 @@ pub mod test_support {
     }
 
     /// How far each solid's aimed rays start from `aim`, over two
-    /// (`boolean::solid_contain`'s `selection_reach`): the reach's pins
+    /// (`solid_contain`'s `selection_reach`): the reach's pins
     /// read its scale.
     pub fn aim_reach(
         body: &Body<f64>,
