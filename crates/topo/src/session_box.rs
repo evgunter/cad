@@ -137,7 +137,8 @@ mod tests {
     #[test]
     fn tier_3_prime_refuses_a_body_past_the_session_box_as_tier_3_does() {
         let tol = Tol::witness();
-        let records = crate::boolean::ContactRecords::default();
+        // No contact record: the door's own signature names the type.
+        let records = Default::default();
         let far = brick::<f64>((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let errors = crate::validate::validate_pseudomanifold(&far, &records, tol).unwrap_err();
         assert!(
