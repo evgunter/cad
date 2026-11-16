@@ -2305,6 +2305,29 @@ fn read_references(files: &[(String, String)], all_test: bool) -> References {
     out
 }
 
+/// An item's text past its visibility, whichever it is: none, `pub`,
+/// or a restricted `pub(crate)`, `pub(super)`, `pub(in path)`.
+///
+/// A reader that asks what an item IS (a `mod`, a `fn`) asks it of this,
+/// so the answer does not depend on who may name the item.
+pub fn after_visibility(item: &str) -> &str {
+    let item = item.trim_start();
+    let Some(rest) = item.strip_prefix("pub") else {
+        return item;
+    };
+    let after = rest.trim_start();
+    if let Some(inner) = after.strip_prefix('(') {
+        return inner
+            .split_once(')')
+            .map_or(item, |(_, tail)| tail.trim_start());
+    }
+    // `pub` is a visibility only as a whole word: `public_thing` is not.
+    if after.len() == rest.len() && !rest.is_empty() {
+        return item;
+    }
+    after
+}
+
 /// The byte ranges of the test-only items in a blanked view: those
 /// under `#[cfg(test)]` or `#[cfg(any(test, …))]` (a test-support
 /// feature beside `test`).
@@ -2372,9 +2395,7 @@ fn test_mounted(files: &[(String, String)]) -> Vec<String> {
                 }
                 item = skip_ws(&bare, close + 1);
             }
-            let decl = bare[item..extent.end].trim();
-            let decl = decl.strip_prefix("pub(crate) ").unwrap_or(decl);
-            let decl = decl.strip_prefix("pub ").unwrap_or(decl);
+            let decl = after_visibility(bare[item..extent.end].trim());
             if let Some(name) = decl
                 .strip_prefix("mod ")
                 .and_then(|rest| rest.trim().strip_suffix(';'))
@@ -2848,6 +2869,39 @@ mod tests {
         boundary_after, boundary_before, code_and_literals, code_only, comments_only,
         file_module_decls, item_body, keeping, top_level_split, where_at,
     };
+
+    /// An item is read past ANY visibility, and a word that only starts
+    /// with `pub` is not one; a test-only mount is found at each.
+    #[test]
+    fn an_item_is_read_past_any_visibility() {
+        for (item, want) in [
+            ("mod a;", "mod a;"),
+            ("pub mod a;", "mod a;"),
+            ("pub(crate) mod a;", "mod a;"),
+            ("pub(super) mod a;", "mod a;"),
+            ("pub(in crate::b) fn f() {}", "fn f() {}"),
+            ("public_thing()", "public_thing()"),
+        ] {
+            assert_eq!(super::after_visibility(item), want, "{item}");
+        }
+        for vis in [
+            "",
+            "pub ",
+            "pub(crate) ",
+            "pub(super) ",
+            "pub(in crate::b) ",
+        ] {
+            let files = [(
+                "src/a.rs".to_string(),
+                format!("#[cfg(test)]\n{vis}mod rows;\n{vis}mod shipped;\n"),
+            )];
+            assert_eq!(
+                super::test_mounted(&files),
+                ["src/a/rows"],
+                "`{vis}mod rows;`"
+            );
+        }
+    }
 
     /// The keyword, not the letters: an identifier that contains
     /// `where` at either end is stepped over, and the answer is the

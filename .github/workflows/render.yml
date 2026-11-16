@@ -727,6 +727,12 @@ jobs:
       # self-test (and the provenance guard's and the uv composer's,
       # which it leans on) runs before any lane can: a failure here
       # leaves tour_ok unset, and no lane renders or publishes.
+      # This job's interpreter, for every `python3` below it: the self-tests
+      # here and the venv render-wild.sh builds, whose scripts pin 3.12 only
+      # on their `uv` branch and otherwise take whatever `python3` is on PATH.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: render tooling self-tests
         run: |
           python3 demos/publish_lane.py --selftest
@@ -1122,6 +1128,11 @@ jobs:
       # ONE INSTALL FOR BOTH LANES since the merge — and note that the two
       # wedges above happened on two separate runners, so a merged job has
       # one exposure to this where the matrix had two.
+      # The venv's interpreter: render.sh's fallback takes whatever
+      # `python3` is on PATH, so it is chosen here.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: renderer system deps (software GL + Xvfb + venv)
         timeout-minutes: 8
         run: |

@@ -368,9 +368,9 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
 }
 
 /// **Near-limit radii refuse typed.** `s ≤ r` is predicate 3's
-/// refusal; an infeasible ball (no spine circle at all) escalates on
-/// the poisoned margin; a trim circle reaching the bore is predicate
-/// 2's `FaceClearanceUncertified` — the exact pair family deviation 2
+/// refusal; an infeasible ball (no spine circle at all) refuses
+/// `BallDoesNotFit` on the offsets' room; a trim circle reaching the
+/// bore is predicate 2's `FaceClearanceUncertified` — the exact pair family deviation 2
 /// says the consumption sweep meters for annulus rims. None of them
 /// may panic, succeed, or mint silent geometry.
 #[test]
@@ -386,16 +386,25 @@ fn near_limit_radii_refuse_typed() {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
-    // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
-    // margin escalates (or refuses through an earlier predicate) —
-    // loudly either way.
+    // r = 0.51 > R/2 on a plane through the sphere's centre: no spine
+    // circle exists, and the room `R − 2r` says so before any arm reads
+    // a root of it.
     match fillet_edges(&body, &[rim], 0.51, tol()).map_err(|r| r.error) {
-        Err(
-            BlendError::Escalated { .. }
-            | BlendError::SpineIrregular { .. }
-            | BlendError::FaceClearanceUncertified { .. },
-        ) => {}
-        other => panic!("an infeasible ball must refuse loudly, got {other:?}"),
+        Err(BlendError::BallDoesNotFit { margin, radius, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_ball_room");
+            assert_eq!(margin.sign, geom_core::Sign::Negative);
+            let m = margin
+                .reading
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin");
+            assert!(
+                (m - (1.0 - 2.0 * 0.51)).abs() < 1e-12,
+                "room R − 2r, got {m}"
+            );
+            assert!((radius - 0.51).abs() < 1e-15);
+        }
+        other => panic!("an infeasible ball must refuse that it does not fit, got {other:?}"),
     }
     // The narrow-bore zone: at r = 0.35 the bottom trim circle's
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.

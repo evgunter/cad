@@ -95,6 +95,7 @@ use geom_core::{
 };
 
 use super::SplitPlane;
+use crate::chord_join::OrderDecision;
 use crate::validate::decide;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
@@ -190,11 +191,21 @@ pub(super) fn in_plane_frame<T: Decide>(
 
 /// The frame gate's row: a schedule member's in-plane fraction, levered
 /// by the points' spread.
-pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
+const FRAME_ARM: &str = "split_join_frame_arm";
 
 /// The axis-plane test's row: a component of the plane's normal,
 /// levered by the points' spread ([`axis_plane`]).
-pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
+const FRAME_AXIS: &str = "split_join_frame_axis";
+
+/// Which of the order's decisions `diag` escalated, by the predicate
+/// this module decided it under.
+pub(super) fn decision_of(diag: &Indeterminate) -> OrderDecision {
+    match diag.predicate {
+        Some(FRAME_AXIS) => OrderDecision::FrameAxis,
+        Some(FRAME_ARM) => OrderDecision::FrameArm,
+        _ => OrderDecision::Points,
+    }
+}
 
 /// Whether the unit normal `n` is a coordinate axis: two of its
 /// components exactly zero (**`split_join_frame_axis`**, at the exact
@@ -501,8 +512,11 @@ mod tests {
                     vec![diag],
                     "{label}, {spread}: once on the frame"
                 );
-                let said = crate::chord_join::SplitJoinError::OrderEscalated { diag }
-                    .render(geom_brep::recourse::Reading::Build);
+                let said = crate::chord_join::JoinError::OrderEscalated {
+                    decision: decision_of(&diag),
+                    diag,
+                }
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
                         && said.ends_with(&format!(
@@ -607,8 +621,11 @@ mod tests {
         );
         let err = in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact).unwrap_err();
         assert_eq!(err.predicate, Some(FRAME_AXIS));
-        let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }
-            .render(geom_brep::recourse::Reading::Build);
+        let said = crate::chord_join::JoinError::OrderEscalated {
+            decision: decision_of(&err),
+            diag: err,
+        }
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             said,
             format!(

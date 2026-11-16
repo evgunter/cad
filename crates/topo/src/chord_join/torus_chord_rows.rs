@@ -54,7 +54,7 @@ fn loops(
 fn pick(
     (loops, split): &([SectionCurve<f64>; 2], LoopSplit<f64>),
     sites: [Point3<f64>; 2],
-) -> Result<SectionCurve<f64>, SplitJoinError> {
+) -> Result<SectionCurve<f64>, JoinError> {
     section_loop(
         FaceKey::default(),
         loops.clone(),
@@ -119,9 +119,9 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
     let d = torus(2.0, 0.5);
     let two = loops(&plane(Point3::origin(), Vec3::unit_x()), &d, 3.0);
     let (c1, c2) = (Point3::new(0.0, 0.5, 2.0), Point3::new(0.0, 0.5, -2.0));
-    let invariant = |got: Result<SectionCurve<f64>, SplitJoinError>, what: &str| {
+    let invariant = |got: Result<SectionCurve<f64>, JoinError>, what: &str| {
         assert!(
-            matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+            matches!(got, Err(JoinError::SectionInvariant { .. })),
             "{what}: {:?}",
             got.map(|c| c.carrier().clone())
         );
@@ -134,10 +134,7 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
     let b = band();
     let between = Point3::new(0.0, 0.3, (b.zero() + b.escalate()) / 2.0);
     assert!(
-        matches!(
-            pick(&two, [between, c1]),
-            Err(SplitJoinError::Escalated { .. })
-        ),
+        matches!(pick(&two, [between, c1]), Err(JoinError::Escalated { .. })),
         "a site in the escalation band escalates"
     );
 }
@@ -232,7 +229,7 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
         assert!(
             matches!(
                 got,
-                Err(SplitJoinError::Section { .. } | SplitJoinError::Escalated { .. })
+                Err(JoinError::Section { .. } | JoinError::Escalated { .. })
             ),
             "R = {big_r}, r = {r}: a stand-off and a lean of 0.9 bands each are served"
         );

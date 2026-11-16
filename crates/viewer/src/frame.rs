@@ -2570,61 +2570,173 @@ pub fn product_recourse(
     }
 }
 
-/// **What the selection says about the copy it is on, and the steps it
-/// offers** (Ev, PR 6353), read off the committed document:
+/// **One row of what the selection says about placements**
+/// ([`placement_offers`]): the fact it states, and the step beside it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacementOffer {
+    /// The fact: "bracket (2 copies) copies B, which this body is built
+    /// on".
+    pub said: String,
+    /// The button's label: "Re-point bracket onto G".
+    pub label: String,
+    /// What the button does.
+    pub op: SessionOp,
+}
+
+/// **What the selection says about the copies it is on or built on, and
+/// the steps it offers** (Ev, PR 6353 and PR 6915), read off the
+/// committed document, one row per fact:
 /// - a pick on a placed copy, or a body built on one, is said to be on
 ///   that placed copy, with a button to its original body
 ///   ([`crate::world::built_on_copy`]);
-/// - a body built on a body picked as itself, where placements read that
-///   body, offers to re-point them onto it, as one explicit step
-///   ([`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+/// - a body that reads, at any depth, as a body, one that placements
+///   read through a source says so of each source, with a button that
+///   redefines the source onto it (`bracket = G`;
+///   [`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///   A source defined as another source follows it and has no row.
 ///
-/// The sentence, where there is one, then each button's label and op.
+/// Both read off one walk ([`crate::world::placement_reading`]).
 pub fn placement_offers(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
-) -> (Option<String>, Vec<(String, SessionOp)>) {
+    tol: pncad::geom_core::Tol,
+) -> Vec<PlacementOffer> {
     let by = Speaker::of(doc);
-    let mut said = None;
-    let mut offers = Vec::new();
-    let on_copy = crate::world::copy_source(doc, node, 0)
-        .is_some()
-        .then(|| (node, crate::world::original_of(doc, node)))
-        .or_else(|| crate::world::built_on_copy(doc, node));
-    if let Some((copy, original)) = on_copy {
-        said = Some(if copy == node {
-            format!(
-                "a placed copy of {}: a feature on it belongs to this copy alone",
-                by.node(original)
-            )
-        } else {
-            format!(
-                "on the placed copy {} of {}: it belongs to that copy alone",
-                by.node(copy),
-                by.node(original)
-            )
-        });
-        offers.push((
-            format!("Go to the original body, {}", by.node(original)),
-            SessionOp::Select(crate::session::Selection::Node(original)),
-        ));
+    let offer = match crate::world::placement_reading(doc, node, tol) {
+        None => return Vec::new(),
+        Some(crate::world::PlacementReading::Offer(offer)) => offer,
+        Some(crate::world::PlacementReading::OnCopy { copy, original }) => {
+            let said = if copy == node {
+                format!(
+                    "a placed copy of {}: a feature on it belongs to this copy alone",
+                    by.node(original)
+                )
+            } else {
+                format!(
+                    "on the placed copy {} of {}: it belongs to that copy alone",
+                    by.node(copy),
+                    by.node(original)
+                )
+            };
+            return vec![PlacementOffer {
+                said,
+                label: format!("Go to the original body, {}", by.node(original)),
+                op: SessionOp::Select(crate::session::Selection::Node(original)),
+            }];
+        }
+    };
+    offer
+        .rows
+        .into_iter()
+        .map(|row| {
+            let said = repointed(by, doc, row.source, &row.placements);
+            PlacementOffer {
+                said: format!(
+                    "{} copies {}, which this body is built on",
+                    said.counted,
+                    by.read(row.body)
+                ),
+                label: repoint_label(&said.named, &by.node(node).to_string()),
+                op: SessionOp::RepointPlacements {
+                    source: row.source,
+                    onto: node.into(),
+                },
+            }
+        })
+        .collect()
+}
+
+/// **The source a re-point redefines, as the offer's sentence and a
+/// re-point button say it** ([`repointed`]).
+struct Repointed {
+    /// In the sentence: `bracket (2 copies)`, or `the copy C1` for an
+    /// anonymous source.
+    counted: String,
+    /// On the button: `bracket`, or `the copy C1`.
+    named: String,
+}
+
+/// [`Repointed`] of `source`, which `placements` read.
+fn repointed(
+    by: Speaker<'_>,
+    doc: &Doc<ProfileProgram>,
+    source: pncad::document::VarId,
+    placements: &[RecipeNodeId],
+) -> Repointed {
+    match doc.var_name(source) {
+        Some(name) => {
+            let count = placements.len();
+            let plural = if count == 1 { "y" } else { "ies" };
+            Repointed {
+                counted: format!("{name} ({count} cop{plural})"),
+                named: name.to_string(),
+            }
+        }
+        None => {
+            let copy = placements
+                .first()
+                .map_or_else(|| by.read(source), |&copy| by.node(copy).to_string());
+            let named = format!("the copy {copy}");
+            Repointed {
+                counted: named.clone(),
+                named,
+            }
+        }
     }
-    if let Some(offer) = crate::world::repoint_offer(doc, node) {
-        let count = offer.placements.len();
-        let plural = if count == 1 { "" } else { "s" };
-        offers.push((
-            format!(
-                "Re-point the {count} placement{plural} of {} onto {}",
-                by.read(offer.body),
-                by.node(node)
-            ),
-            SessionOp::RepointPlacements {
-                body: pncad::document::Operand::Var(offer.body),
-                onto: node,
-            },
-        ));
+}
+
+/// **The one verb of a re-point button**: "Re-point bracket onto G".
+fn repoint_label(what: &str, onto: &str) -> String {
+    format!("Re-point {what} onto {onto}")
+}
+
+/// What a re-point button with no body selected says it waits for.
+pub const SELECT_A_BODY_TO_RE_POINT_ONTO: &str = "select the body to re-point onto";
+
+/// **A re-point button of a named source's row or a placement's "copy
+/// of" row** ([`repoint_button`]): its label, and what it does or why it
+/// is disabled.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepointButton {
+    /// "Re-point bracket onto G", in the offer's verb.
+    pub label: String,
+    /// The re-point, or why it is disabled: the refusal's own words, or
+    /// [`SELECT_A_BODY_TO_RE_POINT_ONTO`] with no body selected.
+    pub op: Result<SessionOp, String>,
+}
+
+/// **The button that re-points `source` onto the selected body `onto`**
+/// ([`SessionOp::RepointPlacements`]), asking the check the offer's rows
+/// ask ([`crate::world::repoint_check`]), so a re-point the offer withholds
+/// is a disabled button here, saying why.
+pub fn repoint_button(
+    doc: &Doc<ProfileProgram>,
+    source: pncad::document::VarId,
+    onto: Option<RecipeNodeId>,
+    tol: pncad::geom_core::Tol,
+) -> RepointButton {
+    let by = Speaker::of(doc);
+    let said = repointed(
+        by,
+        doc,
+        source,
+        &crate::world::placements_of_var(doc, source),
+    );
+    let Some(node) = onto else {
+        return RepointButton {
+            label: repoint_label(&said.named, "the selected body"),
+            op: Err(SELECT_A_BODY_TO_RE_POINT_ONTO.to_owned()),
+        };
+    };
+    RepointButton {
+        label: repoint_label(&said.named, &by.node(node).to_string()),
+        op: crate::world::repoint_check(doc, source, node, tol)
+            .map(|()| SessionOp::RepointPlacements {
+                source,
+                onto: node.into(),
+            })
+            .map_err(|refusal| crate::shown(&refusal)),
     }
-    (said, offers)
 }
 
 /// **What the chrome badges about the δ the display budget chose**,

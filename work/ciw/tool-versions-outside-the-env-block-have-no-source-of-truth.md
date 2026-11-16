@@ -58,3 +58,22 @@ hosted gate's reach either way.
 ## Re-homed to CIW (2026-09-28)
 
 Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+
+## Population 2 bit, and has two more copies (GREEN `green/nightly-1115`, PR 6985, 2026-11-15)
+
+The render lanes went red on 2026-11-14 on exactly this: `render.yml`
+set up no interpreter, `demos/render.sh` and `demos/render-wild.sh` pin
+3.12 only on their `uv` branch, and a hosted runner has no `uv`, so the
+venv was built on the image's `python3`. When `ubuntu-latest` moved from
+24.04 to 26.04 between the nightlies of 11-13 and 11-14 (run
+43371638371: image `ubuntu-24.04`, cp312 wheels; run 43561237293: image
+`ubuntu-26.04`, sdists built on 3.14) the pinned `matplotlib==3.10.3`
+recursed without bound in `Path.__deepcopy__` under 3.14.
+
+PR 6985 adds `actions/setup-python` at `"3.12"` to both render jobs.
+That is a fourth and fifth literal copy of the interpreter pin, beside
+`ci.yml`'s and `nightly.yml`'s `python` jobs and the hook. The scripts'
+own fallback (`python3 -m venv`) still takes whatever `python3` is on
+PATH, so a developer box without `uv` on 3.14 hits the same recursion.
+`runs-on: ubuntu-latest` is the same class one level up: every job in
+the three workflows floats with the label.

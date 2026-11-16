@@ -856,7 +856,6 @@ pub(crate) mod tests {
             crate::transform_rigid(
                 &block,
                 &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)).unwrap(),
-                tol,
             )
             .expect("a rigid move of a cube"),
             tol,

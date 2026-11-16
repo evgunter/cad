@@ -38,7 +38,8 @@ What remains is the refusal:
 ## The likely fix
 
 Read a closed channel's boxes across the seam, the chart continued a
-period on (the copies `spline_region` already reads a query at), so a
+period on (the copies the spline trim already reads a query at,
+`topo/src/spline_trim.rs` `Trim::copies`), so a
 box straddling the seam is two windows of one box. On an open chart's
 edge, isolate the end's meeting on the chart continued past its domain
 (its end Bézier cells' polynomials), or accept a floor box decided

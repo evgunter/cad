@@ -249,21 +249,45 @@ pub(super) fn walk<P: crate::ProfilePayload>(
 /// face, an edge or a vertex read at its node ([`Headed`]) — takes the
 /// one vocabulary.
 pub fn member_of<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Member> {
+    walked(doc, head).map(|w| w.member)
+}
+
+/// [`walk`] from `head`: its name at its node, or, for a head reading
+/// one member of a family (`xs[i]`), the family's name for that member's
+/// entity ([`member_spelling`]). `None` where the walk refuses.
+fn walked<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Walk> {
     let (at, name) = head.head();
-    walk(doc, at, name).ok().map(|w| w.member)
+    let spelled;
+    let name = match head.member() {
+        [] => name,
+        member => {
+            spelled = member_spelling(doc, at, member, name)?;
+            &spelled
+        }
+    };
+    walk(doc, at, name).ok()
 }
 
 /// **A reference the member walk starts from**: the node it is read at
 /// and its name — a mate head ([`crate::node::SitedFace`]) or a
-/// reference of any entity kind ([`crate::node::SitedRef`]).
+/// reference of any entity kind ([`crate::node::SitedRef`]) — and the
+/// member of the node's family it reads, if any.
 pub trait Headed {
     /// The node the name is read at, and the name.
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName);
+    /// The member of the family at the head's node it reads, by its
+    /// index values (`xs[i]`); empty for the node's own body.
+    fn member(&self) -> &[u32] {
+        &[]
+    }
 }
 
 impl Headed for crate::node::SitedFace {
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
         (self.at, &self.name)
+    }
+    fn member(&self) -> &[u32] {
+        &self.member
     }
 }
 
@@ -276,6 +300,9 @@ impl Headed for crate::node::SitedRef {
 impl<H: Headed> Headed for &H {
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
         (**self).head()
+    }
+    fn member(&self) -> &[u32] {
+        (**self).member()
     }
 }
 
@@ -291,9 +318,7 @@ pub fn member_reading<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<(Member, crate::names::StableName)> {
-    walk(doc, head.at, &head.name)
-        .ok()
-        .map(|w| (w.member, w.placed))
+    walked(doc, head).map(|w| (w.member, w.placed))
 }
 
 /// **The face of the member's source a side names** — the side walked
@@ -306,7 +331,52 @@ pub fn head_face<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<crate::FaceName> {
-    walk(doc, head.at, &head.name).ok()?.part_face()
+    walked(doc, head)?.part_face()
+}
+
+/// **A name read in `body`, as the table of the variable it reads
+/// spells it**: itself for a plain read; for one member of a family
+/// (`xs[i]`, REFERENCES DM3), [`member_spelling`] at the index values
+/// the read writes — counts written in the document, never evaluated
+/// ([`crate::edit::written_member`]). `None` where an index is no
+/// written count or the read is not at its family's rank.
+pub(crate) fn spelled_whole<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    body: &crate::BodyRead<crate::VarId>,
+    name: &crate::names::StableName,
+) -> Option<crate::names::StableName> {
+    if !body.is_indexed() {
+        return Some(name.clone());
+    }
+    let values = crate::edit::written_member(doc, body)?;
+    member_spelling(doc, doc.operation_of(body.read)?, &values, name)
+}
+
+/// **The family's name for an entity of one of its members**: the
+/// member's own name `name` under the `Member` qualifier at the values
+/// `member` of the indices the family `at` reaches, in order — how the
+/// family's table, and every body built from the family, names the
+/// entity. The one spelling of a member read as a name, which the
+/// member walk reads; `None` where `member` is not one value per index
+/// of the family.
+pub(crate) fn member_spelling<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    at: RecipeNodeId,
+    member: &[u32],
+    name: &crate::names::StableName,
+) -> Option<crate::names::StableName> {
+    let chain = doc.node_reach(at).chain()?.to_vec();
+    if chain.len() != member.len() {
+        return None;
+    }
+    Some(crate::names::StableName {
+        kind: name.kind,
+        node: at,
+        path: vec![RoleSeg::Member {
+            at: chain.into_iter().zip(member.iter().copied()).collect(),
+            of: crate::names::NameRef::new(name.clone()),
+        }],
+    })
 }
 
 /// **A mate side's head, read off its selection** (D10): the node whose
@@ -318,14 +388,46 @@ pub fn head_face<P: crate::ProfilePayload>(
 /// in, was deleted, or it holds a name of another kind. Each is the
 /// mate's evaluation's refusal in its own words (the read's
 /// `UnresolvedRead`, the selection's `SelectKind`).
-pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::SitedFace> {
+///
+/// A side reading one member of a family (`xs[i]`, REFERENCES DM3)
+/// names the member's own face, and its head says so natively: the
+/// family's operation, the index values the side's read writes, and
+/// that own face ([`crate::node::SitedFace::in_member`]) — counts
+/// written in the document, never evaluated (`edit::selection_body_fault`).
+/// The walk reads it under the family's spelling ([`Headed::member`]);
+/// it lowers back to the side's own read, `xs[i]` by the own name.
+/// `None` where an index is no written count.
+pub fn head_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    side: crate::VarId,
+) -> Option<crate::node::SitedFace> {
     let select = doc.selection(side)?;
     let [name] = select.names.as_slice() else {
         return None;
     };
+    let at = doc.operation_of(select.body.read)?;
     let name = crate::FaceName::new(name.clone()).ok()?;
-    Some(crate::node::SitedFace::new(
-        doc.operation_of(select.body)?,
-        name,
-    ))
+    match select.body.is_indexed() {
+        false => Some(crate::node::SitedFace::new(at, name)),
+        true => {
+            let member = crate::edit::written_member(doc, &select.body)?;
+            Some(crate::node::SitedFace::in_member(at, member, name))
+        }
+    }
+}
+
+/// **A head's face as the table of the node it is read at spells it**:
+/// its own name for a body's head; for a member's, [`member_spelling`] —
+/// the family's name for that member's face, which a body built from
+/// the family (an instance's copy) carries. A name, never a side to
+/// author: a split's crossing records it. `None` where the member is
+/// not one value per index of the family.
+pub(crate) fn spelled_head<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<crate::names::StableName> {
+    match head.member.as_slice() {
+        [] => Some((*head.name).clone()),
+        member => member_spelling(doc, head.at, member, &head.name),
+    }
 }

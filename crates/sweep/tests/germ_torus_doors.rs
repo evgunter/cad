@@ -952,7 +952,6 @@ fn two_tori_meeting_in_an_oval_are_not_an_assembly() {
             &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the donut translates");
     let far = finished("the far donut", far, Tol::witness());
@@ -1240,7 +1239,6 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
             &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the donut translates");
     let far = finished("the far donut", far, Tol::witness());

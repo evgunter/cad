@@ -4,6 +4,8 @@ kind: issue
 title: chord_join decides split_conic_inplane_mid, a K name with a lane's prefix, not its deciding module's
 status: open
 opened: 2026-11-03
+priority: P4
+cost: C
 ---
 
 

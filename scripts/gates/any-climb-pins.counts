@@ -16,6 +16,7 @@ crates/topo/src/boolean/carrier_touch.rs ball_off_face 1 row t4-ports-unpinned-f
 crates/topo/src/boolean/carrier_touch.rs off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/contain.rs loop_circle 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/fate.rs rehome 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/insert.rs blocked 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/insert.rs held_cut 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/insert.rs unheld_walk 1 pin a_walk_off_the_run_answers_past_a_nesting_in_band_never_past_a_fault
 crates/topo/src/boolean/overlap.rs any_corner_meets 1 pin a_corner_that_meets_answers_past_one_in_band

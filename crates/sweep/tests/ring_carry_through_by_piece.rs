@@ -30,7 +30,6 @@ fn at(b: Body<f64>, x: f64, y: f64, z: f64) -> Body<f64> {
     topo::transform_rigid(
         &b,
         &geom_core::RigidMotion::translation(Vec3::new(x, y, z)).unwrap(),
-        tol(),
     )
     .unwrap()
 }
@@ -482,7 +481,6 @@ mod interval_lane {
         let diamond = topo::transform_rigid(
             &diamond,
             &geom_core::RigidMotion::translation(v3(0.0, 0.0, 0.8)).unwrap(),
-            t(),
         )
         .unwrap();
         let body: AtRestBody<Interval> = boolean_op_with(

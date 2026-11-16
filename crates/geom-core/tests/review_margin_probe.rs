@@ -4,7 +4,7 @@
 //! `unit()` normalizes every datum axis) is a SINE — dimensionless —
 //! wrapped in `Margin::of` against the linear metre band. This is the
 //! audit's class-(c) shape (bare sine vs length band), the same defect
-//! family `bool_plane_parallel` etc. were FIXED for, and the same
+//! family `plane_eq_parallel` etc. were FIXED for, and the same
 //! function's OTHER dimensionless comparand (`|θ|−τ`, radians) was
 //! honestly flagged as F14. The probe shows the executed consequence:
 //! the margin is scale-BLIND — the same tilt classifies identically at

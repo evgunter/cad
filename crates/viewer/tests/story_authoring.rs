@@ -110,11 +110,15 @@ const TRANSFORM_EDITS: usize = 5;
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
+/// The naming edit riding in the cutter's second Place: the source the
+/// two placements share is named as the second one is made (VARIABLES
+/// VR4).
+const NAMING_EDITS: usize = 1;
 /// Edits on the session's FINAL path: the twenty-six carving actions'
-/// own edits (`CARVED_STATES` less the root), the world's edits among
-/// them, and the taller-drum edit — edits, where `CARVED_STATES`
-/// counts states.
-const PATH_EDITS: usize = (CARVED_STATES - 1) + PLACING_EDITS + 1;
+/// own edits (`CARVED_STATES` less the root), the world's and the
+/// naming edits among them, and the taller-drum edit — edits, where
+/// `CARVED_STATES` counts states.
+const PATH_EDITS: usize = (CARVED_STATES - 1) + PLACING_EDITS + NAMING_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -156,10 +160,21 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
     )
 }
 
-/// `body` moved by `translation` — the Transform tool on a body nothing
-/// places: Place, then its slides typed in the editor.
-fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -> RecipeNodeId {
-    common::moved_to(session, body, translation)
+/// `body` moved by `translation` onto the axes of `onto`'s space — the
+/// Transform tool on a body nothing places: Place, then its "into" row
+/// set to `onto`'s space and its slides typed in the editor, one change,
+/// so the combine with `onto` reads it in one space.
+fn lifted(
+    session: &mut DocSession,
+    body: RecipeNodeId,
+    translation: [f64; 3],
+    onto: RecipeNodeId,
+) -> RecipeNodeId {
+    let home = session
+        .committed_doc()
+        .node_space(onto)
+        .expect("the body combined onto is in a space");
+    common::moved_in_space(session, body, translation, home)
 }
 
 /// The whole sitting, top to bottom. One test because it is one
@@ -220,7 +235,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             distance: len(BASE_H),
         },
     );
-    let base = lifted(&mut session, base, [0.0, 0.0, BASE_Z]);
+    let base = lifted(&mut session, base, [0.0, 0.0, BASE_Z], softened);
     let u1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -245,7 +260,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             distance: len(SHAFT_H),
         },
     );
-    let shaft = lifted(&mut session, shaft, [0.0, 0.0, SHAFT_Z]);
+    let shaft = lifted(&mut session, shaft, [0.0, 0.0, SHAFT_Z], u1);
     let u2 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -264,7 +279,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // stops at the pierce ring's join door — the module docs carry the
     // reason), so its slots stay in the crossing-slots class.
     let (_, drum) = common::box_in(&mut session, [DRUM_S, DRUM_S, DRUM_H]);
-    let crown = lifted(&mut session, drum, [0.0, 0.0, DRUM_Z]);
+    let crown = lifted(&mut session, drum, [0.0, 0.0, DRUM_Z], u2);
     let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -283,10 +298,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis: the cutter body placed a second
     //    time — the Transform tool on the body picked as itself is
-    //    Place, beside the copy the first cut consumed — then turned and
+    //    Place, beside the copy the first cut consumed, sharing its
+    //    source under the name the person types (VR4) — then turned and
     //    lifted in the editor ────────────────────────────────────────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
-    let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
+    let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z], u3);
     let cut1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -306,7 +322,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
         ang(FRAC_PI_2),
     ));
-    let op = common::transformed(&mut session, cutter, &values);
+    let home = session
+        .committed_doc()
+        .node_space(cut1)
+        .expect("the cut's space");
+    let op = common::transformed_into(&mut session, cutter, &values, home, Some("cutter"));
     let SessionOp::SetBundle {
         placement: cutter2, ..
     } = op
@@ -447,6 +467,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         merlons,
         [0.0, 0.0, DRUM_Z + DRUM_H - MERLON_SINK],
+        carved,
     );
     let crenellated = session_insert(
         &mut session,
