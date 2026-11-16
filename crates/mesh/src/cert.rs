@@ -1616,10 +1616,12 @@ mod tests {
     /// corners round. For the line the triangle is the shadow, its
     /// corners at any heights, and the direction is not unit.
     ///
-    /// The answer is held to 64 epsilons of the pose's largest coordinate,
-    /// plus what the foot's plane is uncertain by where the two shorter
-    /// sides are near parallel (their length over the sine of their
-    /// angle, in epsilons), never more than the inradius.
+    /// The answer is held to eight of the verdict's allowances
+    /// ([`rounding_allowance`]) at the pose's largest coordinate, which
+    /// covers the rounding of the pose itself, plus what the foot's plane
+    /// is uncertain by where the two shorter sides are near parallel
+    /// (their length over the sine of their angle, in the same
+    /// allowances), never more than the inradius.
     ///
     /// Reading the foot's distance outside the bracket reds this row on
     /// the slivers; a fixed side for a triangle of no area reds it on the
@@ -1731,7 +1733,7 @@ mod tests {
             // point, and a draw whose corner had no direction free is
             // dropped.
             let slack = ahead(q, out);
-            if slack > 8.0 * f64::EPSILON * l {
+            if slack > rounding_allowance(l) {
                 continue;
             }
             kept[feature] += 1;
@@ -1745,7 +1747,7 @@ mod tests {
                 0.0
             };
             let plane = if area2 > 0.0 {
-                inradius.min(64.0 * f64::EPSILON * longest * shorter / area2)
+                inradius.min(8.0 * rounding_allowance(longest) * shorter / area2)
             } else {
                 0.0
             };
@@ -1771,7 +1773,7 @@ mod tests {
             let flat = tri.map(|x| frame.at(x[0], x[1], 0.0));
             let p = frame.at(from[0], from[1], up);
             let scale = flat.iter().fold(norm(p), |m, &x| m.max(norm(x)));
-            let tol = 64.0 * f64::EPSILON * scale + 2.0 * slack + plane;
+            let tol = 8.0 * rounding_allowance(scale) + 2.0 * slack + plane;
             let expected = off.hypot(up);
             let got = dist_point_triangle(p, flat[0], flat[1], flat[2]);
             assert!(
@@ -1795,7 +1797,7 @@ mod tests {
             let o = frame.at(from[0], from[1], l * rng.range(-10.0, 10.0));
             let d = frame.e[2] * rng.log_uniform(0.1, 10.0);
             let scale = lifted.iter().fold(norm(o), |m, &x| m.max(norm(x)));
-            let tol = 64.0 * f64::EPSILON * scale + 2.0 * slack + plane;
+            let tol = 8.0 * rounding_allowance(scale) + 2.0 * slack + plane;
             let got = dist_line_triangle(o, d, lifted[0], lifted[1], lifted[2]);
             assert!(
                 (got - off).abs() <= tol,
@@ -1879,8 +1881,9 @@ mod tests {
     /// third corner across the axis to that much; three corners about the
     /// axis; any three. The cylinder's deviation is also `2r·sin²(s/4)`,
     /// `s` the arc the three azimuths span, or `r` where they span no
-    /// half turn, and the certificate is held to that in 64 epsilons of
-    /// the pose's largest coordinate.
+    /// half turn. The certificate is held to that, and to the deviation
+    /// found, within the one allowance the verdict gives a bound at that
+    /// pose ([`rounding_allowance`] of [`position_scale`]).
     ///
     /// Sphere triangles: two corners at one point; two that close; three
     /// at one point; three on a great circle within half a turn; three
@@ -1926,7 +1929,7 @@ mod tests {
             }
             let axis = frame.e[2];
             let cert = cert_cylinder(frame.o, axis, r, tri);
-            let tol = 64.0 * f64::EPSILON * position_scale(frame.o, tri);
+            let tol = rounding_allowance(position_scale(frame.o, tri));
             let mut turn = az.map(|u| u.rem_euclid(TAU));
             turn.sort_by(f64::total_cmp);
             let gap = (turn[1] - turn[0])
@@ -1982,7 +1985,7 @@ mod tests {
                 tri.swap(0, 1);
             }
             let cert = cert_sphere(frame.o, r, tri);
-            let tol = 64.0 * f64::EPSILON * position_scale(frame.o, tri);
+            let tol = rounding_allowance(position_scale(frame.o, tri));
             let dev = deepest(tri, &|q| r - (q - frame.o).norm());
             assert!(
                 dev <= cert + tol && cert <= dev + tol + 1e-9 * r,
