@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-16
 priority: P1
 cost: M
-blocked_on: [6966]
+blocked_on: [the-lattice-keeps-clear-of-the-boundary-and-every-winding-is-resolved, a-curved-face-is-routed-by-its-domain-not-its-carriers]
 ---
 
 
@@ -29,3 +29,5 @@ Where a lattice point may sit beside the boundary is the question before Ev on P
 ## Done when
 
 The notched pipe walls of `reach_probes` mesh at δ with no headroom and their triangle counts are stated beside the counts unit 4 pinned; a lattice line within rounding of a run or of another line is one line, pinned on a body that reaches it; `[mesh.sizing]`'s wording of the headroom names which faces it covers.
+
+- 2026-11-16 — **PR 6966 is answered and merged**: a lattice node is not laid within a clearance of its own step from the boundary. This unit now waits on the unit that builds that rule and on unit 4, which are both in the lattice's and the router's code; it is cut after them, as the rule above read against the clearance as built.
