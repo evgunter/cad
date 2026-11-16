@@ -964,11 +964,16 @@ impl<T: Real> Meridian<T> {
     /// sheet. A centre that has crossed the axis (`s < 0`) sweeps the same
     /// circle as one at `|s|` on the rim's side, so the band surface is
     /// the torus of major radius `|s|` with its seam turned to the
-    /// centre's side (`u_ref` along the centre's own radial): the point
-    /// set the signed form would trace, in the ring convention's terms.
-    /// The trimlines are their circles the same way, of radius the
-    /// contact's distance from the axis with the seam turned to its side,
-    /// which is the signed form's own parametrisation. `spine_curvature`
+    /// centre's side (`u_ref` along the centre's own radial,
+    /// [`ring_radius`]): the point set the signed form would trace, in the
+    /// ring convention's terms, its chart point `(u, π − v)` the signed
+    /// form's `(u, v)`. The trimlines are their circles the same way, of
+    /// radius the contact's distance from the axis with the seam turned to
+    /// its side, which is the signed form's own parametrisation.
+    /// `|s|` forgets which side of the axis the centre is on, which a
+    /// self-intersecting torus needs (the sign picks its lemon from its
+    /// apple), so a spindle mint, should one come, reads the signed `s`
+    /// and never this. `spine_curvature`
     /// is `1/|s|`, so a spine that does not exist at all reaches
     /// predicate 3 as poison and a spine the tube swallows — on either
     /// side of the axis — reaches it as a finite curvature past `1/r`,
@@ -989,25 +994,36 @@ impl<T: Real> Meridian<T> {
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
-            let rho = (q - self.axis.origin).dot(radial);
+            let (rho, toward) = ring_radius((q - self.axis.origin).dot(radial), radial);
             (
-                Curve3::circle(level(q), self.axis.dir, rho.abs(), radial * rho.unit_sign()),
+                Curve3::circle(level(q), self.axis.dir, rho, toward),
                 (q - self.rim).norm(),
             )
         };
+        let (spine, toward) = ring_radius(s, radial);
         EdgeBlend {
             surface: Surface::Torus {
                 center: level(center),
                 axis: self.axis.dir,
-                major_radius: s.abs(),
+                major_radius: spine,
                 minor_radius: radius,
-                u_ref: radial * s.unit_sign(),
+                u_ref: toward,
             },
-            spine_curvature: T::one() / s.abs(),
+            spine_curvature: T::one() / spine,
             trim_a: trim(a),
             trim_b: trim(b),
         }
     }
+}
+
+/// **A signed radial coordinate `x` as the ring convention stores a
+/// circle about the axis**: its distance `|x|` from the axis, and
+/// `radial` turned to its side, the seam's direction. A circle of signed
+/// radius `x` seamed along `radial` and one of radius `|x|` seamed along
+/// the returned direction are one parametrisation
+/// ([`Meridian::blend`]'s spine and trimlines).
+fn ring_radius<T: Real>(x: T, radial: Vec3<T>) -> (T, Vec3<T>) {
+    (x.abs(), radial * x.unit_sign())
 }
 
 /// **The cross-section of a ruled pair** at one point of the common
