@@ -23,7 +23,7 @@ sampled `uu` sat under a certified one it exceeds in the reals by
 nothing at all".
 
 That premise is contradicted by a measurement already in the tree.
-`work/tess/rational-cells-hull-the-f64-refined-net-so-the-described-
+`work/tesslane/rational-cells-hull-the-f64-refined-net-so-the-described-
 patch-escapes.md` (evidence branch `tess/nurbs-bound-diag`,
 `db4cb45a8`, exact rational arithmetic): on the sweep's own failing
 surface the DESCRIBED patch's true `‖S_uu‖` exceeds `muu` by 3.07e-16

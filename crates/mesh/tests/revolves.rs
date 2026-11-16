@@ -156,7 +156,7 @@ fn sphere_pole_faces_are_floored_too_though_they_never_needed_it() {
 }
 
 /// **A frustum's small rim, joined to a far row, certifies within δ**
-/// (`work/tess/a-cone-rim-chord-joined-to-a-higher-row-certifies-above-delta-s.md`).
+/// (`work/tesslane/a-cone-rim-chord-joined-to-a-higher-row-certifies-above-delta-s.md`).
 /// Radii 0.05 and 1.5 at half-angle 40°, at a coarse δ: the small rim
 /// sized on its own radius takes a chord spacing several grid columns
 /// wide, and the first grid row sits at about four times its radius,

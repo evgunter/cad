@@ -367,10 +367,11 @@ pub fn witness(
     *probed |= moved(display, face_a.node) || moved(display, face_b.node);
 }
 
-/// Whether `node` is drawn in a free-moved space — the one read behind
-/// every probe flag on an [`EdgeOverlay`].
+/// Whether `node` is drawn in a space under a display frame
+/// ([`DisplayView::space_frame`]) — the one read behind every probe
+/// flag on an [`EdgeOverlay`], as the scene's probe flag.
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
-    display.moved_nodes.contains_key(&node)
+    display.space_frame(node).is_some()
 }
 
 /// The edge marks a frame draws: the drawn polylines of the marked

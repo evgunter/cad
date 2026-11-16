@@ -1,9 +1,10 @@
 //! **A block resting a Zero-band gap above another unions.** `B` stands
 //! on `A = [0, 1]³` with its bottom a gap `g` inside the Zero band above
 //! `A`'s top, or overlapping it by as little: the glue decides the two
-//! planes one carrier and keeps the first operand's description for the
-//! merged face, so the result is the true union to within `g` over the
-//! glued area. Each union builds in both operand orders, holds tiers 3
+//! planes one carrier and moves one decided face onto the other's record
+//! (`[coincidence.door]`; neither record is worn elsewhere, so the
+//! first operand's is kept), so the result is the true union to within
+//! `g` over the moved face's area. Each union builds in both operand orders, holds tiers 3
 //! and 3′ and one solid, measures at the union's closed form to within
 //! that, and holds the volume relations
 //! (`topo::test_support::volume_relations`). The same holds for a wedge
@@ -70,10 +71,12 @@ fn a_block_resting_a_zero_band_gap_above_another_unions_at_its_volume() {
             let area = (fx.1 - fx.0) * (fy.1 - fy.0);
             // The footprint's overlap with `A`'s top: the area glued.
             let glued = (fx.1.min(1.0) - fx.0.max(0.0)) * (fy.1.min(1.0) - fy.0.max(0.0));
-            // The true union, and what the glue may move it by.
+            // The true union, and what the glue may move it by: the
+            // second operand's decided face moves by the gap, `B`'s
+            // bottom where `A` is first and `A`'s top where `B` is.
             let want = 1.0 + area * H - glued * (1.0 - bottom).max(0.0);
-            let moved = glued * (bottom - 1.0).abs();
-            for (order, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
+            for (order, x, y, moved_area) in [("A ∪ B", &a, &b, area), ("B ∪ A", &b, &a, 1.0)] {
+                let moved = moved_area * (bottom - 1.0).abs();
                 let what = format!("{order}, {name}, {gap}");
                 let (v, _) = unites(&what, x, y, tol);
                 assert!(

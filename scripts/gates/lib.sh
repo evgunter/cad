@@ -136,6 +136,25 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# gate_ladder_entry_points — the ladder's entry points, one per line:
+# each `pub fn climb*` in `geom_core::ladder` (crates/geom-core/src/ladder.rs),
+# the one home a gate reading climbs takes its list from, so a combinator
+# added there joins every such gate by construction. Sets
+# `GATE_LADDER_ENTRY_POINTS`; a home that is gone or names none is an
+# error, not an empty list.
+gate_ladder_entry_points() {
+  local home=crates/geom-core/src/ladder.rs
+  if [ ! -f "$home" ]; then
+    gate_error "$(gate_name): $home does not exist under $PWD — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+  GATE_LADDER_ENTRY_POINTS=$(sed -n 's/^pub fn \(climb[a-z_]*\)[<(].*/\1/p' "$home" | sort -u)
+  if [ -z "$GATE_LADDER_ENTRY_POINTS" ]; then
+    gate_error "$(gate_name): $home declares no \`pub fn climb*\` — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+}
+
 # gate_base_file FILE — FILE (relative to the root) as the merge base
 # holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
 # compared against. `GATE_BASE` names the base, a commit or tree in the root's
@@ -940,6 +959,21 @@ gate_record_text() { gate_record_column text; }
 GATE_RECORD_PREFIX_RE="^[^:]*$GATE_RECORD_LINE_RE"
 gate_record_anchor() {
   printf '^%s%s' "$(gate_ere_escape "$1")" "$GATE_RECORD_LINE_RE"
+}
+
+# LIST MEMBERSHIP, IN BASH: whether `$1` is one of the rest. Not
+# `printf … | grep -qxF`, for two reasons. A grep that cannot run
+# (exit 2) reads as "not in the list". And under `pipefail` the pipe
+# races: bash's builtin `printf` writes once per line, `grep -q` exits
+# at its first match, and the next write takes SIGPIPE, so a member
+# near the front of a multi-line list reads as absent now and then.
+gate_contains() {
+  local needle=$1 item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
 }
 
 # THE ALTERNATION, which is the line every multi-part matcher in this

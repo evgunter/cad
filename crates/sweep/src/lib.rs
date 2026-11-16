@@ -11,7 +11,7 @@
 //! sweep, re-derived under our counterclockwise convention), and
 //! attaches real geometry throughout: D2 intensional edge descriptions
 //! with certified carrier caches (`geom-brep`), analytic side surfaces
-//! (`geom`), Newell-certified cap planes. Every
+//! (`geom`), cap planes that are their station's frame. Every
 //! topology-determining comparison goes through named trilean
 //! predicates (Q1); every failure is a typed error (D4 ¶3); everything
 //! is generic over [`geom_core::Real`] via the [`geom_core::Decide`]
@@ -128,11 +128,13 @@
 //!   it). Smooth joins across genuinely distinct surfaces (line–arc
 //!   tangency: plane–cylinder) keep distinct surfaces and a
 //!   conventional join edge.
-//! - **Caps** via `swept::cap_plane`: `geom_brep::newell_plane` over
-//!   the loop vertices and arc apexes, flipped where it disagrees with
-//!   the profile's validated winding (an outer loop runs
-//!   counterclockwise about the sketch normal) — the inscribed polygon's
-//!   own winding, which a large convex arc can reverse, never decides.
+//! - **Caps** via `swept::cap_plane`: the station's frame (the sketch
+//!   plane, or it carried by the sweep's rigid motion): its origin and
+//!   first axis, and its normal signed by the profile's validated
+//!   winding (an outer loop runs counterclockwise about the sketch
+//!   normal) and the traversal. Nothing is fitted to the vertices, so a
+//!   large convex arc's inscribed polygon, whose own winding it can
+//!   reverse, is never read.
 //!
 //! # Holes
 //!
@@ -183,7 +185,6 @@ pub use revolve::{
     BandWall, Cavity, CavityOrigin, ClearanceDecision, Revolution, RevolveAxis, RevolveError,
     Revolved, RevolvedKind, WedgeCapsError, WedgeFrames, revolve, revolved_caps,
 };
-pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must

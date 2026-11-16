@@ -268,7 +268,7 @@ fn posture(
     chart: &NurbsSurface<f64>,
 ) -> MintPosture {
     match out {
-        Ok(p @ Pcurve::IsoLine { p0, pl }) => {
+        Ok(p @ Pcurve::IsoLine { p0, pl, .. }) => {
             assert_eq!(pl.x, 0.0, "{row}: a seam image holds u constant: {pl:?}");
             let (du0, du1) = chart.knots_u_f64_interim().domain();
             assert!(
@@ -321,7 +321,8 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     let MintPosture::Certified(image) = posture("boundary column", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl } = image else {
+    let derived = format!("{image:?}");
+    let Pcurve::IsoLine { p0, pl, ends } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     // The moving channel is the chart's own `v`, traversed with the
@@ -333,6 +334,14 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         "the seam traverses the chart's whole v domain: {pl:?} on [{dv0}, {dv1}]"
     );
     assert!(p0.y.abs() < 1e-12, "and starts at its v origin: {p0:?}");
+    // The arm places the column by its corners and states them.
+    let corners = ends.map(|e| e.map(|q| (q.x.to_bits(), q.y.to_bits())));
+    let want = [(p0.x, dv0), (p0.x, dv1)].map(|(x, y)| (x.to_bits(), y.to_bits()));
+    assert_eq!(
+        corners,
+        Some(want),
+        "the image states the column's corners: {ends:?}"
+    );
     // The mint pass certifies every face of the body it charts.
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body
@@ -340,7 +349,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         .expect("the seam's own half-edge stores its certified image");
     assert_eq!(
         format!("{:?}", stored.pcurve()),
-        format!("{:?}", Pcurve::IsoLine { p0, pl }),
+        derived,
         "the stored cache is the derived image"
     );
     println!(
@@ -598,7 +607,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         }
         chart_seams += 1;
         let cache = body.pcurve(*h).unwrap();
-        let Pcurve::IsoLine { p0, pl } = cache.pcurve() else {
+        let Pcurve::IsoLine { p0, pl, .. } = cache.pcurve() else {
             panic!(
                 "the Chart-described seam takes the exact class: {:?}",
                 cache.pcurve()
@@ -780,7 +789,7 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     let MintPosture::Certified(image) = posture("imported chart", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl } = image else {
+    let Pcurve::IsoLine { p0, pl, .. } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     assert!(
@@ -972,7 +981,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// The same body E1 measures. Its `Intersection` seam carries a
 /// `General` chart image, which until TRIM-2 PR-2 stopped the CHORD
 /// pass dead — `TessellateError::UnsupportedCurve` at
-/// `mesh::chords::nurbs_tighten`'s `General` arm, before any face lane
+/// `mesh::chords`' `General` arm, before any face lane
 /// ran, at all three ε. Two arms flip that: the chord pass now sizes
 /// the seam's UV steps from the image's own differenced control net,
 /// and the trim walk reads the image at the shared chord parameters.
@@ -1003,7 +1012,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
 /// curvature one. The curvature evidence for the speed bound is the
 /// unit row
-/// `mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`,
+/// `geom_brep`'s `speed_rows::general_speeds_dominate_the_sampled_image_speeds`,
 /// which carries an interior-maximum leg.
 ///
 /// It is also not a bound on how wrong the sup may be: a sup too small
@@ -1226,7 +1235,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         });
         body.detach_pcurve(he);
         let image = match topo::pcurve_of(&body, he, band()) {
-            Ok(image @ Pcurve::IsoLine { p0, pl }) => {
+            Ok(image @ Pcurve::IsoLine { p0, pl, .. }) => {
                 assert_eq!(pl.y, 0.0, "{what}: a row holds v constant: {pl:?}");
                 assert_eq!(p0.y, 1.0, "{what}: on the v = 1 row: {p0:?}");
                 assert!(pl.x < 0.0, "{what}: run back, u falling: {pl:?}");

@@ -811,7 +811,7 @@ fn an_instances_copy_is_one_body_and_a_missing_piece_refuses() {
         ))),
     );
     let pick = match doc.node(picked) {
-        Some(Node::Place { source, .. }) => source.read,
+        Some(Node::Place { source, .. }) => doc.through_sources(source.read).read,
         other => panic!("a placement, not {other:?}"),
     };
     let ev = run(&doc, &o);

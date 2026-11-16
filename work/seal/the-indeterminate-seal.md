@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
+blocked_on: [cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -37,9 +37,6 @@ in parts. The remaining hand mints are:
 - CHART's four (`chart-region-mints-indeterminates-after-a-definite-sign`,
   `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value`);
 - TOPO's `boolean-unreadable-norm-ends-as-a-kernel-defect`;
-- RESTFRONT's `material-arm-split-ends-as-a-hand-minted-invalid`
-  (split from `ring-contact-and-sliver-split-endings-want-their-decisions`,
-  whose other parts mint nothing);
 - the 35 D10-held arms, through unit 5. These include `contact_verify`'s
   seven, which SECTOR's `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`
   also names; unit 5 carries them, so this row does not wait on SECTOR's.
@@ -58,3 +55,7 @@ C24 is `crates/sweep/src/blend/battery.rs:129`, `measured`: a reporting projecti
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). SEAL holds the Indeterminate seal and the declared-contact rows in its way; id and body unchanged. (CLEAVE orchestrator)
+
+## RESTWORD's split arm was already retired (2026-11-11)
+
+`material-arm-split-ends-as-a-hand-minted-invalid` is closed, and its blocker is dropped from `blocked_on`. ONEDOOR's PR 6443 retired the split into `WedgeVerdict::Mixed` (`MixedDihedral`) on 2026-11-03, and in-band ends now escalate through `decide_nonzero`, so that site mints nothing.

@@ -315,7 +315,14 @@ This section is where that rule's parts live.
 - **Re-posing, never charging.** A quantity a formula would divide by
   that can vanish (a sine, a radius, a determinant) is a pose decided
   first (coaxial, parallel, tangent), and the formula divides only on
-  the pose's definite arm. A formula that loses digits where its
+  the pose's definite arm. Where what is decided is singular at that
+  pose and no re-posing removes it (the least turn's pole), the pose's
+  band also reaches as far as the quotient's lever passes the run's
+  *rounding reach*, `R = box · (K − 1)·ε / ADMISSION_FLOOR`: the
+  admission rule read as a length, the longest lever over which a short
+  chain's rounding still fits the headroom (a run is admitted exactly
+  where `R` is at least the box). `R` is read through one `Tolerance`
+  door, never a site's own constant. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits (a conic whose centre
   lies far from the arc it serves) is re-minted in a well-conditioned
@@ -336,9 +343,17 @@ This section is where that rule's parts live.
   `levered_inv` and the metric doors.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
-  (an edge's span, a face's boundary, two boxes' overlap, a bounded
-  carrier), never from a length a caller vouches for. `ExtentBall` is
-  its ball payload.
+  (an edge over its span, a face's region, two faces' meet, a bounded
+  carrier, each read as its cover), never from a length a caller
+  vouches for. `ExtentBall` is its ball payload. A reach holds its
+  region as a cover and no carrier. Where a verdict reads its datum is
+  derived from the extent, never chosen: a datum fixed by a carrier's
+  form (an apex, a centre) is read there, and a datum free along an
+  axis is read at the middle of the extent's window along it. Its
+  lever is the extent's far distance from that point; the least over
+  all points is not owed. That point is the origin of a tilt bound,
+  not a claim about the entity: any point is sound provided the datum
+  and its lever are read at the same one.
 - **The session box** is one predicate over a body's largest
   `|coordinate|`, read from below off its vertices' and its edges' own
   points, never a carrier's stored terms: the box bounds each

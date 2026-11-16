@@ -9,11 +9,11 @@ cost: M
 ---
 
 
-Found splitting `ChartRegionError::DegenerateLoop` (`onecopy/section-error-standing`). Its orientation raising, the band deciding a loop's signed area `Zero`, stays `DegenerateLoop` and stands in band. Its structural raising, a loop imaged to fewer than three straight chart segments, is now `ShortLoop` (`crates/topo/src/chart_region.rs:321`, raised at `:2721`), and that aborts as mixed.
+Found splitting `ChartRegionError::DegenerateLoop` (`onecopy/section-error-standing`). Its orientation raising, the band deciding a loop's signed area `Zero`, stays `DegenerateLoop` and stands in band. Its structural raising, a loop imaged to fewer than three straight chart segments, is now `ShortLoop` (`crates/topo/src/chart_region.rs:321`, raised at `:2748`), and that aborts as mixed.
 
 ## What
 
-`loop_uv_polygon` (`chart_region.rs:2658`) pushes one entry vertex per half-edge, so `ShortLoop` is any loop of one or two edges. That covers two cases:
+`loop_uv_polygon` (`chart_region.rs:2685`) pushes one entry vertex per half-edge, so `ShortLoop` is any loop of one or two edges. That covers two cases:
 
 - **A loop on a periodic chart closed by one or two iso-lines.** An example is a cylinder band's end circle, whose pcurve is one `IsoLine` across the full period. The body is valid, and the region representation is not built for it (row 2).
 - **A loop of one or two straight segments on a plane.** Such a loop encloses nothing: a collapsed loop (1(a), or row 4 at a build, since tier 1 admits the loop).

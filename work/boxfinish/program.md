@@ -2,7 +2,7 @@
 id: boxfinish
 kind: program
 title: BOXFINISH — the box scalars finish a sweep leaf at tier 3, so Ev's switch on PR 6371 retires
-status: ready
+status: active
 opened: 2026-11-08
 group: kernel/boolean/one-home
 prefix: boxfinish/

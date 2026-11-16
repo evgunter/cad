@@ -216,7 +216,8 @@ fn std_values_for(o: Orientation) -> Vec<(Coord<editor_core::Operand>, Formula)>
 /// continuously**: the plate's tilt from −(π−δ) to π−δ about `x`, `y`
 /// and an oblique chain, under five orientations; between steps the
 /// copy's frame moves by at most the lever times the step, and nothing
-/// refuses.
+/// refuses outside the pole band: a station that lands within δ of an
+/// orientation's pole refuses `Backwards`, as the band says it must.
 ///
 /// *Breaks if* the chart has a branch short of the pole (a jump), or
 /// refuses short of its band.
@@ -252,11 +253,67 @@ fn a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously() {
     );
 }
 
+/// **A slid copy's pole verdict moves with its slide**: the boss hung
+/// under the plate tilted to a chord `τ` short of its pole, written with
+/// a slide of 10 or of 10⁴ along `x`. The bundle's arm sums the written
+/// slides (`[placement.values]`, "written slides included"), so the
+/// conditioning refuses within `2·arm/R`: `τ` sits between the edge the
+/// short slide's arm sets (its pole verdict's or its conditioning's,
+/// whichever is wider) and the long slide's conditioning edge, at the
+/// run's ε. The short slide places; the long one refuses `Backwards`.
+/// *Breaks if* the arm leaves the written slides out, which levers the
+/// long slide's verdict over the copy's reach alone, so it places.
+#[test]
+fn a_slid_copys_pole_verdict_moves_with_its_slide() {
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let k_eps = band.escalate();
+    let edge = |arm: f64| geom_core::test_support::least_turn_band_edge(Tol::witness(), arm);
+    // The copy's arm without its slides is about 23 (the boss at x = 10
+    // under a plate whose reach is 20 × 10 × 2).
+    let arm = |slide: f64| 23.0 + slide;
+    let short = (k_eps / arm(10.0)).max(edge(arm(10.0)));
+    let long = edge(arm(1e4)).min(2.0);
+    let tau = (short * long).sqrt();
+    assert!(short < tau && tau < long, "{short:e} < {tau:e} < {long:e}");
+    let chain = vec![(
+        Coord::Spin(Some(TargetAxis::X)),
+        fixture::ang(std::f64::consts::PI - tau),
+    )];
+    let values = |slide: f64| {
+        vec![
+            (Coord::slide(TargetAxis::X), len(slide)),
+            (Coord::slide(TargetAxis::Y), len(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
+        ]
+    };
+    let placed = hung(chain.clone(), Orientation::IDENTITY, values(10.0));
+    assert!(
+        placed.is_ok(),
+        "the short slide places at τ = {tau:e}: {placed:?}"
+    );
+    let refused = hung(chain, Orientation::IDENTITY, values(1e4));
+    assert!(
+        matches!(&refused, Err(e) if e.contains("puts the copy's mated direction opposite")),
+        "the long slide refuses backwards at τ = {tau:e}: {refused:?}"
+    );
+}
+
 /// The plate sweep under `orients`, about each of `axes`, in `steps`
-/// steps from −(π−δ) to π−δ: no refusal, and no step moving the copy by
-/// more than the lever times the step.
+/// steps from −(π−δ) to π−δ: no refusal outside the pole band, and no
+/// step moving the copy by more than the lever times the step.
+///
+/// δ stays outside the pole band at the run's ε. The band refuses where
+/// the least turn's lever `2·arm/chord` passes the run's rounding reach
+/// (`RigidMotion::least_turn`), so its edge is at a chord of `2·arm/R`:
+/// about 1.3e-5 at the default ε, and about 0.013 at ε 1e-12, for this
+/// bundle's arm of about 33 (the lever of about 23 below, and its slide
+/// of 10). δ is 1e-3, or twice the edge for an arm of 50 where that is
+/// wider.
 fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
-    let delta = 1e-3;
+    let delta = f64::max(
+        1e-3,
+        2.0 * geom_core::test_support::least_turn_band_edge(Tol::witness(), 50.0),
+    );
     let mut report = Vec::new();
     for &o in orients {
         for &axis in axes {
@@ -283,6 +340,19 @@ fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
                             worst = worst.max(dist(&f, l) / h);
                         }
                         last = Some(f);
+                    }
+                    // A refusal in the pole band is the chart's answer: the
+                    // orientation written backwards, within δ of a pole. Each
+                    // orientation here puts its pole at a multiple of π/2, and
+                    // a coarse grid lands in the band only where the run's
+                    // band is wide (ε 1e-12: a station at 1.5666).
+                    Err(e)
+                        if e.contains("puts the copy's mated direction opposite")
+                            && (-2..=2).any(|k| {
+                                (t - f64::from(k) * std::f64::consts::FRAC_PI_2).abs() < delta
+                            }) =>
+                    {
+                        last = None;
                     }
                     Err(e) => {
                         refusals.push(format!("{t:.4}: {}", &e[..e.len().min(90)]));

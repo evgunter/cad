@@ -10,8 +10,11 @@
 # running it under that loop checks that it reaches the answer past a
 # kept rung. So this builds with `--cfg any_first_mutant`, under which
 # `geom_core::ladder::climb_evidence` refuses an `Any` ladder at its first
-# kept rung, runs every registered pin, and fails on each one that passes
-# (it does not pin its site) or that no package ran (it names no test).
+# kept rung (as `climb_agreeing` and `climb_differing` do), runs every
+# registered pin, and fails on each one that passes (it does not pin its
+# site) or that no package ran (it names no test). A control run of the
+# same pins without the mutant comes first, and a pin red there fails too:
+# a red with another cause (a main red) says nothing about the mutant.
 #
 # The mutant build goes to its own target dir
 # (`${CARGO_TARGET_DIR:-target}/any-first-mutant`), so it does not
@@ -53,37 +56,56 @@ args=()
 for p in $packages; do args+=(-p "$p"); done
 filter=$(tr ' ' '|' <<<"$pins")
 
-target="${CARGO_TARGET_DIR:-target}/any-first-mutant"
-log=$(mktemp)
-trap 'rm -f "$log"' EXIT
-set +e
-RUSTFLAGS="${RUSTFLAGS:-} --cfg any_first_mutant" CARGO_TARGET_DIR="$target" \
-  cargo nextest run "${args[@]}" --no-fail-fast --run-ignored all --ignore-default-filter \
-  --success-output never --failure-output never \
-  -E "test(/::($filter)\$/)" >"$log" 2>&1
-set -e
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+run() { # run NAME [RUSTFLAGS…]: every pin; its log and junit report to $work/NAME.*
+  local name=$1 report=target/nextest/ci/junit.xml # nextest's store, under the workspace root
+  shift
+  rm -f "$report"
+  set +e
+  RUSTFLAGS="${RUSTFLAGS:-} $*" cargo nextest run "${args[@]}" --profile ci --no-fail-fast \
+    --run-ignored all --ignore-default-filter \
+    --success-output never --failure-output never \
+    -E "test(/::($filter)\$/)" >"$work/$name.log" 2>&1
+  set -e
+  cp "$report" "$work/$name.xml" 2>/dev/null || true
+}
+# The control: every pin, plain. A pin red without the mutant is red for
+# some other reason (a main red), so its red under the mutant says
+# nothing about the mutant; it fails here instead.
+run control
+# The mutant, in its own target dir so it does not rebuild the plain one.
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run mutant --cfg any_first_mutant
 
-python3 - "$log" $pins <<'PY'
-import re, sys
-log = open(sys.argv[1], errors="replace").read()
-pins = sys.argv[2:]
-ran = {}
-for m in re.finditer(r"^\s*(PASS|FAIL|SIGABRT|SIGSEGV|TIMEOUT)\b.*?::([A-Za-z_0-9]+)\s*$", log, re.M):
-    ran.setdefault(m.group(2), set()).add(m.group(1))
+python3 - "$work" $pins <<'PY'
+import os, sys, xml.etree.ElementTree as ET
+work, pins = sys.argv[1], sys.argv[2:]
+def outcomes(what):
+    """{test leaf: {"PASS" | "FAIL"}} from the run's junit report."""
+    report = os.path.join(work, f"{what}.xml")
+    if not os.path.exists(report):
+        print(open(os.path.join(work, f"{what}.log"), errors="replace").read()[-4000:])
+        print(f"any-first-mutant: the {what} run wrote no junit report (the build failed?)", file=sys.stderr)
+        sys.exit(1)
+    ran = {}
+    for case in ET.parse(report).getroot().iter("testcase"):
+        red = case.find("failure") is not None or case.find("error") is not None
+        ran.setdefault(case.get("name").rsplit("::", 1)[-1], set()).add("FAIL" if red else "PASS")
+    return ran
+control = outcomes("control")
+mutant = outcomes("mutant")
 bad = []
 for pin in pins:
-    got = ran.get(pin)
-    if not got:
+    plain, mutated = control.get(pin), mutant.get(pin)
+    if not plain or not mutated:
         bad.append(f"{pin}: no package ran it (a pin must name a test)")
-    elif "PASS" in got:
+    elif plain != {"PASS"}:
+        bad.append(f"{pin}: red without the mutant, so its red under it pins nothing; fix it first")
+    elif "PASS" in mutated:
         bad.append(f"{pin}: green under the first-refusal mutant, so it does not reach the answer past a kept rung")
-if not ran:
-    print(log[-4000:])
-    print("any-first-mutant: the mutant run read no test (the build failed?)", file=sys.stderr)
-    sys.exit(1)
 if bad:
     print("\n".join(bad))
     print(f"any-first-mutant: {len(bad)} of {len(pins)} pins do not pin (above)", file=sys.stderr)
     sys.exit(1)
-print(f"any-first-mutant OK: all {len(pins)} pins are red under the first-refusal mutant")
+print(f"any-first-mutant OK: all {len(pins)} pins are green plain and red under the first-refusal mutant")
 PY

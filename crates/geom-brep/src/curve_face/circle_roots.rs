@@ -108,6 +108,15 @@ pub enum DoorRefusal {
     /// The door's readings contradict, or it was handed a carrier or a
     /// surface of a kind it does not read: a kernel defect.
     Invariant(&'static str),
+    /// **A torus outside the ring convention**, the convention's refusal
+    /// carried whole ([`crate::TorusRefusal`]), as the plane × torus
+    /// section carries it. A torus door reads only a ring: its harmonics
+    /// take the convention's witness ([`crate::conic_torus_harmonics`]),
+    /// and the door asks for it before any pose. The standing is the
+    /// convention's own ([`crate::TorusRefusal::refusal`]): an undecided
+    /// half is ranked by its margin, and a torus decided outside it is
+    /// invalid input.
+    Torus(crate::TorusRefusal),
 }
 
 /// What the certified roots of a circle against a surface say about the
@@ -366,7 +375,7 @@ fn harmonic_roots<T: Decide>(
     let middle = geom::mid_param(t0, t1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
-    let turn = Period::new(T::tau());
+    let turn = Period::angle();
     Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))
 }
 

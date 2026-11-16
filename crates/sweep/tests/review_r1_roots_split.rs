@@ -112,7 +112,6 @@ fn cyl_spun(spin: f64, about_x: bool) -> topo::Body<f64> {
                 &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
                 tol,
             ),
-            tol,
         )
         .unwrap()
     };

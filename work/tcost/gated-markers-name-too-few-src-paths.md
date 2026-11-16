@@ -5,7 +5,8 @@ title: The gated_to! src/ half is unchecked by anything: a marker naming too few
 status: open
 opened: 2026-09-12
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 

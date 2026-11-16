@@ -48,3 +48,24 @@ rim height 0.6 in place of the tube's 0.5 and 1.0; read `validate_pseudomanifold
 ## Moved to HELDRECORDS (2026-10-30, SPLITDOOR orchestrator)
 
 Every finding here is `UnrecordedContact { VertexOnFace }` at tier 3′. Both halves' volumes are right, and tiers 1 and 3 pass. These are the split's own touches, which no record covers: the floor's trace touches the bore rim at P and meets the floor's outer rim. That is HELDRECORDS' charge (`the-splits-own-pinch-and-cut-copies-take-two-point-keys-and-no-record`, and the split's tier-3′ gate row), so the row moves there by `git mv`, id and body unchanged. Whether face 11/12 is the counterbore floor annulus is still unmeasured.
+
+## Measured: face 11 is on the cut plane (restread, branch `restread/self-touch-coincident-sheets`)
+
+At `a = 0.3`, `t = 0.05`, lean in, the self-touch sweep's link at the
+rim crossing `(0.1330, 0.6, 0.5851)` holds four faces: the counterbore's
+step wall (a cylinder corner), the floor (`y = 0.6`, a corner), a face
+on the cut plane cornered there (13v1, `sense` false, outward `+n`), and
+face 11v1, on the same plane with the other outward normal, holding the
+point inside it (the `VertexOnFace` above). Face 11 is a cut-plane face,
+not the floor annulus, and it and face 13 hold a common area of the cut
+plane at that point: material either side of one sheet, a slit. The
+same shape holds at `P` and at the other rim crossing, at both azimuths,
+under both normals and in both halves (`census::sweep_self_touch_points`'s
+link, dumped). Tier 3′ now refuses those points
+`BoundaryCrossesItselfUndecided { why: Degenerate }`, as for any two
+planar faces on each other
+(`review_6020_seam_probes::a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point`).
+So the defect reads as the split's: a half would carry one cut face notched
+at the crossing, not a face across it and a face of the other sense
+cancelling it. A record for the `VertexOnFace` contacts would not clear
+these halves.

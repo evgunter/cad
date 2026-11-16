@@ -15,16 +15,19 @@
 # cheap fixture names the row that carries it, and that row must exist.
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
-# and `#[cfg(test)]` items) for `Answering::Any`, each keyed by the
-# nearest `fn` above it (the function the ladder runs in), counted per
-# (file, function). The register lists every (file, function, count) with
+# and `#[cfg(test)]` items) for every ladder that answers past a kept rung:
+# `Answering::Any` (the argument of an entry point that takes an
+# `Answering`), and each call of an entry point that takes none
+# (`climb_agreeing`, `climb_differing`), the entry points read off
+# `crates/geom-core/src/ladder.rs` (`gate_ladder_entry_points`). Each is
+# keyed by the nearest `fn` above it (the function the ladder runs in),
+# counted per (file, function). The register lists every (file, function, count) with
 # its disposition, `pin <test fn>` (that `fn` must exist under `crates/`)
 # or `row <id>` (that `work/**/<id>.md` must exist).
 #
 # WHAT IT CANNOT SEE: a ladder whose `Answering` value is a variable, or
-# `Any` through `read_identity` and `climb_agreeing` (their own rows pin
-# them); a pin that no longer reaches the site (the register names it, a
-# reviewer reads it).
+# `Any` through `read_identity` (its own rows pin it); and whether a pin
+# reaches its site, which `scripts/any-first-mutant.sh` runs nightly.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -41,9 +44,29 @@ gate() {
   for f in "${GATE_PRODUCTION_FILES[@]}"; do
     [ "$f" = "$HOME_FILE" ] || files+=("$f")
   done
+  # The ladder's entry points (`gate_ladder_entry_points`, the one list):
+  # one that takes an `Answering` supersedes kept rungs only under `Any`,
+  # so its sites are the `Answering::Any` it is called with; one that
+  # takes none (`climb_agreeing`, `climb_differing`) supersedes them on
+  # every answer, so each call of it is a site.
+  gate_ladder_entry_points
+  local unanswered
+  unanswered=$(GATE_ENTRIES="$GATE_LADDER_ENTRY_POINTS" python3 - "$HOME_FILE" <<'PY'
+import os, re, sys
+src = open(sys.argv[1]).read()
+out = []
+for name in os.environ["GATE_ENTRIES"].split():
+    m = re.search(r"^pub fn " + re.escape(name) + r"\b(.*?)\{", src, re.M | re.S)
+    if m and not re.search(r"\bAnswering\b", m.group(1)):
+        out.append(name)
+print("|".join(out))
+PY
+)
+  local site='Answering::Any\b'
+  [ -n "$unanswered" ] && site="$site|(^|[^A-Za-z_0-9:]|::)($unanswered)[[:space:]]*\("
   local hits=""
   if [ "${#files[@]}" -gt 0 ]; then
-    hits=$(gate_rust_code --skip-cfg-test "${files[@]}" | gate_grep -E 'Answering::Any\b' | awk -F: '{ print $1 ":" $2 }')
+    hits=$(gate_rust_code --skip-cfg-test "${files[@]}" | gate_grep -E "$site" | awk -F: '{ print $1 ":" $2 }')
   fi
   local report
   report=$(GATE_HITS="$hits" python3 - "$REGISTER" <<'PY'
@@ -111,11 +134,13 @@ PY
     gate_error "Any ladders differ from $REGISTER (above): name each one's pin (a test with a kept reading ahead of an answer, red under a first-refusal loop), or the row that carries it"
     exit 1
   fi
-  gate_ok "every production Any ladder names its pin or its row"
+  gate_ok "every production ladder that answers past a kept rung names its pin or its row"
 }
 
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
+  mkdir -p "$1/crates/geom-core/src"
+  printf 'pub fn climb<I>(answering: Answering, rungs: I) {}\npub fn climb_differing<I>(rungs: I) {}\n' > "$1/$HOME_FILE"
   mkdir -p "$1/scripts/gates" "$1/work/p"
   printf '# none\n' > "$1/$REGISTER"
   printf -- '---\nid: carrier\n---\n' > "$1/work/p/carrier.md"
@@ -148,6 +173,16 @@ plant_count_short() {
   printf 'crates/planted/src/lib.rs search 1 row carrier\n' >> "$1/$REGISTER"
 }
 
+plant_differing_unregistered() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn mixed() {\n    match climb_differing(xs, f, g) {}\n}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_differing_on_a_row() {
+  plant_differing_unregistered "$1"
+  printf 'crates/planted/src/lib.rs mixed 1 row carrier\n' >> "$1/$REGISTER"
+}
+
 plant_on_a_row() {
   plant_unregistered "$1"
   printf 'crates/planted/src/lib.rs search 1 row carrier\n' >> "$1/$REGISTER"
@@ -177,10 +212,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_count_short
   gate_selftest_case "$want" plant_row_gone
   gate_selftest_case "$want" plant_stale_entry
+  gate_selftest_case "$want" plant_differing_unregistered
+  gate_selftest_passes "a differing ladder on a row" plant_differing_on_a_row
   gate_selftest_passes "a pinned ladder" plant_pinned
   gate_selftest_passes "a ladder on a row" plant_on_a_row
   gate_selftest_passes "a ladder in a test module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, a pin that names a fn that is no test, a function with more ladders than registered, and a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, a pin that names a fn that is no test, a function with more ladders than registered, a register entry the tree no longer carries, and a call of an entry point that takes no Answering (read off ladder.rs) left unregistered, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

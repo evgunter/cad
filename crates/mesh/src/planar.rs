@@ -124,7 +124,7 @@
 //! and bit-clean: it emits the zero the construction produced, for a
 //! reason stated at the site, and it moves nothing else.
 //!
-//! # The floor under it: `mitigate_underflow` at the insert feed
+//! # The floor under it: the crate's CDT feed
 //!
 //! The sited write closes the far point and only the far point, and
 //! that is not the whole class. Any boundary point lying on an
@@ -136,40 +136,15 @@
 //! symmetry, and they refuse over the same ν band and by the same ν²
 //! law as the defect the write fixes.
 //!
-//! So every chart coordinate additionally passes through spade's own
-//! [`spade::mitigate_underflow`] on its way into `insert`.
-//!
-//! **Read what that function actually does, because the argument turns
-//! on it.** It snaps a coordinate to zero *only* when the coordinate is
-//! already nonzero and already below [`spade::MIN_ALLOWED_VALUE`] — the
-//! open band `(0, MIN_ALLOWED_VALUE)` that `insert` refuses outright.
-//! It cannot touch a small-but-real coordinate: a value at 1e-30 is
-//! above the floor and passes through bit-identical. So the choice it
-//! offers is never "corrupt a real value or not". It is "mesh, or
-//! refuse", over exactly the values spade will not accept in any case.
-//!
-//! That is the same argument as the sited write, one step wider. Each
-//! coordinate in that band is a float residue of a quantity whose
-//! exact-arithmetic answer is zero — the construction's own zero,
-//! reached by geometry the frame cannot see rather than by the frame's
-//! own algebra — and snapping it declines to invent a nonzero, exactly
-//! as the far-point write does. It is not value snapping in the sense
-//! this module bans, because there is no real value to snap: nothing in
-//! the band is a number the pipeline may keep.
-//!
-//! The two layers are kept separate rather than collapsed into one.
-//! The write is exact and structural, and it names WHY that coordinate
-//! is zero at the site that knows; the floor is a general refusal to
-//! hand spade a value it rejects, and it knows nothing. Deleting the
-//! write would leave the far point's zero to be recovered by a filter
-//! that cannot say why it is zero.
-//!
-//! **Genuine degeneracy still refuses, and that is load-bearing.** A
-//! degenerate loop yields non-finite frame components, and mitigation
-//! passes NaN and infinity through untouched — the comparison
-//! `|c| < MIN_ALLOWED_VALUE` is false for both — so the typed
-//! [`TessellateError::Triangulation`] path is intact. The floor
-//! converts sub-floor refusals and nothing else.
+//! So every chart coordinate additionally passes through the crate's
+//! one CDT feed, `crate::cdt::spade_point`, whose docs carry the
+//! floor's argument: it writes `0.0` only for a coordinate already in
+//! the band `insert` refuses, and passes every other value, NaN and
+//! infinity included, bit-identical. The two layers stay separate: the
+//! write is exact and structural and names WHY that coordinate is zero
+//! at the site that knows; the floor knows nothing. Deleting the write
+//! would leave the far point's zero to a filter that cannot say why it
+//! is zero.
 //!
 //! The anchor needs neither layer: its `w` is the exactly-zero vector,
 //! so both its coordinates are already float `0.0`.
@@ -227,7 +202,6 @@ use geom_core::{Point3, Vec3};
 use spade::{
     ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation,
     handles::{DirectedEdgeHandle, FixedFaceHandle, FixedVertexHandle, InnerTag},
-    mitigate_underflow,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
@@ -305,7 +279,7 @@ impl ChartFrame {
         // CDT handle. A `-0.0` twin of the far point is two points here
         // and one geometrically, so it does not receive the write. Its v
         // is a residue of the same structural zero, under the floor,
-        // and `mitigate_underflow` at the insert feed snaps it to `0.0`,
+        // and the crate's CDT feed (`crate::cdt::spade_point`) writes it `0.0`,
         // the write's own value, so the two still dedupe. Above the
         // floor the twin's v is a real value and the two are genuinely
         // distinct to the CDT.
@@ -395,14 +369,9 @@ fn triangulate_chart(
     for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
         for (&id, &[u, v]) in ids.iter().zip(poly) {
-            // The floor under the sited far-point write (module docs):
-            // snaps a coordinate to zero ONLY when it is already
-            // nonzero and already below `MIN_ALLOWED_VALUE`, the band
-            // `insert` refuses outright. It cannot move a small-but-real
-            // value, and it passes NaN and infinity through, so a
-            // degenerate frame still refuses typed below.
+            // The floor under the sited far-point write (module docs).
             let h = cdt
-                .insert(mitigate_underflow(SpadePoint::new(u, v)))
+                .insert(crate::cdt::spade_point(u, v))
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
             walk.enter(&mut meta, h, PatchVertex::Shared(id), id);
             hs.push(h);
@@ -1373,7 +1342,8 @@ mod tests {
     /// the SIGN OF A ZERO is one point geometrically and one point to
     /// spade (`-0.0 == 0.0`), but two points to `same_position`. The
     /// write then reaches one traversal and not the other, and the one
-    /// it misses keeps the sub-floor residue that refuses the face.
+    /// it misses keeps the sub-floor residue, which the crate's CDT feed
+    /// (`crate::cdt::spade_point`) then writes `0.0`.
     #[test]
     fn r2_signed_zero_twin_of_the_far_point_is_missed_by_bit_keying() {
         let nu = 1.0e-30_f64;

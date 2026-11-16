@@ -28,9 +28,19 @@ A ladder reads it through the apex section's table refusal (`ApexSectionReading:
 
 A per-variant `SectionError::refusal()` in geom-brep, each variant's class stated in its doc. Then `SplitJoinError::Section` delegates to it. Measure the vertex-on-face climb's outcomes before and after.
 
+## A consumer matching `Unaccounted` by its text (2026-11-12)
+
+CLEAVETAIL's lily-wall8 lane re-pinned lily wall 8
+(`demos/tour/src/lily.rs`, `wall_probes`) on `GermSectionUnbuilt { why:
+Refused(Unaccounted { cause }) }`, where `cause` is a rendered
+`SsiError::CellBudget`. The pin can tell the budget from the other
+causes `Unaccounted` carries only by `cause.contains("cell budget")`;
+a typed cause (or a standing that says "a budget, not a decision")
+would let it match the variant.
+
 ## Closed: each section refusal stands by its cause (#onecopy/section-error-standing)
 
-`geom_brep::SectionError::refusal` (`crates/geom-brep/src/intersect.rs`) is exhaustive, and `SplitJoinError::Section` delegates to it. The standings are:
+`geom_brep::SectionError::refusal` (`crates/geom-brep/src/intersect.rs`) is exhaustive, and `JoinError::Section` delegates to it. The standings are:
 
 - **By margin:** escalations, and the carrier and spiric constructors' escalations.
 - **In band:** `CoincidentSurfaces`. Also `Unordered`, now decided `Zero` only, because the torus arms carry an undecided side to `Escalated`. Also `ConeAtTheBand`, the cone's aperture and seam guards decided `Zero`, split from `DegenerateOperand`.
@@ -43,6 +53,7 @@ Two standings moved on the ladder's path, which reaches `SectionError` only thro
 
 A probe at default ε and at `1e-12` found no ladder reading a section refusal in-suite, so no reached outcome moved. Both standings are pinned through the apex section.
 
-Two mixes remain, each with its own row:
+Three residues remain, each with its own row:
 - `Pinched`: `work/onecopy/section-pinched-mixes-decided-tangencies-with-undecided-ones.md`.
 - `DegenerateOperand`'s radius, poison and unread partner: `work/onecopy/section-degenerate-operand-mixes-a-radius-at-the-band-with-invalid-operands.md`.
+- `Unaccounted`, whose cause is rendered text, which a consumer can match only by its words (the note above): `work/onecopy/section-unaccounted-carries-its-cause-as-text.md`.
