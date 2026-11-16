@@ -105,3 +105,7 @@ and a spiric's bulge and length bound beside the conic's), while
 spline or spiric section edge `RunEdgeCarrierUnsupported`. A repair
 that reads the home takes each edge's term from that table and gains
 the two carriers with it.
+`splitting::section`'s `SectionPolygon::area` is the same shape in the
+plane's `(u, v)`: the corners' shoelace plus `chord_bulge` per arc, on a
+polygon whose edges are lines and conic arcs alone (a spiric or spline
+half is `HalfCarrier::Unread`).
