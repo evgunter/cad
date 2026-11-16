@@ -42,3 +42,13 @@ stated in the PR.
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Evidence (2026-11-16, TESSLANE's cylinder-certificate unit)
+
+`dist_line_triangle` no longer states a unit direction: it reads the
+shadow through `geom::Line::offset`, which divides by `|dir|²` and holds
+for any nonzero `dir`, its doc says so, a zero `dir` answers NaN (the
+certificate then refuses), and
+`cert::tests::the_two_distances_are_the_distance_on_triangles_built_to_be_degenerate`
+runs it at directions from a tenth to ten times unit length. Whether
+that closes this row is its owner's call.
