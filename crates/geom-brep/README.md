@@ -946,7 +946,12 @@ longer interval for a shared run. A touch's meeting is the in-band arc
 where two distinct curves stay within the band of each other about one
 point of closest approach (the extremum of the one's equation read along
 the other); `meet` returns it as that single point, not as the arc's
-interval. A shared run is one curve over both spans. Each span's ends are read against the
+interval. A reader of a touch may read that it exists, its hit kind
+and its position within the band, which any point of the arc serves;
+whether it crosses, and on which side each curve lies, is the meeting's
+kind, decided once by `meet` and never re-read from the curves'
+tangents at the reported point. A shared run is one curve over both
+spans. Each span's ends are read against the
 other span before anything else. A stretch holding exactly one meeting
 is reported as that meeting, which takes the whole stretch; a stretch
 holding no meeting, or more than one, escalates, since between two
