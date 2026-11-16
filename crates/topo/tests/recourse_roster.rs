@@ -580,6 +580,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
     (
+        "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
+        CARRIER_CALL,
+    ),
+    (
         "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: -tiny",
         CARRIER_CALL,
     ),
