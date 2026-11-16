@@ -476,10 +476,6 @@ const INDIRECT: &[(&str, &str)] = &[
         TUPLE_PAIRS,
     ),
     (
-        "pair_section/torus_arms.rs: across_strip: [(SQUARE_EDGE_OVER, big_r - y.abs())]",
-        TUPLE_PAIRS,
-    ),
-    (
         "pair_section/torus_arms.rs: apart_in_order_as: name",
         FORWARDS,
     ),
@@ -489,6 +485,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     (
         "pair_section/torus_arms.rs: reaches_edge: [(name, m)]",
+        TUPLE_PAIRS,
+    ),
+    (
+        "pair_section/torus_arms.rs: ordered_side: [(predicate, margin)]",
         TUPLE_PAIRS,
     ),
     ("pair_section/torus_arms.rs: sign_as: name", FORWARDS),
@@ -508,10 +508,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     (
         "pair_section/torus_arms.rs: square_folds: [(\"section_torus_square_wall_tube\", tubes.secant())]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: square_folds: [(SQUARE_FOLD_HALF, sigma * y - big_r)]",
         TUPLE_PAIRS,
     ),
     (

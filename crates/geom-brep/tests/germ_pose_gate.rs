@@ -302,6 +302,15 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
+    // Past a right angle, `cos α` is decided negative: the cone is outside
+    // its convention, a degenerate operand, never at the band's edge. Red
+    // if the guard's two decided arms collapse into one.
+    let past = cone_z(2.0);
+    let got = plane_cone_section(&cut, &past, &at_apex(1.0), band());
+    assert!(
+        matches!(got, Err(SectionError::DegenerateOperand { what }) if what.contains("past a right angle")),
+        "a half-angle past a right angle is outside the convention, got {got:?}"
+    );
 }
 
 /// **The apex lane's `sin α` clause, decided on the band.** A cone

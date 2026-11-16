@@ -700,7 +700,8 @@ pub enum SectionError {
     /// cone stands on its convention's edge (a half-angle at zero or a
     /// right angle, a seam on its axis), where a tighter band may part
     /// it, so it stands in band. Its decided-negative sibling is
-    /// [`Self::DegenerateOperand`], and it renders as that does.
+    /// [`Self::DegenerateOperand`]. It renders its in-band lever: a
+    /// cone moved clearly inside its convention, or a smaller tolerance.
     ConeAtTheBand {
         /// Which clause of the convention failed, and on what.
         what: &'static str,
@@ -871,9 +872,16 @@ impl SectionError {
                  read it over. {}",
                 crate::ssi::WRONG_LANE_RECOURSE
             ),
-            Self::DegenerateOperand { what } | Self::ConeAtTheBand { what } => {
+            Self::DegenerateOperand { what } => {
                 write!(f, "a section operand is degenerate: {what}")
             }
+            Self::ConeAtTheBand { what } => write!(
+                f,
+                "a section's cone stands on the edge of its convention at this \
+                 tolerance: {what}. Recourse: open the cone clearly off its axis and \
+                 clearly short of a right angle, with its seam clearly off its axis, or \
+                 run the operation at a smaller tolerance"
+            ),
             Self::BeyondOperandExtent { what } => write!(
                 f,
                 "{what}, outside the extent the section was sized for, where its closed \
@@ -2325,24 +2333,30 @@ pub fn plane_cone_section<T: Decide>(
     const PN_APERTURE_SIN: &str = "pn_aperture_sin";
     const PN_APERTURE_COS: &str = "pn_aperture_cos";
     const PN_SEAM_OFF_AXIS: &str = "pn_seam_off_axis";
-    for (name, margin, what) in [
+    // Each clause's words for a margin decided `Zero` (at the
+    // convention's edge) and decided negative (outside it).
+    for (name, margin, at_edge, outside) in [
         (
             PN_APERTURE_SIN,
             sin_a,
-            "the cone's half-angle does not definitely open off its axis, so the \
-             apex lane's division by sin α is not decided",
+            "the cone's half-angle is zero within the tolerance, so the apex lane's \
+             division by sin α is not decided",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
         ),
         (
             PN_APERTURE_COS,
             cos_a,
-            "the cone's half-angle is not definitely under a right angle, so the \
+            "the cone's half-angle is a right angle within the tolerance, so the \
              axis-normal circle's division by cos α is not decided",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
         ),
         (
             PN_SEAM_OFF_AXIS,
             seam_width,
-            "the cone's seam does not definitely leave its axis, so where its \
+            "the cone's seam lies along its axis within the tolerance, so where its \
              azimuth zero lies is not decided",
+            "the cone's seam width reads negative, which no frame holds",
         ),
     ] {
         match decide(name, Margin::levered(margin, extent), band)
@@ -2351,8 +2365,8 @@ pub fn plane_cone_section<T: Decide>(
             Sign::Positive => {}
             // Decided `Zero`, a tighter band may part the cone from its
             // convention's edge; decided negative, it is outside it.
-            Sign::Zero => return Err(SectionError::ConeAtTheBand { what }),
-            Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
         }
     }
     let c = a.dot(n);
@@ -3143,32 +3157,38 @@ pub fn cone_cylinder_section<T: Decide>(
     const COC_APERTURE_SIN: &str = "coc_aperture_sin";
     const COC_APERTURE_COS: &str = "coc_aperture_cos";
     const COC_SEAM_OFF_AXIS: &str = "coc_seam_off_axis";
-    for (name, margin, what) in [
+    // Each clause's words for a margin decided `Zero` (at the
+    // convention's edge) and decided negative (outside it).
+    for (name, margin, at_edge, outside) in [
         (
             COC_APERTURE_SIN,
             sin_a,
-            "the cone's half-angle does not definitely open off its axis, so the \
-             station's division by sin α is not decided",
+            "the cone's half-angle is zero within the tolerance, so the station's \
+             division by sin α is not decided",
+            "the cone's half-angle is negative, outside its convention 0 < α < π/2",
         ),
         (
             COC_APERTURE_COS,
             cos_a,
-            "the cone's half-angle is not definitely under a right angle, so cot α's \
+            "the cone's half-angle is a right angle within the tolerance, so cot α's \
              sign — and with it which nappe each circle is on — is not decided",
+            "the cone's half-angle is past a right angle, outside its convention \
+             0 < α < π/2",
         ),
         (
             COC_SEAM_OFF_AXIS,
             seam_width,
-            "the cone's seam does not definitely leave its axis, so the circles' \
+            "the cone's seam lies along its axis within the tolerance, so the circles' \
              azimuth zero is not decided",
+            "the cone's seam width reads negative, which no frame holds",
         ),
     ] {
         match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}
             // Decided `Zero`, a tighter band may part the cone from its
             // convention's edge; decided negative, it is outside it.
-            Sign::Zero => return Err(SectionError::ConeAtTheBand { what }),
-            Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what: at_edge }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
         }
     }
 

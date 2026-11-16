@@ -94,6 +94,24 @@ fn first_pinch<R, const N: usize>(
     Ok(out)
 }
 
+/// **Which side of a line the section is read by a crossing stands on**,
+/// `margin`'s sign under `predicate`: positive, or not. A margin decided
+/// `Zero` leaves the crossing unordered, and an undecided one carries its
+/// diagnostics ([`ArmRefusal::Unordered`]), which the value reads as its
+/// escalation.
+pub(super) fn ordered_side<T: Decide>(
+    predicate: &'static str,
+    margin: T,
+    band: Band,
+) -> Result<bool, ArmRefusal> {
+    signs([(predicate, margin)], band)
+        .map(|[side]| side)
+        .map_err(|p| ArmRefusal::Unordered {
+            predicate,
+            undecided: p.undecided,
+        })
+}
+
 /// **Decides every margin in `ms`**, the first `Zero` or undecided one
 /// the pinch ([`first_pinch`]).
 pub fn signs<T: Decide, const N: usize>(
@@ -969,12 +987,7 @@ fn square_folds<T: Decide>(
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
         for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
-            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band).map_err(|p| {
-                ArmRefusal::Unordered {
-                    predicate: SQUARE_FOLD_HALF,
-                    undecided: p.undecided,
-                }
-            })?;
+            let outer = ordered_side(SQUARE_FOLD_HALF, sigma * y - big_r, band)?;
             out.push(Fold { plus, y, z, outer });
         }
     }
@@ -1122,12 +1135,7 @@ fn across_strip<T: Decide>(
         let w = ((rc - h) * (rc + h)).sqrt();
         for right in [true, false] {
             let y = if right { e + w } else { e - w };
-            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band).map_err(|p| {
-                ArmRefusal::Unordered {
-                    predicate: SQUARE_EDGE_OVER,
-                    undecided: p.undecided,
-                }
-            })?;
+            let over = ordered_side(SQUARE_EDGE_OVER, big_r - y.abs(), band)?;
             edges.push((
                 psi(y, z),
                 Edge {

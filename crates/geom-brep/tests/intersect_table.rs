@@ -2973,6 +2973,13 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
             cyl_r(0.5),
             true,
         ),
+        // Decided negative: outside the convention, never at its edge.
+        (
+            "half-angle past a right angle",
+            &cone_at(2.0),
+            cyl_r(0.5),
+            false,
+        ),
     ] {
         let err = cone_cylinder_section(cone, &cyl, fixture_lever(1.0), band()).expect_err(what);
         assert!(
