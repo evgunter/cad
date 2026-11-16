@@ -5081,7 +5081,16 @@ fn eval_any<T>(
 where
     T: EvalScalar,
 {
-    let prior = prior.and_then(|p| p.value(id));
+    // An instance node's keys name its part by `DocRef` alone, so its
+    // prior value is reused only where this run reads the very part row
+    // the prior carried: a row rebuilt here may be other content under
+    // the same pin ([`parts::Reached::carried_from`]).
+    let prior = prior
+        .filter(|p| {
+            parts::instantiated(doc, id)
+                .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
+        })
+        .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
         Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {

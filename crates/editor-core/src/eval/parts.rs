@@ -1245,6 +1245,18 @@ impl<T: topo::AtRestPolicy + Decide> Reached<T> {
             .cloned()
             .unwrap_or(Err(PartFault::NotEntered))
     }
+
+    /// Whether this run's row for `doc_ref` at `tol`'s ε is the one
+    /// `prior` carried: [`PartStore::enter`] takes a reused row from the
+    /// prior by clone, so the two share their [`Refusals`]. A row built
+    /// here, or faulted, is not.
+    pub(crate) fn carried_from(&self, prior: &Carried<T>, doc_ref: &DocRef, tol: Tol) -> bool {
+        let key = (*doc_ref, tol.eps().to_bits());
+        match (self.0.get(&key), prior.rows.get(&key)) {
+            (Some(Ok(ours)), Some(theirs)) => Arc::ptr_eq(&ours.refused, &theirs.refused),
+            _ => false,
+        }
+    }
 }
 
 /// **The successful rows an evaluation carries for the next**
