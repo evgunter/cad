@@ -290,7 +290,36 @@ fn window<T: Decide>(
         curvature,
         (T::from_f64(band.escalate()), span),
     )
-    .map_or_else(|| (super::polish::undecided(), false), |b| (b, true))
+    .map_or_else(
+        || {
+            if let Some(path) = std::env::var_os("CAD_RING_PROBE_BASIN") {
+                use std::io::Write;
+                let f = |x: T| x.structure_bracket().map_or(f64::NAN, |(lo, hi)| 0.5 * (lo + hi));
+                let ((_, da), (_, db)) = (ra.curve().ders1(s), rb.curve().ders1(t));
+                let sine = da.normalize().cross(db.normalize()).norm();
+                let line = format!(
+                    "BASIN\t{}\tsine {:e}\tKa {:e}\tKb {:e}\tspan {:e}\trun_a {:e}\trun_b {:e}\thalf_a {:e}\thalf_b {:e}\tspeed_a {:e}\tspeed_b {:e}\n",
+                    std::thread::current().name().unwrap_or("?"),
+                    f(sine), f(ra.curvature), f(rb.curvature), f(span),
+                    f(run(ra, pa, s)), f(run(rb, pb, t)),
+                    f(pa.half()), f(pb.half()),
+                    f(Margin::metered_sup(T::from_f64(1.0), ra.hi()).value()),
+                    f(Margin::metered_sup(T::from_f64(1.0), rb.hi()).value()),
+                ) + &format!(
+                    "\tspeed_lo_a {:e}\taccel_a {:e}\tkind_a {:?}\tparams_a {:?}\n",
+                    f(geom::carrier_speed::speed_range(ra.curve()).0.get()),
+                    f(ra.accel),
+                    ra.curve().kind(),
+                    ra.span.params(),
+                );
+                if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = fh.write_all(line.as_bytes());
+                }
+            }
+            (super::polish::undecided(), false)
+        },
+        |b| (b, true),
+    )
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
