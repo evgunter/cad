@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P2
 cost: C
 closed: 2026-11-16
+pr: 7015
 branch: onehome/star-extremum
 ---
 
