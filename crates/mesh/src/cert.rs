@@ -311,8 +311,12 @@ pub(crate) fn cone_chord_sag(k: f64, va: f64, vb: f64, du: f64) -> f64 {
     let span = va + vb + 2.0 * (va * vb).sqrt() * cos.abs();
     if span == 0.0 {
         0.0
-    } else {
+    } else if span.is_finite() {
         k * 2.0 * va * vb * sin.powi(2) / span
+    } else {
+        // An overflowed `va·vb` under a small `k` leaves the numerator
+        // finite, and the quotient 0.
+        f64::NAN
     }
 }
 
@@ -1320,6 +1324,8 @@ mod tests {
             (nan, [[0.0, 1.0], [0.2, 1.0], [0.1, 0.5]], off),
             (inf, [[0.0, 1.0], [0.2, 1.0], [0.1, 0.5]], off),
             (0.5, [[0.0, 1e200], [0.2, 1e200], [0.1, 1e200]], off),
+            // A slant product past the range under a small `sin α·cos α`.
+            (0.05, [[0.0, 1.4e154], [0.2, 1.4e154], [0.1, 1.4e154]], off),
             (
                 0.5,
                 [[nan, 0.0], [0.2, 1.0], [0.1, 0.5]],
