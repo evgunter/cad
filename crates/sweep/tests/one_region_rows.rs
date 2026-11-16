@@ -611,7 +611,7 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
         u: element.deck().u - 2 * windings[0],
         ..element.deck()
     };
-    misread.attach_joint(h, topo::JointElement::Shift(turned));
+    misread.attach_joint(h, topo::JointElement(turned));
     let errors = topo::validate_geometric_structural(&misread, tol()).unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(
@@ -797,7 +797,9 @@ fn a_sense_flipped_wall_is_refused_by_check_6_alone() {
         Ok(()),
         "the honest wall validates"
     );
-    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let errors = topo::validate_geometric_structural(&flipped, tol()).unwrap_err();
     assert!(
         errors

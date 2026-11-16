@@ -59,10 +59,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     host = push(&host, Box::new(fixture::mated_instance(doc_ref)));
     host = push(&host, Box::new(fixture::mated_instance(doc_ref)));
     let (first, second) = (host.ids()[0], host.ids()[1]);
-    let sited = |node, cap| SitedFace {
-        at: node,
-        name: face(node, cap),
-    };
+    let sited = |node, cap| SitedFace::new(node, face(node, cap));
     let (host, _) = fixture::constrain_at(
         host,
         second,

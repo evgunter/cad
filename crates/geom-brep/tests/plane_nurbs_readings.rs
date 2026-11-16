@@ -136,6 +136,7 @@ fn read(r: Result<SsiOutcome, SsiError>) -> Read {
                         format!("rim {} {}", s[0], s[1])
                     }
                     BranchEnd::Cut => "cut".to_owned(),
+                    BranchEnd::Node { .. } => "node".to_owned(),
                 })
                 .collect();
             ends.sort();

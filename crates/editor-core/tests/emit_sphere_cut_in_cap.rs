@@ -118,7 +118,7 @@ pub(crate) fn world_in_brick(
     stands: &editor_core::Frame,
     body: editor_core::Operand,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let at = editor_core::Frame::from_affine(stands.affine::<f64>().inverse());
+    let at = editor_core::Frame::from_affine(stands.affine().inverse());
     against(doc, brick, body, &at)
 }
 
@@ -383,7 +383,7 @@ fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
     // The brick read in the lens's coordinates, as the op reads it.
     let brick = match lens.relative(&brick).expect("the frames compose") {
         None => brick.body().clone(),
-        Some(map) => topo::transform::transform_rigid(brick.body(), &map, tol)
+        Some(map) => topo::transform::transform_rigid(brick.body(), &map)
             .expect("the brick maps into the lens's frame"),
     };
     let lens = topo::test_support::finished("the lens", lens.body().clone(), tol);

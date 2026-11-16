@@ -304,6 +304,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// The volume of a boolean of the donut and a straight rod, sliced along
+/// the donut's axis: a truth that reads no kernel code.
+pub mod donut_slices;
+
 /// The volume of a boolean of two crossed finite cylinders, sliced
 /// parallel to both axes: a truth that reads no kernel code.
 pub mod crossed_cylinders;
@@ -341,7 +345,7 @@ use sweep::{ProfileLoop, Section};
 use topo::Body;
 
 /// **A sketch plane from a placement a suite holds as twelve numbers**,
-/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// admitted at the suites' door (`geom_core::test_support::rigid`) at
 /// the witness tolerance: a suite that writes its plane as a matrix
 /// asks this before the plane exists. Panics, naming the refusal, when
 /// the map is not rigid.
@@ -388,7 +392,13 @@ pub fn start_frame(point: Point3<f64>, tangent: Vec3<f64>) -> RigidMotion<f64> {
     let tangent = UnitVec3::new(tangent, "test_start_tangent", band)
         .unwrap_or_else(|e| panic!("the start tangent must have a direction: {e:?}"));
     RigidMotion::axes_xy(point)
-        .turned_onto(tangent, "test_start_turn", band)
+        .turned_onto(
+            tangent,
+            geom_core::Lever::session_box(),
+            "test_start_turn",
+            band,
+            Tol::witness(),
+        )
         .unwrap_or_else(|e| panic!("the start tangent must be off the world -z: {e:?}"))
 }
 
@@ -726,12 +736,11 @@ pub fn tilted_bore() -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         0.4,
     );
-    let bore = topo::transform_rigid(&bore, &geom_core::test_support::rigid(&tilt, tol), tol)
+    let bore = topo::transform_rigid(&bore, &geom_core::test_support::rigid(&tilt, tol))
         .expect("the bore turns");
     topo::transform_rigid(
         &bore,
         &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, 0.5)).unwrap(),
-        tol,
     )
     .expect("the bore moves")
 }

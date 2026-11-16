@@ -196,10 +196,8 @@ pub(crate) fn build<S: Scalar>(
     let n = plane.normal.get() * S::from_f64(PULL);
     let pull = RigidMotion::translation(n).expect("a finite pull");
     let push = RigidMotion::translation(-n).expect("a finite pull");
-    let moved_above =
-        pncad::topo::transform_rigid(above, &pull, tol).expect("translate above half");
-    let moved_below =
-        pncad::topo::transform_rigid(below, &push, tol).expect("translate below half");
+    let moved_above = pncad::topo::transform_rigid(above, &pull).expect("translate above half");
+    let moved_below = pncad::topo::transform_rigid(below, &push).expect("translate below half");
     (
         (moved_above, moved_below),
         SectionNumbers {
@@ -316,7 +314,7 @@ pub(crate) fn sectioned_beside(
         panic!("the section plane passes over the spring: all of it is below");
     };
     let pull = RigidMotion::translation(n.below_pull).expect("a finite pull");
-    let spring_below = pncad::topo::transform_rigid(spring_below, &pull, tol)
+    let spring_below = pncad::topo::transform_rigid(spring_below, &pull)
         .expect("pull the spring with the below half");
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
@@ -345,11 +343,11 @@ pub(crate) fn sectioned_beside(
     );
     let aside =
         RigidMotion::translation(Vec3::new(SECTION_GAP, 0.0, 0.0)).expect("a finite offset");
-    let above = pncad::topo::transform_rigid(&moved_above, &aside, tol)
+    let above = pncad::topo::transform_rigid(&moved_above, &aside)
         .expect("place the above half beside the box");
-    let below = pncad::topo::transform_rigid(&moved_below, &aside, tol)
+    let below = pncad::topo::transform_rigid(&moved_below, &aside)
         .expect("place the below half beside the box");
-    let spring_below = pncad::topo::transform_rigid(&spring_below, &aside, tol)
+    let spring_below = pncad::topo::transform_rigid(&spring_below, &aside)
         .expect("place the spring beside the box");
     (
         vec![

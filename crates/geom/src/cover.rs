@@ -534,24 +534,10 @@ fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
 
 /// The box whose row `i` spans `±` the support along row `i`.
 fn rows_box<T: Real>(axes: &BoxAxes<T>, support: impl Fn(Vec3<T>) -> T) -> (Point3<T>, Point3<T>) {
-    box_of(box_dirs(axes).map(support))
-}
-
-/// **The six directions a box's supports are read along**: each row
-/// negated, then the row, row by row.
-fn box_dirs<T: Real>(axes: &BoxAxes<T>) -> [Vec3<T>; 6] {
     let [a, b, c] = axes.rows();
-    [-a, a, -b, b, -c, c]
-}
-
-/// **The box whose supports along [`box_dirs`] are `s`**: each row's
-/// range read as [`support_range`] reads it.
-fn box_of<T: Real>(s: [T; 6]) -> (Point3<T>, Point3<T>) {
-    let low = |x: T| T::zero() - x;
-    (
-        Point3::new(low(s[0]), low(s[2]), low(s[4])),
-        Point3::new(s[1], s[3], s[5]),
-    )
+    let span = |r: Vec3<T>| support_range(&support, r);
+    let ((xl, xh), (yl, yh), (zl, zh)) = (span(a), span(b), span(c));
+    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
 }
 
 /// **A support's range along `dir`**: the least and greatest `x·dir`
@@ -575,6 +561,13 @@ fn smaller<T: Real>(a: Ball<T>, b: Ball<T>) -> Ball<T> {
         Point3::new(pick(a.0.x, b.0.x), pick(a.0.y, b.0.y), pick(a.0.z, b.0.z)),
         pick(a.1, b.1),
     )
+}
+
+/// **The one rule a ball is narrowed by**: a ball holding a region,
+/// and the ball about the region's box, whichever is the narrower;
+/// both hold it.
+fn boxed<T: Real>(ball: Ball<T>, bx: (Point3<T>, Point3<T>)) -> Ball<T> {
+    smaller(ball, box_ball(bx))
 }
 
 /// The ball about a box's centre out to its corners.
@@ -673,6 +666,21 @@ impl<T: Real> Cover<T> {
         };
         (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
             .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
+    }
+
+    /// **The whole circle** `core` names ([`Core`]): its turn's region,
+    /// which does not depend on where its seam is. The one construction
+    /// of a circle a reader holds by its centre, axis and radius; a
+    /// reader holding the carrier reads `Curve3::cover`. `None` for a
+    /// datum that is not a finite number.
+    pub fn circle(core: Core<T>) -> Option<Self> {
+        let axis = core.axis.dir.normalize();
+        let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
+        Self::arc(
+            &frame,
+            (core.radius, core.radius),
+            ParamWindow::new(T::zero(), T::tau()),
+        )
     }
 
     /// The axial slab: the solid cylinder of radius `|radius|` about the
@@ -911,7 +919,10 @@ impl<T: Real> Cover<T> {
         self.range_about(&(*site).into())
     }
 
-    /// **A ball holding the region**, as `(centre, radius)`.
+    /// **A ball holding the region**, as `(centre, radius)`: the tree's
+    /// own ball, or the ball about the region's box where that is the
+    /// narrower (a hull of many small pieces, whose balls combine about
+    /// their centres' midpoints).
     pub fn ball(&self) -> (Point3<T>, T) {
         self.0.ball()
     }
@@ -1085,32 +1096,33 @@ impl<T: Real> Node<T> {
     }
 
     fn ball(&self) -> Ball<T> {
+        self.ball_and_box().0
+    }
+
+    /// **The node's ball and its world box**, built in one pass: each
+    /// node's own ball (a piece's shape's, both balls of a meet, the ball
+    /// about a hull's two centres' midpoint) narrowed by the ball about
+    /// its box ([`boxed`]). A node's box is its children's: a meet's
+    /// support is the lesser and a hull's the greater along every row.
+    /// A chain is read as its left-deep form ([`fold`]), so each prefix
+    /// is a node of its own, its ball narrowed by its own box.
+    fn ball_and_box(&self) -> (Ball<T>, (Point3<T>, Point3<T>)) {
+        let narrowed = |own, bx| (boxed(own, bx), bx);
         match self {
-            Node::Piece(p) => p.ball(),
-            // Both balls hold the region, and so does the ball about the
-            // meet's box, which is narrower than either piece's where the
-            // two overlap only in part.
-            // Each prefix of the chain is the meet the left-deep form
-            // held there, so its ball is read as that meet's: the smaller
-            // of the prefix's and the next operand's, and of the ball
-            // about the prefix's box, whose supports are carried along
-            // the chain as the prefix's fold.
-            Node::Meet(chain) => {
-                let dirs = box_dirs(&BoxAxes::World);
-                let mut ball = chain.first.ball();
-                let mut supports = dirs.map(|e| chain.first.support(e));
-                for n in &chain.rest {
-                    supports = core::array::from_fn(|i| supports[i].min(n.support(dirs[i])));
-                    ball = smaller(smaller(ball, n.ball()), box_ball(box_of(supports)));
-                }
-                ball
-            }
-            Node::Hull(chain) => fold(chain, Node::ball, |(c0, r0), (c1, r1)| {
-                let c = c0.mid(c1);
-                let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                (c, r)
+            Node::Piece(p) => narrowed(p.shape_ball(), p.world_box()),
+            Node::Meet(chain) => fold(chain, Node::ball_and_box, |(b0, x0), (b1, x1)| {
+                narrowed(smaller(b0, b1), (x0.0.max(x1.0), x0.1.min(x1.1)))
             }),
-            Node::Convex(inner) => inner.ball(),
+            Node::Hull(chain) => fold(
+                chain,
+                Node::ball_and_box,
+                |((c0, r0), x0), ((c1, r1), x1)| {
+                    let c = c0.mid(c1);
+                    let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
+                    narrowed((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
+                },
+            ),
+            Node::Convex(inner) => inner.ball_and_box(),
         }
     }
 }
@@ -1497,6 +1509,13 @@ impl<T: Real> Arc<T> {
     /// the site's azimuth where the window holds that azimuth,
     /// `√(h² + (ρ_at − |ρ̄|)²)`, and the nearer end where it does not;
     /// every term is a distance, so none cancels near the arc.
+    ///
+    /// The whole conic also lies within `dev` of that circle, so in the
+    /// annulus between `|ρ̄| − dev` and `|ρ̄| + dev` about its centre (its
+    /// semi-axes, in an orthonormal frame), and the site is no nearer than
+    /// `√(h² + (||ρ_at − |ρ̄|| − dev)²)`, the gap clipped at zero: exact on
+    /// an ellipse beside its centre and off its plane, where the arc's
+    /// floor less `dev` is not.
     fn near(&self, c: &Circle<T>) -> T {
         let in_azimuth = (c.h.powi(2) + (c.off_axis - c.rho.abs()).powi(2)).sqrt();
         let ends = c.end(self.window.lo).min(c.end(self.window.hi));
@@ -1504,7 +1523,8 @@ impl<T: Real> Arc<T> {
         let near = ArcWindow::new(self.window.lo, self.window.hi)
             .crest_outside(x, y)
             .select_le_zero(in_azimuth, ends);
-        (near - c.dev).max(T::zero())
+        let gap = ((c.off_axis - c.rho.abs()).abs() - c.dev).max(T::zero());
+        (near - c.dev).max((c.h.powi(2) + gap.powi(2)).sqrt())
     }
 
     /// **The farthest distance from the site, as a distance**: the lesser
@@ -1559,14 +1579,15 @@ impl<T: Real> Arc<T> {
             + self.frame.v_ref() * (self.semi_v * s)
     }
 
-    fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
+    /// The whole conic's ball: its centre, out to the Gram bound on its
+    /// frame's two semi-axis vectors.
+    fn ball(&self) -> Ball<T> {
         let (p, q) = (
             self.frame.u_ref * self.semi_u,
             self.frame.v_ref() * self.semi_v,
         );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
-        let whole = (self.frame.origin, r);
-        smaller(whole, box_ball(world))
+        (self.frame.origin, r)
     }
 }
 
@@ -1659,14 +1680,20 @@ impl<T: Real> Piece<T> {
         }
     }
 
+    /// The piece's ball under the one rule ([`boxed`]).
     fn ball(&self) -> Ball<T> {
+        boxed(self.shape_ball(), self.world_box())
+    }
+
+    /// The ball the shape names, before its box narrows it.
+    fn shape_ball(&self) -> Ball<T> {
         match self {
             Piece::Points(points) | Piece::Net(points) => points_ball(points),
             Piece::Segment(ends) => points_ball(ends),
-            Piece::Arc(arc) => arc.ball(self.world_box()),
+            Piece::Arc(arc) => arc.ball(),
             Piece::Slab(slab) => slab.ball(),
-            Piece::Frustum(f) => smaller(f.slab().ball(), box_ball(self.world_box())),
-            Piece::Patch(patch) => smaller(patch.tube.ball(), box_ball(self.world_box())),
+            Piece::Frustum(f) => f.slab().ball(),
+            Piece::Patch(patch) => patch.tube.ball(),
             Piece::Tube(tube) => tube.ball(),
         }
     }

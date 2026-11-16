@@ -91,8 +91,7 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
             Affine3::rotation_about_axis(Point3::new(0.3, -0.2, 0.5), axis / axis.norm(), angle);
         let turned = topo::test_support::finished(
             "turned",
-            topo::transform_rigid(&sliver, &geom_core::test_support::rigid(&turn, tol), tol)
-                .unwrap(),
+            topo::transform_rigid(&sliver, &geom_core::test_support::rigid(&turn, tol)).unwrap(),
             tol,
         );
         assert_eq!(

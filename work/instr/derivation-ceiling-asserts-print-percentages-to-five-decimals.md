@@ -14,7 +14,7 @@ Found by the TESS lane that made `crates/mesh`'s domination asserts legible
 (`tess/domination-assert-messages`), sweeping for the same shape outside its
 fence: a **bare** `<=` between a derived quantity and its ceiling, whose
 message prints both sides at a handful of digits, so a red decided by the
-last bits prints two equal numbers. `work/tess/nurbs-face-bound-unsound-on-a-random-rational.md`'s
+last bits prints two equal numbers. `work/tesslane/nurbs-face-bound-unsound-on-a-random-rational.md`'s
 "CORRECTION" section records what that cost on a `{:.3e}` message.
 
 Hits, in `tools/tess-meter/tests/derivations.rs`:

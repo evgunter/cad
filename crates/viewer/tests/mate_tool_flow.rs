@@ -90,9 +90,9 @@ fn two_picks_one_choice_one_committed_edit() {
         "two planes, the target flipped: the faces rest against each other"
     );
 
-    // post_b stands in a space of its own and the shelf in the world:
-    // the plain commit never moves the copy as a side effect, so the
-    // door refuses the mate, naming both spaces, and nothing is recorded.
+    // post_b stands in a space of its own and the shelf in the world: a
+    // mate reads its `to` in its placement's target, so the door refuses
+    // the mate, naming both spaces, and nothing is recorded.
     let before = session.committed_doc().clone();
     let refused = session.perform(proposal.op());
     let own = before.node_space(bench.post_b).expect("post_b is placed");
@@ -107,7 +107,7 @@ fn two_picks_one_choice_one_committed_edit() {
                             && [a.id(), b.id()].contains(&pncad::document::VarId::WORLD)
                 )
         ),
-        "a mate across two spaces refuses unless the move is asked for: {:?}",
+        "a mate across two spaces refuses: {:?}",
         refused.refusal
     );
     assert!(refused.committed.is_empty(), "nothing is recorded");
@@ -116,10 +116,23 @@ fn two_picks_one_choice_one_committed_edit() {
         "the document stands"
     );
 
-    // One committed action, through the session's one door, into
-    // post_b's bundle: the mate and its values, the copy moved into the
-    // shelf's space by name.
-    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
+    // The panel names both spaces and offers "Into" the shelf's: the
+    // copy's target re-seated, in the same change as the mate here. One
+    // committed action, through the session's one door, into post_b's
+    // bundle: the target, the mate and its values.
+    let (landed, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        tool.off_target(landed, ev),
+        [(
+            viewer::matetool::Reading::Mate(0),
+            pncad::document::VarId::WORLD
+        )],
+        "the row is marked as reading the shelf's space"
+    );
+    common::into_to_space(&session, &mut tool);
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
+    let mate = common::commit_mate(&mut session, proposal.op());
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
 
     // The placement is SOLVED from the mate: the two picked FACES now
@@ -418,6 +431,12 @@ fn shelf_on(
     let mut tool = MateTool::new();
     tool.pick(session.doc(), shelf_bottom.clone());
     tool.pick(session.doc(), target.clone());
+    // Where the shelf is in a space of its own, its "into" row is set to
+    // the target's, in the same change as the rest.
+    let (doc, ev) = session.landed_pair().expect("landed");
+    if !tool.off_target(doc, ev).is_empty() {
+        common::into_to_space(session, &mut tool);
+    }
     let mut choice = asm::seat_choice();
     choice.values = Vec::new();
     common::proposed(session, &tool, choice).expect("the shelf's rest proposes")
@@ -470,7 +489,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     // the shelf on copy 1, and the two picked faces rest in the world
     // the evaluation draws. A tool that read the master's face would
     // land the shelf one step away from copy 1.
-    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
+    let mate = common::commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol)
@@ -481,12 +500,16 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     );
     assert_faces_rest(&session, &copy_one, &shelf_bottom, "the pattern copy");
     let (_, eval) = session.landed_pair().expect("landed");
+    // The face the solve read is copy 1's cap and not the master's: a
+    // cap's frame is its sketch frame carried with the body, so copy 1's
+    // stands one pattern step along from the master's corner. (The rest
+    // mate fixes only the plane; the shelf keeps its own authored `x`,
+    // so where the shelf stands in the plane tells the two apart only
+    // through this.)
     let cap = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let underside = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("underside");
     assert!(
-        ((underside.origin - cap.origin).x).abs() < asm::SHELF_LENGTH,
-        "the shelf stands over copy 1, not over the master: {:?} vs {:?}",
-        underside.origin,
+        (cap.origin.x - (asm::POST_B_AT[0] + PATTERN_STEP)).abs() < 1e-12,
+        "the mate read copy 1's cap, not the master's: {:?}",
         cap.origin
     );
     for row in session.tree_rows() {
@@ -783,7 +806,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     // in the world the evaluation draws, which is the pattern's
     // rotation being applied exactly once. The shelf's world mate comes
     // off, so the mate places the shelf against the spun copy.
-    let mate = common::commit_mate(&mut session, spun.op_into_target_space());
+    let mate = common::commit_mate(&mut session, spun.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol)
@@ -976,7 +999,7 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
 
     // The shelf's world mate off, so the mate places the shelf against
     // the nested copy.
-    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
+    let mate = common::commit_mate(&mut session, proposal.op());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
@@ -1036,7 +1059,7 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
 
     // The shelf's world mate off, so the mate places the shelf against
     // the read's copy.
-    let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
+    let mate = common::commit_mate(&mut session, proposal.op());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
@@ -1209,11 +1232,12 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
         top.node, split,
         "and the upper half's top, drawn by the split"
     );
-    // The upper half is drawn in the block's own space, so the rest
-    // moves the half into it by name.
+    // The upper half is drawn in the block's own space, so the copy's
+    // "into" row is set to it with the rest.
     let mut mate = viewer::matetool::MateTool::new();
     mate.pick(session.doc(), underside);
     mate.pick(session.doc(), top);
+    common::into_to_space(&session, &mut mate);
     let proposal = {
         common::proposed(
             &session,
@@ -1226,7 +1250,7 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
         )
         .expect("a rest proposes")
     };
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let (x, y, z) = (size[0] / 2.0, size[1] / 2.0, size[2]);
     common::drawn::assert_drawn(
         &mut session,
@@ -1241,8 +1265,9 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
 /// **The snap moves a turned copy only by the snap**, wherever it is
 /// turned: post_b turned about `z` and tilted about `x` by nine pairs,
 /// some needing a turn of their own onto the shelf and an orientation
-/// other than the identity, then rested by its top cap on the shelf's
-/// underside with no value named. It keeps everything the mate leaves.
+/// other than the identity, and one inside the snap's least-turn band,
+/// then rested by its top cap on the shelf's underside with no value
+/// named. It keeps everything the mate leaves.
 ///
 /// *Breaks if* the gesture writes an orientation or spin the chart reads
 /// back as another turn, or slides it reads along other axes.
@@ -1251,7 +1276,16 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
     use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
     let tol = Tol::witness();
     let mut bad = Vec::new();
+    // The snap's least turn refuses within this chord of its pole (the
+    // session box's lever against the run's rounding reach): inside it the
+    // snap turns by the half turn and then the least turn from `−from`.
+    let edge = pncad::geom_core::test_support::least_turn_band_edge(
+        tol,
+        pncad::geom_core::tolerance::SESSION_BOX_EXTENT,
+    );
+    let in_band = 180.0 - (edge / 2.0).min(0.5).to_degrees();
     for (zt, xt) in [
+        (30.0, in_band),
         (100.0_f64, 0.0_f64),
         (10.0, 20.0),
         (100.0, 20.0),
@@ -1362,8 +1396,9 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         };
         println!("snap z={zt} x={xt}: orient {orient:?} turn err {dcol:e} point xy err {dxy:e}");
         // At the antipode (x = 180°) the expected least turn has no
-        // formula; only the rest and the point are checked there.
-        if (dcol > 1e-9 && 1.0 + c > 1e-9) || dxy > 1e-9 {
+        // formula, and inside the snap's band it is not the turn the snap
+        // writes; only the rest and the point are checked there.
+        if (dcol > 1e-9 && (2.0 * (1.0 + c)).max(0.0).sqrt() > edge) || dxy > 1e-9 {
             bad.push(format!("{zt},{xt}: turn err {dcol:e}, point err {dxy:e}"));
         }
         assert_faces_rest(&session, &post_top, &shelf_bottom, "r1 snapped seat");

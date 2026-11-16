@@ -2,7 +2,8 @@
 id: main-red-prose-census-cannot-decide-the-glue-record-broken-surfaces
 kind: issue
 title: main red: the prose census cannot decide GlueRecordBroken's surface pair in merge_faces.rs (pncad-py prose_census, every ε), since PR 6079
-status: open
+status: closed
+closed: 2026-11-12
 opened: 2026-10-30
 priority: P3
 cost: E
@@ -25,3 +26,7 @@ Both are `MergeCoplanarError::GlueRecordBroken { surfaces: (a, b) }`'s `Display`
 ## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
 
 Pinned: the two sites are named in `prose_census.rs`'s `UNDECIDED`, citing this row, with the reason the census could not decide them. The other entries keep the row honest: the census still reds on any site that arrives unnamed, and on these two lines once the arm is rewritten. Un-pinning (striking the lines) owes nothing beyond the census's own run: the census reads source and stops on nothing.
+
+## Closed
+
+`MergeCoplanarError::GlueRecordBroken` retired with the merge's glued rung (commit `55c18dca75`, reached main through PR 6810). Its two `UNDECIDED` lines then went stale, and the census's exact-set assertion turned red on main. The lines are struck in `reads/no-member-prose`, the REFS lane for `main-red-select-no-member-raise-composes-a-debug-rendering`, because that red gated its CI. Nothing else in the census changed.

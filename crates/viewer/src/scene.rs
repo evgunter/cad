@@ -405,6 +405,16 @@ pub struct SceneMesh {
     stats: SceneStats,
 }
 
+/// **`outer` after `inner`**, either of which may be the identity
+/// (`None`): the one composition of the picture's display maps.
+pub fn composed(outer: Option<Affine3<f64>>, inner: Option<Affine3<f64>>) -> Option<Affine3<f64>> {
+    match (outer, inner) {
+        (None, inner) => inner,
+        (Some(outer), None) => Some(outer),
+        (Some(outer), Some(inner)) => Some(outer * inner),
+    }
+}
+
 /// One piece of the drawn picture: a tessellation, and the id its
 /// patches are drawn under.
 ///
@@ -428,7 +438,9 @@ pub struct ScenePart<'a> {
     pub probe: Option<Frame>,
     /// **The body's frame in its space**, where it is not the identity:
     /// what [`pncad::document::in_space`] answers for the part's body,
-    /// applied to the positions at build, in `f64`, beneath the probe.
+    /// or for a copy the placement editor previews, where its draft
+    /// stands it (`crate::display::PreviewedPlacement`); applied to the
+    /// positions at build, in `f64`, beneath the probe.
     pub placed: Option<Affine3<f64>>,
     /// Whether the part is a body the product slot does not reach: its
     /// every corner carries [`SceneMesh::FLAG_OUTSIDE`].
@@ -608,12 +620,7 @@ impl SceneMesh {
             // The probe's display map, applied in f64 BEFORE the f32
             // cast: the displaced picture takes the same one rounding
             // step an undisplaced one does.
-            let map: Option<Affine3<f64>> =
-                match (part.probe.map(|frame| frame.affine()), part.placed) {
-                    (None, placed) => placed,
-                    (Some(probe), None) => Some(probe),
-                    (Some(probe), Some(placed)) => Some(probe * placed),
-                };
+            let map = composed(part.probe.map(|frame| frame.affine()), part.placed);
             let flag = if part.probe.is_some() {
                 probe_parts += 1;
                 Self::FLAG_PROBE
@@ -894,7 +901,7 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
     let product = pncad::document::product_recorded(doc, &evaluation, tol)
         .map_err(|error| no_product(error, doc))?;
-    product_in_world(product, doc, tol).map_err(|error| no_product(error, doc))
+    product_in_world(product, tol).map_err(|error| no_product(error, doc))
 }
 
 /// **A gathered product as the picture draws it**: its body in the
@@ -906,14 +913,12 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
 ///
 /// # Errors
 ///
-/// The door's [`ProductError::Frame`] and [`ProductError::ProductInvalid`]
-/// refusals.
+/// The door's [`ProductError::ProductInvalid`] refusal.
 pub fn product_in_world(
     product: pncad::document::Product<f64>,
-    doc: &Doc<ProfileProgram>,
     tol: Tol,
 ) -> Result<Body<f64>, ProductError> {
-    let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
+    let composed = match pncad::export::product_body_in_space(&product, tol) {
         Ok(std::borrow::Cow::Owned(body)) => Some(body.into_body()),
         Ok(std::borrow::Cow::Borrowed(_)) => None,
         Err(error) => return Err(error),

@@ -1414,6 +1414,44 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     }
 }
 
+/// **An ellipse's nearest distance reads its annulus**: the whole
+/// ellipse of semi-axes `2` and `1` lies between radii `1` and `2` in its
+/// plane, so from a point `1` above its centre, and from one `1` above
+/// the plane and `1` past its major vertex, both scalars read the true
+/// nearest distance `√2`, the nearer semi-axis's end or the vertex. The
+/// circle of the mean radius `1.5` less the semi-axes' departure `0.5`
+/// reads `√3.25 − 0.5 ≈ 1.30` at both: red where the annulus is dropped.
+#[test]
+fn an_ellipses_nearest_distance_reads_its_annulus() {
+    let frame = Frame::new(Point3::new(1.0, -2.0, 0.5), Vec3::unit_z(), Vec3::unit_x());
+    let ellipse = Curve3::Ellipse(crate::Ellipse::new(frame, 2.0, 1.0));
+    let whole = ParamWindow::new(0.0, TAU);
+    let f = ellipse.cover_over(whole).unwrap();
+    let i = ellipse
+        .map_scalar(iv)
+        .cover_over(ParamWindow::new(iv(0.0), iv(TAU)))
+        .unwrap();
+    for (what, q) in [
+        ("above the centre", frame.origin + Vec3::unit_z()),
+        (
+            "above and past the vertex",
+            frame.origin + Vec3::new(3.0, 0.0, 1.0),
+        ),
+    ] {
+        let (nf, _) = f.distance_range(&Site::Point(q));
+        let (ni, _) = i.distance_range(&Site::Point(ipt(q)));
+        let exact = 2.0f64.sqrt();
+        assert!(
+            (nf - exact).abs() <= 1e-12,
+            "{what}: the f64 nearest {nf} against the true {exact}"
+        );
+        assert!(
+            ni.lo() <= exact && ni.lo() >= exact - 1e-12,
+            "{what}: the interval nearest {ni:?} against the true {exact}"
+        );
+    }
+}
+
 /// **The nearest distance from a line is posed as a distance**: a line
 /// tangent to a circle arc or to a thin torus's outer equator, `δ` out
 /// along the radial in the circle's plane, stands `δ` from it, and both
@@ -2030,6 +2068,76 @@ fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
     assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
 }
 
+/// **A hull of many small pieces reads the ball about its box**: three
+/// points on a line, hulled one at a time. The balls about each pair's
+/// midpoint grow to 1.25; the ball about the hull's box is 1, and a hull
+/// hulled again, or met with something, keeps it.
+#[test]
+fn a_hull_of_small_pieces_reads_the_ball_about_its_box() {
+    let p = |x: f64| Cover::points(vec![Point3::new(x, 0.0, 0.0)]).unwrap();
+    let hull = p(0.0).hull(p(1.0)).hull(p(2.0));
+    let (c, r) = hull.ball();
+    assert!(
+        (r - 1.0).abs() < 1e-15 && (c - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15,
+        "the hull's ball is ({c:?}, {r}), not its box's (1, 0, 0) out to 1"
+    );
+    let big = Cover::points(vec![Point3::new(1.0, 0.0, 0.0)])
+        .unwrap()
+        .hull(Cover::points(vec![Point3::new(1.0, 50.0, 0.0)]).unwrap());
+    let (_, r_meet) = hull.clone().meet(big).ball();
+    assert!(r_meet <= 1.0 + 1e-15, "the meet's ball reaches {r_meet}");
+    let (_, r_again) = hull.convex().hull(p(1.0)).ball();
+    assert!(
+        r_again <= 1.0 + 1e-15,
+        "the hull hulled again reaches {r_again}"
+    );
+}
+
+/// **A whole circle held by its centre, axis and radius** is the region
+/// of every point at its radius in its plane, whatever its seam: its
+/// ball is its centre out to the radius, its support along the axis is
+/// the centre's, and along its plane the radius past it.
+#[test]
+fn a_whole_circle_is_its_turn_whatever_its_seam() {
+    let (c, axis, r) = (Point3::new(1.0, -2.0, 3.0), Vec3::new(0.0, 0.6, 0.8), 2.5);
+    let circle = Cover::circle(Core {
+        axis: Line {
+            origin: c,
+            dir: axis,
+        },
+        radius: r,
+    })
+    .unwrap();
+    let (centre, radius) = circle.ball();
+    assert!(
+        (centre - c).norm() < 1e-12 && (radius - r).abs() < 1e-12,
+        "the circle's ball is ({centre:?}, {radius})"
+    );
+    let along = |e: Vec3<f64>| circle.support(e) - (c - Point3::origin()).dot(e);
+    assert!(
+        along(axis).abs() < 1e-12,
+        "it stands {} off its plane",
+        along(axis)
+    );
+    let across = Vec3::new(0.0, 0.8, -0.6);
+    assert!(
+        (along(across) - r).abs() < 1e-12,
+        "it reaches {} across",
+        along(across)
+    );
+    assert!(
+        Cover::circle(Core {
+            axis: Line {
+                origin: Point3::new(f64::NAN, 0.0, 0.0),
+                dir: axis,
+            },
+            radius: r,
+        })
+        .is_none(),
+        "a non-finite centre has a cover"
+    );
+}
+
 /// **An arc's cover never reads past its whole conic's**: the window's
 /// piece alone rounds its far distance from the conic's centre an ulp
 /// above the whole turn's piece on these arcs (`span_reach_hunt`'s seeds
@@ -2146,12 +2254,22 @@ fn a_hull_of_a_hundred_thousand_covers_is_read_and_dropped_on_a_small_stack() {
 /// **A right operand of a hull's own kind is not spliced into its
 /// chain** (`Node`): the hull's ball does not associate, so
 /// `a ∪ (b ∪ c)` and `(a ∪ b) ∪ c` read two balls, and a chain read as
-/// the left-deep form must keep the right one nested.
+/// the left-deep form must keep the right one nested. Unit spheres, `a`
+/// at the origin and `b`, `c` at 10 along x: `b ∪ c` is `c`'s own ball,
+/// so `a ∪ (b ∪ c)` reads the exact `(5, 6)`, while `(a ∪ b) ∪ c` hulls
+/// `(5, 6)` with `c` to `(7.5, 8.5)` and narrows only to its box's ball,
+/// `√38`.
 #[test]
 fn a_hull_folded_on_the_right_reads_another_ball_than_on_the_left() {
-    let at = |x: f64| Cover::points(vec![Point3::new(x, 0.0, 0.0)]).unwrap();
-    let left = at(0.0).hull(at(1.0)).hull(at(10.0));
-    let right = at(0.0).hull(at(1.0).hull(at(10.0)));
+    let at = |x: f64| {
+        Cover::sphere(
+            &Frame::new(Point3::new(x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+        )
+        .unwrap()
+    };
+    let left = at(0.0).hull(at(10.0)).hull(at(10.0));
+    let right = at(0.0).hull(at(10.0).hull(at(10.0)));
     assert!(
         matches!(&right.0, super::Node::Hull(chain) if chain.rest.len() == 1 && matches!(chain.rest[0], super::Node::Hull(_))),
         "the right operand stays one, nested"
@@ -2160,10 +2278,10 @@ fn a_hull_folded_on_the_right_reads_another_ball_than_on_the_left() {
         matches!(&left.0, super::Node::Hull(chain) if chain.rest.len() == 2),
         "the left fold is one chain"
     );
-    let read = |c: &Cover<f64>| {
-        let (centre, radius) = c.ball();
-        (centre.x, centre.y, centre.z, radius)
+    let read = |x: &Cover<f64>| {
+        let (o, r) = x.ball();
+        (o.x, o.y, o.z, r)
     };
-    assert_eq!(read(&left), (5.25, 0.0, 0.0, 5.25));
-    assert_eq!(read(&right), (2.75, 0.0, 0.0, 7.25));
+    assert_eq!(read(&left), (5.0, 0.0, 0.0, 38.0_f64.sqrt()));
+    assert_eq!(read(&right), (5.0, 0.0, 0.0, 6.0));
 }

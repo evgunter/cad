@@ -318,8 +318,8 @@ fn in_band_push() -> f64 {
 
 /// **A certificate read in band takes the fitted image, recording
 /// nothing.** The cylinder's row bent inside the band over its second
-/// sub-arc: the pick shows the row, and its certificate reads the part
-/// in band. The chart reads its fitted image, as a definite refusal
+/// sub-arc: the pick shows the row, its certificate refuses the bend,
+/// and the rim's incidence read ends that refusal in band. The chart reads its fitted image, as a definite refusal
 /// does, recording nothing: the escalation is the fitted image's own
 /// limb 1, which reads the carrier's distance from the bent wall in
 /// band, not the exact image's.
@@ -341,10 +341,14 @@ fn an_in_band_certificate_reads_the_fitted_image<
     );
     assert!(
         matches!(
-            certified,
-            Err(geom_brep::PcurveCertifyError::Escalated { .. })
+            certified
+                .as_ref()
+                .err()
+                .and_then(geom_brep::IncidenceRead::of),
+            Some(geom_brep::IncidenceRead::Undecided(_))
         ),
-        "the row's certificate reads the bend in band, at {}: {:?}",
+        "the row's certificate refuses the bend, and the rim's incidence read ends it in \
+         band, at {}: {:?}",
         T::NAME,
         certified.as_ref().map(|_| ())
     );

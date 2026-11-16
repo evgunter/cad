@@ -1393,95 +1393,54 @@ pub(crate) fn carrier_loop<T: Decide>(
 }
 
 /// **A lower bound on the distance from `q` to the arc `span` of
-/// `carrier`**, read on the carrier with no decision, and the reading
-/// that gave it ([`ArcFloor`]): a line's own segment
-/// ([`geom::Line::distance_within`]); a circle's or an ellipse's own arc
-/// (`ring_path::ConicArc::distance_floor`, the arc of the circle over the
-/// same span, [`geom::Curve3::distance_within`], less the conic's
-/// distance from it);
-/// any other carrier's cover over the span (its nearest distance,
-/// [`geom::cover::Cover::distance_range`]), and its arc's pieces past it
-/// ([`ArcPieces`]). A conic carries its whole annulus's floor beside its
-/// arc's. `None` for a carrier with no cover over the span. The one home,
-/// over every carrier, of the question "is this edge clear of that point
-/// by more than a radius", which the clearance cell door and the
-/// boolean's touch gate both ask; its line and circle readings are
-/// geom's closed form.
+/// `carrier`**, read on the carrier with no decision: its cover's nearest
+/// distance over the span ([`geom::cover::Cover::distance_range`]: a
+/// line's segment, a conic's own arc and its annulus), and a spiric's or
+/// a spline's arc's pieces past it ([`ArcPieces`]), each its own reading
+/// ([`ArcFloor`]). `None` for a carrier with no cover over the span. The
+/// one home, over every carrier, of the question "is this edge clear of
+/// that point by more than a radius", which the clearance cell door and
+/// the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
-    Some(match *carrier {
-        geom::Curve3::Line(line) => {
-            ArcFloor::Segment(line.distance_within(q, (t0.min(t1), t0.max(t1))))
-        }
-        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-            let Some(crate::ring_path::LoopArc::Conic(arc)) =
-                crate::ring_path::LoopArc::of(carrier, (t0, t1))
-            else {
-                unreachable!("a circle or an ellipse is a conic arc")
-            };
-            // The whole conic lies in the annulus of its plane between
-            // its semi-axes. That floor is exact where the arc's is not:
-            // near the centre, where `q`'s direction is undecided.
-            let Some(conic) = carrier.conic() else {
-                unreachable!("a circle or an ellipse")
-            };
-            let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame {
-                origin: center,
-                axis,
-                ..
-            } = *conic.frame();
-            let n = axis.normalize();
-            let (height, across) = geom::Line {
-                origin: center,
-                dir: n,
-            }
-            .height_and_distance(q);
-            let off = (minor - across).max(across - major).max(T::zero());
-            ArcFloor::Conic {
-                annulus: (height.powi(2) + off.powi(2)).sqrt(),
-                arc: arc.distance_floor(q),
-            }
-        }
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            // The carrier's half of an edge's cover: the callers read
-            // carrier spans, some with no edge record behind them, and
-            // read their ends as vertices of their own.
-            let cover = crate::cover::arc_cover(carrier, (t0, t1)).ok()?;
-            ArcFloor::Ball {
-                ball: cover.distance_range(&Site::Point(q)).0,
-                pieces: ArcPieces {
-                    carrier,
-                    span: (t0, t1),
-                    q,
-                },
-            }
-        }
+    // The carrier's half of an edge's cover: the callers read carrier
+    // spans, some with no edge record behind them, and read their ends
+    // as vertices of their own.
+    let near = crate::cover::arc_cover(carrier, (t0, t1))
+        .ok()?
+        .distance_range(&Site::Point(q))
+        .0;
+    Some(match carrier {
+        geom::Curve3::Line(_) => ArcFloor::Segment(near),
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => ArcFloor::Conic(near),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => ArcFloor::Ball {
+            ball: near,
+            pieces: ArcPieces {
+                carrier,
+                span: (t0, t1),
+                q,
+            },
+        },
     })
 }
 
 /// Which reading of a carrier [`arc_distance_floor`] took, with its
-/// bounds: each is its own question, so a caller deciding on them keeps
+/// bound: each is its own question, so a caller deciding on them keeps
 /// them apart.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
-    /// A line's distance to its segment.
+    /// A line's: its cover's nearest distance, its segment's.
     Segment(T),
-    /// A conic's two floors: its whole annulus's, exact near its centre
-    /// and far off it, and its arc's, which reads the trim.
-    Conic {
-        /// The annulus between the semi-axes, in the conic's plane.
-        annulus: T,
-        /// The arc's own floor.
-        arc: T,
-    },
-    /// A spiric's or a spline's: the distance to a ball holding the
-    /// arc, and the arc's pieces, read when the ball is not clear.
+    /// A conic's: its cover's nearest distance, which reads its arc and
+    /// its whole annulus.
+    Conic(T),
+    /// A spiric's or a spline's: its cover's nearest distance, and the
+    /// arc's pieces, read when that is not clear.
     Ball {
-        /// The distance to the ball.
+        /// The cover's nearest distance.
         ball: T,
         /// The arc, to read piece by piece.
         pieces: ArcPieces<'c, T>,
@@ -1489,13 +1448,11 @@ pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
 }
 
 impl<T: Decide> ArcFloor<'_, T> {
-    /// Whether `clear` decides any of the floors clear: either of a
-    /// conic's two, the annulus first; a ball's, or else every piece of
-    /// its arc's.
+    /// Whether `clear` decides the floor clear: a segment's or a conic's,
+    /// or a ball's, or else every piece of its arc's.
     pub(crate) fn clears(self, clear: impl Fn(T) -> bool) -> bool {
         match self {
-            Self::Segment(d) => clear(d),
-            Self::Conic { annulus, arc } => clear(annulus) || clear(arc),
+            Self::Segment(d) | Self::Conic(d) => clear(d),
             Self::Ball { ball, pieces } => clear(ball) || pieces.clear(clear),
         }
     }
@@ -1535,27 +1492,6 @@ impl<T: Decide> ArcPieces<'_, T> {
         });
         matches!(walk, Ok(None))
     }
-}
-
-/// **How far from `q` the loop reaches**: the radius of a ball about
-/// `q` holding every vertex of `loop` and every edge's carrier arc
-/// ([`step_cover`]). It asks no decision, so it cannot refuse on
-/// geometry; it over-estimates, which is the direction its callers
-/// need.
-///
-/// # Errors
-///
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// edge with no cover (a spline net carrying poison, data or a computed
-/// point that is not finite, an end vertex that is not a finite point), or a
-/// poisoned extent.
-pub(crate) fn loop_extent_from<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-    q: Point3<T>,
-) -> Result<Lever<T>, PointInLoopError> {
-    let (verts, covers) = loop_hull(body, r#loop)?;
-    extent_from(r#loop, q, &verts, &covers)
 }
 
 /// The points and covers [`extent_from`] folds for `loop`, read with no
@@ -1773,8 +1709,8 @@ const POINT_IN_LOOP_QUERY: &str = "point_in_loop_query";
 /// vector, the whole loop lies in the plane through its first vertex
 /// with that normal, and so does `q` (the module docs' three rows). A
 /// wrong plane is a different region, so anything but a definite
-/// `Zero` refuses. A spline's control points stand for its locus:
-/// positive weights keep the curve in their hull.
+/// `Zero` refuses. An edge is read at its cover's range along the
+/// normal (`crate::cover::edge_cover`); null scaffolding at its vertex.
 fn certify_plane<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1799,35 +1735,14 @@ fn certify_plane<T: Decide>(
     // plane", whatever an earlier one read; its cause only names which.
     let mut data = vec![(POINT_IN_LOOP_NORMAL, unit, OffPlaneCause::NormalNotUnit)];
     let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
-    let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
-    // A conic's whole carrier, read from its centre.
+    // Each edge's region off the plane, either way: its cover's range
+    // along the normal, from the plane's own offset.
+    let base = (origin - Point3::origin()).dot(normal);
     for step in &steps {
         let mut margins = vec![off(step.point)];
-        match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line(_)) => {}
-            Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
-                if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
-                }
-            }
-            Some(&geom::Curve3::Spiric {
-                center,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            }) => margins.extend([
-                off(center + u_ref * offset),
-                tilt(
-                    u_ref,
-                    ExtentBall::of_torus(center, major_radius, minor_radius)
-                        .lever_from_within(center, offset.abs()),
-                ),
-            ]),
-            Some(geom::Curve3::Nurbs(n)) => {
-                margins.extend(n.control().iter().map(|&p| off(p)));
-            }
+        if let Some(cover) = step_cover(body, r#loop, step)? {
+            let (lo, hi) = cover.range_along(normal);
+            margins.extend([Margin::of(lo - base), Margin::of(hi - base)]);
         }
         let cause = OffPlaneCause::Loop { edge: step.edge };
         data.extend(margins.into_iter().map(|m| (POINT_IN_LOOP_PLANE, m, cause)));
@@ -1962,14 +1877,14 @@ fn carrier_walk<T: Decide>(
 
 /// **A ball holding the whole loop**, `(center, radius)`: the loop's
 /// first vertex and the reach [`point_in_loop`] confines its
-/// refusal with ([`loop_extent_from`]). Nothing here needs the loop to
+/// refusal with ([`extent_from`] of [`loop_hull`]). Nothing here needs the loop to
 /// be planar — each edge is bounded on its own carrier — so a curved
 /// face's outer loop is served the same way.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] — a loop [`loop_extent_from`]
-/// refuses.
+/// [`PointInLoopError::CorruptLoop`] — a loop that does not walk, an
+/// edge with no cover, or a poisoned extent.
 pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
