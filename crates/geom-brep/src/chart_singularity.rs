@@ -670,6 +670,12 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
     // The last span first, and a span's later half before its earlier:
     // the order the walk has always read in, which `best` rests on.
     let roots = (0..SAMPLED_SPANS).rev().map(|i| (at(i), at(i + 1), 0u32));
+    // Not the decided argmin (`scripts/gates/argmin-folds.tsv`,
+    // refusal-only): no definite answer rests on `best`. `On` is a sample
+    // decided zero (`Step::Stop`), `Off` every span cleared; `best` only
+    // says which refusal the walk reports where neither holds (in band,
+    // or unsettled), so a nearer sample the walk did not keep could move
+    // the refusal's kind, never the answer.
     let mut best: Option<(T, T)> = None;
     let mut budget = SAMPLED_BUDGET;
     let mut unclear = false;
