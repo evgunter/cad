@@ -20,10 +20,10 @@ fn band() -> geom_core::Band {
 fn plane_face(body: &Body<f64>, axis: usize, at: f64, among: &[FaceKey]) -> FaceKey {
     let found: Vec<FaceKey> = body
         .faces()
-        .filter(|(k, f)| {
+        .filter(|(k, _)| {
             among.contains(k)
                 && matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*k),
                     Some(Surface::Plane { origin, normal, .. })
                         if [normal.x, normal.y, normal.z][axis].abs() == 1.0
                             && [origin.x, origin.y, origin.z][axis] == at

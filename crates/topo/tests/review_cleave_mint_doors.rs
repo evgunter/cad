@@ -56,7 +56,7 @@ where
     let nface = body.get_face(neighbour).unwrap().clone();
     assert_ne!(nface.surface, wall);
     assert!(matches!(
-        body.get_surface(nface.surface),
+        body.face_surface(neighbour),
         Some(geom::Surface::Plane { .. })
     ));
     let point = |he| {

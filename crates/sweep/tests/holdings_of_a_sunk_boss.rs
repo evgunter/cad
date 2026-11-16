@@ -22,7 +22,7 @@ fn tol() -> Tol {
 
 fn curved(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect()
 }

@@ -35,8 +35,7 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), Stretch> = BTreeMap::new();
     for (k, e) in body.edges() {
-        let s = body.get_half_edge(e.he_plus).unwrap().start;
-        let t = body.half_edge_end(e.he_plus).unwrap();
+        let (s, t) = body.edge_vertices(k).unwrap();
         by_ends
             .entry((s.min(t), s.max(t)))
             .or_default()
@@ -271,16 +270,13 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
             );
         }
         let live = naming.joined_edge(up);
-        let edge = out
+        let (start, end) = out
             .body
-            .get_edge(live)
+            .edge_vertices(live)
             .unwrap_or_else(|| panic!("{g:?}'s lineage reaches a live edge, not {up:?}"));
         // It lies on the pocket's bottom rim under the wall the slot runs
         // through: both ends on the line x = 3, z = 0.5.
-        let ends = [
-            out.body.get_half_edge(edge.he_plus).unwrap().start,
-            out.body.half_edge_end(edge.he_plus).unwrap(),
-        ];
+        let ends = [start, end];
         let points: BTreeMap<VertexKey, _> = out.body.vertex_points().collect();
         for v in ends {
             let p = points[&v];
@@ -372,15 +368,12 @@ fn an_edge_the_carve_kills_records_its_parent() {
         }
         // The block's own edge, read in the block: its top `+x` edge,
         // both ends at x = 20, z = 10, one at each y = ±10 (mm).
-        let edge = block
-            .get_edge(up)
+        let (start, end) = block
+            .edge_vertices(up)
             .unwrap_or_else(|| panic!("{g:?}'s lineage reaches an edge of the block, not {up:?}"));
         let points: BTreeMap<VertexKey, _> = block.vertex_points().collect();
-        let mut ys: Vec<f64> = [
-            block.get_half_edge(edge.he_plus).unwrap().start,
-            block.half_edge_end(edge.he_plus).unwrap(),
-        ]
-        .into_iter()
+        let mut ys: Vec<f64> = [start, end]
+            .into_iter()
         .map(|v| {
             let p = points[&v];
             assert!(

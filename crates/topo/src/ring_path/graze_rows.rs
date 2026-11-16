@@ -38,6 +38,7 @@ fn case(
     let path = Path {
         pieces: vec![Piece::Arc(piece)],
         arrival: piece.tangent(1.4),
+        reach: None,
     };
     let c = r * phi.cos() + g;
     let a = (r * r - c * c).sqrt();
@@ -194,6 +195,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let detour = Path {
         pieces: out.pieces.into_iter().chain(back.pieces).collect(),
         arrival: back.arrival,
+        reach: None,
     };
     assert_eq!(path_parity(&detour, &arcs, None, band), Ok(Some(false)));
 }
@@ -461,6 +463,7 @@ fn segment_section(
                         lever: geom_core::test_support::fixture_lever(slant * 0.7),
                     }],
                     arrival: e,
+                    reach: None,
                 };
                 cell.read(path_parity(&path, &arcs, None, band), || {
                     format!("vertex {} from the farthest, nudge {nudge:e}", tv - far)
@@ -545,6 +548,7 @@ fn parallel_ruling(
             let path = Path {
                 pieces: vec![Piece::Arc(piece)],
                 arrival: piece.tangent(0.6),
+                reach: None,
             };
             cell.read(path_parity(&path, &arcs, None, band), || {
                 format!("nudge {nudge:e}")
@@ -574,6 +578,7 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
     let path = Path {
         pieces: vec![Piece::Arc(piece)],
         arrival: piece.tangent(end),
+        reach: None,
     };
     // Past the end by the band's geometric middle: zero < δ < escalate.
     let delta = (band.zero() * band.escalate()).sqrt();
@@ -593,5 +598,49 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
         path_parity(&path, &[ruling((1.0, 2.0))], None, band).unwrap(),
         Some(false),
         "a crossing decided outside the ruling's span is passed over"
+    );
+}
+
+/// **A pair at which the path says nothing answers past a pair read in
+/// band** ([`path_parity`] climbs every piece against every arc): a
+/// parallel against two rulings, the first crossing its plane at a
+/// cosine a mid-band width off square (`split_ring_path_line_across` in
+/// band), the second exactly square to its axis (decided `Zero`: the
+/// path says nothing). The path says nothing, whatever the first ruling
+/// read. The first-refusal loop refused with the first ruling's
+/// escalation.
+#[test]
+fn a_pair_that_says_nothing_answers_past_a_pair_in_band() {
+    let band = Band::linear(Tol::witness()).expect("a valid band");
+    let m = 0.5 * (band.zero() + band.escalate());
+    let piece = CircleArc {
+        circle: geom::Circle::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+        ),
+        span: (0.0, 1.0),
+    };
+    let path = Path {
+        pieces: vec![Piece::Arc(piece)],
+        arrival: piece.tangent(1.0),
+        reach: None,
+    };
+    let ruling = |origin: Point3<f64>, dir: Vec3<f64>| LoopArc::Line {
+        line: geom::Line { origin, dir },
+        span: (0.0, 1.0),
+    };
+    let tilted = ruling(
+        Point3::new(5.0, 0.0, 0.0),
+        Vec3::new((1.0 - m * m).sqrt(), 0.0, m),
+    );
+    let square = ruling(Point3::new(5.0, 1.0, 0.0), Vec3::unit_x());
+    assert!(
+        path_parity(&path, core::slice::from_ref(&tilted), None, band).is_err(),
+        "the tilted ruling alone reads in band"
+    );
+    assert_eq!(
+        path_parity(&path, &[tilted, square], None, band),
+        Ok(None),
+        "a ruling square to the axis leaves the path saying nothing, whatever the first read"
     );
 }

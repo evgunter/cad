@@ -83,3 +83,9 @@ Another seed that reproduces it, at the default ε and at 1e-12 alike, on main `
 > sup over the defect: 26.03895124682756 (f64) / 26.03895124682756 (Interval) < 26.038951246827594 at 64/64: a 26.03895124682756 b 0.007562229532909478 t0 -237.19042521848743 gap -1.7984767358215947e-4
 
 The shape is the same: the bound reads the ceiling `|a|`, and the sample's upper end lies about 15 ulps above it.
+
+## Still firing (2026-11-09, `onecopy/boolean-standing-2`)
+
+`CAD_TOLERANCE_EPS=1e-12` `ci` runs hit it twice on 2026-11-09, on two
+branches that touch no `carrier_speed::turn_defect_*` code. Neither run
+kept the seed (the log line was filtered out), and six re-runs passed.

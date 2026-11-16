@@ -164,8 +164,8 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
     for (i, &placed) in die.placements.iter().enumerate() {
         assert!(
             after.node(placed).is_some(),
-            "pip {i}'s placement only FED the cut and stays — the splice that \
-             would rejoin it to the chain is issue #1324"
+            "pip {i}'s placement only FED the cut and stays: a cut deleted \
+             continues nothing (DM6)"
         );
     }
     assert_eq!(
@@ -261,18 +261,32 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         )
     );
 
-    // Singular reads as singular.
-    let one = session.delete_affordance(die.fillets[0]);
+    // A fillet continues its input, so its reader is handed over and
+    // nothing goes with it.
+    let inner = session.delete_affordance(die.fillets[0]);
+    assert_eq!(
+        inner.label,
+        format!(
+            "Delete Fillet {}",
+            test_utils::refusal::tag(die.fillets[0].0.digest())
+        ),
+        "the outer fillet is handed to the chain, not deleted"
+    );
+    assert_eq!(inner.hover, None);
+
+    // Singular reads as singular: a pip's cut continues its target once
+    // the pip goes, so the cut alone goes with it.
+    let one = session.delete_affordance(die.placements[3]);
     assert_eq!(
         one.label,
         format!(
-            "Delete Fillet {} and 1 dependent feature",
-            test_utils::refusal::tag(die.fillets[0].0.digest())
+            "Delete Place {} and 1 dependent feature",
+            test_utils::refusal::tag(die.placements[3].0.digest())
         )
     );
     assert_eq!(
         one.hover.as_deref(),
-        Some("Also deletes 1 feature that depends on it: 1 × Fillet")
+        Some("Also deletes 1 feature that depends on it: 1 × Subtract")
     );
 }
 

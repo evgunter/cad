@@ -640,7 +640,7 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
 /// farthest from the cone there, `s·cos α` off it, over a stretch about
 /// `s` wide that a sampled read steps over. Past the band (`1e-7` at ε
 /// up to `1e-9`, and `30`–`300·zero` at every ε) the mint refuses
-/// `CarrierOffChart` at both scalars, and so does the incidence door
+/// a read off the chart (`IncidenceRead::Off`) at both scalars, and so does the incidence door
 /// alone ([`read_incidence`]); in band (`3` and `10·zero`) both escalate
 /// the incidence read (the lever); inside the zero band (`0.5·zero`, and
 /// `1e-7` at ε 1e-6) the door passes it and the mint does not refuse it
@@ -656,15 +656,12 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
     let f = Interval::from_f64;
     let (zero, escalate) = (zero(), band().escalate());
     let off_chart = |r: Option<&PcurveCertifyError>| {
-        matches!(r, Some(PcurveCertifyError::CarrierOffChart { .. }))
+        matches!(r.and_then(IncidenceRead::of), Some(IncidenceRead::Off(_)))
     };
     let lever = |r: Option<&PcurveCertifyError>| {
         matches!(
-            r,
-            Some(PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartIncidence,
-                ..
-            })
+            r.and_then(IncidenceRead::of),
+            Some(IncidenceRead::Undecided(_))
         )
     };
     let (mut definite, mut inside) = (0, 0);
@@ -691,13 +688,13 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
                         definite += 1;
                         assert!(
                             off_chart(mint.0.as_ref().err()) && off_chart(mint.1.as_ref().err()),
-                            "{what}: the mint refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                            "{what}: the mint reads it off the chart at both scalars: {:?} / {:?}",
                             mint.0,
                             mint.1
                         );
                         assert!(
                             off_chart(door.0.as_ref().err()) && off_chart(door.1.as_ref().err()),
-                            "{what}: the incidence door refuses CarrierOffChart at both scalars: \
+                            "{what}: the incidence door reads it off the chart at both scalars: \
                              {:?} / {:?}",
                             door.0,
                             door.1
@@ -809,6 +806,42 @@ fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
                         certified.1
                     );
                 }
+            }
+        }
+    }
+}
+
+/// **The standoff is the gap at the image's anchor, not over the span**:
+/// a line leaning radially at rate `δ` that crosses the wall at `t = k`,
+/// read over `[k − h, k + h]` with `|k| = 1.5`, `h = 0.2` and `δ =
+/// 0.45·zero`, so the span holds no origin. Over the span it stands off
+/// the wall by `h·δ` at most, and its lean from the ruling through its
+/// origin is `(|k| + h)·δ`: together `0.855·zero`. But its origin stands
+/// `|k|·δ` off, and check 4 bounds the meridian form's miss by the lean
+/// and that standoff, `1.44·zero`. So the class gate reads the standoff
+/// at the origin: in band, the general lane, which certifies or ends
+/// "not yet". Red under a gate that took the standoff from the span's
+/// incidence: it reads Zero and takes the meridian form, whose
+/// certificate is in band.
+#[test]
+fn a_line_whose_span_holds_no_origin_reads_its_origins_standoff() {
+    let surface = cylinder();
+    let Surface::Cylinder { origin, radius, .. } = surface else {
+        unreachable!("a cylinder")
+    };
+    let (h, delta) = (0.2, 0.45 * zero());
+    for phi in [0.3, -2.0] {
+        let (s, c) = f64::sin_cos(phi);
+        let r = Vec3::new(c, s, 0.0);
+        for k in [1.5, -1.5] {
+            for sigma in [1.0, -1.0] {
+                let carrier = Curve3::line(
+                    origin + r * (radius - sigma * k * delta),
+                    Vec3::unit_z() + r * (sigma * delta),
+                );
+                let span = (k - h, k + h);
+                let what = format!("φ {phi}, crossing at {k}, leaning {sigma}·δ, over {span:?}");
+                takes_the_general_lane(&what, &carrier, span, &surface);
             }
         }
     }

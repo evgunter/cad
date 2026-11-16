@@ -8,7 +8,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
-use pncad::document::{Bodies, Formula, Node, Operand};
+use pncad::document::{Bodies, BodyRead, Formula, Node};
 use pncad::topo::BooleanOp;
 
 /// The payload of one pattern form (GAUTH-4), beside the other
@@ -76,7 +76,9 @@ pub enum PartSelectSpec {
 }
 
 /// **What one boolean authors**: the operation and its operands, in
-/// the shape the node it lowers to takes ([`BooleanSpec::node`]).
+/// the shape the node it lowers to takes ([`BooleanSpec::node`]). Each
+/// operand is a body read: a body, a split's half by its port, or one
+/// member of a family by its indices (`xs[i]`, [`BodyRead::indexed`]).
 ///
 /// Union and intersect take a LIST — any count is a document the door
 /// accepts (one member builds that body, none the typed empty body,
@@ -87,15 +89,15 @@ pub enum PartSelectSpec {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BooleanSpec {
     /// The material in any member, members in fold order.
-    Union(Vec<Operand>),
+    Union(Vec<BodyRead<Formula>>),
     /// The material in every member, members in fold order.
-    Intersect(Vec<Operand>),
+    Intersect(Vec<BodyRead<Formula>>),
     /// `from` with `tool` cut away.
     Subtract {
         /// The body kept.
-        from: Operand,
+        from: BodyRead<Formula>,
         /// The body removed.
-        tool: Operand,
+        tool: BodyRead<Formula>,
     },
 }
 
@@ -111,7 +113,7 @@ impl BooleanSpec {
 
     /// Every operand, in the node's order: the members, or `from`
     /// then `tool`.
-    pub fn operands(&self) -> Vec<Operand> {
+    pub fn operands(&self) -> Vec<BodyRead<Formula>> {
         match self {
             Self::Union(members) | Self::Intersect(members) => members.clone(),
             Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
@@ -127,11 +129,11 @@ impl BooleanSpec {
     /// A subtraction given other than two operands: the list is always
     /// one [`Self::operands`] answered, re-read.
     #[must_use]
-    pub fn with_operands(&self, operands: Vec<Operand>) -> Self {
+    pub fn with_operands(&self, operands: Vec<BodyRead<Formula>>) -> Self {
         match self {
             Self::Union(_) => Self::Union(operands),
             Self::Intersect(_) => Self::Intersect(operands),
-            Self::Subtract { .. } => match <[Operand; 2]>::try_from(operands) {
+            Self::Subtract { .. } => match <[BodyRead<Formula>; 2]>::try_from(operands) {
                 Ok([from, tool]) => Self::Subtract { from, tool },
                 Err(_) => unreachable!("a subtraction's operands are two"),
             },
@@ -140,9 +142,7 @@ impl BooleanSpec {
 
     /// Lower to the node.
     pub fn node(&self) -> AuthoredNode {
-        let spelled = |members: &[Operand]| {
-            Bodies::Spelled(members.iter().cloned().map(Into::into).collect())
-        };
+        let spelled = |members: &[BodyRead<Formula>]| Bodies::Spelled(members.to_vec());
         match self {
             Self::Union(members) => Node::Union {
                 members: spelled(members),
@@ -151,8 +151,8 @@ impl BooleanSpec {
                 members: spelled(members),
             },
             Self::Subtract { from, tool } => Node::Subtract {
-                from: from.clone().into(),
-                tool: tool.clone().into(),
+                from: from.clone(),
+                tool: tool.clone(),
             },
         }
     }

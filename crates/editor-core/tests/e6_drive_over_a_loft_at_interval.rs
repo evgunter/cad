@@ -191,9 +191,11 @@ fn with_no_box_an_arc_section_refuses_and_a_rotated_copy_places() {
     let (arc, arc_loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
     let (rotated, rotated_loft) = loft_doc(|| rect(len(1.0)), [0.6, 0.8, 0.0]);
     match run(&arc).node_error(arc_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Skin(SkinError::Structure(
-            geom_core::spline::SplineError::CarrierWeightNotAPoint { .. },
-        ))) => {}
+        Some(NodeErrorKind::Skin(SkinError::Structure(e)))
+            if matches!(
+                e.refusal(),
+                geom_core::spline::SplineError::CarrierWeightNotAPoint { .. }
+            ) => {}
         other => panic!("the arc's weight is no point at Interval, got {other:?}"),
     }
     let rotated_run = run(&rotated);

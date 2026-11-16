@@ -71,19 +71,21 @@
 //!    so the cup ARRIVES at the census the merge used to produce, and
 //!    the merge, still run, finds no coplanar pair to join: only its
 //!    six period-closure skips, the curved runs it declines by design.
-//! 4. **A SECTIONED vessel hollows and measures, and has no picture
-//!    yet.** Revolve this same meridian a quarter turn — a cutaway, the
-//!    display model a potter's catalogue wants — and the moved meridian
-//!    cap cuts the torus in a SPIRIC, which the axial door mints as the
-//!    exact `Curve3::Spiric` rim it is; the hollow passes tier 3, its
+//! 4. **A SECTIONED vessel hollows, measures and meshes.** Revolve this
+//!    same meridian a quarter turn — a cutaway, the display model a
+//!    potter's catalogue wants — and the moved meridian cap cuts the
+//!    torus in a SPIRIC, which the axial door mints as the exact
+//!    `Curve3::Spiric` rim it is; the hollow passes tier 3, its
 //!    spiric-bounded caps and torus wall measured by the spiric
 //!    quadrature lane (the klein elbow's wall, on this scene's own
-//!    body). What it lacks is a mesh: the trimmed tessellation lane has
-//!    no torus or plane arm for a face a spiric bounds. Probed live
-//!    below (wall 1). The sphere half of the same rim family hollows
-//!    and renders through: its cavity's lens face is bounded by circles
-//!    tilted against the sphere's chart, which the flux arm measures by
-//!    Gauss–Bonnet (`torax_the_sphere_lune_hollows_to_its_closed_form`).
+//!    body), and the trimmed tessellation lane meshes the torus wall
+//!    from the torus chart's row, the caps on the planar lane
+//!    (`tests/torusvessel.rs`). It has no panel yet
+//!    (`work/tesslane/the-sectioned-vessel-meshes-and-has-no-panel.md`). The
+//!    sphere half of the same rim family hollows and renders through:
+//!    its cavity's lens face is bounded by circles tilted against the
+//!    sphere's chart, which the flux arm measures by Gauss–Bonnet
+//!    (`torax_the_sphere_lune_hollows_to_its_closed_form`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -335,7 +337,7 @@ fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -348,8 +350,8 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
 /// The faces of the plane chart at station `y`.
 pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -381,64 +383,26 @@ fn assert_offset_sense(hollow: &Body<f64>, centre_rho: f64, what: &str) {
     );
 }
 
-/// **The scene's wall** — the SECTIONED vessel's rim, attempted for
-/// real on every pass and pinned by its own typed refusal, in the
-/// shape `lily::wall_probes` and `klein::wall_probes` carry theirs.
-///
-/// It builds its own quarter revolve rather than taking one: the
-/// probe's operands are made immediately above it and read by nothing
-/// after it, so there is no body here that `stops` and this function
-/// have to agree about. (The teapot's pair cannot be written this way
-/// — its walls are attempted on document NODES whose refusal payload
-/// the panel's note quotes, so probe and caption must read ONE
-/// evaluation and `teapot::wall_probes` takes it as an argument.)
-pub fn wall_probes(tol: Tol) {
-    // ---- WALL 1: the SECTIONED vessel's picture ----
-    //
-    // A quarter turn of the same meridian — the cutaway a catalogue
-    // wants. The moved meridian cap stands a wall off the axis and
-    // parallel to it, and cuts the torus band in a SPIRIC; the hollow
-    // passes tier 3 with its spiric-bounded faces measured by the
-    // spiric quadrature lane. What it still lacks is a mesh: the
-    // trimmed tessellation lane has no torus or plane arm for a face a
-    // spiric bounds.
+/// **The sectioned vessel**: a quarter turn of the bellied meridian,
+/// hollowed at the scene's wall. The moved meridian cap stands a wall off
+/// the axis and parallel to it, and cuts the torus band in a SPIRIC; the
+/// hollow passes tier 3 with its spiric-bounded faces measured by the
+/// spiric quadrature lane.
+pub fn sectioned(tol: Tol) -> Body<f64> {
     let quarter = revolved(
         meridian(R_BELLIED, ArcSweep::Ccw, tol),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
     );
     let quarter = pncad::topo::finish(quarter, tol).expect("the sectioned vessel is a valid body");
-    let sectioned = pncad::topo::shell(&quarter, WALL, tol)
+    pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
-        .body;
-    let props = pncad::topo::mass_properties(
-        &crate::booleans::at_rest(&sectioned, tol),
-        tol,
-        crate::printed(),
-    )
-    .expect("the sectioned hollow's props");
-    println!(
-        "   the sectioned vessel's hollow measures {} ± {} m³ (its spiric faces by quadrature)",
-        props.enclosure.volume, props.enclosure.volume_pad
-    );
-    crate::walls::wall(
-        "torus-walled vessel",
-        1,
-        "tessellate the SECTIONED vessel's hollow — its cavity's caps and torus wall are \
-         bounded by spirics, which the trimmed tessellation lane has no torus or plane arm for",
-        pncad::mesh::tessellate(&sectioned, DELTA, tol),
-        |e| {
-            matches!(
-                e,
-                pncad::mesh::TessellateError::UnsupportedCurve { note, .. }
-                    if note.contains("trimmed-tessellation-lacks-torus-and-plane-arms")
-            )
-        },
-        "the trimmed lane tessellates a spiric-bounded torus or plane face. Retire this \
-         probe and ship the sectioned vessel as this scene's third panel, which is the \
-         picture it was always for",
-    );
+        .body
+        .into_body()
 }
+
+/// The chordal deviation the scene meshes at.
+pub const SCENE_DELTA: f64 = DELTA;
 
 pub fn stops(tol: Tol) -> Vec<TourStop> {
     let body = pncad::topo::finish(bellied(tol), tol).expect("the operand: tier 3");
@@ -700,9 +664,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "no coplanar pair to join, six period-closure skips"
     );
 
-    // The scene's one wall, attempted for real.
-    wall_probes(tol);
-
     let (sv, se, sf) = census(&sealed);
     let (cv, ce, cf) = cup_census;
 
@@ -763,14 +724,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  wall_clearance gate on a pair with no torus in it — the two shoulder \
                  annuli, facing each other across the belly: {gap} m of clearance, \
                  which a wall of half that consumes entirely. Bracketed on every pass. \
-                 WHAT STILL HAS NO PICTURE is the SECTIONED vessel (wall 1 above). A \
-                 quarter turn of this meridian is a valid body, and its hollow's moved \
-                 meridian cap stands a wall off the axis and parallel to it, cutting the \
-                 torus band in a SPIRIC — which the axial door mints as the exact carrier \
-                 it is, and whose caps and torus wall the spiric quadrature lane \
-                 measures, so the hollow passes tier 3; the trimmed tessellation lane has \
-                 no torus or plane arm for a face a spiric bounds, so it does not mesh. \
-                 The klein elbow's wall \
+                 THE SECTIONED vessel meshes and has no panel yet: a quarter turn of \
+                 this meridian, whose hollow's moved meridian cap cuts the torus band in \
+                 a SPIRIC, the cavity's torus wall meshed on the trimmed lane's torus \
+                 row. The klein elbow's wall \
                  (`torax_the_klein_elbow_hollows_to_its_measured_volume`) mints the same \
                  carrier and measures the same way. The SPHERE half of the \
                  same rim family hollows through: the CAVITY's lens face — bounded by \

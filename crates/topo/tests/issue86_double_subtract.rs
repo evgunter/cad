@@ -66,7 +66,6 @@ fn assert_result_sound<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
     let moved = topo::transform_rigid(
         &out.body,
         &geom_core::RigidMotion::translation(geom_core::Vec3::new(f(1.0), f(2.0), f(3.0))).unwrap(),
-        Tol::witness(),
     )
     .expect("transform of the double-subtract result");
     assert_eq!(validate(&moved), Ok(()), "tier 1 after transform");
@@ -115,8 +114,7 @@ fn kef_cascade_reports_killed_surface() {
 
     // Upgrade just this edge to an honest Intersection description:
     // its two surfaces are now description-referenced by this curve.
-    let start = body.get_half_edge(edge.he_plus).unwrap().start;
-    let end = body.half_edge_end(edge.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(edge_key).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start).unwrap().point)
         .unwrap();

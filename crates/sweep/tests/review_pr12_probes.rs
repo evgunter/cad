@@ -50,12 +50,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let ball = topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let ball =
+        topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", ball, Tol::witness())
 }
 
@@ -245,11 +241,11 @@ fn probe_e_hexagon_tier3_error() {
             let txt = format!("{e:?}");
             if let Some(i) = txt.find("FaceKey(") {
                 let key: String = txt[i..].chars().take_while(|c| *c != ' ').collect();
-                for (k, fc) in f.body.faces() {
+                for (k, _) in f.body.faces() {
                     if format!("{k:?}").starts_with(key.trim_end_matches(',')) {
                         println!(
                             "PROBE E: failing face {k:?} kind {:?} corner? {} blend? {}",
-                            f.body.get_surface(fc.surface).map(|s| match s {
+                            f.body.face_surface(k).map(|s| match s {
                                 geom::Surface::Plane { .. } => "plane",
                                 geom::Surface::Cylinder { .. } => "cylinder",
                                 geom::Surface::Sphere { .. } => "sphere",
@@ -480,11 +476,11 @@ fn probe_i_door_a_full_tool() {
     .expect_err("door A full");
     println!("PROBE I: {err:?}");
     for (body, tag) in [(&blank, "blank"), (&tool, "tool")] {
-        for (k, f) in body.faces() {
+        for (k, _) in body.faces() {
             if format!("{k:?}").starts_with("FaceKey(9v") {
                 println!(
                     "PROBE I: {tag} face {k:?} surface {:?}",
-                    body.get_surface(f.surface)
+                    body.face_surface(k)
                 );
             }
         }
@@ -544,17 +540,11 @@ fn probe_c_oblique_trihedron() {
     let c2 = topo::transform_rigid(
         &c2,
         &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let c2 = finished(
         "the turned slab",
-        topo::transform_rigid(
-            &c2,
-            &geom_core::test_support::rigid(&rot, Tol::witness()),
-            Tol::witness(),
-        )
-        .unwrap(),
+        topo::transform_rigid(&c2, &geom_core::test_support::rigid(&rot, Tol::witness())).unwrap(),
         Tol::witness(),
     );
     let out = boolean_op_with(

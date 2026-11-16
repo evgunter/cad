@@ -22,7 +22,7 @@ use core::f64::consts::{FRAC_PI_2, TAU};
 use geom_core::{Point3, Vec3};
 
 /// A double-double: the unevaluated sum `hi + lo`, `|lo| ≤ ulp(hi)/2`.
-/// Also the spiric box rows' exact reference (`boolean::boxes`'
+/// Also the spiric box rows' exact reference (`boxes`'
 /// `spiric_f_reference`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Dd {

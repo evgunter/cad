@@ -85,7 +85,7 @@ opened: 2026-09-02
 group: kernel/mesh          # where the board files it (below)
 prefix: mesh/              # the program's branch prefix; ends in `/`
 tag: (MESH orchestrator)   # the away-channel role tag
-ab_band: 1200-1299         # the program's band in docs/MODEL-AB-LOG.md
+ab_band: 1200-1299         # historical: a band of the concluded model A/B (docs/doc-ledger/model-ab-experiment-concludes.md)
 paths: [crates/mesh/*]     # territory globs (Rules, below)
 keep_out: [prose pointers, one string each]
 budget: 40                 # optional; the reason goes in the body
@@ -468,8 +468,9 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors. The exemptions are the experiment
-  logs `docs/MODEL-AB-LOG.md`, `docs/DUAL-REVIEW-LOG.md` and
-  `docs/DESIGN-FORK-LOG.md` (`memories/experiments.md`); each leaves
+  logs `docs/DUAL-REVIEW-LOG.md`, `docs/DESIGN-FORK-LOG.md` and
+  `docs/MODEL-COMPARE-LOG.md`
+  (`memories/experiments.md`); each leaves
   `docs/` when its experiment concludes.
 - **A spec lives only as long as its unit.** `docs/<ID>-SPEC.md` binds
   an implementer for one unit and is deleted at merge, with a note

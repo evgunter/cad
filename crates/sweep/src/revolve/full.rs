@@ -41,7 +41,7 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
@@ -54,7 +54,9 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
 use super::{BandWall, Cavity, CavityOrigin, RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{decide, face_surface_key, placed_segment_spec, turn_axis};
+use crate::swept::{
+    decide, face_surface_key, placed_segment_spec, placed_segment_spec_about, turn_axis,
+};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -468,13 +470,12 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let swept = sweep_loop(
         &mut body,
         loop_index,
         col,
         &hes,
-        &qs,
         &qs,
         frame,
         theta,
@@ -641,7 +642,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             n_far: frame.n3,
         },
         theta,
-        turn_axis(Sign::Positive, frame.a3),
+        turn_axis(Sign::Positive, frame.axis.get()),
         // A transient disc, killed by the closure, like the lamina's.
         FaceSurface::New {
             surface: Surface::nurbs_placeholder(),
@@ -771,11 +772,12 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let place = frame.place;
     let k = segs.len();
     let half = theta * T::from_f64(0.5);
-    let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
+    let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
-    let Some(n_pi) = far.turn_vec(frame.n3) else {
-        unreachable!("a turned placing has a turn")
-    };
+    // The sketch normal is square to the axis, so the half turn turns it
+    // over: spelled as the negation, it has nothing to round
+    // (`geom::pole_form::azimuths`).
+    let n_pi = Vec3::zero() - frame.n3;
     let pinned = |i: usize| verts[i].pinned;
     let qw: Vec<Point3<T>> = wire.points.iter().map(|&p| frame.world(p)).collect();
     let qpi: Vec<Point3<T>> = (0..=k)
@@ -800,7 +802,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[0], place, frame.n3, qw[0], qw[1], tol),
+        placed_segment_spec(&segs[0], place, frame.n3, qw[0], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -812,7 +814,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -830,7 +832,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // copies). The runs are collapsed (`collapse_runs`), so no two
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -839,7 +841,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: hes[i],
             },
             qpi[i],
-            revolved_strut_spec(wire.points[i], verts[i].r, qw[i], frame, half, axis_c, tol),
+            revolved_strut_spec(wire.points[i], verts[i].r, frame, half, axis_c),
             tol,
         )?;
         struts.push(Some(m));
@@ -879,12 +881,28 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             // Unreachable: wire segments are off-axis by construction.
             WallClass::OnAxis => FaceSurface::Inherit,
         };
-        let mef = body.mef(
-            MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[i], far, n_pi, qpi[i], qpi[i + 1], tol),
-            surface,
-            tol,
-        )?;
+        // An arc centred on the axis is a meridian of its sphere, and the
+        // half turn fixes its centre: its angle-π copy takes the angle-0
+        // copy's centre, so the two are arcs of one circle in one plane.
+        // Its start radial, where the start is pinned, lies along the axis,
+        // which the turn fixes too: it takes the angle-0 copy's.
+        let radial = if pinned(i) { place.into() } else { far };
+        let spec = match walls[i] {
+            WallClass::Wall {
+                kind: WallKind::Sphere { .. },
+                ..
+            } => placed_segment_spec_about(
+                &segs[i],
+                far,
+                n_pi,
+                |c| frame.world(c),
+                radial,
+                qpi[i],
+                tol,
+            ),
+            _ => placed_segment_spec(&segs[i], far, n_pi, qpi[i], tol),
+        };
+        let mef = body.mef(MefSite::Chords { he1, he2 }, spec, surface, tol)?;
         faces.push(mef.face);
         tops.push(mef.edge);
     }
@@ -906,11 +924,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |reading, source| RevolveError::SliverJoin {
+            |escalation| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             },
             tol,
         )?;
@@ -942,10 +959,6 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             })
             .he_minus;
         let center = frame.foot3(wire.points[i]);
-        let rim = qpi[i] - center;
-        // The same rim identity as `revolve::surfaces`', at the same
-        // guarantee (its comment carries the argument).
-        crate::swept::register_rim_identity(rim, verts[i].r, tol);
         let spec = EdgeCurveSpec {
             // The return half of the whole turn's own range, on the
             // sketch placement: no turned placement is evaluated.
@@ -953,13 +966,14 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: wire.points[i],
                     place,
-                    axis_origin: frame.o3,
-                    axis_dir: frame.a3,
+                    axis: frame.line3(),
                     angle: theta,
                 })
                 .restrict(T::from_f64(0.5), T::one()),
             ),
-            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, rim.normalize()),
+            // `u_ref` points at the turned vertex: the seam direction
+            // `u₃` (the vertex lies at `r > 0`), turned with it.
+            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, far.carry(frame.u3)),
             param_start: T::zero(),
             param_end: half.abs(),
         };
@@ -991,11 +1005,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |reading, source| RevolveError::SliverJoin {
+            |escalation| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             },
             tol,
         )?;

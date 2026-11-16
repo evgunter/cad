@@ -70,7 +70,7 @@ these arms render the whole `Indeterminate`, which ends in
 - `ReplaceFaceError::Escalated` (`crates/topo/src/replace_face.rs`
   near :525, `Display` near :708): "replace_face_offset escalated:
   {source}", a function name for a subject. It carries
-  `TransportError::Escalated` (near :1806), the spiric constructor's
+  `transport_curve`'s escalation (near :1806), the spiric constructor's
   escalation (`offset_axial.rs` near :2113) and the section router's
   (near :1926).
 - `OffsetError::Escalated` (`crates/geom-brep/src/offset.rs` near

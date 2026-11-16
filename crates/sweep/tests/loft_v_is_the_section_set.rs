@@ -52,7 +52,7 @@ fn same_bits(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
         && a.control()
             .iter()
             .zip(b.control())
-            .all(|(p, q)| p.x == q.x && p.y == q.y && p.z == q.z)
+            .all(|(p, q)| p.equals_exactly(*q))
 }
 
 /// The loft's walls at its own parameters, and its body.

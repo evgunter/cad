@@ -238,10 +238,8 @@ fn donut_clearance(q: Point3<f64>) -> f64 {
 fn torus_door_classifies_the_donut_interior_exterior_and_boundary() {
     let body = donut();
     assert!(
-        body.faces().all(|(_, f)| matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Torus { .. })
-        )),
+        body.faces()
+            .all(|(fk, _)| matches!(body.face_surface(fk), Some(geom::Surface::Torus { .. }))),
         "the donut must carry torus faces and nothing else"
     );
     // Interior: the tube's spine circle, on the seam and off it.
@@ -760,7 +758,7 @@ fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
         .body;
     let kinds: Vec<_> = body
         .faces()
-        .filter_map(|(_, f)| body.get_surface(f.surface))
+        .filter_map(|(fk, _)| body.face_surface(fk))
         .collect();
     assert!(
         !kinds

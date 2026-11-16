@@ -507,3 +507,166 @@ Unparked:
 The lane survived a weekly usage-limit stop and a five-day gap: resumed, not restarted, with main merged twice. Its first merge dropped main's door bullets for three doors, which the inventory re-homing caught and restored. Class note: a large merge can silently drop the other side's prose, so read the merge's "missing from main's side" list.
 - 2026-11-08 — `cover-topo-faces` merged (PR 6579, `3b7794bb`). **Dispatched in parallel: `cover-levers` and `cover-app-readers`.** Both are single FULL review: neither changes the public cover type, and both move verdicts. They couple little (geom-brep, splitting and boolean ground against sweep and editor-core), and the disk holds two builds. `cover-carrier-level-piece` follows, then `cover-kind-match-gate`. Both lanes get one common brief (`~/.local/share/cad-work/boxes-cover-common-brief.md`, this box only) carrying the build's eight binding lessons. (BOXES orchestrator)
 - 2026-11-09 — A container restart stopped `cover-levers` and `cover-app-readers` mid-unit. Both clones survived: levers with three pushed commits and uncommitted work in nine files; app-readers clean, with PR 6588 open. Both lanes resumed, not restarted. The disk was at 2.2 GB free because app-readers' target had grown to 22 GB; deleting it freed the volume to 24 GB. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-app-readers` (PR 6588) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `c9cf149e`: APPROVE-WITH-FIXES, no MAJOR.
+
+Confirmed:
+- the line-site re-posing, exact in any frame (6000 cases at f64 and Interval, 0 failures);
+- dropping `sheet_clip`'s pad: it paid for a coaxial approximation, not a clearance tolerance;
+- `ρ_lo` sound;
+- the mate `Band`.
+
+Into the fix pass:
+- the aim and `ρ_lo`'s tightness have no red-capable row (two mutants survive the whole sweep ci set);
+- the aim's K decision logs on every face, so it is decided where used;
+- a zero-tolerance emptiness test granting clearance, to be read through a named decide;
+- `at_rest::beyond`'s plane/cylinder gate, whose stated reason this PR made false;
+- an overstated exactness claim in the PR body and a row note;
+- small docs.
+
+**Class instance:** the premise-excludes-the-failing-mode test (a pose row that skips the one kind the new code touches). The style lane's Q3 caught it.
+- 2026-11-09 — PR 6588's fix pass (head `11bb520a`, gate green) took every item. Two of its choices:
+  - **It dropped the aim rather than pin it.** Every sphere face today's doors build has its rims about its own chart axis, so the pole cut never bites; a tilted chart is refused upstream as a frontier.
+  - **The emptiness test reads through the file's `sure`, not a new `BlendDecision` variant.**
+  
+  Accepted on my read.
+  
+  **Process breach, logged:** the lane pushed two EMPTY commits to re-run CI after runner 504s, which the rules forbid. The final run did execute the full code tiers over the PR's diff, so its green is genuine; nothing is re-done.
+  
+  **Friction finding:** runner tool downloads (actionlint, the python suite's tools) returned 504 several times on 2026-11-09, failing lint and the python suite before any check ran. This integration cannot re-run jobs (403), so a 504 costs a fresh push.
+  
+  Routed: a fifth `OutsideSessionBox` row as evidence on ONEHOME's main-red, and `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` on TINT (TCOST and TINT share its file; `work/issues/` no longer exists). (BOXES orchestrator)
+- 2026-11-09 — `cover-app-readers` merged (PR 6588, `6bbebd7e`). **Dispatched `cover-carrier-level-piece`** (single FULL review), in parallel with `cover-levers`' review. `cover-kind-match-gate` waits on `cover-levers` alone. (BOXES orchestrator)
+
+## 2026-11-09 — `cover-levers` (PR 6596) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `7f76cf1ca7`: APPROVE-WITH-FIXES, no MAJOR. Every probed lever is an upper bound (M1, M5, M6, M7 killed), and no verdict moved toward a grant.
+
+Into the fix pass:
+- **Rows.** M2, M4 and M8 survive. The PR body's claim about the lone-vertex row is false, since that row's face has no cover anyway. No new differential replaced the two retired.
+- **`foot_lever`.** It floors at a conic's centre, outside the consumed region, which the span narrowing made bind.
+- **Three spellings each** of the poison ball and the whole-circle cover; `Cover::ball` vs `Node::ball`.
+- **`cone_face_reach`'s reader-side window meet.**
+- **Refusal names** that now say less than they did.
+- **`chart_region` reading each cover twice per gate.**
+
+Deferrals scheduled on `cover-kind-match-gate`.
+
+The `[ev]` question on the "Float rounding" README text is still with Ev.
+
+**Class, again.** The fix that closed TWICE's two-types row minted three poison-ball spellings, in the same PR. Q1 caught it.
+
+## 2026-11-09 — the nightly is red, and some of it may be ours
+
+(BOXES orchestrator) Nightly run 42567046151 (sha `836426e0`) failed eight jobs:
+- rustdoc;
+- gate self-tests;
+- both k-lint rows;
+- `--all-features`;
+- the viewer;
+- both full slow-set suites.
+
+That sha contains PRs 6336, 6383, 6399 and 6579. The PR gate runs none of those jobs, so a merged cover unit can red main there unseen. Several rows look like ours:
+- the rustdoc gate ("a link to a renamed, deleted … item");
+- `span_reach_hunt`;
+- the `m10_sym_profile_interval` slab forms;
+- rows about origins "stored far off".
+
+A triage lane (`boxes/nightly-reds`) attributes every failing row by running it before and after each BOXES merge. It fixes ours in one PR, and files the rest that have no row on their owners' slates.
+
+**Class finding.** A unit's PR going green says nothing about the slow set, rustdoc, `--all-features` or k-lint. For a unit as wide as the cover build, each merge owes a run of the nightly-only jobs its diff can move, before or right after it lands. The brief's lesson 5 asked for the slow set only. Rustdoc and `--all-features` belong in it too.
+
+Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631).
+
+- 2026-11-09 — PR 6631's FULL review (head `c87a6b29`): APPROVE-WITH-FIXES. M1, a real false refusal: a cone frustum beside a pin at gap 5e-4 clears on the base and refuses on the head, because "proposes a depth" was conflated with "lies at a level" (a cone has no level, so `across` lost its axis). The fix pass separates the cover's proposed sites from `level`. Also taken: m1 (`reach_to` unguarded; add a row), m2 (patch shell has no row; add one or remove it), m3 (stale `Depth::*` citations in two onecopy rows), and style S1–S4, S7–S11 (Core/`Around::Circle` one shape, one range entry, one sphere spelling, one Gram helper). Deferred with a reason in the PR body: S5 (constructor flags) and S6 (shell as an Option field). The `inner` discontinuity at R = r is sound and fail-loud; kept, with a doc line.
+
+- 2026-11-09: merged PR 6639 (nightly 42567046151 triage). BOXES' reds were `span_reach_hunt` and the docm2 ladder, both from PR 6399, plus rustdoc sites from 6399 and 6579. The rest were attributed to their owners and filed at P0 on their slates.
+  - The first fix was a clamp at the reader (`span_reach` taking `.min(reach_from)`). I sent it back: the tighter bound now lives in `Cover::arc` as a meet with the whole conic. That raises `frozen` (evaluation cost) on the m10_9 and sym11 ledgers; decisions are unchanged, and the owners are notified on their rows.
+  - docm2 was re-pinned, not loosened at the cover. The tighter line-edge cover is a P2 row on BOXES.
+- 2026-11-09: PR 6631's fix pass (`07d55569`) passed delta review (APPROVE-WITH-FIXES, no MAJOR). It adds `Cover::about` (proposed sites) separate from `level`, and a cone frustum piece, probed sound over 3000 cases. The last small pass: depth_gap prose, one axis-line constructor, rename `cover::Radial`, delete the caller-less `level()`, and a skewed-frame tightness row. Two duplicates are deferred in the PR body: Shell/wall level spellings, and `Around`/`Site`.
+
+- 2026-11-14: merged PR 6596 (`cover-levers`, merge `e9b02da7c7`) after Ev's answer on the PR (2026-11-12) and three merges of main.
+  - The fixture-lever pins were rebaselined to geom-brep 447, sweep 32 and topo 290, with Ev's leave, because the rise is this PR's: it adds `ExtentBall::fixture` to the counted set.
+  - Two merge artifacts were fixed: a slow-set entry listed twice, and `verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`, which ran 1.03 s on CI. The branch times that test the same as main locally, and other branches run it at 0.58–0.86 s on CI, so it joins the slow set as runner variance.
+  - **A verdict moved:** `recl::an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`. Its skeletal faces have no cover, so the glue door reads no extent and passes. Main's pin of the collapsed-line refusal wording has no reachable fixture under the cover reading. The row's owner should know.
+  - Dispatched `cover-kind-match-gate` (the last unit), which started from the cover-levers branch before the merge.
+- 2026-11-14: PR 6957's single FULL review (`cover-kind-match-gate`, head `06ed312a64`): APPROVE-WITH-FIXES.
+  - **The cover move is sound** (C4): `Arc::near` reads the conic annulus. The reviewer probed 3000 ellipses with no unsound result at f64 or at Interval, and the old floor is never tighter.
+  - **All three MAJORs are taken, and all are in the gate:**
+    - (1) shrink-only `reader` pins would block every future cover reader, the right answer itself. They become a registry with an argued direction per site.
+    - (2) `ball` misses receiver-qualified radii, wrapped sums and sphere variants, and three tree instances are unpinned.
+    - (3) `arm` misses aliases, imported variants, `Self::` arms and neutrally named distance bounds. Name resolution replaces the literal prefix.
+  - **All MINORs are taken:**
+    - `READERS` derived from the doors' `pub` items, not hand-copied;
+    - `arc_distance_floor`'s Line arm and kind dispatch moved or filed;
+    - stale `arc_floor_rows` prose fixed;
+    - moved verdicts named, with an `arcs_along` row;
+    - the `rho_sum` and `(R−r)(R+r)` false positives excluded;
+    - pins follow a git rename;
+    - self-test gaps closed.
+  - **Class finding, the build's recurring one in gate form:** a gate keyed on spellings is a second hand-written list. MAJOR-1 is a gate that would have pushed sites away from the one right place.
+  - **The `foot_on` pivot is a design fork.** Two designers were dispatched (draw 112/242, recorded on `analysis/design-fork/foot-on-pivot`).
+- 2026-11-14: PR 6957's first fix pass (`419d4348cc`) passed delta review: APPROVE-WITH-FIXES.
+  - **Closed:** all three earlier MAJORs. Readers are a registry with an argued direction; ball reads whole statements; kind names resolve per file.
+  - **Checked clean:** `arcs.rs` after a disk-full truncation and restore; the radius 10³ → 100 change, honest because the 10³ cylinder fixture fails certification at ε = 1e-12 before the door runs; the self-test left out of lint, because a `ci.yml` edit puts the PR on the `all` tier, where the filed eps reds run.
+  - **New MAJOR, taken:** sums of three or more terms escape `ball` (non-overlapping regex pairing, plus an over-wide "two parenthesised sums" exclusion). The fix flattens each sum into its terms.
+  - **MINORs, taken:**
+    - the vertex pivot in `arcs_along` has no killing row;
+    - the registry's direction text is unchecked. A sweep of the lever entries is needed, because a longer arm decides zero less readily but nonzero more readily.
+    - registry lines are re-keyed on (file, fn, door), so that a swap of doors goes red.
+  - The `foot_on` fork converged after three rounds on the window's middle; it is `[ev]` PR 6968.
+- 2026-11-09 — PR 6596's fix pass (head `8fd8a93f`, gate green) took every item:
+  - **Red-capable rows** for M2, M4, M8, `Cover::circle`, the box ball and GERM's antipode; the false PR-body claim is corrected.
+  - **`foot_lever`:** reads at a point of the arc, and the kind match is gone.
+  - **One poison-ball door** (`of_covered(Option<&Cover>)`) and **one whole-circle construction** (`Cover::circle`).
+  - **The box ball:** built inside the node rule, bottom-up.
+  - **The cone window:** now a `Cover::meet`.
+  - **Refusals carry `FaceUncovered`.**
+  - **`chart_region`:** reads each cover once per gate.
+  - **`witness_pad`:** kept on the union as a band tolerance, and declined on the overlap, where a point touch would read as a length.
+
+  Accepted on my read. The box ball is sound because a meet's box is the intersection of its parts', a hull's the union, and every node's ball is the smaller of two balls that each contain the set. Merge waits on Ev's `[ev]` answer on the "Float rounding" text. `arc_distance_floor` is scheduled on `cover-kind-match-gate`. (BOXES orchestrator)
+- 2026-11-14: merged PR 6957 (`cover-kind-match-gate`, merge `892f2d7bcf`) after its second fix pass. I verified the pass myself rather than dispatch a third review:
+  - the self-test passes;
+  - the delta review's five escaping sums, planted in production code, now go red, as does a let-bound renamed torus sum;
+  - a neutrally named alias arm returning `radius * 2` still passes, which is the documented neutral-vocabulary class.
+  Pins: 363 arm, 38 ball, 28 whole; 96 reads of 26 doors registered. The unit closes, and its leftovers are filed as their own rows. The cover build's last unit is merged. Open: `[ev]` PR 6968 (the pivot fork), then its implementing unit.
+- 2026-11-15: Ev approved `[ev]` PR 6968, the `foot_on` pivot: the window's middle; "no need to try to find a point that's better than the midpoint right now". Merged as `0807c130bf`.
+  - Ev first asked how a point that is not a witness can be sound. Answer: the pivot is the origin of a tilt bound, so any point is sound provided the datum and its lever are read at it. That is now one README clause, added on Ev's "only if ambiguous", since the question itself showed it was ambiguous.
+  - Row 269 is filled in: Opus = A, Fable = B.
+  - Dispatched the implementing unit on `boxes/reach-region`.
+- 2026-11-15: the implementing unit opened PR 6976 (`boxes/reach-region`, head `152a4a9be9`, gate green). The changes:
+  - `Reach::Region(Cover)` via `of_span`;
+  - the midpoint `foot_on`;
+  - `reading_point`, `span_points` and `minimax_on_axis` deleted;
+  - a swap-invariant parallel `d`;
+  - topo's span sites read `edge_cover` or `of_span`, with a typed `EdgeUncovered`.
+
+  It reports that designer B's coaxial claim holds for every caller today, with one latent case: `transport_curve`. The first head's corrupt-input red (`review_d18` seed `0xd3ff1f8c5d8b60f6`) reproduces on main and is charttail's filed own-loop panic, so it is not this diff. Dispatched a single FULL review. (BOXES orchestrator)
+- 2026-11-15: PR 6976's FULL review returned APPROVE-WITH-FIXES with no MAJOR. Soundness, bit-for-bit `d` symmetry, the pins, the edge-cover lever measurement (≤1.85e-16 on a re-run slice) and the mutant kills all hold under execution. My rulings:
+  - **Taken:**
+    - `span_reach` is a second spelling of `cover::arc_cover`, so it routes there;
+    - the half-done stale-doc sweep (`parallel_swing`, `RuledFrame`, the `CcStance::Parallel` foot, `refusal()`'s row list) gets finished;
+    - the unguarded "3.2%" is replaced by the bound the hunt guards;
+    - the PR body's `carrier_eq` row, its "same pivot" claim and its undisclosed head commit are corrected;
+    - `foot_on`'s √2 is said to be relative to the cover's least.
+  - **`EdgeUncovered`'s standing:** take its standing from the cause rather than a blanket "limit". A poisoned or non-finite net is not a "not yet".
+  - **The drift between `ExtentBall::of_edge_from`/`cover_far` (poison) and `of_span` (typed), and the two ball-pivot spellings:** fix both in this pass if small, otherwise file with citations.
+
+  The fix pass is sent to the implementing lane. (BOXES orchestrator)
+- 2026-11-15: I verified PR 6976's fix pass myself rather than dispatch a delta review. Every MINOR was taken:
+  - `span_reach` is gone, and moved carriers read `arc_cover`;
+  - `EdgeUncovered::refusal` stands by its cause: data faults are row 4, scaffolding is a limit, and a mixed payload aborts;
+  - a ball has one pivot spelling, `Reach::Ball` reading `ExtentBall::foot_on`;
+  - `of_edge_from` is deleted;
+  - the 3.2% claim is replaced by the bound the hunt guards;
+  - `mint_carrier` reads the gate's section, so its `unreachable!` is gone.
+
+  No pinned verdict moved, and CI is green on `fb141e4945`. Merged as `47905426f9`; `a-reachs-pivot-is-chosen-per-kind` is closed. Filed in this pass:
+  - `face-uncovered-stands-as-a-limit-whatever-its-cause`;
+  - `edge-extent-sup-poisons-an-uncovered-span`.
+
+  BOXES's implementation queue is empty apart from the filed P2/P3 follow-ups. (BOXES orchestrator)
+- 2026-11-15: The track is set back to `ready`. Its orchestrator exited without handing the track back, so it read `active` with nobody on it; 20 rows are dispatchable. (set at Ev's request)

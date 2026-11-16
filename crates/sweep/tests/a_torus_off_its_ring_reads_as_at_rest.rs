@@ -36,11 +36,8 @@ fn half_torus(big_r: f64, r: f64, tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         .body;
     let of = |torus: bool| {
         body.faces()
-            .find(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface).unwrap(),
-                    geom::Surface::Torus { .. }
-                ) == torus
+            .find(|(fk, _)| {
+                matches!(body.face_surface(*fk).unwrap(), geom::Surface::Torus { .. }) == torus
             })
             .unwrap()
             .0
@@ -64,9 +61,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         axis,
         u_ref,
         ..
-    } = *body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
+    } = *body.face_surface(wall).unwrap()
     else {
         panic!("the wall is a torus");
     };

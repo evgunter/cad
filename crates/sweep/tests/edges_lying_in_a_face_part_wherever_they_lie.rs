@@ -217,9 +217,8 @@ fn unsound(what: &str, scene: &Scene<'_>, r: &topo::BooleanBody<f64>, k: usize) 
             let holding = r
                 .body
                 .edges()
-                .filter(|(_, edge)| {
-                    let start = r.body.get_half_edge(edge.he_plus).unwrap().start;
-                    let end = r.body.half_edge_end(edge.he_plus).unwrap();
+                .filter(|(ek, edge)| {
+                    let (start, end) = r.body.edge_vertices(*ek).unwrap();
                     let [p, q] =
                         [start, end].map(|v| topo::readback::vertex_point(&r.body, v).unwrap());
                     let halfway = r
@@ -605,8 +604,7 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
         tol(),
     );
     let turned = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), turn.to_radians());
-    let v =
-        topo::transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol()), tol()).unwrap();
+    let v = topo::transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol())).unwrap();
     finished("the V", v, tol())
 }
 

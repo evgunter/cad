@@ -49,7 +49,7 @@ use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
 use crate::seats::SeatEvent;
-use crate::session::{Selection, SessionOp};
+use crate::session::{Refusal, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
 vocabulary! {
@@ -238,6 +238,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
         | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::Place { .. }
         | SessionOp::SetBundle { .. }
@@ -773,9 +774,9 @@ impl Tools {
     /// **The Place the open placement editor's pick asked for**, taken
     /// ([`MateTool::take_place`]): queued in the batch of the pick that
     /// asked for it.
-    pub fn take_place(&mut self) -> Option<SessionOp> {
+    pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
         match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.take_place(),
+            Some(OpenTool::Mate(tool)) => tool.take_place(doc),
             _ => None,
         }
     }
@@ -840,6 +841,26 @@ impl Tools {
             }
             _ => {}
         }
+    }
+
+    /// **A door's target change held** ([`Refusal::TargetHeld`]): the
+    /// placement editor opens on the copy with the door's target set, so
+    /// the change is held there as the editor holds one — the rows
+    /// reading the old space marked, and the strike offered. Answers
+    /// whether it opened; any other refusal opens nothing.
+    pub fn held_target(&mut self, refusal: &Refusal, doc: &Doc<ProfileProgram>) -> bool {
+        let Refusal::TargetHeld {
+            placement, target, ..
+        } = refusal
+        else {
+            return false;
+        };
+        let Ok(mut tool) = MateTool::edit(doc, *placement) else {
+            return false;
+        };
+        tool.set_target(target.clone());
+        self.open_mate(tool);
+        true
     }
 
     /// **A document replaced this one**: the open tool starts over,
@@ -1020,6 +1041,27 @@ impl Tools {
             Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Mirror(tool)) => tool.choose_half(seat, half),
+        }
+    }
+
+    /// **The member pick `seat` of the open boolean tool reads**, by
+    /// its index values, where it reads a family nothing copies, whole
+    /// or one member ([`crate::combine::BooleanTool::choose_member`]); a
+    /// no-op for every other tool, whose seats read a family whole.
+    pub fn choose_member(&mut self, seat: usize, at: Vec<i64>) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_)
+                | OpenTool::Clearance(_)
+                | OpenTool::Split(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Mirror(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_member(seat, at),
         }
     }
 

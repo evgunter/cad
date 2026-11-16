@@ -117,7 +117,7 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     let samples = k_stats::take_samples();
     *total += samples.len();
     for s in &samples {
-        if s.predicate == geom_core::UNNAMED_PREDICATE {
+        if s.predicate == pncad::geom_core::UNNAMED_PREDICATE {
             *unnamed += 1;
         }
         csv.push_str(&format!(
@@ -343,7 +343,7 @@ pub fn run(out: Option<String>, tol: Tol) {
             // halves, coordinates 5 m apart — and telemetry about
             // predicate conditioning is better read at the origin than at
             // a presentation offset.
-            let (acc, _vol) = projectbox::build(tol);
+            let (acc, _vol) = projectbox::build::<Probe>(tol);
             let boxbody = acc.body.clone();
             let ((above, below), _numbers) = cutaway::build(&boxbody, tol);
             vec![

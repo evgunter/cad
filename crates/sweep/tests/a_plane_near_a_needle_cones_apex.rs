@@ -18,17 +18,21 @@
 //! the pose is a fixed multiple of ε: the refusals pinned here were
 //! measured the same at ε 1e-6, 1e-9 and 1e-12, each typed with its
 //! lever, none naming a broken invariant. At `k = 10⁵` the same planes
-//! land their closed forms.
+//! land their closed forms
+//! (`a_needle_cone_cut_off_its_apex_lands_its_closed_forms`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::PI;
 
 use crate::revolve_common::needle;
+use geom_brep::curve_pair::MeetFault;
+use geom_brep::roots::Unsettled;
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::{Point3, Tol, Vec3};
-use topo::splitting::{SplitError, SplitJoinError, split};
-use topo::{CensusUnsupportedCause, ContactRecords, ContactRefusal, EulerOpError, ValidationError};
+use topo::JoinError;
+use topo::splitting::{SplitError, split};
+use topo::{CensusUnsupportedCause, ContactRecords, EulerOpError, ValidationError};
 
 /// The pose's plane, and the tip's volume above it (the apex's side).
 fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f64>, f64) {
@@ -48,38 +52,56 @@ fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f
 }
 
 /// **In the band of the apex, each pose refuses typed, with its lever.**
-/// At `tilt = 1.5`, `spin = 0` the chord's start reads the plane within
-/// the zero band of tangent to the wall, its datum along the section; at
+/// At `tilt = 1.5`, `spin = 0` on the 1° cone the chord's start reads the
+/// plane within the zero band of tangent to the wall, its datum along the
+/// section, and on the 3° cone the crossing's vertex lies within the band
+/// of the axis, where the cone reads no tangent plane; at
 /// `tilt = 1.2`, `spin = 2` on the 1° cone the chord's certificate reads
 /// its crossing angle inside the band. Neither is a broken invariant.
 #[test]
 fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    for deg in [1.0, 3.0] {
-        let what = format!("α = {deg}°, tilt 1.5, spin 0");
-        let (plane, _) = pose(deg, 1e3, 1.5, 0.0, tol);
-        let err = split(&needle(deg, None, tol), &plane, tol).expect_err(&what);
-        assert!(
-            matches!(
-                err,
-                SplitError::Join(SplitJoinError::SectionDepartureGrazes { .. })
-            ),
-            "{what}: {err:?}"
-        );
-        let text = err.render(geom_brep::recourse::Reading::Build);
-        for (part, words) in [
-            ("the decision that ran", "'chord_arc_leave_section'"),
-            ("the lever", "farther from its apex"),
-        ] {
-            assert!(text.contains(words), "{what}: names {part}: {text}");
-        }
-        assert!(!text.contains("paired"), "{what}: pairs nothing: {text}");
+    let what = "α = 1°, tilt 1.5, spin 0";
+    let (plane, _) = pose(1.0, 1e3, 1.5, 0.0, tol);
+    let err = split(&needle(1.0, None, tol), &plane, tol).expect_err(what);
+    assert!(
+        matches!(
+            err,
+            SplitError::Join(JoinError::SectionDepartureGrazes { .. })
+        ),
+        "{what}: {err:?}"
+    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
+    for (part, words) in [
+        ("the decision that ran", "'chord_arc_leave_section'"),
+        ("the lever", "farther from its apex"),
+    ] {
+        assert!(text.contains(words), "{what}: names {part}: {text}");
     }
+    assert!(!text.contains("paired"), "{what}: pairs nothing: {text}");
+    // On the 3° cone the crossing's vertex stands within the band of the
+    // axis, off the apex: the star reads no tangent plane there, and the
+    // split refuses it at the reduction.
+    let what = "α = 3°, tilt 1.5, spin 0";
+    let (plane, _) = pose(3.0, 1e3, 1.5, 0.0, tol);
+    let err = split(&needle(3.0, None, tol), &plane, tol).expect_err(what);
+    assert!(
+        matches!(
+            err,
+            SplitError::Reduce(topo::SplitReduceError::VertexNearConeAxis { .. })
+        ),
+        "{what}: {err:?}"
+    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
+    assert!(
+        text.contains("clear of the cone's tip"),
+        "{what}: names the lever: {text}"
+    );
     let what = "α = 1°, tilt 1.2, spin 2";
     let (plane, _) = pose(1.0, 1e3, 1.2, 2.0, tol);
     let err = split(&needle(1.0, None, tol), &plane, tol).expect_err(what);
-    let SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification {
+    let SplitError::Join(JoinError::Euler(EulerOpError::Certification {
         error:
             CertifyError::Escalated {
                 check: CertCheck::Transversality,
@@ -138,18 +160,20 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 if spin == 0.0 && tilt == 1.5 {
                     // The ellipse's vertices on the seams: the census
                     // cannot settle a ruling against the half ending on
-                    // it, filed as
+                    // it, the meeting unread on a meter (the line ×
+                    // ellipse pose's basin), filed as
                     // work/splitdoor/tier-3-prime-cannot-settle-a-ruling-against-an-ellipse-it-ends-at-on-a-needle-cone.md
                     let errs = t3p.expect_err(&what);
                     assert!(
                         errs.iter().all(|e| matches!(
                             e,
                             ValidationError::CensusUnsupported {
-                                cause: CensusUnsupportedCause::ContactLane(
-                                    ContactRefusal::NotCertifiable { what }
-                                ),
+                                cause: CensusUnsupportedCause::Meeting(why),
                                 ..
-                            } if what.contains("could not settle a count")
+                            } if matches!(
+                                why.fault(),
+                                MeetFault::Unsettled(Unsettled::Meter { .. })
+                            )
                         )),
                         "{what}: tier 3′ as measured: {errs:?}"
                     );

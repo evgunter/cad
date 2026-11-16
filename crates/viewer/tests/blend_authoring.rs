@@ -218,7 +218,10 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         .committed_doc()
         .selection(*selection)
         .expect("the fillet reads a selection");
-    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    assert_eq!(
+        Some(stored.body.read),
+        session.committed_doc().output(target, 0)
+    );
     let selection = &stored.names;
     assert!(
         session.committed_doc().free(*radius).is_some(),
@@ -351,7 +354,10 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         .committed_doc()
         .selection(*selection)
         .expect("the chamfer reads a selection");
-    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    assert_eq!(
+        Some(stored.body.read),
+        session.committed_doc().output(target, 0)
+    );
     let selection = &stored.names;
     assert_eq!(
         session
@@ -512,7 +518,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         session.committed_doc().node(fillet),
         Some(Node::Fillet { selection, .. })
             if session.committed_doc().output(first, 0)
-                == session.committed_doc().selection(*selection).map(|s| s.body)
+                == session.committed_doc().selection(*selection).map(|s| s.body.read)
     ));
 }
 
@@ -1050,7 +1056,13 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, [SIDE; 3]);
     let raw_b = common::xy_box_in(&mut session, [SIDE; 3]);
-    let b = common::moved_to(&mut session, raw_b, [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]);
+    let home = session.committed_doc().node_space(a).expect("a's space");
+    let b = common::moved_in_space(
+        &mut session,
+        raw_b,
+        [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25],
+        home,
+    );
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {

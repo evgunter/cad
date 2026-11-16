@@ -29,8 +29,12 @@ fn view_of_reports_the_camera_and_the_window_it_is_given() {
             },
         )
         .expect("a finite window with area has a view");
-        // Component-wise: the geometry types carry no `PartialEq`.
-        assert_eq!(view.eye.to_array(), camera.eye().to_array());
+        assert!(
+            view.eye.equals_exactly(camera.eye()),
+            "{:?} vs {:?}",
+            view.eye,
+            camera.eye()
+        );
         let scale = 2.0 * (camera.fov_y() * 0.5).tan() / height_px;
         assert!(
             (view.metres_per_pixel_at_one_metre - scale).abs() <= scale * 1.0e-15,

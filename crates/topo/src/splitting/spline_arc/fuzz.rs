@@ -25,12 +25,7 @@ use crate::splitting::pieced_arc::{ArcHit, ArcRows};
 use geom_core::{Interval, Tol, Vec3};
 use test_utils::fuzz::Rng;
 
-const ROWS: ArcRows = ArcRows {
-    end: "fuzz_spline_end",
-    clear: "fuzz_spline_clear",
-    on: "fuzz_spline_on",
-    leaf: "fuzz_spline_leaf",
-};
+const ROWS: ArcRows = crate::rows::FUZZ_SPLINE_ARC;
 
 /// The plane the curves lie in.
 const Z: f64 = 0.7;

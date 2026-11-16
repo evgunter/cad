@@ -109,7 +109,7 @@ impl Box3 {
         if !(self.x.is_certified() && self.y.is_certified() && self.z.is_certified()) {
             return None;
         }
-        let centre = |x: Interval| 0.5 * (x.lo() + x.hi());
+        let centre = |x: Interval| geom::mid_param(x.lo(), x.hi());
         let q = Point3::new(centre(self.x), centre(self.y), centre(self.z));
         let half = |x: Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
         let reach = (half(self.x) + half(self.y) + half(self.z)).next_up();
@@ -242,7 +242,7 @@ impl Box3 {
             if !i.is_certified() {
                 f64::NAN
             } else {
-                0.5 * (i.lo() + i.hi())
+                geom::mid_param(i.lo(), i.hi())
             }
         };
         Point3::new(mid(self.x), mid(self.y), mid(self.z))
@@ -261,7 +261,7 @@ impl Box3 {
             if !i.is_certified() {
                 return (Interval::refused(), Interval::refused());
             }
-            let m = 0.5 * (i.lo() + i.hi());
+            let m = geom::mid_param(i.lo(), i.hi());
             (
                 Interval::from_bounds(i.lo(), m),
                 Interval::from_bounds(m, i.hi()),
@@ -609,7 +609,9 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
     ) -> [Interval; 3] {
         let form = self.0;
-        let g = form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))));
+        let g = form.constant_gradient().unwrap_or_else(|| {
+            form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))))
+        });
         [g.x, g.y, g.z]
     }
 
@@ -632,6 +634,7 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
         along_u: bool,
     ) -> Interval {
+        super::boundary::count_reading();
         w.map_or_else(Interval::refused, |w| {
             super::boundary::plane_partial(self.gradient(boxes, Some(w)), boxes, w, along_u)
         })
@@ -1241,8 +1244,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     pub(crate) fn rect_box(&self, w: UvWindow) -> Box3 {
         let w = self.clamped(w);
         let (u0, u1, v0, v1) = (w.u.start(), w.u.end(), w.v.start(), w.v.end());
-        let um = 0.5 * (u0 + u1);
-        let vm = 0.5 * (v0 + v1);
+        let um = geom::mid_param(u0, u1);
+        let vm = geom::mid_param(v0, v1);
         // The midpoint evaluation is the only EVALUATION in this
         // module, and it is an ENCLOSURE on every lane: the window's
         // net and knots crossed at the seam ([`Interval::from_certified`])

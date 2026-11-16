@@ -35,8 +35,8 @@ fn tube(slit: bool, tol: Tol) -> Body<f64> {
     if slit {
         let (_, cap) = body
             .faces()
-            .find(|(_, f)| {
-                let s = body.get_surface(f.surface).unwrap();
+            .find(|(fk, f)| {
+                let s = body.face_surface(*fk).unwrap();
                 matches!(s, geom::Surface::Plane { origin, .. } if origin.y.abs() < 1e-12)
                     && !f.rings.is_empty()
             })
@@ -81,7 +81,7 @@ fn a_turned_tube_reads_its_side_in_its_seam_plane() {
         for angle in [0.3_f64, core::f64::consts::FRAC_PI_4, 1.0, -0.7, 2.0] {
             let what = format!("slit {slit}, turned {angle}");
             let m = RigidMotion::rotation(z, angle).unwrap();
-            let turned = topo::transform_rigid(&tube(slit, tol), &m, tol).unwrap();
+            let turned = topo::transform_rigid(&tube(slit, tol), &m).unwrap();
             let body: Body<f64> = if slit {
                 turned
             } else {
@@ -137,8 +137,14 @@ fn a_turned_tube_reads_its_side_in_its_seam_plane() {
                 let q = to(Point3::new(x, y, 0.0));
                 let d = Vec3::new(c * dx - s * dy, s * dx + c * dy, 0.0);
                 let d = d / d.norm();
-                let counts = topo::test_support::ray_counts(&body, face, (q, d), band, (0, false))
-                    .unwrap_or_else(|e| panic!("{what}: the ray from {q:?} reads: {e}"));
+                let counts = topo::test_support::ray_counts(
+                    &body,
+                    face,
+                    &geom::Ray::new(q, d),
+                    band,
+                    (0, false),
+                )
+                .unwrap_or_else(|e| panic!("{what}: the ray from {q:?} reads: {e}"));
                 let net: i32 = counts.iter().map(|h| h.2).sum();
                 assert_eq!(
                     net, 0,

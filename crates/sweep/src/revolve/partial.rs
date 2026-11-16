@@ -6,7 +6,7 @@
 //! for the ratified case split.
 //!
 //! Phase order (fixed, D9): start lamina (outer chain + closing `mef`
-//! carrying the start cap's Newell plane), holes (bridge `mev` +
+//! carrying the start cap's plane, the sketch frame), holes (bridge `mev` +
 //! `kemr` + chain + closing `mef` + same-shell `kfmrh` — extrude's
 //! shape), per-loop sweep (struts at off-axis vertices, one wall per
 //! off-axis segment, latitude-join classification), end cap plane, then
@@ -14,7 +14,8 @@
 //! phase builds the loops with their runs collapsed ([`Collapsed`]), so
 //! a station inside a run has no entity.
 
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point2, Point3, Real, Sign};
+use profile::SegmentKind;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MevSite};
 use topo::{Body, EdgeKey, FaceKey};
@@ -26,9 +27,7 @@ use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{
-    CapEnd, Placing, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
-};
+use crate::swept::{CapEnd, Placing, cap_plane, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
@@ -45,8 +44,8 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let place = frame.place;
-    let far = Placing::turned(place, frame.o3, frame.axis, theta).map_err(RevolveError::Turn)?;
-    let place_end = far.map();
+    let far =
+        Placing::turned(place, frame.origin3, frame.axis, theta).map_err(RevolveError::Turn)?;
     let Some(n_end) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
     };
@@ -56,7 +55,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         } else {
             Sign::Negative
         },
-        frame.a3,
+        frame.axis.get(),
     );
 
     // Each loop with its runs collapsed: a station inside a run has no
@@ -118,19 +117,14 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
         },
         true,
     )?;
+    // The joint centre `revolved_caps` reports: the outer section's
+    // centre, in the sketch.
+    let joint = section_centre(outer);
     // Start cap plane: derived from the sketch data alone — it reads no
     // entity and mints none — so the closing surface can be in hand
     // before the chain that will carry it.
-    let start_plane = cap_plane(
-        &cap_points(outer, qs, place),
-        place,
-        reverse,
-        CapEnd::Start,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let start_cap = FaceSurface::New {
-        surface: start_plane,
+        surface: cap_plane(place, reverse, CapEnd::Start),
         sense: true,
     };
     let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
@@ -240,7 +234,6 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
                 li,
                 col,
                 hes,
-                &points[li],
                 &rpoints[li],
                 frame,
                 theta,
@@ -257,18 +250,10 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let end_plane = cap_plane(
-        &cap_points(loops[0], &rpoints[0], far),
-        place_end,
-        reverse,
-        CapEnd::End,
-        band,
-    )
-    .map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {
-            surface: end_plane,
+            surface: cap_plane(far, reverse, CapEnd::End),
             sense: true,
         },
     )?;
@@ -277,7 +262,7 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     // canonical order, segments in swept order; per walled segment the
     // start rim then the end rim; on-axis segments classify the two
     // caps against each other (module docs). ----
-    finish_partial(
+    let coplanar_caps = finish_partial(
         &mut body,
         &cols,
         &bases,
@@ -347,6 +332,8 @@ pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
             end_cap: end_face,
             start_meridians: start_mer,
             end_meridians: end_mer,
+            coplanar_caps,
+            joints: [frame.world(joint), far.point(joint)],
         },
         scalar: core::marker::PhantomData,
     })
@@ -390,7 +377,9 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// then end-chain meridian upgrades to `Intersection { cap, wall }`;
 /// per on-axis segment the shared edge classifies the two caps against
 /// each other — `Intersection { start, end }` when definitely
-/// transverse (θ ≠ π), conventional when definitely smooth (θ = π).
+/// transverse (θ ≠ π), conventional when definitely smooth (θ = π),
+/// where the caps are one carrier and that verdict leaves them on one
+/// record ([`topo::Body::one_record_across`]), which returns its row.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -398,19 +387,19 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
     bases: &[Vec<topo::HalfEdgeKey>],
     walls_all: &[Vec<Option<FaceKey>>],
     tops_all: &[Vec<Option<EdgeKey>>],
-    start_surface: topo::SurfaceKey,
-    end_surface: topo::SurfaceKey,
+    mut start_surface: topo::SurfaceKey,
+    mut end_surface: topo::SurfaceKey,
     band: Band,
     tol: Tol,
-) -> Result<(), RevolveError> {
+) -> Result<Option<topo::Coincidence>, RevolveError> {
+    let mut coplanar = None;
     for (li, col) in cols.iter().enumerate() {
         for (j, seg) in col.segs.iter().enumerate() {
             let segment_index = seg.canonical_segment;
-            let sliver = |reading, source| RevolveError::SliverRim {
+            let sliver = |escalation| RevolveError::SliverRim {
                 loop_index: li,
                 segment_index,
-                reading,
-                source,
+                escalation,
             };
             let bottom = he_edge(body, bases[li][j]);
             match walls_all[li][j] {
@@ -423,7 +412,7 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                 }
                 None => {
                     debug_assert!(matches!(col.cls.walls[j], WallClass::OnAxis));
-                    upgrade_intersection(
+                    let smooth = upgrade_intersection(
                         body,
                         bottom,
                         start_surface,
@@ -432,11 +421,37 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                         sliver,
                         tol,
                     )?;
+                    // Two caps the axis edge joins smoothly are one
+                    // carrier (a half turn): the verdict that read the
+                    // join leaves them on one record and records its row.
+                    if let Some(verdict) = smooth {
+                        let start_cap = face_wearing(body, bottom, start_surface);
+                        if let Some(row) = body.one_record_across(verdict, start_cap, tol)? {
+                            let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
+                                unreachable!("axis edge {bottom:?} was read a moment ago")
+                            };
+                            (start_surface, end_surface) = sides.surfaces();
+                            coplanar = Some(row);
+                        }
+                    }
                 }
             }
         }
     }
-    Ok(())
+    Ok(coplanar)
+}
+
+/// The face of `edge` that wears `surface`.
+///
+/// # Panics
+///
+/// Where neither does: the revolve upgraded `edge` between a face on
+/// `surface` and another a moment ago.
+fn face_wearing<T: Decide>(body: &Body<T>, edge: EdgeKey, surface: topo::SurfaceKey) -> FaceKey {
+    topo::edge_faces(body, edge)
+        .into_iter()
+        .find(|&f| body.get_face(f).is_some_and(|face| face.surface == surface))
+        .unwrap_or_else(|| unreachable!("axis edge {edge:?} bounds a face on {surface:?}"))
 }
 
 /// One loop's sweep products, per collapsed segment (`None` = on-axis
@@ -458,7 +473,6 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     loop_index: usize,
     col: &Collapsed<T>,
     hes: &[topo::HalfEdgeKey],
-    qs: &[Point3<T>],
     rq: &[Point3<T>],
     frame: &AxisFrame<T>,
     theta: T,
@@ -484,7 +498,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             rq[j],
-            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c, tol),
+            revolved_strut_spec(segs[j].a, cls.verts[j].r, frame, theta, axis_c),
             tol,
         )?;
         struts.push(Some(m));
@@ -523,8 +537,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     sense,
                 },
             };
-            let end = (j + 1) % n;
-            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], rq[end], tol);
+            let far = placed_segment_spec(&segs[j], far, n_end, rq[j], tol);
             Ok::<_, RevolveError>(Some((far, surface)))
         },
         tol,
@@ -560,15 +573,48 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |reading, source| RevolveError::SliverJoin {
+            |escalation| RevolveError::SliverJoin {
                 loop_index,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             },
             tol,
         )?;
     }
 
     Ok(LoopSwept { faces, rims, tops })
+}
+
+/// The sketch centre a partial revolve reports for its outer section
+/// ([`super::revolved_caps`]): a one-segment circle's own centre, else
+/// the **unweighted mean of the collapsed runs' start vertices and arc
+/// apexes**, the value the cap's fitted origin used to read.
+///
+/// That mean is not intrinsic to the section: it depends on where the
+/// loop is cut. A circle authored as two unequal arcs reports the mean
+/// of its two cut points and two apexes, not its centre, and a polygon
+/// with one edge split in two moves it. Only a one-segment circle is
+/// read for what it is
+/// (`work/lathe/a-partial-revolves-joint-centre-is-contingent-on-the-loops-cuts.md`).
+pub(super) fn section_centre<T: Real>(segs: &[SweptSeg<T>]) -> Point2<T> {
+    if let [seg] = segs
+        && let SegmentKind::Arc { arc, .. } = seg.kind.get()
+    {
+        return arc.centre;
+    }
+    let mut points = Vec::with_capacity(segs.len() * 2);
+    for s in segs {
+        points.push(s.a);
+        if let SegmentKind::Arc { arc, .. } = s.kind.get() {
+            points.push(arc.apex(s.a, s.b));
+        }
+    }
+    // The count is summed in `T` beside the coordinates, one per point,
+    // so no computed value enters through `from_f64`.
+    let (x, y, n) = points
+        .iter()
+        .fold((T::zero(), T::zero(), T::zero()), |(x, y, n), p| {
+            (x + p.x, y + p.y, n + T::one())
+        });
+    Point2::new(x / n, y / n)
 }

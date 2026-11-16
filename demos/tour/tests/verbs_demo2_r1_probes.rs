@@ -60,9 +60,9 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     let counts = |body: &Body<f64>, delta: f64| -> Vec<usize> {
         let mesh = pncad::mesh::tessellate(body, delta, tol).expect("tessellates");
         body.faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(Surface::Torus { minor_radius, .. })
                         if minor_radius.to_bits() == outer_bits
                 )
@@ -117,7 +117,7 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
     let mut got: Vec<u64> = hollow
         .body
         .faces()
-        .filter_map(|(_, f)| match hollow.body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match hollow.body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(minor_radius.to_bits()),
             _ => None,
         })

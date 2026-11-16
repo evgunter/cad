@@ -96,12 +96,7 @@ fn tilt(b: &Body<f64>, deg: f64) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         deg.to_radians(),
     );
-    topo::transform_rigid(
-        b,
-        &geom_core::test_support::rigid(&turn, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(b, &geom_core::test_support::rigid(&turn, Tol::witness())).unwrap()
 }
 
 /// The area of the unit disc's segment beyond the chord at `x = a`.
@@ -146,10 +141,7 @@ fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
                         .and_then(|e| x.get_curve_geom(e.curve))
                         .and_then(topo::CurveGeom::certified)
                         .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-                    let wall = matches!(
-                        y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
-                        Some(topo::Surface::Cylinder { .. })
-                    );
+                    let wall = matches!(y.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
                     circle && wall
                 })
                 .count()
@@ -332,15 +324,10 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     let rod = topo::transform_rigid(
         &cyl(0.0, 0.0, 0.3, -1.5, 1.5),
         &geom_core::test_support::rigid(&turn, tol),
-        tol,
     )
     .unwrap();
-    let rod = topo::transform_rigid(
-        &rod,
-        &geom_core::RigidMotion::translation(shift).unwrap(),
-        tol,
-    )
-    .unwrap();
+    let rod =
+        topo::transform_rigid(&rod, &geom_core::RigidMotion::translation(shift).unwrap()).unwrap();
     let (ab, _) = circle_wall_events(&a, &rod);
     assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
     let truth = |op| {

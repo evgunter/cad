@@ -27,3 +27,5 @@ The coincidence door settles a seat between two constructions whose
 carriers are one by the symbolic tier: the two constructions' carrier
 forms compared as forms, not only a construction against its own
 copies. The limit row then asserts both seats proven.
+
+- 2026-11-14 — **Both seats prove** (BOXFINISH `boxfinish/sweep-frames`), by the inputs rather than by the door: a sweep's cap is now its sketch frame turned, not a Newell fit to its placed corners, so the two constructions' carrier forms are forms of the same variables and the residual reduces. The limit row is `g_ring_closure_measure::a_seat_between_two_constructions_of_one_carrier_proves` and asserts both proven. A seat between two constructions whose carriers are fitted, not stated, would still meet the door's limit.

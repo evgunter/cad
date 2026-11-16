@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Shared rustdoc gate — the SINGLE implementation, called by
+# Shared rustdoc gate — the SINGLE implementation, called whole by
 # .github/workflows/nightly.yml's `rustdoc-roots` job, which runs
-# `--selftest` first.
+# `--selftest` first, and as `--workspace-pass` (pass 1 alone) by
+# .github/workflows/ci.yml's `lint` job.
 #
 # WHY THIS GATE EXISTS (#465). `cargo check` and `cargo clippy -- -D
 # warnings` are both SILENT about broken documentation: the relevant
@@ -601,11 +602,16 @@ workspace_manifests() {
 # THE LINT SET IS A PARAMETER, not a global read from in here, because
 # pass 3 runs a different one and a pass that silently inherited the
 # wrong set would be a gate reporting on lints it did not run.
+#
+# `--keep-going`: without it cargo schedules no new crate once rustdoc
+# rejects one, so a red pass prints only the crates that happened to
+# run first, and every crate downstream of the failing one goes
+# unread.
 doc_pass_with() {
   local lints=$1 why=$2; shift 2
   local rc=0
-  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items "$@" || rc=1
-  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --bins --examples "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --keep-going "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --keep-going --bins --examples "$@" || rc=1
   [ "$rc" -eq 0 ] || gate_error "$(gate_name): rustdoc rejected $why"
   return "$rc"
 }
@@ -852,6 +858,13 @@ gate() {
       --workspace --all-features || rc=1
   fi
   n=1
+
+  if [ "$WORKSPACE_PASS" = true ]; then
+    GATE_SCAN_FILES=$n
+    [ "$rc" -eq 0 ] || exit 1
+    gate_ok "the workspace pass alone renders (--workspace-pass, ci.yml's lint job): library, binary and example targets of every member at --all-features. NOT read here, and read only by the full gate in the nightly: the cargo roots outside the workspace and the not(feature) halves --all-features compiles out"
+    return 0
+  fi
 
   # PASS 2 — every manifest the workspace pass did not cover, one
   # `--no-deps` pass each, so a package in a nested workspace is
@@ -1395,7 +1408,18 @@ gate_selftest() {
   # It fires there, so the link lint is dropped on one pass and not lost.
   gate_selftest_case "$want" plant_broken_link_in_viewer_member
 
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and documents `viewer` at DEFAULT features under --skip-viewer-toolkit — firing there on a lint that is not about a link target, and deliberately NOT on a link into the app-gated half, which the same planted link with the skip OFF still fires on\n' \
+  # --workspace-pass, ci.yml's lint mode: it fires on a member's lib,
+  # bin and example, and it does not read a root outside the workspace,
+  # which its OK line says it leaves to the full gate.
+  GATE_SELFTEST_ARGS=(--workspace-pass)
+  gate_selftest_case "$want" plant_broken_link_in_member
+  gate_selftest_case "$want" plant_broken_link_in_member_bin
+  gate_selftest_case "$want" plant_broken_link_in_member_example
+  gate_selftest_passes "a broken link in a root outside the workspace, which --workspace-pass leaves to the full gate" \
+    plant_broken_link_in_excluded_root
+  GATE_SELFTEST_ARGS=()
+
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; documents `viewer` at DEFAULT features under --skip-viewer-toolkit — firing there on a lint that is not about a link target, and deliberately NOT on a link into the app-gated half, which the same planted link with the skip OFF still fires on; and under --workspace-pass fires on a member'"'"'s lib, bin and example and leaves a root outside the workspace unread\n' \
     "$(gate_name)"
 }
 
@@ -1403,17 +1427,25 @@ gate_selftest() {
 # way scripts/gates/probe-suite-census.sh adds its modes: `gate_parse_args`
 # knows `--selftest` and `--root` and rejects anything else.
 #
-# THERE IS ONE MODE AND IT IS THE WHOLE GATE. Every caller — the nightly
-# `rustdoc-roots` job, a developer at a prompt — runs all three passes
-# over every cargo root. A reduced mode would be a
-# second gate under one name, and the caller that forgot to ask for the
-# full one would get a subset reading as the whole.
+# THE DEFAULT IS THE WHOLE GATE. The nightly `rustdoc-roots` job and a
+# developer at a prompt run all three passes over every cargo root, and
+# a caller that names no mode gets that.
+#
+# `--workspace-pass` IS THE ONE REDUCED MODE, and it says so. It runs
+# pass 1 alone, the workspace members' libs, bins and examples at
+# --all-features, which is ci.yml's `lint` job: the whole gate costs about
+# 10 min on a hosted runner and would double that job, while pass 1 is
+# where a PR's renamed item breaks a link. Its OK line names itself and
+# what it left out (the roots outside the workspace, the not(feature)
+# halves), so a subset never reads as the whole.
 PRINT_ROOTS=false
+WORKSPACE_PASS=false
 SKIP_VIEWER_TOOLKIT=false
 gate_args=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --print-roots) PRINT_ROOTS=true ;;
+    --workspace-pass) WORKSPACE_PASS=true ;;
     --skip-viewer-toolkit) SKIP_VIEWER_TOOLKIT=true ;;
     *) gate_args+=("$1") ;;
   esac

@@ -89,8 +89,13 @@ pub(crate) fn arch_frame() -> ArchFrame {
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
 pub(crate) fn arch() -> AtRestBody<f64> {
+    finished("the arch", arch_revolved().body, Tol::witness())
+}
+
+/// The arch as the tube door answers it, caps and joints and all.
+pub(crate) fn arch_revolved() -> sweep::Revolved<f64> {
     let f = arch_frame();
-    let arch = tube_along_arc(
+    tube_along_arc(
         tube_frame(
             f.center,
             Vec3::new(0.0, -1.0, 0.0),
@@ -106,28 +111,42 @@ pub(crate) fn arch() -> AtRestBody<f64> {
         Tol::witness(),
     )
     .expect("arch builds")
-    .body;
-    finished("the arch", arch, Tol::witness())
+}
+
+/// The arch's two cap joints, where the section's centre stands at
+/// each end ([`sweep::revolved_caps`]): the fork and the far end. A
+/// cap's stored plane is read as a plane (its origin is the station's
+/// frame origin); the joint is where the cap is centred.
+pub(crate) fn arch_joints() -> (Point3<f64>, Point3<f64>) {
+    let caps = sweep::revolved_caps(&arch_revolved()).expect("a windowed tube has caps");
+    (caps.start.origin, caps.end.origin)
 }
 
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
     body.faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(&geom::Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
             _ => None,
         })
         .collect()
 }
 
+/// Whether the plane through `origin` along `normal` holds `p`. A
+/// cap's plane is read as a plane: its origin is its station's frame
+/// origin, which need not lie in the cap's disc.
+fn holds(origin: Point3<f64>, normal: Vec3<f64>, p: Point3<f64>) -> bool {
+    (p - origin).dot(normal).abs() < 1e-9
+}
+
 /// The coplanar cross cap pairs at the fork (stem end cap against
-/// arch start cap), counted by POSITION: the weld's whole flush
-/// contact.
+/// arch start cap), counted by POSITION: two planes through the fork
+/// that face along one line, the weld's whole flush contact.
 pub(crate) fn weld_cap_pairs(stem: &Body<f64>, arch: &Body<f64>) -> usize {
     let fork = arch_frame().fork;
     let mut pairs = 0;
-    for &(_, oa, _) in &plane_faces(stem) {
-        for &(_, ob, _) in &plane_faces(arch) {
-            if (oa - fork).norm() < 1e-9 && (ob - fork).norm() < 1e-9 {
+    for &(_, oa, na) in &plane_faces(stem) {
+        for &(_, ob, nb) in &plane_faces(arch) {
+            if holds(oa, na, fork) && holds(ob, nb, fork) && na.cross(nb).norm() < 1e-9 {
                 pairs += 1;
             }
         }
@@ -169,6 +188,15 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 fn p1_wall1_glues_the_stem_into_one_body() {
     let Some(s) = stem() else { return };
     let a = arch();
+    let (start, end) = arch_joints();
+    assert!(
+        (start - arch_frame().fork).norm() < 1e-9,
+        "the arch's start cap is centred at the fork: {start:?}"
+    );
+    assert!(
+        (end - arch_frame().far).norm() < 1e-9,
+        "the arch's far cap is centred at the turtle math's arch end point: {end:?}"
+    );
     assert_eq!(
         weld_cap_pairs(&s, &a),
         1,
@@ -222,13 +250,11 @@ fn p1_wall1_glues_the_stem_into_one_body() {
         }
     }
     let frame = arch_frame();
-    let far_cap = plane_faces(&a)
-        .into_iter()
-        .find(|&(_, o, _)| (o - Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
-        .expect("the arch has a cap more than 2 m from the world origin");
     assert!(
-        (far_cap.1 - frame.far).norm() < 1e-9,
-        "that cap sits at the turtle math's arch end point"
+        plane_faces(&a)
+            .into_iter()
+            .any(|(_, o, n)| holds(o, n, frame.far) && !holds(o, n, frame.fork)),
+        "the arch has a far cap, through the turtle math's arch end point"
     );
 
     // (b) The far cap's loci never approach — every point of its disc
@@ -289,8 +315,8 @@ fn p1_wall1_glues_the_stem_into_one_body() {
     // their minor radii differ (0.060 vs 0.052) and their cross-sections
     // there are concentric. Sampled on both walls within 1° of the weld.
     let assert_minor = |body: &Body<f64>, want: f64| {
-        for (_, f) in body.faces() {
-            if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.get_surface(f.surface) {
+        for (fk, _) in body.faces() {
+            if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.face_surface(fk) {
                 assert!((minor_radius - want).abs() < 1e-12, "minor radius {want}");
             }
         }
@@ -397,7 +423,7 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
                 Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
-                    why: topo::SectionUnbuilt::March(march),
+                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(march)),
                     ..
                 }) => {
                     if coarse {

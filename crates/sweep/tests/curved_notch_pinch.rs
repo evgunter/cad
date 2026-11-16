@@ -159,7 +159,7 @@ fn reading(
                 let fc = bb.body.get_face(face).unwrap();
                 format!(
                     "Triangulation({} rings={})",
-                    variant(bb.body.get_surface(fc.surface).unwrap()),
+                    variant(bb.body.face_surface(face).unwrap()),
                     fc.rings.len()
                 )
             }
@@ -388,8 +388,7 @@ fn curved_notch_pinch_one() {
     }
     let face = |e: &topo::EntityId| match e {
         topo::EntityId::Face(fk) => {
-            let fc = body.get_face(*fk).unwrap();
-            let s = body.get_surface(fc.surface).unwrap();
+            let s = body.face_surface(*fk).unwrap();
             format!("{fk:?} solid={:?} {}", body.solid_of_face(*fk), variant(s))
         }
         e => format!("{e:?}"),
@@ -451,9 +450,8 @@ fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
         topo::Cell::Edge(_) | topo::Cell::Face(_) => None,
     };
     let mut joining: std::collections::BTreeMap<_, usize> = std::collections::BTreeMap::new();
-    for (_, e) in body.edges() {
-        let s = body.get_half_edge(e.he_plus).unwrap().start;
-        let t = body.half_edge_end(e.he_plus).unwrap();
+    for (ek, _) in body.edges() {
+        let (s, t) = body.edge_vertices(ek).unwrap();
         *joining.entry((s.min(t), s.max(t))).or_default() += 1;
     }
     bb.naming

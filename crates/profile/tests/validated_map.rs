@@ -306,7 +306,7 @@ fn the_carried_decisions_are_the_f64_ones() {
             assert!(
                 authored
                     .iter()
-                    .any(|p| (p.x, p.y) == (start.x.value, start.y.value)),
+                    .any(|p| p.equals_exactly(Point2::new(start.x.value, start.y.value))),
                 "{name} loop {li}: the canonical start is an input loop's authored start"
             );
         }

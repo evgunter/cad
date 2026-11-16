@@ -41,7 +41,7 @@ fn the_seam_goes_to_the_nearest_principal_vertex() {
         let s = conic().seamed_near(theta);
         let (s_seam, (s_sa, _)) = (s.conic().frame().u_ref, s.conic().semi_axes());
         assert!(
-            (s_seam - seam).norm() == 0.0 && s_sa == sa,
+            s_seam.equals_exactly(seam) && s_sa == sa,
             "θ = {theta}: {s_seam:?} {s_sa}"
         );
         assert!(

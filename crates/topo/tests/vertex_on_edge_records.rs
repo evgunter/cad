@@ -63,13 +63,12 @@ fn vertex_at(body: &Body<f64>, at: [f64; 3]) -> VertexKey {
 
 fn edge_between(body: &Body<f64>, p: [f64; 3], q: [f64; 3]) -> EdgeKey {
     body.edges()
-        .find(|(_, e)| {
-            let [s, t] =
-                [e.he_plus, e.he_minus].map(|h| point(body, body.get_half_edge(h).unwrap().start));
+        .map(|(k, _)| k)
+        .find(|&k| {
+            let [s, t] = ends_unsorted(body, k);
             (same(s, p) && same(t, q)) || (same(s, q) && same(t, p))
         })
         .unwrap_or_else(|| panic!("an edge {p:?}–{q:?}"))
-        .0
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -326,11 +325,14 @@ fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
     y
 }
 
-/// The two end points of `edge`.
+/// The two end points of `edge`, in `he_plus`-forward order.
+fn ends_unsorted(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
+    <[_; 2]>::from(body.edge_vertices(edge).expect("a live edge")).map(|v| point(body, v))
+}
+
+/// The two end points of `edge`, sorted.
 fn ends(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
-    let e = body.get_edge(edge).expect("a live edge");
-    let mut ends =
-        [e.he_plus, e.he_minus].map(|h| point(body, body.get_half_edge(h).unwrap().start));
+    let mut ends = ends_unsorted(body, edge);
     ends.sort_by(|p, q| p.partial_cmp(q).unwrap());
     ends
 }

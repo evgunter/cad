@@ -651,70 +651,67 @@ fn the_shapes_the_negative_arm_must_not_fold() {
 /// the tier that mint a `copysign` atom; a list in a doc-comment is a
 /// claim, and SYM-12's own first cut of it was wrong twice (a site
 /// dropped, four never named). This row is the register: every
-/// `.copysign(` call in the shipped sources of every crate under
+/// `.copysign(` call, and every `.unit_sign(` call (`Real::unit_sign`,
+/// a `copysign` of one, mints the same atom), in the shipped sources
+/// of every crate under
 /// `crates/`, outside `geom-core/src/sym/` (the tier, where the atom is
 /// consumed) and outside the files that DEFINE `fn copysign(` (the
-/// scalar impls, which forward it), read over
-/// [`test_utils::source::code_only`] so prose and literals do not
-/// count and with each file cut at its in-file `#[cfg(test)]` module,
-/// since a test's own `copysign` mints nothing shipped. The expected
+/// scalar impls, which forward it), read over the gate's production
+/// view (`certified_endpoint_census`'s `production_sources` and
+/// `production`, `scripts/gates/lib.sh`'s reader in Rust): code only,
+/// so prose and literals do not count, less every test-only item and
+/// every file a test-only `mod` mounts, since a test's own `copysign`
+/// mints nothing shipped — and a `#[cfg(test)]` item above shipped
+/// code hides none of it. The expected
 /// table is per file with its count; a site that appears or goes reds
 /// here, and the fix is to re-ask the census on the measured
 /// documents and then move BOTH the table below and the header's
 /// list. The shape is `flagged_census`'s (the `decide_flagged` site
 /// register), which is this repo's precedent for a source census.
+///
+/// **What it cannot see.** (1) A file that defines `fn copysign(` is
+/// skipped whole, and that is not only the forwarding impls: `real.rs`,
+/// the trait's home, is one, so a provided method there that calls
+/// `.copysign(` or `.unit_sign(` (as `Real::unit_sign` itself does) is
+/// not counted where it is written, only where it is called. (2) A
+/// call spelled as a path is not matched: `Real::unit_sign(x)`,
+/// `T::copysign(x, s)`, and a method passed by name
+/// (`.map(T::unit_sign)`).
 #[test]
 fn the_copysign_mint_sites_the_tree_holds_are_these() {
     let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-    let crates = root.join("crates");
     let mut found: std::collections::BTreeMap<String, usize> = Default::default();
-    for entry in std::fs::read_dir(&crates).expect("the crates directory lists") {
-        let src = entry.expect("a directory entry").path().join("src");
-        if !src.is_dir() {
+    for (rel, code) in crate::certified_endpoint_census::production_sources(&root) {
+        if rel.starts_with("crates/geom-core/src/sym/") || rel == "crates/geom-core/src/sym.rs" {
             continue;
         }
-        for path in test_utils::source::rust_sources(&src) {
-            let rel = path
-                .strip_prefix(&root)
-                .expect("a source under the root")
-                .to_string_lossy()
-                .replace('\\', "/");
-            if rel.starts_with("crates/geom-core/src/sym/") || rel == "crates/geom-core/src/sym.rs"
-            {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("a source file reads");
-            let code = test_utils::source::code_only(&text);
-            // The shipped part of the file: everything above its
-            // in-file test module.
-            let shipped = code
-                .lines()
-                .position(|l| l.trim() == "#[cfg(test)]")
-                .map_or(code.as_str(), |n| {
-                    let at: usize = code.lines().take(n).map(|l| l.len() + 1).sum();
-                    &code[..at]
-                });
-            if shipped.contains("fn copysign(") {
-                continue;
-            }
-            let n = shipped.matches(".copysign(").count();
-            if n > 0 {
-                found.insert(rel, n);
-            }
+        let shipped = crate::certified_endpoint_census::production(&code).join("\n");
+        if shipped.contains("fn copysign(") {
+            continue;
+        }
+        let n = shipped.matches(".copysign(").count() + shipped.matches(".unit_sign(").count();
+        if n > 0 {
+            found.insert(rel, n);
         }
     }
     let expected: std::collections::BTreeMap<String, usize> = [
         ("crates/geom-brep/src/implicit.rs", 1),
         ("crates/geom-brep/src/intersect.rs", 1),
         ("crates/geom-brep/src/intersect/conic_arc.rs", 3),
+        ("crates/geom-brep/src/pair_section/cylinders.rs", 1),
         ("crates/geom-brep/src/props/curved.rs", 1),
         ("crates/geom-brep/src/quartic.rs", 2),
         ("crates/geom-brep/src/tangent.rs", 1),
         ("crates/geom-core/src/linalg/svd.rs", 1),
+        ("crates/geom-core/src/linalg/vec.rs", 1),
+        ("crates/geom/src/chart_point.rs", 1),
         ("crates/geom/src/curves/banded.rs", 1),
+        ("crates/geom/src/surfaces.rs", 1),
+        ("crates/mesh/src/walk.rs", 1),
         ("crates/profile/src/sugar.rs", 1),
-        ("crates/sweep/src/blend/arms.rs", 1),
+        ("crates/sweep/src/blend/arms.rs", 3),
         ("crates/sweep/src/revolve/axis.rs", 1),
+        ("crates/topo/src/sector_face.rs", 2),
     ]
     .into_iter()
     .map(|(f, n)| (f.to_owned(), n))

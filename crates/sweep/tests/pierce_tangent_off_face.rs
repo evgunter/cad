@@ -53,12 +53,7 @@ fn ball(r: f64, y: f64) -> Body<f64> {
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &geom_core::test_support::rigid(m, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(b, &geom_core::test_support::rigid(m, Tol::witness())).unwrap()
 }
 
 fn boolean(
@@ -272,7 +267,7 @@ fn a_touch_just_inside_the_lens_face_refuses() {
 /// rim**: the touch's ball reaches the rim, so the face is not cleared
 /// of it (`topo::boolean::carrier_touch::off_face`), but the pair never
 /// reaches that door. The face holds the cap `y ≥ RIM`, and its box is
-/// its chart rectangle (`topo::boolean::boxes::sphere_window`), floored
+/// its chart rectangle (`topo::boxes::sphere_window`), floored
 /// at `RIM − pad`, `pad = escalate + 2·zero` (the sweep's). The edge
 /// runs along x at `y = cos θ`, θ the rim's angle plus `0.3·reach`, so
 /// it lies `RIM − cos θ ≈ sin(rim)·0.3·reach ≈ 0.168·reach` below the

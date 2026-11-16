@@ -225,6 +225,7 @@ RUN_FLOOR=(
   plain:sweep:review_must_carry_rule_r1_probes:4
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7
+  plain:sweep:side_reader_aims_ask_nothing:2
   plain:sweep:sym11_far_placement_rows:3
   plain:sweep:thread_count_probe_populations:1
   plain:sweep:tilted_sphere_pair_k_rows:1

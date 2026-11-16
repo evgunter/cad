@@ -81,6 +81,7 @@
 use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve3};
 
+use geom_core::spline::Built;
 use geom_core::{
     Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SplineError, Vec3,
 };
@@ -117,12 +118,10 @@ impl OpenConic {
 #[derive(Clone, Debug)]
 pub struct OpenConicSection<T: Real> {
     conic: OpenConic,
-    /// The apex's foot on the plane.
-    foot: Point3<T>,
-    /// The plane's in-plane axis direction `û`.
-    u: Vec3<T>,
+    /// The plane's frame at the apex's foot on it: its normal `n` the
+    /// axis, the in-plane axis direction `û` its `u_ref`, so `v_ref` is
     /// `n × û`.
-    v: Vec3<T>,
+    frame: geom::Frame<T>,
     /// The apex gap `δ`, and `δ` times the sign `σ` of `a·n`.
     delta: T,
     delta_sigma: T,
@@ -188,9 +187,8 @@ impl<T: Real> ConeTilt<T> {
 #[derive(Clone, Debug)]
 pub struct ConicBranch<T: Real> {
     conic: OpenConic,
-    vertex: Point3<T>,
-    u: Vec3<T>,
-    v: Vec3<T>,
+    /// The section's frame moved to the vertex.
+    frame: geom::Frame<T>,
     l: T,
     k: T,
     cos2: T,
@@ -230,7 +228,7 @@ pub enum ConicArcError {
     /// (an infinite or unreadable `cosh` of its half span).
     SpansUnsettled,
     /// The NURBS constructor refused the minted net.
-    Carrier(SplineError),
+    Carrier(Built<SplineError>),
 }
 
 impl core::fmt::Display for ConicArcError {
@@ -259,7 +257,13 @@ impl core::fmt::Display for ConicArcError {
                 "the open conic's window is too long for its spans' weight to be read: its \
                  half span's cosh is not finite"
             ),
-            Self::Carrier(e) => write!(f, "the open conic's arc refused as a NURBS curve: {e}"),
+            // The net is minted from a window whose weights were read
+            // finite and bounded, so its structure refusing is the kernel's.
+            Self::Carrier(e) => write!(
+                f,
+                "the open conic's arc refused as a NURBS curve: {e}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -289,11 +293,9 @@ impl<T: Real> OpenConicSection<T> {
         };
         Self {
             conic,
-            foot: apex - n * delta,
-            u,
-            v: n.cross(u),
+            frame: geom::Frame::new(apex - n * delta, n, u),
             delta,
-            delta_sigma: delta * T::one().copysign(tilt.c),
+            delta_sigma: delta * tilt.c.unit_sign(),
             tilt,
         }
     }
@@ -326,9 +328,11 @@ impl<T: Real> OpenConicSection<T> {
         } = self.tilt;
         ConicBranch {
             conic: self.conic,
-            vertex: self.foot + self.u * xi,
-            u: self.u,
-            v: self.v,
+            frame: geom::Frame::new(
+                self.frame.origin + self.frame.u_ref * xi,
+                self.frame.axis,
+                self.frame.u_ref,
+            ),
             l: side * self.delta_sigma * sin_a * cos_a * T::from_f64(2.0),
             k,
             cos2: cos_a.powi(2),
@@ -352,7 +356,12 @@ impl<T: Decide> OpenConicSection<T> {
         }
         // The near vertex lies on the side `sign(δσ)` of the centre.
         let centre = self.tilt.centre(self.delta);
-        let side = ((seed - self.foot).dot(self.u) - centre) * T::one().copysign(self.delta_sigma);
+        // Read on `û` as the section's own frame builds every point on
+        // it (`vertex = foot + û·ξ`, [`geom::Frame::in_plane`]), not
+        // through `Line::height`'s `/|û|`: one frame, one convention,
+        // until the axis is a typed unit
+        // (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+        let side = (self.frame.in_plane(seed).0 - centre) * self.delta_sigma.unit_sign();
         match decide("pn_conic_branch", Margin::of(side), band).map_err(ConicArcError::Escalated)? {
             Sign::Positive => Ok(self.near()),
             Sign::Negative => Ok(self.far()),
@@ -371,14 +380,16 @@ impl<T: Real> ConicBranch<T> {
     /// The branch's vertex.
     #[must_use]
     pub fn vertex(&self) -> Point3<T> {
-        self.vertex
+        self.frame.origin
     }
 
     /// The branch's point at slope `μ` from its vertex (module docs).
     #[must_use]
     pub fn point(&self, mu: T) -> Point3<T> {
         let d = self.k * mu.powi(2) + self.cos2;
-        self.vertex + self.u * (self.l * mu.powi(2) / d) + self.v * (self.l * mu / d)
+        self.frame.origin
+            + self.frame.u_ref * (self.l * mu.powi(2) / d)
+            + self.frame.v_ref() * (self.l * mu / d)
     }
 
     /// The slope `μ` of the branch's point at `p`'s height
@@ -387,7 +398,7 @@ impl<T: Real> ConicBranch<T> {
     /// sum of like signs for `K ≤ 0`.
     #[must_use]
     pub fn slope_of(&self, p: Point3<T>) -> T {
-        let eta = (p - self.vertex).dot(self.v);
+        let eta = self.frame.in_plane(p).1;
         let root = (self.l.powi(2) - T::from_f64(4.0) * self.k * eta.powi(2) * self.cos2).sqrt();
         T::from_f64(2.0) * eta * self.cos2 / (self.l + root.copysign(self.l))
     }
@@ -411,7 +422,7 @@ impl<T: Real> ConicBranch<T> {
     /// `η = (p − V)·v̂ = b·sinh t`: `e^t = S + √(1 + S²)` at `S = η/b ≥ 0`
     /// and `1/(√(1 + S²) − S)` below, each a sum of like signs.
     fn half_exp(&self, p: Point3<T>) -> T {
-        let s = (p - self.vertex).dot(self.v) / self.conjugate();
+        let s = self.frame.in_plane(p).1 / self.conjugate();
         let c = (T::one() + s.powi(2)).sqrt();
         s.select_le_zero(T::one() / (c - s), s + c).sqrt()
     }
@@ -421,9 +432,9 @@ impl<T: Real> ConicBranch<T> {
     fn hyperbolic_point(&self, e: T) -> Point3<T> {
         let two = T::from_f64(2.0);
         let sh = (e - T::one() / e) / two;
-        self.vertex
-            + self.u * (T::zero() - self.l * sh.powi(2) / self.k)
-            + self.v * (self.conjugate() * (e.powi(2) - T::one() / e.powi(2)) / two)
+        self.frame.origin
+            + self.frame.u_ref * (T::zero() - self.l * sh.powi(2) / self.k)
+            + self.frame.v_ref() * (self.conjugate() * (e.powi(2) - T::one() / e.powi(2)) / two)
     }
 
     /// The hyperbola's span between `E₀ = e^{t₀/2}` and `E₁ = e^{t₁/2}`:
@@ -439,7 +450,7 @@ impl<T: Real> ConicBranch<T> {
         let eta = self.conjugate() * ((e0 * e1 - T::one() / (e0 * e1)) / two) / ch;
         Span {
             ends: (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
-            shoulder: self.vertex + self.u * x + self.v * eta,
+            shoulder: self.frame.origin + self.frame.u_ref * x + self.frame.v_ref() * eta,
             weight: ch,
         }
     }
@@ -449,9 +460,9 @@ impl<T: Real> ConicBranch<T> {
     fn parabolic_span(&self, m0: T, m1: T) -> Span<T> {
         Span {
             ends: (self.point(m0), self.point(m1)),
-            shoulder: self.vertex
-                + self.u * (self.l * m0 * m1 / self.cos2)
-                + self.v * (self.l * (m0 + m1) * T::from_f64(0.5) / self.cos2),
+            shoulder: self.frame.origin
+                + self.frame.u_ref * (self.l * m0 * m1 / self.cos2)
+                + self.frame.v_ref() * (self.l * (m0 + m1) * T::from_f64(0.5) / self.cos2),
             weight: T::one(),
         }
     }
@@ -492,30 +503,7 @@ impl<T: Decide> ConicBranch<T> {
                     (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
                     band,
                 )?;
-                // The least `k` whose `2^k` equal spans each weigh at
-                // most `√2`: `cosh(h/2) = √((cosh h + 1)/2)`. A count is
-                // structure, read on the sign alone, and a reading the
-                // scalar cannot place halves once more, which costs a
-                // span and never exactness.
-                let mut weight = (e1 / e0 + e0 / e1) / T::from_f64(2.0);
-                let settled = |weight: T| {
-                    matches!(
-                        decide(
-                            "pn_conic_span_weight",
-                            Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
-                            Band::least(),
-                        ),
-                        Ok(Sign::Zero | Sign::Negative)
-                    )
-                };
-                let mut halvings = 0_u32;
-                while !settled(weight) {
-                    if halvings == MAX_HALVINGS {
-                        return Err(ConicArcError::SpansUnsettled);
-                    }
-                    weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
-                    halvings += 1;
-                }
+                let halvings = halvings_to_settle((e1 / e0 + e0 / e1) / T::from_f64(2.0))?;
                 // The `2^k + 1` breaks equal in `t`: each midpoint's
                 // `E` is the geometric mean of its neighbours'.
                 let mut breaks = vec![e0, e1];
@@ -559,8 +547,10 @@ impl<T: Decide> ConicBranch<T> {
         {
             return Err(ConicArcError::NotFinite);
         }
-        let knots = geom_core::spline::Knots::new(runs, 2).map_err(ConicArcError::Carrier)?;
-        let curve = NurbsCurve3::new(knots, control, weights).map_err(ConicArcError::Carrier)?;
+        let knots = geom_core::spline::Knots::new(runs, 2)
+            .map_err(|e| ConicArcError::Carrier(Built::new(e)))?;
+        let curve = NurbsCurve3::new(knots, control, weights)
+            .map_err(|e| ConicArcError::Carrier(Built::new(e)))?;
         Ok(Curve3::Nurbs(std::sync::Arc::new(curve)))
     }
 }
@@ -571,6 +561,35 @@ impl<T: Decide> ConicBranch<T> {
 /// read at or under `√2` past them is not a finite window's
 /// ([`ConicArcError::SpansUnsettled`]).
 const MAX_HALVINGS: u32 = 16;
+
+/// **The least `k` whose `2^k` equal spans each weigh at most `√2`**, for
+/// a whole span of weight `weight`: `cosh(h/2) = √((cosh h + 1)/2)` per
+/// halving. A count is structure, a heuristic's choice on the sign alone
+/// (ledger row F36). **At a tie the span halves once more**, an exact
+/// zero included: sound, since a halving doubles the span count and
+/// never costs exactness.
+fn halvings_to_settle<T: Decide>(mut weight: T) -> Result<u32, ConicArcError> {
+    let settled = |weight: T| {
+        use geom_core::k_stats::Pick;
+        match geom_core::k_stats::choose(
+            "pn_conic_span_weight",
+            Margin::of(weight - T::from_f64(SPAN_WEIGHT_MAX)),
+            "F36",
+        ) {
+            Pick::Negative => true,
+            Pick::Positive | Pick::Tie => false,
+        }
+    };
+    let mut halvings = 0_u32;
+    while !settled(weight) {
+        if halvings == MAX_HALVINGS {
+            return Err(ConicArcError::SpansUnsettled);
+        }
+        weight = ((weight + T::one()) / T::from_f64(2.0)).sqrt();
+        halvings += 1;
+    }
+    Ok(halvings)
+}
 
 /// The window's ends `given` against the branch's points `read` at their
 /// heights: each within the band of its own, and the two apart.
@@ -603,5 +622,36 @@ fn window_on<T: Decide>(
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(ConicArcError::EmptyWindow),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::Interval;
+    use geom_core::k_stats::Bracket;
+
+    use super::{SPAN_WEIGHT_MAX, halvings_to_settle};
+
+    /// **F36's tie halves once more.** A span weighing exactly `√2` at
+    /// `f64` is a decided zero against [`SPAN_WEIGHT_MAX`], and an
+    /// enclosure astride `√2` is undecided: each halves once, doubling
+    /// the span count, where the float below `√2` settles at once. None
+    /// of it reaches the verdict log. Red where the tie reads settled.
+    #[test]
+    fn a_span_weighing_root_two_or_astride_it_halves_once_more() {
+        let bracket = Bracket::open();
+        let below = f64::from_bits(SPAN_WEIGHT_MAX.to_bits() - 1);
+        assert_eq!(halvings_to_settle(below).unwrap(), 0);
+        assert_eq!(halvings_to_settle(SPAN_WEIGHT_MAX).unwrap(), 1, "exact √2");
+        let astride = Interval::from_bounds(below, f64::from_bits(SPAN_WEIGHT_MAX.to_bits() + 1));
+        assert_eq!(halvings_to_settle(astride).unwrap(), 1, "astride √2");
+        assert_eq!(
+            halvings_to_settle(Interval::from_bounds(below, below)).unwrap(),
+            0
+        );
+        let recorded = bracket.finish();
+        assert!(recorded.verdicts.is_empty() && recorded.escalations.is_empty());
     }
 }

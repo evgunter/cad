@@ -53,3 +53,7 @@ session method answering "what would `perform` say to this op before
 its door", composed with the door's own refusal), rather than having
 each control spell the gesture check. The slot unit picker's doc names
 this gap.
+
+## More of the population (PR 6948)
+
+The re-point buttons have the same gap: the offer's rows (`frame::placement_offers`), and the source row and the "copy of" row, which draw `widgets::repoint_button` from `DocSession::repoint_button`. So does the delete button (`widgets::delete_button`, gated on `DocSession::delete_refusal`). `RepointPlacements` and `DeleteNode` are `false` in `permitted_during_value_gesture` (`session/op.rs`). Each control asks its op's own door, and none of them asks the value-gesture gate. Both ops are `true` in `permitted_during_free_move`, so the free-move gate does not reach them.

@@ -75,9 +75,7 @@ fn cut_frustum() -> Body<f64> {
 }
 
 fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// **Every rim arc of the moved face plans its section.** The cut face
@@ -527,8 +525,29 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 /// and the union builds: `V_wedge + V_brick − overlap`, against the
 /// closed-form volume, tier 3 and `point_in_solid` on a grid. Read at
 /// the apex alone, 20 of the 24 refuse.
+///
+/// At ε 1e-6 that is the row's claim and not what is built: the first
+/// union misses its closed form, and the row is pinned there.
 #[test]
 fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
+    // Pinned red at 1e-6: the first union builds 1.0e-6 under its closed
+    // form, where the row holds it to 3.9e-8
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the half-space flush with the wedge's cap",
+        &[
+            "y0 = 0.25, tan α = 0.015625, 0.5·ε over the cap, wedge ∪ half-space (start 32.004·ε)",
+            "volume 24.00006791",
+            "against 24.00006891",
+        ],
+        a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union_row,
+    );
+}
+
+/// The row [`a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union`] runs, under its pin.
+fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union_row() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mut past_the_apex_reading = 0;
@@ -620,7 +639,7 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
         .into_body();
     frustum.merge_coplanar_faces(tol).unwrap();
     let frustum =
-        topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol), tol).unwrap();
+        topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol)).unwrap();
     let apex = Point3::new(0.0, apex_y, 0.0);
     let turn = *pose
         * Affine3::rotation_about_axis(apex, Vec3::new(0.0, 0.0, 1.0), 1e-6 - FRAC_PI_6)
@@ -629,7 +648,6 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
     let boxed = topo::transform_rigid(
         &brick(bx[0], bx[1], bx[2], tol),
         &geom_core::test_support::rigid(&turn, tol),
-        tol,
     )
     .unwrap();
     [

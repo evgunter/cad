@@ -324,7 +324,7 @@ pub struct Theme {
     /// line across it rather than by its hue — the same redundancy
     /// argument [`Theme::actionable`] makes.
     pub profile: Rgba8,
-    /// **What a preview's fused fillet steps construct**: their whole
+    /// **What a preview's fillet steps construct**: their whole
     /// carriers and fillet circles, drawn under the preview's kept
     /// pieces (`crate::marks::EdgeOverlay::construction`).
     ///

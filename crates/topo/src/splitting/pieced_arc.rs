@@ -10,31 +10,21 @@
 //! it, for the boundary reading; and whether a ray crosses the piece,
 //! for the count. A piece that settles neither way is halved, until its
 //! ball is within the band's coincidence threshold (the boundary
-//! reading), [`MAX_DEPTH`], or [`geom_core::bisect`]'s piece budget. A
+//! reading), [`MAX_DEPTH`], or [`geom_core::bisect`]'s piece budget.
+//! The boundary reading is its own walk over that ball cover, not
+//! [`geom::Curve3::point_walk`]: a piece's ball is what the carrier says
+//! over the piece, tighter than the walk's speed-bound reach, and its
+//! question is where the point sits (an end, on, clear), not a distance. A
 //! reading that runs out of depth or budget is not a reading in the
 //! band: the walk names it as the edge it could not cross
 //! ([`super::containment::Uncrossable`]).
 
+pub(crate) use crate::rows::ArcRows;
 use geom_brep::ladder::{Answering, Climb, Evidence, Refusal, Rung, climb};
 use geom_core::bisect::{Step, bisect};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::validate::decide;
-
-/// The rows a caller reads a pieced edge's boundary under — its own,
-/// per carrier, so each population stays separable in the telemetry.
-#[derive(Clone, Copy)]
-pub(crate) struct ArcRows {
-    /// The distance from the point to either end of the arc.
-    pub(crate) end: &'static str,
-    /// A piece's ball's clearance from the point.
-    pub(crate) clear: &'static str,
-    /// The distance from the point to a point of the arc in the ball.
-    pub(crate) on: &'static str,
-    /// A piece's ball's radius: within the band's coincidence threshold
-    /// the piece is a point, and is not halved again.
-    pub(crate) leaf: &'static str,
-}
 
 /// How many times a piece is halved before a reading gives up on it:
 /// past the point where `f64` can halve a window of a few units at all
@@ -116,7 +106,7 @@ pub(crate) trait PiecedArc<T: Decide> {
     /// the band.
     fn contact(&self, q: Point3<T>, rows: ArcRows, band: Band) -> Result<ArcHit, ArcRefusal> {
         let ends = climb(Answering::Any, self.ends(), |end| {
-            match decide(rows.end, Margin::norm3(q - end), band) {
+            match decide(rows.end(), Margin::norm3(q - end), band) {
                 Ok(Sign::Zero) => Rung::Answers(ArcHit::End),
                 Ok(_) => Rung::Passes,
                 Err(diag) => Rung::kept(diag).map_kept(ArcRefusal::Escalated),
@@ -144,7 +134,7 @@ pub(crate) trait PiecedArc<T: Decide> {
             let b = self.ball(&p);
             let mut read = None;
             match decide(
-                rows.clear,
+                rows.clear(),
                 Margin::of((q - b.center).norm() - b.reach),
                 band,
             ) {
@@ -152,8 +142,11 @@ pub(crate) trait PiecedArc<T: Decide> {
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
-            match geom_core::k_stats::decide_reported(rows.on, Margin::of((q - b.on).norm()), band)
-            {
+            match geom_core::k_stats::decide_reported(
+                rows.on(),
+                Margin::of((q - b.on).norm()),
+                band,
+            ) {
                 Ok(geom_core::Decided {
                     sign: Sign::Zero,
                     margin,
@@ -161,7 +154,10 @@ pub(crate) trait PiecedArc<T: Decide> {
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
-            if matches!(decide(rows.leaf, Margin::of(b.reach), band), Ok(Sign::Zero)) {
+            if matches!(
+                decide(rows.leaf(), Margin::of(b.reach), band),
+                Ok(Sign::Zero)
+            ) {
                 match read {
                     Some(diag) => kept.keep(Refusal::Margin(diag), ArcRefusal::Escalated(diag)),
                     None => kept.unsettled(ArcRefusal::Unsettled),
@@ -242,12 +238,7 @@ mod tests {
 
     use super::{ArcHit, ArcRefusal, ArcRows, PieceBall, PiecedArc, Ray};
 
-    const ROWS: ArcRows = ArcRows {
-        end: "point_in_arc_loop_spline_end",
-        clear: "point_in_arc_loop_spline_clear",
-        on: "point_in_arc_loop_spline_on",
-        leaf: "point_in_arc_loop_spline_leaf",
-    };
+    const ROWS: ArcRows = crate::rows::ARC_LOOP_WALK.spline();
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).expect("a valid band")

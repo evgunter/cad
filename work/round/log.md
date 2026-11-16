@@ -213,3 +213,182 @@ on `log.md`, so a unit PR's tracker commit should not touch the log.
 Watching: this session stays subscribed to PRs 6542 and 6547 and acts on
 Ev's answers there (the second, Ev-decision commit of each design-fork
 row; updating the PR in place).
+
+## 2026-11-09 — carrier identity ruled; picked back up (`active`)
+
+Ev on PR 6542 asked what had forced the August compromise the merges
+were. A history lane traced it: round 10 (2026-08-11/12) set the
+"own segment" state; LIB-RESPELL (#531, 2026-08-15) found validation then
+refused a declared tangent joint between two pieces on one carrier
+(`TangencyContradicted { same_carrier }`, reproduced on that commit's
+parent) and added `extend_leg_to` to dodge it; the OnArc dissolution
+(2026-08-16) copied the move for arcs under a bit-identity condition.
+The sixth round (2026-09-02) retired the refusal, and no one revisited
+the workaround. On main with all three merge sites disabled, validation
+refuses nothing. Ev: "this sounds great!"
+
+Took the recommendation (both merges retire). The fork's log row (254;
+253 was taken on main meanwhile) carries the decision and the mapping.
+`carriers-are-identical-…` unparked and dispatched as the build unit
+(`round/extensions-are-their-own-segments`, single FULL review). Loft's
+segment-by-segment correspondence, the one remaining cost, filed on
+LATHE as `loft-corresponds-sections-by-segment-not-by-run` (P2). PR 6547
+answered Ev's two questions (the side door; the anchor lever now states
+its target distance) and waits on Ev.
+
+## 2026-11-09 — the extensions unit is up (PR 6682)
+
+The implementer opened PR 6682 with CI green. It deletes the merges and
+the identity gate and constructs the tip joint for every `r`. The pins
+it re-baselined are listed in the PR: the corpus hash (one row moved),
+`path_program`, editor-core `sym_9`, the pncad-py vertex counts and the
+tour rocker doc. Single FULL review dispatched on head `6988cd9f9f`.
+
+The PR also turned up a pre-existing editor-core gap: the strand report
+reads drawn pieces, not run walls. The implementer reproduced it on
+main and filed it on DOCTAIL as
+`a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing` (P1),
+with the two affected rows pinned red. Main's 2026-11-09 nightly is red
+across editor-core, sweep and the m10_9 pins, independently of this
+unit. The PR does not re-pin m10_9 `r2_rounded_pad`, which this unit
+moves further and which is already red on main.
+
+PR 6682's review returned REQUEST-CHANGES with one major finding. With
+the merge gone, a bare `fillet(r)` after a straight leg emits runs the
+fit gate accepts but validation refuses (`DegenerateSegment`, 156 of 212
+on a rounded-corner grid that main builds). That is the P2 class
+`a-fillet-run-the-fit-gate-passes-validation-calls-degenerate`, which
+the merge used to shield; it is folded into this unit, which closes it.
+The minors are folded in too:
+- in-band r = R − 1e-9 escalates at validation: trust a constructed
+  joint if both answers are legal, else document it;
+- one pinned row per sub-case;
+- the two duplicate emit lines get one home.
+The DOCTAIL strand row goes to P0, since this unit widens it to an
+ordinary fillet insert. Fix pass to the implementer.
+
+2026-11-10: 6682's fix pass is green on `9ebbf2ce90`.
+- **Fit gate.** `fillet_leg_fit` now decides a run on validation's
+  linear band: below the band it is a Zero fit, in the band it
+  escalates as `Sized`.
+- **Ripple.** At 1e-6, six grid-A anchor-fit overruns fall inside the
+  band and no longer refuse; the censuses are now keyed per ε.
+- **Rows.** The fit-gate row closes in the PR. The DOCTAIL strand row
+  is now at P0.
+- **The in-band arc-extension escalation stays.** The escalation sits
+  in `seg::arc_arc`, the check that decides whether the run lowers as
+  one wall or two. It is now documented.
+
+The fix changed the fit gate's band, which is new correctness surface,
+so the fix-pass delta gets a second FULL review before merge.
+
+6682 re-review: APPROVE-WITH-FIXES.
+- Confirmed: the Zero-arm geometry (the arc lands ≤ ε off, joints
+  stay constructed) and that the in-band escalation is real (its
+  reader is `sweep::swept::cosurface`).
+- Fix now:
+  - F1 (D4): the fit's Sized ending offered a tighten on an in-band
+    overrun, which then refuses. Tag it `NonNegative`, reword the lever
+    per side, and give it a Driven row in `gate_kinds_followed`.
+  - F3: compute the per-ε census from the grid instead of a literal
+    lookup.
+  - F4: stale docs.
+  - Style: the arc run-in gets one home.
+- Filed and pinned, not fixed: F2, a ~1ε build-then-escalate window just
+  above Kε (the span checks on the non-adjacent pair). The window is
+  new for the ray and arc-tip extensions and already on main for
+  authored runs. The fix belongs in validation's span reading, so it
+  gets a ROUND P2 issue.
+
+## 2026-11-10 — the extensions unit landed (PR 6682); handed back (`ready`)
+
+PR 6682 merged as `e7acc15c96` after the review, two fix passes and a
+second FULL review. The carriers row and the fit-gate row are closed.
+The span window just past the band is filed at P2. The second fix pass
+added a small `decide_passing` door in geom-core so the fit's in-band
+overrun offers no tighten; I read that pass myself and did not
+re-review it, since each fix carries a mutation-checked row.
+
+No P0 or P1 row is dispatchable: the refused-corner pair waits on Ev's
+answer on PR 6547. The two cost-E P3 refusal-sentence rows ride with
+that unit, since it rewrites the same sentences. ROUND goes back
+`ready`, with the P2/P3 tail on the board. When Ev answers 6547:
+- record the decision and the label mapping in its DESIGN-FORK-LOG row,
+  renumbered past main's last;
+- refresh its PR body;
+- unpark the two rows.
+
+## 2026-11-10 — the refused corner ruled (PR 6547); picked back up (`active`)
+
+Ev, after two rounds of questions on the PR: "ok, these changes sound
+good then!" The answer carries both decisions with Ev's two wording
+changes:
+- the anchor lever states the target distance, not an increment;
+- the sentence drops the redundant current distance.
+
+The fork's log row is 255 (254 was taken on main) and carries the
+decision and the mapping. Both rows are unparked into one build unit,
+`round/refused-corner`, which gets a single FULL review: the payload
+and record changes reach the viewer and Python, and the closed-form
+radius has branch assignment to get right. The two P3 sentence rows
+ride with it.
+
+PR 6719 (the refused-corner unit) is up, and its single FULL review
+returned REQUEST-CHANGES.
+- **The major (M1).** The rendered X and S sat only ~1e-10 on the
+  fitting side, inside the fit gate's own band. Typed back, they
+  re-tripped `fillet_leg_fit` as an escalation (1215 grid-A cases at
+  ε = 1e-12). The pinning test only looked for the entry kind, so it
+  could not see this. Fix: render outside the band, and have the
+  typed-back row assert no `fillet_leg_fit` refusal of any form.
+- **Minors folded in:**
+  - noisy 10-figure numbers;
+  - the README parenthetical reworded to "each overrunning leg";
+  - `CuspDoublesBackOverLeg` added to PATHS §3's list;
+  - the flip band asserted per ε row;
+  - the real over-budget distribution recorded;
+  - one home for `num`/`num_toward`, and the `Drawing` step check
+    made fail-loud;
+  - the which-legs type made unable to say neither;
+  - the turn refusal's corner drawn.
+- **The cusp passenger's new door refusal is accepted.** The row left
+  the choice to the unit, after `.cusp()` the lattice admits only the
+  exact reverse, and the reviewer found no valid profile it refuses.
+
+6719's first fix pass named the levers twice the escalation threshold
+past the band (2Kε). The re-review found that this leaves a 2Kε sliver
+at the anchor, and the anchor junction then re-refuses: 355 of 3148
+default-row cases, against the old head's 2. Ruled: aim both levers at
+the exact-fit band instead, with the margin in [0, ε/2] on the fitting
+side. Since PR 6682 the fit gate's Zero arm is an exact fit, so the
+named fillet ends at the anchor. That is the ratified "the fillet that
+ends exactly at the anchor", and it lets the README keep the wording Ev
+approved ("strictly on the fitting side"). The first pass's "past the
+band" rewording would have changed what that clause decides, so it
+comes out. The typed-back rows now pin per-row counts of other-gate
+refusals, and an independent margin ties the bound to the kernel.
+
+## 2026-11-10 — the refused corner landed (PR 6719); handed back (`ready`)
+
+PR 6719 merged as `05e7001f94` after one FULL review and two fix
+passes; the four rows (two units, two passengers) are closed.
+- **The rendering rule.** The levers are named within the exact-fit band
+  on the fitting side, so the named radius and anchor distance, typed
+  back, are exact fits at their corner. Other gates still refuse a
+  handful of typed-back levers (4 X and 3 S on grid A at 1e-6, 0
+  elsewhere), pinned per row.
+- **A reading I accepted.** Below the window, a radius in the fit gate's
+  own band escalates there in that gate's words. That is the sliver
+  region the contract leaves to other wording, so the sweep below X
+  counts it rather than failing it.
+- **The cusp passenger** refuses at the door as `CuspDoublesBackOverLeg`.
+- **CI.** The implementer pushed two empty commits to re-run CI after
+  `test (kernel)` tripped the 1.0 s per-test budget on two untouched
+  rows (topo 1.032 s, sweep 1.014 s), since re-runs are refused from
+  here. That is a workaround I would not choose again: those rows sit at
+  the budget's edge and belong to whoever owns the slow-set roster.
+
+No P0/P1 is left. Two new P3 rows came out of the unit: the enclosing
+refusal's rendering, and the over-budget sentences. Both need a
+wording choice, so a successor can take them as cheaply. ROUND goes
+back `ready`.

@@ -62,7 +62,7 @@ pub(crate) fn image(
     f: [Interval; 3],
     jac: &[[Interval; 3]; 3],
 ) -> Option<[(f64, f64); 3]> {
-    let m = x.map(|(a, b)| a + (b - a) * 0.5);
+    let m = x.map(geom::bracket_mid);
     let y = inverse3(midpoints(jac))?;
     let d: [Interval; 3] =
         core::array::from_fn(|k| Interval::from_bounds(x[k].0, x[k].1) - Interval::point(m[k]));

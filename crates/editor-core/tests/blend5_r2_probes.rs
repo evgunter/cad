@@ -106,9 +106,7 @@ fn support_surface(body: &Body<f64>, e: EdgeKey) -> Surface<f64> {
             .expect("a live half-edge")
             .parent_loop;
         let f = body.get_loop(l).expect("a live loop").face;
-        body.get_surface(body.get_face(f).expect("a live face").surface)
-            .expect("a carrier")
-            .clone()
+        body.face_surface(f).expect("a carrier").clone()
     };
     let (a, b) = (surf(edge.he_plus), surf(edge.he_minus));
     match (

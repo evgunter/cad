@@ -374,12 +374,9 @@ fn r2_a_rigid_transform_preserves_every_authority() {
             ),
             Vec3::new(0.25, -1.5, 3.0),
         );
-        let moved = topo::transform_rigid(
-            &base,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{name} transforms: {e:?}"));
+        let moved =
+            topo::transform_rigid(&base, &geom_core::test_support::rigid(&map, Tol::witness()))
+                .unwrap_or_else(|e| panic!("{name} transforms: {e:?}"));
         let after = declared_map(&moved);
         assert_eq!(
             before.len(),
@@ -413,7 +410,7 @@ fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
     );
     let cone = base
         .faces()
-        .find(|(_, f)| matches!(base.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .find(|(fk, _)| matches!(base.face_surface(*fk), Some(Surface::Cone { .. })))
         .map(|(k, _)| k);
     let Some(cone) = cone else {
         println!("[R2-S4] the fixture has no cone face; nothing to measure");
@@ -586,8 +583,8 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
     // group.
     let sphere_key = ball
         .faces()
-        .find_map(|(_, f)| {
-            matches!(ball.get_surface(f.surface), Some(Surface::Sphere { .. })).then_some(f.surface)
+        .find_map(|(fk, f)| {
+            matches!(ball.face_surface(fk), Some(Surface::Sphere { .. })).then_some(f.surface)
         })
         .expect("the ball's sphere chart");
     let group: Vec<FaceKey> = ball
@@ -625,7 +622,7 @@ fn r2_the_die_fixtures_supports_are_all_planes() {
     let c = cube::<f64>(1.0, Tol::witness());
     let kinds: Vec<bool> = c
         .faces()
-        .map(|(_, f)| matches!(c.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(fk, _)| matches!(c.face_surface(fk), Some(Surface::Plane { .. })))
         .collect();
     println!("[R2-S7] die blank faces: {} total", kinds.len());
     assert_eq!(kinds.len(), 6, "the die blank is a box");

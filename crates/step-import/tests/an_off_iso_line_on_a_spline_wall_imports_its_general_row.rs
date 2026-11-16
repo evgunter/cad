@@ -185,7 +185,7 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
     let mut wall = Vec::new();
     for (he, h) in body.half_edges() {
         let face = body.face_of_half_edge(he).unwrap();
-        let surface = body.get_surface(body.get_face(face).unwrap().surface);
+        let surface = body.face_surface(face);
         if !matches!(surface, Some(geom::Surface::Nurbs(_))) {
             continue;
         }

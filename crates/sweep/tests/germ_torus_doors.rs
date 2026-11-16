@@ -125,7 +125,7 @@ fn half(sign: f64, handle: Handle) -> AtRestBody<f64> {
 }
 
 fn surface(body: &Body<f64>, f: FaceKey) -> &geom::Surface<f64> {
-    body.get_surface(body.get_face(f).unwrap().surface).unwrap()
+    body.face_surface(f).unwrap()
 }
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
@@ -952,7 +952,6 @@ fn two_tori_meeting_in_an_oval_are_not_an_assembly() {
             &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the donut translates");
     let far = finished("the far donut", far, Tol::witness());
@@ -1240,7 +1239,6 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
             &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the donut translates");
     let far = finished("the far donut", far, Tol::witness());

@@ -128,9 +128,7 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
             center,
@@ -230,8 +228,10 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let sheet = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
@@ -327,12 +327,8 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     for seam in seams {
         let margin = sweep::test_support::smooth_reading(&body, seam, 0.02, tol());
         assert_eq!(
-            (
-                margin.predicate,
-                margin.reading.diagnostic_f64_for_error_text().value()
-            ),
-            ("fillet3_convexity_sign", Some(0.0)),
-            "a co-surface seam's dihedral is exactly zero, got {margin}"
+            margin, None,
+            "a co-surface seam is read by identity, no margin read"
         );
     }
 }

@@ -80,10 +80,7 @@ pub(super) fn ring_at(
             .collect();
         assert!(
             points.len() == want.len()
-                && points
-                    .iter()
-                    .zip(&want)
-                    .all(|(a, b)| (*a - *b).norm() == 0.0),
+                && points.iter().zip(&want).all(|(a, b)| a.equals_exactly(*b)),
             "the ring's vertices, in order: {points:?}"
         );
     }
@@ -262,7 +259,7 @@ fn a_wall_ring_vertex_escalating_hands_re_homing_to_the_next() {
             let lone = ring_at(&mut body, face, p0, &[]);
             if !matches!(
                 wall_side(&body, (face, made.face), lone),
-                Err(SplitJoinError::Escalated { .. })
+                Err(JoinError::Escalated { .. })
             ) {
                 continue;
             }

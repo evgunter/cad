@@ -65,8 +65,8 @@ fn teapot_pot(tol: Tol) -> Body<f64> {
 
 fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -204,13 +204,11 @@ fn the_re_posed_cup_is_the_same_cup() {
             ),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose is a rigid pose");
     let posed = topo::transform_rigid(
         &turned,
         &geom_core::RigidMotion::translation(Vec3::new(0.31, -0.17, 0.23)).unwrap(),
-        tol,
     )
     .expect("and so is a translation");
     assert_the_cup_as_built("re-posed cup", &posed, tol);

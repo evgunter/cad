@@ -20,12 +20,9 @@ use geom_core::{Band, Tol};
 use topo::{Body, EdgeKey};
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> (geom_core::Point3<f64>, geom_core::Point3<f64>) {
-    let d = body.get_edge(e).unwrap();
+    let (start, end) = body.edge_vertices(e).unwrap();
     let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    (
-        p(body.get_half_edge(d.he_plus).unwrap().start),
-        p(body.half_edge_end(d.he_plus).unwrap()),
-    )
+    (p(start), p(end))
 }
 
 #[test]

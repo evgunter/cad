@@ -124,9 +124,11 @@ pub(crate) fn cup_faces<T: Real + Bounds>(
         (p.y - y).hypot(p.z - z) <= reach + slack && p.x >= x0 - slack && p.x <= x1 + slack
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => near(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body

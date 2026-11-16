@@ -72,9 +72,7 @@ fn wrong_branch_row(
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .and_then(topo::CurveGeom::certified)
         .unwrap();
-    let surface = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let surface = body.face_surface(face).unwrap();
     let (t0, t1) = cache.params();
     PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, band())
 }
@@ -119,10 +117,7 @@ fn a_row_wider_than_its_edge_is_refused_complete_or_half_minted() {
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
         .and_then(topo::CurveGeom::certified)
         .unwrap();
-    let surface = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = body.face_surface(face).unwrap().clone();
     let (lo, hi) = (t0, t1 + 0.4 * (t1 - t0));
     let wide = cache.pcurve().clone();
     let row = PcurveCache::certify(wide, lo, hi, curve.carrier(), &surface, band())

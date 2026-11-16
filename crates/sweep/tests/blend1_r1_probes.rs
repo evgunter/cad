@@ -28,7 +28,7 @@
 
 use core::f64::consts::SQRT_2;
 
-use geom_core::{Point2, Point3, Sign, Tol};
+use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
@@ -255,9 +255,8 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         p
     };
     let ends_of = |e: EdgeKey| {
-        let ed = body.get_edge(e).unwrap();
-        let s = body.get_half_edge(ed.he_plus).unwrap().start;
-        let t = body.half_edge_end(ed.he_plus).unwrap();
+        let _ = body.get_edge(e).unwrap();
+        let (s, t) = body.edge_vertices(e).unwrap();
         (point_of(s), point_of(t))
     };
     let matches_pt = |p: Point3<f64>, q: (f64, f64, f64)| {
@@ -339,9 +338,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
         .into_iter()
         .filter(|f| {
             matches!(
-                source
-                    .get_surface(source.get_face(*f).unwrap().surface)
-                    .unwrap(),
+                source.face_surface(*f).unwrap(),
                 geom::Surface::Plane { .. }
             )
         })
@@ -431,12 +428,9 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
         tol(),
     );
     let margin = sweep::test_support::smooth_reading(&body, seam, 0.05, tol());
-    assert_eq!(margin.predicate, "fillet3_convexity_sign");
-    assert_eq!(margin.sign, Sign::Zero);
     assert_eq!(
-        margin.reading.diagnostic_f64_for_error_text().value(),
-        Some(0.0),
-        "a co-surface seam is tangential exactly"
+        margin, None,
+        "a co-surface seam is read by identity, no margin read"
     );
 }
 

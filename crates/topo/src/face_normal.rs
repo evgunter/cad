@@ -7,9 +7,11 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Eight doors, one flip. By key: [`face_outward_normal`] answers for
+//! Nine doors, one flip. By key: [`face_outward_normal`] answers for
 //! a PLANE, where the normal does not depend on where you stand
-//! ([`face_plane`] answers it with the plane's origin beside it),
+//! ([`face_plane`] answers it with the plane's origin beside it, and
+//! [`face_carrier_desc`] with every carrier the `Rest` ladder compares,
+//! a curved one carrying the bit onward),
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged,
 //! [`face_outward_normal_at_foot`] answers at the FOOT of a point on
@@ -35,9 +37,8 @@
 //! by-value curved fold is [`geom_brep::implicit_outward_normal`],
 //! which normalizes and gates nothing: it reads the normal at `p`'s
 //! foot on the carrier, which is the normal at `p` where `p` is on it,
-//! and its callers (the contact verifier, the dihedral's material
-//! pairing, a blend battery's supports) certify the point themselves
-//! where they need it on the carrier. [`face_outward_normal_at_foot`]
+//! and a caller that needs `p` on the carrier certifies it itself.
+//! [`face_outward_normal_at_foot`]
 //! is that fold by key, for a point no reading places on the carrier.
 //! The two readings can differ in the last ulps on the same input, so
 //! neither substitutes for the other: a caller that wants the gate
@@ -67,7 +68,7 @@
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
 use geom_brep::recourse::Refused;
-use geom_brep::{OutwardNormal, TorusConvention};
+use geom_brep::{CarrierDesc, OutwardNormal, PlaneDesc, TorusConvention};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -134,7 +135,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// Where the surface a resolved face names does not resolve (D2 row 4):
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
-    let f = body.passed_face(face)?;
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
         _ => None,
@@ -155,13 +156,102 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 ///
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
-pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
-    let f = body.passed_face(face)?;
+pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
+    let f = body.face(face)?;
     match f.surface() {
         geom::Surface::Plane { origin, normal, .. } => {
-            Some((*origin, plane_outward_normal(f.record(), *normal).vec()))
+            Some(plane_desc_of(f.record(), *origin, *normal))
         }
         _ => None,
+    }
+}
+
+/// [`face_plane`] by value: a planar face's plane from its plane's
+/// stored origin and chart normal, with the face's `sense` folded in
+/// through [`plane_outward_normal`]. For a caller that has already
+/// matched the face's surface as a plane and holds the [`Face`], so
+/// that it neither resolves the face again nor answers a `None` that
+/// cannot happen.
+pub(crate) fn plane_desc_of<T: Real>(
+    face: &Face,
+    origin: Point3<T>,
+    chart_normal: Vec3<T>,
+) -> PlaneDesc<T> {
+    PlaneDesc {
+        origin,
+        normal: plane_outward_normal(face, chart_normal).vec(),
+    }
+}
+
+/// The face's **oriented carrier description**: [`face_plane`]
+/// generalized to the closed curved carriers. A plane arm is that
+/// door's fold; a curved arm keeps the stored carrier and hands the
+/// face's `sense` onward as `outward`, so the description states the
+/// material side whatever the kind.
+///
+/// `None` for a carrier with no closed description here (a spindle, a
+/// NURBS patch, a fitted stand-in), and for a `face` key that does not
+/// resolve: a public door hands this its own caller's key.
+///
+/// # Panics
+///
+/// Where `face` resolves and its surface does not (D2 row 4): a torn
+/// surface is not a carrier outside the inventory.
+pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
+    let f = body.face(face)?;
+    // `sense` is the material-side bit: true means the face's outward
+    // normal IS the chart normal, which for a sphere/cylinder chart
+    // points away from the centre/axis. Read as a BIT, never as a
+    // comparison on `T` — the scalar backends order intervals, not
+    // signs (S10's exact-bit discipline).
+    let outward = f.sense();
+    match f.surface() {
+        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane(plane_desc_of(
+            f.record(),
+            *origin,
+            *normal,
+        ))),
+        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
+            center: *center,
+            radius: *radius,
+            outward,
+        }),
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => Some(CarrierDesc::Cylinder {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            outward,
+        }),
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            outward,
+        }),
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => Some(CarrierDesc::Cone {
+            apex: *apex,
+            axis: *axis,
+            half_angle: *half_angle,
+            outward,
+        }),
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -178,7 +268,9 @@ pub enum NormalAtError {
     },
     /// The face's torus is definitely outside the ring convention: a
     /// shape with no regular normal on its tube, refused with the lever
-    /// the in-band arm of the same half names. A limit: a decided shape.
+    /// the in-band arm of the same half names. As the convention states a
+    /// torus decided outside it
+    /// ([`geom_brep::TorusRefusal::refusal`]): an abort.
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -195,7 +287,7 @@ pub enum NormalAtError {
     /// tangent plane: definite or in band, there is no normal to answer
     /// with. In band: it carries no reading to tell a point at the apex
     /// from one in band of the axis, and a tighter tolerance may part the
-    /// latter from it.
+    /// latter from it ([`geom_core::ladder::Refusal::of_apex`]).
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -204,8 +296,8 @@ pub enum NormalAtError {
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam): the face
     /// has a normal on each side, and no one of them is the normal there
-    /// ([`geom_brep::chart_normal_at`]). Ranked by its distance's margin
-    /// where the distance is in band; a limit where it is decided zero.
+    /// ([`geom_brep::chart_normal_at`]). As its reading stands
+    /// ([`geom_core::ladder::Refusal::of_crease`]).
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
@@ -224,29 +316,135 @@ pub enum NormalAtError {
     },
 }
 
+/// **Which row an aborting normal refusal is** (DESIGN
+/// `[failure.taxonomy]`, as [`geom_core::ladder::Refusal`]'s docs read
+/// it): the error's own fact, so a caller names an abort's answer by it
+/// rather than by matching a variant ([`NormalAtError::standing`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NormalAbort {
+    /// Row 4, a kernel fault: the point read off the face's surface, the
+    /// door's caller's invariant broken ([`NormalAtError::OffSurface`]).
+    KernelFault,
+    /// Row 1(a), an invalid input: a torus decided outside the ring
+    /// convention, a shape the kernel's model never represents, as the
+    /// torus convention's own standing states it
+    /// ([`geom_brep::TorusRefusal::refusal`]). It carries the half that
+    /// refused and its decided verdict, which a caller renders through
+    /// the convention's own clause and lever
+    /// ([`geom_brep::TorusConvention::refused`],
+    /// [`geom_brep::TorusConvention::sized`]).
+    InvalidInput {
+        /// The half of the convention that refused.
+        convention: TorusConvention,
+        /// Its decided verdict.
+        verdict: Refused,
+    },
+}
+
+/// An invalid input on each half of the ring convention, decided, for
+/// the samples: a tube below zero, a tube larger than its ring.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const NORMAL_INVALID_INPUTS: [NormalAbort; 2] = [
+    NormalAbort::InvalidInput {
+        convention: TorusConvention::Tube,
+        verdict: Refused::Negative {
+            margin: geom_core::MarginDiag::INVALID,
+        },
+    },
+    NormalAbort::InvalidInput {
+        convention: TorusConvention::Ring,
+        verdict: Refused::Negative {
+            margin: geom_core::MarginDiag::INVALID,
+        },
+    },
+];
+
+impl NormalAbort {
+    /// **An invalid input at a touch, said**: a torus face there outside
+    /// the ring convention, in the convention's own clause, ended by its
+    /// half's lever read at `at` ([`geom_brep::TorusRefusal::said`]); the
+    /// clause alone where `at` is `None`. The census's touch sentences
+    /// say an invalid input by this.
+    #[must_use]
+    pub(crate) fn torus_there(
+        convention: TorusConvention,
+        verdict: Refused,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        format!(
+            "a torus face there breaks the ring convention: {}",
+            geom_brep::TorusRefusal::decided(convention, verdict).said("its", at)
+        )
+    }
+
+    /// The torus convention's refusal an invalid input is, in the slit
+    /// door's and the plane section's carried form; `None` for a kernel
+    /// fault.
+    #[must_use]
+    pub const fn torus(self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::InvalidInput {
+                convention,
+                verdict,
+            } => Some(geom_brep::TorusRefusal {
+                convention,
+                verdict: geom_brep::TorusVerdict::Refused(verdict),
+            }),
+            Self::KernelFault => None,
+        }
+    }
+}
+
 impl NormalAtError {
-    /// What this refusal is to a ladder over the points it is read at
-    /// ([`geom_brep::ladder::Refusal`]), as each variant's docs state it.
+    /// **This refusal's standing, an abort's row included**: what it is
+    /// to a ladder over the points it is read at
+    /// ([`geom_core::ladder::Refusal`]), as each variant's docs state it;
+    /// or, where it refuses the whole query, which row that abort is
+    /// ([`NormalAbort`]). The one table of a normal refusal's class.
     ///
     /// # Errors
     ///
-    /// [`geom_brep::ladder::Aborts`] for a point definitely off the
-    /// face's surface: the caller's invariant broken.
-    pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
-        use geom_brep::ladder::{Aborts, Refusal};
+    /// [`NormalAbort::KernelFault`] for a point definitely off the face's
+    /// surface; [`NormalAbort::InvalidInput`] for a torus the model never
+    /// represents.
+    pub const fn standing(&self) -> Result<geom_core::ladder::Refusal, NormalAbort> {
+        use geom_core::ladder::Refusal;
         match self {
-            Self::Escalated { diag, .. }
-            | Self::SplineCrease {
-                reading: Err(diag), ..
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::SplineCrease { reading, .. } | Self::SplineIrregular { reading, .. } => {
+                Ok(Refusal::of_crease(*reading))
             }
-            | Self::SplineIrregular {
-                reading: Err(diag), ..
-            } => Ok(Refusal::Margin(*diag)),
-            Self::AtConeApex { .. } => Ok(Refusal::InBand),
-            Self::DegenerateTorus { .. }
-            | Self::SplineCrease { reading: Ok(_), .. }
-            | Self::SplineIrregular { reading: Ok(_), .. } => Ok(Refusal::Limit),
-            Self::OffSurface => Err(Aborts),
+            Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
+            Self::DegenerateTorus {
+                convention,
+                verdict,
+            } => match (geom_brep::TorusRefusal {
+                convention: *convention,
+                verdict: geom_brep::TorusVerdict::Refused(*verdict),
+            })
+            .refusal()
+            {
+                Ok(standing) => Ok(standing),
+                Err(geom_core::ladder::Aborts) => Err(NormalAbort::InvalidInput {
+                    convention: *convention,
+                    verdict: *verdict,
+                }),
+            },
+            Self::OffSurface => Err(NormalAbort::KernelFault),
+        }
+    }
+
+    /// What this refusal is to a ladder over the points it is read at
+    /// ([`Self::standing`], its abort's row dropped).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] wherever [`Self::standing`] names an
+    /// abort.
+    pub const fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        match self.standing() {
+            Ok(standing) => Ok(standing),
+            Err(_) => Err(geom_core::ladder::Aborts),
         }
     }
 }
@@ -311,7 +509,7 @@ fn ring_half(
 /// of a cylinder/sphere is a `(u, v)` derivative cross product this
 /// layer has no business re-deriving. `sense: true` means the outward
 /// normal IS that chart normal, pointing away from the axis/centre
-/// (the convention `boolean::carrier_pair::face_carrier` states).
+/// (the convention [`face_carrier_desc`] states).
 ///
 /// **The gate is on the kind and on the point, in that order.**
 /// `Nurbs`/`Approx` have no implicit form at all, so those kinds get
@@ -366,7 +564,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let surface = f.surface();
@@ -418,12 +616,27 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             ..
         } => {
             let nappe = face_nappe_or_double(body, face, band);
-            let elevation = geom_brep::cone_elevation(*apex, *axis, *half_angle, nappe, p);
+            let elevation = geom_brep::cone_elevation(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                nappe,
+                p,
+            );
             let on = decide("bool_pierce_normal_on_cone", Margin::of(elevation), band);
             if let Ok(Sign::Positive | Sign::Negative) = on {
                 return Err(NormalAtError::OffSurface);
             }
-            cone_axis_clearance(*apex, *axis, p, band)?;
+            cone_axis_clearance(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                p,
+                band,
+            )?;
             match on {
                 Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
@@ -474,7 +687,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, FootNormalError> {
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return Ok(None);
     };
     let clear = |margin: Margin<T>| match decide("foot_off_locus", margin, band) {
@@ -491,8 +704,15 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
-            cone_axis_clearance(apex, axis, p, band)
-                .map_err(|_| FootNormalError::NoFoot { band })?;
+            cone_axis_clearance(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                p,
+                band,
+            )
+            .map_err(|_| FootNormalError::NoFoot { band })?;
             clear(Margin::of((p - apex).dot(axis)))?;
         }
         geom::Surface::Torus {
@@ -576,14 +796,15 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
     band: Band,
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
-    let f = body.passed_face(face).ok_or(SplineNormalError::StaleFace)?;
+    let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
     let surface = f.surface();
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     if surface.is_placeholder_chart() {
         return Err(SplineNormalError::PlaceholderChart);
     }
     let uv = (T::from_computed(u), T::from_computed(v));
-    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let net = geom::cover::Cover::net(chart.control().to_vec());
+    let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();
     geom_brep::chart_point_normal(
         chart,
         f.sense(),
@@ -662,11 +883,14 @@ pub(crate) enum ConePoint {
 ///
 /// The escalation of either reading.
 pub(crate) fn cone_point<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<ConePoint, geom_core::Indeterminate> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let radial = geom::Line {
         origin: apex,
         dir: axis,
@@ -689,12 +913,11 @@ pub(crate) fn cone_point<T: Decide>(
 /// tangent plane, definitely or in band, has no normal to answer with
 /// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    match cone_point(apex, axis, p, band) {
+    match cone_point(axis, p, band) {
         Ok(ConePoint::OffAxis) => Ok(()),
         Ok(ConePoint::NearAxis | ConePoint::Apex) | Err(_) => {
             Err(NormalAtError::AtConeApex { band })
@@ -711,13 +934,81 @@ mod tests {
     use crate::euler::FaceSurface;
     use geom_brep::recourse::Refused;
 
+    /// **An abort's row is the error's own fact**, stated for every
+    /// variant: a new variant fails to compile here until it is sorted,
+    /// and one whose standing moves reds before a caller names its answer
+    /// by it ([`NormalAtError::standing`]). The point off the surface is a
+    /// kernel fault; a torus decided outside the ring convention an
+    /// invalid input, as [`geom_brep::TorusRefusal::refusal`] states its
+    /// class; every other variant keeps its query.
+    #[test]
+    fn each_normal_refusal_states_its_abort_row() {
+        use super::{NormalAbort, NormalDecision};
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("t"),
+            terminal_sliver: false,
+        };
+        let samples = [
+            NormalAtError::Escalated {
+                decision: NormalDecision::OnSurface,
+                diag,
+            },
+            NormalAtError::DegenerateTorus {
+                convention: TorusConvention::Ring,
+                verdict: Refused::Negative {
+                    margin: geom_core::MarginDiag::INVALID,
+                },
+            },
+            NormalAtError::DegenerateTorus {
+                convention: TorusConvention::Tube,
+                verdict: Refused::Negative {
+                    margin: geom_core::MarginDiag::value(-1.0),
+                },
+            },
+            NormalAtError::OffSurface,
+            NormalAtError::AtConeApex { band: band() },
+            NormalAtError::SplineCrease {
+                band: band(),
+                reading: Err(diag),
+            },
+            NormalAtError::SplineIrregular {
+                band: band(),
+                reading: Ok(geom_core::MarginDiag::value(0.0)),
+            },
+        ];
+        for why in samples {
+            let row = match why {
+                NormalAtError::OffSurface => Some(NormalAbort::KernelFault),
+                NormalAtError::DegenerateTorus {
+                    convention,
+                    verdict,
+                } => Some(NormalAbort::InvalidInput {
+                    convention,
+                    verdict,
+                }),
+                NormalAtError::Escalated { .. }
+                | NormalAtError::AtConeApex { .. }
+                | NormalAtError::SplineCrease { .. }
+                | NormalAtError::SplineIrregular { .. } => None,
+            };
+            assert_eq!(why.standing().err(), row, "{why:?}");
+            assert_eq!(
+                why.refusal().is_err(),
+                row.is_some(),
+                "{why:?}: refusal agrees"
+            );
+        }
+    }
+
     /// **A point near a cone's apex, or in band of a spline's crease, is
     /// a reading in band; a crease decided zero is a limit**
     /// ([`NormalAtError::refusal`]): kept together, the limit outranks
     /// the in-band apex read before it.
     #[test]
     fn an_apex_and_a_crease_in_band_rank_below_a_decided_crease() {
-        use geom_brep::ladder::{Evidence, Refusal};
+        use geom_core::ladder::{Evidence, Refusal};
         let in_band = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
@@ -797,9 +1088,7 @@ mod tests {
             // where the bit is set, its negation where it is not.
             let expected = if sense { normal } else { -normal };
             assert!(
-                flat.vec().x.to_bits() == expected.x.to_bits()
-                    && flat.vec().y.to_bits() == expected.y.to_bits()
-                    && flat.vec().z.to_bits() == expected.z.to_bits(),
+                flat.vec().same_bits(expected),
                 "sense {sense}: the planar door answered {:?}, not {expected:?}",
                 flat.vec()
             );
@@ -810,9 +1099,7 @@ mod tests {
                     .unwrap()
                     .unwrap();
                 assert!(
-                    at.vec().x == flat.vec().x
-                        && at.vec().y == flat.vec().y
-                        && at.vec().z == flat.vec().z,
+                    at.vec().equals_exactly(flat.vec()),
                     "sense {sense} at {p:?}: {:?} vs {:?}",
                     at.vec(),
                     flat.vec()
@@ -841,7 +1128,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert!(
-                (out.vec() - radial).norm() == 0.0,
+                out.vec().equals_exactly(radial),
                 "outward at {p:?}: {:?}",
                 out.vec()
             );
@@ -850,7 +1137,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert!(
-                (inward.vec() + radial).norm() == 0.0,
+                inward.vec().equals_exactly(-radial),
                 "reversed at {p:?}: {:?}",
                 inward.vec()
             );
@@ -896,7 +1183,7 @@ mod tests {
     const ALPHA: f64 = 0.5;
 
     fn frustum_wall(axis_sign: f64) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
-        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         let cone = geom::Surface::Cone {
             apex: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, axis_sign),
@@ -1205,42 +1492,42 @@ mod tests {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
         let exempt = ["crates/geom-brep/src/enters.rs"];
         // Each a genuinely signed SCALAR, negated at its point of use
-        // as D6 spells it: a jet curvature measured along the plus
-        // face's outward normal, the sphere's radial flux term
-        // `R·Area` and a closed surface's whole flux, a witness's
-        // implicit residual read as its height above the face, a loop's
-        // chart-frame area, an offset distance into the material.
-        let sanctioned: Vec<(String, String)> = [
+        // as D6 spells it: a jet
+        // curvature measured along the plus face's outward normal, the
+        // sphere's radial flux term `R·Area` and a closed surface's
+        // whole flux, a witness's implicit residual read as its height
+        // above the face, an offset distance into the material.
+        let mut sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
             // encloses, for a face whose chart image is empty.
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
-            ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
             // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame.
+            // toward its face, in the plane's chart frame: once each in
+            // `present_plane`, `present_plane_corner` and
+            // `present_plane_vertex`.
+            ("crates/topo/src/injective.rs", "1.0"),
+            ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
             // A face's side of an iso edge's line, as the sign of the held
             // chart coordinate.
             ("crates/topo/src/injective.rs", "side"),
+            // The whole turn a face takes round a singular point of its
+            // chart, in periods: the side the azimuth advances on, as an
+            // integer (`pcurves::singular_turn`), a chart count, no normal.
+            ("crates/topo/src/pcurves/decision.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
+            // The loop rule's start: a test sheet's loop is walked from
+            // the mirrored chart coordinate at sense `false`
+            // (`chord_join::island_rows`), a chart coordinate, no normal.
+            ("crates/topo/src/chord_join/island_rows.rs", "at"),
         ]
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
-        // Pinned red, NOT sanctioned: hand folds main carries while the
-        // row that owns their repair is open, so the repair landing reds
-        // here too and strikes them
-        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
-        let pinned = [
-            ("crates/mesh/src/trimmed.rs", "1.0"),
-            ("crates/mesh/src/trimmed.rs", "area"),
-            ("crates/mesh/src/trimmed.rs", "radial"),
-        ];
-        let mut expected = sanctioned;
-        expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));
-        expected.sort();
+        sanctioned.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -1277,12 +1564,10 @@ mod tests {
         );
         hits.sort();
         assert_eq!(
-            hits, expected,
-            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
-             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
-             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
-             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
-             from `pinned`."
+            hits, sanctioned,
+            "the hand folds under a face's sense bit are not the sanctioned scalars. \
+             A NORMAL folds through `OutwardNormal::from_chart` or a `face_normal` door, \
+             and a genuinely signed scalar joins the list with what it negates."
         );
     }
 

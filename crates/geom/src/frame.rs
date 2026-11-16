@@ -62,6 +62,14 @@ impl<T: Real> Frame<T> {
         crate::azimuth::frame(self, u).radial.0
     }
 
+    /// **The radial direction's derivative in the azimuth**, `u_ref·(−sin
+    /// u) + v_ref·cos u`: the azimuthal frame's `Tangential`, beside
+    /// [`Self::radial`].
+    #[must_use]
+    pub fn tangential(&self, u: T) -> Vec3<T> {
+        crate::azimuth::frame(self, u).tangential.0
+    }
+
     /// `axis × u_ref`, the second axis.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
@@ -171,11 +179,14 @@ impl<T: Real> Frame<T> {
     pub fn square(&self) -> SquareFrame<T> {
         let axis = self.axis.normalize();
         let across = axis.cross(self.u_ref.cross(axis));
-        let len = across.norm();
+        let ((u_ref, len), (_, u_len)) = (
+            across.direction_and_length(),
+            self.u_ref.direction_and_length(),
+        );
         SquareFrame {
             axis,
-            u_ref: across / len,
-            width: len / self.u_ref.norm(),
+            u_ref,
+            width: len / u_len,
         }
     }
 }

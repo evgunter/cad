@@ -77,12 +77,15 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
         let cavity = cavity.clone();
         let spiric_faces: Vec<_> = cavity
             .faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, f)| {
                 matches!(
                     body_surface(&cavity, f.surface),
                     Some(geom::Surface::Plane { .. })
-                ) && core::iter::once(f.outer)
-                    .chain(f.rings.iter().copied())
+                ) && cavity
+                    .face(*fk)
+                    .expect("a live face")
+                    .loops()
+                    .map(|(lk, _, _)| lk)
                     .any(|lk| {
                         loop_carriers(&cavity, lk)
                             .iter()
@@ -105,7 +108,7 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
             let planar = |p: Point3<f64>| ((p - origin).dot(across), (p - origin).dot(up));
             let mut segments = Vec::new();
             let mut spirics = Vec::new();
-            for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+            for (lk, _, _) in cavity.face(face).expect("face").loops() {
                 for he in loop_half_edges(&cavity, lk) {
                     let edge = cavity
                         .get_edge(cavity.get_half_edge(he).expect("half edge").edge)

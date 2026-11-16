@@ -328,7 +328,6 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     let tall_disc = topo::transform_rigid(
         &disc,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.5)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     // The disc as minted spans z in [0, 1]; shifted to [-0.5, 0.5]
@@ -337,7 +336,6 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     let tall = topo::transform_rigid(
         &tall,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.5)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let tall = finished("the tall disc", tall, Tol::witness());
@@ -361,7 +359,6 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     let boss = topo::transform_rigid(
         &disc,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.5)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let boss = finished("the boss", boss, Tol::witness());
@@ -407,8 +404,8 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -416,8 +413,8 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
 
 fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))
@@ -472,12 +469,8 @@ fn rigid_transform_preserves_the_authority_census() {
     let before: Vec<bool> = authority_census(&body).iter().map(|(_, d)| *d).collect();
     let map = Affine3::translation(Vec3::new(3.0, -1.0, 2.0))
         * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), PI / 2.0);
-    let moved = topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("the vessel transforms");
+    let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("the vessel transforms");
     let after: Vec<bool> = authority_census(&moved).iter().map(|(_, d)| *d).collect();
     assert_eq!(after, before, "transform_rigid must not flip is_declared");
     fence_crosscheck(&moved, "vessel after rigid transform");
@@ -590,8 +583,10 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         declared: Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::unit_y(),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::unit_y(),
+            },
             angle: 0.5,
         })),
     };

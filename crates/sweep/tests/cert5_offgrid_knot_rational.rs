@@ -135,8 +135,7 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let body = &lofted.body;
     let interior_of = |face: topo::FaceKey| -> Vec<f64> {
-        let face = body.get_face(face).expect("a wall face");
-        let Some(geom::Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+        let Some(geom::Surface::Nurbs(net)) = body.face_surface(face) else {
             panic!("{row}: a loft wall is a spline")
         };
         let knots = net.knot_values_v();
@@ -362,7 +361,7 @@ fn six_stations_with_offgrid_knots_certify() {
 /// This row was blade-8 at v-degree 1, whose six knots were `k/7` and
 /// whose pre-fix floor was 6.425e-4 m. A degree-1 loft through three or
 /// more sections is now one wall per slab, each a single span in `v`
-/// (`work/tess/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`),
+/// (`work/tesslane/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`),
 /// so its walls carry no interior knot. Degree 3 is the lowest degree
 /// at which ten even stations put six knots in one wall, all off-grid
 /// (at degree 2, nine stations' knots land on sixteenths). No pre-fix

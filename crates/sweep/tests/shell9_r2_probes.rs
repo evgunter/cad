@@ -42,9 +42,9 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 /// Planar faces normal to `y` at height `y`.
 fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.y - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.z.abs() < 1e-9
             )
@@ -302,14 +302,12 @@ fn r2_an_operand_with_a_stale_row_is_refused_at_the_gate() {
     let mut maimed = vessel(1.0, 2.0);
     let (he, element) = maimed
         .joints()
-        .find_map(|(he, e)| match e {
-            topo::JointElement::Shift(deck) => Some((he, deck)),
-            topo::JointElement::Reset(_) => None,
-        })
+        .map(|(he, e)| (he, e.deck()))
+        .next()
         .expect("the vessel carries rows");
     maimed.attach_joint(
         he,
-        topo::JointElement::Shift(topo::Deck {
+        topo::JointElement(topo::Deck {
             u: element.u + 1,
             ..element
         }),

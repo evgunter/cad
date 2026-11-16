@@ -57,7 +57,7 @@ fn index_of(v: &ValidatedProfile<f64>, li: usize, at: Point2<f64>) -> usize {
     v.loops()[li]
         .vertices()
         .iter()
-        .position(|q| q.x == at.x && q.y == at.y)
+        .position(|q| q.equals_exactly(at))
         .expect("the vertex survives canonicalization")
 }
 

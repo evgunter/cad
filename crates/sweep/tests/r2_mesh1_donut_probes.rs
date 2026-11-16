@@ -25,9 +25,8 @@ fn donut() -> sweep::Revolved<f64> {
 /// One face's boundary fan from its own first probe point, measured
 /// from the shared anchor — the per-face term of [`signed_volume`].
 fn face_fan(body: &topo::Body<f64>, fk: topo::FaceKey, o: Point3<f64>) -> f64 {
-    let face = body.get_face(fk).unwrap();
     let mut six_v = 0.0;
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(fk).unwrap().loops() {
         let pts = loop_probe_points(body, lk);
         let p1 = pts[0];
         for i in 1..pts.len() - 1 {
@@ -126,9 +125,8 @@ fn r2_the_lifted_oracle_is_sign_sensitive_and_lift_stable() {
 fn r2_the_walls_share_their_boundary() {
     let t = donut();
     for (w, lo, hi) in [(0usize, 0.0, 0.5), (1, 0.5, 1.0)] {
-        let face = t.body.get_face(t.walls()[0][w].unwrap()).unwrap();
         let mut ys: Vec<f64> = Vec::new();
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in t.body.face(t.walls()[0][w].unwrap()).unwrap().loops() {
             ys.extend(loop_probe_points(&t.body, lk).iter().map(|p| p.y));
         }
         let (min, max) = ys

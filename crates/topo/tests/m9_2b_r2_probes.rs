@@ -78,7 +78,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     let z_facing = |z: f64, sign: f64| {
         let mut found = None;
         for (k, f) in body.faces() {
-            if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
+            if let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) {
                 let out = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
                 if (origin.z - z).abs() < 1e-12 && out.z * sign > 0.5 {
                     found = Some(k);
@@ -127,7 +127,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
 /// A 1 m patch about the origin: the extent these exact-axis fixtures'
 /// locus verdicts are consumed over (no row here turns on the lever).
 fn metre_patch() -> geom_brep::ExtentBall<f64> {
-    geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0)
+    geom_brep::ExtentBall::fixture(Point3::origin(), 1.0)
 }
 
 fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
@@ -146,7 +146,9 @@ fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
 #[test]
 fn probe_tangent_locus_nested_cylinders_are_apart() {
     match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart, predicate }) => {
+        Err(TangentLocusError::NotTangent {
+            apart, predicate, ..
+        }) => {
             println!("nested cylinders: apart = {apart}");
             assert!(apart, "nested surfaces are definitely APART");
             assert_eq!(
@@ -200,15 +202,28 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
 
 /// F4 (union fix): the backstop rows are METRE data — scaling the
 /// geometry alone (the gate's band is the ambient metre band) leaves
-/// the DEFINITE verdicts standing at mm and km scale: a nested pair
-/// refuses undecidable, a far-separated pair stays clean, at every
-/// scale, where the nested pair is the DECIDED interference (the box
-/// gate cannot separate it; the material test finds an inner vertex
+/// the DEFINITE verdicts standing from mm scale to the session box's: a
+/// nested pair refuses undecidable, a far-separated pair stays clean, at
+/// every scale, where the nested pair is the DECIDED interference (the
+/// box gate cannot separate it; the material test finds an inner vertex
 /// strictly inside). A scale-invariant (dimensionless) margin would
-/// flip one.
+/// flip one. The largest scale, 90, puts the far cube's farthest
+/// coordinate at 990 m, inside the session box; at km scale the pair
+/// lies past the box, which tier 3′ refuses before its census as tier 3
+/// does (`OutsideSessionBox`), so no backstop row is read there.
 #[test]
 fn the_backstop_rows_are_metre_dimensioned() {
-    for s in [1e-3, 1.0, 1e3] {
+    let km = assembly(
+        &cube_scaled_at(4e3, 0.0, 0.0, 0.0),
+        &cube_scaled_at(1e3, 1.5e3, 1.5e3, 1.5e3),
+    );
+    let errs = validate_pseudomanifold(&km, &ContactRecords::default(), Tol::witness())
+        .expect_err("a km pair lies past the session box");
+    assert!(
+        matches!(&errs[..], [ValidationError::OutsideSessionBox { .. }]),
+        "km scale: the box refusal, alone: {errs:?}"
+    );
+    for s in [1e-3, 1.0, 90.0] {
         let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
         let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);
         let nested = assembly(&outer, &inner);

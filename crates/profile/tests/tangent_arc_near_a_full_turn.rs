@@ -255,14 +255,21 @@ fn validated<T: profile::ArcCarrierScalar>(lp: &ConstructedLoop<T>) -> Result<()
 /// the vertex (it was 2e-11 wide, then `[−2π, 2π]`). Validation answers
 /// the clearance rule: at the default ε the 1.37e8 arc is short of a
 /// full circle by 3.3e-9 m, inside the band, and escalates on that
-/// rather than reading `NearFullArc` wherever the replay stores it; at
-/// `f64` the 1.36e4 arc, clear and inside the scene's resolution,
-/// validates.
+/// rather than reading `NearFullArc` wherever the replay stores it. A
+/// clear arc has to validate at `f64` only where the chord home's
+/// near-tangent crossing with it resolves inside ε, about `r·δh/half`
+/// with `δh` a few ulps of `r`: at 1.36e4 that is ~3e-8 m, coarser than
+/// ε, so the row pins no outcome there (row
+/// `a-line-arc-near-tangent-crossing-resolves-coarser-than-eps`).
 #[test]
 fn the_rows_three_radii_keep_their_end_vertex() {
     let a = Point2::new(0.0, 0.0);
     let (eps, k) = (tol().get().eps, tol().get().k);
-    for r in [1.36e4, 1.37e7, 1.37e8] {
+    // 8 and 136 are radii whose near-tangent crossing resolves inside ε
+    // (8 at both ε rows, 136 at the default), so the validation pin
+    // below runs; the row's three radii are the near-full-turn ones.
+    let mut pinned = 0;
+    for r in [8.0, 136.0, 1.36e4, 1.37e7, 1.37e8] {
         let p = behind_at_radius(r);
         let gap = 2.0 * p.y.atan2(-p.x);
         let (class, clearance) = clearance_class(r, gap);
@@ -314,8 +321,15 @@ fn the_rows_three_radii_keep_their_end_vertex() {
                     "{what}: f64 validation {result:?} does not answer the clearance \
                      {clearance:e} m ({class:?})"
                 );
-                if class == Clearance::Clear && 64.0 * r * ULP <= eps {
+                // The chord home crosses the arc's carrier near tangency,
+                // where a crossing resolves to about `r·δh/half`: `δh` the
+                // centre's offset from the chord, read to a few ulps of
+                // `r`, `half` the half-chord. Validation owes an answer
+                // only where that resolves inside ε.
+                let half = 0.5 * (p - a).norm();
+                if class == Clearance::Clear && r * (64.0 * r * ULP) / half <= eps {
                     assert!(result.is_ok(), "{what}: f64 validation refused: {result:?}");
+                    pinned += 1;
                 }
             }
 
@@ -350,6 +364,43 @@ fn the_rows_three_radii_keep_their_end_vertex() {
             );
         }
     }
+    assert!(
+        pinned > 0,
+        "the validation pin ran on no radius at ε {eps:e}"
+    );
+}
+
+/// **The chord home's near-tangent crossing reads `Line2::side`**, and
+/// this row tells that read from the unit perp-dot it replaced. At R
+/// 1.36e4 the crossing resolves only to ~3e-8 m, coarser than ε. That is
+/// row `work/profile/a-line-arc-near-tangent-crossing-resolves-coarser-than-eps`,
+/// and while it is open this row holds the behaviour. The more accurate
+/// read (`Line2::side`, about 4× nearer the 50-digit truth than
+/// `unit.perp_dot`) lands a crossing on the arc's end vertex inside the
+/// band, so f64 validation refuses the loop loudly as a touch. The unit
+/// read's rounding landed outward and validated it. A line×arc crossing
+/// reverted to the hand form, or to any read off `Line2::circle_heights`'
+/// side, validates and turns this red. At ε 1e-12 the crossing is still
+/// coarser than ε but lands clear, and the row asks nothing there.
+#[test]
+fn the_near_tangent_crossing_reads_line2s_side() {
+    if tol().get().eps != geom_core::tolerance::DEFAULT_EPS {
+        return;
+    }
+    let (a, r) = (Point2::new(0.0, 0.0), 1.36e4);
+    let lp = try_replay_at::<f64>(&forward(a, (1.0, 0.0), behind_at_radius(r)))
+        .unwrap_or_else(|e| panic!("R {r:e}: the f64 replay refused: {e}"));
+    let result = validated(&lp);
+    assert!(
+        matches!(
+            result,
+            Err(ProfileError::NonSimple {
+                kind: profile::ContactKind::Touch,
+                ..
+            })
+        ),
+        "R {r:e}: f64 validation answers {result:?}, not the touch Line2::side's crossing reads"
+    );
 }
 
 /// **A counterexample search over near-behind targets**: a random

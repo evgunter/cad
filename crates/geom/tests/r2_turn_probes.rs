@@ -103,7 +103,7 @@ fn r2_turn_defect_speed_hi_is_the_old_sup_widened_by_its_rounding_and_an_upper_b
 /// on the fast, slow and in-between side.
 #[test]
 fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
-    let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
+    let rows = TurnRows::registered("r2_turn", "r2_turn_straddle");
     let one = Period::new(TAU);
     let mut tally = std::collections::BTreeMap::<(String, &str), usize>::new();
     for eps in [1e-6, 1e-9, 1e-12] {
@@ -280,7 +280,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
             hi / max
         );
         // A whole oval at t0 = 0 and at t0 = 1: the rule's verdict.
-        let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
+        let rows = TurnRows::registered("r2_turn", "r2_turn_straddle");
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             for t0 in [0.0, 1.0, 2.0, 5.0, -3.0, 3.3] {
@@ -308,7 +308,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
     let band = Band::new(1e-9, 1e-8).unwrap();
     let extent = Extent::forward("r2_fwd", 0.0, TAU, InfSpeed::new(0.5), band).unwrap();
     let got = Period::new(TAU).turn(
-        TurnRows::bounded("r2_turn", "r2_turn_straddle"),
+        TurnRows::registered("r2_turn", "r2_turn_straddle"),
         extent,
         Bounded::new(InfSpeed::new(0.5), SupSpeed::new(hi.get())),
         band,
@@ -322,7 +322,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
     // The sup over the defect is finite where the defect is clear of the
     // pinch (`v = π`), and settles the whole oval there; on the pinch it
     // is not, and settles nothing.
-    let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
+    let rows = TurnRows::registered("r2_turn", "r2_turn_straddle");
     for (t0, whole) in [(0.0, true), (1.0, true), (core::f64::consts::PI, false)] {
         let extent = Extent::forward("r2_fwd", t0, t0 + TAU, InfSpeed::new(0.5), band).unwrap();
         let sup = turn_defect_speed_hi(&c, t0, extent);

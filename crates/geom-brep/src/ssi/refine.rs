@@ -561,7 +561,7 @@ where
     if let Some(verdict) = band_verdict("ssi_refine_halving", Margin::of(half), band) {
         return Halving::InBand(verdict);
     }
-    let mid: [f64; N] = core::array::from_fn(|i| 0.5 * (a[i] + b[i]));
+    let mid: [f64; N] = core::array::from_fn(|i| geom::mid_param(a[i], b[i]));
     match newton_refine(sys, mid, ctx.tol) {
         Some(settled) if within(&settled, &ctx.domain) && settled != *a && settled != *b => {
             Halving::Settled(settled)

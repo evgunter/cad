@@ -27,7 +27,7 @@ such a cylinder before the transport reads it.
 ## Shape
 
 `UnitVec3::levered` on the rejection, levered by the radius, under a
-K name this lane owns, refusing through `TransportError`. Found by the
+K name this lane owns, refusing through `transport_curve`'s `Indeterminate`. Found by the
 `cleave/recl-flanker` sweep's second pass (`reject_from(…).normalize()`)
 for the hand Gram–Schmidt shape.
 

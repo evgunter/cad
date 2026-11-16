@@ -59,11 +59,10 @@ fn split_block(seed: &str) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
 
 /// `split`'s `above` placed into the world at the identity.
 fn place_above(doc: ProfileDoc, split: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let above = doc.output(split, 0).expect("a split's above");
     let (doc, placed) = step(
         doc,
         DocEdit::place(
-            BodyRead::plain(Operand::Var(above)),
+            BodyRead::plain(Operand::output(split, 0)),
             Operand::Var(VarId::WORLD),
             editor_core::stand().bundle(),
         ),

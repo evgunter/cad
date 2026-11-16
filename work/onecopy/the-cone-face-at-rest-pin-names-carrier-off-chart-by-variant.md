@@ -2,10 +2,12 @@
 id: the-cone-face-at-rest-pin-names-carrier-off-chart-by-variant
 kind: issue
 title: review_m3_pr4's cone-face-at-rest pin names CarrierOffChart by variant instead of reading IncidenceRead::of
-status: open
+status: closed
 opened: 2026-11-05
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6622
 ---
 
 

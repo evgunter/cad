@@ -35,7 +35,7 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 (Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
 
-- `crates/topo/src/merge_faces.rs` `MergeDecision::ending`, `PairReach` (~1114), through `Unsized::Defect.recourse(_, Reading::Build)`. Door: `merge_coplanar_faces`. **Class 2, unsure**: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only. Settle that before converting.
+- `crates/topo/src/merge_faces.rs` `MergeCoplanarError::PairExtentUnread`'s `Display` (was `MergeDecision::ending`'s `PairReach`, retired by PR 6634), through `Unsized::Defect.recourse(_, Reading::Build)`. Door: `merge_coplanar_faces`. **Class 2, unsure**: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only. Settle that before converting.
 - `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108). **Class 2, likely**. **HELD** (declared pairs, D10): it is listed so the census is whole, and it is not this row's to repair.
 
 ## 2026-11-03: two of its failures are the geometry's, not the kernel's (SPLICE `splice/kind-reads`, PR 6437)

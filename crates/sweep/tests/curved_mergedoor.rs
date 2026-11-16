@@ -114,8 +114,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
 }
 
 fn is_cylinder(body: &Body<f64>, face: topo::FaceKey) -> bool {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
 }
 
@@ -233,10 +232,7 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
     let mut body = peg_at(0.0, 0.0, 1.0);
     let mut keys = Vec::new();
     for f in walls_at(&body, BORE_R) {
-        let described = body
-            .get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone();
+        let described = body.face_surface(f).unwrap().clone();
         keys.push(on_a_key_of_its_own(&mut body, f, described));
     }
     assert_eq!(keys.len(), 3);
@@ -247,11 +243,13 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
 /// **The public door on a peg whose three wall sectors sit on keys of
 /// their own** reads them on the carrier ladder, and the three sectors are
 /// one run whose glue would close the full period: the door records
-/// that `PeriodClosure`, naming every sector, and commits nothing.
+/// that `PeriodClosure`, naming every sector, and the run's verdicts
+/// leave its sectors on one record unmerged (`[topo.one-record.merge]`),
+/// no face gained or lost.
 #[test]
 fn a_full_period_run_on_keys_of_its_own_is_recorded_as_its_period_closure() {
     let (mut body, _) = peg_with_split_wall_keys();
-    let before = format!("{body:?}");
+    let faces_before = body.faces().count();
     let outcome = body
         .merge_coplanar_faces(Tol::witness())
         .expect("a full-period run is recorded, never refused");
@@ -269,21 +267,29 @@ fn a_full_period_run_on_keys_of_its_own_is_recorded_as_its_period_closure() {
         sorted(walls_at(&body, BORE_R)),
         "the record names every sector of the run"
     );
-    assert_eq!(
-        format!("{body:?}"),
-        before,
-        "nothing commits: the body is untouched"
-    );
+    assert_one_record_unmerged(&body, faces_before);
+}
+
+/// `body` keeps its `faces` faces, and its wall sectors wear one record.
+fn assert_one_record_unmerged(body: &Body<f64>, faces: usize) {
+    assert_eq!(body.faces().count(), faces, "no face merged");
+    let walls = walls_at(body, BORE_R);
+    let records: std::collections::BTreeSet<_> = walls
+        .iter()
+        .map(|&f| body.get_face(f).unwrap().surface)
+        .collect();
+    assert_eq!(records.len(), 1, "the run's sectors wear one record");
+    assert_eq!(validate_closed(body), Ok(()));
 }
 
 /// **The public door reads the planar pairs and the cylinder pairs of
 /// one body** are each read by their own carriers — the two cap planes,
 /// which never meet, glue nothing, and the cylinder sectors' run is
-/// recorded as its period closure.
+/// recorded as its period closure, left on one record unmerged.
 #[test]
 fn mixed_list_classifies_each_pair_by_its_own_kind() {
     let (mut body, _) = peg_with_split_wall_keys();
-    let before = format!("{body:?}");
+    let faces_before = body.faces().count();
     {
         let outcome = body
             .merge_coplanar_faces(Tol::witness())
@@ -300,11 +306,7 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
             "the run's period closure: {:?}",
             outcome.skipped
         );
-        assert_eq!(
-            format!("{body:?}"),
-            before,
-            "nothing commits: the body is untouched"
-        );
+        assert_one_record_unmerged(&body, faces_before);
     }
 }
 
@@ -387,7 +389,7 @@ fn d_prism_with_split_keys() -> (
     split_at_station(arc_run);
     let y0_walls: Vec<_> = body
         .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
+        .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(geom::Surface::Plane { origin, normal, .. }) => {
                 origin.y.abs() < 1e-12 && normal.y < -0.5
             }
@@ -623,7 +625,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");
@@ -800,11 +802,25 @@ fn stacked_equal_pegs_same_sense_walls() {
         faces.iter().all(|&(_, s)| s == faces[0].1),
         "F: one sense throughout — a continuation, not a slit: {faces:?}"
     );
+    let surfaces: std::collections::BTreeSet<_> = faces
+        .iter()
+        .map(|&(f, _)| bb.body.get_face(f).unwrap().surface)
+        .collect();
+    assert_eq!(
+        surfaces.len(),
+        1,
+        "F: the glue leaves both walls on one record: {surfaces:?}"
+    );
     let keys: Vec<_> = faces.iter().map(|&(f, _)| f).collect();
+    // The rim's arcs at z = 1; the walls' rulings are lines.
     let cross: Vec<_> = shared_edges(&bb.body, &keys)
         .into_iter()
-        .filter(|&(_, f1, f2)| {
-            bb.body.get_face(f1).unwrap().surface != bb.body.get_face(f2).unwrap().surface
+        .filter(|&(e, _, _)| {
+            let edge = bb.body.get_edge(e).unwrap();
+            bb.body
+                .get_curve_geom(edge.curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Circle)
         })
         .collect();
     assert_eq!(
@@ -849,9 +865,10 @@ fn stacked_half_discs_merge_their_glued_arc_walls() {
 
 /// The cycle halves of `f`'s loops, outer first.
 fn face_halves(body: &Body<f64>, f: topo::FaceKey) -> Vec<topo::HalfEdgeKey> {
-    let face = body.get_face(f).unwrap();
-    core::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
+    body.face(f)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,

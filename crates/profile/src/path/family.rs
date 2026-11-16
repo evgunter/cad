@@ -71,9 +71,9 @@
 //! the authored anchor and lands on an ordinary directed point there —
 //! position plus incoming tangent, uniform with every leg end. A
 //! `Radius { r, side }` fused incoming DERIVES its carrier from those
-//! two bits, so tangency at the tip holds by construction: the same
-//! `r` continues the arrival carrier (the run extends forward), and
-//! any other `r` is a new tangent carrier constructed at the tip.
+//! two bits, so tangency at the tip holds by construction: its run is
+//! a segment of its own, with a constructed joint at the tip, for
+//! every `r` — the same `r` puts a second arc on the arrival circle.
 //!
 //! ```
 //! use geom_core::Point2;
@@ -138,9 +138,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, ByTangent, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng,
-    NoPos, Open, PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip,
-    WithIncoming, carriers_are_identical, in_state, leg_end_tip, linear_band, seam_joint,
+    Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED, PartialPath,
+    PathError, PendingMeta, Plain, SeamArrival, Start, Tip, WithIncoming, in_state, leg_end_tip,
+    linear_band, seam_joint,
 };
 
 // ------------------------------------------------------------------
@@ -155,8 +155,6 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     at: Point2<T>,
     dir: Dir<T>,
     radius: T,
-    by_tangent: ByTangent,
-    origin_incoming: Option<Incoming<T>>,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
@@ -166,18 +164,15 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     let meta = PendingMeta {
         bound_at: core.current_step()?,
         incoming_radius: false,
-        by_tangent,
-        origin_incoming,
-        extends_carrier: false,
     };
-    core.pending = Some((
+    core.open_pending(
         verbs::Pending::Ray(verbs::PendingRay {
             origin: at,
             dir,
             radius,
         }),
         meta,
-    ));
+    );
     Ok(())
 }
 
@@ -188,21 +183,6 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     incoming_radius: bool,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
-    open_arc_from_tip(core, arc, incoming_radius, false, None, tol)
-}
-
-/// [`open_arc`] with the DIRECTED-POINT bookkeeping: `extends_carrier`
-/// marks a same-carrier arc extension (the incoming emission moves the
-/// origin leg's end vertex — the §4 item 4 exemption) and
-/// `origin_incoming` records the tip the side departs from.
-pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
-    core: &mut Core<T>,
-    arc: PendingArc<T>,
-    incoming_radius: bool,
-    extends_carrier: bool,
-    origin_incoming: Option<Incoming<T>>,
-    tol: Tol,
-) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     verbs::gate_positive(Gate::PathFilletRadius, arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
@@ -210,23 +190,9 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
     let meta = PendingMeta {
         bound_at: core.current_step()?,
         incoming_radius,
-        by_tangent: ByTangent::No,
-        origin_incoming,
-        extends_carrier,
     };
-    core.pending = Some((verbs::Pending::Arc(arc), meta));
+    core.open_pending(verbs::Pending::Arc(arc), meta);
     Ok(())
-}
-
-/// Whether the pending side's incoming emission EXTENDS the chain's
-/// last leg (ray extension of a straight leg; arc extension of a
-/// carrier leg) — the §4 item 4 vertex-move exemption, decided at the
-/// verb and read at every resolution site.
-fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool {
-    match pending {
-        verbs::Pending::Ray(_) => meta.extends_straight_leg(),
-        verbs::Pending::Arc(_) => meta.extends_carrier,
-    }
 }
 
 /// An arc arrival's authored circle: its centre, its travel sense, and
@@ -261,11 +227,14 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         winding,
         through,
     } = circle;
+    core.bound_arrival(arc_fillet::FilletSide {
+        anchor,
+        carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+    });
     let band = linear_band(tol)?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
-    let merge = merge_of(&pending, &meta);
     let trims = core.fit_arc_fillet(
         resolver,
         meta.bound_at,
@@ -279,7 +248,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, &meta, pending.run())?;
+    core.emit_fillet_in(&trims, &meta, pending.run())?;
     // The carrier run to the anchor follows the fillet arc tangentially
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
@@ -300,10 +269,6 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             crate::Facts::Registered,
         )
         .through(through);
-        let carrier = SegArc {
-            center: centre,
-            radius,
-        };
         // The arrival spec is an argument of the FUSED VERB that
         // opened the fillet — `fillet_arc(r, spec)`,
         // `arc_fillet_arc(spec, r, spec2)` — and not of the step being
@@ -319,21 +284,20 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
         core.push_arc(anchor, arc)?;
         let chord = (anchor - head).norm_squared().sqrt();
-        leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
+        leg_end_tip(anchor, dir, radius.min(chord))
     } else {
         // Exact fit: the fillet arc IS the whole arrival side — the
         // authored anchor is absorbed into the tangent point the fit
         // gate classified as coincident with it. The tip's DIRECTION
         // comes from the ARRIVAL carrier's tangent at the arc's end
-        // (the authored spec's own bits), while its recorded CARRIER
-        // is the fillet arc's — the segment actually behind the tip,
-        // which is what the §4 item 4 bookkeeping must compare
-        // against. The two circles are tangent there by construction,
-        // so the direction agrees between them to the band.
+        // (the authored spec's own bits), while its lever arm is the
+        // fillet arc's — the segment actually behind the tip. The two
+        // circles are tangent there by construction, so the direction
+        // agrees between them to the band.
         let head = core.head()?;
         let end_dir = carrier_tangent(head, centre, winding, band)?;
         let chord = (head - trims.t1).norm_squared().sqrt();
-        leg_end_tip(head, end_dir, trims.arc.radius.min(chord), Some(trims.arc))
+        leg_end_tip(head, end_dir, trims.arc.radius.min(chord))
     };
     Ok(in_state(core, tip))
 }
@@ -360,6 +324,10 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
+    core.bound_arrival(arc_fillet::FilletSide {
+        anchor: start_pos,
+        carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+    });
     let start_ang = core.start_ang.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry direction is bound",
     })?;
@@ -368,7 +336,6 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
     let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
-    let merge = merge_of(&pending, &meta);
     let trims = core.fit_arc_fillet(
         resolver,
         meta.bound_at,
@@ -382,7 +349,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, &meta, pending.run())?;
+    core.emit_fillet_in(&trims, &meta, pending.run())?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
@@ -414,14 +381,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         seam_joint(
             core,
             seam,
-            &Incoming::fresh(
-                end_ang,
-                radius.min(chord),
-                Some(SegArc {
-                    center: centre,
-                    radius,
-                }),
-            ),
+            &Incoming::fresh(end_ang, radius.min(chord)),
             start_ang,
             tol,
         )?;
@@ -440,7 +400,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         seam_joint(
             core,
             seam,
-            &Incoming::fresh(end_ang, trims.arc.radius, Some(trims.arc)),
+            &Incoming::fresh(end_ang, trims.arc.radius),
             start_ang,
             tol,
         )?;
@@ -1186,7 +1146,11 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
-        let offset = chord_v.perp_dot(self.q - at) / chord;
+        let offset = geom_core::Line2 {
+            origin: at,
+            dir: chord_v,
+        }
+        .side(self.q);
         // The side of the chord `q` lies on is the turn sense, read off
         // the authored points rather than the computed bulge's sign: the
         // arc on the other side shares the carrier.
@@ -1262,12 +1226,10 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
 /// extension: the carrier is DERIVED from the tip's two binding bits
 /// (centre = at + side·r·n̂(tangent)), so tangency at the tip holds by
 /// construction and nothing is value-matched, and the incoming side's
-/// anchor is the tip itself. When the derived carrier IS the tip's own
-/// incoming carrier (the chain-side `Incoming.carrier` bookkeeping
-/// decides, on the §4 item 4 identity margin) the incoming run extends
-/// the arriving leg — its end vertex MOVES to the trim point (the §4
-/// exemption, exactly as ray extension); a different carrier emits its
-/// run from the tip with a constructed tangency there.
+/// anchor is the tip itself. The incoming run is emitted from the tip
+/// as a segment of its own, with a constructed tangency there, whatever
+/// carrier the arriving leg had: an `r` equal to the incoming radius
+/// puts two arcs on one circle, which §4 item 4 admits.
 ///
 /// `Center` here stays the anchored mode (its derived START tangent is
 /// junction-checked against the incoming): restating the tip's own
@@ -1361,7 +1323,6 @@ impl Open {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1429,15 +1390,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(v) => v,
             Err(e) => return S::fail(e),
         };
-        if let Err(e) = open_ray(
-            &mut self.core,
-            at,
-            ang,
-            radius,
-            self.tip.ang_by_tangent,
-            self.tip.pos.as_ref().and_then(|p| p.incoming),
-            tol,
-        ) {
+        if let Err(e) = open_ray(&mut self.core, at, ang, radius, tol) {
             return S::fail(e);
         }
         S::apply(self.core, spec, tol)
@@ -1457,7 +1410,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1477,9 +1429,8 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         S2::apply(self.core, spec2, tol)
     }
 
-    /// The tangent-departing fused incoming: derive the leg, run the §4
-    /// item 4 identity check against an inherited departure's carrier,
-    /// and open the arc-incoming fillet. Nothing is emitted here — the
+    /// The tangent-departing fused incoming: derive the leg and open the
+    /// arc-incoming fillet. Nothing is emitted here — the
     /// trimmed run is the resolution's emission, from the chain's head.
     fn tangent_arc_open<S: TangentIncoming<T>>(
         &mut self,
@@ -1516,10 +1467,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let leg = spec.leg(DirectedPoint { at, dir: ang }, tol)?;
-        let carrier = SegArc {
-            center: leg.arc.centre,
-            radius: leg.arc.radius,
-        };
         // A leg emits on its OWN step, which the row recorded before
         // this kernel ran.
         if spec.to_wire().carries_radius() {
@@ -1531,11 +1478,8 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             leg.end,
             crate::BuiltArc::new(leg.arc, crate::Facts::Registered).sensed(leg.winding),
         )?;
-        let arm = carrier.radius.min(leg.chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(leg.end, leg.end_dir, arm, Some(carrier)),
-        ))
+        let arm = leg.arc.radius.min(leg.chord);
+        Ok(in_state(self.core, leg_end_tip(leg.end, leg.end_dir, arm)))
     }
 }
 
@@ -1554,7 +1498,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1624,7 +1567,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1656,15 +1598,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             site: "ray extension on a tip without incoming data",
         })?;
         self.core.construct_last();
-        open_ray(
-            &mut self.core,
-            at,
-            inc.ang,
-            radius,
-            ByTangent::Forward,
-            Some(inc),
-            tol,
-        )
+        open_ray(&mut self.core, at, inc.ang, radius, tol)
     }
 
     /// The kernel behind the table's leg-end fused row (recording is
@@ -1681,7 +1615,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -1704,11 +1637,8 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// The directed-point fused opening: an anchored mode is
     /// junction-checked at the tip and opens exactly as from a plain
     /// point; `Radius` derives its carrier from the tip's binding bits
-    /// and the chain decides between EXTENDING the arriving leg (the
-    /// derived carrier IS its carrier — the incoming emission moves the
-    /// leg's end vertex) and a NEW tangent carrier constructed at the
-    /// tip (the joint there is declared, exactly as ray extension
-    /// declares its origin).
+    /// and opens its run as a segment of its own, the joint at the tip
+    /// constructed exactly as ray extension constructs its origin.
     fn leg_end_arc_open<S: LegEndIncoming<T>>(
         &mut self,
         spec: &S,
@@ -1747,21 +1677,11 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                 )
             }
             FusedIncoming::FromTip(centre, winding, circle_radius) => {
-                let derived = SegArc {
-                    center: centre,
-                    radius: (at - centre).norm_squared().sqrt(),
-                };
-                let extends = match &inc.carrier {
-                    Some(prev) => carriers_are_identical(prev, &derived, tol)?,
-                    None => false,
-                };
-                if !extends {
-                    // A new tangent carrier CONSTRUCTED at the tip:
-                    // both sides share the tip's tangent by
-                    // construction, so the joint is a real tangency.
-                    self.core.construct_last();
-                }
-                open_arc_from_tip(
+                // The run is a segment of its own on a carrier derived
+                // from the tip's two bits, so the joint at the tip is
+                // a tangency by construction, whatever `r` is.
+                self.core.construct_last();
+                open_arc(
                     &mut self.core,
                     PendingArc {
                         anchor: at,
@@ -1775,8 +1695,6 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         through: None,
                     },
                     incoming_radius,
-                    extends,
-                    Some(inc),
                     tol,
                 )
             }

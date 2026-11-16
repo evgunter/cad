@@ -188,15 +188,12 @@ fn bucket_entries(
     .unwrap();
     let (mut to_other, mut edges, mut dups) = (vec![], vec![], vec![]);
     for e in &entries {
-        match e.kind {
-            topo::SectorEntryKind::WideBisector => dups.push(e.class),
-            topo::SectorEntryKind::Edge => {
-                if body.half_edge_end(e.he).unwrap() == other {
-                    to_other.push(e.class);
-                } else {
-                    edges.push(e.class);
-                }
-            }
+        if !e.real {
+            dups.push(e.class);
+        } else if body.half_edge_end(e.he).unwrap() == other {
+            to_other.push(e.class);
+        } else {
+            edges.push(e.class);
         }
     }
     (to_other, edges, dups)
@@ -241,9 +238,8 @@ fn tangent_edge_aoa_goes_below() {
     let tip_edge_halves: Vec<_> = red
         .body
         .edges()
-        .filter_map(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus)?.start;
-            let s2 = red.body.get_half_edge(e.he_minus)?.start;
+        .filter_map(|(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k)?;
             ((s1 == tip_b && s2 == tip_t) || (s1 == tip_t && s2 == tip_b)).then_some(())
         })
         .collect();
@@ -305,9 +301,8 @@ fn touching_wedge_bob_goes_above() {
     let moved: Vec<_> = red
         .body
         .edges()
-        .filter(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus).unwrap().start;
-            let s2 = red.body.get_half_edge(e.he_minus).unwrap().start;
+        .filter(|&(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k).unwrap();
             (s1 == tip_b || s1 == tip_t) && (s2 == tip_b || s2 == tip_t)
         })
         .collect();
@@ -419,11 +414,7 @@ fn cube_coplanar_top_both_senses() {
         )
         .unwrap();
         assert_eq!(entries.len(), 3);
-        assert!(
-            entries
-                .iter()
-                .all(|e| e.kind == topo::SectorEntryKind::Edge)
-        );
+        assert!(entries.iter().all(|e| e.real));
         for e in &entries {
             let end_side = sides[operand.half_edge_end(e.he).unwrap()];
             if end_side == PlaneSide::On {
@@ -474,9 +465,8 @@ fn crossing_split_arrangement() {
         })
         .unwrap();
     let joins = |a: VertexKey, b: VertexKey| {
-        red.body.edges().any(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus).unwrap().start;
-            let s2 = red.body.get_half_edge(e.he_minus).unwrap().start;
+        red.body.edges().any(|(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k).unwrap();
             (s1 == a && s2 == b) || (s1 == b && s2 == a)
         })
     };

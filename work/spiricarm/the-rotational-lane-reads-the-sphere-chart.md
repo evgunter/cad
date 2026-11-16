@@ -2,12 +2,14 @@
 id: the-rotational-lane-reads-the-sphere-chart
 kind: unit
 title: The rotational-chart Green lane, stage 2: the sphere chart (projected chords, poles from the winding, rings on a trimmed sphere)
-status: dispatched
+status: closed
 opened: 2026-11-04
 priority: P0
 cost: H
 branch: spiricarm/rotational-lane-sphere
 refs: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane, a-rotational-chart-green-lane-reads-projected-chords, the-rotational-lane-omits-the-image-chains-junction-gaps-from-its-region-term]
+closed: 2026-11-04
+pr: 6509
 ---
 
 
@@ -47,3 +49,7 @@ This stage closes `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`
 - A "disclosed, unproven" gap becomes an issue file, not a PR-body line.
 
 Review tier: **dual**. The lane's sphere chart and its pole rule are a soundness surface the torus stage builds on.
+
+## Outcome
+
+PR 6509. The sphere is the lane's second chart: its poles' terms come off the face's winding with its sense bit, which premise (g) found the rule needs, and every junction's connector is in the region term, which closes the junction-gap P2 on both charts. Cylinder × sphere results build at their volumes, but none is a legal operand and five differences refuse at the piece sort: point_in_solid cannot read a chorded sphere face (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`, P0), which is where the frame's rows wait to go SOUND. The torus stage is stage 3's.

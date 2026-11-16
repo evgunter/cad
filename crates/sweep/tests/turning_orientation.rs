@@ -380,7 +380,7 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
                     .control()
                     .iter()
                     .zip(want.control())
-                    .all(|(p, q)| p.x == q.x && p.y == q.y && p.z == q.z),
+                    .all(|(p, q)| p.equals_exactly(*q)),
             "rolled wall {j} must be wall {} of the unrolled duct, bit for bit",
             (j + n - 1) % n
         );

@@ -224,8 +224,9 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
     let pick = || BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]));
     let (doc, first) = put(doc, fixture::stood(pick()));
     let (doc, second) = put(doc, fixture::stood(pick()));
+    // Each placement reads its pick through a source of its own.
     let source = |at: RecipeNodeId| match doc.node(at) {
-        Some(Node::Place { source, .. }) => source.read,
+        Some(Node::Place { source, .. }) => doc.through_sources(source.read).read,
         other => panic!("a placement, not {other:?}"),
     };
     let (one, two) = (source(first), source(second));
@@ -437,10 +438,8 @@ fn refused(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<topo::BooleanErro
 /// through the bolt and the plate, through the face they meet over,
 /// makes `(bolt − pin) ⊔ (plate − pin)`. Its pieces are keyed by the
 /// reads the `⊔` read them through, and its names carry each piece's
-/// names keyed by that read. The same cut of the `⊔` read whole is the
-/// kernel's `VertexReadTwice`: a pin vertex pierces the bolt's foot and
-/// the plate's top, two faces the boolean reads apart. A placement of
-/// the seat is cut the same way where it stands.
+/// names keyed by that read. A placement of the seat is cut the same
+/// way where it stands.
 ///
 /// *Breaks if* a cut re-decides the meeting inside the `⊔` it reads.
 #[test]
@@ -534,8 +533,7 @@ fn a_cut_drops_the_pieces_it_empties() {
 
 /// **`∩` distributes over `⊔` on either side**: `(bolt ⊔ plate) ∩ t`
 /// and `t ∩ (bolt ⊔ plate)`, `t` a post standing through the bolt's
-/// foot, keep the part of each piece inside `t`, two pieces, where the
-/// `⊔` read whole is the kernel's `VertexReadTwice`.
+/// foot, keep the part of each piece inside `t`, two pieces.
 #[test]
 fn a_meet_with_a_seat_meets_each_piece() {
     let (doc, seat, bolt, plate) = seat("dprime3-seat-meet");
@@ -566,18 +564,24 @@ fn a_meet_with_a_seat_meets_each_piece() {
     }
 }
 
-/// **A `⊔` read as a cut's tool is cut by whole, today**: `t − (bolt ⊔
-/// plate)`, `t` a post standing through the bolt's foot, refuses as the
-/// kernel's `VertexReadTwice`.
-/// `t − (a ⊔ b)` is `(t − a) − b`, a fold of cuts rather than a cut per
-/// piece; it lands with the kernel reading a declared seat as one
-/// interface
-/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
-/// when this row builds.
+/// **A `⊔` read as a cut's tool is its material**: `t − (bolt ⊔ plate)`
+/// is `t` less both pieces, the kernel fusing them on the seat's record
+/// before it cuts (`crates/topo/README.md`, `[topo.cut-material]`).
+/// A post standing through the bolt's foot is the typed empty result. A
+/// cap over the whole foot keeps one solid above the plate, its floor a
+/// piece of the plate's top and its hole the bolt's four sides, each
+/// named through the read the `⊔` took its piece in by, and the foot's
+/// outline four seams between the floor and the walls, where the fuse
+/// joined the two pieces.
+///
+/// *Breaks if* the cut refuses at the seat, names a face of the fused
+/// tool that is no piece's, or names a fused seam as an edge of one
+/// piece.
 #[test]
-fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
-    let (doc, seat, _, plate) = seat("dprime3-seat-tool");
+fn a_seat_as_a_cuts_tool_is_read_as_its_material() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-tool");
     let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, cap) = beside(doc, plate, [0.0, 0.0, 0.1], 0.5, 0.3);
     let (doc, cut) = put(
         doc,
         Node::Subtract {
@@ -585,12 +589,84 @@ fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
             tool: seat.into(),
         },
     );
+    let (doc, capped) = put(
+        doc,
+        Node::Subtract {
+            from: cap.into(),
+            tool: seat.into(),
+        },
+    );
     let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(
-        refused(&ev, cut),
-        Some(topo::BooleanErrorKind::VertexReadTwice),
-        "{:?}",
+    assert!(
+        matches!(
+            ev.value(cut).map(|v| &v.payload),
+            Some(ValuePayload::Boolean(editor_core::BooleanValue::Empty))
+        ),
+        "the post inside the seat's material is cut away: {:?}",
         ev.result(cut)
+    );
+    let body = body_of(&ev, capped);
+    assert_eq!(solids(&body), 1, "{:?}", ev.result(capped));
+    assert!(
+        near(bounds(&body), ([-0.5, -0.5, 0.2], [0.5, 0.5, 0.4])),
+        "{:?}",
+        bounds(&body)
+    );
+    let table = ev
+        .table(doc.output(capped, 0).unwrap())
+        .expect("the cut is named");
+    // Each face of the cut named as a face of `piece`, as the seat names
+    // that piece's faces: its own path there.
+    let seat_read = doc.output(seat, 0).unwrap();
+    let of_piece = |piece: RecipeNodeId| {
+        let read = doc.output(piece, 0).unwrap();
+        table
+            .iter()
+            .filter(|(name, _)| name.kind == editor_core::EntityKind::Face)
+            .filter_map(move |(name, _)| match name.path.as_slice() {
+                [RoleSeg::From { read: s, of }] if *s == seat_read => match of.path.as_slice() {
+                    [RoleSeg::From { read: r, of }] if *r == read => Some(of.path.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        of_piece(plate)
+            .iter()
+            .any(|path| matches!(path.as_slice(), [RoleSeg::Cap(editor_core::CapEnd::End)])),
+        "the floor is the plate's top, named through the seat: {:?}",
+        of_piece(plate)
+    );
+    assert_eq!(
+        of_piece(bolt).len(),
+        4,
+        "the hole's four walls are the bolt's sides, named through the seat: {:?}",
+        of_piece(bolt)
+    );
+    // The piece a face name of the cut names through the seat.
+    let piece_of = |name: &editor_core::StableName| match name.path.as_slice() {
+        [RoleSeg::From { read: s, of }] if *s == seat_read => match of.path.as_slice() {
+            [RoleSeg::From { read: r, .. }] => Some(*r),
+            _ => None,
+        },
+        _ => None,
+    };
+    // Where the fuse joined the bolt to the plate: the seams between the
+    // floor and the walls, both the tool's faces.
+    let [plate_read, bolt_read] = [plate, bolt].map(|n| doc.output(n, 0).unwrap());
+    let fused_seams = table
+        .iter()
+        .filter(|(name, _)| {
+            matches!(name.path.as_slice(), [RoleSeg::Seam { a, b }]
+                if [a.name(), b.name()].map(piece_of) == [Some(plate_read), Some(bolt_read)]
+                    || [a.name(), b.name()].map(piece_of) == [Some(bolt_read), Some(plate_read)])
+        })
+        .count();
+    assert_eq!(
+        fused_seams, 4,
+        "the foot's outline is four seams between the plate's top and the bolt's sides"
     );
 }
 
@@ -599,15 +675,11 @@ fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
 /// own, the bolt–plate meeting not decided again.
 ///
 /// A bead bridging bolt and plate makes one solid touching itself where
-/// they met. Today the union refuses where the kernel reads the bolt's
-/// foot and the plate's top apart: `VertexReadTwice`, a bead vertex
-/// piercing both. When the kernel reads a declared seat as one
-/// interface
-/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
-/// this row's bridged union is the typed self-touch refusal naming the
-/// seat's pair, and its assert says so.
+/// they met: the kernel reads the seat as one wall, unites the bead
+/// with both pieces, and refuses the result whose one shell holds both
+/// faces of the seat's record, `TouchesItself` naming the pair.
 #[test]
-fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
+fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself() {
     let (doc, seat, _, plate) = seat("dprime3-bead");
     let (doc, side) = beside(doc, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
     let (doc, bridge) = beside(doc, plate, [0.25, 0.0, 0.1], 0.1, 0.3);
@@ -645,8 +717,8 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
     );
     assert_eq!(
         refused(&ev, fused),
-        Some(topo::BooleanErrorKind::VertexReadTwice),
-        "a bridged seat refuses where the kernel reads the seat's two faces apart: {:?}",
+        Some(topo::BooleanErrorKind::TouchesItself),
+        "a bridged seat is one solid touching itself over the rest of the seat: {:?}",
         ev.node_error(fused)
     );
 }
@@ -1443,5 +1515,72 @@ fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
         ),
         "a pick naming no piece of the part: {:?}",
         ev.node_error(read)
+    );
+}
+
+/// **A pick of a copy is a reader of the copy's source** (VARIABLES VR4):
+/// a placement reads `pick(place, [bolt])` of the copy of `bolt ⊔ plate`;
+/// redefining that copy's source `T` onto `bolt ∪ plate` would leave the
+/// pick walking through a `∪`, which no pick reads. The definition door
+/// asks the load's own whole-document check, so it refuses with the
+/// load's pick fault (first found by PR 6856's re-check, round 2).
+#[test]
+fn a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
+    let doc = doc("r2-pick-redefine");
+    let (doc, bolt) = block(doc, [0.0; 2], 0.2, 1.0);
+    let (doc, plate) = beside(doc, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
+    let (doc, seat) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (doc, place) = put(doc, fixture::stood(seat));
+    let bolt_var = doc.output(bolt, 0).unwrap();
+    let (doc, _first) = put(
+        doc,
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(place),
+            vec![bolt_var],
+        ))),
+    );
+    let (doc, fused) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let source = doc.copied_read(place).expect("a source");
+    let doc = doc
+        .apply(
+            &editor_core::DocEdit::RenameVar {
+                var: source.into(),
+                name: Some(editor_core::VarName::from_static("T")),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let got = doc
+        .apply(
+            &editor_core::DocEdit::DefineVar {
+                var: source.into(),
+                def: editor_core::VarDecl::source(Operand::Node(fused)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .map(|a| a.doc);
+    assert!(
+        matches!(
+            &got,
+            Err(editor_core::EditError::SourceReaderRefused { reader, .. })
+                if matches!(
+                    **reader,
+                    editor_core::PersistError::Snapshot(editor_core::SnapshotError::PickPath { .. })
+                )
+        ),
+        "{:?}",
+        got.map(|_| ())
     );
 }

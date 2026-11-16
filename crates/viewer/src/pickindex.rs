@@ -1665,8 +1665,11 @@ impl PickIndex {
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved_nodes.get(&part.node()).copied(),
-                placed: in_space_of(part),
+                probe: display.space_frame(part.node()),
+                placed: crate::scene::composed(
+                    display.preview_carry(part.node()),
+                    in_space_of(part),
+                ),
                 outside: self.is_outside(part.node(), part.body()),
             });
         }
@@ -1751,14 +1754,15 @@ impl PickIndex {
         // origin at the world's — so the merge below orders the batches
         // as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<VarId>, Vec<PickTarget<'_>>> = BTreeMap::new();
-        // A part drawn under a probe is its own group, picked by the
-        // ray carried back through the probe's display map. A part's own
+        // A part drawn under a display map (its space's frame, or the
+        // placement editor's preview) is its own group, picked by the
+        // ray carried back through that map. A part's own
         // frame is the kernel's door's to read ([`pick_face`] reads the
         // ray into each target's frame), so copies in one space are one
         // batch the kernel orders.
         let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
         for part in self.parts.iter().filter(visible) {
-            match probed(display, part) {
+            match display_mapped(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
@@ -2013,7 +2017,7 @@ impl PickIndex {
 
     /// The world polyline a drawn edge is drawn as, under a display
     /// view: the tessellation's own chord points, carried through the
-    /// free-move probe frame of its space when it has one.
+    /// display map its node is drawn under ([`DisplayView::display_map`]).
     ///
     /// Empty for an id this index did not assign and for an edge whose
     /// part is hidden — a hidden part is out of the picture, so there
@@ -2237,28 +2241,12 @@ impl PickIndex {
             .map_err(PickError::HitTest)
     }
 
-    /// Reviewer probe only: the front set's size, and the profile the
-    /// cursor walk answers with, if any.
-    #[cfg(test)]
-    pub(crate) fn front_at_for_review(
-        &self,
-        eval: &Evaluation<f64>,
-        camera: &Camera,
-        viewport: ViewportSize,
-        cursor: [f64; 2],
-        display: &DisplayView,
-    ) -> Result<(usize, Option<RecipeNodeId>), PickError> {
-        let front = self.seed(eval, camera, viewport, cursor, display)?;
-        let lines = Lines {
-            front: &front,
-            edges: true,
-            outlines: true,
-        };
-        let profile = match self.near(eval, camera, viewport, cursor, display, lines)? {
-            Some(Near::Profile(node)) => Some(node),
-            Some(Near::Edge(_)) | None => None,
-        };
-        Ok((front.len(), profile))
+    /// **The frame this index draws `node`'s one body at** in its
+    /// space; `None` where `node` draws no part or several.
+    fn one_body_frame(&self, node: RecipeNodeId) -> Option<Frame> {
+        let mut parts = self.parts.iter().filter(|part| part.node() == node);
+        let part = parts.next()?;
+        parts.next().is_none().then(|| as_frame(in_space_of(part)))
     }
 
     /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
@@ -2920,8 +2908,8 @@ struct Candidate {
 }
 
 /// Where a drawn part's geometry actually lands: its own coordinates,
-/// or those coordinates through the free-move probe frame the display
-/// view puts the owning node under.
+/// or those coordinates through the display map the display view puts
+/// the owning node under ([`DisplayView::display_map`]).
 ///
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
@@ -3000,21 +2988,12 @@ pub fn clear_of_drawn(
 
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
-/// one composing door), then the free-move probe frame the display view
-/// puts the owning node under. `None` where it is under neither,
+/// one composing door), then the display map the display view puts the
+/// owning node under ([`DisplayView::display_map`]). `None` where it is
+/// under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    let placed = in_space_of(part);
-    let probe = display
-        .moved_nodes
-        .get(&part.node())
-        .copied()
-        .map(|frame: Frame| frame.affine::<f64>());
-    match (probe, placed) {
-        (None, placed) => placed,
-        (Some(probe), None) => Some(probe),
-        (Some(probe), Some(placed)) => Some(probe * placed),
-    }
+    crate::scene::composed(display.display_map(part.node()), in_space_of(part))
 }
 
 /// **A clearance witness's leg, where the picture draws it**: each end,
@@ -3032,29 +3011,70 @@ pub(crate) fn witness_leg(
     ends.map(|(node, at)| {
         let in_space = placed.map_or(at, |placed| placed.transform_point(at));
         display
-            .moved_nodes
-            .get(&node)
-            .copied()
-            .map_or(in_space, |frame: Frame| {
-                frame.affine::<f64>().transform_point(in_space)
-            })
+            .display_map(node)
+            .map_or(in_space, |map| map.transform_point(in_space))
     })
 }
 
-/// **The free-move probe frame a part's node is drawn under**, if
-/// the display view puts it under one: a display map, not the model's.
-fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    display
-        .moved_nodes
-        .get(&part.node())
-        .copied()
-        .map(|frame: Frame| frame.affine::<f64>())
+/// **The display map a part's node is drawn under**, if the display
+/// view puts it under one ([`DisplayView::display_map`]): a display
+/// map, not the model's.
+fn display_mapped(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    display.display_map(part.node())
 }
 
 /// The part's frame in its space, `None` where its body is in its
 /// space's coordinates already.
 fn in_space_of(part: &NodePick) -> Option<Affine3<f64>> {
-    pncad::document::in_space(part).map(|map| map.to_affine())
+    composed_map(part)
+}
+
+/// **The one composing read of the picture's bodies**: a body's map
+/// into its space's coordinates ([`pncad::document::in_space`]), `None`
+/// where it is in them already. The parts drawn and the placement
+/// editor's preview of a copy both read a frame through it, so the
+/// carry between them compares like with like.
+fn composed_map<'a>(value: impl Into<pncad::document::Composing<'a, f64>>) -> Option<Affine3<f64>> {
+    pncad::document::in_space(value).map(|map| map.to_affine())
+}
+
+/// A composed map as a frame, the identity for none.
+fn as_frame(map: Option<Affine3<f64>>) -> Frame {
+    map.map_or(Frame::IDENTITY, Frame::from_affine)
+}
+
+/// **The copies the placement editor's draft stands elsewhere than the
+/// picture draws them** ([`crate::display::PreviewedPlacement`]): each
+/// copy `stood` stands in another space than `landed` puts it, or at
+/// another frame (bit for bit) than `index` draws its one body, with
+/// its frame as drawn and as `stood`'s scratch evaluation composes it.
+/// A frame is the copy's pose over its source's, so a copy placed from
+/// a moved copy is among them. A family is not: its members' frames
+/// move apart, and one carry per node cannot move them.
+pub fn preview_copies(
+    stood: &crate::session::Stood,
+    index: &PickIndex,
+    landed: &Doc<ProfileProgram>,
+) -> BTreeMap<RecipeNodeId, crate::display::PreviewedCopy> {
+    stood
+        .copies
+        .iter()
+        .filter_map(|(&copy, &(space, _))| {
+            let drawn = index.one_body_frame(copy)?;
+            let Some(Some(body)) = stood.evaluation.value(copy)?.payload.one_body() else {
+                return None;
+            };
+            let stands = as_frame(composed_map(body));
+            (landed.node_space(copy) != Some(space) || !drawn.bit_eq(&stands)).then_some((
+                copy,
+                crate::display::PreviewedCopy {
+                    space,
+                    drawn,
+                    stands,
+                },
+            ))
+        })
+        .collect()
 }
 
 /// **The one drawn edge's own nearest segment**, or `None` when no
@@ -3176,20 +3196,24 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let along = ray.dir;
-    let segment = b - a;
-    let offset = a - ray.origin;
-    let (aa, ab, bb) = (along.dot(along), along.dot(segment), segment.dot(segment));
-    let denominator = aa * bb - ab.powi(2);
-    // Cauchy-Schwarz puts `denominator` in `[0, aa * bb]`, so the
-    // comparison is one-sided and the scale is the product itself.
-    let t_segment = if denominator > aa * bb * PARALLEL_REL && bb > 0.0 {
-        (ab * along.dot(offset) - aa * segment.dot(offset)) / denominator
+    let segment = pncad::geom::Line {
+        origin: a,
+        dir: b - a,
+    };
+    let pair = segment.closest_params(&pncad::geom::Line {
+        origin: ray.origin,
+        dir: ray.dir,
+    });
+    // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
+    // the ray's direction (or of no length, NaN) answers its own start,
+    // since any end will do.
+    let t_segment = if pair.sin2 > PARALLEL_REL {
+        pair.s
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, a + segment * t_segment)
+    (t_segment, segment.at(t_segment))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).

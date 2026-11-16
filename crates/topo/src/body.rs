@@ -931,14 +931,40 @@ impl<T: Real> Body<T> {
     /// chart normal?". Tier-3 validation is *expected to refuse* such a
     /// body; that refusal is one of the acceptance rows.
     ///
+    /// The bit goes through the production door
+    /// ([`Construct::set_face_sense`](crate::construction::Construct::set_face_sense)),
+    /// which drops the face's rows where they are about the other side
+    /// of a chart with a singular set, and a face that stored rows is
+    /// minted again at `tol`, as a band door after it would: the rows
+    /// follow the bit, and the bit against the winding is the body's
+    /// one incoherence. A mint that refuses leaves the face without
+    /// rows.
+    ///
     /// Returns `None` if `face` is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     #[doc(hidden)]
     #[must_use]
-    pub fn flipped_face_sense_for_tests(&self, face: FaceKey) -> Option<Self> {
+    pub fn flipped_face_sense_for_tests(&self, face: FaceKey, tol: geom_core::Tol) -> Option<Self>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         let mut out = self.clone();
-        let f = out.faces.get_mut(face)?;
-        f.sense = !f.sense;
+        let sense = out.faces.get(face)?.sense;
+        let stored = out
+            .proven_face(face)
+            .half_edges()
+            .into_iter()
+            .any(|he| out.pcurve(he).is_some());
+        out.set_face_sense(face, !sense).ok()?;
+        let dropped = out
+            .proven_face(face)
+            .half_edges()
+            .into_iter()
+            .all(|he| out.pcurve(he).is_none());
+        if stored && dropped {
+            // A refusal leaves the rows dropped, as the door left them.
+            let _ = crate::pcurves::mint_pcurves_of(&mut out, &[face], tol);
+        }
         Some(out)
     }
 
@@ -1125,7 +1151,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     #[track_caller]
     pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        Some(self.passed_face(face)?.surface())
+        Some(self.face(face)?.surface())
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
@@ -1171,18 +1197,29 @@ impl<T: Real> Body<T> {
     /// vertices are never stored (see [`HalfEdge`]). `None` if `he` or
     /// its `next` is stale; a foreign `he`
     /// [passes through both hops](self#key-validity-stale-vs-foreign) uncaught.
+    ///
+    /// The one reading of a half-edge's end, and so of an edge's
+    /// ([`Body::edge_vertices`]; `query::edge_ends` is its panicking
+    /// tier). Not the twin's start: tier 1 checks
+    /// `end(he_plus) = start(he_minus)` against this reading, so reading
+    /// the end off the twin would make that check read itself.
     pub fn half_edge_end(&self, he: HalfEdgeKey) -> Option<VertexKey> {
         let half_edge = self.half_edges.get(he)?;
         let next = self.half_edges.get(half_edge.next)?;
         Some(next.start)
     }
 
-    /// The two vertices of `edge`: the starts of its `he_plus` and
-    /// `he_minus` halves. `None` if the edge or either half is stale.
-    pub(crate) fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
-        let e = self.edges.get(edge)?;
-        let start = |he| self.half_edges.get(he).map(|h| h.start);
-        Some((start(e.he_plus)?, start(e.he_minus)?))
+    /// **The two end vertices of `edge`**, in `he_plus`-forward order:
+    /// `he_plus`'s start and its end ([`Body::half_edge_end`]). `None`
+    /// if the edge, `he_plus` or its `next` is stale; a foreign `edge`
+    /// [is not caught](self#key-validity-stale-vs-foreign).
+    ///
+    /// The refusing door, for a key a caller passed or a body the
+    /// validator has not certified. A key the kernel itself reached
+    /// reads [`crate::query::edge_ends`], whose miss panics.
+    pub fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
+        let he = self.edges.get(edge)?.he_plus;
+        Some((self.half_edges.get(he)?.start, self.half_edge_end(he)?))
     }
 
     /// The position of `he`'s start vertex. `None` if `he`, its vertex
@@ -1682,10 +1719,11 @@ impl<T: Real> Body<T> {
         self.joints.iter().map(|(he, e)| (he, *e))
     }
 
-    /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
-    /// of `r#loop` in cycle order from its `first`, with its image moved
-    /// by the elements summed along the loop — the chain of chart curves
-    /// the loop's readers draw.
+    /// **A loop's lift, read from its stored rows**
+    /// ([`crate::pcurves::Lift::read`]): each half-edge of `r#loop` in
+    /// cycle order from its `first`, with its image moved by the
+    /// elements summed along the loop — the chain of chart curves the
+    /// loop's readers draw, the face's boundary in its chart.
     ///
     /// # Errors
     ///
@@ -1694,16 +1732,44 @@ impl<T: Real> Body<T> {
     ///
     /// # Panics
     ///
-    /// [`crate::pcurves::loop_lift`]'s.
+    /// [`crate::pcurves::Lift::read`]'s.
     #[track_caller]
     pub fn loop_lift(
         &self,
         r#loop: crate::entity::LoopKey,
-    ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
+    ) -> Result<crate::pcurves::Lift<T>, crate::pcurves::LiftGap>
     where
         T: geom_core::Decide,
     {
-        crate::pcurves::loop_lift(self, r#loop)
+        crate::pcurves::Lift::read(self, r#loop)
+    }
+
+    /// **A face's loops in one sheet** ([`crate::pcurves::FaceLift`]):
+    /// its outer loop's lift as [`Body::loop_lift`] reads it, and each
+    /// ring's moved by the one whole number of periods per closed
+    /// channel that puts the ring's first point in the region the outer
+    /// loop's lift bounds, decided at `band` against the outer loop
+    /// alone (`crate::pcurves`' ring rule).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
+    /// outer loop or a ring does not close in the chart, or a ring has
+    /// no one decided place.
+    ///
+    /// # Panics
+    ///
+    /// Where `face` does not resolve, and [`Body::loop_lift`]'s.
+    #[track_caller]
+    pub fn face_lift(
+        &self,
+        face: crate::entity::FaceKey,
+        band: geom_core::Band,
+    ) -> Result<crate::pcurves::FaceLift<T>, crate::pcurves::RingPlacementError>
+    where
+        T: geom_core::Decide,
+    {
+        crate::pcurves::face_lift(self, face, band)
     }
 
     /// Writes one row — `half_edge`'s image and the element of the joint
@@ -1723,7 +1789,7 @@ impl<T: Real> Body<T> {
     pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
         match element {
             Some(element) => {
-                self.joints.insert(half_edge, element.canonical());
+                self.joints.insert(half_edge, element);
             }
             None => {
                 self.joints.remove(half_edge);
@@ -1738,7 +1804,7 @@ impl<T: Real> Body<T> {
         half_edge: HalfEdgeKey,
         element: JointElement,
     ) -> Option<JointElement> {
-        self.joints.insert(half_edge, element.canonical())
+        self.joints.insert(half_edge, element)
     }
 
     /// The door [`Construct::attach_pcurve`](crate::construction::Construct::attach_pcurve) forwards to;

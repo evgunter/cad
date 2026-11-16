@@ -344,12 +344,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface).unwrap(),
-                topo::Surface::Plane { .. }
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk).unwrap(), topo::Surface::Plane { .. }))
         .map(|(k, f)| (k, f.sense))
         .collect();
     assert!(!curved.is_empty(), "the D-body has a cylinder wall");

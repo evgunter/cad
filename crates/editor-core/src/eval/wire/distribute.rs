@@ -2,10 +2,12 @@
 //! a `⊔` value is its pieces, so a boolean reading one acts on each
 //! piece and assembles what it made, `(p ⊔ q) − t = (p − t) ⊔ (q − t)`
 //! and `(p ⊔ q) ∩ t = (p ∩ t) ⊔ (q ∩ t)`. A meeting inside the `⊔` is
-//! its own decision and no boolean above it decides it again; this is
-//! also the kernel's own recourse for a cut through two pieces that
-//! touch (`topo::boolean`'s `VertexReadTwice`, "apply to each piece and
-//! combine").
+//! its own decision and no boolean above it decides it again. The
+//! kernel reads such a `⊔` whole too, where its pieces' seat is an area
+//! record (`topo::boolean`'s declared wall), so this is a second
+//! implementation of the rule, which
+//! `work/tally/the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean.md`
+//! retires.
 //!
 //! Each piece's result keeps that piece's records and is keyed by the
 //! piece's read, as the `⊔` keyed it ([`names::name_assemble`]); a
@@ -15,8 +17,9 @@
 //! node took it in by, so the coincidence door reads them where the
 //! operand stands.
 //!
-//! A `⊔` read as the TOOL of a cut is cut by whole
-//! (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
+//! A `⊔` read as the TOOL of a cut is cut by whole: the kernel reads it
+//! as its material, its pieces fused on their seats' records
+//! (`crates/topo/README.md`, `[topo.cut-material]`).
 
 use std::sync::Arc;
 
@@ -85,19 +88,22 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
 
     /// **Its body taken in `into`'s frame**: `own`, its body already
     /// taken in its own frame ([`Self::taken`]), where the two are one
-    /// frame; else its body mapped at the placement's door
-    /// ([`crate::eval::Framed::read_in`]) and taken there.
+    /// frame; else `own` moved into it ([`topo::FinishedBody::moved`]),
+    /// still finished.
     pub(super) fn taken_in(
         &self,
         into: &crate::eval::Framed<T>,
         own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match into.read_in(&self.body, tol)? {
-            crate::eval::ReadIn::Held(_) => Ok(Arc::clone(own)),
-            mapped @ crate::eval::ReadIn::Mapped(_) => mapped
-                .taken(tol)
-                .map_err(NodeErrorKind::unfinished(self.node)),
+        match into.relative(&self.body).map_err(NodeErrorKind::Motion)? {
+            None => Ok(Arc::clone(own)),
+            Some(map) => {
+                crate::eval::counters::rigid_map();
+                topo::FinishedBody::moved(&**own, &map, tol)
+                    .map(Arc::new)
+                    .map_err(|findings| NodeErrorKind::NotFinished { findings })
+            }
         }
     }
 
