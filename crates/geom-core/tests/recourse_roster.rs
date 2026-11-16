@@ -98,6 +98,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "ladder.rs: an_agreeing_ladder_reads_every_rung_and_checks_its_answers: name",
         LOOP_ROWS,
     ),
+    (
+        "ladder.rs: a_lazily_read_rung_is_superseded_like_one_its_reader_reads: name",
+        LOOP_ROWS,
+    ),
     ("ladder.rs: data_beneath_sum: straddle", CROSS_CRATE),
     ("ladder.rs: decide_magnitude: name", FORWARDS),
     ("ladder.rs: decided: name", FORWARDS),

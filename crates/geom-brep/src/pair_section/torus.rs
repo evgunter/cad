@@ -1285,7 +1285,7 @@ pub(super) fn torus_torus<T: Decide>(
 #[cfg(test)]
 mod unordered_rows {
     use super::{SectionError, arm_refused};
-    use crate::pair_section::torus_arms::ordered_side;
+    use crate::pair_section::torus_arms::ordered_side_as;
     use geom_core::Band;
 
     /// **An unordered crossing reads by its side's margin**: decided
@@ -1297,7 +1297,7 @@ mod unordered_rows {
     fn an_unordered_crossing_reads_by_its_sides_margin() {
         let band = Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band"));
         let read = |margin: f64| {
-            ordered_side("section_torus_square_fold_half", margin, band).map_err(arm_refused)
+            ordered_side_as("section_torus_square_fold_half", margin, band).map_err(arm_refused)
         };
         assert_eq!(read(1.0), Ok(true), "a side decided positive");
         assert_eq!(read(-1.0), Ok(false), "a side decided negative");

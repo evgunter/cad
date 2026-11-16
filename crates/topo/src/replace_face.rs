@@ -4611,7 +4611,7 @@ fn solve_corners<T: Decide>(
                         unreachable!("a root is sought only where a surface or the edge moves")
                     };
                     let surface = surface_of(k);
-                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    if !geom_brep::is_analytic(surface) {
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {
