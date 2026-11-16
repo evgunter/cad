@@ -130,3 +130,7 @@
     - `implicit.rs`'s `unit_defect`;
     - `pcurve_cache/projected.rs`.
   - **Not run:** whether readings across two placements decide at useful boxes, including the ray reading's ±6.1 at 1°.
+- 2026-11-16 — **Fork 274 decided** (PR 7006). Ev approved both decisions, with the text placed as clarifications of `[scalars]` and `[placement.frame]` rather than as new rows. The build is owed:
+  - **Decision 1, carriers hold their frames as `UnitVec3` / `RigidMotion`.** Check 1's frame half goes. The code docs change with it: `geom`'s at-rest paragraph, and the "What is NOT this type" paragraphs of `UnitVec3` and `RigidMotion`. One sub-question is open: the f64→box lift carve-out.
+  - **Decision 2, the boolean reads an operand in its own coordinates.** Only a cross-operand reading goes through the relative motion. `Framed::read_in` and `topo`'s `moved_by` stop rewriting carriers for a fold.
+  - Both are multi-PR migrations, to be filed as rows.
