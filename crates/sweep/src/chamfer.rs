@@ -82,7 +82,7 @@
 //! `true` as a derivation rather than an assumption. The frustum is the
 //! cone's own chart, radially outward, and its sense bit is derived from
 //! that same positive combination
-//! ([`crate::blend::arms::frustum_sense`]). Convexity enters
+//! ([`crate::blend::arms::frustum_rim_side`]). Convexity enters
 //! the chamfer only where it is a question about the REQUEST: the
 //! battery's sign-constancy predicate, which asks that a chain not
 //! change sides partway.

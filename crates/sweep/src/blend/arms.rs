@@ -1474,8 +1474,8 @@ pub fn chamfer_strip<T: Real>(
 ///
 /// The cone's chart normal is radially outward on that nappe, whichever
 /// side the material is, so the band's sense is not this constructor's
-/// to fix: [`frustum_sense`] derives it, as the strip's normal is
-/// derived from the supports' outward normals.
+/// to fix: its caller derives it from [`frustum_rim_side`], as the
+/// strip's normal is derived from the supports' outward normals.
 #[must_use]
 pub fn chamfer_frustum<T: Real>(
     sheet: &Meridian<T>,
@@ -1489,7 +1489,7 @@ pub fn chamfer_frustum<T: Real>(
     let foot_a = sheet.rim + inward_unit(n_a, tau) * distance;
     let foot_b = sheet.rim - inward_unit(n_b, tau) * distance;
     let g = foot_b - foot_a;
-    let (g_r, g_z) = (g.dot(radial), g.dot(k));
+    let g_r = g.dot(radial);
     let rho_a = (foot_a - sheet.axis.origin).dot(radial);
     let apex = foot_a - g * (rho_a / g_r);
     let trim = |q: Point3<T>| {
@@ -1507,7 +1507,7 @@ pub fn chamfer_frustum<T: Real>(
         surface: Surface::Cone {
             apex,
             axis: k * (foot_a - apex).dot(k).unit_sign(),
-            half_angle: g_r.abs().atan2(g_z.abs()),
+            half_angle: (g_r.abs() / g.norm()).asin(),
             u_ref: radial,
         },
         spine_curvature: T::zero(),
@@ -1516,24 +1516,20 @@ pub fn chamfer_frustum<T: Real>(
     }
 }
 
-/// **The frustum's sense bit**: whether the cone's chart normal is the
-/// band's OUTWARD normal. The chamfer's outward normal is a positive
-/// combination of its supports' outward normals ([`chamfer_strip`]'s
-/// derivation), and over a definite wedge that sum points from the
-/// band toward the rim it cuts off on a convex rim and away from the
-/// rim it fills over on a concave one. So the bit is the side of the
-/// generator the rim point `rim` lies on, read along the chart normal at
-/// the generator's midpoint in `rim`'s own meridian, folded with the
-/// chain's convexity. `None` for a band that is not a cone or trims that
-/// are not circles, or where that side is not certain, which an exact
-/// frustum over a definite wedge never reaches: the rim stands
-/// `distance / √2` off its generator at equal setbacks.
+/// **Which side of its generator a frustum's rim lies on**, read along
+/// the cone's chart normal: the chart normal at the generator's midpoint
+/// in `rim`'s own meridian, dotted with the run from there to `rim`. The
+/// chamfer's outward normal is a positive combination of its supports'
+/// outward normals ([`chamfer_strip`]'s derivation), and over a definite
+/// wedge that sum points from the band toward the rim it cuts off on a
+/// convex rim and away from the rim it fills over on a concave one; so
+/// the cone's chart normal is outward exactly when this reading's sign
+/// agrees with the convexity, and the caller folds the two into the
+/// band's sense bit. At equal setbacks the rim stands `distance / √2`
+/// off its generator, so the sign is definite on any exact frustum.
+/// `None` for a band that is not a cone or trims that are not circles.
 #[must_use]
-pub fn frustum_sense<T: geom_core::Bounds>(
-    blend: &EdgeBlend<T>,
-    rim: Point3<T>,
-    convexity: Convexity,
-) -> Option<bool> {
+pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option<T> {
     let Surface::Cone {
         axis, half_angle, ..
     } = blend.surface
@@ -1544,17 +1540,8 @@ pub fn frustum_sense<T: geom_core::Bounds>(
     let radial = perp_unit(rim - a.frame.origin, axis);
     let fa = a.frame.origin + radial * a.radius;
     let fb = b.frame.origin + radial * b.radius;
-    let m = fa + (fb - fa) * T::from_f64(0.5);
     let (sin_a, cos_a) = half_angle.sin_cos();
-    let toward_rim = (radial * cos_a - axis * sin_a).dot(rim - m);
-    let side = if toward_rim.lo() > 0.0 {
-        true
-    } else if toward_rim.hi() < 0.0 {
-        false
-    } else {
-        return None;
-    };
-    Some(side == convexity.blend_sense())
+    Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
 }
 
 /// Where two coplanar lines of one support face meet, in that face's

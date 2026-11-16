@@ -395,8 +395,9 @@ trims are described as plain intersections, as the strip's are; its
 slit is the generator through the closure crossing, described as the
 cone's seam; and its sense bit is derived, the cone's chart normal
 being radially outward whichever side the material is
-(`arms::frustum_sense`: the rim lies on the chart normal's side of the
-generator exactly when the chart normal is outward on a convex rim).
+(`arms::frustum_rim_side`: the rim lies on the chart normal's side of
+the generator exactly when the chart normal is outward on a convex
+rim).
 The walks, the ring meters, the reach (the triangle of the rim and its
 feet revolved) and the birth records are the torus band's, so a
 bore's mouth and its far rim, a boss's top and foot and a

@@ -11,7 +11,7 @@
 //! three trimline feet), the band's contact carrier (a fillet's
 //! trimline arc, a chamfer's straight chord), and the closed-rim
 //! band's sense (the torus folds the chain's convexity, the chamfer's
-//! frustum derives it, `rim_sense`). Everything else in this
+//! frustum reads it off its rim, `arms::frustum_rim_side`). Everything else in this
 //! module — the splits, the excisions, the ring carry-through, the
 //! naming rows — is one shared walk. Prose below that speaks of the
 //! ball or the octant is describing the fillet's arm of a shared
@@ -881,7 +881,30 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
-        let sense = rim_sense(source, rim.chain.first(), kind)?;
+        // **The band's sense bit.** A rolling ball's torus is outward
+        // exactly on a convex chain, its chart normal pointing away from
+        // the ball; a chamfer's frustum has the cone's own chart normal,
+        // radially outward whichever side the material is, so its bit is
+        // read off the side of the generator the rim lies on, at the
+        // link's own middle on the source body
+        // ([`super::arms::frustum_rim_side`]).
+        let link = rim.chain.first();
+        let sense = match kind {
+            BlendKind::Fillet => link.convexity.blend_sense(),
+            BlendKind::Chamfer => {
+                let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
+                let at = carrier.eval(geom::mid_param(t0, t1));
+                let side = super::arms::frustum_rim_side(&link.blend, at)
+                    .filter(|x| x.lo() > 0.0 || x.hi() < 0.0);
+                let Some(side) = side else {
+                    return Err(unbuilt_geometry(
+                        EntityId::Edge(link.edge),
+                        "a chamfer frustum's side of its rim is not certain",
+                    ));
+                };
+                (side.lo() > 0.0) == link.convexity.blend_sense()
+            }
+        };
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
                 rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
@@ -4401,32 +4424,6 @@ pub(super) fn split_fragment<T: Decide + topo::AtRestPolicy>(
 pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: EdgeKey) {
     if dying == source {
         rec.dead.edges.push(source);
-    }
-}
-
-/// **A closed rim's band sense.** A rolling ball's torus is outward
-/// exactly on a convex chain, its chart normal pointing away from the
-/// ball; a chamfer's frustum has the cone's own chart normal, radially
-/// outward whichever side the material is, so its bit is derived from
-/// the rim it cuts off or fills over ([`super::arms::frustum_sense`]),
-/// read at the link's own middle on the source body.
-fn rim_sense<T: Decide + Bounds>(
-    source: &Body<T>,
-    link: &Link<T>,
-    kind: BlendKind,
-) -> Result<bool, BlendError> {
-    match kind {
-        BlendKind::Fillet => Ok(link.convexity.blend_sense()),
-        BlendKind::Chamfer => {
-            let (carrier, t0, t1) = super::battery::carrier_of(source, link.edge)?;
-            let rim = carrier.eval(geom::mid_param(t0, t1));
-            super::arms::frustum_sense(&link.blend, rim, link.convexity).ok_or_else(|| {
-                unbuilt_geometry(
-                    EntityId::Edge(link.edge),
-                    "a chamfer frustum's side of its rim is not certain",
-                )
-            })
-        }
     }
 }
 
