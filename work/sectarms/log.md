@@ -820,3 +820,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Dispatched** `a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding` (P1 M) on `sectarms/planar-spline-winding`.
   - **Tier: single FULL review.** The change is additive (one per-edge term read from `props`, plus routing), but check 6 starting to falsify spline-bearing planar loops can red fixtures, and the review must check that this is right rather than loosened.
   - **Implementer arm byte 59 (Fable).** Disclosure: I drew the byte a few minutes before this entry was written. The letter and tier were chosen first, in my reasoning, and not changed after the draw.
+- 2026-11-16 — **Both lanes stopped on the weekly usage limit** (2026-11-13, about 06:30 UTC) and are resumed today on their own arms. Their work was saved in their worktrees.
+  - **The PR 6897 fix pass** (Opus) stopped before the contract rows; its pushed head is `9998fd1eab`.
+  - **The planar unit** (Fable) stopped before its test rows; its pushed head is `d5dc552b50`.
+
+  Both rows will record the interruption. I deleted two leftover target dirs from finished lanes, which brought the disk from 84% to 81%.
