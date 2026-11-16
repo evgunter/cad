@@ -352,9 +352,10 @@ impl<'a> AnalyticRow<'a> {
     ///
     /// A cone's row step has two readers. The curved lane lays rows
     /// uniform in `v` at it (`curved::grid_counts`, a face with a point on
-    /// a side between its rims): every side of that face is an iso line,
-    /// so no boundary run crosses a row. The trimmed lane lays
-    /// [`Self::lattice_rows`] from it, graded, because its boundary does.
+    /// a side between its rims); that face has no worst-triangle theorem
+    /// (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`),
+    /// its certificate is what holds it, and its rows are left as they
+    /// are. The trimmed lane lays [`Self::lattice_rows`] from it, graded.
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
             Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {

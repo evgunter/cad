@@ -23,7 +23,7 @@ a twelfth of a turn wide, as the curved lane's `nu == 1` branch emits it for
 δ `0.25`): `r − dist` is NaN and the certificate 0; the triangle deviates by
 the chord's sagitta, `1 − cos(π/12) = 0.0341`, which its sibling half-cell
 `(1, 1, 0)`, `(cos π/6, 0, −sin π/6)`, `(cos π/6, 1, −sin π/6)` certifies at.
-`cert::tests::no_certificate_reads_an_input_that_is_not_finite_as_a_bound`
+`cert::tests::the_cylinder_and_sphere_certificates_read_a_nan_as_zero`
 pins both, and a corner that is NaN, which reads 0 the same way on the
 cylinder and on `cert_sphere`.
 

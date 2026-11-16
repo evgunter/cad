@@ -177,13 +177,25 @@ pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
 ///
 /// # Rounding
 ///
-/// Every term is a quotient of sums of terms of one sign, so it is as
-/// exact as its inputs: `sin²(Δu/2)` and `|cos(Δu/2)|` of a subtraction
-/// exact to half an ulp of itself, and each `Sᵢ` to the rounding of its
-/// own value, which a bare `sin(uₖ − uⱼ)` is not near a multiple of π
-/// ([`sin_between`]). Whether the axis term enters is the signs of the
-/// `Sᵢ`; where one is within rounding of zero the axis is within
-/// rounding of a side, whose `D` is `A`'s limit there.
+/// Every term is a quotient of sums of terms of one sign, so nothing
+/// cancels after the azimuth differences are taken. The axis term reads
+/// each `Sᵢ` to the rounding of its own value at any difference, which a
+/// bare `sin(uₖ − uⱼ)` is not near a multiple of π ([`sin_between`]).
+/// The chord term reads the rounded `Δu`, exact to half an ulp of
+/// itself, about `10⁻¹⁶·|Δu|` absolute. That is relative to the chord's
+/// own sag while `Δu` is not within that of a whole turn: at corners a
+/// whole number of turns apart to `10⁻⁸` rad the sag (of order `10⁻³²` of
+/// the radius) is read 87 % short, and across a hundred turns the loss
+/// passes the verdict's allowance. So the chord term holds to its own
+/// rounding for `|Δu|` up to a turn less a few `10⁻⁸`, and the lanes keep
+/// a side under that: the curved lane's sides span one column step, and
+/// a trimmed face's sides join points of one chart box, which is within
+/// a turn (a loop that winds about the axis refuses at the domain door,
+/// `TessellateError::DomainUnread`, and a seam walked twice refuses
+/// `SeamTwice`), so a side that near a whole turn would have to join
+/// that box's two ends. Whether the axis term enters is the
+/// signs of the `Sᵢ`; where one is within rounding of zero the axis is
+/// within rounding of a side, whose `D` is `A`'s limit there.
 ///
 /// # What it assumes
 ///
@@ -1106,7 +1118,9 @@ mod tests {
     /// azimuths from it ([`exact_difference`]): the largest distance from
     /// the cone along each side (a ternary search of that concave
     /// function) and, where the triangle's plane meets the axis inside
-    /// it, the distance there. It shares no formula with [`cert_cone`].
+    /// it, the distance there. It shares the premise that the largest
+    /// distance is on a side or on the axis ([`cert_cone`], step 2; the
+    /// grid row holds that) and none of its closed forms.
     fn cone_deviation_by_geometry(alpha: f64, uv: [[f64; 2]; 3]) -> f64 {
         let corner = |i: usize| {
             let (d, rest) = exact_difference(uv[i][0], uv[0][0]);
@@ -1250,12 +1264,12 @@ mod tests {
     /// a NaN or an infinity in the half-angle or in any corner, an apex
     /// corner's unread azimuth included, answers NaN, and slants whose
     /// product is past `f64`'s range answer NaN too; the verdict reads NaN
-    /// as exceeded. The torus's and the spindle's answer NaN or `+∞`. The
-    /// cylinder's and the sphere's do not: their clamp reads a NaN as 0,
-    /// pinned here as today's answer with the sound triangle it also
-    /// reads so.
+    /// as exceeded. The torus's and the spindle's answer NaN or `+∞`. A
+    /// face's worst bound keeps a NaN once met ([`worse`]). The
+    /// cylinder's and the sphere's are the exception, pinned in
+    /// [`the_cylinder_and_sphere_certificates_read_a_nan_as_zero`].
     #[test]
-    fn no_certificate_reads_an_input_that_is_not_finite_as_a_bound() {
+    fn the_cone_torus_and_spindle_certificates_poison_on_an_input_that_is_not_finite() {
         let (inf, nan) = (f64::INFINITY, f64::NAN);
         let off = [false; 3];
         let cases = [
@@ -1286,25 +1300,6 @@ mod tests {
                 Verdict::Exceeded
             );
         }
-        // The cylinder's and the sphere's clamp a NaN to 0 today
-        // (`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`):
-        // a poisoned corner, and a sound triangle with a side on a ruling
-        // across a twelfth of a turn, which deviates by the chord's
-        // sagitta and whose sibling half-cell reads it.
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let y = Vec3::new(0.0, 1.0, 0.0);
-        let ruled = [
-            Point3::new(1.0, 1.0, 0.0),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(0.866_025_403_784_438_6, 0.0, -0.5),
-        ];
-        let sagitta = 1.0 - (PI / 12.0).cos();
-        assert_eq!(cert_cylinder(o, y, 1.0, ruled), 0.0);
-        let sibling = [ruled[0], ruled[2], Point3::new(ruled[2].x, 1.0, ruled[2].z)];
-        assert!((cert_cylinder(o, y, 1.0, sibling) - sagitta).abs() < 1e-15);
-        let poisoned = [Point3::new(nan, 0.0, 0.0), ruled[1], ruled[2]];
-        assert_eq!(cert_cylinder(o, y, 1.0, poisoned), 0.0);
-        assert_eq!(cert_sphere(o, 1.0, poisoned), 0.0);
         // The torus's and the spindle's answer no finite bound either.
         let flat = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
         for bad in [nan, inf, -inf] {
@@ -1327,6 +1322,35 @@ mod tests {
         assert!(cone_chord_sag(0.3, f64::NAN, 1.0, 0.1).is_nan());
         assert!(cone_chord_sag(0.3, 1.0, 1.0, f64::NAN).is_nan());
         assert_eq!(cone_chord_sag(0.3, 0.0, 0.0, 0.1), 0.0);
+    }
+
+    /// **The cylinder's and the sphere's certificates read a NaN as 0:
+    /// this row pins a gap**
+    /// (`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`).
+    /// Their clamp `(r − dist).max(0.0)` drops a NaN. One arises on a
+    /// sound cylinder triangle with a side on a ruling, across a twelfth
+    /// of a turn: it deviates by the chord's sagitta, which its sibling
+    /// half-cell certifies at, and reads 0. A corner that is NaN reads 0
+    /// the same way on both. A clamp that poisons instead reds this row,
+    /// and refuses a rectangle-lane face that meshes
+    /// (`tools/tess-meter`'s `r2_wedge_bytes`).
+    #[test]
+    fn the_cylinder_and_sphere_certificates_read_a_nan_as_zero() {
+        let nan = f64::NAN;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let ruled = [
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.866_025_403_784_438_6, 0.0, -0.5),
+        ];
+        let sagitta = 1.0 - (PI / 12.0).cos();
+        assert_eq!(cert_cylinder(o, y, 1.0, ruled), 0.0);
+        let sibling = [ruled[0], ruled[2], Point3::new(ruled[2].x, 1.0, ruled[2].z)];
+        assert!((cert_cylinder(o, y, 1.0, sibling) - sagitta).abs() < 1e-15);
+        let poisoned = [Point3::new(nan, 0.0, 0.0), ruled[1], ruled[2]];
+        assert_eq!(cert_cylinder(o, y, 1.0, poisoned), 0.0);
+        assert_eq!(cert_sphere(o, 1.0, poisoned), 0.0);
     }
 
     /// **A chord's sag is at most its larger radius's sagitta across the

@@ -953,7 +953,8 @@ impl TrimmedFace<'_> {
             folded,
             ears,
         } = self.emit(&at, &crossings, candidates, measure, falsification)?;
-        // THE SHARED-SIDE CURE (every analytic arm). A triangle side
+        // THE SHARED-SIDE CURE (the cone arm; the other analytic arms
+        // read its nearest case, the ear). A triangle side
         // joining two points of the trim polygon is the same two mesh
         // vertices whichever face makes it. Where one neighbouring face
         // holds both points and they are not neighbours on the polygon,
@@ -1600,9 +1601,12 @@ impl TrimmedFace<'_> {
 /// there. Two polygon points that one face here holds both of are two
 /// points that face's own triangulation may join.
 ///
-/// An edge the loop uses twice (a seam) has `fk` across it, and `fk` is
+/// An edge a loop uses twice (a seam) has `fk` across it, and `fk` is
 /// left out: a side between two of its points is this face's own, made
-/// once by this one triangulation.
+/// once by this one triangulation. No accepted cone face reaches that
+/// arm today: a mesh id at two chart locations that is no singular
+/// vertex has refused `SeamTwice` ([`singular_row_shape`]) before this
+/// map is built, so nothing holds it but that refusal.
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
