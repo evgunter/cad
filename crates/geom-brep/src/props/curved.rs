@@ -587,7 +587,7 @@ fn require_iso_carrier_kind<T: Real>(
 /// [`require_iso_rectangle`] first is asking the second question
 /// without the first, and on a carrier that is no iso curve at all the
 /// answer here is not meaningful. `mesh`'s
-/// `curved::require_iso_rectangle_face` asks them in order.
+/// `curved::iso_rectangle_shape` asks them in order.
 ///
 /// Each arm nonetheless repeats the one parse classification it
 /// cannot do without — `props_circle_axis_class` on the sphere,

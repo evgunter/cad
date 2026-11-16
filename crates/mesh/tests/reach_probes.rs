@@ -60,10 +60,6 @@ enum Got {
     /// `trimmed::tessellate_trimmed`'s read of `topo::Body::face_lift`,
     /// with the door's cause by its name (`RingPlacementError::name`).
     Unread(SurfaceKind, &'static str),
-    /// `UnsupportedCurvedShape { NotIsoRectangle { "props_rim_level" } }`
-    /// from `curved::require_iso_rectangle_face`, its source raised by
-    /// `geom_brep::props`' `require_rims_at_extremes`.
-    NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
     /// `Ok`, `check_mesh` passes and [`geometry`] holds but for this many
@@ -159,13 +155,6 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
             Got::ConicImageOnly(carrier_of(body, edge))
         }
         Err(E::DomainUnread { face, cause }) => Got::Unread(kind_of(body, face), cause.name()),
-        Err(E::UnsupportedCurvedShape {
-            face,
-            source:
-                geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_level",
-                },
-        }) => Got::NotIsoRectangle(kind_of(body, face)),
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
         Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),

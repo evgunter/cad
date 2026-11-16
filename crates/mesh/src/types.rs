@@ -264,8 +264,8 @@ pub enum TessellateError {
     /// A curved face's boundary walk does not trace its own UV
     /// bounding rectangle: some walk entry lies strictly inside the
     /// box, by more than the band, on a face whose domain the SHAPE
-    /// door ([`Self::UnsupportedCurvedShape`]) has already certified
-    /// as an iso-rectangle.
+    /// door (`curved::iso_rectangle_shape`) has already certified as an
+    /// iso-rectangle.
     ///
     /// **This is the WALK-CONSISTENCY question, and only that.** The
     /// shape question is asked first, on rim structure, through
@@ -326,39 +326,32 @@ pub enum TessellateError {
         /// kept rectangular, and is a bug report.
         max_distance: f64,
     },
-    /// A curved face's domain is not an iso-parameter rectangle, by
-    /// props' named shape predicates — `geom_brep::props::
-    /// require_iso_rectangle`, the S58 single home of `props_rim_level`
-    /// and of the per-kind rim/meridian classification under it, and
-    /// the sense-free residue it carries beside that one: every rim
-    /// must encode the SAME material side (`props_rim_side`), which a
-    /// door handed no face can still ask because it compares the rims
-    /// with each other rather than with a sense bit. The `source` is
-    /// props' own refusal, carrying the deciding predicate's `what`.
+    /// A curved face's lane cannot be read: the curved lane's two doors
+    /// — `geom_brep::props::require_iso_rectangle`, the S58 single home
+    /// of `props_rim_level` and of the per-kind rim/meridian
+    /// classification under it, and `require_one_chart_branch` — neither
+    /// certify its outer loop an iso-parameter rectangle on one chart
+    /// branch nor decide it is none. The `source` is props' own refusal,
+    /// carrying the deciding predicate's `what` and its own recourse.
     ///
-    /// **This is the SHAPE question**, asked on the face's rim structure
-    /// BEFORE the boundary walk runs. The swept-rectangle lane cites the
-    /// predicate itself (issue 727): the line that changes when the
-    /// certified-quadrature lane learns notched domains is
-    /// `curved::require_iso_rectangle_face`'s call in this crate, not a
-    /// floor in the boolean or in tier 3 that could vanish without a
-    /// line of `mesh` moving. [`Self::UnsupportedCurvedDomain`] is the
-    /// other question — did the walk trace the rectangle the door
-    /// certified — and is asked after.
+    /// **This is the ROUTE's refusal**, raised once per face before any
+    /// lane runs (`tessellate::lane_of`, by
+    /// `curved::iso_rectangle_shape`). A face the doors certify goes to
+    /// the curved lane and a face they decide is no rectangle — a notch,
+    /// a curved cut, an arc through a pole — to the trimmed lane, so a
+    /// valid face of either shape never reaches this arm. What does is
+    /// a decision in band (an `Escalated` source: D4, escalate, never
+    /// guess) or stored data that contradicts itself (an `OffSurface` or
+    /// `SpanUncertified` source, among props' fault arms): a lane taken
+    /// on either would be a default taken because the doors could not
+    /// answer. [`Self::UnsupportedCurvedDomain`] is the other question —
+    /// did the walk trace the rectangle the doors certified — and is
+    /// asked after, by the curved lane.
     ///
-    /// Valid input, unbuilt lane (D2 addendum row 2): a keyway or a
-    /// milled flat on a cylinder is iso-bounded and not a rectangle,
-    /// and the lane that would mesh it is the one that would measure
-    /// it, the certified-quadrature lane. An `Escalated` source is the
-    /// same refusal one band-width away (D4: escalate, never guess).
-    ///
-    /// Naming: this arm is the SHAPE question and
-    /// [`Self::UnsupportedCurvedDomain`] the WALK question, though
-    /// "domain" would read as the shape. The older arm keeps its name
-    /// because it is public API with a stable python tag
-    /// (`unsupported_curved_domain`) and pinned rows in three crates;
-    /// renaming it would move all of that for a word. The two docs
-    /// carry the distinction instead.
+    /// Naming: the arm keeps the name it had when it was the shape
+    /// door's refusal of a notch, because it is public API with a stable
+    /// python tag (`unsupported_curved_shape`) and pinned rows in three
+    /// crates.
     UnsupportedCurvedShape {
         /// The offending face.
         face: FaceKey,
@@ -388,9 +381,9 @@ pub enum TessellateError {
     /// count or ε is read. The kinds themselves are
     /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
     /// on `|axis · chart.axis| > 0.5`; that split is structural only
-    /// because the shape door (`curved::require_iso_rectangle_face`) has
+    /// because the shape door (`curved::iso_rectangle_shape`) has
     /// certified every carrier as a rim or a meridian carrier before the
-    /// walk runs.
+    /// route hands the face to the walk.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
     /// singularity inside a face is a vertex of it: a loop of rims only
@@ -421,8 +414,8 @@ pub enum TessellateError {
     /// pins that the revolved dome and a plane-cut ball are stated that
     /// way and mesh watertight. A cylinder face with one rim is
     /// unbounded and has no restatement: it needs its other rim. A torus
-    /// loop of rims only is refused earlier, by the shape door
-    /// ([`Self::UnsupportedCurvedShape`]), so this arm names a torus
+    /// loop of rims only is decided no rectangle earlier, by the shape
+    /// door, and routed to the trimmed lane, so this arm names a torus
     /// only if that door moves.
     ///
     /// Not [`Self::UnsupportedCurvedShape`]: that arm's `source` is
@@ -848,12 +841,9 @@ impl TessellateError {
             ),
             Self::UnsupportedCurvedShape { source, .. } => write!(
                 f,
-                "tessellate: a curved face's domain is not an iso-parameter \
-                 rectangle by props' shape predicate ({}) — the \
-                 swept-rectangle lane meshes chart rectangles only, and a \
-                 notched or L-shaped iso domain waits for the certified-\
-                 quadrature lane; split the face into rectangles or re-author \
-                 it",
+                "tessellate: whether a curved face is an iso-parameter \
+                 rectangle, which picks the lane that meshes it, is not \
+                 answered: {}",
                 geom_brep::recourse::read_at(source, at),
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {

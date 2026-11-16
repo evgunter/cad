@@ -560,7 +560,8 @@ pub(crate) enum Shape {
 /// The loop is flattened by [`topo::props::loop_edges`], the same
 /// half-edge cycle the walk reads, so the door and the walk cannot
 /// disagree about which edges the face has; the band is props' own
-/// ([`SizingTols::band`]), so the decision is metered against the flux
+/// (the run's, which [`SizingTols::band`] carries to the lanes), so the
+/// decision is metered against the flux
 /// lane's band — no comparand and no margin of `mesh`'s. The flux lane
 /// asks neither door, so no one predicate is read on both, and there is
 /// no decision the two could round apart.
@@ -1873,8 +1874,8 @@ mod tests {
     /// — i.e. the guard this lane now carries refuses nothing in tree.
     ///
     /// Participation is asserted **per fixture**, not as a global
-    /// count: `curved_walks` reaches its body through two silent
-    /// `continue`s (`has_trim_carrier`, `Chart::of → None`), so a
+    /// count: `curved_walks` reaches its body through a silent
+    /// `continue` (the route), so a
     /// global floor lets a fixture that stopped contributing hide
     /// behind its siblings' faces. The die pip is the one this matters
     /// most for: the boolean's
