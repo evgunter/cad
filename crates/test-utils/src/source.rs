@@ -1779,7 +1779,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
                             continue;
                         };
-                        let (heads, head_idents) =
+                        let (heads, head_idents, mixed_heads) =
                             tuple_heads(&bare[open + 1..end], &code[open + 1..end]);
                         let mut literals = direct_literals(&code[open + 1..end]);
                         // An argument that is a whole array of names
@@ -1798,11 +1798,11 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             }
                         }
                         literals.extend(heads);
-                        // A tuple head that is neither a literal nor a
-                        // declared const is a name handed on from elsewhere:
-                        // in a batch that also spells names, the call stays a
-                        // site for it, as a part-literal `decide*` group does.
-                        let unread_head = head_idents
+                        // A head of a batch that also spells names, neither
+                        // a literal nor a declared const, is a name handed on
+                        // from elsewhere: the call stays a site for it, as a
+                        // part-literal `decide*` group does.
+                        let unread_head = mixed_heads
                             .iter()
                             .any(|head| !names_a_const(head, &declared));
                         let consts: Vec<String> = arguments(&bare[open + 1..end])
@@ -2736,11 +2736,17 @@ fn table_bodies(bare: &str, token: &str) -> Vec<std::ops::Range<usize>> {
 /// and of each tuple in an array among them (`("a", x)`, `[("a", x),
 /// ("b", y)]`, `&[…]`) — the `(name, value)` pairs a funnel takes: the
 /// plain literals, and the other first elements as written (so a caller
-/// can tell a `const` from a forwarded binding).
-fn tuple_heads(bare: &str, code: &str) -> (Vec<String>, Vec<String>) {
+/// can tell a `const` from a forwarded binding); and, third, those other
+/// first elements of each array that also holds a literal head: a batch
+/// mixing names it spells with names handed on. A tuple argument beside
+/// a literal (`f("name", (lo, hi))`) is a value, not such a batch.
+fn tuple_heads(bare: &str, code: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
     let mut out = Vec::new();
     let mut others = Vec::new();
-    let mut head_of = |start: usize, out: &mut Vec<String>| {
+    // The non-literal heads of each array that also holds a literal head:
+    // a batch mixing names it spells with names handed on.
+    let mut mixed = Vec::new();
+    let head_of = |start: usize, out: &mut Vec<String>, others: &mut Vec<String>| {
         // `start` indexes a `(`: its first element.
         let inner = skip_ws(code, start + 1);
         if let Some(name) = first_literal(&code[inner..]) {
@@ -2768,22 +2774,28 @@ fn tuple_heads(bare: &str, code: &str) -> (Vec<String>, Vec<String>) {
             continue;
         }
         match bare.as_bytes()[at] {
-            b'(' => head_of(at, &mut out),
+            b'(' => head_of(at, &mut out, &mut others),
             b'[' => {
                 let Some(close) = balanced_end(bare, at) else {
                     continue;
                 };
+                let (mut names, mut rest) = (Vec::new(), Vec::new());
                 for element in top_level_split(&bare[at + 1..close], ',') {
                     let e = skip_ws(bare, at + 1 + element.start);
                     if e < at + 1 + element.end && bare.as_bytes()[e] == b'(' {
-                        head_of(e, &mut out);
+                        head_of(e, &mut names, &mut rest);
                     }
                 }
+                if !names.is_empty() {
+                    mixed.extend(rest.iter().cloned());
+                }
+                out.extend(names);
+                others.extend(rest);
             }
             _ => {}
         }
     }
-    (out, others)
+    (out, others, mixed)
 }
 
 /// The literal of every `Variant => "lit"` arm: a `=>` whose left side
@@ -3732,6 +3744,7 @@ mod tests {
                  one_as((\"lone_tuple\", side), band);\n\
                  one_as((x, \"not_first\"), band);\n\
                  signs_as([(\"mixed_lit\", m), (name, n)], band);\n\
+                 one_as(\"with_a_pair\", (lo, hi), band);\n\
              }\n",
         )
         .expect("write");
@@ -3752,12 +3765,14 @@ mod tests {
                 "macro_row",
                 "mixed_lit",
                 "tuple_a",
-                "tuple_b"
+                "tuple_b",
+                "with_a_pair"
             ],
             "{census:?}"
         );
         // A batch mixing a literal head with one handed on stays a site
-        // for the one it does not spell; a wholly literal batch is none.
+        // for the one it does not spell; a wholly literal batch is none,
+        // and a value pair beside a literal name is no batch.
         assert_eq!(
             census.indirect.iter().collect::<Vec<_>>(),
             [
