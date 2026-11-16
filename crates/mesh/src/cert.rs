@@ -72,6 +72,16 @@ use geom_core::{Point3, Vec3};
 /// are near square to each other, and the product is exact to its own
 /// rounding.
 ///
+/// What rounding leaves of the foot's distance is the plane's tilt, the
+/// rounding of the cross product over the sine of the angle between
+/// those two sides, times the triangle's length: its own rounding unless
+/// the two are near parallel, a sliver with one corner close to the
+/// opposite side, where the bracket still holds it within the inradius.
+/// Corners on a sphere about `p` never make that case, nor does the
+/// shadow of corners on a cylinder about the line: the foot is then the
+/// circumcentre, inside only a triangle with no angle past a right one,
+/// whose two shorter sides meet at sixty degrees or more.
+///
 /// A coordinate that is not finite, or corners so far from `p` that the
 /// fourth power of that distance is past `f64`'s range, answers NaN.
 pub fn dist_point_triangle(p: Point3<f64>, a: Point3<f64>, b: Point3<f64>, c: Point3<f64>) -> f64 {
