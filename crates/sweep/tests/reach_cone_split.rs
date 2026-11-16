@@ -27,10 +27,10 @@ use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
-use topo::splitting::{
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split,
+use topo::splitting::{SplitError, SplitFinishError, SplitPart, SplitPlane, SplitResult, split};
+use topo::{
+    Body, JoinError, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric,
 };
-use topo::{Body, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -303,7 +303,7 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::OpenConicChord { conic: named, .. }) = &err else {
+        let SplitError::Join(JoinError::OpenConicChord { conic: named, .. }) = &err else {
             panic!("{conic:?}: expected the open-conic refusal, got {err:?}");
         };
         assert_eq!(*named, conic);
@@ -322,7 +322,7 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::Escalated { diag, .. }) = &err else {
+        let SplitError::Join(JoinError::Escalated { diag, .. }) = &err else {
             panic!("{k}ε: expected the in-band escalation, got {err:?}");
         };
         assert_eq!(diag.predicate, Some("pn_conic_type"), "{k}ε");
@@ -533,22 +533,27 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             Revolution::Full,
             tol,
         );
-        // The 0.9 km steep frustum's turn re-certifies its rims past the
-        // band at ε = 1e-12, at its own extent's rounding: limb 2's
-        // kernel limit
+        // The 0.9 km steep frustum's rims, certified on the turned body,
+        // read past the band at ε = 1e-12, at its own extent's rounding:
+        // limb 2's kernel limit
         // (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // The turn itself certifies nothing (ONEHOME stage 2: a map of
+        // construction state re-certifies no edge), so the limit is the
+        // turned frustum's finish.
         let pinned: &[f64] = if alpha == 1.3 { &[1e-12] } else { &[] };
-        let turned = topo::transform_rigid(&body, &rigid(&motion, tol), tol);
-        let Some(body) = test_utils::kernel_limit::pinned(turned, eps, pinned, &what) else {
-            continue;
-        };
+        let turned = topo::transform_rigid(&body, &rigid(&motion, tol))
+            .unwrap_or_else(|e| panic!("{what}: a rigid map maps the frustum: {e:?}"));
         let phi = f * (FRAC_PI_2 - alpha);
         let cut = topo::test_support::split_plane(
             motion.transform_point(Point3::new(0.0, 0.5 * h, 0.0)),
             motion.transform_vec(Vec3::new(phi.sin(), phi.cos(), 0.0)),
             tol,
         );
-        let operand = sweep::test_support::finished("the frustum", body, tol);
+        let Some(operand) =
+            test_utils::kernel_limit::pinned(topo::finish(turned, tol), eps, pinned, &what)
+        else {
+            continue;
+        };
         let answer = split(&operand, &cut, tol);
         if eps < measured_from {
             match answer {

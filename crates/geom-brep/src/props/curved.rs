@@ -33,7 +33,7 @@ use geom_core::{
     RigidMotion, Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
-use super::closure::{self, ChartLoop, EdgeTurn, Joint};
+use super::closure::{self, ChartLoop, EdgeTurn, Joint, turn_about};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
@@ -612,13 +612,8 @@ pub fn require_one_chart_branch<T: Decide>(
         } => {
             for (i, e) in outer.iter().enumerate() {
                 let Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: c_c,
-                            axis: n_c,
-                            ..
-                        },
-                    radius: r_c,
+                    frame: geom::Frame { axis: n_c, .. },
+                    ..
                 }) = e.carrier
                 else {
                     continue;
@@ -629,7 +624,7 @@ pub fn require_one_chart_branch<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
-                        crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     PropsCheck::Inventory,
@@ -1027,7 +1022,7 @@ impl<T: Real> RimArms<T> {
 ///
 /// The NEARER extreme is what is decided (`props_rim_level`), so a rim
 /// sitting exactly on one extreme is not made to escalate by the other.
-fn level_coincides<T: Decide>(
+fn level_coincides_as<T: Decide>(
     level: RimLevel<T>,
     (lo, hi): (RimLevel<T>, RimLevel<T>),
     arms: RimArms<T>,
@@ -1049,7 +1044,7 @@ fn level_coincides<T: Decide>(
 /// meters for [`RimLevel::Length`] (already a point deviation) and the
 /// dimensionless direction CHORD for [`RimLevel::Unit`] (a point
 /// deviation once levered). `None` for a mixed pair, which
-/// [`level_coincides`] turns into a refusal.
+/// [`level_coincides_as`] turns into a refusal.
 fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     match (a, b) {
         (RimLevel::Length(la), RimLevel::Length(lb)) => Some((la - lb).abs()),
@@ -1130,7 +1125,7 @@ fn mixed_levels(name: &'static str) -> PropsError {
 /// `ends` are the two extreme levels in the SAME representation the
 /// rims carry ([`RimLevel`]) — the torus's from its anchor meridian's
 /// stored span, the linearly-leveled kinds' from `min_max`. Every
-/// decision below is [`level_coincides`], including the fail
+/// decision below is [`level_coincides_as`], including the fail
 /// direction.
 ///
 /// **The margin is not always exactly zero.** On the ordinary
@@ -1153,7 +1148,7 @@ fn require_rims_at_extremes<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     for rim in rims {
-        if !level_coincides(rim.level, ends, arms, band)? {
+        if !level_coincides_as(rim.level, ends, arms, band)? {
             return Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             });
@@ -1461,31 +1456,34 @@ fn cylinder_windings<T: Decide>(
             let start = spans[i].0;
             let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
             // Every edge's turn about the axis between its own ends: a
-            // rim's stored turn about its own centre, carried to the axis
-            // at each end; a ruling's short turn, which a ruling certified
-            // axial may still make by `ε/R`.
+            // ruling's short turn, which a ruling certified axial may still
+            // make by `ε/R`; a rim's stored turn carried to the axis. The
+            // parse mints one rim per circle in loop order, so the loop's
+            // circles and its parsed rims pair one to one, and a count that
+            // disagrees either way refuses.
+            let mismatch = PropsError::NotIsoRectangle {
+                what: "a cylinder loop whose circles and parsed rims differ in number",
+            };
             let mut rim_turns = rims[start..end].iter().map(|&(_, du)| du);
             let pieces = edges
                 .iter()
                 .map(|e| {
-                    let (a, b) = e.traversal_ends();
-                    let arms = turn_arms(axis, a - origin, b - origin);
-                    let sweep = match e.carrier {
+                    let ends = e.traversal_ends();
+                    Ok([match e.carrier {
                         Curve3::Circle(geom::Circle {
                             frame: geom::Frame { origin: center, .. },
                             ..
                         }) => {
-                            let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
-                                what: "a cylinder loop with more circles than parsed rims",
-                            })?;
-                            du + about_axis(axis, center, origin, b)
-                                - about_axis(axis, center, origin, a)
+                            let du = rim_turns.next().ok_or(mismatch.clone())?;
+                            EdgeTurn::carried(axis, origin, center, du, ends, radius)
                         }
-                        _ => arms.1.atan2(arms.0),
-                    };
-                    Ok([EdgeTurn::new(sweep, arms, radius)])
+                        _ => EdgeTurn::short(axis, ends.0 - origin, ends.1 - origin, radius),
+                    }])
                 })
-                .collect::<Result<_, PropsError>>()?;
+                .collect::<Result<Vec<_>, PropsError>>()?;
+            if rim_turns.next().is_some() {
+                return Err(mismatch);
+            }
             let joints = edges
                 .iter()
                 .zip(edges.iter().cycle().skip(1))
@@ -1505,31 +1503,6 @@ fn cylinder_windings<T: Decide>(
         })
         .collect::<Result<_, _>>()?;
     closure::closed_form_windings(&chart_loops, band)
-}
-
-/// How much farther round the unit `axis` (through `origin`) the point
-/// `p` sits than round a circle's own centre `center`: the turn from
-/// `p − center` to `p − origin`. A stored turn about the circle's centre
-/// plus its value at the end less its value at the start is the turn
-/// about the axis. It is read clear of the branch cut while the axis
-/// passes inside the circle, less than a quarter turn from any point of
-/// it: decided for the face by [`closure::require_axis_inside`].
-fn about_axis<T: Real>(axis: Vec3<T>, center: Point3<T>, origin: Point3<T>, p: Point3<T>) -> T {
-    turn_about(axis, p - center, p - origin)
-}
-
-/// The signed angle about the unit `axis` from the offset `a` to the
-/// offset `b`, both from a point of the axis, the short way round.
-fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
-    let (dot, cross) = turn_arms(axis, a, b);
-    cross.atan2(dot)
-}
-
-/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
-/// the unit `axis` of the offsets `a` and `b` less their parts along it.
-fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
-    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
-    (a.dot(b), a.cross(b).dot(axis))
 }
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
@@ -1573,10 +1546,9 @@ fn cylinder_holes<T: Decide>(
 /// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
 /// hole of no width is a degenerate face.
 ///
-/// The rotational lane and the spiric lane read their rings
-/// through this same decision at the interval scalar
-/// (`quad::rotational_cut_face_rounds`,
-/// `spiric::require_rings_wound_against`), where an enclosure that
+/// The rotational lane reads its rings through this same decision at
+/// the interval scalar (`quad::rotational_cut_face_rounds`), where an
+/// enclosure that
 /// straddles the band escalates rather than takes a side.
 ///
 /// Which rings are holes is the caller's to say, and the kinds differ
@@ -1901,7 +1873,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
-                        crate::ExtentBall::of_circle(center, r_c).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     PropsCheck::Inventory,
@@ -1924,7 +1896,7 @@ fn cylinder_boundary<T: Decide>(
                     "props_cylinder_circle_tilt",
                     Margin::levered(
                         T::one() - n_c.dot(axis).abs(),
-                        crate::ExtentBall::of_circle(center, r_c).lever(),
+                        crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
                     Premise::OnSurface,
@@ -1939,7 +1911,7 @@ fn cylinder_boundary<T: Decide>(
                 require_rim_incidence(
                     w,
                     n_c,
-                    crate::ExtentBall::of_circle(center, r_c).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -2321,7 +2293,16 @@ fn require_on_cone<T: Decide>(
                     ..
                 },
             radius: r_c,
-        }) => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
+        }) => require_cone_circle(
+            apex,
+            axis,
+            sin_a,
+            cos_a,
+            (center, n_c, r_c),
+            &e.carrier,
+            band,
+        )
+        .map(|_| ()),
         Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
@@ -2336,12 +2317,11 @@ fn require_cone_circle<T: Decide>(
     axis: Vec3<T>,
     sin_a: T,
     cos_a: T,
-    center: Point3<T>,
-    n_c: Vec3<T>,
-    r_c: T,
+    (center, n_c, r_c): (Point3<T>, Vec3<T>, T),
+    circle: &Curve3<T>,
     band: Band,
 ) -> Result<NonzeroSign, PropsError> {
-    let rim = crate::ExtentBall::of_circle(center, r_c).lever();
+    let rim = crate::ExtentBall::of_covered(circle.cover().as_ref().ok()).lever();
     let s = classify_as(
         "props_circle_axis_class",
         Margin::levered(n_c.dot(axis), rim),
@@ -2899,7 +2879,7 @@ struct ConeWinding<T: Real> {
 ///   its own centre, in the sense its axis makes with the cone's
 ///   (`props_cone_arc_sense`): it turns through its stored span, a whole
 ///   turn or more included, carried to the axis at each end
-///   ([`about_axis`]: its centre is within the band of the axis and its
+///   ([`closure::about_axis`]: its centre is within the band of the axis and its
 ///   ends are decided off it, so the axis passes inside it);
 /// - an ellipse on a cone is a plane section that meets every generator
 ///   of its nappe once, so its azimuth is monotone along it, in that
@@ -2955,11 +2935,18 @@ fn cone_loop_winding<T: Decide>(
         }
         .offset(p)
     };
-    let off = |name, rho: T| {
+    let off_as = |name, rho: T| {
         classify_as(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
     let mut arm = T::zero();
     let mut through_apex = false;
+    // An edge's turn about the axis: a rim's carried in its traversal's
+    // sense, or a turn read in the stored sense, which the traversal
+    // flips.
+    enum Turn<T> {
+        Carried(EdgeTurn<T>),
+        Stored(T),
+    }
     // Each edge's step, and its radial directions (and whether on the
     // apex) at its traversal start and end.
     let mut steps = Vec::with_capacity(edges.len());
@@ -2970,15 +2957,15 @@ fn cone_loop_winding<T: Decide>(
         let rho = a.norm().min(b.norm());
         match at_apex {
             AtApex::Refuse => {
-                if !off("props_cone_ring_off_apex", rho)? {
+                if !off_as("props_cone_ring_off_apex", rho)? {
                     return refuse("props_cone_ring_off_apex");
                 }
             }
             AtApex::AlongGenerator => {
                 let line = !e.carrier.is_curved();
                 match (
-                    off("props_cone_loop_off_apex", a.norm())?,
-                    off("props_cone_loop_off_apex", b.norm())?,
+                    off_as("props_cone_loop_off_apex", a.norm())?,
+                    off_as("props_cone_loop_off_apex", b.norm())?,
                 ) {
                     (true, true) => {}
                     (false, true) if line => (a, a_apex) = (b, true),
@@ -3003,7 +2990,6 @@ fn cone_loop_winding<T: Decide>(
             })
         };
         let mut lever = rho;
-        let mut own_turn = T::zero();
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
@@ -3016,9 +3002,16 @@ fn cone_loop_winding<T: Decide>(
                     },
                 ..
             }) => {
-                own_turn = sense(n, rho)? * (e.t1 - e.t0);
-                own_turn + about_axis(axis, center, apex, e.p1())
-                    - about_axis(axis, center, apex, e.p0())
+                let own = sense(n, rho)? * (e.t1 - e.t0);
+                let own = if e.forward { own } else { -own };
+                Turn::Carried(EdgeTurn::carried(
+                    axis,
+                    apex,
+                    center,
+                    own,
+                    e.traversal_ends(),
+                    lever,
+                ))
             }
             Curve3::Ellipse(geom::Ellipse {
                 frame: geom::Frame { axis: n, .. },
@@ -3047,31 +3040,21 @@ fn cone_loop_winding<T: Decide>(
                             Sign::Zero => return refuse("props_cone_arc_turn"),
                         };
                 }
-                thirds
+                Turn::Stored(thirds)
             }
-            _ => turn_about(axis, a, b),
+            _ => Turn::Stored(turn_about(axis, a, b)),
         };
         let ends = ((a, a_apex), (b, b_apex));
-        let (step, ends) = if e.forward {
-            (step, ends)
-        } else {
-            (-step, (ends.1, ends.0))
-        };
+        let ends = if e.forward { ends } else { (ends.1, ends.0) };
         // A generator's short turn and an ellipse's thirds agree with
         // their ends by construction; a rim's carried turn misses them by
         // what its own turn misses them about its centre.
-        pieces.push([match e.carrier {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            }) => {
-                let (ca, cb) = e.traversal_ends();
-                let own = if e.forward { own_turn } else { -own_turn };
-                EdgeTurn::carried(step, own, turn_arms(axis, ca - center, cb - center), lever)
-            }
-            _ => EdgeTurn::exact(step, lever),
-        }]);
-        steps.push((step, ends));
+        let turn = match step {
+            Turn::Carried(turn) => turn,
+            Turn::Stored(step) => EdgeTurn::exact(if e.forward { step } else { -step }, lever),
+        };
+        pieces.push([turn]);
+        steps.push((turn.sweep, ends));
     }
     // A loop through the apex has no winding, and no chart to read.
     let joints = if through_apex {
@@ -3150,11 +3133,19 @@ fn cone_boundary<T: Decide>(
                     },
                 radius: r_c,
             }) => {
-                let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;
+                let s = require_cone_circle(
+                    apex,
+                    axis,
+                    sin_a,
+                    cos_a,
+                    (center, n_c, r_c),
+                    &e.carrier,
+                    band,
+                )?;
                 require_rim_incidence(
                     center - apex,
                     n_c,
-                    crate::ExtentBall::of_circle(center, r_c).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -3416,7 +3407,7 @@ fn sphere_face<T: Decide>(
     // The face lies left of its loops under the OUTWARD normal, which
     // is the chart normal's left exactly when the bit is set.
     let region = solid_angle(center, outer, sense);
-    require_solid_angle(
+    require_solid_angle_as(
         "props_sphere_loop_area",
         region.min(solid_angle(center, outer, !sense)),
         radius,
@@ -3425,7 +3416,7 @@ fn sphere_face<T: Decide>(
     let mut solid = region;
     for ring in rings {
         let hole = solid_angle(center, ring, !sense);
-        require_solid_angle("props_sphere_hole_area", hole, radius, band)?;
+        require_solid_angle_as("props_sphere_hole_area", hole, radius, band)?;
         solid = solid - hole;
     }
     let area = radius.powi(2) * solid;
@@ -3612,7 +3603,7 @@ fn triangle_solid_angle<T: Real>(q: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// Require a solid angle (sr) to be definitely positive, levered by the
 /// sphere radius; a refusal is [`PropsError::SphereLoop`] named by the
 /// predicate.
-fn require_solid_angle<T: Decide>(
+fn require_solid_angle_as<T: Decide>(
     name: &'static str,
     angle: T,
     radius: T,
@@ -4956,7 +4947,7 @@ fn sphere_boundary<T: Decide>(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
-                crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
             PropsCheck::Inventory,
@@ -4977,7 +4968,7 @@ fn sphere_boundary<T: Decide>(
                 require_rim_incidence(
                     w,
                     n_c,
-                    crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -5416,7 +5407,7 @@ fn torus_chart<T: Decide>(
                     let angle = torus_angle(sin_v, cos_v);
                     // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
-                    let (turns, v) = torus_lift(at, angle, minor, band)?;
+                    let (turns, v) = torus_lift_as(at, angle, minor, band)?;
                     running = Some(v);
                     length = length + rho * du.abs();
                     rims.push((angle, turns, du));
@@ -5467,7 +5458,7 @@ fn torus_chart<T: Decide>(
 /// before the lift is read, so `at − angle` is a whole number of turns
 /// to within `≈ Kε/minor`, half a turn clear of either mark, and the
 /// marks decide; a gap on a mark is no rim's.
-fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
+fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
     let name = "props_torus_lift_turns";
     let period = Period::angle();
     period
@@ -5517,8 +5508,8 @@ fn torus_chart_loop<T: Decide>(
         let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
         (xa * xb + ya * yb, xa * yb - ya * xb)
     };
-    // The short turn on a pair of arms.
-    let short = |(dot, cross): (T, T)| cross.atan2(dot);
+    // The principal angle on a pair of arms.
+    let principal = |(dot, cross): (T, T)| cross.atan2(dot);
     // How much farther round the tube a point sits about the core circle
     // than about a meridian's own centre: the turn, in the meridian's
     // plane, from `d` (the point less the meridian's centre) to `w` (the
@@ -5536,9 +5527,12 @@ fn torus_chart_loop<T: Decide>(
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
     };
     // Each piece's turn between its own ends: a parallel's stored azimuth
-    // turn about its own centre carried to the axis at each end, and its
-    // short tube turn; a meridian's stored tube turn about its own centre
-    // carried to the core circle at each end, and its short azimuth turn.
+    // turn carried to the axis ([`EdgeTurn::carried`], `du` this piece's
+    // own span) and its short tube turn; a meridian's short azimuth turn
+    // and its stored tube turn carried to the core circle. A meridian's
+    // tube miss is read back about the core circle against its ends, so
+    // it is charged their enclosures' width: about 1e-12 m a meridian on
+    // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
         let Curve3::Circle(geom::Circle {
@@ -5551,18 +5545,13 @@ fn torus_chart_loop<T: Decide>(
             });
         };
         let (wa, wb) = (a - center, b - center);
-        let (azimuth, tube) = (turn_arms(axis, wa, wb), tube_arms(wa, wb));
+        let tube = tube_arms(wa, wb);
         Ok(match p.step {
             TorusStep::Rim { du, .. } => {
                 closure::require_axis_inside(r_c, band)?;
                 [
-                    EdgeTurn::new(
-                        du + about_axis(axis, centre, center, b)
-                            - about_axis(axis, centre, center, a),
-                        azimuth,
-                        r_c,
-                    ),
-                    EdgeTurn::new(short(tube), tube, minor),
+                    EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
+                    EdgeTurn::exact(principal(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
@@ -5582,9 +5571,8 @@ fn torus_chart_loop<T: Decide>(
                         wb
                     },
                 );
-                let azimuth = turn_arms(axis, ua, ub);
                 [
-                    EdgeTurn::new(short(azimuth), azimuth, near(ua).min(near(ub))),
+                    EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
@@ -5612,7 +5600,7 @@ fn torus_chart_loop<T: Decide>(
         .map(|((e, next), piece)| {
             let (pa, pb) = (e.traversal_ends().1, next.traversal_ends().0);
             let (a, b) = (pa - center, pb - center);
-            let tube = (short(tube_arms(a, b)), minor);
+            let tube = (principal(tube_arms(a, b)), minor);
             match piece.apex_after {
                 // The apex junction has no azimuth gap to read. The loop's
                 // turns about the axis need a positive meter there (one at
@@ -5926,7 +5914,7 @@ fn torus_classify<'a, T: Decide>(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
-                crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
             PropsCheck::Inventory,
@@ -5948,7 +5936,7 @@ fn torus_classify<'a, T: Decide>(
                 require_rim_incidence(
                     c_c - center,
                     n_c,
-                    crate::ExtentBall::of_circle(c_c, r_c).lever(),
+                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     axis,
                     band,
                 )?;
@@ -6192,7 +6180,17 @@ fn torus_meridian_orient<T: Decide>(
 ) -> Result<NonzeroSign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
-    let reach = crate::ExtentBall::of_circle(c_c, minor).lever_from(center);
+    let meridian = crate::ExtentBall::of_covered(
+        geom::cover::Cover::circle(geom::cover::Core {
+            axis: geom::Line {
+                origin: c_c,
+                dir: n_c,
+            },
+            radius: minor,
+        })
+        .as_ref(),
+    );
+    let reach = meridian.lever_from(center);
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {
             torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
@@ -6226,7 +6224,7 @@ fn torus_meridian_orient<T: Decide>(
             // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at
             // rest), the meridian's own out-direction on either kind.
             n_c.dot(tau) * geom::meridian_side(major),
-            crate::ExtentBall::of_circle(c_c, minor).lever(),
+            meridian.lever(),
         ),
         band,
         PropsCheck::Inventory,
@@ -6272,7 +6270,7 @@ mod rim_level_review_probe {
     fn mixed_kind_levels_refuse_typed() {
         let band = Band::linear(Tol::witness()).expect("band");
         let unit = RimLevel::Unit(0.5, 0.5);
-        let got = level_coincides(
+        let got = level_coincides_as(
             RimLevel::Length(1.0_f64),
             (unit, unit),
             RimArms::uniform(1.0),
@@ -6283,7 +6281,7 @@ mod rim_level_review_probe {
 
     /// **One rule, so one fail direction** (#714's review asked for the
     /// two to point the same way; S81 gave them one home). Both call
-    /// sites of [`level_coincides`] refuse a mixed representation, and
+    /// sites of [`level_coincides_as`] refuse a mixed representation, and
     /// the predicate's own entry is pinned here in both orders:
     /// whatever the poisoned classify does, a mixed-representation face
     /// never measures and never groups.
@@ -6365,7 +6363,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let d = band.zero() * 0.1;
         assert!(
-            level_coincides(
+            level_coincides_as(
                 RimLevel::Unit(0.0, 0.0),
                 (RimLevel::Unit(d, d), RimLevel::Unit(d, d)),
                 RimArms::uniform(1.0_f64),
@@ -6378,7 +6376,7 @@ mod rim_level_review_probe {
 }
 
 /// **A torus rim's lift is its whole turns as a theorem over a box**
-/// ([`torus_lift`]): at `Sym<Interval>`, a running angle `k` turns from
+/// ([`torus_lift_as`]): at `Sym<Interval>`, a running angle `k` turns from
 /// the rim's, both polynomials in a parameter over `[0.2, 0.4]` that are
 /// not constants (`a = p² + p + k·τ`, `b = p·(p + 1)`, whose value
 /// channels' difference is `≈ 0.64` rad wide with the dependency lost),
@@ -6409,7 +6407,7 @@ mod torus_lift_rows {
                 );
                 let a = p * p + p + Sym::from_f64(f64::from(k)) * Sym::tau();
                 let b = p * (p + Sym::<Interval>::one());
-                let (turns, level) = torus_lift(a, b, Sym::from_f64(0.5), band)
+                let (turns, level) = torus_lift_as(a, b, Sym::from_f64(0.5), band)
                     .unwrap_or_else(|e| panic!("k = {k}: {e:?}"));
                 assert_eq!(turns, k, "k = {k}: the lift's whole turns");
                 decide(
@@ -6645,6 +6643,9 @@ mod sphere_region_cover_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod apex_start_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_turn_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;

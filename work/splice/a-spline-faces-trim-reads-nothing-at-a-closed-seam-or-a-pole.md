@@ -13,7 +13,8 @@ Filed by the SPLICE lane that built `topo::boolean::spline_region`
 (PR 5805), from both reviewers of its dual review (r1 NOTE-1, r2).
 This is a completeness gap; the reading stays sound.
 
-`Trim::read_window` meters a query's clearance from the trim over a
+`Trim::read_window` (`topo/src/spline_trim.rs`, which the boolean's spline
+arm and the ring door both read) meters a query's clearance from the trim over a
 window round the query, clipped to the chart's knot domain, and first
 decides every way out of the window past the band
 (`Trim::exits_clear`). On a channel the chart is closed in, the domain's

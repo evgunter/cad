@@ -15,8 +15,9 @@
 #    only in the extent's home (geom-brep's `extent.rs`, the whole file)
 #    and at the items EXTENT_ITEMS names below it: its definition in
 #    geom-core's `predicate.rs`, and the spiric's torus ball in geom's
-#    `curves.rs` (`geom` sits below `geom_brep`, so `ExtentBall::of_torus`
-#    is out of reach there), each pinned to its count.
+#    `curves.rs` (`geom` sits below `geom_brep`, so `ExtentBall::of_cover`
+#    is out of reach there, and the curve it reads is not built yet),
+#    each pinned to its count.
 #  - `unsourced` (`Lever::unsourced`, `ExtentBall::unsourced`): an arm
 #    that fits no source, each a question for Ev. Its references are
 #    PINNED PER FILE (`lever-sources.counts`), so a pinned site swapped
@@ -24,8 +25,9 @@
 #    them, and every one carries a `// Unsourced lever: …` line on its
 #    call or above it in the same statement, saying what the arm is and
 #    why it fits no source.
-#  - the fixture doors (`test_support::fixture_lever`, `Reach::fixture`):
-#    a test's length with no geometry behind it, behind test-only cfgs.
+#  - the fixture doors (`test_support::fixture_lever`, `Reach::fixture`,
+#    `ExtentBall::fixture`): a test's length or ball with no geometry
+#    behind it, behind test-only cfgs.
 #    Their references are pinned per crate (`lever-fixtures.counts`)
 #    under that one reason: a test's stated scale.
 #
@@ -101,7 +103,7 @@ gate() {
   fi
   local fixtures
   if ! fixtures=$(grep -vE '\bfn (unsourced|fixture_lever|fixture)\b' <<<"$code" \
-    | python3 "$CENSUS" "$FIXTURES" fixture_lever 'Reach::fixture'); then
+    | python3 "$CENSUS" "$FIXTURES" fixture_lever 'Reach::fixture' 'ExtentBall::fixture'); then
     gate_error "$(gate_name): the fixture counter failed under $PWD — the gate could not read its subject, which is not a pass"
     exit 1
   fi

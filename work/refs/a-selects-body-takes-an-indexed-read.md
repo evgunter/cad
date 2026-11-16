@@ -2,11 +2,14 @@
 id: a-selects-body-takes-an-indexed-read
 kind: issue
 title: A selection's body is a plain read, so a member read by index (xs[i]) cannot be selected from, and Rebind { body } would reach every member's selections
-status: open
+status: closed
+closed: 2026-11-10
 opened: 2026-10-10
 priority: P1
 cost: M
 design: true
+pr: 6555
+branch: reads/select-indexed-member
 ---
 
 
@@ -29,3 +32,35 @@ rewrites every selection of one body read. Two selections of different members
 of one family (`xs[0]`, `xs[1]`) share that body read, so a `Rebind { body: xs }`
 would reach both; it must address the indexed read (read and indices), not the
 read alone.
+
+## Dispatch (2026-11-10)
+
+Built into PR 6555 on `reads/select-indexed-member`, per DM3 as ratified there and Ev's ruling (comments 6757433076, 6757577350): form 1 (a selection over the family read whole, its names `Member`-spelled) is deleted with its producers and consumers, and the family read whole does not type-check at a selection's body seat. Review tier: single FULL (a public API change, deletions across editor-core, Python and the viewer).
+
+## Implementer's notes
+
+Built on PR 6555 under Ev's ruling there (form 1 deleted, producers and consumers both); the design as built is REFERENCES DM3, and the PR body lists every site.
+
+- `var::Select.body` is `BodyRead<VarId>`, its indices the selection's own `Count` variables (`edit.rs` `mint_selection`, `lower_index`). `xs[k]` on the family's own index chain is stored as `xs`. A member read's rank is the family's (`InputFault::IndexRank`, one enum with the node seat's) and a mate side's every index is a written count (`SelectionFault::SideIndex`), asked at the door and at load of every selection a seat reads directly or through a pose, named or written in place (`edit.rs` `selection_body_fault`, `seat_selections`).
+- Reach: a member read reaches what its indices reach. Content key: a member read's index values. Evaluation: the member projected as a node seat's is, the names resolved in the member's own table; empty member `EmptyOperand`; a clearance seat reports the member's place.
+- Deleted: `names_members`, `names_a_member`, the `Reach` exception, the whole-read branches in `eval/wire.rs`, `wire/pose.rs` and `wire/trace.rs`, `read_named_body`'s `whole` flag, and the sited conversion.
+- A side states its member natively (`SitedFace.member`), and so does its head (`head_of`); the member walk reads it under the family's spelling. Flatten and inline unwind a body built from the family to the member read (`refactor.rs` `unwound_selection`), and refuse names in two members (`SelectionSpansMembers`); split crosses a member read under the family's spelling (`spelled_head`).
+- Python `select` / `select_where` refuse a family read whole (`family`) and an absent member (`no_member`); every Python door pairing a body with a name takes `xs[i]`. The viewer's picks on a drawn member author `xs[i]` by the member's own name, and refuse where no member reads them.
+- The form-1 shape is admitted as a per-member selection and refuses at evaluation.
+- Filed: `a-rebind-at-a-per-member-built-family-reaches-every-members-selections`, `a-per-member-indexed-read-at-a-node-seat-names-members-twice`, `a-rank-change-leaves-readers-unsaveable`, `a-whole-body-measure-over-a-member-read-refuses-other-body`, `a-member-read-is-no-continuation-and-no-cell`, `sketching-on-a-members-face-fuses-the-whole-family`. Refreshed `an-indexed-read-of-rank-two-has-no-family`. Closed: `a-selection-of-a-member-of-a-family-with-an-empty-member-refuses`.
+
+## Closed
+
+2026-11-10, PR 6555. The Dispatch above says the family read whole "does
+not type-check at a selection's body seat"; that was the orchestrator's
+unchecked reading, corrected on the PR: a plain family read at a body
+seat reads each member in turn, so the form-1 shape is admitted as a
+per-member selection whose names are no member's own, and refuses at
+evaluation (`SelectResolve`). Nothing produces it and nothing recognises
+it. Ev accepted that state (PR 6555, comment 6774456192: "this state
+sounds good!"). Pinned in `crates/editor-core/tests/select_member_read.rs`
+(the member read, the stored plain read, the form-1 shape per member,
+the side's written counts through a named pose), `p2_face.rs` (flatten
+and inline refuse names in two members), `intent_s6_e_traced_frame.rs`,
+`crates/viewer/tests/gesture_placements.rs` and pncad-py's
+`TestASelectionReadsOneBody`; the mutants are tabled in the PR body.

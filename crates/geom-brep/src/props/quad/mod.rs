@@ -10,7 +10,8 @@
 //! Five engines; each one's docs carry its rule and its honesty pads:
 //!
 //! - [`rotational`]: [`rotational_cut_face_rounds`], a face on a chart
-//!   of revolution (the cylinder) with a curved trim, by the Green form
+//!   of revolution (the cylinder, the sphere, the torus) with a curved
+//!   trim, by the Green form
 //!   on its harmonic pcurves (on the transcendental-free trig enclosures,
 //!   `props::trig`) and its projected ones (on the curved rims' Taylor
 //!   rule, `props::taylor`; their reading of an image,
@@ -78,7 +79,7 @@ pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
 pub use rotational::{
     ChartTermQ, EdgeTermQ, FramedQ, HarmChan, ProjectedEdgeQ, RotationalChartQ, RotationalFaceQ,
-    TrimEdgeQ, rotational_cut_face_rounds,
+    SpiricWallQ, TrimEdgeQ, rotational_cut_face_rounds,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;

@@ -51,8 +51,7 @@ fn a_curved_keel_on_the_floor_refuses_its_slit_form() {
         );
         let turned =
             Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), f64::to_radians(turn));
-        let v =
-            transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol()), tol()).unwrap();
+        let v = transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol())).unwrap();
         match subtract(&slab, &finished("the V", v, tol()), tol()) {
             Err(BooleanError::EdgeInFace {
                 gap: EdgeInFaceGap::Curved,

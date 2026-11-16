@@ -2,10 +2,12 @@
 id: a-projected-boundary-on-an-analytic-chart-has-no-volume-lane
 kind: issue
 title: A cylinder or sphere face bounded by a spline chord (its pcurve a Projected image on the analytic chart) has no volume lane, so every cylinder x sphere boolean that builds refuses at the result gate
-status: open
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: M
+closed: 2026-11-04
+pr: 6509
 ---
 
 
@@ -99,3 +101,7 @@ these are pinned there, citing this row. Reproduce:
 ## Re-banded P0 (2026-11-03)
 
 Two reasons, either sufficient. Teapot wall 2 (handle ∪ vessel, sphere × torus) now builds and stops here: `demos/tour/src/teapot.rs` `wall_probes` pins `ResultInvalid { VolumeUncomputable { QuadratureUnsupported { what: "conic trim on a cone/sphere/torus chart …" } } }`, the sphere's arm of this row. And by this row's own measurement every cylinder × sphere boolean that builds refuses at the result gate: a normal verb on normal geometry (`work/README.md`, Priority, P0). Behind it on the teapot is the handle's torus face, `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane`, re-banded with it. Tracked in `work/splice/curved-demo-joins-build.md`.
+
+## Closed (SPIRICARM stage 2, PR 6509, 2026-11-04)
+
+The rotational-chart Green lane reads the sphere (`RotationalChartQ::Sphere`, `geom_brep::props::quad::rotational`), its poles' terms off the face's winding and its sense bit, and the sphere's ring gate opens. All three stops this row owned are taken. Every cylinder × sphere result in `crates/sweep/tests/cylinder_sphere_frame.rs` builds at its oracle's volume but the two-loop poses' `A ∖ B`. This row's "the rows go SOUND against the fixture's volume oracle" is **not met yet**. No result is a legal operand, and the two-loop poses' `A ∖ B` refuse at the piece sort: point_in_solid cannot read a chorded sphere face. What stands in the way is now INSIDE's row, P0, `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`, and the frame's rows are pinned to go SOUND when it lands. The volume lane this row asked for exists, so the row closes on it. Teapot wall 2 moves on to the handle's torus face (`a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane`).

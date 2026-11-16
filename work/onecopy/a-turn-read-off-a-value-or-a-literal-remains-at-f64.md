@@ -17,8 +17,9 @@ These are `period-spelling.tsv`'s `owed` rows:
   - `pcurve_cache.rs` `closed_form_grid`, `cover` and `dyadic` (`TAU / 2^d`), where the carrier's period is owed;
   - `pair_section/ruling.rs` `new`, `run`, `coverage` and its `FLOOR` const;
 - step-import: `adopt.rs` `arc_rim_on_wall_boundary` and `entities.rs` `is_periodic_band`, both chart periods;
-- mesh: `cert.rs` `abs_radial_max` and `trimmed.rs` `choose_pole_azimuths` and `harmonic_range`, the torus chart's `v` and the azimuth;
-- sweep: `blend/surgery.rs` `past_misses`;
+- mesh: `cert.rs` `abs_radial_max`, the torus chart's `v`;
+- geom-brep: `pcurve_cache/speed.rs` `spiric_breaks`, a spiric's period spelled as `TAU`, and its translate `m` read off `t0` by a floor;
+- sweep: `blend/surgery.rs` `past_misses`, and `arc_within`'s `turns`, an arc's parameter divided by `TAU`;
 - editor-core: `names/emit_topo.rs` `on`, a `T::from_f64(TAU)` returned as a period;
 - topo: `injective.rs`'s `TURN` const.
 
@@ -26,7 +27,7 @@ These are `period-spelling.tsv`'s `owed` rows:
 
 C4 (`geom_core::period::Period`'s docs) says no whole-period integer is read off a value. These sites still do:
 - `geom-brep/src/pair_section/winds.rs:317`, `winding`: `(total / TAU).round()`;
-- `geom-brep/src/props/closure.rs:175`, `interval_loop_turns`: `(mid(delta) / TAU).round()`.
+- `geom-brep/src/props/closure.rs:201`, `nearest_turns`: `(mid(delta) / TAU).round()`, read once per junction by the rotational lane.
 
 The period's doors are `Period::decide`, through its marks, and `Period::near`. Both sites move bits at their rounding edge if swapped, so each wants a measured change.
 

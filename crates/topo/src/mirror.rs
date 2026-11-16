@@ -25,16 +25,20 @@
 //!    and every chart image on them has its azimuth negated; a spline net
 //!    maps by its points, its chart unmoved and its chart normal `−M·n`
 //!    already inside out; an offset surface's distance is negated with
-//!    its base's normal. Every edge is re-certified on the mapped data.
+//!    its base's normal. Every certificate is carried: a reflection
+//!    keeps every distance one states.
 //! 2. **The per-entity reversal** ([`crate::Body::revert`]'s map): every
 //!    half-edge cycle reversed, every outward side flipped once, a
 //!    plane's chart images re-stated under `(u, v) ↦ (u, −v)`.
 //!    `revert`'s refusal of two edges on one segment is not asked: it
 //!    guards the COMPLEMENT, whose wedges pair the sheets differently,
 //!    while a reflection maps each wedge onto a wedge.
-//! 3. **Pcurve rows re-minted** on the finished body, construction-fresh,
-//!    as [`crate::transform_rigid`] re-mints them: no source row is
-//!    mapped, and none survives into the result.
+//! 3. **Pcurve rows and joints re-minted** on the image, construction-
+//!    fresh. A row on an analytic chart restated with its azimuth
+//!    negated is the same locus, but it lands on a branch a whole period
+//!    off the one a fresh mint takes, which tier 3 reads as a deck shift
+//!    (`EnvelopeTerm::FidelityU`), so the rows are derived again rather
+//!    than restated.
 //!
 //! The net effect, face by face: a plane's normal is `M·n` and its chart
 //! `v` reversed; an analytic face keeps its `sense` and its chart's
@@ -49,20 +53,16 @@
 //!
 //! A body with the source's keys, arena for arena, so names read
 //! through it as through a copy. Its volume is the source's, which the
-//! tier-3 `+V` invariant checks: without step 2 it is negative. Like
-//! every door it owes a finished body and, like
-//! [`crate::transform_rigid`], it does not gate its own result: the
-//! placement door that calls it finishes what it ships
-//! ([`crate::AtRestPolicy::finish`]), and the tests finish every image
-//! they build.
+//! tier-3 `+V` invariant checks: without step 2 it is negative. A
+//! spiric wall's restated offset `u0′ = −u0 − σμπ` rounds, as every
+//! mapped coordinate does.
 //!
 //! # The audit's residuals (P3)
 //!
-//! The `Nurbs` placeholder, an approximating surface with no fit door at
-//! the scalar, and an edge needing the NURBS lane at a scalar that holds
-//! none refuse as [`crate::transform_rigid`] does. Every chart image has
-//! a mirror image, a spiric's included (`map_isometry`'s
-//! `reflected_image`).
+//! The `Nurbs` placeholder refuses as [`crate::transform_rigid`] does,
+//! and a row the re-mint refuses refuses [`TransformError::Pcurve`].
+//! Every chart image has a mirror image, a spiric's included
+//! (`map_isometry`'s `reflected_image`).
 
 use geom_core::linalg::frame::{FrameError, mirror_across_plane, mirror_across_unit_plane};
 use geom_core::{Affine3, Decide, Point3, Real, Tol, UnitVec3, Vec3};
@@ -109,8 +109,10 @@ impl<T: Real> Reflection<T> {
 }
 
 /// The mirror image of `body` across `reflection`'s plane (module docs):
-/// a new body with the source's keys, every carrier re-certified and
-/// every pcurve row re-minted.
+/// a new body with the source's keys, every certificate carried and its
+/// pcurve rows re-minted. It
+/// is the construction-state map; a finished body mirrors through
+/// [`crate::FinishedBody::moved`], which carries its verdict too.
 ///
 /// # Errors
 ///
@@ -121,7 +123,7 @@ pub fn mirror_body<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Body<T>, TransformError> {
     let owes_rows = body.pcurves().next().is_some();
-    let mut inside_out = map_isometry(body, &Isometry::Improper(reflection.map), tol)?;
+    let mut inside_out = map_isometry(body, &Isometry::Improper(*reflection))?;
     inside_out.pcurves.clear();
     inside_out.joints.clear();
     let mut out = inside_out.reverted();

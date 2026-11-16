@@ -424,7 +424,7 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
             }
             rims += 1;
             let out = topo::pcurve_of(&body, he, band());
-            let Ok(Pcurve::IsoLine { p0, pl }) = out else {
+            let Ok(Pcurve::IsoLine { p0, pl, .. }) = out else {
                 panic!("a cap rim on the widened chart derives via the measured map: {out:?}")
             };
             assert_ne!(pl.x, 0.0, "u is the MOVING channel on a rim: {pl:?}");
@@ -493,7 +493,7 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
             }
             seams += 1;
             let out = topo::pcurve_of(&body, he, band());
-            let Ok(pcurve @ Pcurve::IsoLine { p0, pl }) = out else {
+            let Ok(pcurve @ Pcurve::IsoLine { p0, pl, .. }) = out else {
                 panic!("a Chart-described interior column takes the exact class: {out:?}")
             };
             assert_eq!(pl.x, 0.0, "a column holds u constant: {pl:?}");

@@ -130,7 +130,7 @@ impl<T: Real> SplinePairPose<T> {
     /// convex hull (its weights are positive), so the section in the ball
     /// about the first net's control points.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_control_net(self.nets[0].control())
+        ExtentBall::of_covered(geom::cover::Cover::net(self.nets[0].control().to_vec()).as_ref())
     }
 
     /// The pair's section with these components, nothing decided Zero.
@@ -245,6 +245,13 @@ fn listed(
                 let [fa, fb] = on(from);
                 let [ta, tb] = on(to);
                 open([fa.or(ta), fb.or(tb)])
+            }
+            BranchEnd::Node { .. } => {
+                return Err(SectionError::Unaccounted {
+                    cause: "a branch of the spline pair's reading ended at a node, which the \
+                            pair's reading hands no march"
+                        .to_owned(),
+                });
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {

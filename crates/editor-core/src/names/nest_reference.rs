@@ -210,6 +210,9 @@ pub(super) enum RoleSeg {
         band: Vec<StableName>,
     },
     BandCut(NameRef),
+    BandSection {
+        vertex: NameRef,
+    },
     BandSlit {
         edge: NameRef,
         band: Vec<StableName>,
@@ -225,5 +228,9 @@ pub(super) enum RoleSeg {
     Member {
         at: Vec<(crate::VarId, u32)>,
         of: NameRef,
+    },
+    HostFoot {
+        vertex: NameRef,
+        edge: NameRef,
     },
 }

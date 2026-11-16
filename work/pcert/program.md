@@ -2,7 +2,7 @@
 id: pcert
 kind: program
 title: PCERT — pcurve certification: what validate_pcurves actually checks, and the refusal vocabulary, guards and coverage claims around the certifier
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/topo/certify
 prefix: pcert/

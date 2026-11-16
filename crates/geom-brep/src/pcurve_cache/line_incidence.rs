@@ -1,5 +1,5 @@
 //! **Where a line's distance from an analytic chart can peak over its
-//! span**: the read `incident` takes of a line is the chart's exact
+//! span**: the read `incident_as` takes of a line is the chart's exact
 //! distance ([`super::chart_distance`]) at the span's two ends and at
 //! the interior parameters this module names, and nowhere else. Its
 //! largest value is the distance's supremum over the span, so a line
