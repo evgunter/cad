@@ -577,8 +577,54 @@ impl<T: Decide> Found<T> {
             };
             let ((_, da), (_, db)) = (a.carrier().ders1(c.ta), b.carrier().ders1(c.tb));
             let dot = da.dot(db) / (da.norm() * db.norm());
+            // PROBE: which end is held, and the dot of the tangents each
+            // pointing into its own span, away from its held end.
+            let side = |span: &Span<'_, T>, t: T| -> Option<f64> {
+                let (lo, hi) = span.params();
+                let zero = |g: T| {
+                    geom_core::k_stats::decide("ring_probe_end", geom_core::Margin::of(g), band)
+                        == Ok(geom_core::Sign::Zero)
+                };
+                if !span.ended() {
+                    None
+                } else if zero(t - lo) {
+                    Some(1.0)
+                } else if zero(hi - t) {
+                    Some(-1.0)
+                } else {
+                    None
+                }
+            };
+            let (sa, sb) = (side(a, c.ta), side(b, c.tb));
+            let name = |s: Option<f64>| match s {
+                Some(x) if x > 0.0 => "lo",
+                Some(_) => "hi",
+                None => "-",
+            };
+            let odot = dot.structure_bracket().map_or(f64::NAN, |(l, h)| 0.5 * (l + h))
+                * sa.unwrap_or(1.0)
+                * sb.unwrap_or(1.0);
+            // PROBE: each side's nearest end, its gap there in length
+            // (parameter gap times the tangent's speed), and the dot of
+            // the tangents each oriented away from its nearest end.
+            let mid = |x: T| x.structure_bracket().map_or(f64::NAN, |(l, h)| 0.5 * (l + h));
+            let near = |span: &Span<'_, T>, t: T, speed: f64| -> (f64, f64) {
+                let (lo, hi) = span.params();
+                let (glo, ghi) = (mid(t - lo).abs(), mid(hi - t).abs());
+                if glo <= ghi { (1.0, glo * speed) } else { (-1.0, ghi * speed) }
+            };
+            let (na, ga) = near(a, c.ta, mid(da.norm()));
+            let (nb, gb) = near(b, c.tb, mid(db.norm()));
+            let ndot = mid(dot) * na * nb;
+            let oriented = format!(
+                "\t{}\t{}\t{:e}\t{}\t{}\t{:e}\t{:e}\t{:e}",
+                name(sa), name(sb), odot,
+                if a.ended() { "ended" } else { "open" },
+                if b.ended() { "ended" } else { "open" },
+                ga, gb, ndot,
+            );
             let line = format!(
-                "RINGPROBE\t{}\t{}\t{:?}\t{:?}\t{}\t{}\t{:?}\t{:?}\n",
+                "RINGPROBE\t{}\t{}\t{:?}\t{:?}\t{}\t{}\t{:?}\t{:?}{}\n",
                 std::thread::current().name().unwrap_or("?"),
                 class,
                 a.carrier().kind(),
@@ -587,6 +633,7 @@ impl<T: Decide> Found<T> {
                 at_end(b, c.tb),
                 dot,
                 if contained.is_some() { "walk" } else { "pose" },
+                oriented,
             );
             if let Some(path) = std::env::var_os("CAD_RING_PROBE_LOG") {
                 use std::io::Write;
