@@ -595,6 +595,28 @@ impl<T: Decide> Found<T> {
                 }
             }
             if class.starts_with("basin-unproved") && std::env::var_os("CAD_RING_PROBE_REFUSE").is_some() {
+                static BT_LEFT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(20);
+                if let Some(path) = std::env::var_os("CAD_RING_PROBE_BT") {
+                    if BT_LEFT
+                        .fetch_update(
+                            std::sync::atomic::Ordering::SeqCst,
+                            std::sync::atomic::Ordering::SeqCst,
+                            |n| n.checked_sub(1),
+                        )
+                        .is_ok()
+                    {
+                        use std::io::Write;
+                        let bt = std::backtrace::Backtrace::force_capture();
+                        let text = format!(
+                            "BT\t{}\n{}\nENDBT\n",
+                            std::thread::current().name().unwrap_or("?"),
+                            bt
+                        );
+                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                            let _ = f.write_all(text.as_bytes());
+                        }
+                    }
+                }
                 let escalated = std::env::var_os("CAD_RING_PROBE_ESCALATE")
                     .and_then(|_| {
                         geom_core::k_stats::decide(
