@@ -839,3 +839,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Subscribed to PR 7032.
 - 2026-11-16 — **A container restart lost the planar unit's agent** after it had pushed [PR 7028](https://github.com/evgunter/cad/pull/7028) with a complete body. At the loss its head was `742695cb4e`, and it was waiting on CI after a gate fix (`cover-kind-match`). The worktree was clean and matched the remote, so I do not re-dispatch it: the work is done, and the frozen head goes to review. Its time and tokens were not reported; the row records the loss.
 - **PR 7028 review dispatched:** single FULL, as logged at dispatch. Reviewer byte drawn after this entry.
+- 2026-11-16 — **PR 7028 review (Opus): APPROVE-WITH-FIXES.** No wrong ± sign was decided anywhere; the closed term matched a reference to 4e-13 and the enclosure always contained it.
+  - **MINOR-1, close to MAJOR:** the spline length lever is the whole carrier's speed sup times the edge's span, 85–2500× the true length. So the band decides Zero on regions from 26ε up to 17 mm wide, which is the closed spiric defect's class again (`the-spiric-winding-lever-decides-real-pinched-loops-zero`). The module doc's "escalates rather than decides" is false.
+  - **MINOR-2:** the cited P3 item lives only on this branch.
+  - **MINOR-3:** `choose_roles`' plane arm survives every fast row.
+  - **MINOR-4:** the rational escalations are slow.
+  - Notes: the F4 audit is stale; the Interval label is not an enclosure; misplaced doc blocks; the `holds_outer` row cannot see a flip.
+- **Adjudicated: the whole union taken.** The lever goes piecewise, reusing `rational_rate_bound`; the P3 item lands with the PR; a fast `choose_roles` row; the audit is updated; the Interval path is labelled honestly; ladder and sign rows; style.
+- **Fix pass dispatched fresh on the implementer's arm (Fable),** because its agent was lost to the restart (`fix-7028.md`). The row records that the fix pass is a new agent.
