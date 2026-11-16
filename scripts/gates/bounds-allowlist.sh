@@ -711,7 +711,15 @@ BOUNDS_ALLOWLIST=(
   # (`geom_brep::props::quad::trig_at_limit`) and reads no vertex, and
   # the carrier-kind refusals they carried are `harmonic_carrier`'s, at
   # plain `Decide`.
-  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # 14 -> 18 (BOXFINISH, the rectangle runs): `trim_rectangle` and
+  # `joint_defect` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences each) are the rectangle certificate `nurbs_face` reads
+  # off its loop's lift: the held values crossed into exact structure
+  # and the joint gaps into certification arithmetic, both through
+  # `Interval::from_certified`. They are reached only from `nurbs_face`,
+  # under `QuadLane::certified`'s first field, so they are the same
+  # plumbing at the same door and are never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # The clearance engine's door, under the same seam and for the same
   # reason as `QuadLane::certified` (its own ledger paragraph in
   # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any
@@ -789,7 +797,15 @@ BOUNDS_ALLOWLIST=(
   # a SELECTION that only narrows the screen: a sum not certainly below
   # the half turn leaves the pair screened as before, the conservative
   # reading. `Decide` alone has no bracket to read.
-  'crates/sweep/src/blend/battery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 24 -> 25: `mixed_corner_square`, the all-three mixed corner's
+  # admission, which asks `cap_transverse` whether `E` is square to the
+  # odd edge: the battery's own end-section decision at this seam, made
+  # through `classify`. It reads no bracket of its own; the bound is
+  # `cap_transverse`'s.
+  # 25 -> 23: the link's wedge is read by the edge's wedge fold
+  # (`topo::edge_wedge`), so `wedge_at` and `knife_end` and their bounds
+  # are gone; no bound was added.
+  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
@@ -876,7 +892,20 @@ BOUNDS_ALLOWLIST=(
   # band's torus link reads its supports through it too (arm (e) of
   # `ring_clearance_pass`); they read brackets only through
   # `StripLevel::clearance` and `ring_clearance`, as that arm did.
-  'crates/sweep/src/blend/surgery.rs 26 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 26 -> 27: `impl StripLevel` gained the clip of a line or circle
+  # piece to a wedge (`within`, `arc_within`, `graze`, `missed`,
+  # `settle`), under the impl's own bound. Their bracket reads are
+  # SELECTIONS between sound windows: a line's crossing clips only where
+  # its sign is certain, a circle that may lie wholly inside keeps its
+  # window, and a part is dropped only when certainly short of an edge
+  # by more than the band (`reach::sure`), anything nearer kept as a
+  # superset. No decision is taken there: every reading, a touch's
+  # included, is classified by `ring_clearance`. The new occurrence is
+  # the unit row
+  # `a_piece_beside_a_wedge_reads_clipped_and_a_deciding_touch_escalates`,
+  # generic over the scalar `StripLevel::clearance` takes, reading
+  # brackets only for the midpoint its assertions quote.
+  'crates/sweep/src/blend/surgery.rs 27 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the

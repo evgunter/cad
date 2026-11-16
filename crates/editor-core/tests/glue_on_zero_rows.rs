@@ -77,20 +77,20 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
     .expect("an uncanceled door")
     .remove(0);
     // Every row, the rest and each corner alike, is two constructions
-    // the replay finds no identity between.
+    // the replay finds no identity between: it reads the residual whole,
+    // a function of the variables (the slide's standoff among them) it
+    // does not show zero, so the recourse is one construction.
     for (row, proof) in rows.iter().zip(&proofs) {
         assert!(
             matches!(
                 proof,
                 Proof::Unproven {
                     residual,
-                    recourse: coincide::Recourse::Budget,
+                    recourse: coincide::Recourse::OneConstruction,
                 } if residual.replay == coincide::Unreplayed::Numeric
             ),
-            "{row:?}: two constructions, no proof; the offset's form freezes at the door's \
-             budget (declared-rest-rows-are-two-values-or-too-big-to-close), which is no \
-             value computed apart from the variables, so the recourse names the budget: \
-             {proof:?}"
+            "{row:?}: two constructions, no proof, the residual read whole and not shown \
+             zero: {proof:?}"
         );
     }
     assert_eq!(proofs.len(), rows.len(), "the door answers every row");

@@ -1142,9 +1142,9 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     );
     use geom_brep::WedgeVerdict as V;
     match geom_brep::edge_wedge_over(&walk, reach, band) {
-        V::Crease(_) => Ok(RimRouting::Transverse),
+        V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
-        V::End(end) => Ok(RimRouting::Cusp(end)),
+        V::End { end, .. } => Ok(RimRouting::Cusp(end)),
         V::Lamina => Ok(RimRouting::Lamina),
         V::Mixed(stations) => Ok(RimRouting::Mixed(stations)),
         V::InBand(escalation) => Err(escalation.diag()),
@@ -1155,7 +1155,8 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 /// circle's reach from its centre.
 #[cfg(test)]
 fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
-    geom_brep::ExtentBall::of_circle(rim.center, rim.radius).twice_lever_from(rim.center)
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).twice_lever_from(rim.center)
 }
 
 #[cfg(test)]

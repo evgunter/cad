@@ -961,6 +961,21 @@ gate_record_anchor() {
   printf '^%s%s' "$(gate_ere_escape "$1")" "$GATE_RECORD_LINE_RE"
 }
 
+# LIST MEMBERSHIP, IN BASH: whether `$1` is one of the rest. Not
+# `printf … | grep -qxF`, for two reasons. A grep that cannot run
+# (exit 2) reads as "not in the list". And under `pipefail` the pipe
+# races: bash's builtin `printf` writes once per line, `grep -q` exits
+# at its first match, and the next write takes SIGPIPE, so a member
+# near the front of a multi-line list reads as absent now and then.
+gate_contains() {
+  local needle=$1 item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
 # THE ALTERNATION, which is the line every multi-part matcher in this
 # file used to end on for itself. Held here so a builder says WHICH
 # alternatives it is offering and nothing else, and so `|` is written

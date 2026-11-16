@@ -50,11 +50,14 @@ that what you need belongs at the root or below.
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
-| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
-| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
+| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
+| Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves/decision.rs` (`branches_astride_as`), `src/pcurves/lift.rs` (`lifted_images`) |
 | The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
-| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_travels`): the hull of a face's boundary images on its chart and each loop's net azimuth travel, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
-| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
+| A loop's position in its face's chart | `src/pcurves/lift.rs` (`Lift`): the chain of the loop's chart images, each moved by the joint elements summed along it (`src/joint.rs`), and the face's boundary in the chart, through a pole or an apex along the face's turn there. `Lift::read` takes the rows a finished body stores, with no band, and a missing row is loud; `Lift::decided` runs the mint's own walk at the caller's band over a loop or an open run, mid-operation, and stores nothing. The caller names which, and neither falls back to the other. Every window, hull and winding is a method on it, and so is every joint's chart point: where a row meets a column it is the meet of the two lines those images hold fixed, exact wherever both lines are, and elsewhere it is the image's value there. A row or column image stores the line it holds and one map along it, and no ends. A chart closed in a direction states its period by its domain's two ends, so an image on one end moved a whole period lies exactly on the other. `decide_joint` is the one decision of a joint's branch |
+| A face's rings in its outer loop's sheet | `src/pcurves_rings.rs` (`Body::face_lift`, `FaceLift`, `PlacedRing`, `RingPlacementError`, `place_ring`): each ring's lift moved by the one whole number of periods per closed channel that puts its first point in the region the outer loop's lift bounds, decided against the outer loop alone in the chart's cover. An analytic chart reads the point by the ray parity over the lifted rows' chart boxes, each clearance metered by the chart's inf-side arms; a spline chart reads it by its trim (`src/spline_trim.rs`), which places its own rings by the same rule. An outer loop or a ring that does not close in the chart, a ring no shift places, one two shifts place, and a spline trim that is not read (`SplineTrimGap`: a placeholder chart, no Bézier cells, a period stated but not decided, a lift that winds, a row moved by a period on a channel the chart states but does not decide closed or onto the twin sheet, an image with no piece reading, a box with no value, naming the ring where it is a ring's chain) each answer typed; the work bounds of both readers live beside the rule, and the ray parity both run is `src/chain_parity.rs` (`ray_parity_as` over each family's `ChainPiece`) |
+| A point against a spline face's trim | `src/spline_trim.rs` (`Trim`, `bezier_cells`, `Patch`, `ring_decks`): a face's loops in its spline chart as rational Bézier pieces, each ring moved into its outer loop's cover by the ring rule, and a query placed by the ray parity of its centre (`src/chain_parity.rs`), every piece decided clear of it in metres through the chart's inf-side arms over a window; the chart's Bézier cells, which meter the window's arms and the boolean's carrier walk (`src/boolean/spline_region.rs`), each box widened by its `f64` rounding |
+| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_window`): the first-channel hull of the outer loop's lift, decided at the reader's band since its readers run mid-operation too, refusing in its own `ChartWindowError` |
+| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves/tier3.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Shells carved out of a solid | `src/carve.rs` (`carve`, `single_solid`, `CarveError`, `NotOneSolid`): the sub-body a set of a solid's shells spans, and the one solid an operation's operand is read as |
@@ -720,13 +723,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    is in band, or whose side the door reads in band, is
    `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
-   between the edge's two halves by the incidence the loop walk resets
-   that joint by, `WrapTipOffChartSingularity`,
+   between the edge's two halves by the incidence the loop walk takes
+   the face's turn at that joint by, `WrapTipOffChartSingularity`,
    `WrapTipWithoutChartSingularity` on a surface with no singular point,
    or `WrapTipUndecided`, whose ending passes zero alone;
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
-   at-vertex placement, the reset and the tip rule all read),
+   at-vertex placement, the joint decision and the tip rule all read),
    **one region per face** off the plane (each surface cycle on the
    face's side of every other, read by the point-in-face doors cut to
    one cycle, a torus's essential cycles as one pair:
@@ -734,13 +737,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
-   **orientation invariant** (a solid's faces leave infinity outside
-   it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume where no ray
-   reads; definitely inside-out by any reading ⇒ invalid (a certified
-   negative volume refuses even where a ray reads its side), and a solid
-   whose side no reading decides refuses — an orientation probe, not a
-   thinness gate, at every door). Laminae live here, not at
+   **orientation invariant** (a solid's shells leave infinity outside
+   it: a certified negative volume is inside out ⇒ invalid whatever a
+   ray reads; then every shell's role is read, one shell at a time, by
+   the reader of a shell's role, [coincidence.booleans] — a ray aimed
+   from outside the shell at one of its faces, the certified signed
+   volume where no ray reads — a solid's only shell included; no
+   `Outer` among them ⇒ inside out, more than one ⇒ two outer shells,
+   else the voids' nesting is check 10's; a shell whose role no reading
+   decides refuses — an orientation probe, not a thinness gate, at every
+   door). A solid's or a body's side at infinity is never read off its
+   faces as one selection: it follows from its shells' roles, and a
+   selection of several shells carries the side it was built with (a
+   finished body's is `Out`, its complement's `In`). A shell's role is
+   read behind the embedding check below: on an embedded shell every
+   aimed ray reads one side, and a shell that crosses itself has no side
+   to read. Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -1094,7 +1106,7 @@ tangent sample and oppose at another, the solid's material on both
 sides of a face (`MaterialOnBothSides`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
-  (`carrier_eq::INVENTORY`), each datum and the pair's displacement over
+  (`geom_brep::carrier_eq::INVENTORY`), each datum and the pair's displacement over
   the consumed extent — position data at a pivot, plus the angular data
   levered from it to the extent's far reach, plus the radius differences
   — decided Zero; senses opposed as an exact bit; overlap definitely
@@ -1255,10 +1267,11 @@ backs. `SameSide` refuses, naming the verdict in the refusal's typed
 `side` field; it is interpenetration evidence, which the assembly layer
 reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
-`CensusEscalated`. The side is read by handing both faces' `Face::sense`
-bits to the tangency token `classify_dihedral` returns
-(`geom_brep::Tangency::pairing`), so the pairing is asked only where the
-dihedral read smooth. The census reads sides in three
+`CensusEscalated`. The side is the pair's carrier relation
+(`boolean::carrier_pair_relation`, the reading the confirm pass's
+`pair_contact` reads the same pair by), read over both faces at each
+crossing the pair is asked about: `SameOpposite` is `OppositeSides`, `SameOriented` is
+`SameSide`, and two distinct planes answer for nothing. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
 `rest::judge`, a cylinder or cone face the edge is a ruling of read as

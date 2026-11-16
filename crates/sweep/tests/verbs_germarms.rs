@@ -477,7 +477,7 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
             "{what}: as built"
         );
         let flipped = body
-            .flipped_face_sense_for_tests(wall)
+            .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
             .expect("live face key");
         let errs = topo::validate_geometric(&flipped, tol)
             .expect_err(&format!("{what}: a flipped wall must refuse"));

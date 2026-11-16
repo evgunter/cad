@@ -25,9 +25,10 @@ escalated typed refusal, never a raw comparison.
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
-| C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
+| C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
+| The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
@@ -252,14 +253,18 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the radius of the box it lies in. Its
+node, and the pad a site reads is the widest of the boxes it lies in,
+each the farthest that box's image stands from the carrier. Its
 last box holds the node, and the claim over that box is the node's own
-reading: `∇φ`'s one zero there by the Krawczyk operator, its Hessian
-indefinite and its value decided Zero, re-read about the edge's end
-vertex at rest and stored nowhere. The chain stops where a box no
-longer holds one arc, about `√(εR)` from the node, `R` the surfaces'
-relative curvature radius: a site there and not at the node is
-assigned to no arc and escalates. The ray the arc's end names (C5) is
+reading: `∇φ`'s one zero there by the Krawczyk operator, within the
+band of the carrier's end, its Hessian indefinite and its value decided
+Zero, re-read about the edge's end vertex at rest and stored nowhere.
+The chain stops about `√(εR)` from the node, `R` the surfaces' relative
+curvature radius, by a fixed rule: the arc's samples settle toward the
+node until `|∇φ|` times their distance from it falls to a fixed multiple
+of the band (about `8√(εR)`), and the last box is twice the end span's
+reach, which may be no more than a fixed multiple of that settle reach:
+a site in it and not at the node is assigned to no arc and escalates. The ray the arc's end names (C5) is
 the null ray of the node's Hessian whose sector holds the chain's last
 boxes, and it is the carrier's end tangent; a mismatch refuses.
 With none certified, the narrowest rung probed speaks: its band verdict
@@ -781,7 +786,7 @@ once around, read off the invariants a change of starting half-edge
 leaves alone: off the twin, at most one period on each periodic
 channel; through the twin, an odd number of half turns of azimuth, at
 most three, and no bound on the second channel, whose periods are not
-such an invariant there; and no azimuth winding counted across a reset.
+such an invariant there.
 A closed chart polygon is built only where the winding is zero and
 every joint's integer was decided with room past the joint bound. A
 vertex on the chart's singular set (a sphere's pole, a cone's apex) is
@@ -923,12 +928,14 @@ conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
 parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
-table, and every candidate it proposes is settled against each span by
+table. A candidate that names a point is settled against each span by
 the point-on-span reading, which composes geom's one-carrier readings
-(the point's foot, and whether it lies on the carrier) with the span's
-reading of its ends, and decides nothing of its own; a point is decided
-off a carrier only on a lower bound on its distance to the whole
-carrier.
+(the point's foot over the span, and whether it lies on the carrier)
+with the span's reading of its ends, and decides nothing of its own; a
+point is decided off a carrier only on a lower bound on its distance to
+the whole carrier. A candidate that names a parameter on each span (a
+polished pair, its polish held to the two spans) is read as that pair:
+its own gap, and each parameter's place on its span, with no foot.
 Line, circle and ellipse pairs are closed forms that solve in one conic's
 angle and measure in metres; a
 pair with a spiric or spline side is the certified bisection walk, which
@@ -939,7 +946,19 @@ generic one. Two spans meet along stretches. A *stretch* is a longest
 interval of one span which is nowhere definitely off the other; a
 *meeting* is a longest interval of one span which is everywhere
 definitely on the other, a single point for a crossing or a touch and a
-longer interval for a shared run. Each span's ends are read against the
+longer interval for a shared run. A touch's meeting is the in-band arc
+where two distinct curves stay within the band of each other about one
+point of closest approach (the extremum of the one's equation read along
+the other); `meet` reports it as a point of that arc together with
+the arc, its positional uncertainty, and its kind is a point meeting,
+not a run. A reader asking a question the arc can straddle reads the
+arc's ends, and escalates where they disagree. A reader of a touch may
+read that it exists, its hit kind
+and its position within the band, which any point of the arc serves;
+whether it crosses, and on which side each curve lies, is the meeting's
+kind, decided once by `meet` and never re-read from the curves'
+tangents at the reported point. A shared run is one curve over both
+spans. Each span's ends are read against the
 other span before anything else. A stretch holding exactly one meeting
 is reported as that meeting, which takes the whole stretch; a stretch
 holding no meeting, or more than one, escalates, since between two
@@ -949,6 +968,10 @@ cross any number of times, and each crossing in a stretch of its own is
 its own meeting; a candidate nearer a found meeting than the band's
 escalation width cannot be decided distinct from it, so it is not read
 again.
+Its pieces are not thereby cleared: they are cleared by the
+candidate's own window, two-sided or one-sided at a span end the polish
+is held at, with its curvature bound read over the pieces themselves,
+and otherwise the stretch escalates.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
@@ -1240,7 +1263,8 @@ face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
 a point in space has its placement built
 (`topo::boolean::spline_region`, the spline arm of the boolean's
-point-in-face door): on the carrier by a foot decided within the band,
+point-in-face door, over the trim and the chart's Bézier cells of
+`topo::spline_trim`): on the carrier by a foot decided within the band,
 off it where every Bézier cell of the chart is decided past it; then in
 where such a foot lies in the trim, read from the face's lifted pcurve
 loops, and out where a foot exists and every cell not decided past the
@@ -1637,8 +1661,8 @@ enters a face's term at a lever beyond the face.
   applies it to a surface. The carrier is unmoved; only where a reading
   takes the datum from moves. Intrinsic data stay: a sphere's or a
   torus's centre and a cone's apex. The coincidence verdict re-anchors
-  a cylinder pair at the foot of its extent's centre (`topo`'s
-  `carrier_eq::at_consumed_extent`), and a face's measure at its
+  a cylinder pair at the foot of its extent's centre
+  (`carrier_eq::at_consumed_extent`), and a face's measure at its
   anchor's `at` (`topo`'s `props::face_anchored`), at every scalar. A
   cylinder face's closed form takes its axis origin as the point its
   vector area is summed about and its flux levered from, so an origin
@@ -2041,14 +2065,20 @@ intensional description largely *is* the provenance.
 
 ## Parameterization conventions
 
-Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
-  complete loci; an edge's bounds derive from its vertices via the
-  `he_plus`-forward contract (certification enforces forward, nonzero,
-  ≤ one-period spans, the stored interval a certified cache reconciled
-  against vertex authority). Shared azimuthal frame for all revolution
+  complete loci; a construction states an edge's bounds from the
+  quantity that defines them (for example a segment's length, an arc's
+  span, an extrusion distance, a knot domain, a split's certified
+  parameter), and the vertices certify them: certification's endpoint
+  pinning (check 3) reads the carrier at the stored bounds against the
+  `he_plus`-forward vertices, and its interval-span check (check 2)
+  enforces forward, nonzero, ≤ one-period spans. The vertices are the authority the bounds are
+  certified against, not their source; where the vertices are the only
+  definition (a line between two computed points), their distance is
+  the definition. Shared azimuthal frame for all revolution
   surfaces (axis = +a₃, v_ref = axis × u_ref, seam at u_ref — for
   revolved bodies u = 0 IS the profile half-plane); sphere uses
   latitude; cone v = slant length with the apex a true chart

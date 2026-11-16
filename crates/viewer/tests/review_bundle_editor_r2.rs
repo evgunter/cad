@@ -319,7 +319,7 @@ fn r2_a_pick_where_a_placed_body_stood_edits_its_copy() {
     let placed: Vec<_> = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if Some(source.read) == doc.outputs(body).first().copied()))
+        .filter(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if Some(doc.through_sources(source.read).read) == doc.outputs(body).first().copied()))
         .collect();
     let [copy] = placed[..] else {
         panic!("one copy of the body: {placed:?}")
@@ -332,7 +332,8 @@ fn r2_a_pick_where_a_placed_body_stood_edits_its_copy() {
     let event = fresh.pick(session.doc(), face.clone());
     assert!(event.is_none(), "{event:?}");
     assert!(
-        fresh.door().is_some_and(|door| door.placement == copy) && fresh.take_place().is_none(),
+        fresh.door().is_some_and(|door| door.placement == copy)
+            && fresh.take_place(session.doc()).is_none(),
         "picked {:?}; door {:?}",
         face.node,
         fresh.door()
@@ -360,7 +361,7 @@ fn r2_a_placed_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let mut tool = MateTool::new();
     assert!(tool.pick(session.doc(), top_small).is_none());
     let place = tool
-        .take_place()
+        .take_place(session.doc())
         .expect("a pick on the body asks for Place");
     let copy = common::placed_by(&mut session, place);
     tool.placed(session.committed_doc(), copy);

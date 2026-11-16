@@ -79,6 +79,7 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             Pcurve::IsoLine {
                 p0: Point2::new(0.1, 0.2),
                 pl: Vec2::new(0.6, 0.8),
+                ends: None,
             },
             0.0,
             1.0,
@@ -482,6 +483,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             Pcurve::IsoLine {
                 p0: Point2::new(0.1, 0.2),
                 pl: Vec2::new(0.6, 0.8),
+                ends: None,
             },
             Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(0.6, 0.8, 0.0)),
             0.0,

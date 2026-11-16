@@ -2,10 +2,12 @@
 id: a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter
 kind: issue
 title: The support-boundary meter reads an arc or circle across a mixed link's windowed strip as straddling it, though it clears
-status: open
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: H
+closed: 2026-11-12
+pr: 6887
 refs: [an-annulus-rim-around-a-mixed-rim-refuses-in-one-call]
 ---
 
@@ -35,4 +37,18 @@ The hole's trim circle passes an arc link's wedge, or a straight link's slab end
 
 **Priority P1.** A two-semicircle loop is how this repo authors a circle. For such a disc, even the gate's own sequential recourse is false: the outline alone refuses at −0.30.
 
-**The exact read.** Clip the piece to the window's half-planes first: a circle against a half-plane is an arc, φ ± acos(k/A). Then read the level over the clipped arcs, each exact by `piece_distance` / `piece_along`. A clipped arc is connected, so its level range overlapping the strip's means it meets the strip; the read is then exact both ways. Escalation is at the clip angles' acos near ±1.
+**The exact read.** Clip the piece to the window's half-planes first: a circle against a half-plane is an arc, φ ± acos(−k/A). Then read the level over the clipped arcs, each exact by `piece_distance` / `piece_along`. A clipped arc is connected, so its level range overlapping the strip's means it meets the strip; the read is then exact both ways. Escalation is at the clip angles' acos near ±1.
+
+## Resolution
+
+`StripLevel::wedge_margin` clips a line or circle piece to each wedge
+(`within`, `arc_within`) and reads the level over the parts inside, as
+proposed above. Before → after, every edge filleted at 0.05, at `f64`
+and `Interval`: the two- and four-arc discs' outline rims, −0.30 →
+build at Pappus; the four holes beside a corner, the sequential
+recourse → build in one call at the sequential volume; the true
+intrusion at (0.851, 0.25), the sequential recourse → `RingClearance`
+at −0.001. A clip angle in band is a touch, kept as its enclosure and
+escalated only where it decides the read. PR 6865's `beside_rim`
+fallback is retired: no case needs it.
+

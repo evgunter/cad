@@ -43,11 +43,17 @@ fn copy_with_held_top(doc: ProfileDoc, b: RecipeNodeId) -> (ProfileDoc, RecipeNo
     (doc, copy)
 }
 
+/// The source `copy` reads its body through (VARIABLES VR4), which a
+/// takeover redefines.
+fn source(doc: &ProfileDoc, copy: RecipeNodeId) -> editor_core::VarId {
+    doc.copied_read(copy).expect("a placement reads a source")
+}
+
 /// Takes `copy` over with `u` and answers the rebinds written.
 fn rebinds(doc: &ProfileDoc, copy: RecipeNodeId, u: RecipeNodeId) -> Vec<DocEdit<ProfileProgram>> {
     take_over(
         doc,
-        &[copy],
+        &[source(doc, copy)],
         &Operand::Node(u),
         &EvalOptions::default(),
         &editor_core::CancelToken::new(),
@@ -200,7 +206,7 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
     );
     let done = take_over(
         &host,
-        &[copy],
+        &[source(&host, copy)],
         &Operand::Node(f),
         &o,
         &editor_core::CancelToken::new(),
@@ -280,7 +286,7 @@ fn the_door_evaluates_only_where_something_reads_a_copy() {
     let take = |doc: &ProfileDoc, copy, held: &dyn Fn(RecipeNodeId) -> bool| {
         let mut run = editor_core::Recording::start(doc, Tol::witness());
         run.take_over(
-            &[copy],
+            &[source(doc, copy)],
             &Operand::Node(u),
             &[],
             (&EvalOptions::default(), &editor_core::CancelToken::new()),
@@ -333,7 +339,7 @@ fn a_reader_of_a_copy_of_the_copy_is_rebound() {
     let o = EvalOptions::default();
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),
@@ -367,11 +373,11 @@ fn a_reader_of_a_copy_of_the_copy_is_rebound() {
     assert!(done.taken.moved.of(copy2, &cap(b, CapEnd::End)).is_some());
 }
 
-/// **A copy given twice is refused**: re-pointed once, it no longer
-/// copies the body the second would read its names from. Goes red if
-/// the door takes the repeat.
+/// **A source given twice is refused**: redefined once, its copies no
+/// longer copy the body the second would read their names from. Goes red
+/// if the door takes the repeat.
 #[test]
-fn a_copy_given_twice_is_refused() {
+fn a_source_given_twice_is_refused() {
     let doc = ProfileDoc::empty_derived("takeover-twice", Tol::witness());
     let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
     let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
@@ -379,7 +385,7 @@ fn a_copy_given_twice_is_refused() {
     let (doc, copy) = insert(doc, stood(b));
     let refused = take_over(
         &doc,
-        &[copy, copy],
+        &[source(&doc, copy), source(&doc, copy)],
         &Operand::Node(u),
         &EvalOptions::default(),
         &editor_core::CancelToken::new(),
@@ -425,7 +431,7 @@ fn a_reader_down_a_link(
     let o = EvalOptions::default();
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),
@@ -521,7 +527,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
     let seed = |doc: &ProfileDoc| {
         take_over(
             doc,
-            &[copy],
+            &[source(doc, copy)],
             &Operand::Node(u),
             &EvalOptions::default(),
             &editor_core::CancelToken::new(),
@@ -602,7 +608,7 @@ fn a_deep_chain_ends_and_rebinds_each_site_once() {
     assert!(before.table(m2_out).is_some(), "the chain evaluates before");
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),
@@ -691,7 +697,7 @@ fn a_reader_downstream_of_a_feature_of_the_copy_is_rebound() {
     );
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),
@@ -744,7 +750,7 @@ fn the_doors_evaluation_answers_the_document_it_names() {
     let o = EvalOptions::default();
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),
@@ -800,7 +806,7 @@ fn a_held_pick_on_a_mirror_whose_plane_reads_the_copy_follows() {
     let o = EvalOptions::default();
     let done = take_over(
         &doc,
-        &[copy],
+        &[source(&doc, copy)],
         &Operand::Node(u),
         &o,
         &editor_core::CancelToken::new(),

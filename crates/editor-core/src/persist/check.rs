@@ -711,88 +711,110 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// The first selection, in id order, no door could have written
 /// ([`Walk::Selection`]).
 fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    // Each selection's seats, gathered in one pass over every seat: a
+    // seat reads the selections it reaches, directly or through a pose
+    // (`edit::seat_selections`), so asking per selection would scan every
+    // seat once for each.
+    let mut seats: std::collections::BTreeMap<VarId, Vec<crate::OperandSlot>> =
+        std::collections::BTreeMap::new();
+    for node in snapshot.nodes.values() {
+        for (slot, read) in node.operand_rows() {
+            for selection in crate::edit::seat_selections(snapshot, read) {
+                seats.entry(selection).or_default().push(slot);
+            }
+        }
+    }
     snapshot.vars.iter().find_map(|(&id, var)| {
-        let select = var.def().select()?;
-        let spoken = || snapshot.spoken_var(id);
-        if let Some(fault) = crate::var::Select::fault(var.kind(), &select.names) {
-            return Some(SnapshotError::SelectionShape {
-                var: spoken(),
-                fault,
-            });
-        }
-        // Each seat reading it, directly or through a pose, holds its
-        // body read to the edit door's rule beyond kind
-        // (`edit::selection_body_fault`).
-        // A pose read at a seat, named or written in place, reads the
-        // selections it reaches there (`edit::seat_selections`): a mate
-        // side's plane is its face's.
-        let seats: Vec<crate::OperandSlot> = snapshot
-            .nodes
-            .values()
-            .flat_map(|node| node.operand_rows())
-            .filter(|&(_, read)| crate::edit::seat_selections(snapshot, read).contains(&id))
-            .map(|(slot, _)| slot)
-            .collect();
-        if let Some(fault) = seats.iter().find_map(|&slot| {
-            crate::edit::selection_body_fault(snapshot, crate::SlotId::Operand(slot), &select.body)
-        }) {
-            return Some(SnapshotError::SelectionShape {
-                var: spoken(),
-                fault,
-            });
-        }
-        if let Some((k, found)) = select.body.at.iter().enumerate().find_map(|(k, &index)| {
-            let found = snapshot.var(index)?.kind();
-            (found != crate::VarKind::Count).then_some((k, found))
-        }) {
-            return Some(SnapshotError::SelectionBody {
-                var: spoken(),
-                fault: SelectionBodyFault::Index {
-                    k,
-                    index: Box::new(snapshot.spoken_var(select.body.at[k])),
+        selection_fault(
+            snapshot,
+            id,
+            var,
+            seats.get(&id).map_or(&[][..], Vec::as_slice),
+        )
+    })
+}
+
+/// **What the selection `id`, read at `seats`, holds that no door
+/// writes** ([`first_selection_fault`]).
+fn selection_fault(
+    snapshot: &ProfileDoc,
+    id: VarId,
+    var: &crate::Var,
+    seats: &[crate::OperandSlot],
+) -> Option<SnapshotError> {
+    let select = var.def().select()?;
+    let spoken = || snapshot.spoken_var(id);
+    if let Some(fault) = crate::var::Select::fault(var.kind(), &select.names) {
+        return Some(SnapshotError::SelectionShape {
+            var: spoken(),
+            fault,
+        });
+    }
+    // Each seat reading it, directly or through a pose, holds its
+    // body read to the edit door's rule beyond kind
+    // (`edit::selection_body_fault`).
+    // A pose read at a seat, named or written in place, reads the
+    // selections it reaches there (`edit::seat_selections`): a mate
+    // side's plane is its face's.
+    if let Some(fault) = seats.iter().find_map(|&slot| {
+        crate::edit::selection_body_fault(snapshot, crate::SlotId::Operand(slot), &select.body)
+    }) {
+        return Some(SnapshotError::SelectionShape {
+            var: spoken(),
+            fault,
+        });
+    }
+    if let Some((k, found)) = select.body.at.iter().enumerate().find_map(|(k, &index)| {
+        let found = snapshot.var(index)?.kind();
+        (found != crate::VarKind::Count).then_some((k, found))
+    }) {
+        return Some(SnapshotError::SelectionBody {
+            var: spoken(),
+            fault: SelectionBodyFault::Index {
+                k,
+                index: Box::new(snapshot.spoken_var(select.body.at[k])),
+                found,
+            },
+        });
+    }
+    let read = select.body.read;
+    let body = match snapshot.var(read) {
+        None if snapshot.mint.has_var(read) => return None,
+        None => SelectionBodyFault::Unminted { body: read },
+        Some(held) => {
+            // Every seat reading the selection admits its body
+            // (the edit door's rule, `edit::selection_body_kind`):
+            // a `Bodies` only where mate sides alone read it, and
+            // a family for a member read. The body read observes;
+            // each seat reading the selection is asked of the copy
+            // in the operand walk.
+            let narrow = crate::SlotKind::Is(crate::VarKind::Body);
+            let instance = matches!(
+                snapshot.operation_of(read).and_then(|at| snapshot.node(at)),
+                Some(crate::Node::InstantiatePart { .. })
+            );
+            let expected = if select.body.is_indexed() {
+                crate::SlotKind::Is(crate::VarKind::Bodies)
+            } else if !instance
+                && seats.iter().any(|&slot| {
+                    crate::edit::selection_body_kind(crate::SlotId::Operand(slot)) == narrow
+                })
+            {
+                narrow
+            } else {
+                crate::SlotKind::Placeable
+            };
+            match snapshot.read_fault(read, held, expected, crate::doc::Reader::Observes)? {
+                crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
+                    body: Box::new(snapshot.spoken_var(read)),
                     found,
                 },
-            });
-        }
-        let read = select.body.read;
-        let body = match snapshot.var(read) {
-            None if snapshot.mint.has_var(read) => return None,
-            None => SelectionBodyFault::Unminted { body: read },
-            Some(held) => {
-                // Every seat reading the selection admits its body
-                // (the edit door's rule, `edit::selection_body_kind`):
-                // a `Bodies` only where mate sides alone read it, and
-                // a family for a member read. The body read observes;
-                // each seat reading the selection is asked of the copy
-                // in the operand walk.
-                let narrow = crate::SlotKind::Is(crate::VarKind::Body);
-                let instance = matches!(
-                    snapshot.operation_of(read).and_then(|at| snapshot.node(at)),
-                    Some(crate::Node::InstantiatePart { .. })
-                );
-                let expected = if select.body.is_indexed() {
-                    crate::SlotKind::Is(crate::VarKind::Bodies)
-                } else if !instance
-                    && seats.iter().any(|&slot| {
-                        crate::edit::selection_body_kind(crate::SlotId::Operand(slot)) == narrow
-                    })
-                {
-                    narrow
-                } else {
-                    crate::SlotKind::Placeable
-                };
-                match snapshot.read_fault(read, held, expected, crate::doc::Reader::Observes)? {
-                    crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
-                        body: Box::new(snapshot.spoken_var(read)),
-                        found,
-                    },
-                }
             }
-        };
-        Some(SnapshotError::SelectionBody {
-            var: spoken(),
-            fault: body,
-        })
+        }
+    };
+    Some(SnapshotError::SelectionBody {
+        var: spoken(),
+        fault: body,
     })
 }
 
@@ -848,6 +870,9 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// reads what no door could have written ([`Walk::DefinitionRead`]).
 fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.vars.iter().find_map(|(&id, var)| {
+        if let Some(body) = var.def().source() {
+            return source_read_fault(snapshot, id, body);
+        }
         let expr = var.def().defined()?;
         let var = snapshot.spoken_var(id);
         snapshot
@@ -874,6 +899,42 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 // legal (VR7).
                 VarReadFault::Dead { .. } => None,
             })
+    })
+}
+
+/// **What a source's read holds that no door writes**: an id the mint
+/// log never held, or a live read of a kind no source reads, by the
+/// predicate the edit door asks ([`crate::Doc::read_fault`]). A read of
+/// a deleted variable is its stranded reader (VR7). The load asks it of
+/// every source, the edit door of every source a redefined source
+/// reaches (`edit::check_source_readers`).
+pub(crate) fn source_read_fault<P: crate::ProfilePayload>(
+    snapshot: &crate::Doc<P>,
+    id: VarId,
+    body: &crate::BodyRead<VarId>,
+) -> Option<SnapshotError> {
+    let var = || snapshot.spoken_var(id);
+    if let Some(&read) = core::iter::once(&body.read)
+        .chain(&body.at)
+        .find(|&&read| !snapshot.has_minted_var(read))
+    {
+        return Some(SnapshotError::DefinitionReadsUnmintedVar { var: var(), read });
+    }
+    let held = snapshot.var(body.read)?;
+    let expected = crate::SlotKind::Is(match body.is_indexed() {
+        true => crate::VarKind::Bodies,
+        false => crate::VarKind::Body,
+    });
+    if let Some(crate::doc::ReadFault::Kind { found }) =
+        snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)
+    {
+        return Some(SnapshotError::SourceReadKind { var: var(), found });
+    }
+    let rank = snapshot.member_rank_fault(body.read, body.at.len())?;
+    Some(SnapshotError::SourceReadRank {
+        var: var(),
+        found: body.at.len(),
+        rank,
     })
 }
 
@@ -948,6 +1009,15 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // A minted read no live operation defines is a strand the
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
+            if slot == crate::OperandSlot::Source
+                && matches!(node, crate::Node::Place { .. })
+                && held.def().source().is_none()
+            {
+                return Some(SnapshotError::PlacementReadsNoSource {
+                    node: snapshot.spoken(id),
+                    read: snapshot.spoken_var(var),
+                });
+            }
             Some(
                 match snapshot.read_fault(
                     var,
@@ -1165,11 +1235,15 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // A definition's floats are its expression's literals, finite
         // by the construction door.
         | DocEdit::DeclareVar {
-            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
+            def: crate::var::VarDecl::Defined(_)
+                | crate::var::VarDecl::Index { .. }
+                | crate::var::VarDecl::Source(_),
             ..
         }
         | DocEdit::DefineVar {
-            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
+            def: crate::var::VarDecl::Defined(_)
+                | crate::var::VarDecl::Index { .. }
+                | crate::var::VarDecl::Source(_),
             ..
         }
         // A notation is a table code, not a float.
@@ -1396,6 +1470,34 @@ pub enum SnapshotError {
         slot: crate::OperandSlot,
         /// The read.
         var: SpokenVar,
+    },
+    /// A placement whose source slot reads no source — the edit doors'
+    /// [`crate::EditError::PlacementReadsNoSource`].
+    PlacementReadsNoSource {
+        /// The placement.
+        node: SpokenNode,
+        /// What its source slot reads.
+        read: SpokenVar,
+    },
+    /// A source reading a variable of a kind no source reads — the edit
+    /// doors' [`crate::EditError::SourceRead`].
+    SourceReadKind {
+        /// The source.
+        var: SpokenVar,
+        /// The read's kind.
+        found: crate::VarKind,
+    },
+    /// A source reading a member at other than its family's rank of
+    /// indices (`u = grid[0]` of a family of two) — the edit doors'
+    /// [`crate::EditError::SourceRead`], as a node seat's member read is
+    /// [`SnapshotError::InputList`]'s `IndexRank`.
+    SourceReadRank {
+        /// The source.
+        var: SpokenVar,
+        /// The indices it reads at.
+        found: usize,
+        /// The family's rank.
+        rank: usize,
     },
     /// A selection whose names are not in a stored form of its kind —
     /// the edit doors' [`crate::EditError::SelectionShape`].
@@ -1763,6 +1865,23 @@ impl core::fmt::Display for SnapshotError {
                  variable — the document never minted it, or was written before an operand \
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
+            Self::PlacementReadsNoSource { node, read } => write!(
+                f,
+                "{node} reads {read} as its source directly, and a placement reads its body \
+                 through a source. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
+            Self::SourceReadKind { var, found } => write!(
+                f,
+                "{var} is a source reading {} {found}, and a source reads one body",
+                crate::sentence::article(&found.to_string())
+            ),
+            Self::SourceReadRank { var, found, rank } => write!(
+                f,
+                "{var} is a source reading a member by {found} {}, where its family has {rank}, \
+                 and a member is read at its family's rank",
+                if *found == 1 { "index" } else { "indices" }
             ),
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
@@ -2476,6 +2595,9 @@ mod tests {
             AppearanceReadNotABody,
             NameStepNotMinted,
             OperandUnminted,
+            PlacementReadsNoSource,
+            SourceReadKind,
+            SourceReadRank,
             SelectionShape,
             SelectionBody,
             PoseShape,
@@ -2539,12 +2661,15 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. }
+            | SnapshotError::PlacementReadsNoSource { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
-            | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
+            | SnapshotError::DefinitionVarKind { .. }
+            | SnapshotError::SourceReadKind { .. }
+            | SnapshotError::SourceReadRank { .. } => Walk::DefinitionRead,
             SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
@@ -2635,6 +2760,19 @@ mod tests {
                 node: node(),
                 slot: crate::OperandSlot::Target,
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
+            SnapshotError::PlacementReadsNoSource {
+                node: node(),
+                read: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
+            SnapshotError::SourceReadKind {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                found: crate::VarKind::Profile,
+            },
+            SnapshotError::SourceReadRank {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                found: 1,
+                rank: 2,
             },
             SnapshotError::SlotVarKind {
                 node: node(),

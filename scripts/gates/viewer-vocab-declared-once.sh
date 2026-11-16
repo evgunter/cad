@@ -444,7 +444,7 @@ BEGIN { FS = "|" }
 # guard reads is that stage's own.
 #
 # WHAT IS NOT A READER, by the same rule. `module_path`, `const_name`
-# and `contains` are pure parameter expansion and `printf`, so they
+# and `gate_contains` are pure parameter expansion and `printf`, so they
 # invoke nothing that can be missing and read nothing but their own
 # arguments; `$(gate_name)` is the same. `table_rows`'s leading `printf`
 # is a stage and still not a reader: it is a bash BUILTIN — nothing on
@@ -747,20 +747,6 @@ const_name() { printf '%s\n' "${1##*::}"; }
 # checks below cannot disagree about what "the same list" means.
 list_key() { printf '%s|%s\n' "$SRC/$(module_path "$2")" "$(const_name "$1")"; }
 
-# LIST MEMBERSHIP IN BASH, not `printf … | grep -qxF`, for
-# `viewer-module-kinds.sh`'s reason: a grep that could not run would
-# read as "not in the list", which is a false red here and a silently
-# dropped ratification next door. The lists are a handful of short
-# strings in memory; a search that cannot fail cannot fail wrong.
-contains() {
-  local needle=$1 item
-  shift
-  for item in "$@"; do
-    [ "$item" = "$needle" ] && return 0
-  done
-  return 1
-}
-
 # THE ENGLISH WORD FOR A COUNT, so `KIND_ANCHOR`'s first word and
 # `KIND_COUNT` can be COMPARED rather than trusted to have been moved
 # together. Nine is past anything this section will ratify; a count
@@ -899,7 +885,7 @@ gate() {
   # set still runs it.
   for row in ${rows[@]+"${rows[@]}"}; do
     kind=${row##*|}
-    if ! contains "$kind" "${kinds[@]}"; then
+    if ! gate_contains "$kind" "${kinds[@]}"; then
       gate_error "$README's \"$TABLE\" row \`${row%%|*}\` claims the kind \"$kind\", which is not one the \"$SECTION\" section ratifies. Its bolded bullets are the ratified kinds: $(printf '"%s" ' "${kinds[@]}")— a kind this list does not hold is an amendment to that section, argued there, not a new word in this table"
       rc=1
     fi
@@ -916,7 +902,7 @@ gate() {
   for row in ${rows[@]+"${rows[@]}"}; do
     IFS='|' read -r list module kind <<<"$row"
     key=$(list_key "$list" "$module")
-    if contains "$key" ${seen_keys[@]+"${seen_keys[@]}"}; then
+    if gate_contains "$key" ${seen_keys[@]+"${seen_keys[@]}"}; then
       gate_error "$README's \"$TABLE\" carries more than one row for \`$module\`'s \`$(const_name "$list")\` (this one says \`$list\` / \"$kind\"). One row ratifies one list: two of them ratify it twice, disagree about its kind if their cells differ, and make the count this gate reports name more lists than the crate holds. Delete the duplicate, or split the rows onto the two lists they meant"
       rc=1
     fi

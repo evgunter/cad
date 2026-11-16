@@ -67,6 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "a_turned_discs_union_names_its_unfinished_member.rs"]
+mod a_turned_discs_union_names_its_unfinished_member;
 #[path = "aligned_overlap_quiets.rs"]
 mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
@@ -99,6 +101,8 @@ mod atrest_operation_rows_quiet;
 mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_mixed_corner_names.rs"]
+mod band_mixed_corner_names;
 #[path = "band_planar_cut_off_names.rs"]
 mod band_planar_cut_off_names;
 #[path = "band_planar_mitre_names.rs"]
@@ -255,6 +259,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "placement_values_direction.rs"]
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
@@ -291,6 +297,8 @@ mod takeover_door;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
+mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -910,6 +918,8 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "source_readers.rs"]
+mod source_readers;
 #[path = "split_joined_keys_tie.rs"]
 mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]

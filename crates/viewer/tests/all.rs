@@ -130,6 +130,8 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "named_source.rs"]
+mod named_source;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
@@ -235,3 +237,5 @@ mod view_toggles;
 mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "source_readers.rs"]
+mod source_readers;

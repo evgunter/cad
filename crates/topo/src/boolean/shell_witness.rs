@@ -89,12 +89,11 @@ use std::collections::BTreeSet;
 use super::solid_contain::{
     PointInSolidError, SolidContainment, operand_faces, point_in_solid, point_in_solid_faces,
 };
-use super::{
-    BooleanError, BooleanOp, CarrierRelation, Operand, ReductionContacts, SettledPair, SideCode,
-};
+use super::{BooleanError, BooleanOp, Operand, ReductionContacts, SettledPair, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
 use crate::stands::{LadderRefusal, Strict, Witness, ladder};
+use geom_brep::CarrierRelation;
 use geom_brep::ladder::Ranked;
 
 /// What the ladder read off a complex: the first decisive witness's
@@ -478,11 +477,12 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{ShellOrientation, ShellVerdict, on_verdict};
-    use crate::boolean::{BooleanError, BooleanResult, CarrierRelation, Operand, SettledPair};
+    use crate::boolean::{BooleanError, BooleanResult, Operand, SettledPair};
     use crate::entity::{FaceKey, ShellKey};
     use crate::test_support::finished;
     use crate::test_support_fixtures::brick;
     use crate::{Body, union};
+    use geom_brep::CarrierRelation;
     use geom_core::Tol;
 
     /// **A partner covers the whole shell, not part of it.** A unit

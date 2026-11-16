@@ -417,30 +417,31 @@ fn a_hole_reaching_a_links_strip_refuses_at_the_meter() {
     }
 }
 
-/// **Holes near a corner arc that the meter cannot clear refuse with
-/// the sequential recourse, which builds**: each hole's trim circle
-/// passes the corner arc's wedge or a straight link's slab end, where
-/// the ranged read straddles the strip though the circle clears it. The
-/// outline's rims first, then the hole's, build at the closed form.
+/// **Holes beside a corner build in one call, at the volume of the
+/// sequential calls**: each hole's trim circle passes the corner arc's
+/// wedge or a straight link's slab end, where its whole range across
+/// the strip straddles it, and the meter reads the circle clipped to
+/// each window, clear of the strip. The outline's rims first, then the
+/// hole's, build at the same volume.
 #[test]
-fn holes_beside_a_corner_refuse_with_the_sequential_recourse_which_builds() {
+fn holes_beside_a_corner_build_in_one_call_as_in_sequence() {
     for (at, hr) in [
         ((0.559, 0.159), 0.1),
         ((0.6, 0.2), 0.1),
         ((0.845, 0.25), 0.05),
         ((0.849, 0.25), 0.05),
     ] {
+        let truth = 2.0 * outline().pappus(R, true) + 2.0 * circle_rim(hr, true, R);
         let what = format!("hole r {hr} at {at:?}");
-        let (o, body) = holed_plate::<f64>(at, hr);
-        let Err(e) = fillet_edges(&at_rest(&body, tol()), &every_edge(&body), R, tol()) else {
-            panic!("{what}: built in one call; this row pins the meter's unclear read");
-        };
-        assert!(
-            matches!(&e.error, BlendError::UnsupportedChain { detail, .. }
-                if detail.contains("ladder ring beside a mixed rim")
-                    && detail.contains("SEQUENTIAL calls")),
-            "{what}: refuses with the sequential recourse, got {:?}",
-            e.error
+        let (_, body) = holed_plate::<f64>(at, hr);
+        let one = carve(&what, &body, &every_edge(&body), truth, Z).expect("f64 builds");
+        let (_, body_i) = holed_plate::<Interval>(at, hr);
+        carve(
+            &format!("{what} at Interval"),
+            &body_i,
+            &every_edge(&body_i),
+            truth,
+            Z,
         );
         let outer: Vec<EdgeKey> = outer_rim(&body, 0.0)
             .into_iter()
@@ -457,15 +458,184 @@ fn holes_beside_a_corner_refuse_with_the_sequential_recourse_which_builds() {
         assert_eq!(hole.len(), 4, "{what}: the hole's two rims of two arcs");
         let second = fillet_edges(&at_rest(&b1, tol()), &hole, R, tol())
             .unwrap_or_else(|e| panic!("{what}: the hole's rims after: {:?}", e.error));
-        validate_geometric(&second.body, tol())
-            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-        let truth = 2.0 * o.pappus(R, true) + 2.0 * circle_rim(hr, true, R);
-        let ((v0, w0), (v1, w1)) = (volume(&body), volume(&second.body));
+        let (vs, ws) = volume(&second.body);
         assert!(
-            ((v0 - v1) - truth).abs() <= w0 + w1 + 1e-12,
-            "{what}: ΔV {} is the closed form {truth}",
-            v0 - v1
+            (one - vs).abs() <= ws + 1e-12,
+            "{what}: one call {one} is the two calls' {vs}"
         );
+    }
+}
+
+/// The refusal's margin as an `f64`, an enclosure's midpoint, where the
+/// support meter refused it.
+fn ring_margin(what: &str, e: &BlendError) -> f64 {
+    let BlendError::RingClearance { margin, .. } = e else {
+        panic!("{what}: refuses at the support meter, got {e:?}");
+    };
+    match margin.reading.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m) => m,
+        geom_core::ErrorTextReading::Enclosure { lo, hi } => {
+            assert!(hi - lo < 1e-9, "{what}: a tight enclosure, [{lo}, {hi}]");
+            0.5 * (lo + hi)
+        }
+        geom_core::ErrorTextReading::Invalid => panic!("{what}: a poisoned margin"),
+    }
+}
+
+/// **A hole beside a corner reaching the straight link's strip refuses
+/// at its depth**: the hole's trim circle, of radius `0.1` at height
+/// `0.25`, inside the right link's window, meets the strip `0.95 ≤ x`
+/// past `x = 0.85`. Each side of that boundary, at each scalar.
+#[test]
+fn a_hole_beside_a_corner_reaching_a_links_strip_refuses_at_its_depth() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+        x: f64,
+        clear: bool,
+        scalar: &str,
+    ) {
+        let what = format!("hole at x = {x} at {scalar}");
+        let truth = 2.0 * outline().pappus(R, true) + 2.0 * circle_rim(0.05, true, R);
+        let (_, body) = holed_plate::<T>((x, 0.25), 0.05);
+        if clear {
+            carve(&what, &body, &every_edge(&body), truth, Z);
+            return;
+        }
+        let Err(e) = fillet_edges(
+            &at_rest(&body, tol()),
+            &every_edge(&body),
+            T::from_f64(R),
+            tol(),
+        ) else {
+            panic!("{what}: reaches the strip and built");
+        };
+        let read = ring_margin(&what, &e.error);
+        let depth = 0.85 - x;
+        assert!(
+            (read - depth).abs() < 1e-9,
+            "{what}: the meter reads the trim {depth} into the strip, got {read}"
+        );
+    }
+    for (x, clear) in [(0.849, true), (0.851, false)] {
+        row::<f64>(x, clear, "f64");
+        row::<Interval>(x, clear, "Interval");
+    }
+}
+
+/// The rounded plate with the rectangular hole `[x0, x1] × [y0, y1]`
+/// through it, at any scalar.
+fn slotted_plate<T: Decide + topo::AtRestPolicy>(
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+) -> Body<T> {
+    let at = |x: f64, y: f64, b: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b));
+    let outer = outline()
+        .chain
+        .iter()
+        .map(|&(q, b)| at(q.0, q.1, b))
+        .collect();
+    let hole = vec![
+        at(x0, y0, 0.0),
+        at(x0, y1, 0.0),
+        at(x1, y1, 0.0),
+        at(x1, y0, 0.0),
+    ];
+    extruded(
+        SketchPlane::xy(),
+        vec![bulge_loop(outer), bulge_loop(hole)],
+        T::from_f64(0.5),
+        tol(),
+    )
+}
+
+/// **A rectangular hole whose side ends on a corner arc's window line,
+/// or within the band short of it, leaves the outline's rims building
+/// at Pappus**, at each scalar. A side ending in band short of the line
+/// grazes the wedge there, a touch; the touch does not decide, since
+/// the side lies outside the wedge's other half-plane, or its part in
+/// the wedge clears the corner's strip. A side ending exactly on the
+/// line reads its end point.
+#[test]
+fn rectangular_holes_ending_at_a_corners_window_build_at_pappus() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+        x: (f64, f64),
+        y: (f64, f64),
+        scalar: &str,
+    ) {
+        let what = format!("hole {x:?} × {y:?} at {scalar}");
+        let body = slotted_plate::<T>(x, y);
+        let rims: Vec<EdgeKey> = outer_rim(&body, 0.0)
+            .into_iter()
+            .chain(outer_rim(&body, 0.5))
+            .collect();
+        carve(&what, &body, &rims, 2.0 * outline().pappus(R, true), Z);
+    }
+    let short = 0.7 - 1e-10;
+    for (x, y) in [
+        ((0.5, short), (0.03, 0.2)),
+        ((-short, -0.5), (-0.2, -0.03)),
+        ((0.5, short), (-0.03, 0.2)),
+        ((0.5, 0.7 - 1e-12), (-0.03, 0.2)),
+        ((0.5, 0.7), (0.35, 0.5)),
+        ((0.6, 0.7), (0.2, 0.3)),
+        ((-0.2, 0.2), (0.0, 0.3)),
+    ] {
+        row::<f64>(x, y, "f64");
+        row::<Interval>(x, y, "Interval");
+    }
+}
+
+/// A disc of radius `1.5` authored as `arcs` arcs, `0.5` thick, with
+/// the rounded outline through it.
+fn disc<T: Decide + Bounds + topo::AtRestPolicy>(arcs: u32) -> Body<T> {
+    let o = outline();
+    let n = o.chain.len();
+    let at = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
+    // The outline run backwards: each vertex in turn back, each arc's
+    // bulge negated with its run.
+    let hole: Vec<_> = (0..n)
+        .map(|i| {
+            let (q, _) = o.chain[(n - i) % n];
+            let (_, b) = o.chain[(2 * n - i - 1) % n];
+            (at(q.0, q.1), T::from_f64(-b))
+        })
+        .collect();
+    let step = 2.0 * PI / f64::from(arcs);
+    let rim: Vec<_> = (0..arcs)
+        .map(|i| {
+            let t = f64::from(i) * step;
+            (
+                at(1.5 * t.cos(), 1.5 * t.sin()),
+                T::from_f64((step / 4.0).tan()),
+            )
+        })
+        .collect();
+    extruded(
+        SketchPlane::xy(),
+        vec![bulge_loop(rim), bulge_loop(hole)],
+        T::from_f64(0.5),
+        tol(),
+    )
+}
+
+/// **A rounded outline through a disc of a few wide arcs fillets**: the
+/// disc's two or four arcs, stored edges of the caps' outer cycles,
+/// sweep through each link's window, and the meter reads each clipped
+/// to the window, `0.45` and more clear of every strip. The outline's
+/// rims remove Pappus's volume, at each scalar.
+#[test]
+fn an_outline_through_a_disc_of_a_few_arcs_fillets_at_pappus() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(arcs: u32, scalar: &str) {
+        let body = disc::<T>(arcs);
+        let inner: Vec<EdgeKey> = outer_rim(&body, 0.0)
+            .into_iter()
+            .chain(outer_rim(&body, 0.5))
+            .collect();
+        let what = format!("the outline through a disc of {arcs} arcs at {scalar}");
+        carve(&what, &body, &inner, 2.0 * outline().pappus(R, false), Z);
+    }
+    for arcs in [2, 4] {
+        row::<f64>(arcs, "f64");
+        row::<Interval>(arcs, "Interval");
     }
 }
 
@@ -478,28 +648,7 @@ fn holes_beside_a_corner_refuse_with_the_sequential_recourse_which_builds() {
 #[test]
 fn an_annulus_rim_around_a_mixed_rim_refuses_and_composes_sequentially() {
     let o = outline();
-    let n = o.chain.len();
-    // The outline run backwards: each vertex in turn back, each arc's
-    // bulge negated with its run.
-    let hole: Vec<_> = (0..n)
-        .map(|i| {
-            let (q, _) = o.chain[(n - i) % n];
-            let (_, b) = o.chain[(2 * n - i - 1) % n];
-            (Point2::new(q.0, q.1), -b)
-        })
-        .collect();
-    let disc: Vec<_> = (0..8)
-        .map(|i| {
-            let t = f64::from(i) * PI / 4.0;
-            (Point2::new(1.5 * t.cos(), 1.5 * t.sin()), (PI / 16.0).tan())
-        })
-        .collect();
-    let body = extruded(
-        SketchPlane::xy(),
-        vec![bulge_loop(disc), bulge_loop(hole)],
-        0.5,
-        tol(),
-    );
+    let body = disc::<f64>(8);
     let Err(e) = fillet_edges(&at_rest(&body, tol()), &every_edge(&body), R, tol()) else {
         panic!("an annulus around a mixed rim built in one call");
     };
