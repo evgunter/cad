@@ -92,7 +92,8 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use geom::{Curve3, Surface};
+use geom::cover::{BoxAxes, Cover};
+use geom::{Curve3, Frame, Surface};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
@@ -101,7 +102,7 @@ use super::battery::{
     Chain, Convexity, Link, MixedVertex, Turn, TurnRunOut, carrier_of, classified,
     face_clearance_margin, outward, same_supports,
 };
-use super::open::planar::mixed_corner_geometry;
+use super::open::planar::{MixedGeometry, MixedLink, mixed_corner_geometry};
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
@@ -1064,14 +1065,17 @@ fn straight_reach<T: Decide + Bounds>(
         // plane's run across the section.
         if let Some(c) = cut.iter().find(|c| c.vertex == v && c.near == link.edge) {
             let n = c.normal.normalize();
-            let along = n.dot(tau);
-            if along.abs().lo() <= 0.0 {
+            // The far strip's plane holds the odd edge, square to `E`
+            // which holds the near edge, so it runs along the near edge
+            // only at a dihedral of 0 or π at the odd edge, which predicate
+            // 5's definite wedge rules out.
+            let Some(along) = crossing(n, tau) else {
                 return Err(BlendError::SurgeryInvariant {
                     at: EntityId::Vertex(v),
-                    detail: "a mixed turn's near band runs along the far strip's plane, which \
-                             predicate 6 refuses before the reach is read",
+                    detail: "a mixed turn's near edge runs along the far strip's plane, which \
+                             the odd edge's definite wedge rules out before the reach is read",
                 });
-            }
+            };
             let cap = half_space(c.origin, n, q);
             core.push(cap.clone());
             caps.push((Role::Other, cap));
@@ -1109,15 +1113,14 @@ fn straight_reach<T: Decide + Bounds>(
                 // Predicate 6 read the end's three normals independent
                 // (`fillet3_corner_independence`, levered at the size), so
                 // the end face's plane crosses the spine.
-                let along = n.dot(tau).abs();
-                if along.lo() <= 0.0 {
+                let Some(along) = crossing(n, tau).map(|a| a.abs()) else {
                     return Err(BlendError::SurgeryInvariant {
                         at: EntityId::Vertex(v),
                         detail: "a straight band's window ends in a plane along its spine, \
                                  which predicate 6 refuses (DependentNormals) before the \
                                  reach is read",
                     });
-                }
+                };
                 // The face lies on its cap, the reach's boundary, only
                 // when it is the plane the cap is: that is the licence
                 // to skip it.
@@ -1329,11 +1332,20 @@ fn circular_reach<T: Decide + Bounds>(
         origin: center,
         dir: axis,
     });
-    // A band of revolution about its own axis: `big + reach` across,
-    // `reach` along.
-    let ext = |p: T, q: T| big * (p.powi(2) + q.powi(2)).sqrt() + reach;
-    let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
-    let (lo, hi) = (center - e, center + e);
+    // A band of revolution about its own axis lies within `reach` of the
+    // circle through its spine point: that tube's cover.
+    let (lo, hi) = Cover::torus(
+        &Frame::new(center, a, (circle - center).normalize()),
+        big,
+        reach,
+    )
+    .map(|c| c.box_in(&BoxAxes::World))
+    .ok_or_else(|| {
+        disagrees(
+            EntityId::Edge(link.edge),
+            "a circular link's band is no finite tube about its axis",
+        )
+    })?;
     let sheet = |x: Point3<T>| sheet_of(meridian, x);
     let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet {
         axis: meridian,
@@ -1622,22 +1634,8 @@ fn corner_reach<T: Decide + Bounds>(
                 "a corner whose convexity mixes is not a mixed corner the battery admitted",
             )
         })?;
-        // The patch is the pair's link, and does to the material what
-        // the pair's bands do.
-        let pair = here
-            .iter()
-            .find(|(_, l)| l.edge != m.odd)
-            .map_or(chain, |(ci, _)| *ci);
-        return mixed_corner_reach(
-            body,
-            *m,
-            &links,
-            (&faces, pv, normals),
-            size,
-            kind,
-            (chains, pair),
-        )
-        .map(Some);
+        return mixed_corner_reach(body, *m, here, (&faces, pv, normals), (size, kind), chains)
+            .map(Some);
     }
     let mut bounds = Vec::new();
     let mut confine = None;
@@ -1723,9 +1721,7 @@ fn corner_reach<T: Decide + Bounds>(
         .filter(|(role, _)| !matches!(role, Role::Side(_)))
         .map(|(_, b)| b.clone())
         .collect();
-    let far = anchors
-        .iter()
-        .fold(T::zero(), |m, x| m.max((*x - pv).norm()));
+    let far = farthest(pv, &anchors);
     let far = far + far;
     let e = Vec3::new(far, far, far);
     let ends = links
@@ -1778,7 +1774,10 @@ fn corner_reach<T: Decide + Bounds>(
 ///   band's axis, outside the torus's tube, and within the wedge through
 ///   that axis and the two rests. In the meridian sheet that is the
 ///   section the torus leaves between `E` and the odd band's cylinder,
-///   so it is the material the link changes and no more. Each pair band
+///   which holds the material the link changes. It also holds what the
+///   odd band would fill and the torus cuts back (air at a flush corner,
+///   the boss at an inset one), which the result leaves as it was: a
+///   superset, so a feature there refuses as a bound. Each pair band
 ///   ends at its rest's plane, square to its edge; the odd band ends in
 ///   `E` and is its own material from the centre's plane on.
 /// - **Chamfer**: the mitred strip's prism: on the patch's side of `E`,
@@ -1786,43 +1785,45 @@ fn corner_reach<T: Decide + Bounds>(
 ///   mitres, each the plane through a pair band's three section points
 ///   (the trimline crossing on the odd edge's face, its host foot on
 ///   `E`, and between them their common point on the pair edge's line).
-///   It is the convex hull of those six points. Each pair band runs to
+///   It is the convex hull of those six points, and holds the strip's
+///   cut-back fill as the fillet's region does. Each pair band runs to
 ///   its mitre, from the nearer of its host foot's and its crossing's
 ///   stations, and is its own material from the farther; the odd band
 ///   ends in `E` and is its own material from the crossings' station.
 fn mixed_corner_reach<T: Decide + Bounds>(
     body: &Body<T>,
     m: MixedVertex,
-    links: &[&Link<T>],
+    here: &[(usize, &Link<T>)],
     (faces, pv, normals): (&[FaceKey], Point3<T>, [Vec3<T>; 3]),
-    size: T,
-    kind: BlendKind,
-    (chains, chain): (Vec<usize>, usize),
+    (size, kind): (T, BlendKind),
+    chains: Vec<usize>,
 ) -> Result<CornerReach<T>, BlendError> {
     let v = m.vertex;
-    let (arcs, feet, surface) =
-        mixed_corner_geometry((v, m), links, faces, (pv, normals), size, kind)?;
-    let slot = |f: FaceKey| {
-        faces.iter().position(|g| *g == f).ok_or_else(|| {
-            disagrees(
-                EntityId::Vertex(v),
-                "a mixed corner's link stands on a face the corner lacks",
-            )
-        })
-    };
-    let n_e = normals[slot(m.host)?];
-    let pair: Vec<&Link<T>> = links.iter().copied().filter(|l| l.edge != m.odd).collect();
+    let links: Vec<&Link<T>> = here.iter().map(|(_, l)| *l).collect();
+    let MixedGeometry {
+        arcs,
+        surface,
+        host_normal: n_e,
+        pair,
+        ..
+    } = mixed_corner_geometry((v, m), &links, faces, (pv, normals), size, kind)?;
+    // The patch is the pair's link, and does to the material what the
+    // pair's bands do: the reach is named by a pair band's chain.
+    let chain = here
+        .iter()
+        .find(|(_, l)| l.edge == pair[0].edge)
+        .map_or(0, |(ci, _)| *ci);
     let mut bounds = Vec::new();
     let mut ends = Vec::new();
     let (lo, hi, width) = match kind {
         BlendKind::Fillet => {
-            let (rests, odd, major_radius) = arcs.mixed_link().ok_or_else(|| {
+            let MixedLink { rests, odd, major } = arcs.mixed_link().ok_or_else(|| {
                 disagrees(
                     EntityId::Vertex(v),
                     "a mixed corner's fillet patch has no link",
                 )
             })?;
-            let (q, axis, minor_radius) = (odd.centre, odd.normal, odd.radius);
+            let (q, axis, radius) = (odd.centre, odd.normal, odd.radius);
             let p_e = q + n_e * (pv - q).dot(n_e);
             let spine = geom::Line {
                 origin: q,
@@ -1830,7 +1831,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             };
             bounds.push((Role::Side(m.host), half_space(pv, n_e, q)));
             bounds.push((Role::Other, half_space(q, n_e, p_e)));
-            for (r, inside) in [(minor_radius, false), (major_radius, true)] {
+            for (r, inside) in [(radius, false), (major, true)] {
                 bounds.push((
                     Role::Other,
                     Bound::Tube {
@@ -1850,9 +1851,9 @@ fn mixed_corner_reach<T: Decide + Bounds>(
                 Bound::Sheet {
                     axis: meridian,
                     f: SheetFn::Circle {
-                        p: major_radius,
+                        p: major,
                         q: sheet_of(meridian, q).1,
-                        r: minor_radius,
+                        r: radius,
                         sigma: -T::one(),
                     },
                     slack: T::zero(),
@@ -1870,79 +1871,68 @@ fn mixed_corner_reach<T: Decide + Bounds>(
                     core: vec![c],
                 });
             }
-            let a = axis.normalize();
-            let ext = |x: T, y: T| major_radius * (x.powi(2) + y.powi(2)).sqrt() + minor_radius;
-            let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
-            (q - e, q + e, minor_radius)
+            // The region lies in the torus's convex hull, `ρ ≤ R + r`
+            // about its axis and within `r` of its centre along it: its
+            // box is that of the torus's cover.
+            let frame = Frame::new(q, axis, (rests[0].1 - q).normalize());
+            let (lo, hi) = Cover::torus(&frame, major, radius)
+                .map(|c| c.box_in(&BoxAxes::World))
+                .ok_or_else(|| {
+                    disagrees(EntityId::Vertex(v), "a mixed corner's torus is not finite")
+                })?;
+            (lo, hi, radius)
         }
         BlendKind::Chamfer => {
             // Per pair band: its crossing on the odd edge's face, its
             // host foot on `E`, and the crossing's foot on `E`, which
             // lies on the pair edge's line.
-            let mut mitres = Vec::new();
-            for l in &pair {
-                let face = if l.face_a == m.host {
-                    l.face_b
-                } else {
-                    l.face_a
-                };
-                let wall = feet[slot(face)?].of(l.edge);
-                let foot = feet[slot(m.host)?].of(l.edge);
-                let (Some(wall), Some(foot)) = (wall, foot) else {
-                    return Err(disagrees(
-                        EntityId::Vertex(v),
-                        "a mixed corner's pair band has no feet",
-                    ));
-                };
-                let corner = wall - n_e * (wall - pv).dot(n_e);
-                mitres.push((l.edge, corner, wall, foot));
-            }
+            let mitres = pair.map(|f| (f, f.wall - n_e * (f.wall - pv).dot(n_e)));
             let points: Vec<Point3<T>> = mitres
                 .iter()
-                .flat_map(|(_, c, w, f)| [*c, *w, *f])
+                .flat_map(|(f, c)| [*c, f.wall, f.host])
                 .collect();
             let inside = centroid(&points);
-            let [(_, c, w, f), (_, _, w1, _)] = mitres[..] else {
-                return Err(disagrees(
-                    EntityId::Vertex(v),
-                    "a mixed corner's pair is not two bands",
-                ));
-            };
+            let [(f, c), (g, _)] = mitres;
             // The odd strip's plane holds both crossings and their feet on
             // `E`; the patch's both crossings and the host feet.
-            let across = w1 - w;
+            let across = g.wall - f.wall;
             bounds.push((Role::Side(m.host), half_space(pv, n_e, inside)));
-            bounds.push((Role::Other, half_space(w, across.cross(c - w), inside)));
-            bounds.push((Role::Band, half_space(w, across.cross(f - w), inside)));
-            for (_, c, w, f) in &mitres {
+            bounds.push((
+                Role::Other,
+                half_space(f.wall, across.cross(c - f.wall), inside),
+            ));
+            bounds.push((
+                Role::Band,
+                half_space(f.wall, across.cross(f.host - f.wall), inside),
+            ));
+            for (f, c) in &mitres {
                 bounds.push((
                     Role::Other,
-                    half_space(*c, (*w - *c).cross(*f - *c), inside),
+                    half_space(*c, (f.wall - *c).cross(f.host - *c), inside),
                 ));
             }
             ends.push(PatchEnd {
                 edge: m.odd,
-                window: [pv].into_iter().chain(mitres.iter().map(|x| x.2)).collect(),
-                core: mitres.iter().map(|x| x.2).collect(),
+                window: vec![pv, f.wall, g.wall],
+                core: vec![f.wall, g.wall],
             });
-            for (edge, _, w, f) in &mitres {
+            for (f, _) in &mitres {
                 ends.push(PatchEnd {
-                    edge: *edge,
-                    window: vec![*f, *w],
-                    core: vec![*f, *w],
+                    edge: f.edge,
+                    window: vec![f.host, f.wall],
+                    core: vec![f.host, f.wall],
                 });
             }
-            let first = points.first().copied().unwrap_or(pv);
-            let (lo, hi) = points.iter().fold((first, first), |(l, h), x| {
-                (
-                    Point3::new(l.x.min(x.x), l.y.min(x.y), l.z.min(x.z)),
-                    Point3::new(h.x.max(x.x), h.y.max(x.y), h.z.max(x.z)),
-                )
-            });
-            let far = points
-                .iter()
-                .fold(T::zero(), |m, x| m.max((*x - pv).norm()));
-            (lo, hi, far)
+            // The region is the hull of its two mitres' triangles.
+            let (lo, hi) = Cover::points(points.clone())
+                .map(|c| c.box_in(&BoxAxes::World))
+                .ok_or_else(|| {
+                    disagrees(
+                        EntityId::Vertex(v),
+                        "a mixed corner's mitres are not finite",
+                    )
+                })?;
+            (lo, hi, farthest(pv, &points))
         }
     };
     // Each support is replaced where it lies in the region: its own
@@ -1980,6 +1970,18 @@ fn mixed_corner_reach<T: Decide + Bounds>(
         },
         ends,
     ))
+}
+
+/// `n·τ` where the plane normal to `n` certainly crosses the line along
+/// `τ`, its bracket clear of zero; `None` where it may run along it.
+fn crossing<T: Bounds>(n: Vec3<T>, tau: Vec3<T>) -> Option<T> {
+    let along = n.dot(tau);
+    (along.abs().lo() > 0.0).then_some(along)
+}
+
+/// How far the farthest of `pts` stands from `o`.
+fn farthest<T: Real>(o: Point3<T>, pts: &[Point3<T>]) -> T {
+    pts.iter().fold(T::zero(), |m, x| m.max((*x - o).norm()))
 }
 
 /// A cell's verdict, and the face's least bound so far.

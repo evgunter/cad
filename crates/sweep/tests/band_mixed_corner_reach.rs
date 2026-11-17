@@ -2,12 +2,16 @@
 //! (`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`):
 //! the fillet's torus piece between `E` and the odd band, over the turn
 //! between the pair's rests, and the chamfer's mitred strip between its
-//! two mitres, each the material the corner changes and no more
-//! (`reach::mixed_corner_reach`). Short edges and close faces the
-//! uniform corner's octant or plane refused now build, at their closed
-//! forms; a feature that enters the real patch by `100ε` refuses, on
-//! the reflex side of the corner and beside the pair's strips alike,
-//! and one that stands `100ε` clear of it builds.
+//! two mitres (`reach::mixed_corner_reach`). Each holds the material the
+//! corner changes, and with it some it leaves as it was: the air the odd
+//! band would fill and the patch cuts back away (the flush corner's), or
+//! the boss's own material the same way (the inset's). Short edges and
+//! close faces the uniform corner's octant or plane refused now build,
+//! at their closed forms. Where the patch's boundary is the material's
+//! own (on the reflex side of the corner, beside the pair's strips), a
+//! feature that enters the patch by `100ε` refuses and one that stands
+//! `100ε` clear of it builds; a feature in the air or boss the patch
+//! leaves as it was refuses as a bound.
 //!
 //! The odd edge with one pair edge is a turn, its pair strip cut off in
 //! the odd strip's plane: the pair band's reach ends there, not in its
@@ -33,8 +37,8 @@ use topo::{Body, EdgeKey, validate_geometric};
 
 use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
 use crate::band_mixed_corner::{
-    Scalar, boreless, chamfer_flush, edge, every_edge, fillet_flush, flush_at, inset, l_corner,
-    l_prism, realized_at, seams, tol, volume,
+    Scalar, boreless, chamfer_flush, edge, every_edge, fillet_flush, flush_at, inset, inset_at,
+    l_corner, l_prism, realized_at, seams, tol, volume,
 };
 
 /// The size every single-corner row asks for, meters.
@@ -142,6 +146,22 @@ fn refuses<T: Scalar>(body: &Body<T>, edges: &[EdgeKey], (verb, size): (Verb, f6
         "{what} ({verb:?} {size}): refuses FaceClearance, got {got:?}",
         got = got.as_ref().map(|_| ())
     );
+}
+
+/// A feature clear of the patch: it builds at `truth`, or the meter,
+/// reading it through its box, refuses it as a bound.
+fn builds_or_bound<T: Scalar>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    (verb, size): (Verb, f64),
+    (truth, shells): (f64, i64),
+    what: &str,
+) {
+    match verb.run(body, edges, size) {
+        Err(BlendError::FaceClearance { bounded: true, .. }) => {}
+        Err(e) => panic!("{what} ({verb:?} {size}): builds or refuses as a bound, got {e:?}"),
+        Ok(_) => builds(body, edges, (verb, size), (truth, shells), what),
+    }
 }
 
 /// The odd edge, then the pair edges along `+x` to `x` and `+y` to `y`,
@@ -452,6 +472,111 @@ fn an_island_entering_the_inset_corners_patch_refuses_and_one_clear_of_it_builds
     }
 }
 
+/// **The inset corner at 60° and 120°**: the flush void's mirror, a box
+/// island on the boss's bisector's far side, refuses entering the patch
+/// and builds clear of it. At 60° the fillet's torus reaches no further
+/// than the vertex, as the flush one's.
+#[test]
+fn an_island_entering_the_inset_patch_at_a_non_right_plan_angle_refuses() {
+    for phi in [PI / 3.0, 2.0 * PI / 3.0] {
+        let (cos, sin) = ((phi / 2.0).cos(), (phi / 2.0).sin());
+        // The boss's bisector, between `−y` and `φ` clockwise from it.
+        let b = (-(phi / 2.0).sin(), -(phi / 2.0).cos());
+        for verb in VERBS {
+            let at = match verb {
+                Verb::Fillet => S / sin - rho_t(),
+                Verb::Chamfer => Z0 - S * (1.0 - cos),
+            };
+            if at >= 0.0 {
+                continue;
+            }
+            let truth = match verb {
+                Verb::Fillet => -fillet_flush(phi, S, (1.0, 1.0, 1.0)),
+                Verb::Chamfer => -chamfer_flush(phi, S, (1.0, 1.0, 1.0)),
+            };
+            for d in offsets() {
+                let t = at - d;
+                let (x0, y0) = (t * b.0, t * b.1);
+                let (body, _) = inset_at::<f64>(phi);
+                let island = brick::<f64>((x0, x0 + W), (y0, y0 + W), (Z0, Z0 + W), tol());
+                let body = realized(BooleanOp::Union, &body, &island, tol());
+                let o = (0.0, 0.0, 0.0);
+                let edges = [
+                    edge(&body, o, (0.0, 0.0, 1.0)),
+                    edge(&body, o, (0.0, -1.0, 0.0)),
+                    edge(&body, o, (-phi.sin(), -phi.cos(), 0.0)),
+                ];
+                let what = format!(
+                    "inset at {:.0}°, an island off the patch by {d:e}",
+                    phi.to_degrees()
+                );
+                if d < 0.0 {
+                    refuses(&body, &edges, (verb, S), &what);
+                } else {
+                    builds(&body, &edges, (verb, S), (truth, 2), &what);
+                }
+            }
+        }
+    }
+}
+
+/// **The region holds some material the patch leaves as it was**: in
+/// the flush corner, the air below the torus (or the chamfer's strip)
+/// that the odd band would fill and the patch cuts back; in the inset,
+/// the boss's own material the same way. A feature standing there
+/// refuses as a bound, though the result leaves it untouched
+/// (`work/band/a-mixed-corners-reach-holds-the-air-its-patch-leaves.md`).
+#[test]
+fn a_feature_in_what_the_patch_leaves_as_it_was_refuses_as_a_bound() {
+    let low = (0.003, 0.01);
+    for (verb, xy) in [
+        (Verb::Fillet, (0.002, 0.006)),
+        (Verb::Chamfer, (0.01, 0.03)),
+    ] {
+        let island = brick::<f64>(xy, xy, low, tol());
+        let body = realized(BooleanOp::Union, &l_prism::<f64>(2.0), &island, tol());
+        refuses(
+            &body,
+            &l_corner(&body, 2.0),
+            (verb, S),
+            "an island in the flush air",
+        );
+        let void = brick::<f64>((-xy.1, -xy.0), (-xy.1, -xy.0), low, tol());
+        let (inset, _) = inset::<f64>();
+        let body = realized(BooleanOp::Subtract, &inset, &void, tol());
+        let o = (0.0, 0.0, 0.0);
+        let edges = [
+            edge(&body, o, (0.0, 0.0, 1.0)),
+            edge(&body, o, (0.0, -1.0, 0.0)),
+            edge(&body, o, (-1.0, 0.0, 0.0)),
+        ];
+        refuses(&body, &edges, (verb, S), "a void in the inset boss");
+    }
+}
+
+/// **The inset witness's fillet at every ε row**, fast enough for the
+/// per-PR gate: the boss `0.25` tall fillets at `Interval` to tier 3
+/// (its closed form is the slow rows'), but at the tightest row, where its sections escalate their
+/// shared row's touch (the `_at_interval` witness row's branch).
+#[test]
+fn the_inset_witness_fillets_or_escalates_at_every_eps_row() {
+    let (body, edges) = inset_boss::<Interval>(0.25);
+    let what = "an inset boss 0.25 tall filleted at Interval";
+    if tightest_interval::<Interval>() {
+        let e = Verb::Fillet
+            .run(&body, &edges, S)
+            .err()
+            .unwrap_or_else(|| panic!("{what}: escalates at 1e-12"));
+        assert_touch_escalation(what, &e);
+    } else {
+        let out = Verb::Fillet
+            .run(&body, &edges, S)
+            .unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+    }
+}
+
 /// **At plan angles of 60° and 120°** a box void below the corner,
 /// its corner `(x, y)` on the bisector's far side `t` from the vertex
 /// (the fillet's `ρ_t` from the odd axis, which stands `r / sin(φ/2)` up
@@ -530,12 +655,12 @@ fn the_odd_plus_one_turn_meters_its_pair_strip_from_the_odd_strips_plane() {
 
 /// **Turned and off the origin** (a turn of 0.7 about `x` through
 /// `(1/4, −1/2, 1/8)`), each case reads as it does in place: the odd
-/// edge `0.25` tall chamfers and fillets, and a reflex void entering
-/// either patch refuses. Clear of the patch, the chamfer's void builds
-/// at 3% of the size; the fillet's refuses there as a bound, its faces
-/// turned off the axes so that their boxes, which the meter's cells
-/// tile, reach into the torus's box where the faces do not, and builds
-/// at 20%.
+/// edge `0.25` tall chamfers and fillets, a reflex void entering either
+/// patch by 3% refuses, and one 3% clear of it builds at its closed form
+/// or refuses as a bound, never built wrong. The meter tiles a turned
+/// face's world box, which reaches past the face toward the torus, so
+/// today the fillet's refuses there and builds from 20%
+/// (`work/band/a-turned-features-box-holds-the-reach-off-a-curved-patch.md`).
 #[test]
 fn a_turned_and_moved_mixed_corner_reads_as_it_does_in_place() {
     let pose = crate::common::poses::torax_pose();
@@ -554,39 +679,20 @@ fn a_turned_and_moved_mixed_corner_reads_as_it_does_in_place() {
             (truth, 1),
             "turned, odd edge 0.25 tall",
         );
-        let clear = match verb {
-            Verb::Fillet => 0.2 * S,
-            Verb::Chamfer => far,
-        };
-        for d in [-far, far, clear] {
+        for d in [-far, far, 0.2 * S] {
             let x0 = reflex(verb) - d;
             let body = voided::<f64>((x0 - W, x0), (x0 - W, x0));
             let edges = l_corner(&body, 2.0);
             let body = moved(&body);
             let what = format!("turned, a reflex void off the patch by {d:e}");
-            if d < clear {
+            let truth = verb.flush(S, (2.0, 1.0, 1.0));
+            if d < 0.0 {
                 refuses(&body, &edges, (verb, S), &what);
+            } else if d < 0.2 * S {
+                builds_or_bound(&body, &edges, (verb, S), (truth, 2), &what);
             } else {
-                let truth = verb.flush(S, (2.0, 1.0, 1.0));
                 builds(&body, &edges, (verb, S), (truth, 2), &what);
             }
         }
-    }
-}
-
-#[test]
-#[ignore = "lane probe"]
-fn zz_inset_interval_probe() {
-    for h in [1.0, 0.5, 0.25] {
-        let (body, edges) = inset_boss::<Interval>(h);
-        for verb in VERBS {
-            let got = verb.run(&body, &edges, S);
-            println!("PROBE inset {h} {verb:?}: {:?}", got.as_ref().map(|_| ()));
-        }
-    }
-    let (body, edges) = inset::<Interval>();
-    for verb in VERBS {
-        let got = verb.run(&body, &edges, S);
-        println!("PROBE inset() {verb:?}: {:?}", got.as_ref().map(|_| ()));
     }
 }

@@ -1760,10 +1760,7 @@ fn resolve_mixed_rim<'a, T: Decide>(
             "a closed chain of links on different supports shares no one support face",
         ));
     }
-    let mates: Vec<FaceKey> = links
-        .iter()
-        .map(|l| if l.face_a == host { l.face_b } else { l.face_a })
-        .collect();
+    let mates: Vec<FaceKey> = links.iter().map(|l| l.across(host)).collect();
     let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
 
     // The host's rim cycle is exactly the chain: a trim chord runs

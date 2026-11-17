@@ -305,6 +305,16 @@ impl<T: Real> Link<T> {
         (self.face_a == face || self.face_b == face)
             .then(|| self.blend.trims(self.face_a == face).0)
     }
+
+    /// **This link's support across from `face`**: the other of its two
+    /// supports when `face` is one, `face_a` otherwise.
+    pub(crate) fn across(&self, face: FaceKey) -> FaceKey {
+        if self.face_a == face {
+            self.face_b
+        } else {
+            self.face_a
+        }
+    }
 }
 
 /// How a chain terminates.

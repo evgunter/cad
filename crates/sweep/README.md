@@ -201,9 +201,15 @@ cylinder, revolved over the wedge between the pair's two rests (on the
 torus centre's side of `E` and `E`'s side of the plane through the
 centre, between the odd band's radius and twice it about its axis,
 outside the torus's tube); the chamfer's is the mitred strip's prism,
-the convex hull of its two mitres' section triangles. Each is the
-material the patch changes and no more, so a feature that enters it by
-`100ε` refuses and one `100ε` clear builds. Each link at a corner
+the convex hull of its two mitres' section triangles. Each holds the
+material the patch changes, and with it some the result leaves as it
+was, where the odd band's fill and the patch cancel: the air below the
+torus or the strip at a flush corner, the boss's own material at an
+inset one. A feature standing there refuses as a bound
+(`work/band/a-mixed-corners-reach-holds-the-air-its-patch-leaves.md`).
+Where the region's boundary is the material's own, on the reflex side
+and beside the pair's strips, a feature that enters it by `100ε`
+refuses and one `100ε` clear builds. Each link at a corner
 runs its window to where its band meets the patch (at a mixed corner,
 a pair band's rest or mitre and the odd band's `E`) and is its band's
 own material past the patch: from the vertex at a uniform corner, and
@@ -699,8 +705,8 @@ the patch by `100ε` refuses while one `100ε` clear of it builds
 (`band_mixed_corner_reach`). The bracket of the row, a plate with a
 boss flush with one side, fillets all round, and without its bore
 chamfers all round, each at its closed form (`band_mixed_corner`), up
-to `0.249`; from `0.25` the plate's top and bottom bands cross on its
-`0.5` sides. Naming: the patch is `CornerFace { vertex }`,
+to `0.249`. At `0.25` the plate's top and bottom bands' trimlines touch
+on its `0.5` sides (margin `0`), and from just above they cross. Naming: the patch is `CornerFace { vertex }`,
 the three sections `EndArc { vertex, edge }`, the feet on the odd
 edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
 `E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
