@@ -60,8 +60,9 @@ Pinned while it was open; the rows it became are under Closed, below.
 
 Its cure is specified in
 `work/tesslane/a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation.md`.
-The strip unit (`a-ruled-face-is-meshed-as-a-strip`, parked on Ev's
-answer) would take these faces out of the development altogether.
+Unit 4c (`a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it`),
+which writes a split-ruling rectangle by walking its rows, takes those
+faces out of the development altogether.
 
 ## Closed (2026-11-17)
 
