@@ -1679,8 +1679,9 @@ Flagged, NOT fixed here (dispositions):
     pair held at an end of each span reads the one-sided window
     (`curve_pair_walk_basin_held`, logged); where neither bounds a
     reach the window is undecided and the Off escalates (`walk.rs`'s
-    module docs, the paragraph ending "so no meeting is left unread"). A point left short of the meeting by a dropped step
-    is such a pair: it reads On, or an Off the window proves, or an
+    module docs, the paragraph ending "so no meeting is left
+    unread"). A point left short of the meeting by a dropped step is
+    such a pair: it reads On, or an Off the window proves, or an
     escalation.
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,

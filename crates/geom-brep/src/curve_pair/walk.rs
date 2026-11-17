@@ -42,13 +42,14 @@
 //! (its basin, `curve_pair_walk_basin`, or its move not proved), a pair
 //! held at an end of each span reads the one-sided window
 //! (`curve_pair_walk_basin_held`, [`window`]); where neither bounds a
-//! reach the window is undecided and the Off escalates. Every piece the walk does not clear ends at such a pair,
-//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
-//! (the parent module's docs). A walk past
-//! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
+//! reach the window is undecided and the Off escalates. Every piece the
+//! walk does not clear ends at such a pair, so no meeting is left
+//! unread; an escalated clearing keeps its piece. Every point read is
+//! read under the reader's stretch rule (the parent module's docs). A
+//! walk past [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
 
-use geom::{Curve3, PieceStep};
+use geom::{Curve3, ParamSide, PieceStep};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::{Pick, choose, decide};
 use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
@@ -83,8 +84,8 @@ impl<'r, 's, T: Decide> Read<'r, 's, T> {
     }
 
     /// A bound on the curvature over every arc within `reach` metres of
-    /// `u` along the carrier, on both sides of it (`side` `None`) or on
-    /// one (`Some(above)`, the parameters above `u` or below it): over the
+    /// `u` along the carrier, on both sides of it ([`Arcs::Around`]) or on
+    /// one ([`Arcs::Toward`]): over the
     /// parameters `reach` at the carrier's least speed covers
     /// ([`geom::carrier_speed::speed_range`], the whole carrier's, since
     /// `u` need not lie on the span), read by
@@ -96,19 +97,30 @@ impl<'r, 's, T: Decide> Read<'r, 's, T> {
     /// a creased end reads the curvature of its own side. A least speed
     /// not above zero covers every parameter, and reads the whole
     /// carrier's bound.
-    fn curvature_near(&self, u: T, reach: T, side: Option<bool>) -> T {
+    fn curvature_near(&self, u: T, reach: T, arcs: Arcs) -> T {
         let lo = geom::carrier_speed::speed_range(self.curve()).0.get();
         let width = reach / lo.max(T::zero());
         if !geom_core::is_finite_length(width) {
             return self.curvature;
         }
-        let run = match side {
-            None => (u - width, u + width),
-            Some(true) => (u, u + width),
-            Some(false) => (u - width, u),
+        let run = match arcs {
+            Arcs::Around => (u - width, u + width),
+            Arcs::Toward(ParamSide::Above) => (u, u + width),
+            Arcs::Toward(ParamSide::Below) => (u - width, u),
         };
         geom::carrier_speed::curvature_hi_over(self.curve(), run)
     }
+}
+
+/// **Which arcs about a parameter a curvature bound reads**
+/// (`Read::curvature_near`).
+#[derive(Clone, Copy)]
+enum Arcs {
+    /// Both sides of it: a two-sided window.
+    Around,
+    /// One side only: a window held at a span's end, whose arcs all lie
+    /// on its span's side.
+    Toward(ParamSide),
 }
 
 /// A run `(a, b)` of a span, cut `depth` times.
@@ -322,7 +334,8 @@ fn window<T: Decide>(
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
     let e = T::from_f64(band.escalate());
-    let curvature = ra.curvature_near(s, span, None) + rb.curvature_near(t, span, None);
+    let curvature =
+        ra.curvature_near(s, span, Arcs::Around) + rb.curvature_near(t, span, Arcs::Around);
     let two = super::polish::bound(
         ("curve_pair_walk_basin", None),
         super::polish::Along::two_sided(ra.curve().ders1(s), rb.curve().ders1(t)),
@@ -336,19 +349,19 @@ fn window<T: Decide>(
         return bound;
     }
     let one = || {
-        let (above_a, above_b) = (held(ra.span, s)?, held(rb.span, t)?);
-        // Each end's half-tangent is its own span's one-sided
-        // derivative, turned to point into the span, and the curvature
-        // is read over the span's side of the end alone.
-        let into = |r: &Read<'_, '_, T>, u: T, above: bool| {
-            let (p, d) = r.curve().ders1_from(u, !above);
-            (p, if above { d } else { -d })
+        let (side_a, side_b) = (held(ra.span, s)?, held(rb.span, t)?);
+        // Each end reads its span's side: its half-tangent is the
+        // one-sided derivative from that side, turned to point into the
+        // span, and the curvature is read over that side alone.
+        let into = |r: &Read<'_, '_, T>, u: T, side: ParamSide| {
+            let (p, d) = r.curve().ders1_from(u, side);
+            (p, if side == ParamSide::Above { d } else { -d })
         };
-        let curvature =
-            ra.curvature_near(s, span, Some(above_a)) + rb.curvature_near(t, span, Some(above_b));
+        let curvature = ra.curvature_near(s, span, Arcs::Toward(side_a))
+            + rb.curvature_near(t, span, Arcs::Toward(side_b));
         super::polish::bound(
             ("curve_pair_walk_basin_held", None),
-            super::polish::Along::one_sided(into(ra, s, above_a), into(rb, t, above_b)),
+            super::polish::Along::one_sided(into(ra, s, side_a), into(rb, t, side_b)),
             curvature,
             (e, span),
         )
@@ -364,11 +377,11 @@ fn window<T: Decide>(
 
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
 /// the span's end parameters (`curve_pair_walk_held_end`), and the span
-/// has ends. Read as which side of `u` the span lies on, `true` for the
-/// parameters above it, from the order of the span's two ends
+/// has ends. Read as which side of `u` the span lies on, from the order
+/// of the span's two ends
 /// (`curve_pair_walk_span_order`, asked only at an end); `None` at no
 /// end, on an endless span, and where the order is not decided.
-fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<bool> {
+fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
     if !span.ended() {
         return None;
     }
@@ -386,7 +399,11 @@ fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<bool> {
         Sign::Positive => false,
         Sign::Zero => return None,
     };
-    Some(first == rising)
+    Some(if first == rising {
+        ParamSide::Above
+    } else {
+        ParamSide::Below
+    })
 }
 
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
@@ -552,8 +569,9 @@ mod tests {
     /// `t` (each an end of its span and of its piece), and every sampled
     /// pair of the pieces within the band's escalation of each other, by
     /// its arc length from the held ends (summed chords over `n` samples
-    /// of each piece, widened past a chord's shortfall). Every such pair lies within the reach where the
-    /// window bounds one: the bound's consequence, not its verdict log.
+    /// of each piece, widened past a chord's shortfall). Every such pair
+    /// lies within the reach where the window bounds one: the bound's
+    /// consequence, not its verdict log.
     /// The reach is returned, `+∞` where unbounded.
     fn reach_covers_its_pairs(
         (a, pa, s): (&Span<'_, f64>, (f64, f64), f64),
@@ -571,21 +589,29 @@ mod tests {
         // Samples of a piece from its held end outward, each with its arc
         // length from that end: the summed chords, widened by `10⁻⁶`. A
         // chord under-reads its arc by a relative `(κh)²/24` at most, `κ`
-        // the curvature over the step and `h` its arc; every fixture here
-        // keeps `κh` under `10⁻³`, so the widened sum is never less than
-        // the arc and a pair is placed no nearer the held ends than it lies.
+        // the curvature over the step and `h` its arc, so the widened sum
+        // is never less than the arc wherever `κh ≤ 4.8·10⁻³`; each piece
+        // asserts that premise, from its curvature bound
+        // (`curvature_hi_over`) and its longest step.
         let walk = |c: &Curve3<f64>, (x, y): (f64, f64), from: f64| {
             let to = if from == x { y } else { x };
             let mut out = Vec::with_capacity(n + 1);
-            let mut arc = 0.0;
+            let (mut arc, mut step) = (0.0, 0.0f64);
             let mut last = c.eval(from);
             #[allow(clippy::cast_precision_loss)]
             for i in 0..=n {
                 let p = c.eval(from + (to - from) * i as f64 / n as f64);
-                arc += (p - last).norm();
+                let chord = (p - last).norm();
+                arc += chord;
+                step = step.max(chord * (1.0 + 1e-6));
                 last = p;
                 out.push((p, arc * (1.0 + 1e-6)));
             }
+            let kappa = geom::carrier_speed::curvature_hi_over(c, (x.min(y), x.max(y)));
+            assert!(
+                kappa * step <= 4.8e-3,
+                "the chords' margin holds only for κh ≤ 4.8e-3: κ {kappa:e}, h {step:e}"
+            );
             out
         };
         let (sa, sb) = (walk(a.carrier(), pa, s), walk(b.carrier(), pb, t));
