@@ -38,7 +38,7 @@ winding.
 
 ## Closed (2026-11-17, TESSLANE, unit 4c, `tesslane/ruled-density`)
 
-The face is walked (`trimmed::walked`, `crate::ruled_walk`), not
+The face is walked (`tessellate::Lane::Walked`, `crate::ruled_walk`), not
 triangulated in the development: the split's point and the ruling's end
 are two corners of the one triangle the walk fans from the rim point
 beside them. The 20° cone meshes at the default ε and `10⁻¹²`, and a 5°

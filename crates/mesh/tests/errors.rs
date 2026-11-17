@@ -118,6 +118,7 @@ test_utils::f6_variants! {
         FoldedTriangle,
         UnresolvedWinding,
         BoundaryEar,
+        RouterDefect,
         SphereTrimShape,
     ];
 }
@@ -282,11 +283,15 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::UnsupportedCurvedShape {
                 face,
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_level",
+                source: geom_brep::props::PropsError::SpanUncertified {
+                    what: "props_rim_span_winding",
                 },
             },
-            vec!["props_rim_level", "iso-parameter rectangle", "quadrature"],
+            vec![
+                "props_rim_span_winding",
+                "iso-parameter rectangle",
+                "no certified edge",
+            ],
         ),
         (
             TessellateError::MeridianFreeCurvedFace {
@@ -339,6 +344,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::BoundaryEar { face },
             vec!["consecutive boundary chord points", "four"],
+        ),
+        (
+            TessellateError::RouterDefect {
+                face,
+                what: "a face the route walks does not read as the walk's two rows",
+            },
+            vec!["route misread", "kernel defect", "walk's two rows"],
         ),
         (
             TessellateError::SphereTrimShape {

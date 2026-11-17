@@ -103,7 +103,7 @@ Neither is built.
 
 Both pinned cones, and the 2° cone of height 100, are cylinder or cone
 faces with a split side and no other trim, which the chart lane now walks
-(`trimmed::walked`) in its chart rather than its development: they mesh
+(`tessellate::Lane::Walked`) in its chart rather than its development: they mesh
 (`split_rulings::a_split_beside_a_large_cones_rim_end_meshes`, which
 replaces this row's pin). The class stays open where a run still forms: a
 cone face with a ring or a trim carrier, such as the cone cut by an oblique

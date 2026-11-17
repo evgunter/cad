@@ -359,16 +359,17 @@ pub(crate) struct SizingTols {
     pub eps: Eps,
     /// The linear decision band props classifies with, minted from
     /// the same [`Tol`] as `eps` at operation entry (the calling
-    /// convention `Band::linear` prescribes). Consumed by three sites —
-    /// `curved`'s shape door, which hands it to
-    /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch` (asked by the curved lane and by the
-    /// dispatch, `tessellate::lane_of`, which the chord pass reads too),
-    /// the walk's wrap strip, and the trimmed lane's singular vertices
-    /// (`crate::chart_table::AnalyticRow::is_singular`), both of which
-    /// hand it to
-    /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
-    /// no rule of this crate's own: `mesh` decides nothing
+    /// convention `Band::linear` prescribes). The same band routes every
+    /// face before this value exists (`tessellate::Routes::of`, whose
+    /// doors hand it to `geom_brep::props::require_iso_rectangle` and then
+    /// to `require_one_chart_branch`). This field is consumed by three
+    /// sites — the walk's wrap strip and the trimmed lane's singular
+    /// vertices (`crate::chart_table::AnalyticRow::is_singular`), both of
+    /// which hand it to
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`, and a
+    /// trimmed face's domain read at its turn (`tessellate::Route::ready`,
+    /// which hands it to `topo::Body::face_lift`) — and
+    /// by no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.

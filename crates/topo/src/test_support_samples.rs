@@ -1035,6 +1035,12 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::OffSurface {
             what: "a rim circle that is not on the cylinder",
         },
+        PropsError::SpanUncertified {
+            what: "props_rim_span_winding",
+        },
+        PropsError::Defect {
+            what: "props_rim_level",
+        },
         PropsError::Escalated {
             cause: diag(),
             check: geom_brep::props::PropsCheck::Inventory,

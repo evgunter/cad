@@ -60,10 +60,6 @@ pub(super) enum Got {
     /// `trimmed::tessellate_trimmed`'s read of `topo::Body::face_lift`,
     /// with the door's cause by its name (`RingPlacementError::name`).
     Unread(SurfaceKind, &'static str),
-    /// `UnsupportedCurvedShape { NotIsoRectangle { "props_rim_level" } }`
-    /// from `curved::require_iso_rectangle_face`, its source raised by
-    /// `geom_brep::props`' `require_rims_at_extremes`.
-    NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
     /// `UnresolvedWinding` on a face of this chart, from `tessellate`'s
@@ -163,13 +159,6 @@ pub(super) fn got_enclosing(body: &Body<f64>, solid: &Body<f64>, delta: f64) -> 
             Got::ConicImageOnly(carrier_of(body, edge))
         }
         Err(E::DomainUnread { face, cause }) => Got::Unread(kind_of(body, face), cause.name()),
-        Err(E::UnsupportedCurvedShape {
-            face,
-            source:
-                geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_level",
-                },
-        }) => Got::NotIsoRectangle(kind_of(body, face)),
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
         Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
         Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
@@ -559,7 +548,7 @@ pub(super) fn klein_elbow(r: f64) -> Body<f64> {
 /// and a torus wall bounded by spirics, whose half-edges store
 /// `Pcurve::Spiric`. The trimmed lane meshes the wall from its chart row
 /// at every δ, and the mesh is the body's ([`geometry`]). Every plane cap
-/// a spiric bounds is the planar lane's (`tessellate::lane_of` sends every
+/// a spiric bounds is the planar lane's (`tessellate::route_of` sends every
 /// plane there).
 #[test]
 fn a_spiric_bounded_torus_wall_meshes_on_the_torus_row() {
@@ -1043,7 +1032,7 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// **A torus wall holding a spiric ring meshes on the torus row.** The
 /// donut `(2, 0.5)` about `y` and the bar through its tube (`sweep`'s
 /// `germ_plane_torus_spiric`, pose B2): the unions and the donut less the
-/// bar keep the ovals as rings of torus faces, which `lane_of` sends to
+/// bar keep the ovals as rings of torus faces, which the route sends to
 /// the trimmed lane, and the lane triangulates each face's outer loop
 /// less its ring. The other three ops put the spirics on an outer loop.
 /// The bar's face `y = 0.25` is the tube's latitude `π/6`, so at
@@ -1216,51 +1205,27 @@ fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
     );
 }
 
-/// **A bar through a pipe's wall**, the three bars of
+/// **A bar through a pipe's wall meshes in every op**, the three bars of
 /// `work/tesslane/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`
 /// and the brick turned 0.3 rad about `x` (`sweep`'s `verbs_germarms`).
-/// The notched walls refuse at the curved lane's shape door
-/// (`require_iso_rectangle_face`, on `props_rim_level`); the holed
-/// walls, rings of rulings and arcs or of ellipse arcs alike, mesh on
-/// the trimmed lane's cylinder arm. ∩ and bar ∖ pipe mesh, the turned
-/// bar's through the trimmed lane's cylinder arm.
+/// The notched walls, an iso domain that is no rectangle, are decided so
+/// at the curved lane's shape door (`props_rim_level`) and routed to the
+/// trimmed lane's cylinder arm; the holed walls, rings of rulings and
+/// arcs or of ellipse arcs alike, go there for their rings. ∩ and
+/// bar ∖ pipe mesh, the turned bar's through the same arm.
 #[test]
-fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
+fn a_notched_or_holed_pipe_wall_meshes() {
     let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
     let deltas = [5e-3, 1e-3, 2e-4];
-    let notch = Got::NotIsoRectangle(SurfaceKind::Cylinder);
-    let ring = Got::Meshed;
-    let by = |wall: &Got| {
-        [
-            wall.clone(),
-            wall.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            wall.clone(),
-            Got::Meshed,
-        ]
-    };
-    for (what, x, y, z, wall) in [
-        (
-            "the bar through",
-            (-1.1, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
-        (
-            "the bar half in",
-            (0.5, 1.1),
-            (-0.3, 0.3),
-            (-0.3, 0.3),
-            &notch,
-        ),
+    let meshed = core::array::from_fn(|_| Got::Meshed);
+    for (what, x, y, z) in [
+        ("the bar through", (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
+        ("the bar half in", (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3)),
         (
             "the bar off the axis",
             (-1.1, 1.1),
             (0.15, 0.7),
             (-0.4, 0.1),
-            &ring,
         ),
     ] {
         let bar = finished("the bar", brick::<f64>(x, y, z, tol()), tol());
@@ -1269,7 +1234,7 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
             &pipe,
             &bar,
             &deltas,
-            &by(wall),
+            &meshed,
         );
     }
     let turned = posed(
@@ -1282,8 +1247,64 @@ fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
         &pipe,
         &turned,
         &deltas,
-        &by(&ring),
+        &meshed,
     );
+}
+
+/// **A sphere face notched by parallels and meridians meshes on the
+/// sphere row.** The `z`-poled ball less a quarter-turn wedge of a box
+/// whose two side planes hold the axis — once from below the south pole
+/// to a parallel, across the chart's seam and beside it, and once from a
+/// parallel past the north pole: the ball's face keeps a re-entrant
+/// corner at the parallel, bounded by rims and meridians alone. The
+/// shape door decides that face is no rectangle (`props_rim_level`), so
+/// it goes to the trimmed lane's sphere arm, and every op meshes at
+/// every δ and is the body's ([`geometry`]). The cone and the torus have
+/// no such row: the boolean refuses a box through either wall
+/// (`CurvedPierceUnsupported`), so no door builds their notch.
+#[test]
+fn a_notched_sphere_face_meshes_on_the_sphere_row() {
+    let ball = finished(
+        "the ball",
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    for (what, z, turn) in [
+        ("from below, across the seam", (-2.0, 0.3), -0.785),
+        ("from below, beside the seam", (-2.0, 0.3), 0.3),
+        ("from above", (0.3, 2.0), 2.0),
+    ] {
+        let wedge = posed(
+            "the wedge",
+            brick((0.0, 3.0), (0.0, 3.0), z, tol()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
+        );
+        let cut = op_of(&ball, &wedge, "A ∖ B");
+        let notched = cut
+            .faces()
+            .filter(|(fk, f)| {
+                let surface = cut.face_surface(*fk).expect("a live face");
+                f.rings.is_empty()
+                    && surface.kind() == SurfaceKind::Sphere
+                    && geom_brep::props::require_iso_rectangle(
+                        surface,
+                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        band,
+                    ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level",
+                    })
+            })
+            .count();
+        assert!(notched > 0, "{what}: the cut keeps a notched sphere face");
+        assert_six(
+            &format!("{what} (A the ball)"),
+            &ball,
+            &wedge,
+            &[5e-3, 1e-3, 2e-4],
+            &core::array::from_fn(|_| Got::Meshed),
+        );
+    }
 }
 
 /// **A needle funnel cut `10⁻⁵` above its apex refuses typed: this row
@@ -2014,7 +2035,7 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
 /// wall about that edge (both unions, cone ∖ box) the cone face is half
 /// the cone, apex to rim, each side ruling split where the box meets it.
 /// A straight side holding a point sends the face to the trimmed lane
-/// (`walk::splits_a_straight_side`), which walks it (`trimmed::walked`):
+/// (`walk::splits_a_straight_side`), which walks it (`tessellate::Lane::Walked`):
 /// its triangles join its rim to the apex in order of angle, and no
 /// triangle takes three points of one ruling. The rectangle lane triangulated its chart, where
 /// the apex is a row and a ruling a column, and fanned the apex down the

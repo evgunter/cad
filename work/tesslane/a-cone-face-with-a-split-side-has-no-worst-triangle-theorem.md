@@ -68,7 +68,7 @@ per split vertex.
 
 ## Closed (2026-11-17, TESSLANE, unit 4c, `tesslane/ruled-density`)
 
-The chart lane walks such a face (`trimmed::walked`, `crate::ruled_walk`):
+The chart lane walks such a face (`tessellate::Lane::Walked`, `crate::ruled_walk`):
 no lattice and no triangulation step, its triangles written along its two
 rows (its rims, or a rim and the apex) in order of angle, a split side's
 points fanned from the corner opposite. Each walked triangle spans at most
