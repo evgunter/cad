@@ -76,3 +76,21 @@ branch points and the far ruling. The same loop then certifies at ε 1e-6. Doors
 cell centres (`exhaust::seed_r3`) still put the seam wherever their first
 seed lands. A fix here would cover both cases: refine under the
 non-graph box, or fit a closed trace as periodic.
+
+## 2026-11-17 — why no rung is a graph: the enclosure, not the hull
+
+Measured by SECTARMS's `sectarms/sliver-loop-tube` lane on the second
+instance's pose (`d 0.2, R 0.699`, ε 1e-6), in
+`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`.
+
+The box that straddles is 36 mm across beside a tip turning on 24 mm,
+and `(∇f₁ × ∇f₂)·e` is at least 0.076 at its corners. Limb 3's enclosure
+of it (`ssi::enclose::graph_margin`, the cross product of the two
+gradients' boxes) reads `[5.1e-5, 0.199]` unpadded: first-order
+dependency slack takes all but 5e-5. Met with the mean-value form about
+the box's centre, the same chain is a graph at 2.2e-2.
+
+With that form this row's δ 3e-4 gets a tube at 1e-6, and the carry then
+escalates in the witness match (`curve_carrier_straddle`): the pad that
+follows the tube is 4.3e-2 and the rings stand 3.0e-2 apart. The pin's
+`boxes: 206` is stale on main since closed branches fit periodic (208).
