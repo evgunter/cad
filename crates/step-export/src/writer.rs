@@ -466,6 +466,15 @@ impl<'a> Writer<'a> {
                 payload.control(),
                 payload.weights(),
             )?,
+            // An edge on a periodic cubic is written as its clamped view
+            // over the edge's span (`EdgeCurve::carrier`), the arm
+            // above; the loop itself is no edge's reading.
+            Curve3::Periodic(_) => {
+                return Err(StepExportError::UnsupportedCurve {
+                    edge: edge_key,
+                    kind: "periodic b-spline read whole",
+                });
+            }
         };
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);

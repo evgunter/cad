@@ -3587,6 +3587,11 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
+    # --- a kind no edge presents ------------------------------------
+    # An edge on a periodic cubic (a closed fitted section loop) is read
+    # as its clamped view over the edge's span, a spline, so a selection
+    # by kind sees `Nurbs` and the periodic kind never reaches Python.
+    "CurveKind::Periodic": "CurveKind.Nurbs",
     # --- the placement model's members ------------------------------
     # The world is the node `Doc.world` answers; a constraint's id is
     # what `MateRef.constraint` answers.

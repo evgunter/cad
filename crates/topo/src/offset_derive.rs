@@ -1000,12 +1000,9 @@ fn seeded(e: SsiError) -> SectionVerdict {
     }
 }
 
-/// A certified branch's carrier.
+/// A certified branch's carrier, as the clamped net over its span.
 fn branch_carrier(branch: &geom_brep::SsiBranch) -> NurbsCurve3<f64> {
-    let Curve3::Nurbs(c) = &branch.carrier else {
-        unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)")
-    };
-    (**c).clone()
+    (*branch.net()).clone()
 }
 
 /// `carrier` in the old carrier's sense, read where it passes nearest

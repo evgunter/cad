@@ -1076,6 +1076,7 @@ impl KeyWriter {
             Curve3::Ellipse(..) => 2,
             Curve3::Nurbs(_) => 3,
             Curve3::Spiric { .. } => 4,
+            Curve3::Periodic(_) => 5,
         });
     }
 
@@ -1085,6 +1086,11 @@ impl KeyWriter {
         self.curve3_kind(c);
         match c.data() {
             CurveData::Nurbs(n) => self.nurbs3(n),
+            // The base opening and the sense state the loop.
+            CurveData::Periodic(p) => {
+                self.nurbs3(p.whole_loop());
+                self.datum(geom::DatumValue::Scalar(p.base_span().0));
+            }
             CurveData::Analytic(data) => {
                 for (_, value) in data {
                     self.datum(value);

@@ -629,7 +629,7 @@ pub(crate) fn sphere_face_widest_cos(
             }
             // A section with another curved surface (a cylinder's, as in
             // `sweep`'s `cylinder_sphere_frame`) is a spline.
-            geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 let w = image_box(
                     body,
                     hek,
@@ -858,7 +858,10 @@ pub(crate) fn cone_face_rho_max(
         let rho = match *curve.carrier() {
             geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
             geom::Curve3::Line(_) => continue,
-            geom::Curve3::Ellipse(..) | geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => {
+            geom::Curve3::Ellipse(..)
+            | geom::Curve3::Nurbs(_)
+            | geom::Curve3::Periodic(_)
+            | geom::Curve3::Spiric { .. } => {
                 let w = image_box(
                     body,
                     hek,

@@ -2732,7 +2732,7 @@ fn germ_section_loops<T: Decide>(
             | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
                 Ok(Some(SectionLoops::conic(frame.axis_line())))
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
                     edge: along.root,

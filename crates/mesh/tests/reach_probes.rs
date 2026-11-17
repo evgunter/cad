@@ -948,15 +948,15 @@ fn the_unit_funnel_cut_near_its_apex_meshes_at_every_delta() {
 
 /// **A ball across a cylinder's wall refuses in the chord pass.** The
 /// first pose of `sweep`'s `cylinder_sphere_frame` rows: the section is
-/// two B-spline carriers, on a cylinder face and a sphere face that
-/// store their `Pcurve::Projected` images. The sphere face is the
-/// trimmed lane's sphere row's, and the first section edge the chord
-/// pass reaches refuses there: the chord pass bounds a projected image's
-/// speed for a conic's image only (`chords::chart_image`), before the
-/// other edge's carrier is read. That other carrier has an interior knot
-/// of full multiplicity, a C⁰ kink `chords::nurbs_chord_count` refuses.
-/// The bound the conic-only rule keeps unread is eleven orders loose on
-/// this image
+/// one closed fitted loop, a periodic cubic, on a cylinder face and a
+/// sphere face that store its edges' `Pcurve::Projected` images. The
+/// sphere face is the trimmed lane's sphere row's, and the first section
+/// edge the chord pass reaches refuses there: the chord pass bounds a
+/// projected image's speed for a conic's image only
+/// (`chords::chart_image`). No section edge reads an interior knot past
+/// multiplicity one, so `chords::nurbs_chord_count` takes every carrier
+/// (`quadric_pair_sections` holds the pairs that then mesh). The bound
+/// the conic-only rule keeps unread is eleven orders loose on this image
 /// (`work/tesslane/a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose.md`).
 #[test]
 fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
@@ -995,6 +995,18 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
                 "{op}: a {kind:?} face is bounded by the spline section through its \
                  projected image: {spline_faces:?}"
             );
+        }
+        for (_, edge) in body.edges() {
+            let Some(curve) = body.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            if let geom::Curve3::Nurbs(net) = curve.carrier() {
+                let runs: Vec<(f64, usize)> = net.knot_values().runs().collect();
+                assert!(
+                    runs[1..runs.len() - 1].iter().all(|k| k.1 == 1),
+                    "{op}: a section edge reads an interior knot past multiplicity one: {runs:?}"
+                );
+            }
         }
         assert_at_every(
             op,
