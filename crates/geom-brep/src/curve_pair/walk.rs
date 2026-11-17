@@ -373,15 +373,28 @@ fn window<T: Decide>(
 /// ([`Span::place_param`], the place the pair read reads), the polish is
 /// held there and `u` is the end's own parameter, so the pair names the
 /// end the pair read finds and the window reads one-sided from it
-/// ([`held`]). Otherwise, and where the place is not decided, `u` as
-/// polished. A place to read, never a decision of its own.
+/// ([`held`]). Of the two ends, `u` takes the one whose parameter is
+/// nearer: on a span whose ends are one point (a closed carrier's whole
+/// turn) the place reads either end, and the far one would put the pair
+/// a whole span from its pieces. Otherwise, and where the place is not
+/// decided, `u` as polished. A place to read, never a decision of its
+/// own.
 fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> T {
     let (t0, t1) = span.params();
-    match span.place_param(u, band) {
-        Ok(super::Place::End(super::SpanEnd::Start)) => t0,
-        Ok(super::Place::End(super::SpanEnd::Stop)) => t1,
-        _ => u,
+    if !matches!(span.place_param(u, band), Ok(super::Place::End(_))) {
+        return u;
     }
+    // The end whose parameter is nearer `u`: the one the place named
+    // where the ends are two points, and on a span closed on itself,
+    // whose two ends are one point, the end on the polish's own side,
+    // not the far end of the whole span.
+    let far = |end: T| {
+        (u - end)
+            .abs()
+            .structure_bracket()
+            .map_or(f64::INFINITY, |(_, hi)| hi)
+    };
+    if far(t0) <= far(t1) { t0 } else { t1 }
 }
 
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
@@ -642,6 +655,22 @@ mod tests {
         assert_eq!(at_end(&span, 1e-12, band).to_bits(), 0.0f64.to_bits());
         assert_eq!(at_end(&span, 1.0 - 1e-3, band), 1.0 - 1e-3);
         assert_eq!(at_end(&span, 0.5, band), 0.5);
+    }
+
+    /// **On a span closed on itself, a polished parameter is the end on its
+    /// own side.** The unit circle's whole turn, `(0, 2π)`, whose two ends
+    /// are one point: a parameter `10⁻¹²` short of `2π` is `2π`, and one
+    /// `10⁻¹²` past `0` is `0`. Red where the place's first end is taken,
+    /// which puts `2π − 10⁻¹²` at `0`, a whole turn from the pieces it was
+    /// polished in.
+    #[test]
+    fn a_polished_parameter_on_a_closed_span_is_the_end_on_its_side() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let circle = super::super::meet_rows::circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+        let turn = std::f64::consts::TAU;
+        let span = Span::new(&circle, (0.0, turn));
+        assert_eq!(at_end(&span, turn - 1e-12, band).to_bits(), turn.to_bits());
+        assert_eq!(at_end(&span, 1e-12, band).to_bits(), 0.0f64.to_bits());
     }
 
     /// **A held window with a gap reads the gap as its slack.** Two arcs of
