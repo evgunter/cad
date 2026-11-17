@@ -47,3 +47,13 @@ answering the in-face normal or the side. If it does, the four sites read
 it, and the census's three `injective.rs` `"1.0"` entries leave `sanctioned`
 (and `"side"` if `face_side` moves too). If not, say why the sign is a chart
 scalar at each point of use.
+
+## Routed (EMBED, lane embed/winding-rule, 2026-11-17)
+
+The same six sites are EMBED's `injective-spells-the-chart-winding-rule-by-hand`.
+That unit gave the quarter-turn one door, `toward_face(tau, orientation)`, which
+turns a chart direction to the side `PolygonOrientation` names; `face_side` takes
+the orientation too, the two `left_is_above` sites compare with
+`interior_is_left()`, and `singular_turn` reads the same home. The census's four
+`injective.rs` entries and the `pcurves/decision.rs` one are struck. Nothing this
+row asks for is left.

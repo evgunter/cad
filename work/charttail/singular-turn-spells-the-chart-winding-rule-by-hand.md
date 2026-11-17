@@ -34,3 +34,11 @@ that is the larger repair and is not done.
 Read `step` through `PolygonOrientation::interior_is_left` and strike the census
 entry. Separately, decide whether `walk::wrap_strip` reads its period off the
 loop's stored lift.
+
+## The step reads the home (EMBED, lane embed/winding-rule, 2026-11-17)
+
+`singular_turn` reads `PolygonOrientation::of_face(sides.sense)` and compares
+`above` with its `interior_is_left()`, and the census entry
+`("crates/topo/src/pcurves/decision.rs", "1")` is struck, in the PR that routed
+`injective.rs`'s six spellings. The second half, whether `walk::wrap_strip`
+reads its period off the loop's stored lift, is untouched.
