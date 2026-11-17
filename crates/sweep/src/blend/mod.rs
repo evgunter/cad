@@ -977,12 +977,9 @@ impl fmt::Display for UnbuiltEnd {
             Self::FootInsideAFace { .. } => f.write_str(open::end_face::FOOT_INSIDE_A_FACE),
             Self::FeetCross { .. } => f.write_str(FEET_CROSS),
             Self::RunOut { odd: None, .. } => f.write_str(battery::PARTIAL_TANGENT_RUN),
-            Self::RunOut { odd: Some(odd), .. } => write!(
-                f,
-                "a band would have to stop where its edge runs smoothly into the cut-off arc \
-                 of the edge that rounds the other way ({})",
-                odd.convexity
-            ),
+            Self::RunOut { odd: Some(_), .. } => {
+                f.write_str("the band would stop where its edge runs smoothly into a cut-off arc")
+            }
         }
     }
 }
@@ -2252,9 +2249,8 @@ impl BlendError {
             Self::UnbuiltEnd(end) => write!(f, "{end}. Recourse: {}", end.recourse()),
             Self::ObliqueMixedCorner { .. } => write!(
                 f,
-                "a corner whose edges round both ways is built only where the face the two \
-                 that round alike share is square to the third edge, and here it leans off \
-                 square. Recourse: {FILLET3_MIXED_CORNER_RECOURSE}"
+                "the corner's shared face leans off square to the edge rounding oppositely. \
+                 Recourse: {FILLET3_MIXED_CORNER_RECOURSE}"
             ),
             Self::SpineUnsupported { supports, .. } => write!(
                 f,
