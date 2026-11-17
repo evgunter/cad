@@ -2,10 +2,11 @@
 id: a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it
 kind: unit
 title: A cylinder or cone face with a split side meshes at the density of the same face without it; the cures are measured, then one is built
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
 cost: H
+branch: tesslane/ruled-density
 ---
 
 Unit 4c of the chart lane (`work/tesslane/plan.md`). It follows the design fork of 2026-11-17 (row 279 of `docs/DESIGN-FORK-LOG.md`) and Ev's answer to it on PR 7046: no rule about HOW a lane makes its triangles goes on the design page. `[mesh.sizing]` and `[mesh.winding]` already say what a mesh must be (each triangle within δ of its face, each winding resolved), and the per-triangle certificate holds that whatever a lane does; Ev prefers the triangulation left at that level of abstraction, "any division into triangles so that it never deviates by more than delta", over constraints laid on it. So this unit is engineering held to the page as it reads. It measures three cures and builds one.
