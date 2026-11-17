@@ -28,3 +28,8 @@ Read the hosted test job's selection for `topo` (`.github/workflows/ci.yml`,
 under what features; then either make it run, or say in the row why it
 does not. The count itself (6 against 2) is the next question, for
 whoever owns `mesh/src/walk.rs`'s pole junction.
+
+- 2026-11-17: green again locally from `origin/main` at `6396c45978`
+  (PR 7051 re-listed the walk's count). The question this row asks
+  stands: the row was red for as long as main carried the 6-against-2
+  count, and the hosted kernel job did not see it.
