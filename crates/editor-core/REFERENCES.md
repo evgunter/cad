@@ -445,15 +445,18 @@ id (`names/README.md`, "N1, the profile pieces"), so:
   segment, as a fillet inserted or moved before a leg takes the leg's
   (`names/README.md`, "Undrawn pieces vanish rather than alias") — is the
   reshaping's removal too, and its names are reported the same way. The door
-  compares which pieces the old and the new program's structure can draw,
-  with values erased (the verbs' roles, a written `circle_split` count, a
-  piece another takes by construction), and reports a name whose piece the
-  new structure cannot draw and the old one could. A piece a value leaves
+  compares the partition the old and the new program's structure draws at
+  generic values: its pieces (the verbs' roles, a written `circle_split`
+  count, a piece another takes by construction), its runs, and the corners
+  between them. It judges each held name whole, and reports one that
+  denotes a piece, a run or a corner of the old partition and nothing of
+  the new: a kept leg whose run an inserted fillet joins, or a run a moved
+  fillet breaks. A piece a value leaves
   undrawn (a `Zero` fit) is no removal: its names resolve `Vanished` until the
   values draw it again, whichever door wrote the value.
-- A value edit reports nothing: it can move which loop is outer, which way a
-  loop runs or how many segments a step draws, and none of those moves a
-  name.
+- A value edit reports nothing. What it can move (which loop is outer,
+  which way a loop runs, how many segments a step draws, where a
+  coincidence joins a run) is a predicate flip, which resolution diagnoses.
 
 **The appearance store is the other carrier.** The report covers every
 reference the document holds under N5 semantics, not only the node payloads.

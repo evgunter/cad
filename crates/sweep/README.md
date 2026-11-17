@@ -225,8 +225,11 @@ refused inside the bands and built clear of them
 
 ## Walls: one per run
 
-A *run* is a maximal chain of adjacent profile pieces the lowering's
-cosurface verdict puts on one carrier — collinear lines, cocircular
+A *run* is a maximal chain of adjacent profile pieces that profile
+validation's joint verdict puts on one carrier (decided once per joint,
+by a margin that reads both legs, so neither traversal direction reads
+it differently; the sweep, the names and the edit door all read that
+record) — collinear lines, cocircular
 same-turn arcs — however the author wrote them (a declared straight
 continuation, a station kept on a side, a raw collinear polygon). Extrude
 and revolve build ONE wall per run on every carrier kind, so no sweep mints
