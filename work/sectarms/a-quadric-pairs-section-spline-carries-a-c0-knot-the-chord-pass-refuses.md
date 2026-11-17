@@ -2,11 +2,12 @@
 id: a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses
 kind: issue
 title: a closed section loop seated off its start carries a full-multiplicity join knot inside an edge, so booleans of four quadric pairs build and never mesh (and tier 3 will refuse them)
-status: dispatched
+status: review
 opened: 2026-11-14
 priority: P0
 cost: M
 branch: sectarms/periodic-loop-carrier
+pr: 7052
 ---
 
 
@@ -41,6 +42,27 @@ C11 admits this one periodic form. Making section chords spans rather
 than cut nets is its own item
 (`a-section-chord-cut-as-its-own-net-never-rejoins`), which this
 decision needs for its join benefit.
+
+## Built (PR 7052)
+
+The decision is built: the periodic fit, the `Curve3::Periodic` arm,
+the span seat, loop chords as spans, the certificate on the base
+opening and each edge on its own view, and the join across a loop's
+vertices. No section edge reads an interior knot past multiplicity
+one, so the chord pass takes every carrier of the four pairs.
+
+"Done when" below is not met and cannot be from the section's ground.
+Cylinder × cylinder meshes at every op. The measured pose, sphere ×
+torus and cylinder × torus stop at the next gate, the trimmed lane's
+bound for a spline's projected image on a sphere or torus face
+(`work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
+`work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+
+Left by it:
+`a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band`
+(a pose lost at ε = 1e-6) and
+`a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads`
+(a design fork).
 
 ## Done when
 
