@@ -377,7 +377,7 @@ pub fn require_iso_rectangle<T: Decide>(
     if let Some(chart) = IsoChart::of(surface) {
         for e in outer {
             if !chart.reads(&e.carrier) {
-                return Err(chart.kind_refusal(&e.carrier));
+                return Err(chart.kind_refusal(e, band));
             }
         }
     }
@@ -445,73 +445,212 @@ pub fn require_iso_rectangle<T: Decide>(
 /// wherever its loop starts, rather than escalating on an earlier edge
 /// in band.
 #[derive(Clone, Copy)]
-enum IsoChart {
-    Cylinder,
-    Cone,
-    Sphere,
-    Torus,
+enum IsoChart<T: Real> {
+    Cylinder {
+        origin: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+    },
+    Cone {
+        apex: Point3<T>,
+        axis: Vec3<T>,
+        sin_a: T,
+        cos_a: T,
+    },
+    Sphere {
+        center: Point3<T>,
+        radius: T,
+    },
+    /// A torus or a spindle: `major` is signed on the lemon.
+    Torus {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        major: T,
+        minor: T,
+    },
 }
 
-impl IsoChart {
+impl<T: Real> IsoChart<T> {
     /// The parse `surface` is read by; `None` on a plane or a spline
     /// chart, which the door answers by its own arms.
-    fn of<T: Real>(surface: &Surface<T>) -> Option<Self> {
-        match surface {
-            Surface::Cylinder { .. } => Some(Self::Cylinder),
-            Surface::Cone { .. } => Some(Self::Cone),
-            Surface::Sphere { .. } => Some(Self::Sphere),
-            Surface::Torus { .. } | Surface::Spindle { .. } => Some(Self::Torus),
+    fn of(surface: &Surface<T>) -> Option<Self> {
+        match *surface {
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => Some(Self::Cylinder {
+                origin,
+                axis,
+                radius,
+            }),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            } => Some(Self::Cone {
+                apex,
+                axis,
+                sin_a: half_angle.sin(),
+                cos_a: half_angle.cos(),
+            }),
+            Surface::Sphere { center, radius, .. } => Some(Self::Sphere { center, radius }),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            }
+            | Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => Some(Self::Torus {
+                center,
+                axis,
+                major: major_radius,
+                minor: minor_radius,
+            }),
             Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     }
 
     /// Whether this parse reads `carrier`'s kind as a rim or a meridian.
-    fn reads<T: Real>(self, carrier: &Curve3<T>) -> bool {
+    fn reads(self, carrier: &Curve3<T>) -> bool {
         matches!(
             (self, carrier),
             (
-                Self::Cylinder | Self::Cone,
+                Self::Cylinder { .. } | Self::Cone { .. },
                 Curve3::Line(_) | Curve3::Circle(_)
-            ) | (Self::Sphere | Self::Torus, Curve3::Circle(_))
+            ) | (Self::Sphere { .. } | Self::Torus { .. }, Curve3::Circle(_))
         )
     }
 
-    /// The refusal a carrier this parse does not read gets: an ellipse
-    /// (a curved cut) or a line where only circles bound,
-    /// [`PropsError::NotIsoRectangle`]; a spline or a periodic curve, or a
-    /// spiric where no spiric lies, [`PropsError::Unimplemented`]. A kind the parse reads
-    /// has no refusal here, and reaching this with one is the parse's own
-    /// defect.
-    fn kind_refusal<T: Real>(self, carrier: &Curve3<T>) -> PropsError {
-        let not_iso = |what| PropsError::NotIsoRectangle { what };
-        match (self, carrier) {
-            (Self::Cylinder | Self::Cone, Curve3::Line(_) | Curve3::Circle(_))
-            | (Self::Sphere | Self::Torus, Curve3::Circle(_)) => PropsError::Defect {
-                what: "an iso parse refused a carrier kind it reads",
-            },
-            (Self::Cylinder, Curve3::Ellipse(..)) => not_iso(
-                "cylinder boundary carries an ellipse arc (curved cut) — route through \
-                 topo::mass_properties, whose quadrature lane consumes the stored pcurves \
-                 this key-free pass cannot see",
-            ),
-            (Self::Cone, Curve3::Ellipse(..)) => not_iso(
-                "cone boundary carries an ellipse arc (a tilted-section cut) — not a rim or \
-                 a generator, so this iso parse has no reading of it (`cone_face_closed_form` \
-                 measures such a face by its vector area)",
-            ),
-            (
-                Self::Cylinder | Self::Cone | Self::Sphere,
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_),
-            )
-            | (Self::Torus, Curve3::Nurbs(_) | Curve3::Periodic(_)) => PropsError::Unimplemented,
-            (Self::Sphere, Curve3::Line(_) | Curve3::Ellipse(..)) => {
-                not_iso("sphere boundary edge is not a circle")
+    /// The point `p`'s distance from the surface: from the cylinder,
+    /// `|ρ − R|`; from the cone (both nappes), `|ρ·cos α − |h|·sin α|`;
+    /// from the sphere, `|‖p − c‖ − R|`; from the torus,
+    /// `|√((ρ − R)² + h²) − r|`, `ρ` and `h` the point's radius and height
+    /// about the axis (about the apex on the cone).
+    fn distance(self, p: Point3<T>) -> T {
+        let about = |o: Point3<T>, axis: Vec3<T>| {
+            let w = p - o;
+            let h = w.dot(axis);
+            ((w - axis * h).norm(), h)
+        };
+        match self {
+            Self::Cylinder {
+                origin,
+                axis,
+                radius,
+            } => (about(origin, axis).0 - radius).abs(),
+            Self::Cone {
+                apex,
+                axis,
+                sin_a,
+                cos_a,
+            } => {
+                let (rho, h) = about(apex, axis);
+                (rho * cos_a - h.abs() * sin_a).abs()
             }
+            Self::Sphere { center, radius } => ((p - center).norm() - radius).abs(),
+            Self::Torus {
+                center,
+                axis,
+                major,
+                minor,
+            } => {
+                let (rho, h) = about(center, axis);
+                (((rho - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
+            }
+        }
+    }
+
+    /// The refusal an edge of a kind this parse does not read gets.
+    ///
+    /// - A kind that lies on such a surface (an ellipse on a cylinder or
+    ///   a cone, a curved cut; a spiric on a torus; a line where only
+    ///   circles bound a torus is not one) is outside the inventory:
+    ///   [`PropsError::NotIsoRectangle`], or [`PropsError::Unimplemented`]
+    ///   for a spline or a periodic curve, which this parse has no
+    ///   reading of whatever it lies on.
+    /// - A kind that lies on no such surface (a line or an ellipse on a
+    ///   sphere or a torus, whose plane sections are circles or no
+    ///   conic; a spiric off its torus) is data that contradicts itself
+    ///   unless it is within band of the surface. That is decided here,
+    ///   on the refusing path, by the edge's greatest distance from the
+    ///   surface over nine points of its span
+    ///   (`props_carrier_on_surface`): a decided miss is
+    ///   [`PropsError::OffSurface`]; an edge the band cannot tell from
+    ///   the surface escalates; one within band keeps its kind's class.
+    ///   Nine points are a lower bound on the distance, so a miss is
+    ///   sound and a reading of zero is the kind's class, as it was
+    ///   before the distance was read.
+    ///
+    /// A kind the parse reads has no refusal here, and reaching this
+    /// with one is the parse's own defect.
+    fn kind_refusal(self, e: &LoopEdge<T>, band: Band) -> PropsError
+    where
+        T: Decide,
+    {
+        let not_iso = |what| PropsError::NotIsoRectangle { what };
+        let class = match (self, &e.carrier) {
+            (Self::Cylinder { .. } | Self::Cone { .. }, Curve3::Line(_) | Curve3::Circle(_))
+            | (Self::Sphere { .. } | Self::Torus { .. }, Curve3::Circle(_)) => {
+                return PropsError::Defect {
+                    what: "an iso parse refused a carrier kind it reads",
+                };
+            }
+            (Self::Cylinder { .. }, Curve3::Ellipse(..)) => {
+                return not_iso(
+                    "cylinder boundary carries an ellipse arc (curved cut) — route through \
+                     topo::mass_properties, whose quadrature lane consumes the stored pcurves \
+                     this key-free pass cannot see",
+                );
+            }
+            (Self::Cone { .. }, Curve3::Ellipse(..)) => {
+                return not_iso(
+                    "cone boundary carries an ellipse arc (a tilted-section cut) — not a rim \
+                     or a generator, so this iso parse has no reading of it \
+                     (`cone_face_closed_form` measures such a face by its vector area)",
+                );
+            }
+            (_, Curve3::Nurbs(_) | Curve3::Periodic(_)) => return PropsError::Unimplemented,
             // A spiric rim of a hollowed torus wall lies on the torus and
             // is neither rim nor meridian.
-            (Self::Torus, Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
+            (Self::Torus { .. }, Curve3::Spiric { .. }) => {
+                return not_iso("torus boundary edge is not a circle");
+            }
+            (
+                Self::Cylinder { .. } | Self::Cone { .. } | Self::Sphere { .. },
+                Curve3::Spiric { .. },
+            ) => PropsError::Unimplemented,
+            (Self::Sphere { .. }, Curve3::Line(_) | Curve3::Ellipse(..)) => {
+                not_iso("sphere boundary edge is not a circle")
+            }
+            (Self::Torus { .. }, Curve3::Line(_) | Curve3::Ellipse(..)) => {
                 not_iso("torus boundary edge is not a circle")
             }
+        };
+        let eight = T::from_f64(8.0);
+        let miss = (0..=8u8)
+            .map(|k| {
+                let t = e.t0 + (e.t1 - e.t0) * T::from_f64(f64::from(k)) / eight;
+                self.distance(e.carrier.eval(t))
+            })
+            .fold(T::zero(), T::max);
+        match require_zero(
+            "props_carrier_on_surface",
+            Margin::of(miss),
+            band,
+            Premise::OnSurface,
+        ) {
+            Ok(()) => class,
+            Err(off) => off,
         }
     }
 }
@@ -650,6 +789,10 @@ pub fn require_one_chart_branch<T: Decide>(
         }),
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
+            // A definite crossing anywhere refuses; an apex the band cannot
+            // place answers with its cause only where none is definite, so
+            // the door's `Ok` means decided on one branch.
+            let mut undecided = None;
             for (i, e) in outer.iter().enumerate() {
                 let Some(line @ geom::Line { dir, .. }) = e.carrier.as_line() else {
                     continue;
@@ -677,23 +820,27 @@ pub fn require_one_chart_branch<T: Decide>(
                 // apex is interior to the span.
                 let t_apex = line.param(apex);
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
-                if matches!(
-                    decide(
-                        "props_cone_apex",
-                        Margin::metered(m, InfSpeed::new(dir.norm())),
-                        band
-                    ),
-                    Ok(Sign::Positive)
+                match classify_as(
+                    "props_cone_apex",
+                    Margin::metered(m, InfSpeed::new(dir.norm())),
+                    band,
+                    PropsCheck::Inventory,
                 ) {
-                    return Err(PropsError::NotOneChartBranch {
-                        edge: i,
-                        what: "a cone generator whose stored span runs through the apex, the \
-                               chart singularity: the azimuth this edge holds constant flips \
-                               to the mirror nappe there",
-                    });
+                    Ok(Sign::Positive) => {}
+                    Ok(_) => continue,
+                    Err(cause) => {
+                        undecided.get_or_insert(cause);
+                        continue;
+                    }
                 }
+                return Err(PropsError::NotOneChartBranch {
+                    edge: i,
+                    what: "a cone generator whose stored span runs through the apex, the \
+                           chart singularity: the azimuth this edge holds constant flips to \
+                           the mirror nappe there",
+                });
             }
-            Ok(())
+            undecided.map_or(Ok(()), Err)
         }
         Surface::Sphere {
             center,
@@ -701,6 +848,8 @@ pub fn require_one_chart_branch<T: Decide>(
             axis,
             ..
         } => {
+            // As on the cone: a definite crossing anywhere refuses first.
+            let mut undecided = None;
             for (i, e) in outer.iter().enumerate() {
                 let Curve3::Circle(geom::Circle {
                     frame: geom::Frame { axis: n_c, .. },
@@ -728,24 +877,28 @@ pub fn require_one_chart_branch<T: Decide>(
                 // does not run the parse — refuses such a span under
                 // the parse's own names.
                 for (m, _) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
-                    if matches!(
-                        decide(
-                            "props_meridian_pole",
-                            Margin::levered(m, Lever::curvature_radius(radius)),
-                            band
-                        ),
-                        Ok(Sign::Positive)
+                    match classify_as(
+                        "props_meridian_pole",
+                        Margin::levered(m, Lever::curvature_radius(radius)),
+                        band,
+                        PropsCheck::Inventory,
                     ) {
-                        return Err(PropsError::NotOneChartBranch {
-                            edge: i,
-                            what: "a sphere meridian arc whose stored span contains a pole, \
-                                   the chart singularity: the azimuth this edge holds \
-                                   constant jumps by π there",
-                        });
+                        Ok(Sign::Positive) => {
+                            return Err(PropsError::NotOneChartBranch {
+                                edge: i,
+                                what: "a sphere meridian arc whose stored span contains a \
+                                       pole, the chart singularity: the azimuth this edge \
+                                       holds constant jumps by π there",
+                            });
+                        }
+                        Ok(_) => {}
+                        Err(cause) => {
+                            undecided.get_or_insert(cause);
+                        }
                     }
                 }
             }
-            Ok(())
+            undecided.map_or(Ok(()), Err)
         }
         // A sheet's singular points end its `v` window, so no edge on
         // the sheet holds one inside its span.
@@ -1956,7 +2109,7 @@ fn cylinder_boundary<T: Decide>(
                     geom::Frame {
                         origin: center,
                         axis: n_c,
-                        ..
+                        u_ref: u_c,
                     },
                 radius: r_c,
             }) => {
@@ -1971,16 +2124,25 @@ fn cylinder_boundary<T: Decide>(
                 )?;
                 // No rim by its axis class: either the circle's plane holds
                 // the axis direction, and it lies on no cylinder about that
-                // axis unless its radius is the cylinder's, or the circle is
-                // too small for the class to read. Which, is decided on this
-                // path alone, by the rim's own fit.
+                // axis, or the circle is too small for the class to read.
+                // Which, is decided on this path alone, by the circle's
+                // distance from the cylinder at four of its points, a
+                // quarter turn apart: a circle whose plane holds the axis
+                // reaches at least `R·(1 − 1/√2)` off it at one of them,
+                // whatever its radius, and a rim too small to read is
+                // within rounding of it at all four.
                 let Some(s) = s.nonzero() else {
-                    require_zero(
-                        "props_rim_fit",
-                        Margin::of(r_c - radius),
-                        band,
-                        Premise::OnSurface,
-                    )?;
+                    let v_c = n_c.cross(u_c);
+                    let seat = IsoChart::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                    };
+                    let miss = [u_c, v_c, -u_c, -v_c]
+                        .into_iter()
+                        .map(|d| seat.distance(center + d * r_c))
+                        .fold(T::zero(), T::max);
+                    require_zero("props_rim_fit", Margin::of(miss), band, Premise::OnSurface)?;
                     return Err(PropsError::NotIsoRectangle {
                         what: "cylinder boundary circle is not a rim",
                     });
@@ -2032,7 +2194,12 @@ fn cylinder_boundary<T: Decide>(
             | Curve3::Nurbs(_)
             | Curve3::Spiric { .. }
             | Curve3::Periodic(_) => {
-                return Err(IsoChart::Cylinder.kind_refusal(&e.carrier));
+                return Err(IsoChart::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                }
+                .kind_refusal(e, band));
             }
         }
     }
@@ -3259,7 +3426,13 @@ fn cone_boundary<T: Decide>(
             | Curve3::Nurbs(_)
             | Curve3::Spiric { .. }
             | Curve3::Periodic(_) => {
-                return Err(IsoChart::Cone.kind_refusal(&e.carrier));
+                return Err(IsoChart::Cone {
+                    apex,
+                    axis,
+                    sin_a,
+                    cos_a,
+                }
+                .kind_refusal(e, band));
             }
         }
     }
@@ -5026,7 +5199,7 @@ fn sphere_boundary<T: Decide>(
             radius: r_c,
         }) = e.carrier
         else {
-            return Err(IsoChart::Sphere.kind_refusal(&e.carrier));
+            return Err(IsoChart::Sphere { center, radius }.kind_refusal(e, band));
         };
         let s = classify_as(
             "props_circle_axis_class",
@@ -5084,10 +5257,19 @@ fn sphere_boundary<T: Decide>(
                     Premise::Inventory,
                 ) {
                     if matches!(miss, PropsError::NotIsoRectangle { .. }) {
+                        // On the sphere exactly when its points are at `R`
+                        // from the centre: `‖w‖² + r² = R²` with the offset
+                        // `w` along the circle's normal. The norm alone
+                        // passes a circle whose centre is off its own
+                        // normal; `‖w × n‖` is how far off, a length.
                         let w = c_c - center;
                         require_zero(
                             "props_rim_fit",
-                            Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
+                            Margin::of(
+                                ((w.norm_squared() + r_c.powi(2)).sqrt() - radius)
+                                    .abs()
+                                    .max(w.cross(n_c).norm()),
+                            ),
                             band,
                             Premise::OnSurface,
                         )?;
@@ -5990,7 +6172,13 @@ fn torus_classify<'a, T: Decide>(
             radius: r_c,
         }) = e.carrier
         else {
-            return Err(IsoChart::Torus.kind_refusal(&e.carrier));
+            return Err(IsoChart::Torus {
+                center,
+                axis,
+                major,
+                minor,
+            }
+            .kind_refusal(e, band));
         };
         let s = classify_as(
             "props_circle_axis_class",
@@ -6006,12 +6194,9 @@ fn torus_classify<'a, T: Decide>(
                 let h = (c_c - center).dot(axis);
                 let sin_v = h / minor;
                 let cos_v = (r_c - major) / minor;
-                // The fit reads the circle as a coaxial one; a coaxial
-                // circle that misses it is off the torus, and one that is
-                // not coaxial (a Villarceau circle) is on it and no rim.
-                // Which, is decided on that path only.
-                // Read where an incidence is decided, after the fit, as the
-                // rim's own read has always been.
+                // A fit missed reads the circle as coaxial: decided coaxial,
+                // it is off the torus; decided not (a Villarceau circle), on
+                // it and no rim; undecided, the escalation is the answer.
                 let rim = || crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever();
                 if let Err(miss) = require_zero(
                     "props_rim_fit",
@@ -6022,12 +6207,16 @@ fn torus_classify<'a, T: Decide>(
                     band,
                     Premise::Inventory,
                 ) {
-                    if matches!(miss, PropsError::NotIsoRectangle { .. })
-                        && require_rim_incidence(c_c - center, n_c, rim(), axis, band).is_ok()
-                    {
-                        return Err(PropsError::OffSurface {
-                            what: "props_rim_fit",
-                        });
+                    if matches!(miss, PropsError::NotIsoRectangle { .. }) {
+                        match require_rim_incidence(c_c - center, n_c, rim(), axis, band) {
+                            Ok(()) => {
+                                return Err(PropsError::OffSurface {
+                                    what: "props_rim_fit",
+                                });
+                            }
+                            Err(PropsError::NotIsoRectangle { .. }) => {}
+                            Err(undecided) => return Err(undecided),
+                        }
                     }
                     return Err(miss);
                 }

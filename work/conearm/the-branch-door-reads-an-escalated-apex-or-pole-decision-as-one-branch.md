@@ -2,8 +2,9 @@
 id: the-branch-door-reads-an-escalated-apex-or-pole-decision-as-one-branch
 kind: issue
 title: require_one_chart_branch reads an escalated apex or pole decision as one branch, so a door that cannot say answers rectangle
-status: open
+status: closed
 opened: 2026-11-17
+closed: 2026-11-17
 ---
 
 
@@ -31,3 +32,15 @@ apex/pole's incidence, as the parse's own names do), so the door's
 margin lands in the band, and a generator whose apex margin does,
 each answering `Escalated` at the door and `UnsupportedCurvedShape {
 source: Escalated }` through `mesh::tessellate`.
+
+## Closed (2026-11-17, PR 7041's second fix pass)
+
+Both decisions now read through `classify_as` under `PropsCheck::Inventory`:
+a definite crossing anywhere in the loop refuses `NotOneChartBranch`, and
+an apex or pole the band cannot place answers `Escalated` with its cause
+only where no crossing is definite, so the door's `Ok` means decided on one
+branch. Rows: `geom-brep` `mesh11_arc_branch::an_apex_the_band_cannot_place_escalates_at_the_branch_door`
+(the cone) and `mesh11r1_probes::r1_arcs_ending_past_a_pole_across_the_whole_band`
+(the sphere's indeterminate rung, which pinned the old admission and now
+pins the escalation). No body in the `mesh`, `sweep` or tour suites reaches
+an undecided apex or pole at this door.

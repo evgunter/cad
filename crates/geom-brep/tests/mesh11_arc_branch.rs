@@ -312,6 +312,40 @@ fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
     );
 }
 
+/// **An apex the band cannot place escalates.** The cone cap above
+/// with one generator run past the apex by a slant between the zero
+/// band and the escalation band: whether its span holds the apex is
+/// undecided, and the branch door answers with that decision's cause
+/// rather than "one branch", so its `Ok` means decided. Four escalation
+/// widths past it, the crossing is definite.
+#[test]
+fn an_apex_the_band_cannot_place_escalates_at_the_branch_door() {
+    let (zero, esc) = (band().zero(), band().escalate());
+    let cap = |past: f64| -> Vec<LoopEdge<f64>> {
+        vec![
+            cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
+            generator(core::f64::consts::PI, -past, 1.0, 1, 2),
+            generator(0.0, 1.0, 0.0, 2, 0),
+        ]
+    };
+    let undecided = require_one_chart_branch(&cone::<f64>(), &cap(0.5 * (zero + esc)), band());
+    assert!(
+        matches!(
+            &undecided,
+            Err(PropsError::Escalated { cause, .. })
+                if cause.predicate == Some("props_cone_apex")
+        ),
+        "{undecided:?}"
+    );
+    assert!(
+        matches!(
+            require_one_chart_branch(&cone::<f64>(), &cap(4.0 * esc), band()),
+            Err(PropsError::NotOneChartBranch { edge: 1, .. })
+        ),
+        "four escalation widths past the apex is a definite crossing"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The immune kinds, executed rather than asserted in prose
 // ---------------------------------------------------------------------
