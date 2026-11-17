@@ -1500,9 +1500,9 @@ impl TrimmedFace<'_> {
                     let by = at.handles[run.neighbour(self.polygon)].index();
                     Some((run, (0..3).find(|&j| j != k && hs[j] == by)))
                 };
-                for k in 0..3 {
+                for (k, corner) in corners.iter_mut().enumerate() {
                     if let Some((run, by)) = run_at_corner(k) {
-                        corners[k] = run.point(self.polygon, run.corner(by.is_some()));
+                        *corner = run.point(self.polygon, run.corner(by.is_some()));
                     }
                 }
                 for k in 0..3 {
