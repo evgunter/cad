@@ -5998,6 +5998,7 @@ fn torus_classify<'a, T: Decide>(
                 // circle that misses it is off the torus, and one that is
                 // not coaxial (a Villarceau circle) is on it and no rim.
                 // Which, is decided on that path only.
+                let rim = crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever();
                 if let Err(miss) = require_zero(
                     "props_rim_fit",
                     Margin::levered(
@@ -6008,14 +6009,7 @@ fn torus_classify<'a, T: Decide>(
                     Premise::Inventory,
                 ) {
                     if matches!(miss, PropsError::NotIsoRectangle { .. })
-                        && require_rim_incidence(
-                            c_c - center,
-                            n_c,
-                            crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
-                            axis,
-                            band,
-                        )
-                        .is_ok()
+                        && require_rim_incidence(c_c - center, n_c, rim, axis, band).is_ok()
                     {
                         return Err(PropsError::OffSurface {
                             what: "props_rim_fit",
@@ -6023,13 +6017,7 @@ fn torus_classify<'a, T: Decide>(
                     }
                     return Err(miss);
                 }
-                require_rim_incidence(
-                    c_c - center,
-                    n_c,
-                    crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
-                    axis,
-                    band,
-                )?;
+                require_rim_incidence(c_c - center, n_c, rim, axis, band)?;
                 // Dimensionless minor-angle direction pair.
                 let level = RimLevel::Unit(sin_v, cos_v);
                 classified.push(TorusEdge::Rim(Rim::decided(

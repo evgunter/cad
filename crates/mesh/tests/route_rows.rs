@@ -10,7 +10,9 @@
 //! **Where the constants come from.** Each `MAIN` digest below was read on
 //! the merge base this route replaced (`origin/main` at `a56edec9d6`),
 //! by this file run there, and is equal on this tree: the bytes and the
-//! K stream of every body here that meshed then are unmoved.
+//! K stream of every body here that meshed then are unmoved. Each was read
+//! at ε 1e-9, 1e-6 and 1e-12 on both trees and is the same at all three,
+//! so one table holds at every row of the suite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,6 +25,14 @@ use topo::Body;
 use topo::construction::Construct;
 
 use crate::common;
+
+/// Three widths of the run's zero band: a length the props decisions
+/// read inside their band at every ε (the band's escalate edge is ten).
+fn in_band() -> f64 {
+    3.0 * geom_core::Band::linear(Tol::witness())
+        .expect("the run's band")
+        .zero()
+}
 
 /// FNV-1a over `bytes`, continuing `h`.
 fn fnv(h: &mut u64, bytes: &[u8]) {
@@ -300,7 +310,8 @@ fn a_body_that_meshes_records_mains_k_stream() {
 }
 
 /// **A door that cannot decide refuses with its cause.** A washer wall
-/// put on a cylinder 3e-9 wider than its rims and rulings: no stored
+/// put on a cylinder wider than its rims and rulings by three zero-band
+/// widths ([`in_band`]), at every ε: no stored
 /// image on it has a non-iso form, so the route asks the doors, and
 /// the shape door's incidence of the rims lands in the band
 /// (`props_rim_fit`). No lane is taken on a door that could not answer:
@@ -309,7 +320,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
 ///
 /// The swap drops the wall's images, and none can be minted back: the
 /// mint certifies each image's incidence at the same band and escalates
-/// there (`pcurve_cylinder_chart_incident`, margin 3e-9), as it does on a
+/// there (`pcurve_cylinder_chart_incident`), as it does on a
 /// rim tilted inside the band (`pcurve_map_residual`). So a face whose
 /// stored images are all iso lines and whose door lands in the band is
 /// not one the mint leaves behind; a face with no image is the one that
@@ -325,7 +336,7 @@ fn a_door_in_band_refuses_with_its_cause() {
         } => Surface::Cylinder {
             origin,
             axis,
-            radius: radius + 3e-9,
+            radius: radius + in_band(),
             u_ref,
         },
         _ => unreachable!("the poisoned face is a cylinder wall"),
@@ -370,7 +381,7 @@ fn an_edge_off_its_surface_refuses_with_that_cause() {
     );
 }
 
-/// The pipe cut on a tilt with its wall put on a cylinder 3e-9 wider
+/// The pipe cut on a tilt with its wall put on a cylinder [`in_band`] wider
 /// than its rims, rulings and ellipse arcs: the swap drops the wall's
 /// images, so the route reads it at its doors.
 fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
@@ -398,7 +409,7 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
             surface: Surface::Cylinder {
                 origin,
                 axis,
-                radius: radius + 3e-9,
+                radius: radius + in_band(),
                 u_ref,
             },
             sense,
@@ -409,7 +420,7 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
 }
 
 /// **A carrier of no iso kind is read before anything in band.** The
-/// ellipse-cut wall, its stored data 3e-9 off its surface: the shape
+/// ellipse-cut wall, its stored data [`in_band`] off its surface: the shape
 /// door's first pass reads the ellipse's kind and decides the wall is no
 /// rectangle with no decision taken, so no rim's or ruling's incidence
 /// can escalate ahead of it, wherever the loop starts. The trimmed lane
