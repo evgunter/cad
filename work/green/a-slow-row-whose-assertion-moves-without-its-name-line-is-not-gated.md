@@ -33,3 +33,15 @@ and the nightly is the first run to see a wrong pin.
 What a fix needs: also select a slow-set test whose body or doc the
 diff touches, by reading the hunks' enclosing `fn` (the `@@` context
 line `git diff` prints) as well as the added lines' identifiers.
+
+**A second instance (EMBED, PR 7093, 2026-11-17).** The PR re-blessed
+`injective.rs`'s entry in
+`geom-core::all certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`
+(a `ci` slow row), first to 161/66 and then to 160/64. It edited only
+the census's roster data, not a line naming the test. Its first gate's
+slow-set step took 1 s: the selection was `none()`. Run locally at that
+head, the census was red for four files the PR did not touch (since
+re-blessed on main by GREEN, `8c9a5622a8`). The PR body had claimed the
+census ran. The shape is the same as above, except that this hunk is in
+a data table, not inside the test's `fn`. Reading a hunk's enclosing
+`fn` would not have caught it: the table is a `const` the test reads.
