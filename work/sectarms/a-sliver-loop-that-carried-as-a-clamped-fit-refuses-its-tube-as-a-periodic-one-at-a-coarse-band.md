@@ -91,8 +91,11 @@ so the periodic fit's box is a graph on no rung: its narrowest rung,
 rungs at 1.7e-4 and below. The two fits place their knots 1.2e-4 of the
 parameter apart there (the clamped fit's knots are averages of three
 parameters, the periodic fit's are the parameters), and that is the
-whole difference between them. Every other box of either chain is a
-graph at 1.7e-4.
+whole difference between them. The last long span into the other tip
+is the same shape: the periodic fit's boxes 313 and 314 read 5.9e-4 and
+8.3e-4 unpadded and are graphs from the 4.3e-5 and 8.5e-5 rungs down,
+and the clamped fit's box 313 reads 2.3e-3. Every other box of either
+chain is a graph at 1.7e-4.
 
 **The quantity itself is nowhere near zero there.** At the box's eight
 corners `(∇f₁ × ∇f₂)·e` is at least 0.076 (the surfaces cross at about
@@ -149,7 +152,7 @@ carries (tube 2.2e-2), `(0.2, 0.6995)` carries, and the three rows above
 pass. The rescued pose's tube is twice that of the easier
 `(0.2, 0.69)`, since only the rescue reads the tight form, and
 `close_rings_carry_counted`'s δ 3e-4 moves from `TubeStraddles` to the
-same witness-match escalation (pad 4.3e-2, rings 3.0e-2 apart). Which
+same witness-match escalation (pad 4.3e-2, one ring's witness 3.0e-2 to 5.5e-2 from the other ring). Which
 enclosure a rung is selected on is not something C2 says.
 
 **C. Refine under a box that is a graph on no rung**, as the tube

@@ -92,5 +92,6 @@ the box's centre, the same chain is a graph at 2.2e-2.
 
 With that form this row's δ 3e-4 gets a tube at 1e-6, and the carry then
 escalates in the witness match (`curve_carrier_straddle`): the pad that
-follows the tube is 4.3e-2 and the rings stand 3.0e-2 apart. The pin's
+follows the tube is 4.3e-2 and one ring's witness reads 3.0e-2 to
+5.5e-2 from the other ring. The pin's
 `boxes: 206` is stale on main since closed branches fit periodic (208).
