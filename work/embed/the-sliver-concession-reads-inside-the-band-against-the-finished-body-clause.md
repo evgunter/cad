@@ -289,3 +289,173 @@ The patch is not committed. It was kept, for this session only, at
   `SLIVER_TRACE='*'`.
 - Times are one run each, with other walks or tests on the box's
   other cores.
+
+### 6. The threshold, and each `Zero` decision's far side and partner
+
+**The threshold is ε, not K·ε.**
+`decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band)` reaches
+`Interval::sign_within`, which reads `Zero` exactly when the width's
+enclosure lies in `[−band.zero(), band.zero()]`, and `Band::linear`
+sets `zero` to ε and `escalate` to K·ε. An enclosure reaching past ε
+is not `Zero`.
+
+- The largest width that decided `Zero` in any sweep is 3.8e-15 m:
+  3.8e-6 of ε and 3.8e-7 of K·ε.
+- Of the 96 `Zero` decisions in sweeps, **all 96 are at rounding scale
+  and none is at the order of ε**: 41 are exactly 0, 2 lie in
+  [1e-17, 1e-16), 31 in [1e-16, 1e-15) and 22 in [1e-15, 1e-14).
+
+**(a) The strip's far side** (the bound opposite the shared line).
+
+| body | reader | `Zero` | far side |
+|---|---|---:|---|
+| `chute` | plane corner | 20 | 11 the cell's own hull; 9 the line itself (the hull ends at or below the line, width 0) |
+| `tiltedcut_above` | plane corner | 2 | 2 the cell's own hull |
+| stepped ring, each scalar | plane corner | 29 | 13 the cell's own hull; 16 the line itself |
+| filleted drum, `Interval` | chart | 16 | 16 the cell's own side, which lies inside the line's enclosure |
+
+- **No strip's far side is one of the face's own clips.**
+- The plane-corner reader's rectangle is the cell's affine hull, so
+  its far side is the sweep's cut, read through that hull.
+- The drum's row is read off section 5's trace (the rectangle's low
+  bound is the cell's own bound, `1.5707963267948968`, inside the
+  line's `[…861, …072]`). The probe's own test of the opposite side
+  was miswritten for this reader in the run; it is corrected in the
+  kept patch.
+
+**(b) The partner face in that cell.**
+
+| body | `Zero` | (i) vacuous by another path | (ii) a sliver on the same line | (iii) presented with the line a zero side | (iv) anything else |
+|---|---:|---:|---:|---:|---:|
+| `chute` | 20 | 0 | 0 | 0 | 20 |
+| `tiltedcut_above` | 2 | 0 | 0 | 0 | 2 |
+| stepped ring, each scalar | 29 | 0 | 0 | 0 | 29 |
+| filleted drum, `Interval` | 16 | 0 | 0 | 0 | 16 |
+
+- **All 96 are (iv), and all 96 the same way: the partner is not
+  presented, `Err(Unpresented::Local)`.** The pair certifies at
+  `departure`'s vacuous return, before any separator is built: no arm
+  reads either face.
+- The (iv) pairs:
+  - `chute`: the annuli (faces 4, 6, 8, 10) against the two caps
+    (faces 1 and 2), on the eight radial lines (edges 2, 4, 6, 8, 18,
+    20, 22, 24), depths 5 to 14. The first: faces 2 and 10, edge 8,
+    the annulus's cell `u ∈ (−0.875, −0.4375), v ∈ (−0.875, 0)`,
+    depth 5.
+  - `tiltedcut_above`: face 5 (the sliver's) against faces 8 and 10,
+    on edges 16 and 10, both at depth 7; face 5's cell
+    `u ∈ (−0.3232, −0.2790)`, `v ∈ (−0.1768, −0.0884)` and its mirror.
+  - the stepped ring: the annuli (faces 4, 6, 8) against the caps
+    (faces 1 and 2), on edges 2, 4, 6, 14, 16, 18, depths 6 to 10.
+  - the drum at `Interval`: the band (face 7) against the top plane
+    (face 1), edge 12, the eight octants, twice each, all at depth 7.
+
+### 7. Is the sliver standing in for a reading the departure arm could make?
+
+**The proxy.** In `sign_on`, the departure's margin is the separator's
+rate along the chart axis times the rectangle's span, decided against
+the band. The proxy drops the span and decides the rate at
+`Band::least()` (an exact sign: only an enclosure straddling zero is
+undecided). It is applied to `departs` (a zero side, a side past the
+shared cell, a curve, a corner point) and to the two-sided corner's
+mixed derivative. A separator read by its value (`Zero::None`) is
+unchanged. "Sliver refused" below is the second spelling of section
+2: the reader goes on to present the thin rectangle.
+
+**First, what stops the pairs with the margin as it is** (sliver
+refused, margin scaled). The partner is unpresented, the thin
+rectangle is presented with the line as its zero side, and the carrier
+arm is tried with the partner's carrier as the separator:
+
+| body | pair visits | how they end |
+|---|---:|---|
+| `chute` | 339 | 303 split: **the rate is signed, the margin is in the band**; 36 certify by the carrier arm (the partner presented too) |
+| stepped ring, `f64` | 396 | 341 split, rate signed and margin in the band; 35 carrier arm; 20 the partner vacuous by another path |
+| filleted drum, `Interval` | 43,940 | 43,880 split with the top plane presented by its curve and **a rate enclosure that straddles zero** on one or both faces; 60 split with the top plane unpresented |
+
+No pair is stopped by `zero_of` or `sides_are_the_faces`: the readers
+reach their `Presentation::Of`.
+
+**Sliver refused, margin un-scaled.**
+
+| body | verdict | pairs | how the baseline's sliver pairs end |
+|---|---|---:|---|
+| `chute` | **Holds** | 1,790 (1,794 with the sliver) | all 20 certify by the carrier arm: the cap's carrier separates, the annulus's thin rectangle read, rate signed |
+| `tiltedcut_above` | Holds | 1,761 | both certify by the carrier arm |
+| stepped ring, `f64` and `Interval` | **Holds** | 383 (386) | all 29 certify by the carrier arm, rate signed |
+| filleted drum, `Interval` | **Refused**, `Uncertified`, faces 1 and 7, edge 12, depth 40 | 15,200 (55,123 scaled) | 321 visits certify by the graph separator; 11,512 split on a rate enclosure that straddles zero (11,275 of them on both faces); 60 split with the top plane unpresented and the band's rate straddling zero |
+
+- **What the reader makes of a cell across the line**: the
+  plane-corner reader presents the rectangle `y ∈ [0, y₁]` with `y₁`
+  0 or rounding, its zero side the line. Its rate against the cap's
+  plane is signed, so un-scaled it certifies; scaled, the margin is
+  that rate times a span of at most 2.2e-15 and reads in the band.
+- The drum's band meets the top plane tangentially on edge 12, and
+  there the rate's enclosure straddles zero at every depth.
+- The two unit pins fail as before (they assert `Vacuous`).
+
+**Sliver on, margin un-scaled, everything else.**
+- **Tour: no verdict moves** (82 hold, the benches as recorded). 40
+  bodies take fewer pairs and none more: 479,869 pairs in all become
+  428,818 (`diefillet` 3,833 → 1,035, `budfillet` 3,423 → 1,299,
+  `sheave` 2,314 → 2,002).
+- **Suites: no sweep's verdict moves.** 55 of 248 sweeps change their
+  pair count (66,161 → 64,413 in all). One test fails on a count it
+  pins, not on a verdict:
+  `a_rod_less_a_tilted_slab_holds_across_its_curved_corners` reads 18
+  corner certificates where it pins 14.
+
+### 8. The same with the touch's `few_ulps` at 0
+
+**The change.** The four `few_ulps` terms of the touch concession read
+0: the two in `vacuous` and the two in `present_chart`'s "past the
+line on its face side" test. The sheet's overlap, the cover and the
+join keep theirs.
+
+| run | tour | suites (sweep verdicts) |
+|---|---|---|
+| touch at 0 alone (sliver on, margin scaled) | **5 move**: `sheave` out of pairs; `budfillet`, `teapotlid`, `fivewall`, `fivewallcup` `Uncertified` at depth 40 | filleted drum `f64` `Uncertified` (faces 1 and 7, edge 12); full torus `f64` out of pairs |
+| touch at 0, margin un-scaled, sliver on | **none moves** | full torus `f64` out of pairs |
+| touch at 0, margin un-scaled, sliver refused | **3 move**: `hollowring` and `hollowtorus` out of pairs, `teapotlid` `Uncertified` (faces 6 and 11, edge 26) | filleted drum `Interval` `Uncertified` (as in section 7); full torus out of pairs at `f64` and at its depth floor at `Interval` |
+
+- **With the touch at 0 the sliver takes decisions it did not take
+  before.** Tour `Zero` decisions, chart reader: 0 on the baseline,
+  948 with the touch at 0 alone (7 bodies: `sheave` 48, `diecomposed`
+  176, `budfillet` 24, `klein_bulb` 8, `hollowring` 304,
+  `hollowtorus` 274, `teapotlid` 114). All are still at rounding
+  scale: the widest is 4.4e-16 m.
+- With the margin un-scaled and the sliver on, those bodies hold and
+  the chart reader still decides `Zero` 864 times across 6 of them.
+  With the sliver then refused, `hollowring`, `hollowtorus` and
+  `teapotlid` do not hold: their thin rectangles are presented, and
+  the pairs split on a rate enclosure that straddles zero (17,082 of
+  `teapotlid`'s 17,778 visits) or on a partner that is not presented
+  (5,684 of `hollowring`'s 6,952).
+- The filleted drum at `f64` under "touch at 0, un-scaled, sliver
+  refused" holds: its 16 thin rectangles certify by a plane through
+  the shared circle.
+- The line and plane-corner readers' counts do not change in any of
+  these runs.
+
+### How to repeat sections 6 to 8
+
+The kept patch adds to the probe of "How to repeat":
+- `SLIVER_UNSCALED=1`: section 7's proxy, in `sign_on`.
+- `SLIVER_ULPS0=1`: section 8's change, through a `touch_ulps` helper
+  at the four sites.
+- **Tallies**, taken with the counters: per `Zero` decision the far
+  side; per pair in `departure` in which a sliver decided `Zero`, the
+  partner's presentation (vacuous, its `Zero` variant and whether its
+  edges hold the sliver's line, or its `Unpresented` kind), how the
+  pair ended, the arm that certified it, and for each `departs` read
+  whether it decided and whether the rate's own enclosure straddles
+  zero. Each (iv) partner is noted with its pair, cells and depth
+  (the sweep sets the pair's depth before `certify_pair`).
+- The runs, tour and the 758 tests each:
+  `SLIVER_REFUSE=all SLIVER_MODE=present` (scaled);
+  the same with `SLIVER_UNSCALED=1`; `SLIVER_UNSCALED=1` alone;
+  `SLIVER_ULPS0=1` alone; `SLIVER_UNSCALED=1 SLIVER_ULPS0=1` with and
+  without `SLIVER_REFUSE=all SLIVER_MODE=present`.
+- "Pair visits" count every pair the walk classifies in which a
+  sliver decided `Zero`, at every depth, so a pair that splits is
+  counted again in its children.
