@@ -166,8 +166,7 @@ fn seam_sigs(
         n.clone()
     };
     let at = |p: geom_core::Point3<f64>| {
-        // `+ 0.0` reads a negative zero as zero.
-        let [x, y, z] = sym.unapply(p.to_array()).map(|c| c + 0.0);
+        let [x, y, z] = sym.unapply(p.to_array()).map(geom_core::fold_signed_zero);
         format!("({x:.6}, {y:.6}, {z:.6})")
     };
     // The one coordinate a planar face holds constant, unmapped.
@@ -178,7 +177,7 @@ fn seam_sigs(
             .collect();
         for (axis, i) in [('x', 0), ('y', 1), ('z', 2)] {
             if pts.iter().all(|q| (q[i] - pts[0][i]).abs() < 1e-9) {
-                return format!("{axis} = {:.6}", pts[0][i] + 0.0);
+                return format!("{axis} = {:.6}", geom_core::fold_signed_zero(pts[0][i]));
             }
         }
         panic!("face {f:?} is not axis-planar: {pts:?}")
