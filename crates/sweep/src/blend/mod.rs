@@ -1194,10 +1194,12 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
 pub const FEET_CROSS_RECOURSE: &str = "the size is too large for this edge: use a smaller size, \
      or a longer edge, so the band ends' feet along it stand apart";
 /// The recourse of [`UnbuiltEnd::FootInsideAFace`]: the requests that
-/// close the end instead. Every edge at the vertex ends the band in the
-/// corner patch, or at a corner whose edges round both ways in the mixed
-/// corner; there, where the shared face leans, the odd edge alone builds,
-/// and a pair edge's foot leaves the rim at any size. A band's feet stand
+/// close the end instead. Every edge at the vertex ends the band in a
+/// corner rather than a cut-off; followed vertex by vertex (each next
+/// refusal names its own), it builds the corner's outline, as on an inset
+/// boss's root edge. Where a corner whose edges round both ways leans,
+/// the odd edge alone builds, and a pair edge's foot leaves the rim at any
+/// size. A band's feet stand
 /// off its vertex in proportion to its size, so a smaller one draws feet
 /// that stand just past the rim back onto it. Held to it by
 /// `blend_recourse_followability::the_foot_inside_a_face_recourse_names_a_request_that_builds`.
