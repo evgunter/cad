@@ -2,10 +2,11 @@
 id: a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band
 kind: issue
 title: a cylinder × sphere loop a millimetre short of tangency carried at ε = 1e-6 as a clamped fit and refuses its tube limb as a periodic one
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
 cost: M
+branch: sectarms/sliver-loop-tube
 ---
 
 
