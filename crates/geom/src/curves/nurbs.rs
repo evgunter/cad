@@ -1801,7 +1801,7 @@ macro_rules! nurbs_curve {
             /// first derivative of the one nonempty span that `t` ends
             /// (`below`, the span `(uᵢ, uᵢ₊₁]` holding `t`) or starts
             /// (the span `[uᵢ, uᵢ₊₁)` holding it), evaluated at `t`
-            /// ([`$Window::ders1_in_span`]). At a knot where the curve is
+            /// (the span window's `ders1_in_span`). At a knot where the curve is
             /// only `C⁰` (a crease) this is the one-sided derivative a
             /// reader standing in that span sees, where [`Self::ders1`]
             /// reads one side's for both. Away from a knot it is
