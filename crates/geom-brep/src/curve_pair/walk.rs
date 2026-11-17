@@ -930,7 +930,9 @@ mod tests {
         assert_eq!(t.to_bits(), 0.0f64.to_bits(), "the tie takes the start");
         assert_eq!(
             read.place,
-            Ok(crate::curve_pair::Place::End(crate::curve_pair::SpanEnd::Start))
+            Ok(crate::curve_pair::Place::End(
+                crate::curve_pair::SpanEnd::Start
+            ))
         );
     }
 
@@ -991,7 +993,10 @@ mod tests {
                 read
             );
             if carried {
-                assert!(read.is_some_and(|r| r.is_err()), "the place's refusal is the outcome");
+                assert!(
+                    read.is_some_and(|r| r.is_err()),
+                    "the place's refusal is the outcome"
+                );
             }
         }
     }
@@ -1030,7 +1035,11 @@ mod tests {
             let places = (at_end(&a, 1.5, band).1, at_end(&b, tb, band).1);
             let mut found = crate::curve_pair::Found::default();
             found.read_pair(&a, &b, candidate, places, band);
-            assert!(found.points.is_empty(), "crossing {crossing}: {:?}", found.points);
+            assert!(
+                found.points.is_empty(),
+                "crossing {crossing}: {:?}",
+                found.points
+            );
             assert_eq!(
                 found.held.is_empty(),
                 cleared,
