@@ -20,6 +20,7 @@ are one-off pictures from one box, not a render lane:
 | `odd-plus-one-flush.png`, `odd-plus-one-inset.png` (the right-angle flush and inset corners, the odd edge with one pair edge chamfered, before and after) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.1 |
 | `odd-plus-one-flush-120.png` (the flush corner at a 120° plan angle) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.1 |
 | `odd-plus-one-bracket.png` (the bore-less bracket, the odd edge with one other at all four mixed corners: whole, both corners near `y = 0.5`, the inset one near `y = 3.5`) | `band/bracket-odd-plus-one`, PR 7038's fix pass | 0.05 |
+| `occt-compare/*.png` (ours beside Open CASCADE 8.0.1 on the same fixtures; `occt-compare.md` says how and what they show) | `band/bracket-odd-plus-one` at `fe6da33a01` | 0.1, 0.05 |
 
 What did not build is in the PR that added this page.
 

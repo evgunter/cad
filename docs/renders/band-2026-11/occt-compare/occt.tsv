@@ -1,0 +1,39 @@
+fixture	req	verb	status	dV	faces	note	membership
+flush	-	body	valid	5.999999999999999e+00	8		
+flush	a	chamfer	invalid	2.957512141423901e-02	11	solids 1 shells 1	agree 21 disagree 5 skipped 2974
+flush	a	fillet	builds	2.229385205204437e-03	11	solids 1 shells 1	
+flush	b	chamfer	builds	3.333333333337407e-04	12	solids 1 shells 1	agree 2985 disagree 15 skipped 0
+flush	b	fillet	builds	1.681150768817474e-05	12	solids 1 shells 1	
+flush	c	chamfer	builds	1.000000000000068e-02	9	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+flush	c	fillet	builds	4.292036732051585e-03	9	solids 1 shells 1	
+flush	d	chamfer	builds	-4.999999999999005e-03	9	solids 1 shells 1	
+flush	d	fillet	builds	-2.146018366024016e-03	9	solids 1 shells 1	
+flush	e	chamfer	builds	-1.033333333333264e-02	10	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+flush	e	fillet	builds	-4.387906966017319e-03	10	solids 1 shells 1	
+inset	-	body	valid	5.000000000000000e+00	9		
+inset	a	chamfer	builds	-3.013741533308689e-05	12	solids 1 shells 1	agree 2971 disagree 27 skipped 2
+inset	a	fillet	builds	-8.271264319326121e-05	12	solids 1 shells 1	
+inset	b	chamfer	builds	4.666666666666153e-03	13	solids 1 shells 1	agree 2986 disagree 14 skipped 0
+inset	b	fillet	builds	2.129206858337618e-03	13	solids 1 shells 1	
+inset	c	chamfer	builds	-4.999999999999005e-03	10	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+inset	c	fillet	builds	-2.146018366024904e-03	10	solids 1 shells 1	
+inset	d	chamfer	builds	5.000000000000782e-03	10	solids 1 shells 1	
+inset	d	fillet	builds	2.146018366024904e-03	10	solids 1 shells 1	
+inset	e	chamfer	builds	1.033333333333353e-02	11	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+inset	e	fillet	builds	4.387906977609823e-03	11	solids 1 shells 1	
+flush120	-	body	valid	6.098076211353316e+00	8		
+flush120	a	chamfer	builds	1.311989883882703e-03	11	solids 1 shells 1	agree 2803 disagree 196 skipped 1
+flush120	a	fillet	builds	-1.036338976181383e-03	11	solids 1 shells 1	
+flush120	b	chamfer	builds	-1.234083529452867e-03	12	solids 1 shells 1	agree 2997 disagree 3 skipped 0
+flush120	b	fillet	builds	-3.244134114308572e-03	12	solids 1 shells 1	
+flush120	c	chamfer	builds	8.660254037843984e-03	9	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+flush120	c	fillet	builds	1.075029871826949e-03	9	solids 1 shells 1	
+flush120	d	chamfer	builds	-4.903774955134388e-03	9	solids 1 shells 1	
+flush120	d	fillet	builds	-2.118340458493684e-03	9	solids 1 shells 1	
+flush120	e	chamfer	builds	-1.019245008972991e-02	10	solids 1 shells 1	agree 3000 disagree 0 skipped 0
+flush120	e	fillet	builds	-4.347391741589490e-03	10	solids 1 shells 1	
+bracket	-	body	valid	1.425000000000000e+01	10		
+bracket	a	chamfer	builds	-5.045542274379144e-03	20	solids 1 shells 1	agree 11852 disagree 148 skipped 0
+bracket	a	fillet	fails			IsDone false	
+bracket	b	chamfer	builds	-3.750000000003695e-03	23	solids 1 shells 1	agree 11938 disagree 62 skipped 0
+bracket	b	fillet	builds	-1.609513774521787e-03	23	solids 1 shells 1	

@@ -1,0 +1,34 @@
+flush	a	chamfer	builds	5.666666666666487e-3	10
+flush	a	fillet	refuses	UnsupportedCorner { vertex: VertexKey(4v1), corner: MixedConvexity { convex: 2 }, policy: None }	
+flush	b	chamfer	builds	1.675084389862747e-5	12
+flush	b	fillet	builds	1.681150768728656e-5	12
+flush	c	chamfer	builds	1.000000000000068e-2	9
+flush	c	fillet	builds	4.292036732052473e-3	9
+flush	d	chamfer	refuses	UnsupportedRunOut { at: Vertex(VertexKey(4v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+flush	d	fillet	refuses	UnsupportedRunOut { at: Vertex(VertexKey(4v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+flush	e	chamfer	builds	-1.033333333333264e-2	10
+flush	e	fillet	builds	-4.387907216822917e-3	10
+inset	a	chamfer	builds	-6.666666666665932e-4	11
+inset	a	fillet	refuses	UnsupportedCorner { vertex: VertexKey(13v1), corner: MixedConvexity { convex: 1 }, policy: None }	
+inset	b	chamfer	builds	4.983249156102154e-3	13
+inset	b	fillet	builds	2.129206858338506e-3	13
+inset	c	chamfer	builds	-5.000000000000782e-3	10
+inset	c	fillet	builds	-2.146018366025793e-3	10
+inset	d	chamfer	refuses	UnsupportedRunOut { at: Vertex(VertexKey(13v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+inset	d	fillet	refuses	UnsupportedRunOut { at: Vertex(VertexKey(13v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+inset	e	chamfer	builds	1.033333333333442e-2	11
+inset	e	fillet	builds	4.387907216823805e-3	11
+flush120	a	chamfer	builds	4.448929172441218e-3	10
+flush120	a	fillet	refuses	UnsupportedCorner { vertex: VertexKey(4v1), corner: MixedConvexity { convex: 2 }, policy: None }	
+flush120	b	chamfer	builds	-1.384404160893915e-3	12
+flush120	b	fillet	builds	-3.244134114307684e-3	12
+flush120	c	chamfer	builds	8.660254037845760e-3	9
+flush120	c	fillet	builds	1.075029871827837e-3	9
+flush120	d	chamfer	refuses	UnsupportedRunOut { at: Vertex(VertexKey(4v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+flush120	d	fillet	refuses	UnsupportedRunOut { at: Vertex(VertexKey(4v1)), detail: "a straight band's trimline meets the end face's plane past its rim, so its foot lands inside a face rather than on that rim" }	
+flush120	e	chamfer	builds	-1.019245008972902e-2	10
+flush120	e	fillet	builds	-4.347387582241069e-3	10
+bracket	a	chamfer	builds	-5.000000000002558e-3	16
+bracket	a	fillet	refuses	UnsupportedCorner { vertex: VertexKey(12v1), corner: MixedConvexity { convex: 1 }, policy: None }	
+bracket	b	chamfer	builds	-3.750000000003695e-3	23
+bracket	b	fillet	builds	-1.609513774523563e-3	23
