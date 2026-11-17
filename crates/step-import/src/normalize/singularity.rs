@@ -43,6 +43,7 @@ use geom_core::{Point3, Vec3};
 use super::{expand_split_uses, face_boundary_census, split_at_param, use_start, valences};
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
+use crate::interpret::FileBand;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
 
 /// **Two lines this close to parallel have no crossing** for the pass: a
@@ -188,30 +189,14 @@ const STEP_SINGULARITY_RAY_HIT: &str = "step_singularity_ray_hit";
 /// The pass (module docs).
 pub(super) fn singularity_vertices(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    chart_band: Option<geom_core::Band>,
-    run_band: Option<geom_core::Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    // The coarser of the file's band and the run's: a point the kernel
-    // reads as one with a vertex is not cut a sub-tolerance edge away
-    // from it, and one the file cannot place is not placed finer.
-    let zero = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::zero);
-    let escalate = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::escalate);
-    let (eps, escalate) = (
-        eps_in.max(zero(chart_band)).max(zero(run_band)),
-        eps_in.max(escalate(chart_band)).max(escalate(run_band)),
-    );
-    let read = Read {
-        escalate,
-        // The file's band is its own only where ε_in is at least the
-        // run's ε; below that the file is read at the run's band, and a
-        // smaller tolerance is what decides it.
-        band: chart_band.filter(|_| run_band.is_none_or(|run| eps_in >= run.zero())),
-        file: geom_core::FileCoincidence::new(eps_in),
-        coarser: Read::coarser(eps, escalate),
-    };
+    // The file's band, floored at the run's: a point the kernel reads as
+    // one with a vertex is not cut a sub-tolerance edge away from it, and
+    // one the file cannot place is not placed finer.
+    let read = Read::of(file);
     // Each action makes one singular point a vertex with an edge on
     // each side, which no later scan re-finds, so the pass ends; the
     // bound only turns a defect of that argument into a refusal.
@@ -235,34 +220,27 @@ pub(super) fn singularity_vertices(
     })
 }
 
-/// The pass's bands, as it reads them.
+/// The pass's band, as it reads it.
 #[derive(Clone, Copy)]
 struct Read {
-    /// Off a vertex or an edge past this distance, the coarser
-    /// escalation of the file's band and the run's (the zero is
-    /// [`Self::coarser`]'s); between the two, undecided.
+    /// Off a vertex or an edge past this distance, the band's escalation
+    /// (its zero is [`Self::coarser`]'s); between the two, undecided.
     escalate: f64,
-    /// The file's band, `(ε_in, K·ε_in)`.
-    band: Option<geom_core::Band>,
-    /// The file's ε_in, the door a refusal ends at.
-    file: geom_core::FileCoincidence,
-    /// The band every on-or-off and side decision is taken at: zero at
-    /// `eps`, escalating at `escalate`.
+    /// The file's band, floored at the run's ([`FileBand`]): the door a
+    /// refusal ends at.
+    file: FileBand,
+    /// The band every on-or-off and side decision is taken at.
     coarser: geom_core::Band,
 }
 
 impl Read {
-    /// The coarser of the file's band and the run's, as one band: zero
-    /// at `eps` (on where either reads zero) and escalating at
-    /// `escalate` (off where both read clear). A degenerate pair (no
-    /// band at all) reads on within `eps` and off past it.
-    fn coarser(eps: f64, escalate: f64) -> geom_core::Band {
-        use geom_core::Band;
-        // With no band at all the two meet: the escalation one value
-        // past the zero, so nothing lies between them.
-        Band::new(eps, escalate)
-            .or_else(|_| Band::new(eps, eps.next_up()))
-            .unwrap_or(Band::least())
+    /// The pass's reading of `file`'s band.
+    fn of(file: FileBand) -> Self {
+        Self {
+            escalate: file.band().escalate(),
+            file,
+            coarser: file.band(),
+        }
     }
 
     /// Whether the distance `d` reads Zero at the pass's band under the
@@ -284,28 +262,27 @@ impl Read {
             )
     }
 
-    /// The typed refusal of a distance `d` [`Self::coarser`] could not
-    /// call, naming the band that could not: the file's where it too
-    /// reads `d` in band, the run's otherwise.
-    fn refuse(&self, cause: geom_core::Indeterminate, d: f64, id: u64) -> StepImportError {
-        let file = self
-            .band
-            .is_some_and(|band| home::on_boundary(d, band).is_err());
-        self.refusal(cause, file, id)
-    }
-
-    fn refusal(&self, cause: geom_core::Indeterminate, file: bool, id: u64) -> StepImportError {
+    /// The typed refusal of a distance `d` the band could not call,
+    /// naming whose band it was: the file's where its declared ε_in is at
+    /// least the run's ε, the run's otherwise.
+    fn refuse(&self, cause: geom_core::Indeterminate, _d: f64, id: u64) -> StepImportError {
         use crate::error::SingularityBand;
         StepImportError::SingularityUndecided {
             id,
             cause,
-            band: if file {
+            band: if self.file.eps_in() >= self.file.run_eps() {
                 SingularityBand::File
             } else {
                 SingularityBand::Run
             },
-            file: self.file,
+            file: self.coincidence(),
+            run_eps: self.file.run_eps(),
         }
+    }
+
+    /// The file's ε_in, as the import door reads a refusal at it.
+    fn coincidence(&self) -> geom_core::FileCoincidence {
+        geom_core::FileCoincidence::new(self.file.eps_in())
     }
 
     /// The kernel's reading's failure to place a point, as this pass
@@ -317,7 +294,7 @@ impl Read {
             Unread::Side { why, .. } => StepImportError::SingularitySideUndecided {
                 id,
                 side: why,
-                file: self.file,
+                file: self.coincidence(),
             },
             Unread::Carrier { .. } => foreign_carrier(id),
             Unread::Loop { .. } => unreadable(id),
@@ -1334,62 +1311,42 @@ mod review_on_boundary {
     use crate::error::{SingularityBand, StepImportError};
 
     /// The three-step decision, swept over d at the eps rows with ε_in
-    /// above and below ε: "on" only within the coarser zero, "off" only
-    /// past both escalations, and a refusal only inside a band.
+    /// above, at and below ε, on the band production reads (the file's,
+    /// floored at the run's): "on" only within its zero, "off" only past
+    /// its escalation, a refusal only inside it, naming the file's band
+    /// where ε_in is at least ε.
     #[test]
     fn on_boundary_decides_only_where_a_band_reads() {
         let k = 10.0;
         for eps in [1e-6, 1e-9, 1e-12] {
             for eps_in in [eps * 1e-3, eps * 0.3, eps, eps * 3.0, eps * 1e3, 0.0] {
-                let run = geom_core::Band::new(eps, k * eps).ok();
-                let file = if eps_in == 0.0 {
-                    Some(geom_core::Band::least())
-                } else {
-                    geom_core::Band::new(eps_in, k * eps_in).ok()
-                };
-                let zero = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::zero);
-                let esc = |b: Option<geom_core::Band>| b.map_or(0.0, geom_core::Band::escalate);
-                let (eps, escalate) = (
-                    eps_in.max(zero(file)).max(zero(run)),
-                    eps_in.max(esc(file)).max(esc(run)),
-                );
-                let read = Read {
-                    escalate,
-                    band: file,
-                    file: geom_core::FileCoincidence::new(eps_in),
-                    coarser: Read::coarser(eps, escalate),
-                };
+                let file = crate::interpret::FileBand::with_run(eps_in, eps, k)
+                    .unwrap_or_else(|e| panic!("eps {eps} eps_in {eps_in}: {e:?}"));
+                let read = Read::of(file);
+                let (zero, esc) = (file.band().zero(), file.band().escalate());
                 let top = 100.0 * eps.max(eps_in);
                 for i in 0..=4000 {
                     let d = top * f64::from(i) / 4000.0;
                     match on_boundary(d, &read, 1) {
-                        Ok(true) => assert!(
-                            d <= zero(run).max(zero(file)),
-                            "eps {eps} eps_in {eps_in}: on at d = {d}"
-                        ),
-                        Ok(false) => assert!(
-                            d >= esc(run).max(esc(file)) || d >= esc(run) && d >= esc(file),
-                            "eps {eps} eps_in {eps_in}: off at d = {d}"
-                        ),
+                        Ok(true) => assert!(d <= zero, "eps {eps} eps_in {eps_in}: on at d = {d}"),
+                        Ok(false) => {
+                            assert!(d >= esc, "eps {eps} eps_in {eps_in}: off at d = {d}");
+                        }
                         Err(e) => {
                             assert!(
-                                (d > zero(run) && d < esc(run))
-                                    || (d > zero(file) && d < esc(file)),
+                                d > zero && d < esc,
                                 "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
                                 e_at = e.render()
                             );
-                            // The file's band is named where it, too,
-                            // reads the distance in band.
                             let StepImportError::SingularityUndecided { band, .. } = e else {
                                 panic!(
                                     "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
                                     e_at = e.render()
                                 )
                             };
-                            let in_file = d > zero(file) && d < esc(file);
                             assert_eq!(
                                 band,
-                                if in_file {
+                                if eps_in >= eps {
                                     SingularityBand::File
                                 } else {
                                     SingularityBand::Run
@@ -1468,12 +1425,7 @@ mod side_through_a_pole {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let use_ = |edge, forward| EdgeUse { edge, forward };
-        let read = Read {
-            escalate: 1e-8,
-            band: geom_core::Band::new(1e-9, 1e-8).ok(),
-            file: geom_core::FileCoincidence::new(1e-9),
-            coarser: Read::coarser(1e-9, 1e-8),
-        };
+        let read = Read::of(crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap());
         let chart = Chart::of(&surface).unwrap();
         for (sense, south_inside) in [(true, false), (false, true)] {
             let solid = SolidSpec {
@@ -1523,12 +1475,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
     use crate::error::StepImportError;
 
     fn read(eps: f64, escalate: f64) -> Read {
-        Read {
-            escalate,
-            band: geom_core::Band::new(eps, escalate).ok(),
-            file: geom_core::FileCoincidence::new(eps),
-            coarser: Read::coarser(eps, escalate),
-        }
+        Read::of(crate::interpret::FileBand::with_run(eps, eps, escalate / eps).unwrap())
     }
 
     fn solid(rim_first: bool) -> SolidSpec {

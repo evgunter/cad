@@ -342,6 +342,8 @@ pub enum StepImportError {
         band: SingularityBand,
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
+        /// The run's ε (metres), which floors the band the file is read at.
+        run_eps: f64,
     },
     /// Which side of a face's boundary a sphere pole or cone apex lies on,
     /// the point being off that boundary, cannot be read: its reading does
@@ -636,21 +638,23 @@ impl StepImportError {
                 cause,
                 band,
                 file,
+                run_eps,
             } => {
+                use crate::interpret::Refusal;
                 let arm = RefusedArm::Undecided(cause);
-                let ending = door(file).map(|at| match band {
-                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
-                    SingularityBand::File => {
-                        crate::interpret::Refusal::in_band(SINGULARITY_SUBJECT, cause).map_or_else(
-                            || SINGULARITY_IN_FILE_BAND.recourse(arm, at),
-                            |refusal| {
-                                format!(
-                                    "{}: the distance lies in the band past the file's \
-                                     coincidence distance, which no tolerance of this run decides",
-                                    refusal.ending_with(SINGULARITY_MOVE, file.eps_in())
-                                )
-                            },
-                        )
+                // The ending that names every lever that decides it; the
+                // run's own sized ending where a smaller tolerance alone
+                // does (ε_in already below the distance over K).
+                let ending = door(file).map(|at| {
+                    match (band, Refusal::in_band(SINGULARITY_SUBJECT, cause, *run_eps)) {
+                        (SingularityBand::Run, Some(Refusal::Ambiguous { gap, k, .. }))
+                            if file.eps_in() < gap / k =>
+                        {
+                            SINGULARITY_ON_BOUNDARY.recourse(arm, at)
+                        }
+                        (_, Some(refusal)) => refusal.ending_with(SINGULARITY_MOVE, file.eps_in()),
+                        (SingularityBand::Run, None) => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
+                        (SingularityBand::File, None) => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
                     }
                 });
                 write!(

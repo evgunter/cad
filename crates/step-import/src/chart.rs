@@ -179,7 +179,7 @@ pub(crate) fn infer_outer(
     rings: &[Vec<Point3<f64>>],
     file: FileBand,
 ) -> Result<usize, OuternessRefusal> {
-    let band = file.band();
+    let band = Some(file.band());
     // Outerness is inferred in the chart, and neither spline kind has
     // the closed-form inverse this needs.
     if !geom_brep::is_analytic(surface) {
@@ -403,7 +403,7 @@ mod tests {
             infer_outer(
                 &plane(),
                 &[outer.clone(), hole.clone()],
-                crate::interpret::FileBand::new(1e-9, Tol::witness())
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
             ),
             Ok(0)
         );
@@ -411,7 +411,7 @@ mod tests {
             infer_outer(
                 &plane(),
                 &[hole, outer],
-                crate::interpret::FileBand::new(1e-9, Tol::witness())
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
             ),
             Ok(1)
         );
@@ -429,7 +429,7 @@ mod tests {
             infer_outer(
                 &plane(),
                 &[a, b],
-                crate::interpret::FileBand::new(1e-9, Tol::witness())
+                crate::interpret::FileBand::new(1e-9, Tol::witness()).unwrap()
             ),
             Err(super::OuternessRefusal::NoUniqueOuter)
         );
@@ -503,7 +503,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[wrap, inner.clone()],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::SeamDependent),
             "wrap ring"
@@ -516,7 +516,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[outer.clone(), touching],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::UndecidableAtEps),
             "touching ring"
@@ -529,7 +529,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[outer2.clone(), inner_same.clone()],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::OrientationContradicts),
             "same-wound inner"
@@ -540,7 +540,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[outer2, inner_same],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Ok(0)
         );
@@ -551,7 +551,7 @@ mod review_outerness {
             infer_outer(
                 &cyl(),
                 &[a, b],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::NoUniqueOuter),
             "disjoint"
@@ -570,7 +570,7 @@ mod review_outerness {
             infer_outer(
                 &sph,
                 &[polar, low.clone()],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::NotOnChart),
             "pole sample"
@@ -582,7 +582,7 @@ mod review_outerness {
             infer_outer(
                 &sph,
                 &[cap, low],
-                crate::interpret::FileBand::new(1e-10, Tol::witness())
+                crate::interpret::FileBand::new(1e-10, Tol::witness()).unwrap()
             ),
             Err(OuternessRefusal::SeamDependent),
             "pole-enclosing ring"

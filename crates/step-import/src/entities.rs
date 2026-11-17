@@ -237,9 +237,6 @@ pub(crate) struct Resolver<'a> {
     /// one interpretation budget, spent by every reading that decides
     /// what the file means ([`interpret`]).
     budget: interpret::FileBand,
-    /// The run's own linear band: where two points are one to the
-    /// kernel that will certify the body, whatever the file claims.
-    run_band: Option<geom_core::Band>,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -567,19 +564,14 @@ impl<'a> Resolver<'a> {
         }) {
             return;
         }
-        let empty = FaceCensus {
-            faces: 0,
-            edges: 0,
-            vertices: 0,
-        };
         normalizations.push(StructureNormalization {
             face: id,
             kind: NormalizationKind::PlacementReMinted {
                 transform: id,
                 moved_by,
             },
-            file_census: empty,
-            kernel_census: empty,
+            file_census: FaceCensus::EMPTY,
+            kernel_census: FaceCensus::EMPTY,
         });
     }
 
@@ -1008,13 +1000,15 @@ impl<'a> Resolver<'a> {
                     semi_u,
                     semi_v,
                     frame.u_ref,
-                    self.budget.band().unwrap_or(geom_core::Band::least()),
+                    self.budget.band(),
                 )
                 .map_err(|invalid| {
                     let refusal = match invalid {
-                        geom::EllipseInvalid::Escalated(ref cause) => {
-                            interpret::Refusal::in_band(ELLIPSE_SEMI_AXIS, cause)
-                        }
+                        geom::EllipseInvalid::Escalated(ref cause) => interpret::Refusal::in_band(
+                            ELLIPSE_SEMI_AXIS,
+                            cause,
+                            self.budget.run_eps(),
+                        ),
                         _ => None,
                     }
                     .unwrap_or(interpret::Refusal::InvalidRoot {
@@ -1399,7 +1393,7 @@ impl<'a> Resolver<'a> {
         // returns before the outerness walk; the mint's single loop
         // is outer by construction.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
-            if is_periodic_band(&surface, &loops, edges, self.budget.band()) {
+            if is_periodic_band(&surface, &loops, edges, Some(self.budget.band())) {
                 return Ok(vec![FaceSpec {
                     id,
                     surface,
@@ -1925,13 +1919,22 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// The surface record an `ADVANCED_FACE` states.
-    fn face_surface_record(&self, from: u64, id: u64) -> Result<u64, StepImportError> {
+    /// The surface record an `ADVANCED_FACE` states, and where it stands
+    /// in the DATA section.
+    fn face_surface_record(
+        &self,
+        from: u64,
+        id: u64,
+    ) -> Result<crate::one_record::Record, StepImportError> {
         let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
         let [_, _, surface_ref, _] = self.simple(from, id, "ADVANCED_FACE")? else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
-        as_ref(id, surface_ref, expected)
+        let surface = as_ref(id, surface_ref, expected)?;
+        Ok(crate::one_record::Record {
+            position: self.instance(id, surface)?.position,
+            id: surface,
+        })
     }
 
     /// One `MANIFOLD_SOLID_BREP` and its `CLOSED_SHELL`.
@@ -1991,7 +1994,7 @@ impl<'a> Resolver<'a> {
         let records = faces
             .iter()
             .map(|face| self.face_surface_record(shell_id, face.id))
-            .collect::<Result<Vec<u64>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
         let mut solid = SolidSpec {
             id,
             faces,
@@ -2012,7 +2015,6 @@ impl<'a> Resolver<'a> {
         normalize::normalize_shell(
             &mut solid,
             self.budget,
-            self.run_band,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -3262,7 +3264,6 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         length_scale: 1.0,
         angle_scale: 1.0,
         budget: interpret::FileBand::unread(),
-        run_band: None,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
@@ -3313,8 +3314,7 @@ pub(crate) fn resolve(
         // budget here; the shape pass below refuses first when there
         // is nothing to import, and `MissingUncertainty` is raised
         // after it, when a body really was on the table.
-        budget: interpret::FileBand::new(eps_in, tol),
-        run_band: geom_core::Band::linear(tol).ok(),
+        budget: interpret::FileBand::new(eps_in, tol)?,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

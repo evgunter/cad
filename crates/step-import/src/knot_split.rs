@@ -944,7 +944,7 @@ fn split_face_once(
     // back to the iso's parameter by the chord map the recognition
     // certifies within `ε_in`.
     let straight =
-        crate::recognize_curve::try_line(&iso, crate::interpret::FileBand::of(eps_in, Some(band)))
+        crate::recognize_curve::try_line(&iso, crate::interpret::FileBand::of(eps_in, band))
             .map(|(line, _)| line);
     let chord = (q1 - q0).norm();
     let (reading, read_span) = match straight {

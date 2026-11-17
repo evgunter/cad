@@ -1,9 +1,9 @@
 //! **The interpretation layer's readings** (`[import]`, D7): what the
 //! file's statements are evidence of, read at the file's band.
 //!
-//! The file declares a coincidence distance ε_in. Every question import
-//! asks of the file's evidence (does this point lie on that sphere, are
-//! these two planes one locus, is this patch a cylinder) is a distance in
+//! The file declares a coincidence distance ε_in. A question import asks
+//! of the file's evidence (does this point lie on that sphere, are these
+//! two planes one locus, is this patch a cylinder) is a distance in
 //! metres read through the kernel's one classification funnel
 //! (`geom_core::k_stats::decide`) against the file's band
 //! ([`file_band`]), with the three arms `[verdicts]` gives every reading:
@@ -11,8 +11,10 @@
 //! file's precision) and [`Read::Apart`] (definitely not). A reading
 //! that is a lane choice takes its closed form at Zero and its general
 //! lane otherwise; a structural one acts at Zero, keeps apart where
-//! apart, and refuses in band ([`Refusal::Ambiguous`]), naming the ε_in
-//! that would decide it.
+//! apart, and refuses in band ([`Refusal::Ambiguous`]), naming what would
+//! decide it. One pass still reads ε_in as a raw distance: the C⁰-knot
+//! split (`knot_split`,
+//! `work/importgate/the-c0-knot-split-reads-eps-in-raw-not-at-the-file-band.md`).
 
 use geom_core::predicate::Band;
 use geom_core::{Margin, Tol, k_stats};
@@ -26,11 +28,16 @@ use geom_core::{Margin, Tol, k_stats};
 /// exact comparison would. `None` where the pair makes no band (`K·e`
 /// overflowing, or rounding back onto `e`).
 pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
+    band_at(eps_in, tol.eps(), tol.k())
+}
+
+/// [`file_band`] for a run of ε `run_eps` and `k`.
+pub(crate) fn band_at(eps_in: f64, run_eps: f64, k: f64) -> Option<Band> {
     if eps_in == 0.0 {
         return Some(Band::least());
     }
-    let e = eps_in.max(tol.eps());
-    Band::new(e, tol.k() * e).ok()
+    let e = eps_in.max(run_eps);
+    Band::new(e, k * e).ok()
 }
 
 /// A recognized kind's certified residual against the file's statement
@@ -67,11 +74,15 @@ pub(crate) const STEP_BAND_SEAM_LENGTH: &str = "step_band_seam_length";
 /// it, apart splits the rim there.
 pub(crate) const STEP_BAND_SEAM_VERTEX: &str = "step_band_seam_vertex";
 
-/// The file's ε_in and the band it is read at.
+/// The file's ε_in and the band it is read at. The band is always a
+/// band: a file whose ε_in makes none refuses where it is read
+/// ([`FileBand::new`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FileBand {
     eps_in: f64,
-    band: Option<Band>,
+    /// The run's own ε, which floors the band.
+    run_eps: f64,
+    band: Band,
 }
 
 /// A reading of one distance at the file's band (`[verdicts]`).
@@ -88,35 +99,89 @@ pub(crate) enum Read {
 
 impl FileBand {
     /// The band for `eps_in` under the run's `tol` ([`file_band`]).
-    pub(crate) fn new(eps_in: f64, tol: Tol) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// An invalid root where `eps_in` makes no band (`K·ε_in` past the
+    /// format).
+    pub(crate) fn new(eps_in: f64, tol: Tol) -> Result<Self, crate::StepImportError> {
+        Self::built(eps_in, tol.eps(), file_band(eps_in, tol))
+    }
+
+    /// [`Self::new`] for a run of ε `run_eps` and `k`: a unit test's
+    /// band as production reads it, at a run it names.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::new`]'s.
+    #[cfg(test)]
+    pub(crate) fn with_run(
+        eps_in: f64,
+        run_eps: f64,
+        k: f64,
+    ) -> Result<Self, crate::StepImportError> {
+        Self::built(eps_in, run_eps, band_at(eps_in, run_eps, k))
+    }
+
+    /// The file band from its parts, refused where `band` is none.
+    fn built(
+        eps_in: f64,
+        run_eps: f64,
+        band: Option<Band>,
+    ) -> Result<Self, crate::StepImportError> {
+        let unread = Self::unread();
+        let band = band.ok_or_else(|| {
+            unread.refused(
+                0,
+                Refusal::InvalidRoot {
+                    what: "the file's declared coincidence distance ε_in (metres), whose band \
+                           K·ε_in must be a finite length",
+                    value: eps_in,
+                },
+            )
+        })?;
+        Ok(Self {
             eps_in,
-            band: file_band(eps_in, tol),
-        }
+            run_eps,
+            band,
+        })
     }
 
     /// The band `(eps_in, K·eps_in)` at the default K, with no run floor:
     /// a unit test's budget read as the file states it.
     #[cfg(test)]
+    #[allow(clippy::expect_used)]
     pub(crate) fn test(eps_in: f64) -> Self {
         Self {
             eps_in,
-            band: Band::new(eps_in, geom_core::Tol::witness().k() * eps_in).ok(),
+            run_eps: 0.0,
+            band: Band::new(eps_in, geom_core::Tol::witness().k() * eps_in)
+                .expect("a test's budget makes a band"),
         }
     }
 
     /// The file band as a caller that holds its parts carries them
-    /// (`knot_split`'s `Lines`): ε_in and the band [`file_band`] made.
-    pub(crate) fn of(eps_in: f64, band: Option<Band>) -> Self {
-        Self { eps_in, band }
+    /// (`knot_split`'s `Lines`): ε_in and the band [`file_band`] made, the
+    /// run's ε read off the band's floor.
+    pub(crate) fn of(eps_in: f64, band: Band) -> Self {
+        Self {
+            eps_in,
+            run_eps: if band.zero() > eps_in {
+                band.zero()
+            } else {
+                0.0
+            },
+            band,
+        }
     }
 
-    /// No budget and no band: the unit pass's resolver, which reads no
-    /// coordinate.
+    /// No budget, read as an exact comparison would: the unit pass's
+    /// resolver, which reads no coordinate.
     pub(crate) fn unread() -> Self {
         Self {
             eps_in: 0.0,
-            band: None,
+            run_eps: 0.0,
+            band: Band::least(),
         }
     }
 
@@ -125,51 +190,35 @@ impl FileBand {
         self.eps_in
     }
 
-    /// The band's K (its escalation over its zero), `NaN` with no band.
-    pub(crate) fn k(self) -> f64 {
-        self.band.map_or(f64::NAN, |b| b.escalate() / b.zero())
+    /// The run's ε, which floors the band.
+    pub(crate) fn run_eps(self) -> f64 {
+        self.run_eps
     }
 
     /// The band itself, for a kernel reading that takes one.
-    pub(crate) fn band(self) -> Option<Band> {
+    pub(crate) fn band(self) -> Band {
         self.band
     }
 
     /// **`gap` (metres, a distance) read at the file's band** under the
-    /// decision `name`. A gap the band cannot read (no band, a non-finite
-    /// gap) is [`Read::InBand`]: nothing is decided from it.
+    /// decision `name`. A gap the band cannot read (a non-finite gap) is
+    /// [`Read::InBand`]: nothing is decided from it.
     pub(crate) fn read(self, name: &'static str, gap: f64) -> Read {
-        let Some(band) = self.band else {
-            return Read::InBand;
-        };
-        match k_stats::decide(name, Margin::of(gap.abs()), band) {
+        match k_stats::decide(name, Margin::of(gap.abs()), self.band) {
             Ok(sign) if sign.is_zero() => Read::Zero,
             Ok(_) => Read::Apart,
             Err(_) => Read::InBand,
         }
     }
 
-    /// The refusal of a structural reading of `gap` that came out
-    /// [`Read::InBand`] or [`Read::Apart`]: an ambiguity or an evidence
-    /// miss, `None` at [`Read::Zero`].
-    pub(crate) fn refusal(self, reading: &'static str, gap: f64, read: Read) -> Option<Refusal> {
-        match read {
-            Read::Zero => None,
-            Read::InBand => Some(self.ambiguous(reading, gap)),
-            Read::Apart => Some(Refusal::EvidenceMiss {
-                reading,
-                miss: gap.abs(),
-            }),
-        }
-    }
-
-    /// The ambiguity of `gap` read in band under `reading`.
+    /// The ambiguity of `gap` read in band under `reading`, a decision
+    /// whose two answers are both the file's to mean.
     pub(crate) fn ambiguous(self, reading: &'static str, gap: f64) -> Refusal {
         Refusal::Ambiguous {
             reading,
             gap: gap.abs(),
-            k: self.k(),
-            floor: self.band.map_or(self.eps_in, Band::zero),
+            k: self.band.escalate() / self.band.zero(),
+            run_eps: self.run_eps,
         }
     }
 
@@ -194,13 +243,23 @@ impl FileBand {
         }
     }
 
-    /// `gap` read under `name`, and refused unless it reads Zero: the
-    /// shape of a reading whose one passing arm is "the file's statements
-    /// agree within ε_in".
+    /// `gap` read under `name`, refused unless it reads Zero: a decision
+    /// whose one passing arm is "the file's statements agree within its
+    /// band", so its refused arms are misses, past the band
+    /// ([`Refusal::EvidenceMiss`]) or in it ([`Refusal::MissInBand`]),
+    /// and none offers a finer ε_in.
     pub(crate) fn agree(self, name: &'static str, gap: f64) -> Result<(), Refusal> {
-        match self.refusal(name, gap, self.read(name, gap)) {
-            None => Ok(()),
-            Some(refusal) => Err(refusal),
+        let miss = gap.abs();
+        match self.read(name, gap) {
+            Read::Zero => Ok(()),
+            Read::InBand => Err(Refusal::MissInBand {
+                reading: name,
+                miss,
+            }),
+            Read::Apart => Err(Refusal::EvidenceMiss {
+                reading: name,
+                miss,
+            }),
         }
     }
 }
@@ -208,7 +267,7 @@ impl FileBand {
 /// **An interpretation refusal** (D7): the file's evidence read at its
 /// band says no description, or more than one. Each names the reading,
 /// the distance in metres, and (with the file's ε_in the error carries)
-/// the recourse in ε_in's own terms.
+/// the recourse in the terms that decide it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Refusal {
     /// **An evidence miss**: two of the file's statements that must agree
@@ -221,11 +280,21 @@ pub enum Refusal {
         /// The miss, in metres.
         miss: f64,
     },
+    /// **A miss in band**: two of the file's statements that must agree
+    /// for its reading to hold lie in the band the file is read at, so
+    /// whether they agree is undecided. Only agreement passes, so the one
+    /// lever is an ε_in at least the miss.
+    MissInBand {
+        /// The reading (its decision name).
+        reading: &'static str,
+        /// The miss, in metres.
+        miss: f64,
+    },
     /// **An in-band ambiguity**: the distance lies in the band the file
-    /// is read at, past its zero but within `K` times it, where the
-    /// file's precision does not decide whether the two are one. A band
-    /// whose zero is below `gap / K` reads them apart, one at or above
-    /// `gap` reads them one.
+    /// is read at, `(e, K·e)` for `e` the larger of ε_in and the run's ε,
+    /// where it is undecided whether the two are one. An ε_in at or above
+    /// `gap` reads them one; reading them apart takes a band whose zero
+    /// is below `gap / K`, so both ε_in and the run's ε below it.
     Ambiguous {
         /// The reading (its decision name).
         reading: &'static str,
@@ -233,29 +302,35 @@ pub enum Refusal {
         gap: f64,
         /// The band's K.
         k: f64,
-        /// The band's zero: ε_in, or the run's ε where that is coarser.
-        floor: f64,
+        /// The run's ε (metres), which floors the band.
+        run_eps: f64,
     },
-    /// **An invalid root**: a value a kernel constructor refuses whatever
-    /// ε_in is (a nonpositive radius, a half-angle outside `(0, π/2)`).
+    /// **An invalid root**: a value no kernel construction takes,
+    /// whatever ε_in is (a radius that is not positive, a half-angle
+    /// outside `(0, π/2)`).
     InvalidRoot {
-        /// What the value is and what the constructor needs.
+        /// What the value is, its unit, and what a construction needs.
         what: &'static str,
-        /// The value as the file states it, in kernel units.
+        /// The value in the unit `what` names.
         value: f64,
     },
 }
 
 impl Refusal {
     /// The ambiguity a kernel reading at the file's band escalated with
-    /// (`cause`, its margin and band), where the margin is a point value.
-    pub(crate) fn in_band(reading: &'static str, cause: &geom_core::Indeterminate) -> Option<Self> {
+    /// (`cause`, its margin and band) under a run of ε `run_eps`, where
+    /// the margin is a point value.
+    pub(crate) fn in_band(
+        reading: &'static str,
+        cause: &geom_core::Indeterminate,
+        run_eps: f64,
+    ) -> Option<Self> {
         let gap = cause.margin.diagnostic_f64_for_error_text().value()?;
         Some(Self::Ambiguous {
             reading,
             gap: gap.abs(),
             k: cause.band.escalate() / cause.band.zero(),
-            floor: cause.band.zero(),
+            run_eps,
         })
     }
 
@@ -265,29 +340,30 @@ impl Refusal {
         use geom_core::Readable;
         match *self {
             Self::EvidenceMiss { reading, miss } => format!(
-                "the file's statements miss each other by {} m ({reading}), past its declared \
-                 coincidence distance ε_in = {} m",
+                "the file's statements miss each other by {} m ({reading}), past the band it is \
+                 read at (its declared coincidence distance ε_in = {} m)",
+                Readable(miss),
+                Readable(eps_in)
+            ),
+            Self::MissInBand { reading, miss } => format!(
+                "the file's statements miss each other by {} m ({reading}), in the band it is \
+                 read at (its declared coincidence distance ε_in = {} m), where whether they \
+                 agree is undecided",
                 Readable(miss),
                 Readable(eps_in)
             ),
             Self::Ambiguous {
                 reading,
                 gap,
-                floor,
+                run_eps,
                 ..
-            } if floor > eps_in => format!(
-                "the distance {} m ({reading}) lies in the band the file is read at (from {} m, \
-                 this run's tolerance, coarser than the file's declared ε_in = {} m), where it is \
+            } => format!(
+                "the distance {} m ({reading}) lies in the band the file is read at (from the \
+                 larger of its declared ε_in = {} m and this run's tolerance {} m), where it is \
                  undecided whether the two are one",
                 Readable(gap),
-                Readable(floor),
-                Readable(eps_in)
-            ),
-            Self::Ambiguous { reading, gap, .. } => format!(
-                "the distance {} m ({reading}) lies in the file's band (ε_in = {} m, K·ε_in), \
-                 where its declared precision does not decide whether the two are one",
-                Readable(gap),
-                Readable(eps_in)
+                Readable(eps_in),
+                Readable(run_eps)
             ),
             Self::InvalidRoot { what, value } => format!(
                 "{what}: the file states {value}, which no kernel construction takes at any ε_in"
@@ -295,8 +371,8 @@ impl Refusal {
         }
     }
 
-    /// The refusal's one ending at the import door: its recourse, in
-    /// ε_in's own terms.
+    /// The refusal's one ending at the import door: its recourse, in the
+    /// terms that decide it.
     pub(crate) fn ending(&self, eps_in: f64) -> String {
         self.ending_with("re-export the file", eps_in)
     }
@@ -306,25 +382,35 @@ impl Refusal {
     pub(crate) fn ending_with(&self, lever: &str, eps_in: f64) -> String {
         use geom_core::Readable;
         match *self {
-            Self::EvidenceMiss { miss, .. } => format!(
+            Self::EvidenceMiss { miss, .. } | Self::MissInBand { miss, .. } => format!(
                 "Recourse: {lever}, or, if the file is less exact than it declares, import with \
                  ε_in ≥ {} m",
                 Readable(miss)
             ),
-            Self::Ambiguous { gap, k, floor, .. } if floor > eps_in => format!(
-                "Recourse: {lever}, or, if this distance is intended, tighten the tolerance below \
-                 {} m (the file is read no finer than the run's tolerance), or, if it is not, \
-                 import with ε_in ≥ {} m",
-                Readable(gap / k),
-                Readable(gap)
-            ),
-            Self::Ambiguous { gap, k, .. } => format!(
-                "Recourse: {lever}, or, if this distance is intended, import with ε_in below {} m \
-                 (re-export with a smaller declared uncertainty, or pass the override), or, if it \
-                 is not, with ε_in ≥ {} m",
-                Readable(gap / k),
-                Readable(gap)
-            ),
+            Self::Ambiguous {
+                gap, k, run_eps, ..
+            } => {
+                // Apart takes a band whose zero is below gap/K: every one
+                // of ε_in and the run's ε that is not below it moves.
+                let below = gap / k;
+                let mut apart = Vec::new();
+                if eps_in >= below {
+                    apart.push(format!(
+                        "import with ε_in below {} m (re-export with a smaller declared \
+                         uncertainty, or pass the override)",
+                        Readable(below)
+                    ));
+                }
+                if run_eps >= below {
+                    apart.push(format!("tighten the tolerance below {} m", Readable(below)));
+                }
+                format!(
+                    "Recourse: {lever}, or, if this distance is intended, {}, or, if it is not, \
+                     import with ε_in ≥ {} m",
+                    apart.join(" and "),
+                    Readable(gap)
+                )
+            }
             Self::InvalidRoot { .. } => format!("Recourse: {lever} from a valid model"),
         }
     }

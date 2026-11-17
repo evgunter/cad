@@ -263,6 +263,16 @@ pub struct FaceCensus {
     pub vertices: usize,
 }
 
+impl FaceCensus {
+    /// The census of no region: a ledger entry that re-mints no face,
+    /// edge or vertex.
+    pub const EMPTY: Self = Self {
+        faces: 0,
+        edges: 0,
+        vertices: 0,
+    };
+}
+
 /// **One materialized assembly instance** — the A7 record shape
 /// (`crates/editor-core/ASSEMBLY.md`), kept so a flattened import can later
 /// be re-adopted as an assembly document **without re-parsing the
@@ -1088,11 +1098,6 @@ pub fn import_step(
 /// promotion ([`NormalizationKind::CurvePromoted`], keyed by the carrier),
 /// then the normalizations in resolution order.
 fn ledger(model: &entities::Model) -> Vec<StructureNormalization> {
-    let empty = FaceCensus {
-        faces: 0,
-        edges: 0,
-        vertices: 0,
-    };
     model
         .curve_promotions
         .iter()
@@ -1102,8 +1107,8 @@ fn ledger(model: &entities::Model) -> Vec<StructureNormalization> {
                 kind: p.kind,
                 residual: p.residual,
             },
-            file_census: empty,
-            kernel_census: empty,
+            file_census: FaceCensus::EMPTY,
+            kernel_census: FaceCensus::EMPTY,
         })
         .chain(model.normalizations.iter().copied())
         .collect()

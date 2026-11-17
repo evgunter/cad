@@ -229,23 +229,21 @@ fn chart_direction(
 }
 
 /// Runs the shell normalizations (module docs), reading the file at
-/// its band (`file`). `run_band` is the run's own linear band, which
-/// the singularity pass reads a pole or apex against beside the file's.
+/// its band (`file`, floored at the run's).
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
     file: FileBand,
-    run_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    let (eps_in, chart_band) = (file.eps_in(), file.band());
+    let (eps_in, chart_band) = (file.eps_in(), Some(file.band()));
     crate::knot_split::split_c0_knots(solid, eps_in, chart_band, mint, sink)?;
     band_seam(solid, file, mint, sink)?;
     // The walls' orientation is read first: an inverted cone wall holds
     // its apex on the side its bit claims, and is refused as inverted,
     // not cut.
     wall_inversion(solid, chart_band)?;
-    singularity::singularity_vertices(solid, eps_in, chart_band, run_band, mint, sink)
+    singularity::singularity_vertices(solid, file, mint, sink)
 }
 
 /// **The seamless periodic band** (M7-5): a cylinder/torus face whose
@@ -340,7 +338,7 @@ fn mint_band(
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    let chart_band = file.band();
+    let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
     let surface = solid.faces[fi].surface.clone();
     let sense = solid.faces[fi].sense;
@@ -634,7 +632,7 @@ fn seam_vertex_on_loop(
     for u in &solid.faces[fi].loops[li].uses {
         let vid = use_start(solid, *u);
         let p = solid.vertices[&vid];
-        if let Some(uv) = crate::chart::uv_of(surface, p, file.band()) {
+        if let Some(uv) = crate::chart::uv_of(surface, p, Some(file.band())) {
             let gap = (surface.eval(0.0, uv.y) - p).norm();
             match file.read(STEP_BAND_SEAM_VERTEX, gap) {
                 Read::Zero => return Ok(vid),
@@ -896,9 +894,7 @@ mod tests {
         let mut sink = Vec::new();
         singularity::singularity_vertices(
             &mut solid,
-            1e-9,
-            crate::interpret::file_band(1e-9, geom_core::Tol::witness()),
-            geom_core::Band::linear(geom_core::Tol::witness()).ok(),
+            crate::interpret::FileBand::new(1e-9, geom_core::Tol::witness()).unwrap(),
             &mut || {
                 minted += 1;
                 1000 + minted
