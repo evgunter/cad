@@ -183,6 +183,8 @@ mod sizing_theorem_rows;
 mod the_one_face_ball;
 #[path = "wedge.rs"]
 mod wedge;
+#[path = "winding_rows.rs"]
+mod winding_rows;
 
 test_utils::every_suite_file_is_aggregated!();
 

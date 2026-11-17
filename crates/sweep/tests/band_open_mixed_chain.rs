@@ -146,6 +146,27 @@ pub(crate) fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
     );
 }
 
+/// **A chamfer's mixed chain at `Interval` at the tightest ε**: its
+/// section's shared row does not admit, on axis-aligned outlines too
+/// ([`assert_shared_row_unadmitted`]), or, where a junction runs off the
+/// axes (the teardrop, the barrel), a contact edge's certificate
+/// escalates first, its carrier's residual on a band or its rung-3
+/// reading on the cone in band
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError) {
+    // Three shapes, not one: which certificate the carve's description
+    // pass reads first is the edge order's, and each is the same row's.
+    let text = format!("{e:?}");
+    let contact = text.contains("surgery contact edge")
+        && text.contains("Indeterminate")
+        && ((text.contains("SurfaceResidual")
+            && text.contains("predicate: Some(\"carrier_on_surface"))
+            || text.contains("AnalyticRung3(Stalled { operand: Cone"));
+    if !contact {
+        assert_shared_row_unadmitted(what, e);
+    }
+}
+
 /// Fillet `edges` of `body` at `r` and check the carve: tier 3, naming
 /// total, one band face per link and one section per junction, and the
 /// volume moved (`sign` −1 removed, +1 added) at `truth`. At `Interval`
@@ -335,26 +356,134 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
     }
 }
 
-/// **The chamfer does not reach an open mixed chain**: its frustum covers
-/// a whole plane–cylinder rim alone, so the arc between the run's lines
-/// refuses before any chain is carved.
-#[test]
-fn an_open_mixed_chain_chamfered_refuses_at_its_arc() {
-    let body = l_plate::<f64>();
-    let run = edges_at(&body, 0.5, |x, y| y.abs() < 1e-9 || (x > 1.5 && y < 0.9));
-    let got = chamfer_edges(&at_rest(&body, tol()), &run, 0.05, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-        "a chamfer has no junction between a strip and a frustum, got {got:?}"
+/// **The chamfer's one row check**, for its closed rims, open runs and
+/// shapes alike: chamfer `edges` of `body` at `s`, and check the carve
+/// is tier 3, its naming total over `requested` (the request less any
+/// smooth seam), one band face per link (`links`), a strip over each
+/// line and a frustum over each arc, one section per junction
+/// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
+/// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
+/// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
+pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    what: &str,
+    body: &Body<T>,
+    (edges, requested): (&[EdgeKey], &[EdgeKey]),
+    s: T,
+    (links, junctions): (usize, usize),
+    dv: f64,
+) -> Option<sweep::blend::Blended<T>> {
+    let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
+        Ok(out) => {
+            assert!(
+                !tightest_interval::<T>(),
+                "{what}: built where its section's row does not admit"
+            );
+            out
+        }
+        Err(e) if tightest_interval::<T>() => {
+            assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
+            return None;
+        }
+        Err(e) => panic!("{what}: the chain chamfers whole, got {e:?}"),
+    };
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+    assert_naming_totality(body, &out, requested, what);
+    let rec = out.naming.as_ref().expect("the carve's birth records");
+    assert_eq!(rec.blends.len(), links, "{what}: one band face per link");
+    assert_eq!(
+        rec.sections.len(),
+        junctions,
+        "{what}: one section per junction"
     );
+    for &(face, link) in &rec.blends {
+        let surface = out.body.face_surface(face).expect("a band face's surface");
+        let arc = matches!(
+            body.get_edge(link)
+                .and_then(|d| body.get_curve_geom(d.curve))
+                .and_then(|g| g.certified())
+                .map(|c| c.carrier()),
+            Some(geom::Curve3::Circle(_))
+        );
+        assert!(
+            matches!(
+                (arc, surface),
+                (true, geom::Surface::Cone { .. }) | (false, geom::Surface::Plane { .. })
+            ),
+            "{what}: an arc's band is a frustum and a line's a strip, got {surface:?}"
+        );
+    }
+    let (v0, w0) = volume(body);
+    let (v1, w1) = volume(&out.body);
+    assert!(
+        w0 + w1 < 1e-7,
+        "{what}: the enclosure is a claim: ±{}",
+        w0 + w1
+    );
+    assert!(
+        ((v1 - v0) - dv).abs() <= w0 + w1 + 1e-12,
+        "{what}: V₁ − V₀ = {} is Pappus's {dv} (enclosure ±{})",
+        v1 - v0,
+        w0 + w1
+    );
+    Some(out)
 }
 
-/// **A torus link at an open chain's end refuses at the open door**:
-/// a half-disc's arc, closed by two lines meeting below its centre,
-/// requested alone ends at two sharp corners, cut off in walls that do
-/// not hold its axis; even a wall that does, whose section of the torus
-/// is a circle, has no built cut-off
+/// **The open mixed chains chamfered**, each at Pappus by pieces: the
+/// triangle `s²/2` along each line, cut square at a wall or by a mitre
+/// plane, and an arc's piece `(s²/2)·θ·ρ̄` about the centroid at
+/// `ρ̄ = R − s/3` from its axis (the host runs from each rim toward it).
+/// The L-plate's run ends square at both walls; the teardrop's lines
+/// meet in its 60° point's mitre, each centroid line `√3 − (s/3)·cot 30°`
+/// long; the notch's floor adds what the others remove.
+fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+    let tri = |s: f64| 0.5 * s * s;
+    let l = l_plate::<T>();
+    let run = edges_at(&l, 0.5, |x, y| y.abs() < 1e-9 || (x > 1.5 && y < 0.9));
+    assert_eq!(run.len(), 3, "the L-plate's line, arc and line");
+    let tear = teardrop::<T>();
+    let rim = edges_at(&tear, 1.0, |_, _| true);
+    assert_eq!(rim.len(), 3, "the teardrop's two lines and arc");
+    let s3 = 3f64.sqrt();
+    for s in [0.05, 0.14] {
+        let truth = tri(s) * ((2.0 - R) + (1.0 - R) + FRAC_PI_2 * (R - s / 3.0));
+        let what = format!("{scalar}: L-plate, s = {s}");
+        chamfer_row(&what, &l, (&run, &run), T::from_f64(s), (3, 2), -truth);
+        let truth = tri(s) * (1.0 - s / 3.0) * (2.0 * s3 + 4.0 * PI / 3.0);
+        let what = format!("{scalar}: teardrop, s = {s}");
+        chamfer_row(&what, &tear, (&rim, &rim), T::from_f64(s), (3, 2), -truth);
+    }
+}
+
+#[test]
+fn open_mixed_chains_chamfer_whole_at_pappuss_volume() {
+    open_chamfer_rows::<f64>("f64");
+}
+
+#[test]
+fn open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval() {
+    open_chamfer_rows::<Interval>("Interval");
+}
+
+#[test]
+fn a_notchs_rounded_floor_run_chamfers_whole_adding_pappuss_volume() {
+    let body = notch();
+    let floor = edges_at(&body, 0.5, |x, y| y > 1e-9 && x < 3.0 - 1e-9);
+    assert_eq!(floor.len(), 3, "the floor's line, arc and line");
+    for s in [0.05, 0.14] {
+        let truth = 0.5 * s * s * ((1.0 - R) + (2.0 - R) + FRAC_PI_2 * (R - s / 3.0));
+        let what = format!("notch floor, s = {s}");
+        chamfer_row(&what, &body, (&floor, &floor), s, (3, 2), truth);
+    }
+}
+
+/// **A torus or frustum link at an open chain's end refuses at the open
+/// door**: a half-disc's arc, closed by two lines meeting below its
+/// centre, requested alone ends at two sharp corners, cut off in walls
+/// that do not hold its axis; even a wall that does, whose section of the
+/// torus is a circle, has no built cut-off
 /// (`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
+/// The chamfer's frustum there refuses before the door, at predicate 6,
+/// which finds no corner its arms close at either sharp end.
 #[test]
 fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     let body = outline::<f64>(
@@ -369,9 +498,20 @@ fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
         matches!(
             &got,
             Err(BlendError::UnsupportedChain { detail, .. })
-                if detail.contains("a torus between two junctions")
+                if detail.contains("a band of revolution between two junctions")
         ),
         "a torus at an open chain's end has no built end, got {got:?}"
+    );
+    let got = chamfer_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
+    assert!(
+        matches!(
+            &got,
+            Err(BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::Indeterminate,
+                ..
+            })
+        ),
+        "a frustum at an open chain's end has no corner, got {got:?}"
     );
 }
 

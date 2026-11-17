@@ -6055,6 +6055,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_band_unformable",
             "triangulation",
             "trim_loop_orientation",
+            "unresolved_winding",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",

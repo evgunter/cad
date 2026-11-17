@@ -2,10 +2,12 @@
 id: a-chamfer-over-an-arc-between-lines-has-no-strip-to-frustum-junction
 kind: issue
 title: A chamfer over a rounded outline refuses at its arc: no junction joins a strip to a frustum
-status: open
+status: closed
 opened: 2026-11-13
 priority: P1
 cost: H
+closed: 2026-11-17
+pr: 7050
 ---
 
 
@@ -20,6 +22,8 @@ What it would take, measured against the fillet's mixed rim and open mixed chain
 - **The section** (`crates/sweep/src/blend/junction.rs`): `junction_plan` and `rim_phase_mixed` read the section as `arms::BallSection` (a circle about the spine), which is `None` for a strip and a frustum. A chamfer needs a straight section between the two feet, its carrier a line, described as the shared row of a plane and a cone (a generator, `u` constant on the cone), which `geom_brep::analytic_shared_row` does not take today (`ContactCarrier::Section` in `crates/sweep/src/blend/surgery.rs`).
 - **Predicate 4** (`broken_at_turns` and the band reading at a junction of links on different supports, `crates/sweep/src/blend/battery.rs`): it reads the two balls' section centres; for a chamfer it would read the two feet pairs, which coincide by construction.
 - **The rest is shared**: the open band's admission (`OpenBand::admit` in `admit.rs` admits a torus between two junctions; its `between` would read `BlendArm::is_coaxial` instead), the frustum's windowed reach (`reach::circular_reach` already takes a frustum and windows an arc between sections) and its windowed support-boundary meter (`StripLevel::of` reads any coaxial band's circle trims), the junction moves, and the `BandSection` name.
-- Remove the battery gate, and pin a rounded plate chamfered all round and an L-plate's rounded corner run at Pappus (the strips' prisms and the frustum's quarter rings `π·s²·(R ± s/3)/2` each).
+- Remove the battery gate, and pin a rounded plate chamfered all round and an L-plate's rounded corner run at Pappus (the strips' prisms and the frustum's quarter rings `π·s²·ρ̄/4` each, `ρ̄ = R ∓ s/3` the triangle's centroid's radius: `−` where the host runs toward the arc's axis, `+` where it runs away).
 
 P1 for the reason the plane–cylinder row was: "chamfer all round" on an ordinary part — a rounded outline — is the chamfer twin of the fillet's built mixed rim. H: a new section kind and its certified description.
+
+PR 7050. The strip and the frustum meet at a junction along the generator between their common feet. The generator is described as the plane–cone shared row, which `geom_brep::analytic_shared_row` already took (it certifies Touching at both scalars and every ε on exact inputs, and on inputs widened up to a hundredth of the band). Predicate 4 reads the feet pairs (`battery::feet_apart`). The open door admits a frustum between two junctions, and each band face takes its own link's sense. The battery's and the closed rim's chamfer gates are gone. The rounded plate (top, and top and bottom in one call), a pocket's floor and mouth, the L-plate's run, the teardrop, the notch floor, turned, moved and barrel outlines all build at Pappus by pieces at f64 and Interval, with names through editor-core. At Interval at ε 1e-12 they refuse, which is evidence on `every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12`.

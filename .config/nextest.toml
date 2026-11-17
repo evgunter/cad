@@ -74,6 +74,17 @@ failure-output = "immediate-final"
 #    5.28 s  mesh::all reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta
 #    1.27 s  mesh::all reach_probes::a_cone_face_keeps_no_side_its_plane_neighbour_can_make
 #    2.67 s  mesh::all reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed
+# The winding and clearance rows: the needle frustum whole (meshed in
+# its window twice through the memo, and at three δ outside it) and cut,
+# the tilted pair's six ops in two poses, a rod's band (a local run,
+# 4 vCPUs):
+#    6.23 s  mesh::all winding_rows::the_whole_frustum_refuses_in_its_window_and_meshes_outside_it
+#    0.73 s  mesh::all winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved
+#    0.59 s  mesh::all winding_rows::a_node_within_rounding_of_a_loop_vertex_is_not_laid
+#    0.56 s  mesh::all winding_rows::a_band_narrower_than_its_clearance_meshes_within_its_certificate
+# The cone met on its axis, three ops at two poses and three δ (a local
+# run, 4 vCPUs):
+#    1.65 s  mesh::all reach_probes::a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta
 # The lift measurements: the reach pins' bodies again, each loop's lift
 # sampled; the first is two booleans across a B-spline section (a local
 # run, 4 vCPUs):
@@ -136,8 +147,28 @@ failure-output = "immediate-final"
 # Rods across a wall joined along their rulings: over the 1.0 s bar on
 # PR 7052's hosted run, not timed on main:
 #    1.02 s  sweep::all parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings
+# The chamfer over rounded outlines, its strips and frustums meeting at
+# junctions: closed rims turned, moved and drawn in arc pieces, pockets,
+# open runs and the plate at the certified scalar, the adversarial rows,
+# and the plate's names through the document (a local run):
+#   55.5 s   sweep::all band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole
+#   40.9 s   sweep::all band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole
+#    2.84 s  sweep::all band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole
+#    2.57 s  sweep::all band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge
+#    0.98 s  sweep::all band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer
+#    0.71 s  sweep::all band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call
+#    3.04 s  sweep::all band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval
+#    0.92 s  sweep::all band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval
+#    0.81 s  sweep::all band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole
+#    0.78 s  sweep::all band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole
+#    0.70 s  sweep::all band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume
+#    0.53 s  sweep::all band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it
+#    0.50 s  sweep::all band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns
+#    0.60 s  editor-core::all band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names
 default-filter = """
 not (
+  (binary_id(sweep::all) & (test(=band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole) | test(=band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole) | test(=band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge) | test(=band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer) | test(=band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval) | test(=band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval) | test(=band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume) | test(=band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it) | test(=band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns))) |
+  (binary_id(editor-core::all) & test(=band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names)) |
   (binary_id(sweep::all) & test(=snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds)) |
   (binary_id(sweep::all) & test(=band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes)) |
   (binary_id(sweep::all) & (test(=a_sweep_keeps_the_frame_it_is_handed::an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direction) | test(=a_sweep_keeps_the_frame_it_is_handed::a_partial_revolve_on_a_tilted_plane_stores_its_frames_exactly) | test(=band_mixed_corner::the_bracket_fillets_all_round_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_at_a_non_right_plan_angle_builds_at_its_closed_form) | test(=band_mixed_corner::a_mixed_corner_reach_metered_as_a_uniform_corner_refuses_typed) | test(=band_mixed_corner::a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter))) |
@@ -382,7 +413,7 @@ not (
   (binary_id(sweep::all) & test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::the_lune_fillets_place_every_lattice_point)) |
   (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_by_its_tools_seat_reads_the_tool_as_material) | test(=a_vertex_through_a_declared_seat::a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn) | test(=a_vertex_through_a_declared_seat::a_block_inside_the_seats_material_is_cut_away) | test(=a_vertex_through_a_declared_seat::a_tool_of_three_stacked_solids_is_one_material) | test(=a_vertex_through_a_declared_seat::a_piece_touching_the_seats_plate_at_a_line_or_point_rides_its_record) | test(=a_vertex_through_a_declared_seat::a_seat_whose_outlines_cross_builds) | test(=a_vertex_through_a_declared_seat::a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry))) |
   (binary_id(geom-brep) & (test(=pcurve_cache::closed_image_rows::a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart) | test(=pcurve_cache::closed_image_rows::no_closed_form_is_certified_past_its_miss) | test(=pcurve_cache::closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it) | test(=pcurve_cache::closed_image_rows::an_enclosing_patch_holds_its_chart) | test(=pcurve_cache::closed_image_rows::a_closed_form_on_its_carrier_certifies_in_every_spelling))) |
-  (binary_id(mesh::all) & (test(=reach_probes::a_turned_ball_meshes_its_whole_volume_at_every_radius) | test(=reach_probes::a_one_column_band_with_raised_rows_adds_no_lattice_point) | test(=reach_probes::a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes) | test(=reach_probes::a_one_column_wall_meshes_on_its_boundary_chords_alone) | test(=reach_probes::a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta) | test(=reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass) | test(=reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row) | test(=reach_probes::a_ball_face_holding_a_tilted_ring_meshes_on_the_sphere_row) | test(=reach_probes::a_cone_wall_holding_a_ring_meshes_on_the_cone_row) | test(=reach_probes::a_ring_stored_a_period_away_meshes_where_the_door_moves_it) | test(=reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause) | test(=reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row) | test(=reach_probes::a_spiric_bounded_torus_wall_meshes_on_the_torus_row) | test(=reach_probes::a_cone_face_through_its_apex_meshes_at_every_scale_and_pose) | test(=reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta) | test(=reach_probes::a_cone_face_keeps_no_side_its_plane_neighbour_can_make) | test(=reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed))) |
+  (binary_id(mesh::all) & (test(=reach_probes::a_turned_ball_meshes_its_whole_volume_at_every_radius) | test(=reach_probes::a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta) | test(=winding_rows::the_whole_frustum_refuses_in_its_window_and_meshes_outside_it) | test(=winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved) | test(=winding_rows::a_node_within_rounding_of_a_loop_vertex_is_not_laid) | test(=winding_rows::a_band_narrower_than_its_clearance_meshes_within_its_certificate) | test(=reach_probes::a_one_column_band_with_raised_rows_adds_no_lattice_point) | test(=reach_probes::a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes) | test(=reach_probes::a_one_column_wall_meshes_on_its_boundary_chords_alone) | test(=reach_probes::a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta) | test(=reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass) | test(=reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row) | test(=reach_probes::a_ball_face_holding_a_tilted_ring_meshes_on_the_sphere_row) | test(=reach_probes::a_cone_wall_holding_a_ring_meshes_on_the_cone_row) | test(=reach_probes::a_ring_stored_a_period_away_meshes_where_the_door_moves_it) | test(=reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause) | test(=reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row) | test(=reach_probes::a_spiric_bounded_torus_wall_meshes_on_the_torus_row) | test(=reach_probes::a_cone_face_through_its_apex_meshes_at_every_scale_and_pose) | test(=reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta) | test(=reach_probes::a_cone_face_keeps_no_side_its_plane_neighbour_can_make) | test(=reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed))) |
   (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse)) |
   (binary_id(mesh::all) & (test(=lift_probes::the_spline_section_bodies_read_lifts_that_close) | test(=lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes) | test(=lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube))) |
   (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |

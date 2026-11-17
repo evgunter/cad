@@ -1506,14 +1506,13 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or co
      revolution sharing a rim, or planes or cylinders sharing a ruling; other pairs \
      need the canal-surface approximating blend (not implemented)";
 /// The recourse for a CHAMFER over a support pair its arms do not
-/// cover, or over an arc its frustum arm covers inside a chain of other
-/// links. Its own sentence rather than the fillet's: the chamfer's
-/// missing door is its band over other curved supports and its junction
-/// between a strip and a frustum, not the canal surface, and the
-/// plane–sphere pair the fillet offers is not an alternative here.
-pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes, or a whole rim where a \
-     cylinder meets a plane square to its axis; the chamfer over other curved supports, or \
-     over an arc in a chain of lines and arcs, is not implemented";
+/// cover. Its own sentence rather than the fillet's: the chamfer's
+/// missing door is its band over other curved supports, not the canal
+/// surface, and the plane–sphere pair the fillet offers is not an
+/// alternative here.
+pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes, or where a cylinder \
+     meets a plane square to its axis, round a whole rim or between the lines of a rounded \
+     outline; the chamfer over other curved supports is not implemented";
 
 /// **How the body failed to hold together** where a
 /// [`BlendError::BodyNotIntact`] read it, rendered by kind so the
@@ -1808,9 +1807,7 @@ pub enum BlendError {
     },
     /// **The CHAMFER's arm table**: the link's support pair is neither
     /// plane–plane, the strip's pair, nor a cylinder meeting a plane in
-    /// a circle about its axis, the frustum's — or it is the frustum's,
-    /// on an arc inside a chain of links over other supports, where the
-    /// two bands would meet at a junction that is not built. Its own variant rather than
+    /// a circle about its axis, the frustum's. Its own variant rather than
     /// [`BlendError::SpineUnsupported`] because the two name
     /// different missing doors — a chamfer over a curved support is
     /// VERBS-ARMS' machinery, not the canal-surface approximating
