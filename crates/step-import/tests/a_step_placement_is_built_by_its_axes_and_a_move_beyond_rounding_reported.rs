@@ -14,7 +14,7 @@
 //! the fields say. Where the stated frame is rigid within its own
 //! rounding nothing is reported; where it is not, the move `build_axes`
 //! made is reported with the farthest a point of the session box moved.
-//! A file declaring ε_in = 100 m states an axis 4% off unit, and the
+//! An axis stated 4% off unit is built the same way, and the
 //! metres-long move its build makes is reported, not hidden
 //! (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
 
@@ -176,12 +176,13 @@ fn a_placement_within_rounding_reports_nothing() {
 }
 
 /// **A file's coincidence distance bounds no move a build makes**: a
-/// file declaring ε_in = 100 m states an axis 4% off unit, and
-/// `build_axes` moves the box's corners by tens of metres — reported,
-/// so the move is in the import's own record.
+/// placement axis stated 4% off unit is a ratio vector like any other,
+/// and `build_axes` moves the box's corners by tens of metres, whatever
+/// the file declares — reported, so the move is in the import's own
+/// record.
 #[test]
 fn a_files_slack_axis_is_built_and_its_metres_long_move_reported() {
-    let (_, reported) = imported(&placed(&exported_at(100.0), 0.04));
+    let (_, reported) = imported(&placed(&exported(), 0.04));
     let [(9002, moved_by)] = reported.as_slice() else {
         panic!("one report naming the transform: {reported:?}");
     };

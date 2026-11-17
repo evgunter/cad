@@ -226,6 +226,7 @@ mod geometry;
 mod interpret;
 mod knot_split;
 mod normalize;
+mod one_record;
 mod parse;
 mod recognize;
 mod recognize_curve;
@@ -455,6 +456,21 @@ pub enum NormalizationKind {
         /// The move (metres): over the session box, the farthest a point
         /// moves between a frame's matrix as adopted and its built one,
         /// summed over the pair.
+        moved_by: f64,
+    },
+    /// **Two surface records of one locus, made one** (`[import]`,
+    /// `crates/topo/README.md` `[topo.one-record]`): on one solid, the
+    /// faces on `joined` read as lying on `kept`'s surface at the file's
+    /// band, decided at the faces, and the two face one way, so they take
+    /// `kept`, the earlier record in the file. Keyed by the first face on `joined`; its
+    /// census pair is empty, since no face, edge or vertex changes.
+    OneRecord {
+        /// The surface record kept (the earlier in the file).
+        kept: u64,
+        /// The surface record its faces left.
+        joined: u64,
+        /// The move (metres): a bound on the farthest a face on either
+        /// record lies from the other's surface.
         moved_by: f64,
     },
 }

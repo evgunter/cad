@@ -97,8 +97,13 @@ fn expect(name: &str) -> Expect {
         // 4 walls + 2 rings + the bore = 7 faces. V = 2·2·1 − π r² h.
         "box_hole" => plain((1, 1, 7, 15, 10), 4.0 - PI * 0.25),
         // makeBox(1,1,1) ∪ the same box at (0.5,0.5,0): the overlap is
-        // 0.5·0.5·1. V = 1 + 1 − 0.25.
-        "fuse_boxes" => plain((1, 1, 14, 32, 20), 1.75),
+        // 0.5·0.5·1. V = 1 + 1 − 0.25. The union re-tiles four flat
+        // sides into two coplanar PLANE records each, and each pair is
+        // made one record (`NormalizationKind::OneRecord`).
+        "fuse_boxes" => Expect {
+            normalizations: 4,
+            ..plain((1, 1, 14, 32, 20), 1.75)
+        },
         // Unit box with ONE vertical edge filleted at r = 0.25: the
         // fillet replaces a square corner prism by a quarter cylinder
         // over the full height, removing r²(1 − π/4)·h.

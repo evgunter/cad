@@ -1859,6 +1859,15 @@ impl<'a> Resolver<'a> {
         })
     }
 
+    /// The surface record an `ADVANCED_FACE` states.
+    fn face_surface_record(&self, from: u64, id: u64) -> Result<u64, StepImportError> {
+        let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
+        let [_, _, surface_ref, _] = self.simple(from, id, "ADVANCED_FACE")? else {
+            return Err(StepImportError::MalformedRecord { id, expected });
+        };
+        as_ref(id, surface_ref, expected)
+    }
+
     /// One `MANIFOLD_SOLID_BREP` and its `CLOSED_SHELL`.
     fn solid(&self, id: u64, args: &[Value]) -> Result<SolidSpec, StepImportError> {
         let expected = "MANIFOLD_SOLID_BREP(name, #closed_shell)";
@@ -1913,6 +1922,10 @@ impl<'a> Resolver<'a> {
                 });
             }
         }
+        let records = faces
+            .iter()
+            .map(|face| self.face_surface_record(shell_id, face.id))
+            .collect::<Result<Vec<u64>, _>>()?;
         let mut solid = SolidSpec {
             id,
             faces,
@@ -1920,6 +1933,14 @@ impl<'a> Resolver<'a> {
             vertices,
             band_seams: std::collections::BTreeSet::new(),
         };
+        // Two records the file's faces read as one locus become one,
+        // before anything is built.
+        crate::one_record::one_record(
+            &mut solid,
+            &records,
+            self.budget,
+            &mut self.normalizations.borrow_mut(),
+        )?;
         // The reported structure normalizations for periodic faces the
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
