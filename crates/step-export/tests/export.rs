@@ -423,6 +423,10 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// `work/onecopy/the-filleted-dies-body-moved-at-6533-and-is-pinned-unjudged.md`;
 /// `composed_die.step` carries that and PR 6482's, on
 /// `work/onecopy/the-composed-dies-step-bytes-moved-at-6482-and-are-pinned-unjudged.md`.
+/// `swept_elbow.step` carries a move after 2026-11-15 in the last digits
+/// of five cap `DIRECTION` components of size 6.1e-17 (no point or edge
+/// moved), not yet traced to its merge, on
+/// `work/export/main-red-swept-elbows-step-fixture-drifted-in-five-cap-directions.md`.
 ///
 /// **Regenerated when a sweep's cap became its station's frame**
 /// (BOXFINISH's `boxfinish/sweep-frames`): 16 lines in six fixtures, every

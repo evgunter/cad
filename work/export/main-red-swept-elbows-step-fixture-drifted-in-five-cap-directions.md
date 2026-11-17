@@ -4,7 +4,7 @@ kind: issue
 title: main red (slow set): swept_elbow.step drifted in the last digits of five cap DIRECTIONs
 status: open
 opened: 2026-11-16
-priority: P0
+priority: P1
 cost: E
 ---
 
@@ -39,3 +39,7 @@ fixture may drift behind this one: regenerating every fixture
 The test is green on main. The move has been traced to the change that
 caused it and judged rounding (or not), and the fixture has been
 regenerated deliberately.
+
+## Pinned (2026-11-17, GREEN)
+
+Red on the 11-17 nightly at every ε. Regenerating every fixture on main `1fd34c3e` moves `swept_elbow.step` alone, in exactly the five lines above, so nothing hides behind it. The fixture is committed at the writer's bytes and `committed_fixtures_are_byte_golden`'s doc names this row beside the two die fixtures pinned the same way. What this row owes is unchanged: trace the move to its merge and judge it rounding or not. Until then the pin holds main's bytes, so a further move reds again. P1 now that main is green. (GREEN)
