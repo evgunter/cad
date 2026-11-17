@@ -1000,3 +1000,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Row verdicts are as today. A rough cover-halving prototype proves all three 1e-6 refusals, the sliver included.
   - **For the build:** a whole-net `refine_knots` ran out of memory, so covers must be built in chunks. `a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound` needs rewriting by design.
   - The build stays sequenced after the rim pad (paused until the Fable reset). Merge 7085 on green.
+- **PR 7085 merged (`99d757ea0c`):** the near-node pad measurement is in the sliver item on main.
