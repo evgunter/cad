@@ -179,14 +179,18 @@ pub struct Tessellation {
 /// otherwise — the incremental re-tessellation door the crate's
 /// memo-key contract exists for.
 ///
-/// The chord pass runs as in [`tessellate`] (it is per edge and
-/// cheap); per face the lane is skipped on a memo hit and the stored
-/// patch is placed by the same fold. The mesh is byte-identical to
+/// Every face's route and the chord pass run as in [`tessellate`] (the
+/// key folds the face's lane, and the chord pass is per edge and cheap);
+/// per face the lane is skipped on a memo hit and the stored patch is
+/// placed by the same fold. The mesh is byte-identical to
 /// [`tessellate`]'s: a hit is by the full key bytes, and the key is
 /// every input the lane reads (`crate::memo`'s module docs state it
-/// per lane). What a hit does NOT run is the lane's own per-patch
-/// census and, with the `budget` feature, its recording; the
-/// cross-face census at the end runs either way.
+/// per lane). What a hit does NOT run is the lane itself, its per-patch
+/// census and, with the `budget` feature, its recording; the cross-face
+/// census at the end runs either way. A hit records no K-funnel decision
+/// for its face: the route's are spliced only where the lane runs, so a
+/// hit's stream is the chord pass's alone, as it was before the route
+/// asked a door.
 ///
 /// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
 /// after every picture is what keeps it one picture's size.
@@ -479,8 +483,9 @@ fn tessellate_impl(
     let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
-    // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // `Band::linear` prescribes, and read by the route's doors and domain
+    // read, the walk's wrap strip and the trimmed lane's singular
+    // vertices (`SizingTols::band`). Eager on purpose: a run whose
     // ε cannot form a band refuses every body alike, the all-planar
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).

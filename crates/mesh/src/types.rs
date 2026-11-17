@@ -335,7 +335,7 @@ pub enum TessellateError {
     /// carrying the deciding predicate's `what` and its own recourse.
     ///
     /// **This is the ROUTE's refusal**, raised once per face before any
-    /// lane runs (`tessellate::lane_of`, by
+    /// lane runs (`tessellate::route_of`, by
     /// `curved::iso_rectangle_shape`). A face the doors certify goes to
     /// the curved lane and a face they decide is no rectangle — a notch,
     /// a curved cut, an arc through a pole — to the trimmed lane, so a

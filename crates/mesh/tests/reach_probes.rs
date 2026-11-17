@@ -534,7 +534,7 @@ pub(super) fn klein_elbow(r: f64) -> Body<f64> {
 /// and a torus wall bounded by spirics, whose half-edges store
 /// `Pcurve::Spiric`. The trimmed lane meshes the wall from its chart row
 /// at every δ, and the mesh is the body's ([`geometry`]). Every plane cap
-/// a spiric bounds is the planar lane's (`tessellate::lane_of` sends every
+/// a spiric bounds is the planar lane's (`tessellate::route_of` sends every
 /// plane there).
 #[test]
 fn a_spiric_bounded_torus_wall_meshes_on_the_torus_row() {

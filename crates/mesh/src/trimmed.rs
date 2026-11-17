@@ -37,7 +37,7 @@
 //! M8-5, whose Hessian bound is the second-order quotient statement over
 //! the homogeneous nets). An analytic face routes here when it holds a
 //! ring or the curved lane's doors decide it is no iso-rectangle of its
-//! chart (`crate::tessellate::lane_of`).
+//! chart (`crate::tessellate::route_of`).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves

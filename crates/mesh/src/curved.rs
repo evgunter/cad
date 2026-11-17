@@ -9,8 +9,9 @@
 //! interior grid is strictly inside every boundary constraint. Every
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
-//! so it is CHECKED here rather than assumed, as FIVE questions with
-//! five homes:
+//! so it is CHECKED rather than assumed, as FIVE questions with five
+//! homes — the first two asked by the route before this lane runs, the
+//! last three by this lane:
 //!
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
 //!    Asked BEFORE the walk, by the router, on rim structure, through
@@ -27,12 +28,14 @@
 //!    edge. This door is `mesh`'s and the flux lane must not cite it —
 //!    the argument is at the predicate.
 //!
-//!    The two doors' answer IS the face's lane ([`iso_rectangle_shape`],
-//!    read by `tessellate::lane_of`): a face both pass comes here, a
+//!    The two doors' answer routes a ringless face whose stored images
+//!    are iso lines (`tessellate::route_of`): a face both pass comes
+//!    here, carrying their answer as a [`Rectangle`] this lane takes; a
 //!    face either decides is no such rectangle goes to the chart lane
-//!    (`crate::trimmed`), and a face neither can decide, or whose stored
-//!    data contradicts itself, refuses
-//!    [`TessellateError::UnsupportedCurvedShape`] with the door's cause.
+//!    (`crate::trimmed`) where that lane reads its domain, and refuses
+//!    with the doors' verdict where it does not; and a face neither can
+//!    decide, or whose stored data contradicts itself, refuses
+//!    [`TessellateError::UnsupportedCurvedShape`] with the doors' cause.
 //! 3. **A MERIDIAN** — *does the loop carry a meridian traversal at
 //!    all?* Asked BY the walk, on its traversal kinds
 //!    (`walk::require_a_meridian`), refusing
@@ -172,7 +175,7 @@ use crate::types::TessellateError;
 use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 
 /// What [`tessellate_curved`] refuses a ringed face with: the router's
-/// defect, since `tessellate::lane_of` sends a ringed face to the trimmed
+/// defect, since `tessellate::route_of` sends a ringed face to the trimmed
 /// lane.
 pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
     "a ringed face reached the curved lane, which reads the outer loop only (router defect)";
@@ -197,14 +200,14 @@ pub(crate) fn tessellate_curved(
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
     // This lane reads the outer loop alone, so a ring reaching it would be
     // meshed as face. A ringed face is the trimmed lane's
-    // (`tessellate::lane_of`), and one here is the router's defect.
+    // (`tessellate::route_of`), and one here is the router's defect.
     if !face.rings.is_empty() {
         return Err(TessellateError::MissingEntity {
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
     // Questions 1 and 2 (module docs) are the route's: a face reaches
-    // this lane only where both doors passed (`tessellate::lane_of`, by
+    // this lane only where both doors passed (`tessellate::route_of`, by
     // [`iso_rectangle_shape`]), so everything the walk does below — the
     // collapse of same-kind runs in `iso_side_starts` above all — reads a
     // loop of rims and meridians each on one chart branch.
@@ -523,63 +526,32 @@ pub(crate) enum Shape {
 }
 
 /// **The SHAPE door and the BRANCH door, read as the route**: this
-/// face's outer loop, handed to `geom_brep::props::require_iso_rectangle`
-/// — the S58 single home of the iso-rectangle predicate, with the
-/// sense-free rim-side unanimity beside it — and then to
-/// `geom_brep::props::require_one_chart_branch`. `tessellate::lane_of`
-/// asks it once per ringless analytic curved face, and the answer is the
-/// face's lane: [`Shape::Rectangle`] is this lane's, [`Shape::NoRectangle`]
-/// the chart lane's (`crate::trimmed`), which reads the domain from the
-/// stored images and needs no rectangle.
+/// face's outer loop, flattened by [`topo::props::loop_edges`] (the cycle
+/// the walk reads), handed to `geom_brep::props::require_iso_rectangle`
+/// and then to `require_one_chart_branch`, at the run's props band.
+/// `tessellate::route_of` asks it of a ringless face whose stored images
+/// are iso lines.
 ///
-/// **Two questions, asked in order** (issue 1571). The first certifies
-/// each edge's CARRIER as an iso curve and the rim structure as a
-/// rectangle; the second certifies that each traversed ARC stays on
-/// ONE branch of the chart — a certified sphere meridian carrier is a
-/// great circle, which contains both poles, and a certified cone
-/// generator is a line through the apex, so either can carry a span
-/// that runs through the chart singularity and puts the coordinate
-/// this walk holds constant per edge a half-turn away mid-edge. Order
-/// matters only for which refusal a doubly-defective face reports; the
-/// branch door decides arc membership on carriers the parse has
-/// certified, so asking it second is asking it of a classified edge.
+/// - Both pass: [`Shape::Rectangle`], this lane's, with the
+///   [`Rectangle`] it takes.
+/// - A door DECIDES the face is no such rectangle — `NotIsoRectangle`
+///   (a notch, rims that encode different sides, a carrier of no iso
+///   kind), `Unimplemented` (a spline or spiric carrier),
+///   `NotOneChartBranch` (an arc through the chart singularity, which
+///   this walk would read a half-turn away): [`Shape::NoRectangle`] with
+///   the verdict, valid input this lane is not built for.
+/// - Any other refusal is no verdict on the shape — a decision in band,
+///   stored data that contradicts its surface or its certification —
+///   and is [`TessellateError::UnsupportedCurvedShape`] with that cause.
+///   The match names every variant, so one props adds is classified
+///   here before it compiles.
 ///
-/// **The doors' refusals, by what they decide.** A face is
-/// [`Shape::NoRectangle`] exactly when a door DECIDES it is none —
-/// valid input this lane is not built for (D2 addendum row 2):
-/// `NotIsoRectangle` (a carrier of no iso kind, a notch, rims that
-/// encode different sides), `Unimplemented` (a spline or spiric
-/// carrier) and `NotOneChartBranch` (an arc through the chart
-/// singularity). Every other refusal is not a verdict on the face's
-/// shape — a decision in band (`Escalated`), or stored data that
-/// contradicts itself (`OffSurface`, `SpanUncertified`, the rest) — and
-/// refuses [`TessellateError::UnsupportedCurvedShape`] with the door's
-/// cause, never a lane taken because the door could not answer. The
-/// match names every variant, so one props adds is classified here
-/// before it compiles.
-///
-/// **The branch door is the walk's, and NOT `mass_properties`'.** The
-/// extent derivations fold the singularity in and measure such a face
-/// exactly, so the flux lane admits what this lane refuses, and both
-/// are right about the same face — the argument is at the predicate.
-///
-/// The loop is flattened by [`topo::props::loop_edges`], the same
-/// half-edge cycle the walk reads, so the door and the walk cannot
-/// disagree about which edges the face has; the band is props' own
-/// (the run's, which [`SizingTols::band`] carries to the lanes), so the
-/// decision is metered against the flux
-/// lane's band — no comparand and no margin of `mesh`'s. The flux lane
-/// asks neither door, so no one predicate is read on both, and there is
-/// no decision the two could round apart.
-///
-/// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition, so a partial sphere wedge meshes
-/// here on the door's answer alone (the flux lane measures it by
-/// Gauss–Bonnet, as it does any circle-bounded sphere face).
-///
-/// An empty loop is reported by this crate's own name for that state
-/// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
-/// would otherwise call it corruption.
+/// Asking the shape door first means a doubly-defective face reports its
+/// shape; the branch door decides arc membership on carriers the parse
+/// has certified. The branch door is `mesh`'s and not the flux lane's,
+/// which folds the singularity in and measures such a face exactly (the
+/// argument is at the predicate). An empty loop is this crate's
+/// [`TessellateError::EmptyLoop`], reported before the flatten.
 pub(crate) fn iso_rectangle_shape(
     body: &Body<f64>,
     fk: FaceKey,
@@ -799,7 +771,7 @@ fn entries_off_bbox(
 /// answer"* makes it a refusal; `trimmed` refuses the same hazard
 /// typed ([`TessellateError::SelfTouchingTrimLoop`]), and the
 /// structural twin of this arm is the dispatch's: a face holding a ring
-/// is no rectangle, so `tessellate::lane_of` sends it to the trimmed
+/// is no rectangle, so `tessellate::route_of` sends it to the trimmed
 /// lane and it never reaches this one.
 ///
 /// **What can still trip it, with the shape door in front.** A walk
@@ -1197,7 +1169,7 @@ mod tests {
     /// **A ringed face handed to this lane refuses as the router's
     /// defect.** The pipe of radius 1 united with a bar through one side
     /// of its wall keeps the bar's section as a ring of the wall, which
-    /// `tessellate::lane_of` sends to the trimmed lane; called here
+    /// `tessellate::route_of` sends to the trimmed lane; called here
     /// anyway, the lane refuses rather than mesh the ring's hole as face.
     #[test]
     fn a_ringed_face_here_refuses_as_a_routing_defect() {
@@ -1969,9 +1941,9 @@ mod tests {
     /// helper.
     ///
     /// The fixture is a synthetic polygon on purpose: a real notched
-    /// body never reaches this check any more — the shape door refuses
-    /// it on rim structure first (`tests/iso_rectangle_door.rs`, the
-    /// keyway) — so this row is the walk-consistency question asked in
+    /// body never reaches this check any more — the shape door decides it
+    /// is no rectangle on rim structure first, and the route sends it
+    /// elsewhere (`tests/iso_rectangle_door.rs`, the keyway) — so this row is the walk-consistency question asked in
     /// isolation, which is the only way to ask it.
     #[test]
     fn a_notched_domain_is_refused_typed() {
