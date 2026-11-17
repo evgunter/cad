@@ -92,21 +92,26 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
 }
 
 /// The NEGATIVE half, so the report cannot go green by always firing
-/// — and the ε_in plumbing, pinned: the SAME file at a budget below
-/// its own residual promotes nothing, ships the stated NURBS carrier,
-/// and reports nothing. One fixture, both outcomes, the difference
-/// being only the interpretation budget.
+/// — and the ε_in plumbing, pinned: the same carrier with one control
+/// point lifted 0.1 mm off its plane misses the circle past the file's
+/// band (the file read no finer than the run's ε, whatever the ε_in it
+/// declares), so nothing is promoted, the stated NURBS carrier ships, and
+/// nothing is reported.
 #[test]
-fn below_its_own_residual_nothing_is_promoted_and_nothing_is_reported() {
+fn past_the_files_band_nothing_is_promoted_and_nothing_is_reported() {
+    let lifted = fixture().replace(
+        "#4 = CARTESIAN_POINT('', (-0.01, 1.2246467991473532e-18, 0.0));",
+        "#4 = CARTESIAN_POINT('', (-0.01, 1.2246467991473532e-18, 0.0001));",
+    );
+    assert_ne!(lifted, fixture(), "the fixture states the lifted point");
     let options = ImportOptions {
         eps_in: Some(1e-18),
         ..ImportOptions::default()
     };
-    let import =
-        import_step(&fixture(), &options, Tol::witness()).expect("the curve set still imports");
+    let import = import_step(&lifted, &options, Tol::witness()).expect("the curve set still imports");
     assert!(
         import.curve_promotions().is_empty(),
-        "nothing certifies at 1e-18, got {:?}",
+        "nothing certifies past the band, got {:?}",
         import.curve_promotions()
     );
     let StepImport::Wireframe { ref curves, .. } = import else {

@@ -1168,7 +1168,7 @@ impl<'a> Resolver<'a> {
     ) -> Result<Curve3<f64>, StepImportError> {
         NurbsCurve3::new(knots, control, weights)
             .map(
-                |payload| match recognize_curve::recognize(&payload, self.budget.eps_in()) {
+                |payload| match recognize_curve::recognize(&payload, self.budget) {
                     recognize_curve::CurveRecognition::Promoted {
                         curve,
                         residual,
@@ -1270,7 +1270,7 @@ impl<'a> Resolver<'a> {
         if let Surface::Nurbs(ref patch) = surface
             && !patch.is_placeholder()
         {
-            match recognize::recognize(patch.as_ref(), self.budget.eps_in()) {
+            match recognize::recognize(patch.as_ref(), self.budget) {
                 recognize::Recognition::Promoted {
                     surface: promoted,
                     residual,

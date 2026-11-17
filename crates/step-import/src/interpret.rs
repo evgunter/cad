@@ -33,6 +33,19 @@ pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
     Band::new(e, tol.k() * e).ok()
 }
 
+/// A recognized kind's certified residual against the file's statement
+/// (a NURBS patch or carrier promoted to an analytic one): Zero promotes.
+pub(crate) const STEP_RECOGNIZED_RESIDUAL: &str = "step_recognized_residual";
+
+/// A recognition estimator's conditioning (a span, a sagitta, a radius,
+/// a chord): Zero determines no candidate; in band and apart go on to
+/// the certificate, which does not rest on the answer.
+pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_conditioning";
+
+/// Whether a carrier closes on itself (its end on its start): Zero is the
+/// closed class.
+pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
+
 /// The file's ε_in and the band it is read at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FileBand {
@@ -58,6 +71,16 @@ impl FileBand {
         Self {
             eps_in,
             band: file_band(eps_in, tol),
+        }
+    }
+
+    /// The band `(eps_in, K·eps_in)` at the default K, with no run floor:
+    /// a unit test's budget read as the file states it.
+    #[cfg(test)]
+    pub(crate) fn test(eps_in: f64) -> Self {
+        Self {
+            eps_in,
+            band: Band::new(eps_in, geom_core::Tol::witness().k() * eps_in).ok(),
         }
     }
 

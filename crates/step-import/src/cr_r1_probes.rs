@@ -84,7 +84,7 @@ fn p1_on_circle_doubled_back_arc_must_not_promote() {
             .max((p.z - z).abs());
         assert!(d < 1e-12, "carrier must lie on the circle: {d:e} at {k}");
     }
-    match recognize(&curve, EPS_IN) {
+    match recognize(&curve, crate::interpret::FileBand::test(EPS_IN)) {
         CurveRecognition::Promoted { residual, .. } => panic!(
             "FALSE PROMOTION: a carrier covering one third of the circle \
              promoted to the full circle with certified residual {residual:e}"
@@ -106,7 +106,7 @@ fn p2_dented_circle_above_eps_stays_nurbs() {
     )
     .unwrap();
     assert!(
-        !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
+        !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
         "a 1e-8 dent must not certify at 1e-9"
     );
 }
@@ -129,7 +129,7 @@ fn p3_small_eccentricity_ellipses_stay_nurbs() {
         )
         .unwrap();
         assert!(
-            !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
+            !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
             "an ellipse with a = r(1+{e:e}) must not certify at 1e-9 (dev ~{:e})",
             0.005 * e / 2.0
         );
@@ -153,7 +153,7 @@ fn p4_out_of_plane_wobble_stays_nurbs() {
     )
     .unwrap();
     assert!(
-        !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
+        !matches!(recognize(&curve, crate::interpret::FileBand::test(EPS_IN)), CurveRecognition::Promoted { .. }),
         "a 1e-8 out-of-plane wobble must not certify at 1e-9"
     );
 }
@@ -185,7 +185,7 @@ fn p5_reported_residual_dominates_measured_deviation() {
             }),
         residual,
         ..
-    } = recognize(&curve, EPS_IN)
+    } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
     else {
         panic!("a sub-eps dent must still certify");
     };
@@ -227,7 +227,7 @@ fn p6_double_wound_circle_outcome() {
     kv.extend([6.0, 6.0, 6.0]);
     let knots = KnotVector::clamped(kv, 2).unwrap();
     let curve = NurbsCurve3::new(knots, control, weights).unwrap();
-    match recognize(&curve, EPS_IN) {
+    match recognize(&curve, crate::interpret::FileBand::test(EPS_IN)) {
         CurveRecognition::Promoted { residual, .. } => {
             eprintln!("P6: double-wound circle PROMOTES (residual {residual:e})");
         }

@@ -81,6 +81,7 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
 
+use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedKind;
@@ -119,8 +120,11 @@ pub(crate) enum Recognition {
     },
 }
 
-/// Tests `patch` for promotion at the interpretation budget `eps_in`
-/// (module docs: kinds, estimators, certificates).
+/// Tests `patch` for promotion at the file's band (module docs: kinds,
+/// estimators, certificates). The kind is a lane choice: it promotes
+/// where its certified residual reads Zero at the band, and stays NURBS
+/// in band and apart; an estimator's conditioning that reads Zero is its
+/// refusal.
 ///
 /// Selection is the fixed kind-preference order **Plane > Cylinder**.
 /// A patch that certifies as BOTH is canonicalization, not ambiguity:
@@ -143,15 +147,15 @@ pub(crate) enum Recognition {
 /// cylinders read at an import budget many orders finer, where the
 /// first-order envelope honestly refuses (P7) until the algebraic
 /// tightening lands.
-pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
-    if let Some((surface, residual)) = try_plane(patch, eps_in) {
+pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognition {
+    if let Some((surface, residual)) = try_plane(patch, file) {
         return Recognition::Promoted {
             surface,
             residual,
             kind: PromotedKind::Plane,
         };
     }
-    match try_cylinder(patch, eps_in) {
+    match try_cylinder(patch, file) {
         Ok(Some((surface, residual))) => Recognition::Promoted {
             surface,
             residual,
@@ -179,7 +183,7 @@ fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
 /// The plane candidate: Newell over the control net's boundary ring,
 /// certified by the control-net hull sup-bound (non-rational) or the
 /// fixed sampled-grid sup (rational) — module docs.
-fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f64)> {
+fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>, f64)> {
     let (nu, nv) = patch.control_counts();
     let control = patch.control();
     // Centroid over the whole net (fixed left-to-right order).
@@ -249,7 +253,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     for p in control {
         residual = residual.max(geom::plane_offset(origin, normal, *p).abs());
     }
-    (residual <= eps_in).then_some((plane, residual))
+    (file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero).then_some((plane, residual))
 }
 
 /// The cylinder candidate (module docs). `Err(margin)` is the
@@ -258,7 +262,7 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
 #[allow(clippy::type_complexity)]
 fn try_cylinder(
     patch: &NurbsSurface<f64>,
-    eps_in: f64,
+    file: FileBand,
 ) -> Result<Option<(Surface<f64>, f64)>, f64> {
     let (nu, nv) = patch.control_counts();
     let control = patch.control();
@@ -277,9 +281,9 @@ fn try_cylinder(
         Err(NoDirection::OutOfFormat(LengthOutOfFormat::NonFinite)) => return Ok(None),
         Err(_) => return Err(axis_sum.direction_and_length().1 / (nu as f64)),
     };
-    // Divided by nu it is the mean v-span — a patch length. Below
-    // ε_in no axis is determined at the budget.
-    if axis_norm / (nu as f64) <= eps_in {
+    // Divided by nu it is the mean v-span — a patch length. Where it
+    // reads Zero at the file's band, no axis is determined.
+    if file.read(STEP_RECOGNIZED_CONDITIONING, axis_norm / (nu as f64)) == Read::Zero {
         return Err(axis_norm / (nu as f64));
     }
     // Three fixed samples of the v-start boundary at u-fractions
@@ -314,7 +318,7 @@ fn try_cylinder(
     if !sagitta.is_finite() {
         return Ok(None);
     }
-    if sagitta <= eps_in {
+    if file.read(STEP_RECOGNIZED_CONDITIONING, sagitta) == Read::Zero {
         return Err(sagitta);
     }
     // Exact circumcenter of (q0, qa, qb) in their common plane ⊥
@@ -353,7 +357,7 @@ fn try_cylinder(
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
     // caller compares chart normals and composes `same_sense`.
-    Ok((residual <= eps_in).then_some((cylinder, residual)))
+    Ok((file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero).then_some((cylinder, residual)))
 }
 
 /// **The certified sampled-track residual: per-span schedule PLUS a
@@ -502,7 +506,7 @@ mod review_probes {
         let patch = bulged_plane(0.5, 2.0);
         let z_mid = patch.eval(0.5, 0.5).z.abs();
         assert!(z_mid > 0.2, "the bulge is real: {z_mid}");
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { residual, kind, .. } => panic!(
                 "PROMOTED a patch that deviates {z_mid} from the plane \
                  (kind {kind:?}, certified residual {residual:e}) — the fixed \
@@ -517,7 +521,7 @@ mod review_probes {
     #[test]
     fn p1b_nonrational_plane_bulge_is_caught_by_the_hull() {
         let patch = bulged_plane(0.5, 1.0);
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("hull track promoted the bulged net: {kind:?} at {residual:e}")
             }
@@ -554,7 +558,7 @@ mod review_probes {
         let p = patch.eval(0.5, 0.5);
         let dev = ((p.x * p.x + p.y * p.y).sqrt() - 1.0).abs();
         assert!(dev > 0.05, "the bulge is real: {dev}");
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => panic!(
                 "PROMOTED a bulged non-cylinder (true radial deviation {dev}) as \
                  {kind:?} with certified residual {residual:e} — the fixed 9x9 \
@@ -582,20 +586,20 @@ mod review_probes {
             ];
             NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
         };
-        match recognize(&patch_with(0.5 * EPS_IN), EPS_IN) {
+        match recognize(&patch_with(0.5 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
                 assert_eq!(kind, PromotedKind::Plane);
                 assert!(residual <= EPS_IN, "truthful residual: {residual:e}");
             }
             other => panic!("0.5×ε_in must promote: {other:?}"),
         }
-        match recognize(&patch_with(2.0 * EPS_IN), EPS_IN) {
+        match recognize(&patch_with(2.0 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("2×ε_in promoted as {kind:?} at {residual:e}")
             }
             other => println!("2×ε_in stayed unpromoted: {other:?}"),
         }
-        match recognize(&patch_with(1.2 * EPS_IN), EPS_IN) {
+        match recognize(&patch_with(1.2 * EPS_IN), crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { residual, .. } => {
                 println!("boundary case promoted at residual {residual:e}")
             }
@@ -611,7 +615,7 @@ mod review_probes {
     #[test]
     fn p4_rational_exact_plane_promotes_via_the_hull_track() {
         let patch = bulged_plane(0.0, 3.0);
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
                 assert_eq!(kind, PromotedKind::Plane);
                 assert!(residual <= 1e-15, "exact plane: {residual:e}");
@@ -634,14 +638,14 @@ mod review_probes {
             }
         }
         let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap();
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::StaysNurbs | Recognition::IllConditioned { .. } => {}
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("freeform patch promoted as {kind:?} at {residual:e}")
             }
         }
         let promoting = bulged_plane(0.0, 2.0);
-        let (a, b) = (recognize(&promoting, EPS_IN), recognize(&promoting, EPS_IN));
+        let (a, b) = (recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)), recognize(&promoting, crate::interpret::FileBand::test(EPS_IN)));
         match (a, b) {
             (
                 Recognition::Promoted {
@@ -673,7 +677,7 @@ mod review_probes {
     #[test]
     fn p6_plane_wins_the_selection_order() {
         let patch = bulged_plane(0.0, 1.0);
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, .. } => assert_eq!(kind, PromotedKind::Plane),
             other => panic!("the exact plane promotes: {other:?}"),
         }
@@ -733,7 +737,7 @@ mod review_probes {
             envelope > 1e-3,
             "the first-order envelope is patch-scale by construction: {envelope:e}"
         );
-        match recognize(&patch, EPS_IN) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => panic!(
                 "an exact cylinder must NOT certify under the first-order envelope \
                  (promoted {kind:?} at {residual:e})"
@@ -775,7 +779,7 @@ mod review_probes {
         );
 
         let plane_patch = bulged_plane(0.0, 1.0);
-        let promoted_normal = |p: &NurbsSurface<f64>| match recognize(p, EPS_IN) {
+        let promoted_normal = |p: &NurbsSurface<f64>| match recognize(p, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { surface, .. } => {
                 assert!(
                     !chart_flipped(p, &surface),
@@ -847,10 +851,10 @@ mod review_probes {
             assert!((rho - 1.0).abs() < 1e-14, "exact locus: rho = {rho}");
         }
         assert!(
-            try_plane(&patch, 0.9).is_none(),
+            try_plane(&patch, crate::interpret::FileBand::test(0.9)).is_none(),
             "the plane certificate must refuse, so the selection reaches try_cylinder"
         );
-        match recognize(&patch, 0.9) {
+        match recognize(&patch, crate::interpret::FileBand::test(0.9)) {
             Recognition::Promoted {
                 surface,
                 residual,
@@ -868,7 +872,7 @@ mod review_probes {
             }
             other => panic!("the cylinder arm must fire at eps_in = 0.9: {other:?}"),
         }
-        match recognize(&patch, 1e-3) {
+        match recognize(&patch, crate::interpret::FileBand::test(1e-3)) {
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("the loose envelope promoted {kind:?} at 1e-3 m: {residual:e}")
             }
@@ -890,17 +894,17 @@ mod review_probes {
     fn p10_a_double_certifying_patch_selects_plane() {
         let patch = unit_full_cylinder(1.0);
         let eps_in = 0.99;
-        let Some((_, plane_residual)) = try_plane(&patch, eps_in) else {
+        let Some((_, plane_residual)) = try_plane(&patch, crate::interpret::FileBand::test(eps_in)) else {
             panic!("the plane certificate must hold at this budget")
         };
-        let Ok(Some((_, cylinder_residual))) = try_cylinder(&patch, eps_in) else {
+        let Ok(Some((_, cylinder_residual))) = try_cylinder(&patch, crate::interpret::FileBand::test(eps_in)) else {
             panic!("the cylinder certificate must hold at this budget")
         };
         assert!(
             plane_residual <= eps_in && cylinder_residual <= eps_in,
             "both readings are correct at the budget: {plane_residual} / {cylinder_residual}"
         );
-        match recognize(&patch, eps_in) {
+        match recognize(&patch, crate::interpret::FileBand::test(eps_in)) {
             Recognition::Promoted { kind, residual, .. } => {
                 assert_eq!(kind, PromotedKind::Plane);
                 assert_eq!(residual.to_bits(), plane_residual.to_bits());
