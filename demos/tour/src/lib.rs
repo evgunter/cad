@@ -365,9 +365,9 @@ pub struct StepRoundTrip {
 
 /// Exports `body` and imports the text back through the public doors,
 /// panicking, named by `label`, on a refusal at either. The re-import
-/// is one solid of one `Outer` shell whose certified volume overlaps
-/// the body's own (both enclosures of one true volume, plus a
-/// fold-order slop of `1e-12·|V|`), and its cavities are counted
+/// is one solid of one `Outer` shell with as many cavities as the body
+/// has, whose certified volume overlaps the body's own (both enclosures
+/// of one true volume, plus a fold-order slop of `1e-12·|V|`)
 /// ([`StepRoundTrip`]).
 pub fn step_round_trip(label: &str, body: &Body<f64>, tol: Tol) -> StepRoundTrip {
     let finished = pncad::topo::finish(body.clone(), tol)
@@ -386,18 +386,29 @@ pub fn step_round_trip(label: &str, body: &Body<f64>, tol: Tol) -> StepRoundTrip
         Ok(_) => panic!("{label}: the STEP re-import is not a solid"),
         Err(e) => panic!("{label}: STEP re-import refused: {e:?}"),
     };
-    let rows = pncad::topo::classify_shells(&back, tol)
-        .unwrap_or_else(|e| panic!("{label}: the re-imported shells classify: {e:?}"));
+    let roles = |body: &pncad::topo::AtRestBody<f64>, which: &str| {
+        let rows = pncad::topo::classify_shells(body, tol)
+            .unwrap_or_else(|e| panic!("{label}: the {which} shells classify: {e:?}"));
+        let count = |role| rows.iter().filter(|row| row.role == role).count();
+        (
+            count(pncad::topo::ShellRole::Outer),
+            count(pncad::topo::ShellRole::Void),
+        )
+    };
+    let (outers, voids) = roles(&back, "re-imported");
     assert_eq!(
         back.solids().count(),
         1,
         "{label}: re-imported as one solid"
     );
-    let count = |role| rows.iter().filter(|row| row.role == role).count();
     assert_eq!(
-        count(pncad::topo::ShellRole::Outer),
-        1,
+        outers, 1,
         "{label}: the re-imported solid has one outer shell"
+    );
+    assert_eq!(
+        voids,
+        roles(&finished, "exported").1,
+        "{label}: the re-import keeps the exported body's cavities"
     );
     let measured = |body: &pncad::topo::AtRestBody<f64>, which: &str| {
         pncad::topo::mass_properties(body, tol, printed())
@@ -418,7 +429,7 @@ pub fn step_round_trip(label: &str, body: &Body<f64>, tol: Tol) -> StepRoundTrip
         built.volume_pad
     );
     StepRoundTrip {
-        voids: count(pncad::topo::ShellRole::Void),
+        voids,
         volume: read.volume,
     }
 }

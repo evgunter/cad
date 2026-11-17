@@ -333,7 +333,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         }
     };
 
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let text = fixture(name, "step");
         visit(
             format!("own/{name}"),

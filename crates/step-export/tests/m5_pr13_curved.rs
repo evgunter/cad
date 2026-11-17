@@ -38,7 +38,10 @@
 //!    S10 review's rule (bound orientation composes with `same_sense`;
 //!    never double-compose) now that `.F.` faces really reach the
 //!    emitter, with two pins aimed directly at the double-composition
-//!    bug. The S12 revert row keeps its own test.
+//!    bug, and the one place a face is written reversed on purpose: a
+//!    void's shell under `ORIENTED_CLOSED_SHELL(.F.)`, every one of its
+//!    faces with `same_sense` negated and every bound `.F.`, once. The
+//!    S12 revert row keeps its own test.
 //! 3. **The NURBS containment pin** (`CENSUS`) — spline geometry
 //!    appears exactly where the kernel put it (loft_prism's 4 walls +
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
@@ -344,6 +347,19 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 "LINE",
             ],
         ),
+        // The hollow box: planes and lines in an outer shell and a
+        // cavity, the cavity's shell written reversed under one
+        // ORIENTED_CLOSED_SHELL of one BREP_WITH_VOIDS.
+        (
+            "voided",
+            &[
+                "PLANE",
+                "LINE",
+                "CLOSED_SHELL",
+                "ORIENTED_CLOSED_SHELL",
+                "BREP_WITH_VOIDS",
+            ],
+        ),
     ];
 
     // THE one corpus build. INVARIANT: everything below reads THIS
@@ -351,9 +367,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // again, which is the whole point of the merge.
     let corpus = common::fixture_corpus();
     let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
-    // Pin A and pin B count reversed faces over DIFFERENT sets (the
-    // whole corpus vs the curved half), and both must reach 89 — the
-    // planar fixtures contribute none. Two counters, deliberately.
+    // Pin A and pin B count faces written `.F.` over DIFFERENT sets (the
+    // whole corpus vs the rows past the planar third): 98 and 95, the
+    // kiss assembly's 3 the difference. Two counters, deliberately.
     let mut reversed_seen = 0usize;
     let mut chart_axis_checked = 0usize;
     // The corpus's cone text, kept for the apex-placement row: the
@@ -369,20 +385,46 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             cone_text = Some(text.clone());
         }
 
-        // ---- BOUND (pin A): every bound orientation stays `.T.`, on
-        // EVERY fixture including the planar ones, and the corpus
-        // really does contain `.F.` faces so the pin is not vacuous.
+        // ---- BOUND (pin A), on EVERY fixture including the planar
+        // ones: a bound's orientation never follows its face's sense,
+        // so every bound of a shell written as stored is `.T.`, and
+        // every bound of a void's shell — the shell an
+        // ORIENTED_CLOSED_SHELL(.F.) reverses, written reversed once —
+        // is `.F.`. Faces and bounds are emitted shell by shell, each
+        // shell's records before its CLOSED_SHELL, so a bound belongs
+        // to the next CLOSED_SHELL in the text.
+        let void_shells: Vec<String> = text
+            .lines()
+            .filter(|l| l.contains("= ORIENTED_CLOSED_SHELL("))
+            .map(|l| {
+                let element = l.split(", ").nth(2).expect("the shell element");
+                format!("{element} = CLOSED_SHELL(")
+            })
+            .collect();
+        let mut pending: Vec<bool> = Vec::new();
         for line in text.lines() {
             if line.contains("= FACE_OUTER_BOUND(") || line.contains("= FACE_BOUND(") {
+                pending.push(line.ends_with(".T.);"));
+            }
+            if line.contains("= CLOSED_SHELL(") {
+                let void = void_shells.iter().any(|v| line.starts_with(v.as_str()));
                 assert!(
-                    line.ends_with(".T.);"),
-                    "BOUND: {name}: a bound orientation was flipped — double composition"
+                    pending.iter().all(|&forward| forward != void),
+                    "BOUND: {name}: a bound of a {} shell is not {} — double composition, \
+                     or a void written as stored",
+                    if void { "void" } else { "stored" },
+                    if void { ".F." } else { ".T." }
                 );
+                pending.clear();
             }
             if line.contains("= ADVANCED_FACE(") && line.contains(".F.") {
                 reversed_seen += 1;
             }
         }
+        assert!(
+            pending.is_empty(),
+            "BOUND: {name}: a bound outside any shell"
+        );
 
         // ---- CENSUS: NURBS geometry appears exactly where the kernel
         // put it, kernel-side and text-side, on EVERY fixture.
@@ -484,6 +526,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             .collect();
         faces.sort_unstable();
         let (kernel_faces, _) = common::walk_order(body);
+        let void_faces: Vec<topo::FaceKey> = body
+            .solids()
+            .flat_map(|(_, solid)| common::outer_first(body, &solid.shells).into_iter().skip(1))
+            .flat_map(|shell| body.get_shell(shell).expect("shell").faces.clone())
+            .collect();
         assert_eq!(
             faces.len(),
             kernel_faces.len(),
@@ -609,14 +656,15 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             }
 
             // ---- CHART-AXIS (pin B): `same_sense` IS `Face::sense`,
-            // and a `.F.` face keeps its CHART axis rather than
-            // negating it.
+            // negated once on a void's face, and a `.F.` face keeps its
+            // CHART axis rather than negating it.
             let same_sense = face_args.ends_with(".T.");
             assert_eq!(
-                same_sense, face.sense,
-                "CHART-AXIS: {name}: same_sense IS Face::sense"
+                same_sense,
+                face.sense != void_faces.contains(face_key),
+                "CHART-AXIS: {name}: same_sense IS Face::sense, negated on a void's face"
             );
-            if face.sense {
+            if same_sense {
                 continue;
             }
             chart_axis_checked += 1;
@@ -659,11 +707,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
         // ---- SINGLE-SHELL: the curved single-shell bodies never reach
         // the multi-shell classifier, on the DEFAULT options (a second
         // writer configuration, deliberately — this row is about the
-        // classifier door, not about the fixture uncertainty).
+        // classifier door, not about the fixture uncertainty). The
+        // hollow box is the corpus's one solid with a void.
         assert_eq!(
             body.shells().count(),
-            1,
-            "SINGLE-SHELL: {name} is single-shell"
+            if name == "voided" { 2 } else { 1 },
+            "SINGLE-SHELL: {name}'s shells"
         );
         assert!(
             step_string(
@@ -677,7 +726,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 92 = notched 1 + washer 2 + cone 1 (the
+    // not vacuous: 98 = notched 1 + washer 2 + cone 1 (the
     // original four) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
     // (the same half-caps, carried through the surgery) + the globe
@@ -693,14 +742,18 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // "Orientation") — so all six faces keep sense = true. The kiss
     // assembly adds 3, all planar: the union leaves each of the three
     // coplanar face pairs at the kissing corner on the first die's
-    // plane record, whose chart faces out of the second die.
-    assert_eq!(reversed_seen, 92, "BOUND: the corpus's reversed faces");
+    // plane record, whose chart faces out of the second die. The hollow
+    // box adds 6: its cavity's six faces are sense-true in the kernel
+    // (each plane's chart faces into the cavity, which is the material's
+    // outside) and written reversed, `.F.`, under the void's
+    // ORIENTED_CLOSED_SHELL.
+    assert_eq!(reversed_seen, 98, "BOUND: the corpus's reversed faces");
     assert_eq!(
-        chart_axis_checked, 89,
-        "CHART-AXIS: all 89 reversed faces checked (4 original + die_pips' 42 + the \
-         composed die's 42 + the lily lantern's 1; loft_prism contributes 0 — every \
-         face sense-true, see pin A's derivation). The kiss assembly's 3 are planar, \
-         and the rest of the corpus's reversed faces are on CURVED fixtures."
+        chart_axis_checked, 95,
+        "CHART-AXIS: all 95 faces written `.F.` checked (4 original + die_pips' 42 + \
+         the composed die's 42 + the lily lantern's 1 + the hollow box's 6 cavity \
+         planes; loft_prism contributes 0 — every face sense-true, see pin A's \
+         derivation). The kiss assembly's 3 are planar, outside the curved rows."
     );
 
     // ---- APEX: the fifth surface kind, CONICAL_SURFACE, uses the apex

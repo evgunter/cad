@@ -316,7 +316,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     let bore = v_solid - v_want;
     let trip = crate::step_round_trip("hollowring", &ring.body, tol);
-    assert_eq!(trip.voids, 1, "the re-imported ring keeps its one cavity");
     let (v, e, f) = (
         ring.body.vertices().count(),
         ring.body.edges().count(),

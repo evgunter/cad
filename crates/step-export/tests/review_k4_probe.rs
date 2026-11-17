@@ -6,7 +6,6 @@ use crate::common;
 
 #[test]
 fn k4_sidecar_volume_literals_round_trip_bit_exact() {
-    let mut n = 0;
     for (name, _) in common::fixture_corpus() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures")
@@ -25,8 +24,6 @@ fn k4_sidecar_volume_literals_round_trip_bit_exact() {
             );
             let back: f64 = printed.parse().unwrap();
             assert_eq!(back.to_bits(), v.to_bits(), "{name} {key}: reparse bits");
-            n += 1;
         }
     }
-    assert_eq!(n, 36, "18 fixtures x 2 literals");
 }

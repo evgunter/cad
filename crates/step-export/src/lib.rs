@@ -126,20 +126,19 @@
 //!   ratification, restated in `geom_brep::enters`). STEP has a field
 //!   that means exactly this, so the mapping is an identity and not a
 //!   conversion: `ADVANCED_FACE`'s `same_sense` is `Face::sense`,
-//!   emitted `.T.`/`.F.`. The surface's `AXIS2_PLACEMENT_3D` axis
+//!   emitted `.T.`/`.F.` — negated only on a face of a void's shell,
+//!   which is written reversed on purpose (below). The surface's
+//!   `AXIS2_PLACEMENT_3D` axis
 //!   stays the stored **chart** normal (with `ref_direction` the
 //!   stored `u_ref`, ⊥ normal by the same convention) — correct
 //!   precisely *because* `same_sense` carries the flip: the reversal
 //!   is stated once, in the field the schema provides for it, and the
-//!   exported surface stays the true surface. Since M5 S11 the sweep
-//!   constructors mint `sense: false` on walls whose material lies
-//!   against the chart normal — concave extrude walls, revolve's
+//!   exported surface stays the true surface. The sweep constructors
+//!   mint `sense: false` on walls whose material lies against the
+//!   chart normal — concave extrude walls, revolve's
 //!   bore/cone/sphere/torus bands, and the under-side annulus that
-//!   rides with them. Every such wall is curved or rides on a curved
-//!   body, so before M5 PR 13 no `.F.` could reach the emitter; with
-//!   the curved arms landed it does, and the planar goldens are
-//!   nevertheless byte-unchanged (no planar-only body at rest mints a
-//!   reversed face).
+//!   rides with them — and a boolean keeps a face on its operand's
+//!   plane record wherever that record's chart faces out of the result.
 //! - An edge's certified carrier parameter runs `start(he_plus) →
 //!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
 //!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken

@@ -520,10 +520,15 @@ the table.
   and the STEP writer writes its cavity as the void it is: one
   `BREP_WITH_VOIDS`, the cavity an `ORIENTED_CLOSED_SHELL(.F.)`, which
   the importer reads back into one solid with the same shell roles.
-  Every hollow part does the same — this ring, the full-period
-  `tube_along_arc_hollow` shell, and the bodies `shell` hollows — and
-  the tour round-trips each of them (klein's wall 6, retired; the
-  `ring`, `hollowtorus`, `torusvessel` and `fivewall` scenes).
+  This ring, the full-period `tube_along_arc_hollow` shell and the
+  hollow bodies the tour builds with `shell` do the same, and the tour
+  round-trips each of them (klein's wall 6, retired; the `ring`,
+  `hollowtorus`, `torusvessel`, `fivewall` and `teapot` scenes). A
+  cavity is no refusal of its own any more, but its walls' curves still
+  have to export: a cavity whose torus wall meets a cap in a spiric
+  edge refuses `UnsupportedCurve` ("spiric: export tolerance not met")
+  at the kernel's ε (`sweep/tests/spiric_rim.rs`,
+  `the_census_refusals_through_public_doors`).
 - **The PATHS lattice has no tangent straight leg to an anchor.**
   After a declared-tangent joint off an arc, the only straight
   continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's

@@ -1050,7 +1050,6 @@ mod tests {
             )]),
             vertices: BTreeMap::from([(30, p)]),
             band_seams: BTreeSet::new(),
-            voids: Vec::new(),
         }
     }
 
@@ -1306,7 +1305,6 @@ mod tests {
                 edges: map,
                 vertices,
                 band_seams: BTreeSet::new(),
-                voids: Vec::new(),
             }
         }
 

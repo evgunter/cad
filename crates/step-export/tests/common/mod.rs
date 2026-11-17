@@ -415,9 +415,10 @@ pub fn two_stub_complement() -> Body<f64> {
 }
 
 /// **The writer's emission order, mirrored** (faces, then edges by
-/// first encounter): solids in arena order → shells in `Solid::shells`
-/// order → faces in `Shell::faces` order → the outer loop then rings in
-/// stored order → half-edges in loop-cycle order.
+/// first encounter): solids in arena order → the solid's `Outer` shell,
+/// then its voids in `Solid::shells` order → faces in `Shell::faces`
+/// order → the outer loop then rings in stored order → half-edges in
+/// loop-cycle order.
 ///
 /// The suites that compare emitted records against the body's own
 /// geometry need to know WHICH kernel entity a record belongs to, and
@@ -431,7 +432,7 @@ pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) 
     let mut faces = Vec::new();
     let mut edges = Vec::new();
     for (_, solid) in body.solids() {
-        for &shell_key in &solid.shells {
+        for shell_key in outer_first(body, &solid.shells) {
             let shell = body.get_shell(shell_key).expect("shell resolves");
             for &face_key in &shell.faces {
                 faces.push(face_key);
@@ -451,6 +452,23 @@ pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) 
         }
     }
     (faces, edges)
+}
+
+/// A solid's `shells`, its `Outer` first and its voids after in stored
+/// order: the order the writer emits them in.
+pub fn outer_first(body: &Body<f64>, shells: &[topo::ShellKey]) -> Vec<topo::ShellKey> {
+    if shells.len() < 2 {
+        return shells.to_vec();
+    }
+    let rows = topo::classify_shells_of(&at_rest(body), shells, Tol::witness())
+        .expect("a multi-shell solid at rest classifies");
+    let is_outer = |shell: &topo::ShellKey| {
+        rows.iter()
+            .any(|row| row.shell == *shell && row.role == topo::ShellRole::Outer)
+    };
+    let (mut ordered, voids): (Vec<_>, Vec<_>) = shells.iter().copied().partition(is_outer);
+    ordered.extend(voids);
+    ordered
 }
 
 /// The certified carrier of an edge, for the suites that compare

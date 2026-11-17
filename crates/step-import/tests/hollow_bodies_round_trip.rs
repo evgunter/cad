@@ -366,3 +366,86 @@ fn a_void_outside_its_outer_shell_refuses_at_the_gate() {
         "the void stands at the wrong winding: {errors:?}"
     );
 }
+
+/// **The committed hollow box refuses if its cavity is not reversed.**
+/// Two mutants of `voided.step`: the cavity's shell written as stored
+/// (every `same_sense` and bound flag after the outer shell flipped
+/// back), and the cavity stated `.T.`. Either leaves the cavity's faces
+/// pointing into the material, a second outer shell, which the gate
+/// refuses — so the writer's reversal is what makes the file import.
+#[test]
+fn a_void_written_unreversed_or_stated_t_refuses() {
+    let tol = Tol::witness();
+    let text = common::fixture("voided", "step");
+    // The cavity's records follow the outer shell's CLOSED_SHELL.
+    let outer = text.find("= CLOSED_SHELL(").expect("the outer shell");
+    let at = outer + text[outer..].find('\n').expect("a line end") + 1;
+    let (head, tail) = text.split_at(at);
+    let flip = |line: &str| {
+        let oriented = ["= ADVANCED_FACE(", "= FACE_OUTER_BOUND(", "= FACE_BOUND("]
+            .iter()
+            .any(|k| line.contains(k));
+        match (
+            oriented,
+            line.strip_suffix(".T.);"),
+            line.strip_suffix(".F.);"),
+        ) {
+            (true, Some(rest), _) => format!("{rest}.F.);"),
+            (true, _, Some(rest)) => format!("{rest}.T.);"),
+            _ => line.to_owned(),
+        }
+    };
+    let unreversed = format!(
+        "{head}{}\n",
+        tail.lines().map(flip).collect::<Vec<_>>().join("\n")
+    );
+    let stated_t = text.replace(
+        ", .F.);\n#300 = BREP_WITH_VOIDS",
+        ", .T.);\n#300 = BREP_WITH_VOIDS",
+    );
+    assert_ne!(stated_t, text, "the mutant states the cavity .T.");
+    for (what, mutant) in [("unreversed", unreversed), ("stated .T.", stated_t)] {
+        let errors = refusals(&mutant, tol);
+        assert!(
+            matches!(
+                errors[..],
+                [topo::ValidationError::SolidOuterShells { outer: 2, .. }]
+            ),
+            "{what}: two outer shells under one solid: {errors:?}"
+        );
+    }
+}
+
+/// **Open CASCADE's hollow solids import** (`tests/fixtures/occ_voids/`,
+/// written by OCCT's own STEP writer, `gen_occ_voids.py`): its
+/// `BREP_WITH_VOIDS` with `.F.` voids is read as one solid with its
+/// cavities, the volume the generator's closed form (the files are in
+/// millimetres; the import is in metres). The budget is the enclosure's
+/// pad plus `1e-9·|V|` for the file's printed coordinates.
+#[test]
+fn open_cascade_hollow_solids_import_with_their_cavities() {
+    let tol = Tol::witness();
+    for (file, voids, mm3) in [
+        ("box_cavity.step", 1, 26000.0),
+        ("two_cavities.step", 2, 26750.0),
+        ("cylinder_sphere_cavity.step", 1, 732.0 * PI),
+    ] {
+        let path = format!(
+            "{}/tests/fixtures/occ_voids/{file}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let back = match import_step(&text, &common::own_import_options(false), tol) {
+            Ok(StepImport::Solid { body, .. }) => body,
+            Ok(other) => panic!("{file}: imported as something other than a solid: {other:?}"),
+            Err(e) => panic!("{file}: import: {e_at}", e_at = e.render()),
+        };
+        assert_eq!(roles(&back, tol), vec![(1, voids)], "{file}: the roles");
+        let (v, pad) = volume(&back, tol);
+        let want = mm3 * 1e-9;
+        assert!(
+            (v - want).abs() <= pad + 1e-9 * want,
+            "{file}: volume {v} ± {pad} against the closed form {want}"
+        );
+    }
+}

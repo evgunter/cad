@@ -1455,7 +1455,6 @@ mod side_through_a_pole {
                 edges: edges(),
                 vertices: vertices.clone(),
                 band_seams: Default::default(),
-                voids: Vec::new(),
             };
             assert_eq!(
                 holds(&solid, 0, chart, 1, &read).unwrap(),
@@ -1573,7 +1572,6 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
             edges,
             vertices,
             band_seams: Default::default(),
-            voids: Vec::new(),
         }
     }
 

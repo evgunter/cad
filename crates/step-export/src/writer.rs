@@ -759,13 +759,8 @@ impl<'a> Writer<'a> {
     /// `face_surface.same_sense` and the kernel's orientation bit are
     /// the same predicate ("does the face's material side agree with
     /// its surface's own normal?"), which is why S10 ratified the bit
-    /// in that shape. It emits `.T.`/`.F.` directly; before S10 the
-    /// answer was hardcoded `.T.` because the stored normal simply WAS
-    /// the outward normal (M1 ratification). Since M5 S11 constructors
-    /// mint `sense: false` on material-against-chart walls — all
-    /// curved in this build, hence outside the planar subset — so
-    /// planar output stays byte-identical and the `.F.` arm is pinned
-    /// through the hand-flip door (`m5_s11_same_sense`).
+    /// in that shape. It emits `.T.`/`.F.` directly, negated only on a
+    /// `reversed` face (below).
     ///
     /// Consequently the surface's own `AXIS2_PLACEMENT_3D` keeps
     /// emitting the **chart** normal unchanged (see the `direction`
@@ -774,7 +769,7 @@ impl<'a> Writer<'a> {
     /// surface, with the reversal stated once, in the one field STEP
     /// provides for it; negating the axis instead would export a
     /// different plane and (with `.F.`) double-count. Likewise the
-    /// bounds stay `.T.` — see [`Self::face_bound`].
+    /// bounds do not follow the sense — see [`Self::face_bound`].
     ///
     /// A `reversed` face is the face with its material side turned
     /// over, as a void's shell is written ([`Self::closed_shell`]):
@@ -790,8 +785,8 @@ impl<'a> Writer<'a> {
             })?;
         let outer = face.outer;
         let rings = face.rings.clone();
-        // The S10 orientation bit, emitted verbatim as `same_sense`
-        // (fn docs: the two are the same predicate, not a conversion).
+        // The S10 orientation bit, emitted as `same_sense` (fn docs:
+        // the two are the same predicate), turned over on a void's face.
         let same_sense = if face.sense != reversed { ".T." } else { ".F." };
         let surface = self
             .body
@@ -973,7 +968,7 @@ impl<'a> Writer<'a> {
     /// and, per `Void`, an `ORIENTED_CLOSED_SHELL(.F.)` over the void's
     /// shell written reversed. Every multi-shell solid's roles are read
     /// ([`shell_roles`]) before anything is emitted.
-    fn manifold_solids(
+    fn solid_breps(
         &mut self,
         at_rest: &AtRestBody<f64>,
         name: &str,
@@ -987,11 +982,11 @@ impl<'a> Writer<'a> {
                 _ => shell_roles(at_rest, &solid.shells, tol),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut msbs = Vec::with_capacity(solids.len());
+        let mut breps = Vec::with_capacity(solids.len());
         for (outer, voids) in solids {
             let cs = self.closed_shell(outer, false)?;
             if voids.is_empty() {
-                msbs.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
+                breps.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
                 continue;
             }
             let mut oriented = Vec::with_capacity(voids.len());
@@ -999,12 +994,12 @@ impl<'a> Writer<'a> {
                 let void_cs = self.closed_shell(void, true)?;
                 oriented.push(self.emit(&format!("ORIENTED_CLOSED_SHELL('', *, #{void_cs}, .F.)")));
             }
-            msbs.push(self.emit(&format!(
+            breps.push(self.emit(&format!(
                 "BREP_WITH_VOIDS({name}, #{cs}, ({}))",
                 refs(&oriented)
             )));
         }
-        Ok(msbs)
+        Ok(breps)
     }
 }
 
@@ -1072,8 +1067,8 @@ pub(crate) fn write_document(
     let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
-    let msbs = w.manifold_solids(body, &name, tol)?;
-    if msbs.is_empty() {
+    let breps = w.solid_breps(body, &name, tol)?;
+    if breps.is_empty() {
         return Err(StepExportError::NothingToExport);
     }
 
@@ -1109,7 +1104,7 @@ pub(crate) fn write_document(
 
     // The advanced-B-rep representation and the AP214 product chain.
     let mut items = vec![world_axis];
-    items.extend_from_slice(&msbs);
+    items.extend_from_slice(&breps);
     let absr = w.emit(&format!(
         "ADVANCED_BREP_SHAPE_REPRESENTATION('', ({}), #{ctx})",
         refs(&items)

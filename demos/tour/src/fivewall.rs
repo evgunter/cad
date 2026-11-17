@@ -386,7 +386,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     .expect("a finite offset");
     let apart = pncad::topo::transform_rigid(&cup, &beside).expect("a translation is rigid");
     let trip = crate::step_round_trip("fivewall", &sealed, tol);
-    assert_eq!(trip.voids, 1, "the re-imported sleeve keeps its one cavity");
 
     vec![TourStop {
         name: "fivewall",

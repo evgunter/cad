@@ -525,7 +525,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let litres = v_cav * 1000.0;
     let trip = crate::step_round_trip("torusvessel", &sealed, tol);
-    assert_eq!(trip.voids, 1, "the re-imported vessel keeps its one cavity");
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = pncad::topo::finish(waisted(tol), tol).expect("the twin is a finished body");
