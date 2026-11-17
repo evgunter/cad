@@ -1395,3 +1395,8 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - the dead `FILLET3_CORNER_RECOURSE` at the leaning corner's pair edges.
 - 2026-11-17 — Ev approved 7058: "sure, i have no strong opinions on the exact error strategy as long as they say correct, non-misleading stuff when it's not too burdensome to do so". Fork row 280's decision half and mapping are committed (bba8bab0b3), and the PR merges once CI is green. Cut 3 has resumed on the ruling, together with the designers' off-question items.
 - 2026-11-17 — Merged 7058 at 362cd72fd2. The fork row was renumbered 283, because main already had a 280. Ev asked for `[ev]` to come off, and it is off.
+- 2026-11-17 — Ev: Fable usage is running out. I chose to proceed on Opus only, outside the experiments, and Ev offered that option. Until Ev says Fable is back:
+  - no draws and no model-compare or design-fork rows;
+  - cut 3 and the reach row, drawn earlier, are dropped from the experiment, so they get no rows;
+  - reviews keep the tier's depth with Opus reviewers: two concurrent on the reach row, and a single review on cut 3 with a second only on a MAJOR;
+  - any design fork goes to two Opus designers and is flagged as single-model on its `[ev]` PR.
