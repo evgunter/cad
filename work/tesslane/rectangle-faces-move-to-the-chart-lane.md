@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: H
 design: true
-blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers, a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line]
+blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers, a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line, a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it]
 ---
 
 
@@ -36,3 +36,5 @@ Five of `crates/mesh/tests/common/`'s hand-built witnesses (keyway, oblique lens
 Measured by the turned-ball unit (`a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt`). On `sweep::test_support::ball_poled_z(√2, 0)`, a revolved ball turned a quarter turn about `x`, the walk reads the u = 0 seam meridian's column as `topo::chart_iso::mid_azimuth`, `atan2(p·v_ref, p·u_ref)` at the meridian carrier's mid point. The turned chart's `v_ref` is `(0, 1, −6.1e−17)`, so `p·v_ref` is an exact zero computed in floats, and it comes out `−6.842e−49`: the column is `u = −4.838e−49`. That is below spade's coordinate floor, and the face refused `Triangulation` until every CDT feed went through `mesh::cdt::spade_point`. The same meridian's stored image on both faces is `Pcurve::Harmonic { u: Angle { phase: 0.0, winding: 0 }, .. }`: the stored lift has the column exactly. Reading the column from there rather than inverting a carrier point is this unit's, and the floor stays under it as the backstop.
 
 - 2026-11-16 — **also behind unit 4b** (`a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line`). Until a face bounded by iso runs sizes at δ on the chart lane, moving a rectangle there would mesh it at the headroom's share of δ and move every curved byte main emits, so the density measurement this row owes Ev has nothing fair to measure before then.
+
+- 2026-11-17 — **also behind unit 4c** (`a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it`), and the measurement is owed per chart. On today's chart lane a cylinder or cone rectangle takes 7 to 86 times the rectangle lane's triangles (500 on a slender cone), because the lane lays rows a ruled face does not need; this unit's own rule would answer "stop at unit 4" for a reason unit 4c removes.

@@ -1,8 +1,8 @@
 //! **A trimmed sphere face's region, read from its boundary arcs** — the
 //! one reading both point doors take of a sphere face that is not closed
 //! on its own surface: the ray lane's hit test and boundary pre-pass
-//! ([`super::solid_contain`]) and the pierce arm's landing test
-//! ([`super::contain::curved_face_containment`]).
+//! ([`crate::solid_contain`]) and the pierce arm's landing test
+//! ([`crate::contain::curved_face_containment`]).
 //!
 //! # Method: the closest crossing along a great circle
 //!
@@ -134,15 +134,15 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
-use super::region::{
-    self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, targets,
-};
-use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault};
+use crate::region::{
+    self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, targets,
+};
+use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
 
@@ -558,7 +558,7 @@ mod tests {
                 ),
                 t0: 0.0,
                 t1: core::f64::consts::TAU,
-                turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::TAU),
+                turn: crate::region::fixture_turn(0.0, core::f64::consts::TAU),
                 forward,
             }],
         )
@@ -587,7 +587,7 @@ mod tests {
             (unit(0.0, 0.0, -1.0), unit(0.0, -1.0, 0.0)),
             (skew, unit(2.0, -1.0, 0.0)),
         ];
-        let read = crate::boolean::region::refusal_class;
+        let read = crate::region::refusal_class;
         for forward in [true, false] {
             let regions: Vec<SphereFaceRegion<f64>> = frames
                 .iter()
@@ -682,7 +682,7 @@ mod tests {
             ),
             t0: 0.0,
             t1: core::f64::consts::PI,
-            turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::PI),
+            turn: crate::region::fixture_turn(0.0, core::f64::consts::PI),
             forward,
         };
         SphereFaceRegion::on(
@@ -720,7 +720,7 @@ mod tests {
             ),
             t0,
             t1,
-            turn: crate::boolean::region::fixture_turn(t0, t1),
+            turn: crate::region::fixture_turn(t0, t1),
             forward,
         }
     }
@@ -906,7 +906,7 @@ mod tests {
             "the zone's region"
         );
         let (mut nulled, nulled_face) = sheet();
-        super::region::with_null_edge(&mut nulled, nulled_face);
+        crate::region::with_null_edge(&mut nulled, nulled_face);
         assert!(
             sphere_face_region(&nulled, nulled_face).unwrap().is_none(),
             "a null edge refuses"
@@ -1044,11 +1044,11 @@ mod tests {
             .collect();
         for (pole, z) in [("north", 1.0), ("south", -1.0)] {
             let got =
-                crate::boolean::cycle_side(&body, zone, &every, Point3::new(0.0, 0.0, z), band);
+                crate::contain::cycle_side(&body, zone, &every, Point3::new(0.0, 0.0, z), band);
             assert!(
                 matches!(
                     &got,
-                    Err(crate::boolean::ContainError::Escalated { diag, .. })
+                    Err(crate::contain::ContainError::Escalated { diag, .. })
                         if diag.predicate == Some("bool_sphere_region_order")
                             && !diag.margin.is_invalid()
                 ),
@@ -1160,8 +1160,8 @@ mod tests {
                 assert_eq!(region.contains(p, band), Ok(want), "{what} at {scalar}");
             }
         }
-        read::<f64>("f64", crate::boolean::region::fixture_turn);
-        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+        read::<f64>("f64", crate::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::region::fixture_turn_interval);
     }
 
     /// **A root a half turn from its arc's middle, or on its phase's cut,
@@ -1207,10 +1207,10 @@ mod tests {
                 );
             }
         }
-        read::<f64>("f64", crate::boolean::region::fixture_turn, |x| x);
+        read::<f64>("f64", crate::region::fixture_turn, |x| x);
         read::<geom_core::Interval>(
             "Interval",
-            crate::boolean::region::fixture_turn_interval,
+            crate::region::fixture_turn_interval,
             geom_core::Bounds::hi,
         );
     }
@@ -1268,8 +1268,8 @@ mod tests {
                 }
             }
         }
-        read::<f64>("f64", crate::boolean::region::fixture_turn);
-        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+        read::<f64>("f64", crate::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::region::fixture_turn_interval);
     }
 
     /// **Every two-leg path that decides agrees with the truth.** On slim
@@ -1357,8 +1357,8 @@ mod tests {
                 "{settled} paths settled at {scalar}"
             );
         }
-        read::<f64>("f64", crate::boolean::region::fixture_turn);
-        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+        read::<f64>("f64", crate::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::region::fixture_turn_interval);
     }
 
     /// Sphere faces built from arc specs in a unit frame, with each one's

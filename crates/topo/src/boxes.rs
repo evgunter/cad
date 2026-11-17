@@ -164,7 +164,7 @@
 //!   it, so a decision lands in band more readily and the walk REFUSES
 //!   more, never a wrong side. A cover TIGHTER than its edge is the
 //!   unsound direction: the lever could under-state a reading's reach.
-//! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
+//! - `ruled_region`'s reach bound (`reach_bound`, each boundary
 //!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.

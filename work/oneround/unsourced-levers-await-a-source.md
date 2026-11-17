@@ -32,7 +32,7 @@ reads, where the honest read is the extent itself or their union:
 - `boolean::vtxfac` `held_reads` (a ball about the runs' shortest arm,
   which can under-state the region) and `unglued_flat_sector`'s ball;
 - sums of radii or reaches, whose union read is their `max`:
-  `boolean::rim_wedge` `same_circle` (2), editor-core
+  `rim_wedge` `same_circle` (2), editor-core
   `checks::at_rest` `constant_pairing`, `eval::measure` `parallel` and
   `plane_round`, `mate::coset` and `mate::value` (2) (`Arm`, an f64
   sum), `geom_brep::curve_pair::pose` `route` (`length + e + e`);
@@ -67,7 +67,7 @@ in `pair_section` are geometric, its ~80 test literals are not):
 `ring_path` lead `Piece::Segment` (zero, a placeholder); editor-core
 `trace` (2: a coordinate gap; a carrier size plus an offset);
 `splitting::containment` `extent_from`'s edge balls (topo's own
-`step_ball`/`carrier_ball`/`conic_arc_ball`), `boolean::solid_contain`
+`step_ball`/`carrier_ball`/`conic_arc_ball`), `solid_contain`
 `carrier_roots` (`RuledFaceRegion::reach`, a topo boundary read),
 `boolean::recl` corner ball, sweep `blend::open::planar` mitre ball
 (sampled chord diameters).

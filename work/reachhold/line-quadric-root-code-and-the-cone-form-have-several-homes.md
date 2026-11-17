@@ -18,7 +18,7 @@ second review (r2 S-1, S-2, S-6).
 - **Two homes for one door's root code.** `line_cone_roots` lives in
   `crates/topo/src/boolean/reduce.rs:3569`; its siblings
   `line_wall_roots`, `line_sphere_roots` and `line_torus_roots`
-  (`crates/topo/src/boolean/solid_contain.rs:4088`, `:4226`, `:4571`)
+  (`crates/topo/src/solid_contain.rs:4088`, `:4226`, `:4571`)
   and its own quadratic, `line_cone_quadratic` (`solid_contain.rs:4191`)
   and `quadratic_roots` (`solid_contain.rs:4174`), live in
   `solid_contain.rs`.

@@ -69,8 +69,8 @@ three above:
   ("Rebuild the body through the Euler operators, and report this").
 - BOOL's ground, recorded only: `TornComponent` ("(kernel bug or
   corrupt …)", "(kernel bug)" on the seam zip),
-  `boolean::solid_contain`'s `CorruptFace` and
-  `boolean::contain`'s `Corrupt` (which tells the caller to "repair the
+  `solid_contain`'s `CorruptFace` and
+  `contain`'s `Corrupt` (which tells the caller to "repair the
   body's topology"), all in `crates/topo/src/boolean/`.
 
 **Which ending.** The Euler-operator unit found that no file reaches a

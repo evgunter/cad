@@ -13,7 +13,7 @@ refs: [the-half-angle-ladder-certifies-in-band-configurations, line-torus-roots-
 Found by the review of PR 4607 (CLEAVE's
 `point-in-solid-mints-outside-its-period-and-nappe-rows`, mint C17),
 which checked the unit's `CountDisagrees` witnesses exactly. The ladder
-lives in `crates/topo/src/boolean/solid_contain.rs`
+lives in `crates/topo/src/solid_contain.rs`
 (`depressed_quartic_roots`, behind `line_torus_roots`).
 
 ## What

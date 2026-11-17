@@ -15,7 +15,7 @@ Found by PRED's D46 dimension verdicts (the audit's F27,
 
 ## What
 
-`crates/topo/src/boolean/solid_contain.rs` reads a ray against a cone
+`crates/topo/src/solid_contain.rs` reads a ray against a cone
 through `line_cone_quadratic` (`a₂t² + 2b₂t + c₂`, `d` unit) in two
 places: `carrier_roots`' cone arm and `ray_crossings`' `PartialCone`
 arm. Both decide `bool_ray_cone_disc` on

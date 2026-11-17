@@ -21,7 +21,7 @@ Verified by the orchestrator before filing.
 
 ## The defect
 
-`crates/topo/src/boolean/contain.rs:64-72`:
+`crates/topo/src/contain.rs:64-72`:
 
 ```rust
 impl From<PointInLoopError> for ContainError {

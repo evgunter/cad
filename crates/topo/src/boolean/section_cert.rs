@@ -395,7 +395,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::contain::FaceContainment;
+use crate::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs_across, signs_as};
 use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};

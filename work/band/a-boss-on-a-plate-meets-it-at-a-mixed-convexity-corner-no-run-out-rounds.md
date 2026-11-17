@@ -23,22 +23,27 @@ Band P0 under work/README's definition ("a normal verb broken on normal geometry
 
 At a trivalent vertex whose three edges do not all have one convexity, the **odd edge** is the one whose convexity differs, the **pair** is the other two, and the pair's **shared face** `E` is the face the odd edge does not lie in. What a fillet or chamfer builds there depends on which of the three edges the request names. Each vertex is decided separately, inside one call, before any mutation.
 
-- **All three.** The odd edge's band is cut off in `E`, by the ratified cut-off. The pair's bands do not end at the vertex. They run on as one tangent-continuous chain through the curve the cut-off leaves in `E`. That curve becomes a link of the pair's chain, resting on `E` and on the odd band itself. A fillet's link is the coaxial `cylinder×plane(⊥)` arm's torus, major radius `2r`, so the chain is cylinder, torus, cylinder. A chamfer's is a strip, mitred onto the pair's strips at both ends. Where `E` is oblique to the odd edge, the fillet's link is a canal surface and refuses `SpineUnsupported`.
+- **All three.** The odd edge's band is cut off in `E`, by the ratified cut-off. The pair's bands do not end at the vertex. They run on as one tangent-continuous chain through the curve the cut-off leaves in `E`. That curve becomes a link of the pair's chain, resting on `E` and on the odd band itself. A fillet's link is the coaxial `cylinder×plane(⊥)` arm's torus, major radius `2r`, so the chain is cylinder, torus, cylinder. A chamfer's is a strip, mitred onto the pair's strips at both ends. Where `E` is oblique to the odd edge, the fillet's link is a canal surface, and the corner refuses as an oblique mixed corner (below).
 - **The odd edge alone, or one pair edge alone.** The cut-off, whatever its convexity. A foot that lands inside a neighbouring face refuses on the existing door.
 - **The pair alone.** The mitre. It is a mitre join: each band's surface continues past its edge's end to their intersection. So at a reflex corner of `E` the mitre removes, or fills, the offset corner's wedge (`d³/3` for a chamfer), and `E`'s outline becomes the mitred offset of the old one.
 - **The odd edge and one pair edge.** The chamfer builds: the pair strip is cut off in the odd strip's plane. The fillet refuses: the pair band would have to stop where its edge runs smoothly into the cut-off arc.
 
 The vocabulary after it:
 - A band's end is one of `Patch | CutOff | Mitre | Overrun`: the battery's own per-end result, `BandEnd`, private to the blend, with `Patch` stated rather than inferred. The pair's chain through a mixed corner is a link, not an end.
-- One typed refusal, `BlendError::UnbuiltEnd`, replaces `UnsupportedCorner` and `UnsupportedRunOut`. It is an enum of eight tags, each carrying only its own site:
+- One typed refusal, `BlendError::UnbuiltEnd`, replaces `UnsupportedCorner` and `UnsupportedRunOut` where a band's end is not built. It is an enum of eight tags, each carrying only its own site:
   - valence: the vertex and its valence;
   - dependent normals, seam, indeterminate, curved end face, foot inside a face: the vertex;
   - feet crossing: the edge both feet stand on;
   - run-out (a band would have to stop where its edge runs on smoothly): the vertex and the unrequested edge it would run into, plus, at a mixed vertex, the odd edge and its convexity.
 - `BlendError::edge()` names the feet-crossing edge and the run-out's unrequested edge. Python reports the inner tag (`unbuilt_end_seam`, `unbuilt_end_feet_cross`, …).
 - `CornerConfig`, `RunOutPolicy` and `MixedConvexity` retire, and leave the public prelude. No public end-kind type replaces them.
+- A mixed corner the blend does not build yet refuses outside `UnbuiltEnd`, since the pair's chain through it is a link, not an end:
+  - **`E` oblique to the odd edge**: `BlendError::ObliqueMixedCorner`, carrying the vertex and the odd edge, for both verbs: all three edges, and the chamfer of the odd edge with one pair edge. `edge()` names the odd edge. Its recourse is the mixed-corner sentence, whose one request that builds there is the odd edge alone.
+  - **A link at the corner not between two planes**: the chain frontier, `UnsupportedChain`, on the link the open chain refuses when it is requested alone, with that refusal's own text and the chain recourse. Such a link always exists: a curved face bounds two of the corner's three edges, and at most one of them lies on a ruling.
 
 Build order:
 1. The gate. Uniform convexity is a precondition of the patch only, and a mixed vertex refuses only a request naming the odd edge with another edge (`band/mixed-vertex-gate`).
 2. The junction carry-through: `a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses`, then `an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve`.
 3. This row: the link resting on another band, the all-three rule, the odd-plus-one chamfer, and the vocabulary.
+
+Step 3's status: the all-three rule and the link resting on the odd band are built (cut 1, PR 6873); the odd-plus-one chamfer is built (cut 2, PR 7038), as a turn's overrun with the odd band the far one (`crates/sweep/tests/band_mixed_corner_odd_plus_one.rs`). The vocabulary (cut 3) remains.

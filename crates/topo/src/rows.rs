@@ -549,7 +549,7 @@ geom_core::row_registry! {
         advance: "point_in_arc_loop_advance",
     };
 
-    /// The Boolean's contact pre-pass's line edges (`boolean::contain`): it
+    /// The Boolean's contact pre-pass's line edges (`contain`): it
     /// reads `segment` and `boundary` alone, so `side` and `advance` are
     /// never minted.
     pub(crate) const CONTACT_EDGE: ParityRows = ParityRows {
@@ -559,7 +559,7 @@ geom_core::row_registry! {
         advance: "bool_contact_edge_advance",
     };
 
-    /// A ruled region's line edge (`boolean::ruled_region`).
+    /// A ruled region's line edge (`ruled_region`).
     pub(crate) const RULED_REGION_LINE: SegmentRows = SegmentRows {
         segment: "bool_ruled_region_edge_length",
         boundary: "bool_ruled_region_edge",
@@ -588,7 +588,7 @@ geom_core::row_registry! {
         },
     };
 
-    /// The Boolean's contact pre-pass's boundary rows (`boolean::contain`).
+    /// The Boolean's contact pre-pass's boundary rows (`contain`).
     pub(crate) const CONTACT: BoundaryRows = BoundaryRows {
         line: &CONTACT_EDGE,
         conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
@@ -606,7 +606,7 @@ geom_core::row_registry! {
         },
     };
 
-    /// A torus region's oval edge (`boolean::torus_region`).
+    /// A torus region's oval edge (`torus_region`).
     pub(crate) const TORUS_REGION_SPIRIC: ArcRows = ArcRows {
         end: "bool_torus_region_spiric_end",
         clear: "bool_torus_region_spiric_clear",
@@ -614,15 +614,15 @@ geom_core::row_registry! {
         leaf: "bool_torus_region_spiric_leaf",
     };
 
-    /// A torus region's circle edge (`boolean::torus_region`).
+    /// A torus region's circle edge (`torus_region`).
     pub(crate) const TORUS_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_torus_region_arc_span", "bool_torus_region_arc_straddle");
 
-    /// A sphere region's boundary reading (`boolean::sphere_region`).
+    /// A sphere region's boundary reading (`sphere_region`).
     pub(crate) const SPHERE_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_sphere_region_arc_span", "bool_sphere_region_arc_straddle");
 
-    /// A ruled region's conic edge (`boolean::ruled_region`).
+    /// A ruled region's conic edge (`ruled_region`).
     pub(crate) const RULED_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
 
@@ -676,7 +676,7 @@ geom_core::row_registry! {
 
     // ------------------------------------------------- rays through a solid
 
-    /// A schedule ray through a solid (`boolean::solid_contain`).
+    /// A schedule ray through a solid (`solid_contain`).
     pub(crate) const SCHEDULE_RAY: RayRows = RayRows {
         advance: "bool_point_in_solid_advance",
         denom: "bool_point_in_solid_denom",

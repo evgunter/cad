@@ -13,7 +13,7 @@ Found by the chart-inversion sweep (`work/chart/chart-inversion-is-spelled-three
 
 ## What
 
-D3 ("One reading per question") makes a point's chart coordinates one reading, `geom::ChartInverse::point` (`crates/geom/src/chart_point.rs`), which `topo::chart::Chart`, `shell`, ring re-homing in `chord_join` and step-import now read. `torus_face_region` (`crates/topo/src/boolean/torus_region.rs`) still spells the torus arm itself:
+D3 ("One reading per question") makes a point's chart coordinates one reading, `geom::ChartInverse::point` (`crates/geom/src/chart_point.rs`), which `topo::chart::Chart`, `shell`, ring re-homing in `chord_join` and step-import now read. `torus_face_region` (`crates/topo/src/torus_region.rs`) still spells the torus arm itself:
 
 - the azimuth of an edge point, `w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref))` (twice, near `torus_region.rs:760` and `:829`), raw `atan2` in `(−π, π]`;
 - the tube angle, `h.atan2(rho - major)` (near `:872`).

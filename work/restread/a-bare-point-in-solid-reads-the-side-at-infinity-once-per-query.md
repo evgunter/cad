@@ -13,7 +13,7 @@ cost: M
 
 The side at infinity of a selection whose rays all miss is read off its
 volume's sign. Where the closed form has no value for a face, that reading
-goes through the quadrature (`boolean::solid_contain::missed_side`, step 3).
+goes through the quadrature (`solid_contain::missed_side`, step 3).
 The reading is cached per selection (`SolidFaces`' `VolumeReads`). The
 census arm, the boolean's witness ladder (`operand_faces`) and any caller
 holding `SolidFaces::of_body` pay for it once. A bare

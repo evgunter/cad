@@ -16,7 +16,7 @@ arms that see a ring crossing or touching its outer loop at a point no
 vertex carries: arm 4 (`validate::circle_pair`, both loops whole
 circles) and arm 5 (`validate::segments_meet`, every other pair of
 `Line` and `Circle` edges, trims tested by the line span and by
-`boolean::contain::point_on_arc`). Both run in the plane of the outer
+`contain::point_on_arc`). Both run in the plane of the outer
 loop's face (`validate::ring_outer_meeting`). Silent, and named at
 check 9's banner and in `validate_geometric`'s not-yet-checked list:
 

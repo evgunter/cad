@@ -11,13 +11,13 @@ opened: 2026-10-24
 ## What
 
 The three region doors now gather their boundary through one function,
-`boundary` in `crates/topo/src/boolean/region.rs`. They still differ on one
+`boundary` in `crates/topo/src/region.rs`. They still differ on one
 rule, which the gather carries as its `Scaffolding` argument:
 
 - `torus_face_region` and `ruled_face_region` pass `Scaffolding::Skipped`.
   They step over null scaffolding: an edge with no certified curve whose
   two ends are one point.
-- `sphere_face_region` (`crates/topo/src/boolean/sphere_region.rs`) passes
+- `sphere_face_region` (`crates/topo/src/sphere_region.rs`) passes
   `Scaffolding::Refused`. A face holding null scaffolding has no region,
   as if the edge were an uncertified gap.
 
