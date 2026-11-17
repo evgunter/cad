@@ -1378,3 +1378,18 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - the chamfer where `E` is off square to the odd edge.
 
   The other 26 sites map onto a tag or become an invariant. Draws: byte 84 → three designers, labels byte 211. They are weighing the fork concurrently and were given only the problem. Cut 3 resumes after Ev rules; the reach lane carries on.
+- 2026-11-17 — Three designers weighed the cut 3 fork (A Opus, B Fable, C Opus; first reports and every round are in `~/.local/share/cad-work/band-reviews/df-mixed/`). They reached a unanimous recommendation after five rounds:
+  - Curved-link mixed corners refuse `UnsupportedChain` on the arc, with the open-chain door's own sentence and the refreshed chain roster.
+  - A leaning `E` refuses a new `ObliqueMixedCorner` outside `UnbuiltEnd`. It covers both verbs, names the odd edge and gives the mixed-corner menu, and the oblique fillet moves off `SpineUnsupported`.
+  - There is no ninth tag.
+  - What decided it: all three designers ran every edge subset at the fixtures. The menu is false at the quarter-disc corner, half false at the bowed one, and true at the leaning one.
+
+  To Ev as `[ev]` PR 7058, with fork row 280's recommendation half. I settled the name `ObliqueMixedCorner` as naming. Cut 3 resumes on Ev's answer.
+
+  Off-question items for cut 3, from the designers:
+  - refresh `FILLET3_ASSEMBLY_RECOURSE` ("vertices of one convexity");
+  - mint the curved-link exit by calling the open-chain door's check, with an invariant if it finds none;
+  - the lone arc chamfered at a mixed vertex refuses corner-`Indeterminate` at a vertex that classified;
+  - `corner_at` passes the face count as the valence;
+  - `run_out_recourse` picks the recourse by matching the detail string;
+  - the dead `FILLET3_CORNER_RECOURSE` at the leaning corner's pair edges.
