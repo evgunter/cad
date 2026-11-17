@@ -2421,7 +2421,9 @@ impl MarginDiag {
 }
 
 /// One number of a reading as [`Readable`] renders it, a zero of
-/// either sign as `0`.
+/// either sign as `0`. Other crates carry the same one-line fold for
+/// reasons of their own and do not share it
+/// (`git grep '== 0.0 { 0.0 }'` lists the copies).
 fn readable_number(x: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     fmt::Display::fmt(&Readable(if x == 0.0 { 0.0 } else { x }), f)
 }

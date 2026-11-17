@@ -465,6 +465,11 @@ impl AngleUnit {
 
 /// Fold `-0.0` to `0.0` before hashing, so a hash never splits two
 /// values the IEEE equality above calls the same.
+///
+/// `doc.rs`'s `fold_zero` and `editor_core`'s
+/// `Distribution::fold_signed_zeros` state this same body for this same
+/// hash contract; other crates carry it for reasons of their own and do
+/// not share it (`git grep '== 0.0 { 0.0 }'` lists the copies).
 fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }

@@ -221,6 +221,11 @@ impl Distribution {
     ///
     /// EXHAUSTIVE on purpose: a new form, or a new field on one, must
     /// say how it folds or the compile breaks.
+    ///
+    /// The scalar body is copied, not shared: `pncad-py`'s `fold_zero`
+    /// states it for this same hash contract on a bare value, and other
+    /// crates carry it for reasons of their own
+    /// (`git grep '== 0.0 { 0.0 }'` lists the copies).
     pub fn fold_signed_zeros(self) -> Self {
         let f = |v: f64| if v == 0.0 { 0.0 } else { v };
         match self {

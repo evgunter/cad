@@ -4104,6 +4104,11 @@ impl DeclArg {
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
+///
+/// `quantity.rs`'s `fold_zero` and `editor_core`'s
+/// `Distribution::fold_signed_zeros` state this same body for this same
+/// hash contract; other crates carry it for reasons of their own and do
+/// not share it (`git grep '== 0.0 { 0.0 }'` lists the copies).
 pub(crate) fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
