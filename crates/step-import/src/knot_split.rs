@@ -10,15 +10,17 @@
 //!
 //! - **an edge carrier** is split at each such knot into its sub-arcs,
 //!   a new vertex at the knot's point;
-//! - **a face chart** is split along the knot's iso line into its two
-//!   sub-patches, the iso curve minted as the edge between them.
+//! - **a face chart** is split along the knot's iso line into the
+//!   pieces the line parts the face into, each on its side's sub-patch,
+//!   each run of the line inside the face minted as an edge between
+//!   them.
 //!
 //! Both splits are exact. At such a run the net already
 //! separates the two sub-nets: each child is a partition of the
 //! parent's knots, control points and weights, sharing the row (or the
 //! point) the spline interpolates at the knot, and no arithmetic is
-//! done. The minted iso edge is that shared row, so its carrier is
-//! bitwise both sub-patches' boundary column.
+//! done. A minted run of the line is carried by that shared row, so its
+//! carrier is bitwise both sub-patches' boundary column.
 //!
 //! Every split is reported as a [`StructureNormalization`], never done
 //! silently. A knot vertex is one the closing join keeps
@@ -27,7 +29,7 @@
 //! place ([`split_face_once`]) refuses typed rather than ship the
 //! crease.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
@@ -924,8 +926,17 @@ fn split_face_once(
         .all(|(&l, &h)| near(l, h));
     let up_is_low = sense != along_v;
     let w_domain = iso.knot_values().domain();
-    let line_carrier = Curve3::Nurbs(Arc::new(iso.clone()));
-    let line = Span::new(&line_carrier, w_domain);
+    // The line as the curve-pair reader reads it: a degree-one iso of
+    // two controls and equal weights is the line between them, on the
+    // same parameter, which the reader's table reads in closed form.
+    let reading = match (iso.control(), iso.weights()) {
+        ([a, b], [wa, wb]) if wa == wb => {
+            let dir = (*b - *a) / (w_domain.1 - w_domain.0);
+            Curve3::line(*a - dir * w_domain.0, dir)
+        }
+        _ => Curve3::Nurbs(Arc::new(iso.clone())),
+    };
+    let line = Span::new(&reading, w_domain);
     // The chart's side of a point and its coordinate along the line,
     // read at its foot, which must lie within the band of it.
     let foot = |p: Point3<f64>| -> Option<(f64, f64)> {
@@ -944,12 +955,12 @@ fn split_face_once(
     };
 
     // Read every boundary edge against the line before anything moves.
-    let mut uses_of: std::collections::BTreeMap<u64, usize> = std::collections::BTreeMap::new();
+    let mut uses_of: BTreeMap<u64, usize> = BTreeMap::new();
     for u in solid.faces[fi].loops.iter().flat_map(|l| &l.uses) {
         *uses_of.entry(u.edge).or_default() += 1;
     }
-    let mut on_line: std::collections::BTreeMap<u64, f64> = std::collections::BTreeMap::new();
-    let mut stand: std::collections::BTreeMap<u64, Stand> = std::collections::BTreeMap::new();
+    let mut on_line: BTreeMap<u64, f64> = BTreeMap::new();
+    let mut stand: BTreeMap<u64, Stand> = BTreeMap::new();
     let mut touches: Vec<f64> = Vec::new();
     let mut alongs: Vec<(f64, f64)> = Vec::new();
     // Each edge the line crosses inside it: the meetings `(t, point, w)`
@@ -1122,6 +1133,7 @@ fn split_face_once(
     // The runs of the line inside the face, each minted as an edge over
     // its stretch of the iso curve: that curve whole, so bitwise both
     // sub-patches' boundary column.
+    let line_carrier = Curve3::Nurbs(Arc::new(iso.clone()));
     let mut runs = Vec::with_capacity(crossings.len() / 2);
     for pair in crossings.chunks(2) {
         let [a, b] = [pair[0], pair[1]];
