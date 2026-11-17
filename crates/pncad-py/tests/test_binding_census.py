@@ -3923,6 +3923,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
+    "SplitError::ProductReadSevered": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::SpaceStraddlesCut": "SplitError.variant",
