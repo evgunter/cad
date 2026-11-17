@@ -4731,7 +4731,7 @@ pub(super) mod tests {
             let plane = super::CdtPlane::Lattice { metric };
             for (ax, ay) in [(0.1, 0.2), (3.0, -2.0), (1000.3, 500.1)] {
                 for len in [1.0, 1e-3] {
-                    for phi in [0.0f64, 0.3, 0.785, 1.2, 1.5707] {
+                    for phi in [0.0f64, 0.3, 0.8, 1.2, core::f64::consts::FRAC_PI_2] {
                         for t in [0.03, 0.5, 0.97] {
                             for k in 1..=15 {
                                 let h = len * 10f64.powi(-k);
