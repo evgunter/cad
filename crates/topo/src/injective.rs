@@ -6078,6 +6078,34 @@ mod presentation_rows {
         );
     }
 
+    /// **The guard's contradiction holds in every cell below it**: the
+    /// face of [`a_rectangle_its_own_clips_leave_no_width_refuses`], whose
+    /// extent claims `v ∈ [0, 1/2]` while it lies over `v ∈ [1/2, 3]`,
+    /// read in cells one split below the guarded one and wholly inside the
+    /// face. The extent is the face's, not the cell's, so a smaller cell
+    /// does not remove the contradiction; it only moves it past the guard.
+    /// Red while either cell reads the face as holding none of it.
+    #[test]
+    fn a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard() {
+        let s = cylinder();
+        let (q, h) = (core::f64::consts::FRAC_PI_2, core::f64::consts::PI);
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, h, (h, 0.5), (h, 3.0)),
+                rim(2, [2, 3], Axis::V, 3.0, (h, 3.0), (q, 3.0)),
+                rim(3, [3, 4], Axis::U, q, (q, 3.0), (q, 0.5)),
+                rim(4, [4, 1], Axis::V, 0.5, (q, 0.5), (h, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(q, h), (0.0, 0.5)]),
+        };
+        for v in [(0.5, 0.8), (1.0, 2.0)] {
+            let read = chart_near(&s, &b, &all(4), &[3], ((q + 0.2, h - 0.2), v));
+            assert_ne!(read, Read::Vacuous, "v ∈ {v:?} lies inside the face");
+        }
+    }
+
     /// A face whose extent is unknown has no sheet: a line on its
     /// periodic axis is not placed, so the face is not presented there
     /// rather than read on a guessed sheet.
