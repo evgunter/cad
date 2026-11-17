@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-11-16
 priority: P1
 cost: M
+design: true
 branch: tesslane/cone-axis-winding
 ---
 
@@ -65,3 +66,16 @@ Branch `tesslane/cone-axis-winding`, cut from `tesslane/lattice-clearance` (PR 7
 - **Done when** the nine cells mesh at every ε where the body builds and pass `check_mesh`, `validate::check_winding` and `reach_probes::geometry`; the row PR 7043 pinned (`a_cone_face_met_on_its_axis_refuses_unresolved_at_fine_delta`) is re-pinned as a mesh; a mutant that removes the cure reds it.
 - **What moves, argued.** Name every patch whose bytes move (a digest of every patch of the mesh suite on the base and on the head) and why each new mesh is right. A face that meshed on the base and now refuses, or a rectangle-lane or planar byte that moves, is a stop.
 - **Run what CI runs before every push**, and push at least hourly, work in progress included: `bash scripts/run-gates.sh`; `scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit`; fmt; clippy for mesh, geom-brep, `demos/tour` and the viewer job (`cargo clippy -p viewer --features app --all-targets -- -D warnings`); `cargo nextest run -p mesh` whole and the viewer's tests; the steps of the `mesh budget meter + certificate falsifier` job and of the `tools` job from `.github/workflows/ci.yml`; sweep's cone rows; the rows you add or change at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well, each stating what it expects at each. A test costing 0.5 s or more on the hosted runner goes in the slow set with its measured time.
+
+## Measured, and stopped (2026-11-17)
+
+The lane dispatched on the section above measured the triangle and stopped, as the section asks, because the cure has more than one defensible home. The section's premise was wrong: the face is not the chart lane's.
+
+- **The face is the rectangle lane's.** T1's refusing cone face is half the cone, chart box `u ∈ [π, 2π]`, `v ∈ [−2.4, 0]`, the apex row at `v = 0`, each side ruling split once at slant 1.039. A split side makes `bare_sides` false, so `curved::grid_counts`' cone arm keeps its lattice (17 columns by 11 rows at δ 5·10⁻³, 36 by 23 at 10⁻³): the arm of `a-cone-face-with-a-split-side-has-no-worst-triangle-theorem`. The paragraph "Not this branch's" above emulated the chart lane's cone arm, which never sees this face.
+- **The triangle.** Its corners are an apex copy, `(π, 0)` or `(2π, 0)`, and two lattice nodes of the first interior column, `(u₁, −j·hv)` and `(u₁, −(j+1)·hv)`. A triangle in the chart; in space three points of one ruling (the nodes' offsets from the apex are exactly one and two times one vector). No area by construction, at any δ.
+- **What makes it.** The lane triangulates in the raw chart. The side from the apex copy down to the split vertex is one constraint about 1.04 long with no point on it; the triangulation fans the apex copy down the column beside it to about mid-side, and every fan triangle that takes two nodes of that column is the one above. One a side at 17 columns, three or four at 36. A coarse δ meshes because the fan then reaches one node of the column.
+- **Not on a sphere, and not in the development.** A sphere's meridian is an arc, so the like triangle at a pole has area. In the chart lane's development the apex is one vertex and a ruling an exact line.
+- **How wide.** Over the whole mesh suite instrumented at the join, unresolved triangles occur only in T1's row. Off the suite: plain cones and cone wedges (quarter, half, three-quarter and full turn; half-angles 45° and about 80°), each ruling split at `{0.5}`, `{0.3129, 0.15645}` or `{0.9}`, placed obliquely, δ 0.1 to 0.001: **every cone face through its apex with a split ruling refuses `UnresolvedWinding` from δ 0.01 down, 84 cells**, the plainest a full revolved cone whose seam ruling is split at its midpoint. The 80° cone also refuses `CertificateExceeded` at many δ, and a face spanning both nappes at every δ when split. A ball and a sphere band: clean.
+- **Measured, with a temporary route of every cone face to the chart lane:** all 18 T1 cells mesh and pass `check_mesh` and the probes' geometry check, and so does every body of the second pass at every δ, the ones the rectangle lane refuses `CertificateExceeded` included.
+
+Where a class of rectangle faces is meshed, and what the kernel answers for it meanwhile, is a design question: three designers are weighing it (`docs/DESIGN-FORK-PROTOCOL.md`), and the unit resumes on their answer.
