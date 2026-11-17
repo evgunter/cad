@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-12
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -77,6 +78,20 @@ proof over the narrower windows (a sub-arc spanning the same end
 slices is the arc), or certify a narrower chain after the wide one, so
 each window's image is about its rung across. PR 6829's per-box
 narrowing toward a node is the same move for node arcs.
+
+## The fork
+
+Measured by the implementing lane (2026-11-16): a pad read off the
+certifying rung's windows is at least about one rung however the
+windows are cut (whole, per cell, per sub-span or per box), because the
+tube pads every window by the rung imaged across the carrier
+(pad/rung 1.10 on every rod at s = 0.01, 1 and 10). So the Remedy
+above cannot meet the done-when. The pad reads closeness off the
+region limb 3 uses for isolation, and never consults the partner.
+C2's carry sentence ("its pad the chart tube's windows imaged on the
+wall by its chart speeds", PR 6862) says exactly that, so a pad read
+another way changes it. How a rim arc's pad is bounded, and how far
+it is refined, is the decision.
 
 ## Done when
 
