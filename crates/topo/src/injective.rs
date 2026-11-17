@@ -84,6 +84,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::{Curve3, Surface};
+use geom_brep::PolygonOrientation;
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Margin, Point2, Point3, Real, Sign, Vec3};
 
@@ -285,6 +286,11 @@ pub(crate) struct Boundary {
 }
 
 impl Boundary {
+    /// How its loops wind in its chart.
+    fn orientation(&self) -> PolygonOrientation {
+        PolygonOrientation::of_face(self.sense)
+    }
+
     fn index(&self, key: EdgeKey) -> Option<usize> {
         self.edges.iter().position(|e| e.key == key)
     }
@@ -1100,17 +1106,32 @@ fn forward(u: &Use, iso: Iso) -> Option<f64> {
     }
 }
 
-/// Which side of an iso edge's line its face lies on, along the held
-/// axis: the face is to the left of its boundary about the outward
-/// normal, and the chart is positively oriented about `+(S_u × S_v)`.
-fn face_side(u: &Use, iso: Iso, sense: bool) -> Option<f64> {
+/// Which side of an iso edge's line its face lies on, as the sign of the
+/// held coordinate: `left` is the traversal's left in the chart, and the
+/// face lies there or opposite as its loop's `orientation` says.
+fn face_side(u: &Use, iso: Iso, orientation: PolygonOrientation) -> Option<f64> {
     let forward = forward(u, iso)?;
     let traversal = if u.plus { forward } else { -forward };
-    let side = match iso.held {
+    let left = match iso.held {
         Axis::V => traversal,
         Axis::U => -traversal,
     };
-    Some(if sense { side } else { -side })
+    Some(if orientation.interior_is_left() {
+        left
+    } else {
+        -left
+    })
+}
+
+/// A line edge's chart traversal `tau` turned a quarter toward its face:
+/// to its left where its loop's `orientation` puts the face there, else
+/// to its right.
+fn toward_face(tau: [Interval; 2], orientation: PolygonOrientation) -> [Interval; 2] {
+    if orientation.interior_is_left() {
+        [-tau[1], tau[0]]
+    } else {
+        [tau[1], -tau[0]]
+    }
 }
 
 /// The moving coordinate's range along a use, outer hull of its ends;
@@ -1623,7 +1644,7 @@ fn present_chart<'a>(
                 }
                 continue;
             }
-            let Some(sigma) = face_side(u, iso, b.sense) else {
+            let Some(sigma) = face_side(u, iso, b.orientation()) else {
                 return Err(unread(ei, near_edges));
             };
             // A line on a periodic axis whose sheet is unknown has no
@@ -2037,7 +2058,6 @@ fn present_plane<'a>(
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
     let b = piece.boundary;
-    let s = if b.sense { 1.0 } else { -1.0 };
     let edges: Vec<usize> = piece
         .local
         .edges
@@ -2092,7 +2112,6 @@ fn present_plane<'a>(
         let (p, q) = (chart(carrier.eval(*t0)), chart(carrier.eval(*t1)));
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
-    let rot = |a: [Interval; 2]| [-a[1] * at(s), a[0] * at(s)];
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
@@ -2100,7 +2119,7 @@ fn present_plane<'a>(
             }
             let (p, q) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
-            let bv = rot(a);
+            let bv = toward_face(a, b.orientation());
             let len2 = a[0].powi(2) + a[1].powi(2);
             let d = [cell_u - p.x, cell_v - p.y];
             let x = (d[0] * a[0] + d[1] * a[1]) / len2;
@@ -2169,8 +2188,8 @@ fn present_plane<'a>(
             let t2 = [q2.x - p2.x, q2.y - p2.y];
             let a = [far1.x - o.x, far1.y - o.y];
             let bv = [far2.x - o.x, far2.y - o.y];
-            let n1 = rot(t1);
-            let n2 = rot(t2);
+            let n1 = toward_face(t1, b.orientation());
+            let n2 = toward_face(t2, b.orientation());
             let lean = |n: [Interval; 2], w: [Interval; 2]| {
                 (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
             };
@@ -3103,7 +3122,8 @@ fn present_wall<'a>(
     }
     // Step 3: the face's side.
     let rising = w.sigma > 0.0;
-    let above = left_is_above(rising == u.plus, Axis::V) == piece.boundary.sense;
+    let above =
+        left_is_above(rising == u.plus, Axis::V) == piece.boundary.orientation().interior_is_left();
     if let Some(th) = &through {
         // The vertex is in `R`, on the lift read: its parameter among
         // the columns', its point within `R`'s `u` range.
@@ -3608,7 +3628,7 @@ fn present_line_corner<'a>(
     };
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
-    let sigma = face_side(ue, iso, b.sense).ok_or(Unpresented::Local)?;
+    let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Local)?;
     let [i0, i1] = ue.image.ok_or(Unpresented::Local)?;
     let (mlo, mhi) = moving.of(cell);
     let vm = iso.moving(if e.ends[0] == c.vertex { i0 } else { i1 });
@@ -3735,9 +3755,8 @@ fn present_plane_corner<'a>(
     } else {
         ((q, p), e.ends[1] == c.vertex)
     };
-    let s = at(if b.sense { 1.0 } else { -1.0 });
     let a = [q[0] - p[0], q[1] - p[1]];
-    let bv = [-a[1] * s, a[0] * s];
+    let bv = toward_face(a, b.orientation());
     let len2 = a[0].powi(2) + a[1].powi(2);
     let lin = |w: [Interval; 2]| {
         [
@@ -3900,12 +3919,9 @@ fn present_plane_vertex<'a>(
     };
     let (a, [vc, _]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
     let vc = [vc.x, vc.y];
-    // The face lies left of the line's traversal about the outward
-    // normal: its face side is the traversal turned a quarter, by sense.
     let start = if ue.plus { e.ends[0] } else { e.ends[1] };
-    let s = if b.sense { 1.0 } else { -1.0 };
     let tau = if start == v { a } else { a.map(|x| -x) };
-    let n = [-tau[1] * at(s), tau[0] * at(s)];
+    let n = toward_face(tau, b.orientation());
     let (t0, t1) = (span.0.lo(), span.1.hi());
     let from_start = o.ends[0] == v;
     let t_v = if from_start { t0 } else { t1 };
@@ -4306,7 +4322,8 @@ fn graph_read(
         return None;
     }
     // Step 3: the face's side.
-    let above = left_is_above(rising == plus, column) == piece.boundary.sense;
+    let above =
+        left_is_above(rising == plus, column) == piece.boundary.orientation().interior_is_left();
     if let Some(th) = through {
         // The vertex is in `R`, on the run read: its parameter in the
         // run's, and its point on the run's copy. The cell was widened to
@@ -4610,12 +4627,11 @@ fn only(piece: &Piece<'_>, local: &Local, edges: &[usize], vertices: &[VertexKey
     }) && local.vertices.iter().all(|v| vertices.contains(v))
 }
 
-/// **Which side of a graph its face lies on** ([`present_curved`]'s
-/// step 3), in a chart positively oriented about the outward normal
-/// (the sense bit reads it against the chart's): the face lies left of
-/// its traversal. Travel along the column axis is `forward` where the
-/// curve rises with its parameter and the loop runs it forward; the
-/// left of a forward `u` is `+v`, of a forward `v` is `−u`.
+/// **Whether a graph's traversal has its left above it** in the chart
+/// ([`present_curved`]'s step 3, which reads the face's side off this and
+/// [`PolygonOrientation::of_face`]). Travel along the column axis is
+/// `forward` where the curve rises with its parameter and the loop runs
+/// it forward; the left of a forward `u` is `+v`, of a forward `v` is `−u`.
 fn left_is_above(forward: bool, column: Axis) -> bool {
     match column {
         Axis::U => forward,
@@ -6063,12 +6079,12 @@ mod presentation_rows {
             harmonic: None,
         };
         assert_eq!(
-            face_side(&up, iso(Axis::U, 1.0), true),
+            face_side(&up, iso(Axis::U, 1.0), PolygonOrientation::of_face(true)),
             Some(-1.0),
             "v rising at u = 1: face below u"
         );
         assert_eq!(
-            face_side(&up, iso(Axis::U, 1.0), false),
+            face_side(&up, iso(Axis::U, 1.0), PolygonOrientation::of_face(false)),
             Some(1.0),
             "reversed sense"
         );
@@ -6080,7 +6096,7 @@ mod presentation_rows {
             harmonic: None,
         };
         assert_eq!(
-            face_side(&east, iso(Axis::V, 0.0), true),
+            face_side(&east, iso(Axis::V, 0.0), PolygonOrientation::of_face(true)),
             Some(1.0),
             "u rising at v = 0: face above v"
         );
@@ -6089,7 +6105,7 @@ mod presentation_rows {
             ..east
         };
         assert_eq!(
-            face_side(&back, iso(Axis::V, 0.0), true),
+            face_side(&back, iso(Axis::V, 0.0), PolygonOrientation::of_face(true)),
             Some(-1.0),
             "run backward"
         );
@@ -6101,7 +6117,7 @@ mod presentation_rows {
             harmonic: None,
         };
         assert_eq!(
-            face_side(&flat, iso(Axis::V, 0.0), true),
+            face_side(&flat, iso(Axis::V, 0.0), PolygonOrientation::of_face(true)),
             None,
             "no direction, no side"
         );

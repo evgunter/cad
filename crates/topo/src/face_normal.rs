@@ -1474,7 +1474,10 @@ mod tests {
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
     /// is keyed on `side`); a fold spelled as a `copysign`, a multiply
     /// by a `±1` local minted elsewhere, a `match` on the bool, or an
-    /// arm whose expression contains a `;` or a brace; a fold in
+    /// arm whose expression contains a `;` or a brace; a fold under a
+    /// [`geom_brep::PolygonOrientation`] the bit was read into, which is
+    /// the home of a chart-side sign and would hide a normal folded the
+    /// same way; a fold in
     /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
     /// walk does not enter; a macro body. The walk is over the source
     /// tree at test time, so a crate outside `crates/` is not seen.
@@ -1495,20 +1498,6 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
-            // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame: once each in
-            // `present_plane`, `present_plane_corner` and
-            // `present_plane_vertex`.
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            // A face's side of an iso edge's line, as the sign of the held
-            // chart coordinate.
-            ("crates/topo/src/injective.rs", "side"),
-            // The whole turn a face takes round a singular point of its
-            // chart, in periods: the side the azimuth advances on, as an
-            // integer (`pcurves::singular_turn`), a chart count, no normal.
-            ("crates/topo/src/pcurves/decision.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`
