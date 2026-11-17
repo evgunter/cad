@@ -1756,6 +1756,25 @@ fn shell_4s_vessel_holds() {
     }
 }
 
+/// **A drum's cavity whose cap is one plane in three faces holds**: the
+/// drum's cap ring is cut at half its radius
+/// (`common::latitude_seam::collinear_cap_drum`), and the axial door's
+/// cavity keeps it, a disc bounded by two half-circles of one circle,
+/// stored on opposite axes, between two half-annuli. No carrier
+/// separates the coplanar faces, and the circle's own plane is theirs;
+/// each half-annulus against the disc is certified by the graph
+/// separator, the disc read on through each vertex along its other
+/// half-circle. Red, `Uncertified` on the disc across a half-circle, if
+/// that corner is not read.
+#[test]
+fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
+    use crate::common::latitude_seam::{collinear_cap_drum, door_cavity};
+    let cavity = door_cavity(&collinear_cap_drum(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the drum's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// refuses typed at the vertices its walls share alone.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -1771,10 +1790,11 @@ fn shell_4s_vessel_holds() {
 /// no plane through the vertex separates them across. A plane's corner
 /// of a line and an arc at such a vertex is read as its quadrant, and a
 /// wall's is not, so those four pairs split to the floor and refuse
-/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
-/// halves against the mitre across its ellipse, refuse at the root. The
-/// verdict is `Uncertified { Departure }` naming a vertex — never
-/// certified, never measured by distance.
+/// there; the walls against each other at `(1, 0, 1)` refuse at the
+/// root. `A`'s wall halves against the mitre across its ellipse are
+/// certified: each face's corner of two arcs of that one ellipse is read
+/// on through the vertex. The verdict is `Uncertified { Departure }`
+/// naming a vertex — never certified, never measured by distance.
 #[test]
 fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone()
  {
@@ -1864,10 +1884,10 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 12,
-        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
-         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
-         wall not, refuse eight cells at the floor ({:?})",
+        report.receipt.refused, 10,
+        "two root pairs refuse: the walls against each other at a vertex alone; four plane–wall \
+         pairs at a vertex alone, the plane read and the wall not, refuse eight cells at the \
+         floor ({:?})",
         report.receipt
     );
     assert!(
