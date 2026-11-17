@@ -2,11 +2,12 @@
 id: a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face
 kind: unit
 title: A face's frame is built from the face and a cell off it, and an extrude's depth is signed
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
 parent: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
+blocked_on: [7073]
 ---
 
 
