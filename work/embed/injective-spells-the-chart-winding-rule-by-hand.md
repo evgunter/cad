@@ -43,19 +43,32 @@ a site stays, say on its census line why the home does not serve it.
 
 ## Landed (EMBED, lane embed/winding-rule, 2026-11-17)
 
-`injective.rs` reads the rule from its home at all six sites. `Boundary::orientation`
-is `PolygonOrientation::of_face(self.sense)`. `face_side` and the new
-`toward_face(tau, orientation)` take a `PolygonOrientation` rather than the bit;
-`toward_face` is the one quarter-turn, toward the chart side `interior_is_left()`
-names, and `present_plane` (both arms), `present_plane_corner` and
-`present_plane_vertex` call it. The two `left_is_above` sites compare with
-`orientation().interior_is_left()`. `pcurves::singular_turn` reads the same home
-(CHARTTAIL's `singular-turn-spells-the-chart-winding-rule-by-hand`, first half).
-The census's four `injective.rs` entries and the `pcurves/decision.rs` entry are
-struck, and its blind-spot list names a fold under a `PolygonOrientation`.
+`injective.rs` reads the rule from its home at all six sites, and the home
+answers the folded forms itself:
 
-Mutants (the home's answer flipped at one site, `topo` under the `ci` profile):
-every one of the nine reddens `injective::presentation_rows` or, for
-`singular_turn`, `pcurves::pole_slit_tests` and `lift_rows`; the two-line corner
-arm of `present_plane` reddens only
-`clearance::wiring_rows::the_verdict_door_answers_at_every_certifying_scalar`.
+- **The home's new methods:** `PolygonOrientation::to_interior(left)` takes a
+  signed value read on a traversal's left to the region's side.
+  `interior_is_on(left_is_on)` says whether a side holds the region.
+- **The bit's one conversion:** `Boundary::orientation()` is
+  `of_face(self.sense)`.
+- **`face_side` and `toward_face`** take the orientation, not the bit.
+- **The turn:** the left-of-traversal turn is one function, `left_turn`. It is read
+  by `toward_face` (on interval arrays: a line edge's in-face normal, at
+  `present_plane`'s two arms, `present_plane_corner` and `present_plane_vertex`),
+  by `face_side` (on an iso edge's axis) and by `left_is_above` (as a boolean).
+- **`present_wall` and `graph_read`** read `interior_is_on(left_is_above(…))`.
+- **`pcurves::singular_turn`** reads `to_interior` (CHARTTAIL's row, first
+  half).
+
+The census struck its four `injective.rs` entries and the `pcurves/decision.rs`
+entry, and it now keys on `interior_is_left` too. The one fold that change
+newly sees, `mesh::walk::wrap_strip`, is sanctioned against ONECOPY's
+`polygon-orientation-callers-fold-the-interior-side-by-hand`. The 2-D quarter
+turn's own home is ONECOPY's `the-chart-quarter-turn-has-no-home`.
+
+A new row, `a_planes_reflex_corner_of_two_lines_is_not_its_wedge`, holds
+`present_plane`'s two-line arm in the direction that would certify wrongly.
+Before it, deleting that arm's lean gate turned no topo test red.
+
+Mutants (the home's answer flipped at one site, `topo` under the `ci` profile)
+are listed in the PR. Every site turns rows red.

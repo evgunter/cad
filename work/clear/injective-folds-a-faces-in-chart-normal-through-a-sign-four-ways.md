@@ -50,10 +50,15 @@ scalar at each point of use.
 
 ## Routed (EMBED, lane embed/winding-rule, 2026-11-17)
 
-The same six sites are EMBED's `injective-spells-the-chart-winding-rule-by-hand`.
-That unit gave the quarter-turn one door, `toward_face(tau, orientation)`, which
-turns a chart direction to the side `PolygonOrientation` names; `face_side` takes
-the orientation too, the two `left_is_above` sites compare with
-`interior_is_left()`, and `singular_turn` reads the same home. The census's four
-`injective.rs` entries and the `pcurves/decision.rs` one are struck. Nothing this
-row asks for is left.
+The same six sites are EMBED's `injective-spells-the-chart-winding-rule-by-hand`,
+done in PR 7071:
+
+- **The orientation:** each site reads the side from
+  `geom_brep::PolygonOrientation`. The home answers the folded forms itself
+  (`to_interior`, `interior_is_on`), so no site in `injective.rs` negates a value
+  under the bit or under `interior_is_left`.
+- **The turn:** the left-of-traversal turn is one function, `left_turn`. It is read
+  by `toward_face` (a line edge's in-face normal), `face_side` (an iso edge's side
+  on its held axis) and `left_is_above` (a graph's side as a boolean).
+- **The census:** its four `injective.rs` entries are struck, and it now also keys
+  on `interior_is_left`.
