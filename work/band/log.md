@@ -1423,3 +1423,14 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - `|n·τ|` turned into an invariant deferring to predicate 6.
 
   All seven witnesses build. It found and corrected the bracket's real limit, which is 1/4, not 1/6. The lane commits are clean of trailers. Two concurrent Opus reviews are running on the frozen head, with no experiment arm.
+- 2026-11-17 — Both 7078 reviews (Opus, run concurrently) came back APPROVE WITH FIXES with no MAJOR. Their randomized probes, about 3,100 between them, found no false clear, and both agree the containment argument holds.
+
+  Bilateral findings:
+  - "exactly the material the patch changes" over-claims air that stays air, so islands about 3% clear refuse;
+  - `cover-kind-match` was met by re-spelling the torus box rather than moving it to `Cover::torus`;
+  - a leftover probe test;
+  - CI never runs the new slow rows at 1e-6 or 1e-12.
+
+  Unilateral (B): the turned-body 3% false refusal is pinned as required, and `replaces` is not isolated by any test.
+
+  The fix pass resumed the implementer with the union (`fix-reach.md`).
