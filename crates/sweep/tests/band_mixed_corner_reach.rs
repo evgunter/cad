@@ -31,6 +31,7 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, validate_geometric};
 
+use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
 use crate::band_mixed_corner::{
     Scalar, boreless, chamfer_flush, edge, every_edge, fillet_flush, flush_at, inset, l_corner,
     l_prism, realized_at, seams, tol, volume,
@@ -243,14 +244,21 @@ fn the_short_and_close_witnesses_build<T: Scalar>() {
     }
     let (body, edges) = inset_boss::<T>(0.25);
     for verb in VERBS {
+        let what = "an inset boss 0.25 tall";
+        // The inset fillet's sections escalate their shared row's touch
+        // at the tightest Interval row, as every mixed rim's does
+        // (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`),
+        // past the reach.
+        if tightest_interval::<T>() && matches!(verb, Verb::Fillet) {
+            let got = verb.run(&body, &edges, S);
+            let e = got
+                .err()
+                .unwrap_or_else(|| panic!("{what}: escalates at Interval at 1e-12"));
+            assert_touch_escalation(what, &e);
+            continue;
+        }
         let truth = -verb.flush(S, (0.25, 1.0, 1.0));
-        builds(
-            &body,
-            &edges,
-            (verb, S),
-            (truth, 1),
-            "an inset boss 0.25 tall",
-        );
+        builds(&body, &edges, (verb, S), (truth, 1), what);
     }
 }
 
@@ -563,5 +571,22 @@ fn a_turned_and_moved_mixed_corner_reads_as_it_does_in_place() {
                 builds(&body, &edges, (verb, S), (truth, 2), &what);
             }
         }
+    }
+}
+
+#[test]
+#[ignore = "lane probe"]
+fn zz_inset_interval_probe() {
+    for h in [1.0, 0.5, 0.25] {
+        let (body, edges) = inset_boss::<Interval>(h);
+        for verb in VERBS {
+            let got = verb.run(&body, &edges, S);
+            println!("PROBE inset {h} {verb:?}: {:?}", got.as_ref().map(|_| ()));
+        }
+    }
+    let (body, edges) = inset::<Interval>();
+    for verb in VERBS {
+        let got = verb.run(&body, &edges, S);
+        println!("PROBE inset() {verb:?}: {:?}", got.as_ref().map(|_| ()));
     }
 }
