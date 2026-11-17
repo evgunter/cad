@@ -1132,12 +1132,36 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
             .collect();
         (doc, all)
     };
-    let scenes: [(&str, &dyn Fn() -> Scene); 5] = [
+    // The product reads a subset of the world's copies: one cut copy of
+    // two, and a `⊔` of a kept copy and one cut copy.
+    let product_of_one = || -> Scene {
+        let (doc, [_c, a, b]) = three_pinned(&p, "r1-product-of-one");
+        let copy = doc.output(a, 0).expect("a copy");
+        let (doc, _) = step(doc, product(editor_core::Operand::Var(copy)));
+        (doc, vec![a, b])
+    };
+    let product_of_a_subset = || -> Scene {
+        let (doc, [c, a, b]) = three_pinned(&p, "r1-product-of-a-subset");
+        let (doc, group) = insert(
+            doc,
+            Node::Assemble {
+                members: editor_core::Bodies::Spelled(vec![c.into(), a.into()]),
+            },
+        );
+        let (doc, _) = step(doc, product(editor_core::Operand::Node(group)));
+        (doc, vec![a, b])
+    };
+    let scenes: [(&str, &dyn Fn() -> Scene); 7] = [
         ("one placed pair", &one_pair),
         ("a lone pinned instance", &lone),
         ("a pair at a parametric pin", &parametric),
         ("two pinned instances beside a pair", &pins_beside_a_pair),
         ("plain geometry on the world", &plain),
+        ("a product reading one of the cut copies", &product_of_one),
+        (
+            "a product reading a subset of the world copies",
+            &product_of_a_subset,
+        ),
     ];
     for (shape, scene) in scenes {
         let (doc, ids) = scene();
@@ -1181,4 +1205,248 @@ fn r1_a_cut_whose_placements_a_kept_one_separates_round_trips() {
         "the kept placement, then the cut's in their order"
     );
     round_trip(&flat, &[map[&x], map[&z]], &p, "the regrouped document");
+}
+
+// ---- The product slot is a seat ----
+//
+// D10 `[operations]`: being the product is a use, and the slot reads its
+// body as a node's body seat does (A4, A10). Split, inline and flatten
+// re-point it where they take what it reads.
+
+/// Three instances pinned to the world apart, `c`, `a` and `b` in that
+/// order, the product the fixture's `⊔` of their copies.
+fn three_pinned(p: &Parts, label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, c) = pinned_at(doc, p.top, [30.0, 8.0, 0.0], &o);
+    let (doc, a) = pinned_at(doc, p.base, [2.0, 8.0, 4.5], &o);
+    let (doc, b) = pinned_at(doc, p.top, [16.0, 8.0, 0.0], &o);
+    (doc, [c, a, b])
+}
+
+fn product(read: editor_core::Operand) -> DocEdit<editor_core::ProfileProgram> {
+    DocEdit::SetProduct {
+        product: Some(read),
+    }
+}
+
+/// The `⊔` nodes `doc` holds.
+fn assembles(doc: &ProfileDoc) -> usize {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Assemble { .. })))
+        .count()
+}
+
+/// **A product reading one of several cut copies keeps reading it**: the
+/// product `a`'s copy, the cut `{a, b}`. The remainder's product is a
+/// pick of the instance's copy, the piece `a` is, so split-then-evaluate
+/// delivers `a` alone, and the round trip is the document.
+///
+/// *Breaks if* the slot is re-pointed to the instance's copy whole: it
+/// then delivers `b` too, and inline-then-flatten leaves the part's `⊔`
+/// as a node `d` never held.
+#[test]
+fn a_product_reading_one_cut_copy_is_split_to_its_piece() {
+    let p = parts("product-of-one");
+    let o = p.opts();
+    let (doc, [_c, a, b]) = three_pinned(&p, "product-of-one");
+    let copy = doc.output(a, 0).expect("a copy");
+    let (doc, _) = step(doc, product(editor_core::Operand::Var(copy)));
+    let out = round_trip(&doc, &[a, b], &p, "a product of one cut copy");
+    let copies = out.remainder.output(out.instance, 0).expect("its copy");
+    let read = out
+        .remainder
+        .product()
+        .expect("the remainder has a product");
+    assert!(
+        out.remainder
+            .pick(read)
+            .is_some_and(|pick| pick.placement == copies),
+        "the remainder's product picks the instance's copy"
+    );
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    same_extent(
+        extent(&out.remainder, &with_resolver(store)),
+        extent(&doc, &o),
+        "split-then-evaluate delivers `a` alone",
+    );
+}
+
+/// **A cut `⊔` of exactly the cut's world copies is the part's product**:
+/// `G = a ⊔ b` the product, the cut `{a, b, G}`. The part holds one `⊔`,
+/// `G`'s carry, which is its product; the remainder's product is the
+/// instance's copy whole; and the round trip is the document.
+///
+/// *Breaks if* split mints a second `⊔` beside `G`: inline-then-flatten
+/// then keeps it as a node `d` never held.
+#[test]
+fn a_cut_assemble_of_the_cut_copies_is_the_parts_product() {
+    let p = parts("product-held");
+    let o = p.opts();
+    let (doc, [_c, a, b]) = three_pinned(&p, "product-held");
+    let (doc, group) = insert(
+        doc,
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        },
+    );
+    let (doc, _) = step(doc, product(editor_core::Operand::Node(group)));
+    let out = round_trip(&doc, &[a, b, group], &p, "a cut product `⊔`");
+    assert_eq!(assembles(&out.part), 1, "the part holds one `⊔`");
+    assert_eq!(
+        out.part.product(),
+        out.part.output(out.node_map[&group], 0),
+        "the part's product is the cut `⊔`"
+    );
+    assert_eq!(
+        out.remainder.product(),
+        out.remainder.output(out.instance, 0),
+        "the remainder's product is the instance's copy whole"
+    );
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    same_extent(
+        extent(&out.remainder, &with_resolver(store)),
+        extent(&doc, &o),
+        "split-then-evaluate delivers `a ⊔ b`",
+    );
+}
+
+/// **A host product reading a pick of an instance's copy stays that
+/// piece through inline and flatten**: a part of two bases, its product
+/// their `⊔`; a host instance of it at the identity, the host's product
+/// a pick of the first base's piece. Inline re-points the slot to a pick
+/// of the new placement's copy, and flatten to the spliced base's copy
+/// itself, deleting the `⊔` nothing reads; each delivers the first base
+/// alone.
+///
+/// *Breaks if* inline re-points the slot to the copy whole (both bases),
+/// or flatten leaves it reading the spliced `⊔`.
+#[test]
+fn a_host_product_picking_an_instance_piece_survives_inline_and_flatten() {
+    let p = parts("product-pick-host");
+    let (sub, first) = two_pinned(&p, "product-pick-host-part");
+    let sub = crate::fixture::assemble_world_copies(sub);
+    let piece = sub.output(first, 0).expect("the first base's copy");
+    let mut store = p.store.clone();
+    let sub_ref = store.insert(sub, Tol::witness());
+    let o = with_resolver(store.clone());
+    let doc = ProfileDoc::empty(DocumentId::derive("product-pick-host"), Tol::witness());
+    let (doc, h) = instance(doc, sub_ref, &o);
+    let copies = doc.output(h, 0).expect("the instance's copy");
+    let (doc, _) = step(
+        doc,
+        product(editor_core::Operand::pick(
+            editor_core::Operand::Var(copies),
+            vec![piece],
+        )),
+    );
+    let before = extent(&doc, &o);
+    let back = inline(&doc, h, &store);
+    let placed = back
+        .doc
+        .output(back.placement, 0)
+        .expect("the placement's copy");
+    let read = back.doc.product().expect("a product");
+    assert!(
+        back.doc
+            .pick(read)
+            .is_some_and(|pick| pick.placement == placed),
+        "inline: the product picks the new placement's copy"
+    );
+    same_extent(
+        extent(&back.doc, &o),
+        before,
+        "inline delivers the first base alone",
+    );
+    let flat = editor_core::flatten(&back.doc, back.placement, Tol::witness())
+        .expect("the identity placement flattens")
+        .doc;
+    let read = flat.product().expect("a product");
+    assert!(
+        flat.pick(read).is_none()
+            && flat
+                .operation_of(read)
+                .is_some_and(|at| matches!(flat.node(at), Some(Node::InstantiatePart { .. }))),
+        "flatten: the product reads the spliced base's copy itself"
+    );
+    assert_eq!(assembles(&flat), 0, "flatten deletes the `⊔` nothing reads");
+    same_extent(
+        extent(&flat, &o),
+        before,
+        "flatten delivers the first base alone",
+    );
+}
+
+/// **The product slot reads as a node's body seat does** (VR2): a pick
+/// written at it is minted as an anonymous variable the slot alone
+/// reads, one whose path picks no piece is refused, and an anonymous
+/// variable a node reads already is refused as shared until it is
+/// named.
+#[test]
+fn the_product_slot_reads_a_pick_and_shares_no_anonymous_variable() {
+    let p = parts("product-seat");
+    let (doc, [_c, a, _b]) = three_pinned(&p, "product-seat");
+    let group = doc.product().expect("the fixture's `⊔`");
+    let copy = |doc: &ProfileDoc, of: RecipeNodeId| doc.output(of, 0).expect("a copy");
+    // A copy of the fixture's `⊔`, placed in the world, holds its pieces.
+    let (doc, placed) = insert(
+        doc,
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(
+            group,
+        ))),
+    );
+    let whole = copy(&doc, placed);
+    let (picked, _) = step(
+        doc.clone(),
+        product(editor_core::Operand::pick(
+            editor_core::Operand::Var(whole),
+            vec![copy(&doc, a)],
+        )),
+    );
+    let read = picked.product().expect("a product");
+    assert!(
+        picked.pick(read).is_some() && picked.var_name(read).is_none(),
+        "the slot reads an anonymous pick"
+    );
+    assert_eq!(
+        picked.reader_counts().get(&read).copied(),
+        Some(1),
+        "the slot is its one reader"
+    );
+    let stray = doc
+        .apply(
+            &product(editor_core::Operand::pick(
+                editor_core::Operand::Var(whole),
+                vec![whole],
+            )),
+            Tol::witness(),
+        )
+        .expect_err("a path naming no operand of the `⊔` picks nothing");
+    assert!(
+        matches!(
+            stray,
+            editor_core::EditError::ProductRead {
+                fault: editor_core::ProductReadFault::Path { at: Some(0) },
+                ..
+            }
+        ),
+        "{stray}"
+    );
+    // The placement's source seat reads an anonymous source already.
+    let Some(Node::Place { source, .. }) = doc.node(placed) else {
+        panic!("a placement")
+    };
+    let shared = doc
+        .apply(
+            &product(editor_core::Operand::Var(source.read)),
+            Tol::witness(),
+        )
+        .expect_err("a second reader of an anonymous variable");
+    assert!(
+        matches!(shared, editor_core::EditError::SharedVarNeedsName { .. }),
+        "{shared}"
+    );
 }

@@ -5335,8 +5335,10 @@ fn write_product(
         .and_then(|var| doc.operation_of(var))
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
-            doc.output(at, 0)
-                .is_some_and(|read| !doc.reader_counts().contains_key(&read))
+            doc.output(at, 0).is_some_and(|read| {
+                let readers = doc.reader_counts().get(&read).copied().unwrap_or(0);
+                readers <= usize::from(doc.product() == Some(read))
+            })
         });
     if let Some(id) = held {
         run.apply(DocEdit::SetProduct { product: None })?;

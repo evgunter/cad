@@ -9533,10 +9533,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             tol,
         )?),
         DocEdit::SetProduct { product } => {
-            new.product = product
+            let read = product
                 .as_ref()
                 .map(|read| product_read(new, read))
                 .transpose()?;
+            new.product = read;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -10041,6 +10042,13 @@ pub enum ProductReadFault {
         /// The space it is in.
         space: Box<crate::spoken::SpokenSpace>,
     },
+    /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
+    /// rule).
+    Path {
+        /// The step that names no piece, `None` where the read is no
+        /// copy or the path is empty.
+        at: Option<usize>,
+    },
 }
 
 impl core::fmt::Display for ProductReadFault {
@@ -10053,21 +10061,36 @@ impl core::fmt::Display for ProductReadFault {
                 crate::sentence::article(&found.to_string())
             ),
             Self::Space { space } => write!(f, "its body is in {space}, not the world"),
+            Self::Path { at: Some(at) } => write!(
+                f,
+                "it picks no piece: step {} of its path names no one operand of the assemble \
+                 the walk reaches",
+                at + 1
+            ),
+            Self::Path { at: None } => {
+                f.write_str("it picks no piece: it reads no placement's copy, or its path is empty")
+            }
         }
     }
 }
 
 /// **The body a `SetProduct` read names**, held to be a `Body` in the
-/// world ([`EditError::ProductRead`]).
+/// world ([`EditError::ProductRead`]). The slot reads its body as a
+/// node's body seat does: a node, a port or a variable by id or name is
+/// itself, and a pick or a source written in place is minted as an
+/// anonymous variable the slot alone reads (VR2), a pick's path walked
+/// as a seat's is ([`pick_fault`]) and a source lowered as a declared
+/// one is (VR4). A plain read of a source is that source, shared.
 fn product_read<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
+    doc: &mut Doc<P>,
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
     let refused = |fault| EditError::ProductRead {
         read: Box::new(read.clone()),
         fault,
     };
-    let var = match read {
+    // A body named in place: the forms that mint nothing.
+    let named = |doc: &Doc<P>, read: &crate::Operand| match read {
         crate::Operand::Node(id) => match doc.seat_outputs(*id, false).as_slice() {
             [one] => Some(*one),
             _ => None,
@@ -10079,6 +10102,34 @@ fn product_read<P: crate::ProfilePayload>(
         | crate::Operand::Pose(_)
         | crate::Operand::Pick { .. }
         | crate::Operand::Source(_) => None,
+    };
+    let var = match read {
+        crate::Operand::Pick { placement, of } => {
+            let copy = named(doc, placement)
+                .filter(|&var| doc.unresolved_read(var).is_none())
+                .ok_or_else(|| refused(ProductReadFault::Unresolved))?;
+            if let Some(at) = pick_fault(doc, copy, of) {
+                return Err(refused(ProductReadFault::Path { at }));
+            }
+            Some(mint_anonymous(
+                doc,
+                WrittenDef::Pick(crate::var::Pick {
+                    placement: copy,
+                    of: of.clone(),
+                }),
+            )?)
+        }
+        crate::Operand::Source(body) => {
+            match named(doc, &body.read).filter(|&var| doc.source(var).is_some()) {
+                Some(source) if !body.is_indexed() => Some(source),
+                _ => {
+                    let spoken = SpokenVar::new(doc.mint.would_declare(VarKind::Body), None);
+                    let def = lower_source_decl(doc, &Lowering::none(), &spoken, body)?;
+                    Some(mint_anonymous(doc, def)?)
+                }
+            }
+        }
+        _ => named(doc, read),
     }
     .filter(|&var| doc.unresolved_read(var).is_none())
     .ok_or_else(|| refused(ProductReadFault::Unresolved))?;

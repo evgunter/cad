@@ -1344,13 +1344,9 @@ pub fn assemble_world_copies_edits(
         .and_then(|var| doc.operation_of(var))
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
-            let var = doc.output(at, 0);
-            !doc.ids().into_iter().any(|id| {
-                doc.node(id).is_some_and(|node| {
-                    node.operand_rows()
-                        .into_iter()
-                        .any(|(_, read)| Some(read) == var)
-                })
+            doc.output(at, 0).is_some_and(|var| {
+                let readers = doc.reader_counts().get(&var).copied().unwrap_or(0);
+                readers <= usize::from(doc.product() == Some(var))
             })
         });
     // A product already the world's copies is kept as it is, so a

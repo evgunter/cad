@@ -122,8 +122,8 @@ pub enum ProductError {
     /// wrong. The reading is [`ProductErrorKind::means_no_body`]'s.
     EmptyProduct,
     /// **A product read whose body is gone** (D10): the slot reads what
-    /// no live operation defines, which the gather refuses rather than
-    /// skip.
+    /// no live operation defines, or a pick whose path reaches no piece
+    /// of its copy, which the gather refuses rather than skip.
     StrandedProduct {
         /// The read.
         read: crate::VarId,
@@ -1094,6 +1094,9 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
         return Err(m.into());
     }
+    if doc.pick(var).is_some() {
+        return gather_pick(doc, evaluation, tol, var);
+    }
     // The recipe's own refusal, before any value is read: a read whose
     // body is gone is absent, which is never skipped.
     let Some((node, port)) = doc
@@ -1171,6 +1174,114 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         tol,
     );
     Ok(product)
+}
+
+/// **The product a pick reads** ([`crate::VarDef::Pick`]): the piece its
+/// path reaches in its copy's value, standing where its holder stands,
+/// gathered as a body read whole is — its bodies (a family's each at its
+/// place), its names, and what it carries. A pick whose copy is gone, or
+/// whose path reaches no piece (a path into an instance's part, which the
+/// edit door does not walk), reads no body.
+fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    var: crate::VarId,
+) -> Result<Product<T>, ProductError> {
+    if doc.space_of(var).is_none() {
+        return Err(ProductError::StrandedProduct { read: var });
+    }
+    let piece = picked(doc, evaluation, var)?;
+    let carry = &piece.carry;
+    let kept = carry
+        .census
+        .as_ref()
+        .and_then(|census| census.records(doc, tol));
+    let node = doc
+        .operation_of(var)
+        .unwrap_or_else(|| unreachable!("a pick that reached a piece reads a live copy"));
+    let sources = piece
+        .bodies
+        .iter()
+        .enumerate()
+        .map(|(i, body)| {
+            let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
+                .unwrap_or_else(|e| unreachable!("piece body {i} outlived its place refusal: {e}"));
+            let member = carry.member(i);
+            let kept = match &carry.members {
+                Some(_) => member
+                    .census
+                    .as_ref()
+                    .and_then(|census| census.records(doc, tol)),
+                None => kept.clone(),
+            };
+            Source {
+                node,
+                var,
+                ix,
+                body: body.clone(),
+                table: Arc::clone(&piece.table),
+                contacts: kept.unwrap_or_else(|| Arc::clone(&member.contacts)),
+                rows: Arc::clone(&member.findings),
+                censused: member.censused,
+            }
+        })
+        .collect();
+    let mut product = gather_sources(doc, tol, sources)?;
+    product.pieces = carry.pieces.clone();
+    product.parts = carry.parts;
+    product.document = doc.id();
+    product.gap_assertions = crate::checks::at_rest::gap_assertions(
+        doc,
+        evaluation,
+        &product.body,
+        &product.names,
+        &product.copies,
+        tol,
+    );
+    Ok(product)
+}
+
+/// **The piece the pick `var` reads**, walked from its copy's value — or,
+/// for a pick of a pick, from the piece the inner pick reads — by its
+/// path ([`crate::eval::Pieces::piece`]).
+fn picked<'e, P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &'e Evaluation<T>,
+    var: crate::VarId,
+) -> Result<&'e crate::eval::Piece<T>, ProductError> {
+    let stranded = || ProductError::StrandedProduct { read: var };
+    let Some(pick) = doc.pick(var) else {
+        unreachable!("asked of a pick")
+    };
+    let mut pieces = match doc.pick(pick.placement) {
+        Some(_) => picked(doc, evaluation, pick.placement)?
+            .carry
+            .pieces
+            .as_deref(),
+        None => {
+            let node = doc
+                .defined_by(pick.placement)
+                .map(|(node, _)| node)
+                .filter(|&node| doc.node(node).is_some())
+                .ok_or_else(stranded)?;
+            evaluation
+                .usable(node)
+                .map_err(ProductError::Read)?
+                .carry
+                .pieces
+                .as_deref()
+        }
+    };
+    let mut reached = None;
+    for &step in &pick.of {
+        let piece = pieces
+            .and_then(|held| held.piece(step))
+            .ok_or_else(stranded)?;
+        pieces = piece.carry.pieces.as_deref();
+        reached = Some(piece);
+    }
+    reached.ok_or_else(stranded)
 }
 
 /// One grafted source: the source, its graft's key bridge, and its body

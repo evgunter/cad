@@ -276,15 +276,19 @@ fn live<P: crate::ProfilePayload>(
     Ok(Some(now))
 }
 
-/// [`live`], where only a whole body can be written: `reader`'s `seat`.
+/// [`live`], where only a whole body can be written: `at`, a reader's
+/// seat, or the product slot where `None`.
 fn live_whole<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     dead: &Dead,
     var: VarId,
-    (reader, seat): (RecipeNodeId, OperandSlot),
+    at: Option<(RecipeNodeId, OperandSlot)>,
 ) -> Result<Option<VarId>, SpliceFault> {
     match live(doc, dead, var)? {
-        Some(now) if now.is_member() => Err(SpliceFault::MemberAtSeat { reader, seat }),
+        Some(now) if now.is_member() => Err(match at {
+            Some((reader, seat)) => SpliceFault::MemberAtSeat { reader, seat },
+            None => SpliceFault::MemberAtProduct,
+        }),
         now => Ok(now.map(|now| now.read)),
     }
 }
@@ -346,12 +350,13 @@ impl Carries for CarryBack<'_> {
 /// back ([`carried_back`]); `None` where a read it holds continues to
 /// nothing, or is a named read (shared, so not this reader's to
 /// rewrite) that reaches a deleted operation. `at` is the reader and the
-/// seat holding `read`, which writes a whole body.
+/// seat holding `read`, `None` for the product slot, which writes a whole
+/// body.
 fn handed<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     dead: &Dead,
     read: &Operand,
-    at: (RecipeNodeId, OperandSlot),
+    at: Option<(RecipeNodeId, OperandSlot)>,
 ) -> Result<Option<Operand>, SpliceFault> {
     let touches = |var: VarId| {
         doc.read_ports(var)
@@ -609,7 +614,7 @@ fn hand<P: crate::ProfilePayload>(
                     })
                 }
             },
-            None => handed(doc, dead, &doc.written_operand(var), (n, seat))?
+            None => handed(doc, dead, &doc.written_operand(var), Some((n, seat)))?
                 .map(|read| Seat { read, at: None }),
         };
         match rewritten {
@@ -819,18 +824,15 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
     if let Some(fault) = fault {
         return Err(fault);
     }
-    if let Some(product) = doc.product()
-        && doc
-            .operation_of(product)
-            .is_some_and(|op| dead.contains_key(&op))
-        && let Some(now) = live(doc, &dead, product)?
-    {
-        if now.is_member() {
-            return Err(SpliceFault::MemberAtProduct);
+    if let Some(product) = doc.product() {
+        let written = doc.written_operand(product);
+        if let Some(read) = handed(doc, &dead, &written, None)?
+            && read != written
+        {
+            edits.push(DocEdit::SetProduct {
+                product: Some(read),
+            });
         }
-        edits.push(DocEdit::SetProduct {
-            product: Some(Operand::Var(now.read)),
-        });
     }
     let (redefined, sources) = source_handovers(doc, &dead)?;
     edits.extend(redefined);
