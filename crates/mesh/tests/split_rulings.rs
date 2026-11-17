@@ -415,3 +415,140 @@ fn holds_everywhere(what: &str, split: &Body<f64>, solid: &Body<f64>, deltas: &[
         holds_the_count_relation(what, split, solid, delta);
     }
 }
+
+/// A D-shaped prism: an arc of `angle` radians on a chord of length 1 in
+/// the `xy` plane, closed by the chord, extruded 1 along `z`.
+fn d_prism(angle: f64) -> Body<f64> {
+    use profile::test_support::bulge_loop;
+    use profile::{Profile, SketchPlane};
+    use sweep::{ExtrudeSide, Extrusion, extrude};
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), (angle / 4.0).tan()),
+        (Point2::new(1.0, 0.0), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy_at(Point3::origin()), vec![lp.into()])
+        .validate(tol())
+        .unwrap();
+    let depth = 1.0;
+    let side = ExtrudeSide::Along;
+    extrude(&profile, Extrusion::Distance { depth, side }, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// The cylinder wall's outer face cut along a second ruling `angle`
+/// round from its seam (`mef`): two cylinder faces, a narrow one and a
+/// wide one, each holding both of the other's straight sides.
+fn banded(angle: f64) -> Body<f64> {
+    let mut body = turned(
+        &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+        Revolution::Full,
+    );
+    let (face, _) = body
+        .faces()
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { radius, .. }) if *radius > 1.5)
+        })
+        .expect("the outer wall");
+    let rims: Vec<topo::EdgeKey> = body
+        .edges()
+        .filter(|(ek, _)| {
+            !is_line(&body, *ek)
+                && body
+                    .half_edges()
+                    .any(|(h, he)| he.edge == *ek && body.face_of_half_edge(h) == Some(face))
+        })
+        .map(|(ek, _)| ek)
+        .collect();
+    assert_eq!(rims.len(), 2, "the outer wall's two rims");
+    let mut stations = Vec::new();
+    for rim in rims {
+        let t = at(&body, rim, 0.0) + angle;
+        stations.push(body.split_edge(rim, t, tol()).unwrap().vertex);
+    }
+    let leaving = |v: topo::VertexKey| {
+        body.half_edges()
+            .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(face))
+            .unwrap()
+            .0
+    };
+    let (he1, he2) = (leaving(stations[0]), leaving(stations[1]));
+    body.mef_chord(topo::construction::MefSite::Chords { he1, he2 }, tol())
+        .unwrap();
+    body
+}
+
+/// Whether `ek` is carried by a line.
+fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
+    rulings(body).contains(&ek)
+}
+
+/// **No walked triangle has an edge a neighbouring face also makes.** A
+/// walked triangle's sides are boundary segments, edges between the two
+/// rows, and fan edges from a side's point to the corner opposite, each
+/// spanning at most one rim chord. Two points of the polygon that are
+/// not neighbours on it and that one other face holds both of lie on this
+/// face's two different sides (or a side and the corner across it), the
+/// face's whole span apart, so the walk joins them only where its rims
+/// are one chord each (`ruled_walk`, "No edge of four triangles"). The
+/// tightest bodies for that, each holding the count relation exactly
+/// ([`holds_the_count_relation`]: a split triangle would add two):
+///
+/// - a **band**: the cylinder wall's outer face cut along a ruling 0.5
+///   rad from its seam ([`banded`]), so a face of one rim chord at δ 0.1
+///   and a wide face each hold both of the other's sides;
+/// - a **D-shaped prism** of 0.5 rad, whose flat face holds both of its
+///   cylinder face's sides (at δ 0.03 and 0.01, two and three chords: at
+///   one its caps are two coincident chords, which no face meshes);
+/// - a **half cylinder** and a **half cone through the axis**, whose one
+///   planar cut face holds both straight sides of the curved face;
+/// - a **wedge** turned 0.5 rad, its rims one chord each at δ 0.1.
+///
+/// Each line edge split at its middle and at five points, placed
+/// obliquely, at δ 1, 0.1 and 0.01 unless given.
+///
+/// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
+#[test]
+fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
+    let half = core::f64::consts::PI;
+    let every: &[f64] = &[1.0, 0.1, 0.01];
+    let bodies: Vec<(&str, Body<f64>, &[f64])> = vec![
+        ("a band of 0.5 rad", banded(0.5), every),
+        ("a D-shaped prism of 0.5 rad", d_prism(0.5), &[0.03, 0.01]),
+        (
+            "a half cylinder",
+            turned(
+                &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+                Revolution::Partial(half),
+            ),
+            every,
+        ),
+        (
+            "a half cone",
+            turned(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], Revolution::Partial(half)),
+            every,
+        ),
+        (
+            "a wedge of 0.5 rad",
+            turned(
+                &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+                Revolution::Partial(0.5),
+            ),
+            every,
+        ),
+    ];
+    let mut cells = 0usize;
+    for (name, body, deltas) in &bodies {
+        let solid = split_and_placed(body, &[], &[]);
+        for (k, &ek) in rulings(body).iter().enumerate() {
+            for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
+                let what = format!("{name}, line edge {k} split at {fracs:?}");
+                let split = split_and_placed(body, &[ek], fracs);
+                holds_everywhere(&what, &split, &solid, deltas);
+                cells += deltas.len();
+            }
+        }
+    }
+    assert_eq!(cells, 154, "the cells this row reads");
+}

@@ -34,6 +34,34 @@
 //!
 //! Each triangle is still certified ([`crate::cert`]): the walk is how
 //! the triangles are made, and the certificate is what holds them.
+//!
+//! # No edge of four triangles
+//!
+//! An edge two faces both make between two of their shared boundary
+//! points bounds four triangles; the chart lane's CDT keeps none (its ear
+//! and shared-side cures, `crate::trimmed`). A walked face needs no such
+//! cure. Each of its edges spans at most one rim chord in angle: a rim
+//! chord or a piece of a side (neighbours on the polygon), an edge
+//! between the rows, or a fan edge from a side's point to the corner
+//! across from that side. A neighbour holds points of this face's
+//! boundary only along the edges it shares with it, so two points it holds
+//! that are not neighbours on the polygon lie on this face's two sides,
+//! or on a side and the rim corner at the other side's foot: the face's
+//! whole span apart. The walk joins such points only on a face of one rim
+//! chord, at most `sizing::MAX_ANGULAR_STEP` wide, and the neighbour then
+//! cannot make the edge as well:
+//!
+//! - a plane holding both sides closes the face's rims with chords that
+//!   are the rims' own, so its caps are two coincident chords, which do
+//!   not mesh;
+//! - another walked or rectangle-lane face on the same surface spans the
+//!   rest of the turn, more than one chord, and its edges span one;
+//! - a face of the CDT would make it as a side of a triangle spanning
+//!   that rest of the turn: on a cone its own shared-side rule splits
+//!   such a triangle, and on a cylinder its certificate refuses it unless
+//!   every chord of the surface is within δ (a radius under δ/2), and even
+//!   there the edge is the diagonal of its whole chart, across its
+//!   lattice. No body here reaches that last corner.
 
 use std::collections::HashSet;
 

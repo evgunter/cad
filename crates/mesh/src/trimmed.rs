@@ -587,9 +587,7 @@ pub(crate) fn tessellate_trimmed(
     if let ChartRow::Analytic(ref a) = row
         && walked(body, fk, surface, tol.band)?
     {
-        return walk_face(
-            body, fk, face.sense, surface, a, &polygon, &singular, chords, shared, tol,
-        );
+        return walk_face(body, fk, face.sense, a, &polygon, &singular, shared, tol);
     }
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -5547,21 +5545,15 @@ pub(super) mod tests {
 }
 
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
-/// rows, with a triangle a neighbouring face may also make a side of split
-/// at a point of the surface inside it, then each triangle read as every
-/// triangle of this lane is: its winding resolved and outward, its
-/// certificate within δ.
+/// rows, each triangle then read as every triangle of this lane is: its
+/// winding resolved and outward, its certificate within δ.
 ///
-/// **The shared side.** A walked triangle's sides are boundary segments,
-/// edges between the two rows, and fan edges from a side's point to the
-/// corner opposite the side. A side joining two points of the polygon
-/// that are not neighbours on it is an edge another face's triangulation
-/// can make too where that face holds both points (a planar face holding
-/// both of this face's straight sides, the rims one chord each), and the
-/// edge would then bound four triangles. So such a triangle is replaced
-/// by the three joining its sides to the surface point at its chart
-/// centroid, the apex's arbitrary `u` left out: that point lies between
-/// the same two rulings, so the three keep the walk's bound.
+/// It needs neither of the CDT's shared-side cures (the ear, the cone
+/// arm's rule): a walked side joins two points within one rim chord of
+/// each other, and two points a neighbouring face holds both of without
+/// being neighbours on this face's polygon lie on this face's two
+/// different sides, a whole face apart (module docs of
+/// `crate::ruled_walk`, "No edge of four triangles").
 ///
 /// # Errors
 ///
@@ -5572,16 +5564,13 @@ pub(super) mod tests {
 /// [`TessellateError::FoldedTriangle`],
 /// [`TessellateError::CertificateExceeded`],
 /// [`TessellateError::RoundingUnresolved`].
-#[allow(clippy::too_many_arguments)] // the face, its domain, and what the run shares
 fn walk_face(
     body: &Body<f64>,
     fk: FaceKey,
     sense: bool,
-    surface: &Surface<f64>,
     row: &AnalyticRow<'_>,
     polygon: &TrimPolygon,
     singular: &HashSet<u32>,
-    chords: &ChordPass,
     shared: &[Point3<f64>],
     tol: &SizingTols,
 ) -> Result<Patch, TessellateError> {
@@ -5597,58 +5586,16 @@ fn walk_face(
         .ok_or(TessellateError::MissingEntity {
             what: "a walked face's two rows",
         })?;
-    let across = faces_across(body, fk, chords)?;
-    // Neighbours on the polygon, by mesh id: the apex's copies are one
-    // point, and so are a seam's two ends.
-    let mut beside: HashSet<(u32, u32)> = HashSet::new();
-    for i in 0..points.len() {
-        let (p, q) = (points[i].2, points[polygon.next(i)].2);
-        beside.insert((p.min(q), p.max(q)));
-    }
-    let shares = |p: usize, q: usize| {
-        let (ip, iq) = (points[p].2, points[q].2);
-        !beside.contains(&(ip.min(iq), ip.max(iq)))
-            && across.get(&ip).is_some_and(|fp| {
-                across
-                    .get(&iq)
-                    .is_some_and(|fq| fp.iter().any(|f| fq.contains(f)))
-            })
-    };
-    let mut interior: Vec<Point3<f64>> = Vec::new();
-    // Each corner: its mesh vertex, chart point, and whether it is the
-    // apex.
-    let mut triangles: Vec<[(PatchVertex, [f64; 2], bool); 3]> = Vec::new();
-    for t in rows.walk(points) {
-        let corner = |k: usize| {
-            let (u, v, id) = points[k];
-            (PatchVertex::Shared(id), [u, v], singular.contains(&id))
-        };
-        let tri = t.map(corner);
-        if !(shares(t[0], t[1]) || shares(t[1], t[2]) || shares(t[2], t[0])) {
-            triangles.push(tri);
-            continue;
-        }
-        let off_apex: Vec<f64> = tri.iter().filter(|c| !c.2).map(|c| c.1[0]).collect();
-        #[allow(clippy::cast_precision_loss)]
-        let u = off_apex.iter().sum::<f64>() / off_apex.len() as f64;
-        let v = tri.iter().map(|c| c.1[1]).sum::<f64>() / 3.0;
-        #[allow(clippy::cast_possible_truncation)]
-        let centre = (PatchVertex::Local(interior.len() as u32), [u, v], false);
-        interior.push(surface.eval(u, v));
-        for q in 0..3 {
-            triangles.push([centre, tri[q], tri[(q + 1) % 3]]);
-        }
-    }
-    let mut out = Vec::with_capacity(triangles.len());
+    let mut triangles = Vec::new();
     let (mut worst, mut exceeded, mut unresolved) = (0.0f64, false, None::<f64>);
-    for corners in triangles {
-        let ids = corners.map(|c| c.0);
+    for t in rows.walk(points) {
+        let ids = t.map(|k| points[k].2);
         // A full turn's seam corners are one mesh vertex at two chart
         // points; a triangle on both is no triangle in 3-D.
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue;
         }
-        let tri = ids.map(|id| id.position(shared, &interior));
+        let tri = ids.map(|id| shared[id as usize]);
         let normal = crate::validate::resolved_normal(tri).map_err(|unresolved| {
             TessellateError::UnresolvedWinding {
                 face: fk,
@@ -5660,12 +5607,14 @@ fn walk_face(
             (tri[0].y + tri[1].y + tri[2].y) / 3.0,
             (tri[0].z + tri[1].z + tri[2].z) / 3.0,
         );
+        // Folded unless wound outward: a zero dot is a fold.
         if normal.dot(row.outward(sense, centroid).vec()).partial_cmp(&0.0)
             != Some(core::cmp::Ordering::Greater)
         {
             return Err(TessellateError::FoldedTriangle { face: fk });
         }
-        let (bound, scale) = row.cert(tri, corners.map(|c| c.1), corners.map(|c| c.2));
+        let uv = t.map(|k| [points[k].0, points[k].1]);
+        let (bound, scale) = row.cert(tri, uv, ids.map(|id| singular.contains(&id)));
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
             cert::Verdict::Certified => {}
             cert::Verdict::Exceeded => exceeded = true,
@@ -5674,7 +5623,7 @@ fn walk_face(
             }
         }
         worst = cert::worse(worst, bound);
-        out.push(ids);
+        triangles.push(ids.map(PatchVertex::Shared));
     }
     if exceeded {
         return Err(TessellateError::CertificateExceeded {
@@ -5692,7 +5641,7 @@ fn walk_face(
         });
     }
     Ok(Patch {
-        interior,
-        triangles: out,
+        interior: Vec::new(),
+        triangles,
     })
 }
