@@ -957,3 +957,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Both options are sound. Rest checks whatever image it is handed (`ImageMiss` / `TubeStraddles`), so a wrong preimage is refused, never certified. The options differ only in completeness.
   - The broader thing wrong is that point-by-point closest-point projection is ill-posed on folds and closed-wall seams; imports suffer from it under either option. A continuation projection from the start vertex's stored chart point is well-posed and recovers the march's branch.
   - So the choice is sequencing: (1) fixes projection now; (2) postpones it to the import path. Waiting on Ev.
+- **PR 7045 merged (`3818797a4b`)** on green. **Rim-pad build implementer byte 187 (Fable)**, on the model-compare branch; dispatched on `impl-rimpad2.md`.
