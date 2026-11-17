@@ -3166,7 +3166,16 @@ fn corner_at<T: Decide + Bounds>(
     });
     let mut mixed = None;
     match odd {
-        Some(odd) if named == 3 => {
+        // All three named is the mixed corner; the chamfer's odd edge
+        // with one other cuts the other strip off in the odd strip's
+        // plane, which is the turn's overrun with the odd band the far
+        // one. Both are built where `E` is square to the odd edge.
+        Some(odd)
+            if named == 3
+                || (matches!(kind, BlendKind::Chamfer)
+                    && plane_plane
+                    && !mixed_end_is_built(&resolved, requested, odd.edge)) =>
+        {
             let host = mixed_corner_square(
                 vertex,
                 odd,
@@ -3177,28 +3186,15 @@ fn corner_at<T: Decide + Bounds>(
                 band,
             )?;
             corner_independence(vertex, normals, radius, band)?;
-            mixed = Some(MixedVertex {
-                vertex,
-                odd: odd.edge,
-                host,
-            });
+            if named == 3 {
+                mixed = Some(MixedVertex {
+                    vertex,
+                    odd: odd.edge,
+                    host,
+                });
+            }
         }
         Some(odd) if !plane_plane || mixed_end_is_built(&resolved, requested, odd.edge) => {
-            corner_independence(vertex, normals, radius, band)?;
-        }
-        // The odd edge with one other: the chamfer cuts the other strip
-        // off in the odd strip's plane, which is the turn's overrun with
-        // the odd band the far one, where `E` is square to the odd edge.
-        Some(odd) if matches!(kind, BlendKind::Chamfer) => {
-            mixed_corner_square(
-                vertex,
-                odd,
-                &resolved,
-                &faces,
-                normals,
-                (radius, kind),
-                band,
-            )?;
             corner_independence(vertex, normals, radius, band)?;
         }
         _ => corner_config(vertex, valence, convex, normals, radius, band)?,

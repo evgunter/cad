@@ -16,7 +16,9 @@
 //! - what both carves record of it ([`record`], over [`record_feet`]);
 //! - each link's trims ([`mixed_trims`], over the rim arc's own frame,
 //!   [`rim_carrier`]) and band chart ([`band_chart`]);
-//! - a straight link's feet in order beside one ([`feet_clear`]).
+//! - a straight link's feet in order beside one, and beside a mixed
+//!   corner or a turn's foot, which stand off their vertex as a
+//!   junction's do ([`feet_clear`]).
 //!
 //! The closed rims' other walks make the same moves at their crossings
 //! and call these: the annulus splits a mate seam with [`split_at`],
@@ -473,7 +475,13 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link ending at a juncti
 /// with one other stands `s(1 + tan(φ/2))` along the pair edge, past
 /// the trimlines' crossing on the shared face. So they are read the same
 /// way. A torus link's chords run between two junctions' feet, its own
-/// trim's window ends, so it is not read here.
+/// trim's window ends, so it is not read here. Nor is a turn's `Mitre`
+/// station, the trimlines' crossing on the shared face: a link too short
+/// for it lands that foot past its far end, which the cut-off's foot
+/// door refuses (`end_face::FOOT_INSIDE_A_FACE`), and a mitre chord that
+/// crosses a far foot on a long link is the strip screen's, which reads
+/// the face first (`blend_band_reach_chain_ends`'s trapezoid row refuses
+/// `FaceClearanceUncertified` there, and would refuse here instead).
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's
@@ -509,6 +517,7 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
                         | StationKind::MixedHost
                         | StationKind::TurnFoot
                 )
+            // Not `Mitre`: see the doc above.
         })
     };
     for support in supports {

@@ -591,6 +591,43 @@ pub(crate) fn leaning_odd_and_one(body: &Body<f64>) -> [EdgeKey; 2] {
     ]
 }
 
+/// The square plate `[−1, 1]²`, `z ∈ [−1, 1]`, with a boss `z ∈ [−0.5,
+/// 1.5]` on `outline` united to it.
+fn plate_with(boss: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let plate = prism_at(corners(&square), -1.0, 1.0, tol());
+    realized(
+        BooleanOp::Union,
+        &plate,
+        &prism_at(boss, -0.5, 1.5, tol()),
+        tol(),
+    )
+}
+
+/// **A curved ODD link at a mixed corner**: the quarter-disc boss in
+/// the plate's corner, flush on two sides; at its corner `(0, −1, 0)`
+/// the odd edge is the boss's base arc.
+pub(crate) fn disc_corner() -> Body<f64> {
+    let q = (FRAC_PI_2 / 4.0).tan();
+    plate_with(vec![
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(0.0, -1.0), q),
+        (Point2::new(-1.0, 0.0), 0.0),
+    ])
+}
+
+/// **A curved PAIR link at a mixed corner**: a square boss in the
+/// plate's corner whose base edge along `y = 0` bows out, meeting the
+/// inset corner at the origin.
+pub(crate) fn bowed_corner() -> Body<f64> {
+    plate_with(vec![
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(0.0, -1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.2),
+        (Point2::new(-1.0, 0.0), 0.0),
+    ])
+}
+
 /// **What the mixed corner does not build refuses typed**: a curved link
 /// at the corner (a quarter-disc boss's base arc, the odd edge there), an
 /// `E` oblique to the odd edge (the fillet's link would be a canal
@@ -598,21 +635,7 @@ pub(crate) fn leaning_odd_and_one(body: &Body<f64>) -> [EdgeKey; 2] {
 /// the blend's size.
 #[test]
 fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
-    let plate = |outline: &[(f64, f64)]| prism_at(corners(outline), -1.0, 1.0, tol());
-    // The quarter-disc boss in the plate's corner, flush on two sides.
-    let q = (FRAC_PI_2 / 4.0).tan();
-    let disc = prism_at(
-        vec![
-            (Point2::new(-1.0, -1.0), 0.0),
-            (Point2::new(0.0, -1.0), q),
-            (Point2::new(-1.0, 0.0), 0.0),
-        ],
-        -0.5,
-        1.5,
-        tol(),
-    );
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let body = realized(BooleanOp::Union, &plate(&square), &disc, tol());
+    let body = disc_corner();
     let got = Verb::Fillet.run(&body, &at(&body, (0.0, -1.0, 0.0)), R);
     assert!(
         matches!(
@@ -624,20 +647,7 @@ fn a_mixed_corner_the_carve_does_not_build_refuses_typed() {
         ),
         "a curved odd link at a mixed corner, got {got:?}"
     );
-    // A square boss in the plate's corner whose base edge along `y = 0`
-    // bows out: a curved PAIR link at the inset corner at the origin.
-    let bowed = prism_at(
-        vec![
-            (Point2::new(-1.0, -1.0), 0.0),
-            (Point2::new(0.0, -1.0), 0.0),
-            (Point2::new(0.0, 0.0), 0.2),
-            (Point2::new(-1.0, 0.0), 0.0),
-        ],
-        -0.5,
-        1.5,
-        tol(),
-    );
-    let body = realized(BooleanOp::Union, &plate(&square), &bowed, tol());
+    let body = bowed_corner();
     let edges = at(&body, (0.0, 0.0, 0.0));
     assert_eq!(edges.len(), 3, "the bowed corner's three edges");
     let got = Verb::Fillet.run(&body, &edges, R);

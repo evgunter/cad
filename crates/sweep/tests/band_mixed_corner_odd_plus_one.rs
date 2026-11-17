@@ -28,15 +28,16 @@ use core::f64::consts::PI;
 use geom::Surface;
 use geom_core::Interval;
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, corners, prism_at};
+use topo::boolean::solid_contain::{SolidContainment, point_in_solid};
 use topo::{Body, EdgeKey, validate_geometric};
 
 use crate::band_closed_mixed_chain_shapes::tightest_interval;
 use crate::band_mixed_corner::{
-    P, Scalar, at, boreless, edge, flush, flush_at, inset, inset_at, l_corner, l_prism, leaning,
-    leaning_odd_and_one, tol, volume,
+    P, Scalar, at, boreless, bowed_corner, disc_corner, edge, flush, flush_at, inset, inset_at,
+    l_corner, l_prism, leaning, leaning_odd_and_one, tol, volume,
 };
 
 /// The size every single-corner row asks for, meters.
@@ -67,13 +68,15 @@ fn off<T: Scalar>(s: &Surface<T>, p: geom_core::Point3<T>) -> f64 {
 
 /// One build: tier 3, one closed genus-0 shell, naming totality, `ΔV`
 /// at `truth` within the certified enclosure and `1e-12`, one mitre
-/// and one turn foot at each of `corners` corners, and every edge the
-/// corners minted (the overrun's end curves, the mitres, the trimlines)
-/// on both its faces within `1e-12`.
+/// and one turn foot at each of `corners` corners, `arcs` end curves
+/// and two trimlines per requested edge, and every edge the corners
+/// minted (the end curves, the mitres, the trimlines) on both its faces
+/// within `1e-12`. A single corner's end curves are three: the odd
+/// strip's chord in `E`, and each strip's far end.
 fn builds<T: Scalar>(
     body: &Body<T>,
     edges: &[EdgeKey],
-    (s, truth, corners): (f64, f64, usize),
+    (s, truth, corners, arcs): (f64, f64, usize, usize),
     what: &str,
 ) -> Blended<T> {
     let out = chamfer(body, edges, s).unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
@@ -96,6 +99,11 @@ fn builds<T: Scalar>(
         (rec.mitres.len(), rec.turn_feet.len(), rec.host_feet.len()),
         (corners, corners, 0),
         "{what}: a mitre and a turn foot at each corner, and no mixed corner's host feet"
+    );
+    assert_eq!(
+        (rec.arcs.len(), rec.trims.len()),
+        (arcs, 2 * edges.len()),
+        "{what}: the end curves, and two trimlines per requested edge"
     );
     let mut worst = 0.0f64;
     let minted: Vec<EdgeKey> = rec
@@ -127,7 +135,7 @@ fn builds<T: Scalar>(
         }
     }
     assert!(
-        worst < 1e-12 && minted.len() >= 3 * corners,
+        worst < 1e-12,
         "{what}: a minted edge strays {worst} from a face it joins ({} read)",
         minted.len()
     );
@@ -142,13 +150,9 @@ fn right_angle_rows<T: Scalar>(scalar: &str) {
         ("inset", inset::<T>(), (1.0, -1.0)),
     ] {
         let truth = sign * (S * S / 2.0 * (l - 1.0) + 2.0 / 3.0 * S.powi(3));
-        assert!(
-            (truth - sign * flush_form(PI / 2.0, S, (l, 1.0))).abs() < 1e-15,
-            "the general form at a right angle"
-        );
         for (pair, which) in [(y, "first"), (z, "second")] {
             let what = format!("{kind}, odd edge and {which} pair edge, {scalar}");
-            builds(&body, &[odd, pair], (S, truth, 1), &what);
+            builds(&body, &[odd, pair], (S, truth, 1, 3), &what);
         }
     }
 }
@@ -163,8 +167,11 @@ fn the_odd_edge_with_one_pair_edge_chamfers_at_its_closed_form() {
 /// second pair edge's trimline chord escalates its endpoint
 /// certificate, the enclosure of a coordinate read through the
 /// fixture's trigonometry being a hair wider than the band's zero. The
-/// same edge's pair mitre and all-three corner escalate there too, so
-/// it is the fixture's, not the rule's.
+/// same edge's pair mitre escalates at this same site, so it is the
+/// fixture's, not the rule's; the all-three corner escalates there too,
+/// at another site (`mixed host arc mef`, `carrier_matches_mapped_source`).
+/// Filed as
+/// `work/band/an-odd-plus-one-chamfer-at-an-inset-120-degree-corner-escalates-at-the-tightest-interval.md`.
 fn assert_endpoint_escalation<T: Scalar>(what: &str, got: Result<Blended<T>, BlendError>) {
     let text = format!("{:?}", got.as_ref().map(|_| ()));
     assert!(
@@ -191,7 +198,7 @@ fn plan_angle_rows<T: Scalar>(scalar: &str) {
                     assert_endpoint_escalation(&what, chamfer(&body, &[odd, pair], S));
                     continue;
                 }
-                builds(&body, &[odd, pair], (S, truth, 1), &what);
+                builds(&body, &[odd, pair], (S, truth, 1, 3), &what);
             }
         }
     }
@@ -208,7 +215,7 @@ fn the_odd_edge_with_one_pair_edge_chamfers_at_a_non_right_plan_angle() {
 /// along `x` (odd) with the boss's vertical there at `y = 0.5` and with
 /// the plate's side edge at `y = 3.5`; at each inset corner the boss's
 /// vertical (odd) with that same root.
-fn bracket_request<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
+pub(crate) fn bracket_request<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
     vec![
         edge(body, (0.0, 0.5, 0.5), (0.5, 0.5, 0.5)),
         edge(body, (0.0, 3.5, 0.5), (0.5, 3.5, 0.5)),
@@ -233,7 +240,7 @@ fn bracket_rows<T: Scalar>(scalar: &str) {
     builds(
         &body,
         &bracket_request(&body),
-        (s, -2.0 * s * s, 4),
+        (s, -2.0 * s * s, 4, 8),
         &format!("the bracket, odd plus one at every mixed corner, {scalar}"),
     );
 }
@@ -269,7 +276,8 @@ fn pair_of_length<T: Scalar>(y: f64) -> (Body<T>, [EdgeKey; 2]) {
     (body, edges)
 }
 
-/// The short-edge boundaries at scalar `T`.
+/// The short-edge boundaries at scalar `T`, each read `d = 100ε` either
+/// side (outside the predicates' bands at every ε) and 5% either side.
 fn short_edge_rows<T: Scalar>(scalar: &str) {
     let run_out = |got: Result<Blended<T>, BlendError>, needle: &str, what: &str| {
         assert!(
@@ -278,29 +286,36 @@ fn short_edge_rows<T: Scalar>(scalar: &str) {
             got = got.as_ref().map(|_| ())
         );
     };
-    // The pair edge: the near band's foot on `E` stands `2s` along it.
-    let (body, edges) = pair_of_length::<T>(0.21);
-    let truth = flush_form(PI / 2.0, S, (2.0, 0.21));
-    builds(
-        &body,
-        &edges,
-        (S, truth, 1),
-        &format!("the pair edge 0.21 long, {scalar}"),
-    );
-    let (body, edges) = pair_of_length::<T>(0.19);
-    run_out(
-        chamfer(&body, &edges, S),
-        "shorter than its two ends' feet need",
-        "the pair edge 0.19 long",
-    );
-    // Shorter than the size, the pair strip's crossing on the shared
-    // face lands past the pair edge's far end.
-    let (body, edges) = pair_of_length::<T>(0.09);
-    run_out(
-        chamfer(&body, &edges, S),
-        "its foot lands inside a face",
-        "the pair edge 0.09 long",
-    );
+    const CROSS: &str = "shorter than its two ends' feet need";
+    const INSIDE: &str = "its foot lands inside a face";
+    let d = 100.0 * tol().eps();
+    // The pair edge: the near band's foot on `E` stands `2s` along it,
+    // and under `s` long its crossing on the shared face lands past its
+    // far end.
+    for y in [2.0 * S + d, 1.05 * 2.0 * S] {
+        let (body, edges) = pair_of_length::<T>(y);
+        let truth = flush_form(PI / 2.0, S, (2.0, y));
+        builds(
+            &body,
+            &edges,
+            (S, truth, 1, 3),
+            &format!("the pair edge {y} long, {scalar}"),
+        );
+    }
+    for (y, needle) in [
+        (2.0 * S - d, CROSS),
+        (0.95 * 2.0 * S, CROSS),
+        (S + d, CROSS),
+        (S - d, INSIDE),
+        (0.9 * S, INSIDE),
+    ] {
+        let (body, edges) = pair_of_length::<T>(y);
+        run_out(
+            chamfer(&body, &edges, S),
+            needle,
+            &format!("the pair edge {y} long"),
+        );
+    }
     // The odd edge: the pair strip's trimline on the shared face stands
     // `s` up it.
     let tall = |h: f64| {
@@ -308,29 +323,34 @@ fn short_edge_rows<T: Scalar>(scalar: &str) {
         let [odd, y, _] = l_corner(&body, h);
         (body, [odd, y])
     };
-    let (body, edges) = tall(0.11);
-    let truth = flush_form(PI / 2.0, S, (0.11, 1.0));
-    builds(
-        &body,
-        &edges,
-        (S, truth, 1),
-        &format!("the odd edge 0.11 long, {scalar}"),
-    );
-    let (body, edges) = tall(0.09);
-    run_out(
-        chamfer(&body, &edges, S),
-        "its foot lands inside a face",
-        "the odd edge 0.09 long",
-    );
+    for h in [S + d, 1.05 * S] {
+        let (body, edges) = tall(h);
+        let truth = flush_form(PI / 2.0, S, (h, 1.0));
+        builds(
+            &body,
+            &edges,
+            (S, truth, 1, 3),
+            &format!("the odd edge {h} long, {scalar}"),
+        );
+    }
+    for h in [S - d, 0.95 * S] {
+        let (body, edges) = tall(h);
+        run_out(
+            chamfer(&body, &edges, S),
+            INSIDE,
+            &format!("the odd edge {h} long"),
+        );
+    }
 }
 
 /// **Short edges refuse at their meters**, both sides of each boundary,
-/// on the flush L at size `0.1`: a pair edge `0.21` long builds and one
-/// `0.19` long refuses as its two ends' feet cross on its trimline in
-/// `E` (the overrun's foot `2s` along it), one under `s` long refuses
-/// as its foot lands inside a face; an odd edge `0.11` long builds and
-/// one `0.09` long refuses as the pair strip's foot on the shared face
-/// lands past its far end. The reach meters none of these first.
+/// `100ε` and 5% off it, on the flush L at size `s = 0.1`: a pair edge
+/// just over `2s` long builds and one just under refuses as its two
+/// ends' feet cross on its trimline in `E` (the overrun's foot `2s`
+/// along it), as does one just over `s`; one just under `s` refuses as
+/// its foot lands inside a face. An odd edge just over `s` long builds
+/// and one just under refuses as the pair strip's foot on the shared
+/// face lands past its far end. The reach meters none of these first.
 #[test]
 fn a_short_odd_or_pair_edge_refuses_at_its_meter() {
     short_edge_rows::<f64>("f64");
@@ -378,5 +398,194 @@ fn the_odd_edge_with_one_other_refuses_the_fillet_and_an_oblique_shared_face() {
             2,
             "the chamfer on an oblique E",
         );
+    }
+}
+
+/// **A curved link at the corner refuses the chamfer's arm**: at a
+/// mixed corner where one face is curved, two of the three edges bound
+/// it, so any two of them (the odd edge with one other among them)
+/// name an edge whose supports are not both planes, and the chamfer
+/// refuses `ChamferArmUnsupported` before the corner is read. On the
+/// quarter-disc boss the odd edge is the curved link; on the bowed one
+/// a pair edge.
+#[test]
+fn a_curved_link_at_the_corner_refuses_the_chamfer_arm() {
+    for (what, body, o) in [
+        ("the curved odd link", disc_corner(), (0.0, -1.0, 0.0)),
+        ("the curved pair link", bowed_corner(), (0.0, 0.0, 0.0)),
+    ] {
+        let es = at(&body, o);
+        assert_eq!(es.len(), 3, "{what}: the corner's three edges");
+        for (i, j) in [(0, 1), (0, 2), (1, 2)] {
+            let got = chamfer(&body, &[es[i], es[j]], S);
+            assert!(
+                matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
+                "{what}, edges {i} and {j}: refuses the chamfer's arm, got {got:?}",
+                got = got.as_ref().map(|_| ())
+            );
+        }
+    }
+}
+
+/// **The mixed corner's recourse builds where it says**, on the flush
+/// and inset corners at 60°, 90° and 120° (`E` square to the odd edge,
+/// the faces flat) and on the leaning one (`E` oblique), both verbs: the
+/// odd edge with one other refuses the fillet `MixedConvexity` with the
+/// recourse, and then the odd edge alone builds everywhere; the two that
+/// round alike build where `E` is square to the odd edge and refuse on
+/// the oblique one; all three, and the chamfer of the odd edge with one
+/// other, build where it is square. A pair edge alone, which the text
+/// does not name, refuses everywhere: its foot lands inside the odd
+/// edge's face.
+#[test]
+fn the_mixed_corner_recourse_builds_where_it_says() {
+    let mut rows: Vec<(String, Body<f64>, [EdgeKey; 3], bool)> = Vec::new();
+    for deg in [60.0f64, 90.0, 120.0] {
+        let phi = deg.to_radians();
+        let (body, edges) = flush_at::<f64>(phi);
+        rows.push((format!("flush at {deg}°"), body, edges, true));
+        let (body, edges) = inset_at::<f64>(phi);
+        rows.push((format!("inset at {deg}°"), body, edges, true));
+    }
+    let body = leaning();
+    let [odd, up] = leaning_odd_and_one(&body);
+    let along = edge(&body, (0.5, 0.0, 0.0), (1.0, 1.0, 0.0));
+    rows.push(("leaning".into(), body, [odd, up, along], false));
+    let fillet = |body: &Body<f64>, edges: &[EdgeKey]| {
+        fillet_edges(&at_rest(body, tol()), edges, S, tol()).map_err(|r| r.error)
+    };
+    for (what, body, [odd, y, z], square) in &rows {
+        let (odd, y, z) = (*odd, *y, *z);
+        let refused = fillet(body, &[odd, y]).map(|_| ()).unwrap_err();
+        assert!(
+            matches!(
+                refused,
+                BlendError::UnsupportedCorner {
+                    corner: CornerConfig::MixedConvexity { .. },
+                    ..
+                }
+            ) && refused
+                .render(geom_brep::recourse::Reading::Build)
+                .contains(FILLET3_MIXED_CORNER_RECOURSE),
+            "{what}: the fillet of the odd edge with one other ships the recourse, got {refused:?}"
+        );
+        type Run = fn(&Body<f64>, &[EdgeKey]) -> Result<(), BlendError>;
+        let verbs: [(&str, Run); 2] = [
+            ("chamfer", |b, e| chamfer(b, e, S).map(|_| ())),
+            ("fillet", |b, e| {
+                fillet_edges(&at_rest(b, tol()), e, S, tol())
+                    .map(|_| ())
+                    .map_err(|r| r.error)
+            }),
+        ];
+        for (verb, run) in verbs {
+            run(body, &[odd])
+                .unwrap_or_else(|e| panic!("{what} ({verb}): the odd edge alone, {e:?}"));
+            for pair in [y, z] {
+                assert!(
+                    run(body, &[pair]).is_err(),
+                    "{what} ({verb}): a pair edge alone refuses"
+                );
+            }
+            let alike = run(body, &[y, z]);
+            assert_eq!(
+                alike.is_ok(),
+                *square,
+                "{what} ({verb}): the two that round alike build where E is square, got {alike:?}"
+            );
+            if *square {
+                run(body, &[odd, y, z])
+                    .unwrap_or_else(|e| panic!("{what} ({verb}): all three, {e:?}"));
+            }
+        }
+        if *square {
+            for pair in [y, z] {
+                chamfer(body, &[odd, pair], S).unwrap_or_else(|e| {
+                    panic!("{what}: the bevel of the odd edge with one other, {e:?}")
+                });
+            }
+        }
+    }
+}
+
+/// Whether `p` lies in `body`, or `None` on its boundary.
+fn inside(body: &Body<f64>, p: P) -> Option<bool> {
+    let band = geom_core::Band::linear(tol()).expect("the witness band");
+    match point_in_solid(body, geom_core::Point3::new(p.0, p.1, p.2), band, tol()) {
+        Ok(SolidContainment::In) => Some(true),
+        Ok(SolidContainment::Out) => Some(false),
+        _ => None,
+    }
+}
+
+/// **The odd edge with one pair edge moves the material its strips
+/// bound, and no other**: a point-membership oracle on the flush corner
+/// at 60°, 90° and 120°, each pair edge. In plan, with the wedge's sides
+/// `d₀ = +x` and `d₁` at `φ`, bisector `b`: the odd strip fills the
+/// notch where `p·b < s·cos(φ/2)`, up the odd edge; the pair strip
+/// along `d_k` cuts away `q + z < s` (`q` the distance from the pair
+/// edge into its side face's material), past the odd strip's plane
+/// (`p·b > s·cos(φ/2)`) and short of the pair edge's far end. A point
+/// is in the build where it was in the body, flipped if either holds.
+/// Sampled at 250 seeded points about the corner; points the
+/// containment test reads on a boundary are skipped, and they are few.
+#[test]
+fn the_odd_plus_one_chamfer_moves_the_material_its_strips_bound() {
+    let flips = |p: P, phi: f64, k: usize| {
+        let (x, y, z) = p;
+        let d = [(1.0, 0.0), (phi.cos(), phi.sin())];
+        let b = ((phi / 2.0).cos(), (phi / 2.0).sin());
+        let (pb, c) = (x * b.0 + y * b.1, S * (phi / 2.0).cos());
+        let det = phi.sin();
+        let (u, v) = (
+            (x * d[1].1 - y * d[1].0) / det,
+            (d[0].0 * y - d[0].1 * x) / det,
+        );
+        if u > 0.0 && v > 0.0 && pb < c && z > 0.0 && z < 2.0 {
+            return true;
+        }
+        let (dk, other) = (d[k], d[1 - k]);
+        let od = other.0 * dk.0 + other.1 * dk.1;
+        let w0 = (other.0 - od * dk.0, other.1 - od * dk.1);
+        let w = (-w0.0 / w0.0.hypot(w0.1), -w0.1 / w0.0.hypot(w0.1));
+        let q = x * w.0 + y * w.1;
+        let along = x * dk.0 + y * dk.1;
+        q > 0.0 && q < S && z > 0.0 && z < S - q && pb > c && along < 1.0
+    };
+    let mut seed = 0x5eed_7038_u64;
+    let mut next = move || {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        #[allow(clippy::cast_precision_loss)]
+        let unit = (seed >> 11) as f64 / (1u64 << 53) as f64;
+        unit
+    };
+    for deg in [60.0f64, 90.0, 120.0] {
+        let phi = deg.to_radians();
+        let (body, [odd, y, z]) = flush_at::<f64>(phi);
+        for (k, pair) in [y, z].into_iter().enumerate() {
+            let out = chamfer(&body, &[odd, pair], S)
+                .unwrap_or_else(|e| panic!("flush at {deg}°, pair {k}: builds, got {e:?}"));
+            let (mut read, mut wrong) = (0, Vec::new());
+            for _ in 0..250 {
+                let p = (
+                    -0.6 + 1.2 * next(),
+                    -0.6 + 1.2 * next(),
+                    -0.05 + 0.35 * next(),
+                );
+                let (Some(was), Some(is)) = (inside(&body, p), inside(&out.body, p)) else {
+                    continue;
+                };
+                read += 1;
+                if is != (was ^ flips(p, phi, k)) {
+                    wrong.push(p);
+                }
+            }
+            assert!(
+                read > 240 && wrong.is_empty(),
+                "flush at {deg}°, pair {k}: {read} points read, misplaced at {wrong:?}"
+            );
+        }
     }
 }

@@ -661,8 +661,10 @@ in `E` one edge from that foot to the third edge. At plan angle `φ`,
 end square, the flush corner changes the volume by
 `(s²/2)(L·sin φ − Y) + (s³/2)(1 + t/3)` and the inset by its negation
 (`band_mixed_corner_odd_plus_one`). It is admitted by the all-three
-corner's reading of `E` (`mixed_corner_square`), so an oblique `E` or a
-curved link at the corner refuses `MixedConvexity`. The pair band's
+corner's reading of `E` (`mixed_corner_square`), so an oblique `E`
+refuses `MixedConvexity`. A curved link at the corner refuses
+`ChamferArmUnsupported` first: two of the corner's three edges bound
+its curved face, so the request names one of them. The pair band's
 foot on `E` stands `s(1 + t)` along the pair edge, past its crossing on
 the shared face, so its trimline there is metered in order against the
 far end's (`junction::feet_clear`, which reads a turn's foot as a
