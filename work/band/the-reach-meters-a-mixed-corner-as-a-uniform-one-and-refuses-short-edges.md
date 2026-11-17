@@ -7,6 +7,7 @@ opened: 2026-11-13
 closed: 2026-11-17
 priority: P1
 cost: M
+pr: 7078
 branch: band/mixed-corner-reach
 ---
 
