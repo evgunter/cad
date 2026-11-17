@@ -60,7 +60,13 @@
 //!   doors' verdict (moved by PR 7041, `tesslane/route-by-domain`: the
 //!   keyway from `0x9d8e_44fd_e323_88de`, the lens from
 //!   `0xfdb2_0be5_e9aa_8077`, the half cap from `0xdd6f_a9f2_0af3_083a`,
-//!   the bow tie from `0x9cdd_b7a3_543d_b550`). The same four with their
+//!   the bow tie from `0x9cdd_b7a3_543d_b550`). The lens and the half cap
+//!   digest alike (`0x72fb_aee1_b444_dff6`): the digest reads a refusal
+//!   by its `Debug` alone, and both refuse `DomainUnread` on face `1v1`
+//!   at half-edge `3v1`, keys their hand-built Euler sequences assign
+//!   alike, so the two refusals are equal in every field it reads. Their
+//!   minted forms, which refuse differently, are what tells them apart
+//!   here. The same four with their
 //!   images minted (`witness_bodies::minted`), as a finished body
 //!   carries them, are bodies of their own (`*_minted`): the keyway's
 //!   complement wound against its face (the keyway face itself meshes),
