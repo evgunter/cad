@@ -133,6 +133,9 @@ failure-output = "immediate-final"
 #  150 s     mesh::all quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops
 # and the lens of the first, exported:
 #   22 s     step-export::all periodic_loop_edge::a_lens_between_a_cylinder_and_a_ball_writes_its_loop_as_one_clamped_spline
+# Rods across a wall joined along their rulings: over the 1.0 s bar on
+# PR 7052's hosted run, not timed on main:
+#    1.02 s  sweep::all parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings
 default-filter = """
 not (
   (binary_id(sweep::all) & test(=snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds)) |
@@ -384,6 +387,7 @@ not (
   (binary_id(mesh::all) & (test(=lift_probes::the_spline_section_bodies_read_lifts_that_close) | test(=lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes) | test(=lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube))) |
   (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |
   (binary_id(step-export::all) & test(=periodic_loop_edge::a_lens_between_a_cylinder_and_a_ball_writes_its_loop_as_one_clamped_spline)) |
+  (binary_id(sweep::all) & test(=parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings)) |
   (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
   (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
