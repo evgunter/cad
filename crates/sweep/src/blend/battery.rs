@@ -46,9 +46,8 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 
 use super::arms::{
     BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_foot,
-    chamfer_frustum,
-    chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend,
-    plane_sphere_room,
+    chamfer_frustum, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
+    plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::junction::JUNCTION_NO_HOST;
@@ -2077,7 +2076,13 @@ fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, Blen
         .into_iter()
         .find(|&f| f == b.face_a || f == b.face_b)
         .ok_or_else(|| unbuilt_chain(a.edge, JUNCTION_NO_HOST))?;
-    let other = |l: &Link<T>| if l.face_a == shared { l.face_b } else { l.face_a };
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
     let foot = |l: &Link<T>, f: FaceKey| {
         l.trim_on(f)
             .and_then(|(c, _)| chamfer_foot(c, p))

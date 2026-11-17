@@ -1060,7 +1060,11 @@ impl Outline {
                 Piece::Seg(x, y) => v += a * norm(sub(y, x)),
                 Piece::Arc { r: rr, turn, .. } => {
                     let toward_axis = (turn > 0.0) == host_inside;
-                    let rc = if toward_axis { rr - s / 3.0 } else { rr + s / 3.0 };
+                    let rc = if toward_axis {
+                        rr - s / 3.0
+                    } else {
+                        rr + s / 3.0
+                    };
                     v += a * turn.abs() * rc;
                 }
             }
@@ -1205,7 +1209,12 @@ fn turned_and_moved_rounded_outlines_chamfer_whole() {
         let o = rotated(&rect, deg.to_radians()).shifted((2.5, -1.25));
         chamfer_plate_both(&format!("rectangle at {deg}°, moved"), &o, (0.75, 0.5), 0.1);
     }
-    chamfer_plate_both("slot at 30°", &rotated(&slot(0.7, 0.3), PI / 6.0), (0.0, 0.5), 0.1);
+    chamfer_plate_both(
+        "slot at 30°",
+        &rotated(&slot(0.7, 0.3), PI / 6.0),
+        (0.0, 0.5),
+        0.1,
+    );
     chamfer_plate_both("pentagon", &regular(5, 1.0, 0.3), (0.0, 0.5), 0.1);
     chamfer_plate_both("octagon", &regular(8, 1.0, 0.2), (-0.3, 0.5), 0.09);
     let (a, c, r1) = (0.6_f64, 0.4_f64, 0.3_f64);

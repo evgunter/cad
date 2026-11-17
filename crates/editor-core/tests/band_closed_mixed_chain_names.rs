@@ -306,8 +306,16 @@ fn a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names
     let all = every_name(&ev, c);
     let mut distinct = all.clone();
     distinct.dedup();
-    assert_eq!(all.len(), distinct.len(), "every name of the table is unique");
-    assert_eq!(all, every_name(&run(&doc), c), "a replay names every entity alike");
+    assert_eq!(
+        all.len(),
+        distinct.len(),
+        "every name of the table is unique"
+    );
+    assert_eq!(
+        all,
+        every_name(&run(&doc), c),
+        "a replay names every entity alike"
+    );
     let (edited, _) = crate::fixture::step(
         doc.clone(),
         DocEdit::SetParam {

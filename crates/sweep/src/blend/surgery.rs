@@ -4030,10 +4030,12 @@ fn co_requested_trim<T: Decide>(
     let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
     if let Some(host) = host {
         let (on_host, on_mate) = junction::mixed_trims(body, l, host)?;
-        return Ok(Some(match (if face == host { on_host } else { on_mate }).curve {
-            junction::TrimCurve::Line(line) => projected(line),
-            junction::TrimCurve::Arc(c, window) => (c, window),
-        }));
+        return Ok(Some(
+            match (if face == host { on_host } else { on_mate }).curve {
+                junction::TrimCurve::Line(line) => projected(line),
+                junction::TrimCurve::Arc(c, window) => (c, window),
+            },
+        ));
     }
     // A straight link reads its trimline over the stored window
     // projected onto it; an arc, its whole trim circle.

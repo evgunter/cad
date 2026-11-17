@@ -312,8 +312,7 @@ impl<'a, T: Decide> OpenBand<'a, T> {
         }
         let at_junction = |v: VertexKey| junctions.iter().any(|j| j.vertex == v);
         for link in chain.links() {
-            let between =
-                link.arm.is_coaxial() && at_junction(link.start) && at_junction(link.end);
+            let between = link.arm.is_coaxial() && at_junction(link.start) && at_junction(link.end);
             if !(link.arm.is_plane_plane() || link.arm.is_ruled() || between) {
                 return Err(unbuilt_chain(
                     link.edge,

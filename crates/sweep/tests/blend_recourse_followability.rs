@@ -1027,7 +1027,8 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         0.1,
         "a both-planes chamfer request",
     );
-    let post = sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, tol());
+    let post =
+        sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, tol());
     chamfers(&post, &circle_arcs_at_z(&post, 1.0), 0.1, "a whole rim");
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let rounded = prism(
@@ -1048,7 +1049,12 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         .into_iter()
         .filter(|&e| {
             let (a, b) = rounded.edge_vertices(e).unwrap();
-            let z = |v| rounded.get_point(rounded.get_vertex(v).unwrap().point).unwrap().z;
+            let z = |v| {
+                rounded
+                    .get_point(rounded.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .z
+            };
             z(a) > 0.25 && z(b) > 0.25
         })
         .collect();

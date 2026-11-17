@@ -287,9 +287,7 @@ fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 /// its top and bottom outlines in one call (every edge, the walls' smooth
 /// seams among them, which the blend leaves as they are), at both
 /// scalars and at a setback near the arcs' radius.
-fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
-    scalar: &str,
-) {
+fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
     let body = plate::<T>(0.0, 0.0, 0.0, H);
     let top = rim_at(&body, H);
     let both: Vec<EdgeKey> = rim_at(&body, 0.0).into_iter().chain(top.clone()).collect();

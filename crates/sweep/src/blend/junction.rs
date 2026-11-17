@@ -192,9 +192,7 @@ impl<T: Decide> MixedTrim<T> {
             (TrimCurve::Line(line), true) => ContactCarrier::TrimLine(*line),
             (TrimCurve::Line(_), false) => ContactCarrier::Chord,
             (TrimCurve::Arc(c, (t0, t1)), true) => ContactCarrier::Exact(c.clone(), *t0, *t1),
-            (TrimCurve::Arc(c, (t0, t1)), false) => {
-                ContactCarrier::Crossing(c.clone(), *t0, *t1)
-            }
+            (TrimCurve::Arc(c, (t0, t1)), false) => ContactCarrier::Crossing(c.clone(), *t0, *t1),
         }
     }
 }

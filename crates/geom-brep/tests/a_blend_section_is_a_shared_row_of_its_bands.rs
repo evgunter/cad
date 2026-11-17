@@ -307,10 +307,27 @@ fn a_section_on_a_rotated_band_certifies_as_a_touching_shared_row() {
 #[test]
 fn a_chamfer_section_certifies_as_a_touching_plane_cone_row() {
     let rows = [
-        ("the plate's junction", chamfer_junction(Point3::new(0.7, -0.3, 0.5), 0.3, 0.05, 0.0)),
-        ("turned 30°, off the origin", chamfer_junction(Point3::new(1.2, -0.7, 0.9), 0.3, 0.05, 30f64.to_radians())),
-        ("turned 144°", chamfer_junction(Point3::new(-2.0, 3.1, -0.4), 0.25, 0.08, 144f64.to_radians())),
-        ("a setback just under the radius", chamfer_junction(Point3::new(0.0, 0.0, 0.5), 0.3, 0.29, 7f64.to_radians())),
+        (
+            "the plate's junction",
+            chamfer_junction(Point3::new(0.7, -0.3, 0.5), 0.3, 0.05, 0.0),
+        ),
+        (
+            "turned 30°, off the origin",
+            chamfer_junction(Point3::new(1.2, -0.7, 0.9), 0.3, 0.05, 30f64.to_radians()),
+        ),
+        (
+            "turned 144°",
+            chamfer_junction(
+                Point3::new(-2.0, 3.1, -0.4),
+                0.25,
+                0.08,
+                144f64.to_radians(),
+            ),
+        ),
+        (
+            "a setback just under the radius",
+            chamfer_junction(Point3::new(0.0, 0.0, 0.5), 0.3, 0.29, 7f64.to_radians()),
+        ),
     ];
     for (what, row) in &rows {
         assert_eq!(certified(row).unwrap(), RowContact::Touching, "f64: {what}");
