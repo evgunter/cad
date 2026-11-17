@@ -2,10 +2,11 @@
 id: a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation
 kind: unit
 title: The chart lane's cone arm gives a run of ruling points its development merges one CDT vertex and re-splits it after the triangulation
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
 cost: M
+branch: tesslane/merged-run
 ---
 
 ## Finding
