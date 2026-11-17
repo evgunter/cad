@@ -280,8 +280,8 @@ const INDIRECT: &[(&str, &str)] = &[
         CARRIER_CALL,
     ),
     ("certify.rs: check_residual: name", FORWARDS),
-    ("certify.rs: mint_checks: spec", NOT_A_NAME),
-    ("certify.rs: run_checks: spec", NOT_A_NAME),
+    ("certify.rs: of: spec", NOT_A_NAME),
+    ("certify.rs: turn: spec", NOT_A_NAME),
     ("chart_singularity.rs: nearest_on_edge: t", NOT_A_NAME),
     ("chart_singularity.rs: sampled_near: t", NOT_A_NAME),
     (
