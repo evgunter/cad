@@ -921,3 +921,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Red at 1e-6 since PR 7052:** `one_loop_keeps_its_order_near_the_node` (this pose) and `close_rings_carry_counted` (the pin names 206 boxes, the chain has 208). The lane also reports `node_end_rows::a_chain_ends_at_a_node_only_where_its_end_is_at_the_node` at 1e-6 and `recourse_roster` at default; I am checking those on main.
   - **To designers** on `designer-sliver.md`. It states the measurements and keeps the item's fork section and the branch diff out of view. Bytes are drawn after this entry.
 - **Sliver fork draws:** arm byte 98 (two designers), label byte 179 (odd, A = Fable), on `analysis/design-fork/sectarms-sliver`. Both designers dispatched concurrently on `designer-sliver.md`.
+- 2026-11-17 — **Main reds checked.** In a clean worktree at `f50b58e2f3`, and at PR 7052's first parent `fa4e9ba921`:
+  - **Since PR 7052:**
+    - `recourse_roster` (slow set, default ε) is red; it was green at the parent.
+    - `close_rings_carry_counted`'s 1e-6 pin names 206 boxes, and the chain has 208.
+    - `one_loop_keeps_its_order_near_the_node` at 1e-6 is the sliver pose, so it goes with the fork.
+  - **Predates PR 7052:** `node_end_rows::a_chain_ends_at_a_node_only_where_its_end_is_at_the_node` at 1e-6 certifies a coarse span onto the node.
+  - **Filed:** `main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin` (P1 E) and `a-node-end-row-certifies-a-coarse-span-onto-the-node-at-1e-6` (P1 E).
+- **Dispatching both as one lane, letter M, tier single:** the roster and the pin are mechanical, but the node-end row may be soundness (the class of 6897's MAJOR). Brief `impl-mainred.md`, branch `sectarms/main-red-1e-6`. Implementer byte drawn after this entry.
