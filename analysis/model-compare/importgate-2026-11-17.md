@@ -1,6 +1,6 @@
 # IMPORTGATE model-compare draws, 2026-11-17
 
-Protocol: d327ffb52. One /dev/urandom byte per draw: even = Opus, odd = Fable. Letters and tiers logged in `work/importgate/log.md` on `claude/importgate-orchestrator-booa6e` (9fc7a0de4) before the draws.
+Protocol: e1c428efbb (corrected 2026-11-17; first written as d327ffb52, a shallow-clone graft — e1c428efbb was the last commit on main touching the protocol before these draws; 083ca253dc landed at 18:25Z, after them). One /dev/urandom byte per draw: even = Opus, odd = Fable. Letters and tiers logged in `work/importgate/log.md` on `claude/importgate-orchestrator-booa6e` (9fc7a0de4) before the draws.
 
 | unit | arm | byte | model | drawn | logged at |
 |---|---|---|---|---|---|
