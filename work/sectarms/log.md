@@ -962,3 +962,12 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Recorded on the branch:** the node item's "Decided" section, with `design: true` dropped. It covers one partner-blind image function on the carrier's knots, called by the trace, the mint and rest; a continuation projection from the start vertex's chart point; and no stored-fit fallback. The two sibling items point at it.
   - **Fork-log row** renumbered 278 → 282 (main had a TESSLANE 278), second half filled: bytes 98/66, A = Opus 5.5, B = Fable 5.2; match A. Main merged in (a row conflict, kept both). Retitled without `[ev]`.
   - **Next:** merge on green, then dispatch the build of the three P1s as one unit.
+- 2026-11-17 — **PR 7057 review (Fable): APPROVE-WITH-FIXES, no MAJOR.** Harness: 1,410,937 ms, 158,871 tokens.
+  - **Confirmed by probes:** the node end is admitted only inside the cap, and only within the seed box; σ is read from the geometry; the bisect holds.
+  - **Corrected:** a nightly did catch the red (run 44023697569). PR 7055 had already landed the roster lines.
+  - **Findings:**
+    - The row is a factor of 2 loose and one-sided, so cap mutants survive.
+    - "Hosted CI is the record" is false, because the eps-extra step skips the slow set; that is how 6897 merged red at 1e-6.
+    - The roster keys are not unique.
+    - Several docs are stale.
+- **Fix pass dispatched** to the implementer's agent (Opus), continued: a boundary pair at 0.99/1.01 × cap, a σ ≠ 1 fixture, the mutants re-run, main merged, the body corrected, the CI slow-set-at-extra-ε gap filed, and the docs fixed.
