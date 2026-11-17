@@ -259,8 +259,12 @@ pub(crate) struct Boundary {
     pub(crate) edges: Vec<Rim>,
     pub(crate) vertices: BTreeMap<VertexKey, Point3<Interval>>,
     /// **The hull of the face's outer loop on each chart axis**, `[u, v]`:
-    /// its lift ([`crate::pcurves::Lift::read`]) is one continuous chain,
-    /// so on a periodic axis the hull is on ONE sheet, not wrapped. A
+    /// its lift ([`crate::pcurves::Lift::read`]) is the face's boundary in
+    /// the chart, its rows meeting at every joint and, at a pole or an
+    /// apex, joined by a run along the singular latitude that lies
+    /// between their ends. So on a periodic axis the hull is on ONE
+    /// sheet, not wrapped; [`sheets`] reads the face's own lines against
+    /// it before taking it ([`lines_agree`]). A
     /// row that is a coordinate line whose moving coordinate is monotone
     /// gives its ends, which bound it; a harmonic or spiric wall row its enclosure over
     /// its span, so the hull may be a superset, which every reader takes
@@ -1325,13 +1329,13 @@ fn sheets(surface: &Surface<Interval>, b: &Boundary, cell: ((f64, f64), (f64, f6
 /// **Whether the face's own lines agree with its extent** on each
 /// periodic axis, for an extent that does not wrap: every line of a
 /// boundary edge, placed on the extent's sheet, meets the extent and
-/// has room in it, more than [`few_ulps`], on the line's face side. A line at the extent's high
-/// end with the face above it, or at its low end with the face below,
-/// puts the face outside its own hull: the extent is a copy of the
-/// face's complement's, and every reading taken from it ([`sheets`],
-/// [`placed`], the clip to it) is on the wrong sheet. A line whose
-/// face side or value is not read here is not read against the extent
-/// either; its own reader refuses it.
+/// has room in it, more than [`few_ulps`], on the line's face side. A
+/// line at the extent's high end with the face above it, or at its low
+/// end with the face below, puts the face outside its own hull: the
+/// extent is a copy of the face's complement's, and every reading taken
+/// from it ([`sheets`], [`placed`], the clip to it) is on the wrong
+/// sheet. A line whose face side or value is not read here is not read
+/// against the extent either; its own reader refuses it.
 fn lines_agree(b: &Boundary, surface: &Surface<Interval>, extent: [(f64, f64); 2]) -> bool {
     b.edges
         .iter()
@@ -3630,8 +3634,8 @@ fn leaves_graph(
 }
 
 /// **Present a cell at a corner by its coordinate line** ([`present_corner`]):
-/// `R` the cell and the vertex's chart point, clipped to the line's face
-/// side, its side on the line the zero. Nothing in reach of `R` may bound
+/// `R` the cell, the line and the vertex's chart point, presented on the
+/// line's face side, its side on the line the zero. Nothing in reach of `R` may bound
 /// the face but the line's edge and the other one, whose chart curve
 /// leaves the vertex into the face's side ([`leaves_line`]); every
 /// vertex in reach is the corner's.
@@ -3671,11 +3675,9 @@ fn present_line_corner<'a>(
         vm
     };
     let (lo, hi) = held.of(cell);
-    // `R` holds the cell and the line, as [`present_plane_corner`]'s
-    // does: the reach and the other edge's departure are read over all
-    // of it, so the cell's part across the line is proven outside the
-    // face too, not left unread. The face's part is `R` on the line's
-    // face side.
+    // The reach and the other edge's departure are read over all of `R`,
+    // the cell's part across the line included, as in
+    // [`present_plane_corner`].
     let reach = (lo.min(line.lo()), hi.max(line.hi()));
     let across = if sigma > 0.0 {
         (line.lo(), reach.1)
@@ -5983,8 +5985,8 @@ mod presentation_rows {
     /// cylinder face over `u ∈ [π, 2π]`, `v ∈ [0, 1]`, its loop
     /// counter-clockwise about the outward normal, its high meridian's
     /// image stored at `u = 0`, the seam's stored value. `extent` is its
-    /// face's own (`[π, 2π]`) or the complement's (`[0, π]`), the
-    /// latter what a lift with a reset made of the ball's `1v1`.
+    /// face's own (`[π, 2π]`) or the complement's (`[0, π]`), an extent
+    /// off the face's sheet.
     /// `edges[2]` is the `u = π` meridian.
     fn half_band(extent: (f64, f64)) -> Boundary {
         let half = core::f64::consts::PI;
