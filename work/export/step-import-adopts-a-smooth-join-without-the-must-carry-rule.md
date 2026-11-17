@@ -2,11 +2,13 @@
 id: step-import-adopts-a-smooth-join-without-the-must-carry-rule
 kind: issue
 title: the adoption ladder offers no conventional rung for an under-determined tangency between distinct surfaces, so a native body with one does not re-import
-status: open
+status: review
 opened: 2026-10-09
 priority: P1
 cost: M
 refs: [split-tangent-chord-mints-tangency-without-the-must-carry-rule]
+branch: export/smooth-join
+pr: 7081
 ---
 
 ## Finding
