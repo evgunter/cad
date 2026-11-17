@@ -652,13 +652,14 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `StructureNormalization` is the re-minted boundary graph (its
 // `NormalizationKind` and the `FaceCensus` pair it maps between),
 // `CurvePromotion` the analytic carrier a NURBS one certified as (its
-// `PromotedCurveKind`), and `PlacedInstance` the A7 assembly record.
+// `PromotedCurveKind`), read off that ledger, and `PlacedInstance` the
+// A7 assembly record.
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
 // The `Wireframe` arm's payload needs nothing new: its carriers are
 // `Curve3`, on this list at group 2's `topo` re-export, and its
-// promotions are the same `CurvePromotion`.
+// ledger is the same `StructureNormalization`.
 //
 // The Python half follows the carrier rule again, and lands on the
 // opposite side from `ImportOptions`. `StepImport::Solid` crosses as
