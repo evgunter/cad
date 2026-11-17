@@ -30,7 +30,10 @@
 //! step's bound (`sizing::sagitta_step`, `sizing::cone_grid_step`), at
 //! which the chord pass chords each rim (`chords::tighten`). A point on
 //! a side lies on that side's ruling, a straight segment in 3-D, so the
-//! triangles it fans divide one walked triangle in its plane.
+//! triangles it fans divide one walked triangle in its plane. On a face
+//! to the apex whose rim is one chord, both sides are edges of the one
+//! walked triangle, and their points are joined to each other instead
+//! ([`Rows::zip_sides`]): again triangles inside that one, in its plane.
 //!
 //! Each triangle is still certified ([`crate::cert`]): the walk is how
 //! the triangles are made, and the certificate is what holds them.
@@ -42,8 +45,9 @@
 //! and shared-side cures, `crate::trimmed`). A walked face needs no such
 //! cure. Each of its edges spans at most one rim chord in angle: a rim
 //! chord or a piece of a side (neighbours on the polygon), an edge
-//! between the rows, or a fan edge from a side's point to the corner
-//! across from that side. A neighbour holds points of this face's
+//! between the rows, a fan edge from a side's point to the corner across
+//! from that side, or, on a one-chord face to the apex with both sides
+//! split, an edge between a point of each side. A neighbour holds points of this face's
 //! boundary only along the edges it shares with it, so two points it holds
 //! that are not neighbours on the polygon lie on this face's two sides,
 //! or on a side and the rim corner at the other side's foot: the face's
@@ -154,8 +158,9 @@ impl Rows {
     /// Each triangle's first side runs the polygon's way: `a_i → a_{i+1}`
     /// on row `a`, `b_{j+1} → b_j` on row `b`, which the polygon walks
     /// backwards. A split side's points are fanned from the corner
-    /// opposite the side in the one triangle that has the side's two
-    /// ends as an edge.
+    /// opposite the side in the one walked triangle that has the side's
+    /// two ends as an edge, unless both sides are edges of one walked
+    /// triangle ([`Self::zip_sides`]).
     pub(crate) fn walk(&self, points: &[(f64, f64, u32)]) -> Vec<[usize; 3]> {
         let (a, b) = (&self.a, &self.b);
         let (n, m) = (a.len() - 1, b.len() - 1);
@@ -176,12 +181,19 @@ impl Rows {
                 j += 1;
             }
         }
+        // Both sides are edges of one walked triangle only on a face to
+        // the apex whose rim is one chord: the triangle `(a₀, a₁, apex)`.
+        // Its two sides' points are then zipped to each other
+        // ([`Self::zip_sides`]); otherwise each side is an edge of its own
+        // walked triangle, the first or the last, and is fanned from the
+        // corner opposite it there.
+        if m == 0 && n == 1 && !self.start.is_empty() && !self.end.is_empty() {
+            return self.zip_sides(points);
+        }
         for (from, side, to) in [(b[0], &self.start, a[0]), (a[n], &self.end, b[m])] {
             if side.is_empty() {
                 continue;
             }
-            // The side `from → to` is an edge of exactly one triangle, the
-            // first or the last walked.
             let (t, q) = out
                 .iter()
                 .enumerate()
@@ -200,6 +212,42 @@ impl Rows {
                 .collect();
             out.extend(chain.windows(2).map(|w| [corner, w[0], w[1]]));
         }
+        out
+    }
+
+    /// **A one-chord face to the apex with both sides split**: the walked
+    /// triangle `(a₀, a₁, apex)` holds both sides, whose points lie on its
+    /// two edges through the apex. They are joined to each other in order
+    /// of distance from the apex, as the walk joins two rows in order of
+    /// angle: from the rim chord `a₀ a₁` in, advancing the side whose next
+    /// point is farther from the apex, and closed by the one triangle at
+    /// the apex. Every triangle has a corner on each side, so none lies
+    /// along one ruling, and all lie in the walked triangle's plane. There
+    /// are `k + m + 1` of them for `k` and `m` points on the sides: the
+    /// walked triangle plus one per point.
+    fn zip_sides(&self, points: &[(f64, f64, u32)]) -> Vec<[usize; 3]> {
+        let apex = self.b[0];
+        let from_apex = |k: usize| (points[k].1 - points[apex].1).abs();
+        // The end side runs `a₁ → … → apex` in polygon order, the start
+        // side `apex → … → a₀`; both chains run from the rim in.
+        let x: Vec<usize> = std::iter::once(self.a[1])
+            .chain(self.end.iter().copied())
+            .collect();
+        let y: Vec<usize> = std::iter::once(self.a[0])
+            .chain(self.start.iter().rev().copied())
+            .collect();
+        let mut out = Vec::with_capacity(x.len() + y.len() - 1);
+        let (mut i, mut j) = (0, 0);
+        while i + 1 < x.len() || j + 1 < y.len() {
+            if i + 1 < x.len() && (j + 1 == y.len() || from_apex(x[i + 1]) >= from_apex(y[j + 1])) {
+                out.push([x[i], x[i + 1], y[j]]);
+                i += 1;
+            } else {
+                out.push([y[j + 1], y[j], x[i]]);
+                j += 1;
+            }
+        }
+        out.push([x[i], apex, y[j]]);
         out
     }
 }
@@ -323,5 +371,58 @@ mod tests {
         let mut tris = rows.walk(&p);
         tris.sort_unstable();
         assert_eq!(tris, vec![[1, 2, 3], [1, 3, 4], [1, 4, 5], [1, 5, 0]]);
+    }
+
+    /// **A one-chord face to the apex with both sides split is zipped.**
+    /// The chart triangle `a₀ = (1, 1)`, `a₁ = (0, 1)`, apex `(½, 0)`, two
+    /// points on the side from `a₁` to the apex and two on the side from the
+    /// apex to `a₀`: five triangles (`boundary points − 2`), each wound as
+    /// the polygon is and of positive area, so none lies along one side,
+    /// their areas summing to the triangle's; and they are the zip's, from
+    /// the rim chord in by distance from the apex. Fanning each side from
+    /// the corner opposite it in the one walked triangle instead, the
+    /// second fan finds its side in the first fan's triangles and fans from
+    /// a point of the other side: a division of the triangle too, which the
+    /// area checks pass, and a sliver along a ruling where that point is
+    /// near the apex (`split_rulings`' one-chord apex row), which the
+    /// triangle list here reds.
+    #[test]
+    fn a_one_chord_face_to_the_apex_zips_its_sides() {
+        let on =
+            |p: (f64, f64), q: (f64, f64), t: f64| (p.0 + (q.0 - p.0) * t, p.1 + (q.1 - p.1) * t);
+        let (a0, a1, apex) = ((1.0, 1.0), (0.0, 1.0), (0.5, 0.0));
+        let pts = [
+            a0,
+            a1,
+            on(a1, apex, 0.3),
+            on(a1, apex, 0.8),
+            apex,
+            on(apex, a0, 0.1),
+            on(apex, a0, 0.8),
+        ];
+        let p: Vec<(f64, f64, u32)> = pts
+            .iter()
+            .zip([0, 1, 2, 3, 99, 5, 6])
+            .map(|(&(u, v), id)| (u, v, id))
+            .collect();
+        let line = [false, true, true, true, true, true, true];
+        let rows = Rows::of(&p, &line, &HashSet::from([99])).unwrap();
+        let tris = rows.walk(&p);
+        assert_eq!(tris.len(), p.len() - 2, "count");
+        let total: f64 = tris.iter().map(|&t| area(&p, t)).sum();
+        assert!((total - 1.0).abs() < 1e-12, "area {total}");
+        for &t in &tris {
+            assert!(
+                area(&p, t) > 1e-12,
+                "{t:?} is wound against the polygon or flat"
+            );
+        }
+        let mut sorted = tris.clone();
+        sorted.sort_unstable();
+        assert_eq!(
+            sorted,
+            vec![[1, 2, 6], [2, 3, 6], [3, 4, 5], [5, 6, 3], [6, 0, 1]],
+            "the zip's triangles"
+        );
     }
 }

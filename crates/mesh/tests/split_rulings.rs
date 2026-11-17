@@ -523,7 +523,8 @@ fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
 /// face's whole span apart, so the walk joins them only where its rims
 /// are one chord each (`ruled_walk`, "No edge of four triangles"). The
 /// tightest bodies for that, each holding the count relation exactly
-/// ([`holds_the_count_relation`]: a split triangle would add two):
+/// ([`holds_the_count_relation`]) and `check_mesh` (an edge of four
+/// triangles fails it):
 ///
 /// - a **band**: the cylinder wall's outer face cut along a ruling 0.5
 ///   rad from its seam ([`banded`]), so a face of one rim chord at δ 0.1
@@ -533,9 +534,12 @@ fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
 ///   one its caps are two coincident chords, which no face meshes);
 /// - a **half cylinder** and a **half cone through the axis**, whose one
 ///   planar cut face holds both straight sides of the curved face;
-/// - a **wedge** turned 0.5 rad, its rims one chord each at δ 0.1.
+/// - a **wedge** turned 0.5 rad, its rims one chord each at δ 0.1;
+/// - a **cone through its apex** turned 0.5 rad, its rim one chord at δ 1
+///   and 0.1, so one walked triangle holds both of its sides.
 ///
-/// Each line edge split at its middle and at five points, placed
+/// Each line edge split at its middle and at three points, and every line
+/// edge at once (both sides of a one-chord face among them), placed
 /// obliquely, at δ 1, 0.1 and 0.01 unless given.
 ///
 /// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
@@ -570,20 +574,32 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
             ),
             every,
         ),
+        (
+            "a cone through its apex turned 0.5 rad",
+            turned(&apex_cone(1.0, 30.0), Revolution::Partial(0.5)),
+            every,
+        ),
     ];
     let mut cells = 0usize;
     for (name, body, deltas) in &bodies {
         let solid = split_and_placed(body, &[], &[]);
-        for (k, &ek) in rulings(body).iter().enumerate() {
-            for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
-                let what = format!("{name}, line edge {k} split at {fracs:?}");
-                let split = split_and_placed(body, &[ek], fracs);
+        let lines = rulings(body);
+        let mut splits: Vec<(String, Vec<topo::EdgeKey>)> = lines
+            .iter()
+            .enumerate()
+            .map(|(k, &ek)| (format!("line edge {k}"), vec![ek]))
+            .collect();
+        splits.push(("every line edge".to_string(), lines.clone()));
+        for (which, edges) in &splits {
+            for fracs in [&[0.5][..], &[0.9, 0.5, 0.1][..]] {
+                let what = format!("{name}, {which} split at {fracs:?}");
+                let split = split_and_placed(body, edges, fracs);
                 holds_everywhere(&what, &split, &solid, deltas);
                 cells += deltas.len();
             }
         }
     }
-    assert_eq!(cells, 154, "the cells this row reads");
+    assert_eq!(cells, 218, "the cells this row reads");
 }
 
 /// Whether line edge `ek` of a body revolved about `y` is a cone's
@@ -1075,4 +1091,38 @@ fn a_cone_band_shorter_than_the_developments_resolution_meshes() {
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let whole = split_and_placed(&body, &[], &[]);
     holds_everywhere("a band's seam split at its middle", &split, &whole, deltas);
+}
+
+/// **A one-chord face through the apex with both sides split meshes.** A
+/// cone through its apex (`apex_cone`) of half-angle 1°, 5°, 30° and 45°,
+/// revolved 0.05 and 0.5 rad, every line edge split at `1 − g`, 0.5 and
+/// `g` of its range and placed obliquely: at a coarse δ its rim is one
+/// chord, so the walk writes one triangle, and both of its sides hold
+/// points. The two sides' points are joined to each other in order of
+/// distance from the apex (`ruled_walk`, "Both sides on one triangle"),
+/// and each body holds the count relation ([`holds_the_count_relation`];
+/// the volume where the body finishes).
+///
+/// **By ε**, each ε on the size and gap it builds: the default, height
+/// 1000 at δ 3000, 300, 30 and 3; `10⁻⁶` the same with the splits `10⁻⁴`
+/// from the ends (`split_edge` refuses `10⁻⁸` on the 1° cone there);
+/// `10⁻¹²`, height 1 at δ 3, 0.3, 0.03 and 0.003 (a cone of 1000 does not
+/// revolve there).
+#[test]
+fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
+    let (height, gap, deltas): (f64, f64, &[f64]) = match eps_row() {
+        EpsRow::Coarse => (1000.0, 1e-4, &[3000.0, 300.0, 30.0, 3.0]),
+        EpsRow::Default => (1000.0, 1e-8, &[3000.0, 300.0, 30.0, 3.0]),
+        EpsRow::Fine => (1.0, 1e-8, &[3.0, 0.3, 0.03, 0.003]),
+    };
+    for alpha in [1.0, 5.0, 30.0, 45.0] {
+        for turn in [0.05, 0.5] {
+            let body = turned(&apex_cone(height, alpha), Revolution::Partial(turn));
+            let lines = rulings(&body);
+            let split = split_and_placed(&body, &lines, &[1.0 - gap, 0.5, gap]);
+            let solid = split_and_placed(&body, &[], &[]);
+            let what = format!("a {alpha}° cone turned {turn}, every line edge split thrice");
+            holds_everywhere(&what, &split, &solid, deltas);
+        }
+    }
 }

@@ -524,8 +524,9 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 /// slants (the apex's `0`) and `d(θ)` the unit ruling, is `T · Σ μₖ d(θₖ)`
 /// with `T = Σ λₖ tₖ ≤ t_max` and `μ` convex weights, a point of the hull of
 /// the slant-1 circle's arc over the range scaled toward the apex. A
-/// triangle fanned from a side's point divides the walked triangle in its
-/// plane. The worst walked triangle is a chord of the largest rim against
+/// triangle fanned from a side's point, or joining two sides' points on a
+/// one-chord face to the apex (`ruled_walk::Rows::zip_sides`), lies in the
+/// walked triangle it divides, in its plane. The worst walked triangle is a chord of the largest rim against
 /// the next row, certifying at δ where that rim's chords span `h`.
 pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 {
     sagitta_step(target, rho_max * half_angle.cos())
