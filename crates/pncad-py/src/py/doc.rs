@@ -3171,8 +3171,9 @@ impl Node {
     /// `selection_name_kind`), and so does an EMPTY selection
     /// (`selection_shape`, `name_count`): a set of edges holds at
     /// least one. A name that resolves to nothing (`select_resolve`)
-    /// and an edge whose two supports are not both planes (`chamfer`)
-    /// are the kernel's own typed refusals at `evaluate`.
+    /// and an edge whose supports are neither both planes nor a whole
+    /// rim of a cylinder on a plane square to its axis (`chamfer`) are
+    /// the kernel's own typed refusals at `evaluate`.
     ///
     /// The node is built through Rust's `Node::chamfer`, the one
     /// construction door, so the stored set is canonical.

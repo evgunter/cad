@@ -113,6 +113,7 @@ mod handle;
 mod implicit_chart;
 pub mod jet;
 pub mod march;
+pub(crate) mod node;
 mod one_arc;
 pub(crate) mod pair;
 mod refine;
@@ -869,11 +870,11 @@ impl core::fmt::Display for SsiError {
             // The refusal's own words (`TorusRefusal::said`); a torus
             // decided outside the convention adds this door's consequence,
             // which an undecided half does not yet have.
-            Self::DegenerateTorus(refusal) => match refusal.verdict {
-                crate::torus_convention::TorusVerdict::Undecided(_) => {
+            Self::DegenerateTorus(refusal) => match refusal.standing() {
+                crate::torus_convention::TorusStanding::Ranked(_) => {
                     write!(f, "ssi: {}", refusal.said("the torus's", None))
                 }
-                crate::torus_convention::TorusVerdict::Refused(_) => write!(
+                crate::torus_convention::TorusStanding::InvalidInput(_) => write!(
                     f,
                     "ssi: {}, so the pair has no section to trace",
                     refusal.said("the torus's", None)
@@ -2379,18 +2380,25 @@ fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
 }
 
 /// The chart windows of a certified chart-lane branch — the tubes
-/// the chart accounting pass consumes: [`certify::chart_tube_windows`]
-/// at the pad the certificate recorded, so accounting banks the region
+/// the chart accounting pass consumes: [`certify::chart_tube`] at the
+/// pad and node boxes the certificate recorded, so accounting banks the region
 /// limb 3 proved and no other. A branch with no chart tube, or whose
 /// pcurve has a refused hull, banks nothing, which only makes the
 /// accounting harder.
 fn branch_chart_tubes(branch: &SsiBranch) -> Vec<UvRect> {
-    let (Some(pc), SsiTube::Chart { pad_u, pad_v, .. }) =
-        (&branch.pcurve_b, branch.certificate.tube)
+    let (
+        Some(pc),
+        SsiTube::Chart {
+            pad_u,
+            pad_v,
+            nodes,
+            ..
+        },
+    ) = (&branch.pcurve_b, branch.certificate.tube)
     else {
         return Vec::new();
     };
-    certify::chart_tube_windows(pc, (pad_u, pad_v))
+    certify::chart_tube(pc, (pad_u, pad_v), nodes)
         .into_iter()
         .flatten()
         .map(|w| w.rect)
@@ -3699,7 +3707,7 @@ fn trace_plane_nurbs_within(
     // certifies, as every plane × NURBS branch does.
     let pass = read.pass(&form)?;
     let wall_op = SsiOperand::Nurbs(read.charted().clone());
-    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band, &[]);
+    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band, (&[], &[]));
     let (states, _) = ends.through_seed([seed_uv.0, seed_uv.1], &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
@@ -4748,10 +4756,10 @@ mod ending_tests {
             ),
             (
                 "torus",
-                SsiError::DegenerateTorus(crate::torus_convention::TorusRefusal {
-                    convention: crate::torus_convention::TorusConvention::Ring,
-                    verdict: crate::torus_convention::TorusVerdict::Refused(zero),
-                }),
+                SsiError::DegenerateTorus(crate::torus_convention::TorusRefusal::decided(
+                    crate::torus_convention::TorusConvention::Ring,
+                    zero,
+                )),
             ),
             ("coincident tori", SsiError::CoincidentTori),
             (

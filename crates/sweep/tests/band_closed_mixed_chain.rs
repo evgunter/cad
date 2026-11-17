@@ -194,8 +194,10 @@ fn a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval() {
     }
 }
 
-/// **The chamfer does not reach a rounded outline**: its one arm is
-/// plane–plane, so each arc link refuses before any chain is carved.
+/// **The chamfer does not reach a rounded outline**: its frustum covers
+/// a whole plane–cylinder rim alone, and a strip and a frustum meeting
+/// at a junction is not built, so the chain refuses at an arc before any
+/// chain is carved.
 #[test]
 fn a_rounded_plate_chamfered_all_round_refuses_at_its_arcs() {
     let body = plate::<f64>(0.0, 0.0, 0.0, H);
@@ -203,7 +205,7 @@ fn a_rounded_plate_chamfered_all_round_refuses_at_its_arcs() {
         chamfer_edges(&at_rest(&body, tol()), &every_edge(&body), 0.05, tol()).map_err(|r| r.error);
     assert!(
         matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-        "a chamfer has no band over a plane and a cylinder, got {got:?}"
+        "a chamfer has no junction between a strip and a frustum, got {got:?}"
     );
 }
 

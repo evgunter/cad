@@ -166,8 +166,9 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
-/// distance to first order near it. Total: poison in, poison out;
-/// [`Surface::Nurbs`] yields poison.
+/// distance to first order near it. Total: poison in, poison out; a
+/// carrier with no implicit form (not [`crate::edge_nurbs::is_analytic`])
+/// yields poison.
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
@@ -907,7 +908,7 @@ pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) ->
         let reach = h.a1 + h.a2 + h.noise;
         return Some((h.c0 - reach, h.c0 + reach));
     }
-    conic_arc_residual_range(s, conic, T::zero(), T::tau())
+    conic_arc_residual_range(s, conic, T::zero(), geom::conic_period::<T>().length())
 }
 
 /// [`conic_residual_extremes`] on a circle.
@@ -958,7 +959,7 @@ pub fn circle_residual_curvature_bound<T: Real>(
     s: &Surface<T>,
     circle: &geom::Circle<T>,
 ) -> Option<T> {
-    arc_curvature_bound(s, circle, T::zero(), T::tau())
+    arc_curvature_bound(s, circle, T::zero(), circle.period().length())
 }
 
 /// [`circle_residual_curvature_bound`]'s arc-scoped form, on any
@@ -1710,12 +1711,19 @@ pub fn conic_torus_harmonics<T: Real>(
 /// rounding is relative.
 #[must_use]
 pub fn ring_floor<T: Real>(ring: geom::RingTorus<T>) -> T {
-    ring_floor_of(ring.major_radius(), ring.minor_radius())
+    floor_formula(ring.major_radius(), ring.minor_radius())
 }
 
 /// [`ring_floor`]'s formula on radii no witness holds: the floor rows'
-/// reading of radii the band does not certify.
+/// reading of radii the band does not certify. Test builds only, so in
+/// production the floor is read through the witness alone.
+#[cfg(test)]
 pub(crate) fn ring_floor_of<T: Real>(major_radius: T, minor_radius: T) -> T {
+    floor_formula(major_radius, minor_radius)
+}
+
+/// The floor's one formula ([`ring_floor`]).
+fn floor_formula<T: Real>(major_radius: T, minor_radius: T) -> T {
     T::from_f64(2.0)
         * minor_radius
         * ((major_radius - minor_radius) * (major_radius + minor_radius))

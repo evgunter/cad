@@ -23,7 +23,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
-use sweep::test_support::{cube, disc_of_arcs};
+use sweep::test_support::{cube, dome};
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, EdgeKey};
@@ -32,13 +32,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-/// A circular prism: two half-arc profile segments extruded, so every
-/// rim edge has a plane and a CYLINDER for supports — the homed
-/// `disc_of_arcs` at two arcs.
-fn cylinder(r: f64, h: f64) -> Body<f64> {
-    disc_of_arcs(2, r, h, Tol::witness())
-}
 
 /// **The chamfer-purity claim, in one place**: a chamfer refusal's
 /// text opens with the chamfer's verb and never says "fillet" —
@@ -162,15 +155,15 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
 /// wrapper now, with the verb rendered exactly once.
 #[test]
 fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
-    let cyl = cylinder(0.5, 1.0);
-    let edges = query::all_edges(&cyl);
+    let dome = dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a curved support has no ruled strip");
+    .expect_err("a sphere support has no chamfer band");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the chamfer's own arm table is what refused: {err:?}"
@@ -282,8 +275,8 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
 /// leaves as it is, and a declared cusp's kiss reads as a knife there
-/// and then meets the chamfer's one refusal for a pair its plane–plane
-/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// and then meets the chamfer's one refusal for a pair its arms do not
+/// cover, `ChamferArmUnsupported` — the chamfer's own arm table,
 /// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
@@ -468,4 +461,29 @@ fn l_bracket() -> Body<f64> {
     .expect("an L-bracket extrudes")
     .body
     .into_body()
+}
+
+/// **A plane–cylinder rim's refusals speak as the chamfer.** The
+/// chamfer's frustum reaches the closed-rim walks' own refusals, whose
+/// recourses the fillet's rims share: a post's top requested in part
+/// stops at a smooth seam vertex, and a boss's foot and top asked in one
+/// call share the boss's wall. Neither may speak as the fillet.
+#[test]
+fn a_plane_cylinder_rims_refusals_speak_as_the_chamfer() {
+    let t = Tol::witness();
+    let post = sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, t);
+    let top = sweep::test_support::circle_arcs_at_z(&post, 1.0);
+    let err = chamfer_edges(&sweep::test_support::at_rest(&post, t), &top[..1], D, t)
+        .expect_err("half a rim stops at a smooth vertex");
+    assert_speaks_as_the_chamfer(&err, "partial rim");
+
+    let boss = sweep::test_support::boss_of_arcs(2, 2.0, 0.4, 1.0, 2.0, t);
+    let rims = [
+        sweep::test_support::z_rim(&boss, 0.4, 2.0, true),
+        sweep::test_support::z_rim(&boss, 0.4, 3.0, true),
+    ]
+    .concat();
+    let err = chamfer_edges(&sweep::test_support::at_rest(&boss, t), &rims, D, t)
+        .expect_err("a boss's foot and top share its wall");
+    assert_speaks_as_the_chamfer(&err, "foot and top in one call");
 }

@@ -92,7 +92,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1,
-F42 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
+F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -574,7 +574,7 @@ which is what actually moves the number.
 | boolean/join.rs (`along_facing`) | bool_join_foot_heading | unit germ dir · the carrier's unit tangent at the site's foot, levered by the section's own scale (`CarriedSection::lever`, the cylinder's radius for cylinder × sphere), so a germ's heading is its own and read once per operation (`SectionTable::germ_foot`) | m (levered) | OK |
 | boolean/join.rs (`along_facing`) | bool_join_foot_ahead | the carrier parameter from one site's foot to the other's, the way the germ leaves, metered by the carrier's speed at the germ's foot | m | OK |
 | boolean/join.rs (`nearer_along`) | bool_join_foot_travel | a DIFFERENCE of two such parameters, metered by that speed: which partner's foot the germ reaches first | m | OK |
-| boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
+| boolean/join.rs (`ring_run_ccw`, through `Body::planar_run_winding_decided`) | bool_ring_run_winding | (n̂ · Newell sum, each curved edge's bulge added) / run perimeter, the closing curve's length included — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | geom-brep/plane_eq.rs | plane_eq_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | geom-brep/plane_eq.rs | plane_eq_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -676,7 +676,8 @@ which is what actually moves the number.
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | census.rs (`edge_vertex_at`, from the edge-on-face and collinear-overlap bound backings) | pm_census_bound_end | `s` and `len − s`: a bound's position along the edge's unit direction from `v0`, and its distance from `v1` (`len` the chord length the direction was normalised by) | m | OK |
 | census.rs (`any_boundary_vertex_at`) | pm_census_bound_vertex | `‖p_w − q‖`, a boundary vertex's distance from the bound's point (`Margin::norm3`) | m | OK |
-| merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
+| merge_faces.rs (`merged_outline_ring`, through `Body::planar_loop_winding_decided`) | bool_ring_run_winding | (n̂ · Newell sum, each curved edge's bulge added) / loop perimeter | m | FIXED (F4) |
+| splitting/section_loops.rs (`loop_sense`) and chord_join.rs (`RimSide::holds_outer`), through `Body::planar_loop_winding` | bool_ring_run_winding | the same margin, of a section loop and of a one-site loop's two sides | m | OK (F4's one home, `crate::loop_winding`) |
 | pcurves/decision.rs (`spline_gap_closes`: `chart_u_arm`, `v_meter`) | pcurve_loop_continuity | a SPLINE chart's (`Nurbs`/`Approx`) joint gap, on the sheet lifted by the joint's `u` and `v` periods where the net closes in each: Δu × `chart_u_arm` and Δv × `v_meter`, `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)`, the chart's own metre stretch | m | OK (`metered_sup` door: an escape metred through a certified upper bound can only refuse) |
 | pcurves/decision.rs (`near_pole_gap_closes`: `joint_arm`) | pcurve_loop_pole_gap | at a joint whose orbit marks missed (undecided, or the gap on one) at a band-sized lever (`lever_periods`; a vertex near a pole, or off a narrow cone's apex by more than the band with its lever `|p − apex|·sin α` under it): (gap − m·step) × the vertex's own distance from the axis, for the offsets m of the joint's `Orbit` (`Periods`: 0, ±1 whole periods; `HalfPeriodsWithTwin` where the image has a sphere twin: 0, ±1, ±2 half periods), then the two branches astride the mark the marks' walk stopped on (`Period::decide`), each a lift of the one point. Zero takes m; an offset in band, where none closes, escalates over the marks' decided on-mark miss | m | OK (`metered_sup` door; the rate is the vertex's own distance from the axis, exact there, so an escape it admits is ≤ ε in metres at that vertex) |
 | pcurves/decision.rs (`joint_has_room`: `axis_distance`) | loop_windings_joint_room | `loop_windings`' room fence, per joint off the singular set: a quarter of the chord two of the joint's chart ends would span half the orbit's step apart, `sin(step/4)/2` (`sin(π/4)/2` on a sphere, `1/2` on a cylinder, cone or torus) × the ends' least distance from the axis, `d − 2ε` at the vertex's own `d` | m | OK (levered door). It is an escape claim on the conservative side: only a definite `Positive` admits, so the chord `2·(d − 2ε)·sin(step/4)` is past four times the band's escalation, `4·K·ε > 4ε`, the joint bound, at every `K > 1`: no two chart ends of the joint lie half a step apart, and the decided integer is the joint's own. A spline chart is exempt: its joints decided their lifted chart-space gap |
@@ -698,7 +699,7 @@ which is what actually moves the number.
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the `f64` door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, at `f64` alone: within their own rounding (`rounding_charge` of the term bound, the admission floor's statement) the map is admitted as given, and beyond it refused; nothing is decided against any band, and no box scalar has the door (fork 258) | — | OK (no band; F10 retired) |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
-| validate.rs:2030 | bool_ring_run_winding | (outward · Newell sum) / loop perimeter | m | FIXED (F4) |
+| validate.rs (check 6's planar arm, through `Body::planar_loop_winding`) | bool_ring_run_winding | (outward · Newell sum, each curved edge's bulge added) / loop perimeter | m | FIXED (F4) |
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
 | geom-brep sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | sector_shape.rs (`apex_shape`) | sector_apex_tilt / sector_apex_window | `sin α·‖n_r‖` levered by the arm (m): how far the plane's side varies round a cone's apex rulings; `2 sin α·sin(Δφ/2)` levered by the arm (m): the chord between two rulings' points a lever out, the window's width and an extremal ruling's distance in from each bound | m | OK (SPLITDOOR) |
@@ -1017,18 +1018,30 @@ speculative — each row below states what it measured):
   area B), so it flags the plate's 3 mm cube at 1e-9 and 1e-12 and not
   at 1e-6 (`test_support_volume`'s module docs; its
   `the_slack_is_eps_over_the_operands_boundary` pins the slack).
-- **F4** `bool_ring_run_winding` (one predicate, three sites — the
-  boolean join's ring lane, the merge's role assigner, tier 3's check
-  6 — and one arithmetic home, `crate::loop_winding`, which all three
-  read): the Newell AREA is divided by the region's boundary PERIMETER,
-  giving `2A/P` — the ring's MEAN WIDTH, the distance the boundary
-  would have to move to sweep the enclosed region away, and the same
-  quantity `split_section_area` already meters. The canonical
-  derivation lives in `crate::loop_winding`'s module docs; the sites
-  cross-reference it. The perimeter is arc-aware (conics contribute
-  `|Δ|` times the larger semi-axis magnitude — exact for a circle, an
-  upper bound for an ellipse, and an over-large P escalates rather
-  than decides) and, for the join's open run, includes the chord that
+- **F4** `bool_ring_run_winding` (one predicate, five readers — the
+  boolean join's ring lane `ring_run_ccw`, the merge's role assigner
+  `merged_outline_ring`, tier 3's check 6 planar arm, the splitter's
+  `section_loops::loop_sense` and the chord joiner's
+  `RimSide::holds_outer` — and one arithmetic home,
+  `crate::loop_winding`, which all five read): the Newell AREA is
+  divided by the region's boundary PERIMETER, giving `2A/P` — the
+  ring's MEAN WIDTH, the distance the boundary would have to move to
+  sweep the enclosed region away, and the same quantity
+  `split_section_area` already meters. The canonical derivation lives
+  in `crate::loop_winding`'s module docs; the sites cross-reference it.
+  The perimeter is arc-aware: each curved edge contributes an upper
+  bound on its length over its own stretch
+  (`geom::carrier_speed::length_hi`, and `props::spiric_length_bound`
+  for a spiric) — a circle's exact arc length; an ellipse's window
+  speed summed over 32 equal pieces of its span; a spline's
+  quotient-piece speed bound summed over the pieces of each knot span
+  its interval covers; a spiric's piecewise bound at the enclosure's
+  piece count. The lever is two-sided: an over-large P brings a real
+  region's margin under ε, which is decided Zero, so no edge is
+  charged for its whole carrier's fastest stretch (measured before
+  that held for a spline: 85× to 2500× the length, and Zero on regions
+  26ε to 5 mm wide). For the join's open run the perimeter includes
+  the curve that
   closes it. This retires an
   EXECUTED in-band refusal: at ε = 1e-6 the mm pocket-subtract twin
   refused typed on a 2e-6 m² margin inside Band{1e-6, 1e-5}; the same
@@ -1661,11 +1674,14 @@ Flagged, NOT fixed here (dispositions):
   - **A dropped step loses no meeting.** The pair it ends at is read with
     the window its pieces make, the polish's run included, and an Off
     there prunes only where the window's bound says the pieces hold no
-    meeting. Where its premise is not proved (`curve_pair_walk_basin`,
-    logged) the window is undecided and the Off escalates
-    (`walk.rs`'s module docs, the paragraph ending "so no meeting is
-    left unread"). A point left short of the meeting by a dropped step
-    is such a pair: it reads On, or an Off the window proves, or an
+    meeting. Where the two-sided reading bounds no reach (its basin,
+    `curve_pair_walk_basin`, or its move not proved, both logged), a
+    pair held at an end of each span reads the one-sided window
+    (`curve_pair_walk_basin_held`, logged); where neither bounds a
+    reach the window is undecided and the Off escalates (`walk.rs`'s
+    module docs, the paragraph ending "so no meeting is left
+    unread"). A point left short of the meeting by a dropped step is
+    such a pair: it reads On, or an Off the window proves, or an
     escalation.
   - So the logged tie was never the driver's only cue. Where a dropped
     step leaves a meeting unproved, the window's escalation is the cue,
@@ -1797,19 +1813,25 @@ Flagged, NOT fixed here (dispositions):
   or not; Zero discharges it, anything else keeps the row deferred
   (`deferred::discharge_or_why`). It was a raw `sign_within` until this
   unit, so its samples reached the K sink `<unnamed>`.
-  `replay_one_cylinder` takes the metre data through `Margin::of`: the
-  second axis's offset from the first, crossed with its unit direction
-  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
-  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
-  the axes' tilt `|da × db|`, a sine of two unit directions,
-  **dimensionless**, through `Margin::levered` at the arm the kernel's
-  pair door levers the same datum at (`topo::boolean::carrier_pair_arm`:
-  the reach of the ball enclosing both faces from the foot of its centre
-  on the second axis, as `carrier_eq`'s `carrier_cyl_axis_parallel`).
+  Where the axis is decided, its tilt, offset and radius difference
+  are the kernel's own data (`topo::boolean::cylinder_pair_data`, one
+  computation with `geom_brep::carrier_eq`'s `cylinder_data`, over the
+  pair's extent), decided under the replay's names. Where the mates
+  state the axis, the radius difference is read as it stands, with no
+  extent. `replay_one_cylinder` takes the metre data: the second axis's
+  distance from the first at the foot of the extent (`Margin::norm3`),
+  the radius difference, and each rim's radius less its cylinder's (the
+  replay's own reading). `replay_one_cylinder_axis` takes the axes' tilt
+  `|da × db|`, a sine of two unit directions, **dimensionless**, through
+  `Margin::levered` at the arm the ladder levers the same datum at (the
+  reach of the ball enclosing both faces from the foot of its centre on
+  the second axis), which `cylinder_pair_data` hands over levered.
   Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
-  it read each component of the cross product apart at
-  `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
-  read on the replay's corpus was exactly zero, so no decision moved.
+  the tilt was each component of the cross product at
+  `Lever::unsourced(1 m)`, and until
+  `work/onecopy/the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data.md`
+  the offset was each component of `(ob − oa) × db` at the axes' stated
+  origins.
 
 - **F41** (added by CLEAR's verdict-door unit) `topo/src/clearance.rs`
   `Sweep::run` and `min_separation`: the clearance engine's two entry
@@ -1927,6 +1949,38 @@ Flagged, NOT fixed here (dispositions):
   **Both outcomes of each are the direction**, and neither is ever a
   refusal. Not `decide_flagged` sites; `LEDGER_FLAGGED_SITES` does not
   move.
+
+- **F44** (added by ONECOPY's param-difference unit)
+  `iso_row_runs_against` — `topo/src/replace_face.rs`, the iso-row lane:
+  whether an edge's span `(s0, s1)` along a fit's boundary row runs
+  against the row (`s1 − s0` Negative), so its carrier is the reflected
+  column. The comparand is a **parameter difference** along the row, no
+  length, and it was read through `Margin::of` against the band. D4
+  (iii) meters a parameter through a per-kind metric door, but only an
+  INF rate makes a definite Negative sound here, and a fit's stretch
+  floor along the row (`NurbsSurface::stretch_floor`) is signed and can
+  read zero or below, so no certified inf is in hand. **FLAG**: it
+  rides `decide_flagged(.., "F44")`, its sign the parameter's own.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class; the row's span is certified forward on the OLD
+  carrier, so a sign on the row that is not the old one is a reflection,
+  never a degenerate span, which is why the raw sign has served.
+
+- **F45** (added by ONECOPY's param-difference unit)
+  `bool_parting_order` — `topo/src/boolean/slit.rs` `parting_order`, the
+  order of two crossings along an edge `divide` divides (`a − b`). The
+  comparand is a **parameter difference** along the edge's carrier. D4
+  (iii) meters it at the carrier's speed, and the order (a decided side)
+  is sound only at an INF rate: it reads `Margin::metered` at
+  `speed_range`'s floor wherever that floor is decided positive
+  (`structure_ascends(0, floor)`). A spline's floor
+  (`NurbsCurve3::speed_lower_bound`) may read zero, below zero or poison,
+  so no certified inf is in hand there. **FLAG**: that arm rides
+  `decide_flagged(.., "F45")`, its sign the parameter's own. Its Zero is
+  read again at the sup (`bool_parting_one_point`), as on every arm, so
+  "one point" stays sound in metres.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

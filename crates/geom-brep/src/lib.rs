@@ -123,7 +123,7 @@ pub mod variety;
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
-    ConsumedExtent, carrier_eq,
+    ConsumedExtent, CylinderPairData, carrier_eq,
 };
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use carrier_pose::{
@@ -232,14 +232,14 @@ pub use pair_section::{
     CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape,
     Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
     CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
-    NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
-    Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionNode,
-    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
+    RaySense, Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision,
+    SectionNode, SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd,
+    SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance,
+    TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
+    TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding,
+    WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section,
+    square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -285,4 +285,4 @@ pub use ssi::{charted_nurbs_mints, implicit_pair_marches};
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
-pub use torus_convention::{TorusConvention, TorusRefusal, TorusVerdict};
+pub use torus_convention::{TorusConvention, TorusRefusal, TorusStanding};

@@ -1037,16 +1037,17 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **The carrier's period, where its parameter repeats**: a conic's
-    /// ([`conic_period`]) and a spiric oval's ([`spiric_period`]), each
-    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// **The carrier's period, where its parameter repeats**: a circle's
+    /// and an ellipse's ([`Circle::period`], [`Ellipse::period`]) and a
+    /// spiric oval's ([`spiric_period`]), each kind's own statement; a line and a spline do not repeat (`None`).
     /// Matched exhaustively over the kinds. A renaming by whole periods,
     /// or a reading on a copy a period away ([`Period::span_margins`]),
     /// reads it.
     #[must_use]
     pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => Some(conic_period()),
+            Curve3::Circle(c) => Some(c.period()),
+            Curve3::Ellipse(e) => Some(e.period()),
             Curve3::Spiric { .. } => Some(spiric_period()),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
@@ -1735,6 +1736,18 @@ impl Curve3<geom_core::Interval> {
     }
 }
 
+/// **Which side of a parameter a reading stands on**: the parameters
+/// below it or those above it. A one-sided reading at a knot
+/// ([`Curve3::ders1_from`]) reads the span on that side, and a window
+/// held at a span's end reads the side its span runs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParamSide {
+    /// The parameters below.
+    Below,
+    /// The parameters above.
+    Above,
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -1876,6 +1889,16 @@ impl<T: SpanLocate> Curve3<T> {
                 )
             }
             Curve3::Nurbs(n) => n.ders1(t),
+        }
+    }
+
+    /// **[`Self::ders1`] from one side of `t`** (`side`): a spline's
+    /// [`NurbsCurve3::ders1_from`], the one-sided derivative at a crease.
+    /// Every other kind is smooth, and reads [`Self::ders1`].
+    pub fn ders1_from(&self, t: T, side: ParamSide) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Nurbs(n) => n.ders1_from(t, side),
+            _ => self.ders1(t),
         }
     }
 

@@ -385,6 +385,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
+        path: "crates/test-utils/tests/torus_verdict_matches.rs",
+        disposition: Shared, // every crate's production code, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/join.rs",
         disposition: Shared, // the join's one face-to-surface walk, code view
     },

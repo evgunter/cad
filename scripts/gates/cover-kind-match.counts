@@ -4,7 +4,7 @@
 # `# from OLD_PATH` at the end of each of its lines.
 # kind count file
 arm 2 crates/editor-core/src/eval/measure.rs
-arm 2 crates/geom-brep/src/certify.rs
+arm 1 crates/geom-brep/src/certify.rs
 ball 1 crates/geom-brep/src/chart_singularity.rs
 arm 2 crates/geom-brep/src/conic_bend.rs
 arm 1 crates/geom-brep/src/curve_face/circle_torus.rs
@@ -68,8 +68,8 @@ arm 2 crates/step-import/src/normalize.rs
 arm 6 crates/sweep/src/blend/arms.rs
 arm 4 crates/sweep/src/blend/battery.rs
 arm 5 crates/sweep/src/blend/open/end_face.rs
-arm 18 crates/sweep/src/blend/reach.rs
-arm 7 crates/sweep/src/blend/surgery.rs
+arm 17 crates/sweep/src/blend/reach.rs
+arm 6 crates/sweep/src/blend/surgery.rs
 ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
@@ -111,7 +111,7 @@ arm 1 crates/topo/src/offset_together.rs
 arm 5 crates/topo/src/pcurves/decision.rs
 arm 1 crates/topo/src/props.rs
 arm 3 crates/topo/src/props/quad_lane.rs
-arm 7 crates/topo/src/replace_face.rs
+arm 6 crates/topo/src/replace_face.rs
 arm 1 crates/topo/src/sector_face.rs
 whole 1 crates/topo/src/separating.rs
 arm 3 crates/topo/src/shell.rs

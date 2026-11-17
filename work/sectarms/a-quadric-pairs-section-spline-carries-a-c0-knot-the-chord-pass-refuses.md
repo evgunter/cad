@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-14
 priority: P0
 cost: M
-design: true
 ---
 
 
@@ -27,6 +26,20 @@ So no boolean of a cylinder and a ball in a general pose can be drawn.
 `nurbs_chord_count`'s secant bound needs C¹, and it refuses any interior knot of multiplicity above `p − 1`. Ev's ruling on PR 5913 (DESIGN `[topology]`) says an edge carrier is C¹ by its knot structure strictly inside its cell, and that a construction whose carrier is not puts a vertex there; no reader carries a crease arm. Read with that, the carrier this section mints is the defect, and the chord pass is right to refuse it. Not yet measured: whether the knot is a true tangent break or a full-multiplicity knot on a smooth curve (a piecewise-Bézier fit), which decides between cutting the edge at the knot and minting the curve with a C¹ knot vector.
 
 The mint is on other ground: `geom-brep`'s `ssi.rs` (`cylinder_sphere_ssi`; SSIARITH, SSIEDGE) and `pair_section.rs` (the SECT family). This row sits here because the refusal is the mesh's and the mint's owner is not yet identified; whoever owns the mint claims it by moving it. `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse these bodies at rest once it lands, so this row is on its path too.
+
+## Decided (Ev, PR 7042, 2026-11-17; fork-log row 279)
+
+A closed fitted section loop is fitted as a periodic cubic: C² by its
+knot structure everywhere, with no start. It is a carrier kind of its
+own, a distinct `Curve3` arm with a period, as a circle has. It is
+seated by its span; an edge on it is the loop's carrier and a span,
+and a reader reads the clamped view of that span, whose interior knots
+are simple. `seat_at`'s knot edit, `rotated`, the second certificate at
+the seat and the near-start refusal go. The 5913 clause is unchanged;
+C11 admits this one periodic form. Making section chords spans rather
+than cut nets is its own item
+(`a-section-chord-cut-as-its-own-net-never-rejoins`), which this
+decision needs for its join benefit.
 
 ## Done when
 

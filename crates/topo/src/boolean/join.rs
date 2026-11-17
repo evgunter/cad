@@ -182,7 +182,7 @@ use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
 use geom_core::Tol;
-use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing};
+use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, argmin_decided, climb_agreeing};
 
 /// The K funnel name of a germ plane's normal-length decision: the
 /// boolean reads a plane carrier's normal into the section lanes, and
@@ -439,8 +439,10 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A cylinder, sphere, torus or spline face, closed by the segment's
-    /// curve, a carried chord ([`GermLane::Carried`]).
+    /// A carried chord ([`GermLane::Carried`]), the segment's curve: it
+    /// closes a planar face's island on the face's own plane, as
+    /// [`Self::Planar`] does, and a cylinder's, a sphere's, a torus's or
+    /// a spline face's by a path on the face.
     Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -2057,19 +2059,16 @@ fn nearest_of<T: Decide, C>(
     cands: Vec<(PartnerDistance<T>, C)>,
     sign: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<Sign, BooleanError>,
 ) -> Result<Option<(PartnerDistance<T>, C)>, BooleanError> {
-    match argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing) {
-        Ok(nearest) => Ok(nearest),
-        Err(
-            Unpicked::Contested {
-                in_band: Some(e), ..
-            }
-            | Unpicked::Aborted(e),
-        ) => Err(*e),
-        Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPartnersTied),
-        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
-            what: "the join's nearest-partner comparison ranks in a cycle",
-        }),
-    }
+    argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing).map_err(
+        |unpicked| {
+            *unpicked.refusal(
+                || Box::new(BooleanError::JoinPartnersTied),
+                // The half-turn, then the chord: a lexicographic of two
+                // orders by one quantity each, which ranks in no cycle.
+                || unreachable!("the join's nearest-partner order ranks in no cycle"),
+            )
+        },
+    )
 }
 
 /// **The half-turn, then the chord**: the order of two germs' nearest
@@ -2398,6 +2397,36 @@ fn first_pair<T: Decide>(
     // One entry per pair: a mutual pair is held twice, once from each
     // germ, at one distance, and would read tied with itself. Its entry
     // met first in scan order stands for it.
+    // The entry dropped stands for the one kept only where the two read
+    // one distance, which `partners` builds them to, and it is checked
+    // rather than discarded unread. A decided `Zero` is superseded (the
+    // pick does not rest on it). A poisoned reading (or an enclosure
+    // straddling the band's edge) escalates on its margin, so the poison
+    // stays visible. Any other difference, in band or decided, is a pair
+    // read two ways: a desync (`JoinDesync`). The refusal's reading is
+    // spliced live.
+    for (germ, &(at, reach, (partner, _))) in &own {
+        let Some(&(back_at, back_reach, (back, _))) = own.get(&partner) else {
+            continue;
+        };
+        if back != *germ || at < back_at {
+            continue;
+        }
+        let (same, log) = geom_core::k_stats::detached(|| nearest_sign(reach, back_reach, band));
+        match same {
+            Ok(Sign::Zero) => geom_core::k_stats::splice_superseded(log),
+            Err(diag) if !geom_core::ladder::in_band(&diag) => {
+                geom_core::k_stats::splice(log);
+                return Err(join_escalate(diag));
+            }
+            Err(_) | Ok(Sign::Negative | Sign::Positive) => {
+                geom_core::k_stats::splice(log);
+                return Err(BooleanError::JoinDesync {
+                    what: "a mutual pair's two entries read different distances",
+                });
+            }
+        }
+    }
     let mut met: Vec<_> = own
         .iter()
         .filter(|&(germ, &(at, _, (partner, _)))| {
@@ -2411,19 +2440,16 @@ fn first_pair<T: Decide>(
         nearest_sign(a.1, b.1, band)
             .map_err(|diag| Undecided::of(diag).map(|diag| Box::new(join_escalate(diag))))
     };
-    match argmin_decided(met, cmp, free_of) {
-        Ok(best) => Ok(best.map(|(_, _, m)| m)),
-        Err(
-            Unpicked::Contested {
-                in_band: Some(e), ..
-            }
-            | Unpicked::Aborted(e),
-        ) => Err(*e),
-        Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPairsTied),
-        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
-            what: "the join's pair order ranks in a cycle",
-        }),
-    }
+    argmin_decided(met, cmp, free_of)
+        .map(|best| best.map(|(_, _, m)| m))
+        .map_err(|unpicked| {
+            *unpicked.refusal(
+                || Box::new(BooleanError::JoinPairsTied),
+                // One partner distance against another, as `nearest_of`
+                // reads it: a lexicographic order, which ranks in no cycle.
+                || unreachable!("the join's pair order ranks in no cycle"),
+            )
+        })
 }
 
 /// **Whether two unused germ slots are match partners** — the
@@ -4085,16 +4111,13 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
         | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)) => {
             FrameError::section(diag)
         }
-        geom_brep::SectionError::DegenerateTorus(geom_brep::TorusRefusal {
-            convention,
-            verdict,
-        }) => match verdict {
-            geom_brep::TorusVerdict::Undecided(diag) => FrameError::Escalated {
-                decision: BooleanDecision::Torus(convention),
+        geom_brep::SectionError::DegenerateTorus(refusal) => match refusal.standing() {
+            geom_brep::TorusStanding::Ranked(diag) => FrameError::Escalated {
+                decision: BooleanDecision::Torus(refusal.convention),
                 diag,
             },
-            geom_brep::TorusVerdict::Refused(verdict) => FrameError::DegenerateTorus {
-                convention,
+            geom_brep::TorusStanding::InvalidInput(verdict) => FrameError::DegenerateTorus {
+                convention: refusal.convention,
                 verdict,
             },
         },
@@ -4679,7 +4702,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     // Ring lane: decided by the run's winding. A planar, sphere, cone or
     // torus face's run is closed by the segment's curve, so it waits on
     // that curve ([`RoleLane::resolve`]), and so does a carried chord's
-    // cylinder, sphere, torus or spline face; a cylinder face's on a planar section
+    // face, a plane by its own plane's winding whichever lane minted the
+    // chord; a cylinder face's on a planar section
     // closes along its section plane on its chart, decided here, before
     // the curve is computed in the order it decides. An along-edge
     // segment reads no section: a curved face there refuses typed,
@@ -4696,14 +4720,21 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             Some(crate::ring_path::Quadric::Cylinder { .. }) | None => RingFace::Wall(section),
             Some(_) => RingFace::Quadric,
         },
-        RingClosure::Chord => match crate::ring_path::Carrier::of(surface()) {
-            Some(
-                crate::ring_path::Carrier::Quadric(
-                    crate::ring_path::Quadric::Cylinder { .. }
-                    | crate::ring_path::Quadric::Sphere { .. }
-                    | crate::ring_path::Quadric::Torus { .. },
-                )
-                | crate::ring_path::Carrier::Wall(_),
+        RingClosure::Chord => match (
+            face_outward_normal(body, face),
+            crate::ring_path::Carrier::of(surface()),
+        ) {
+            (Some(normal), _) => RingFace::Plane(normal.vec()),
+            (
+                None,
+                Some(
+                    crate::ring_path::Carrier::Quadric(
+                        crate::ring_path::Quadric::Cylinder { .. }
+                        | crate::ring_path::Quadric::Sphere { .. }
+                        | crate::ring_path::Quadric::Torus { .. },
+                    )
+                    | crate::ring_path::Carrier::Wall(_),
+                ),
             ) => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
@@ -4880,16 +4911,22 @@ fn ring_order<T: Decide>(
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
 /// merges), unless an end of the run faces a tied germ, where it winds
-/// as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
+/// as `tie` reads it ([`tie_winding`]).
+///
+/// The sum reads every carrier a run edge or the closing curve holds
+/// (`crate::loop_winding`'s module docs: a spline by its own term, as a
+/// line, a conic and a spiric by theirs), so a planar face's run is
+/// wound whichever lane minted its chords. One the sum does not wind
+/// refuses typed ([`JoinError::RingIslandUnread`]): an edge read by its
+/// enclosure alone (a spiric, a rational spline, a non-rational one past
+/// the exact rule's degrees) at a scalar that does not certify
+/// ([`crate::loop_winding::Unwound`]).
+///
+/// A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
-/// and `face`) on every closing but a carried chord's, whose path reads
-/// one where it is certified on the face
-/// ([`crate::ring_path::SplineArc`]). A run the sum does not wind otherwise
-/// refuses by the reason it names ([`crate::loop_winding::Unwound`]): a
-/// spline closing curve on a plane, which no section lane mints there,
-/// loudly; a spiric
-/// at a scalar that does not certify, typed
-/// ([`JoinError::RingIslandUnread`]).
+/// and `face`) on a wall's or a quadric's closing, whose windings do not
+/// read one; a carried chord's path reads one where it is certified on
+/// the face ([`crate::ring_path::SplineArc`]).
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
@@ -4906,7 +4943,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    if !matches!(closing, IslandClosing::Carried(_))
+    if matches!(closing, IslandClosing::Wall(_) | IslandClosing::Quadric(_))
         && let Some(edge) = run_spline_edge(body, (h1, h2))?
     {
         return Err(BooleanError::EdgeCarrierUnsupported {
@@ -4951,25 +4988,17 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
-        .map_err(|why| {
-            BooleanError::from(match why {
-                // The run holds none (above), so the spline is the
-                // closing curve, and no section lane mints one on a plane.
-                Unwound::Spline => JoinError::SectionInvariant {
-                    face,
-                    what: "the ring lane's closing section curve is a spline",
-                },
-                Unwound::Uncertified => JoinError::RingIslandUnread {
-                    face,
-                    kind: geom::SurfaceKind::Plane,
-                },
+        .map_err(|Unwound::Uncertified| {
+            BooleanError::from(JoinError::RingIslandUnread {
+                face,
+                kind: geom::SurfaceKind::Plane,
             })
         })?;
     ring_winding_order(wound.map(|decided| decided.sign), tie)
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
-/// of a loop: no closing but a carried chord's winds one
+/// of a loop: a wall's closing and a quadric's wind none
 /// ([`ring_run_ccw`]). A spiric run edge is read by the
 /// windings themselves, on the carriers that bear one.
 fn run_spline_edge<T: Decide>(
@@ -6470,6 +6499,137 @@ mod self_check_rows {
         .expect_err("an in-band winding escalates");
         assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
     }
+
+    /// **A planar ring run closed by a spline winds by the spline's own
+    /// area.** On a prism's top face the run `(0,0) → (1,½) → (2,0)` is
+    /// closed from `(2,0)` back to `(0,0)` by a parabola. One whose apex
+    /// stands at `y = 1`, past the run's corner, walls off a region to
+    /// the run's left, counter-clockwise about the outward normal; one
+    /// whose apex stands at `y = ¼`, short of the corner, a region to
+    /// its right. The straight chord between the same ends answers
+    /// clockwise for both, so the bulge is what is read.
+    #[test]
+    fn a_planar_ring_run_closed_by_a_spline_winds_by_the_splines_area() {
+        let tol = Tol::witness();
+        let b = band();
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.5), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let body = &prism.body;
+        let start = |he| body.get_half_edge(he).unwrap().start;
+        let face = body.get_face(prism.top_face).unwrap();
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let h1 = *body
+            .loop_cycle(first)
+            .unwrap()
+            .iter()
+            .find(|&&he| {
+                start(he) == prism.top[0]
+                    && start(body.get_half_edge(he).unwrap().next) == prism.top[1]
+            })
+            .expect("the top loop runs (0,0) → (1,½)");
+        let h2 = body.get_half_edge(h1).unwrap().next;
+        let closing = |apex: f64| {
+            let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(
+                        geom_core::spline::KnotVector::clamped(
+                            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                            2,
+                        )
+                        .unwrap(),
+                    ),
+                    vec![
+                        Point3::new(2.0, 0.0, 1.0),
+                        Point3::new(1.0, 2.0 * apex, 1.0),
+                        Point3::new(0.0, 0.0, 1.0),
+                    ],
+                    vec![1.0; 3],
+                )
+                .unwrap(),
+            ));
+            crate::chord_join::SegmentCurve::of(
+                (h2, h1),
+                Some(geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::chart(face.surface),
+                    carrier,
+                    param_start: 0.0,
+                    param_end: 1.0,
+                }),
+            )
+        };
+        let ccw = |curve: &crate::chord_join::SegmentCurve<f64>| {
+            super::ring_run_ccw(
+                (body, super::super::Operand::A),
+                prism.top_face,
+                ((h1, h2), None),
+                super::IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), curve),
+                b,
+            )
+            .map_err(|e| format!("{e:?}"))
+        };
+        assert_eq!(ccw(&closing(1.0)), Ok(true), "the apex past the corner");
+        assert_eq!(ccw(&closing(0.25)), Ok(false), "the apex short of it");
+        assert_eq!(
+            ccw(&crate::chord_join::SegmentCurve::of((h2, h1), None)),
+            Ok(false),
+            "the straight chord"
+        );
+    }
+
+    /// **A carried chord across a ring of a planar face takes the planar
+    /// ring lane.** A square planted as a ring in a brick's top face,
+    /// matched between two of its halves with no outer loop between
+    /// them: the face's surface picks the lane, so the carried closing
+    /// is handed the planar ring lane with the face's outward normal,
+    /// where a face read by its path carrier alone refused a plane.
+    #[test]
+    fn a_carried_chord_across_a_planar_faces_ring_takes_the_planar_ring_lane() {
+        let tol = Tol::witness();
+        let mut prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let top = prism.top_face;
+        let first_of = |body: &crate::Body<f64>, l| match body.get_loop(l).unwrap().boundary {
+            crate::LoopBoundary::Cycle { first } => first,
+            crate::LoopBoundary::Empty { .. } => panic!("the loop is a cycle"),
+        };
+        let at = first_of(&prism.body, prism.body.get_face(top).unwrap().outer);
+        let rim =
+            [(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)].map(|(x, y)| Point3::new(x, y, 1.0));
+        crate::test_support_fixtures::plant_ring_face(&mut prism.body, at, &rim, tol);
+        let body = &prism.body;
+        let [ring] = body.get_face(top).unwrap().rings[..] else {
+            panic!("the top face holds the planted ring alone");
+        };
+        let cycle = body.loop_cycle(first_of(body, ring)).unwrap();
+        let lane = super::choose_roles(
+            (body, super::super::Operand::A),
+            ((cycle[0], cycle[2]), None),
+            &slotmap::SecondaryMap::new(),
+            None,
+            super::RingClosure::Chord,
+            band(),
+        );
+        assert!(
+            matches!(
+                lane,
+                Ok(super::RoleLane::Ring { face, normal })
+                    if face == top && [normal.x, normal.y, normal.z] == [0.0, 0.0, 1.0]
+            ),
+            "the lane's refusal, if it refused: {:?}",
+            lane.err()
+        );
+    }
 }
 
 #[cfg(test)]
@@ -7652,6 +7812,48 @@ mod first_pair_rows {
     fn escalates_nearest(got: &Result<Option<(Slot, Slot)>, BooleanError>) -> bool {
         matches!(got, Err(BooleanError::Escalated { diag, .. })
             if diag.predicate == Some("bool_join_nearest"))
+    }
+
+    /// **A mutual pair's two entries must read one distance**
+    /// ([`first_pair`]): the entry dropped stands for the one kept only
+    /// where they decide `Zero` apart. Two entries decided apart, or in
+    /// band of each other, refuse as a desync, and a poisoned chord on the
+    /// entry dropped escalates on its margin, rather than either being
+    /// discarded unread. Red where the dropped entry is not read.
+    #[test]
+    fn a_mutual_pairs_two_entries_read_one_distance_or_desync() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let (a, b, c, d) = ((0, 0), (1, 0), (2, 0), (3, 0));
+        let desync = |got: &Result<Option<(Slot, Slot)>, BooleanError>| {
+            matches!(got, Err(BooleanError::JoinDesync { .. }))
+        };
+        let apart = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, 3.5),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(apart, band);
+        assert!(desync(&got), "two entries decided apart: {got:?}");
+        let close = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, 3.0 + 4e-6),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(close, band);
+        assert!(desync(&got), "two entries in band of each other: {got:?}");
+        let poisoned = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, f64::NAN),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(poisoned, band);
+        assert!(
+            matches!(&got, Err(BooleanError::Escalated { diag, .. }) if diag.margin.is_invalid()),
+            "a poisoned entry dropped escalates: {got:?}"
+        );
     }
 
     /// **A round that is not all mutual builds where one pair is nearest**

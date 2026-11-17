@@ -798,7 +798,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour's torus is whatever the body carries.
     ///
     /// Standing: as the convention states it
-    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// ([`geom_brep::TorusRefusal::standing`]): ranked by its margin in
     /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
@@ -2756,8 +2756,11 @@ fn plan_edge<'s, T: Decide>(
             // An edge laid against the row runs on the row reflected
             // through 0 (`geom_brep::reversed_column`), `t ↦ −t`, so its
             // span runs forward on its carrier.
+            // The span's sign along the row: a parameter difference with no
+            // certifiable inf rate to meter it (a fit's stretch floor can
+            // vanish), so it rides the finding lane, ledger row F44.
             let against = matches!(
-                decide("iso_row_runs_against", Margin::of(s1 - s0), band)
+                geom_core::k_stats::decide_flagged("iso_row_runs_against", s1 - s0, band, "F44")
                     .map_err(|source| ReplaceFaceError::Escalated { source })?,
                 Sign::Negative
             );
@@ -2957,6 +2960,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3434,6 +3438,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -4606,7 +4611,7 @@ fn solve_corners<T: Decide>(
                         unreachable!("a root is sought only where a surface or the edge moves")
                     };
                     let surface = surface_of(k);
-                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    if !geom_brep::is_analytic(surface) {
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {
