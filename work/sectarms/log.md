@@ -958,3 +958,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The broader thing wrong is that point-by-point closest-point projection is ill-posed on folds and closed-wall seams; imports suffer from it under either option. A continuation projection from the start vertex's stored chart point is well-posed and recovers the march's branch.
   - So the choice is sequencing: (1) fixes projection now; (2) postpones it to the import path. Waiting on Ev.
 - **PR 7045 merged (`3818797a4b`)** on green. **Rim-pad build implementer byte 187 (Fable)**, on the model-compare branch; dispatched on `impl-rimpad2.md`.
+- 2026-11-17 — **Ev decided PR 7032: (1).** "(1) makes sense i think! i certainly don't want to introduce a fake cache like (2) has."
+  - **Recorded on the branch:** the node item's "Decided" section, with `design: true` dropped. It covers one partner-blind image function on the carrier's knots, called by the trace, the mint and rest; a continuation projection from the start vertex's chart point; and no stored-fit fallback. The two sibling items point at it.
+  - **Fork-log row** renumbered 278 → 282 (main had a TESSLANE 278), second half filled: bytes 98/66, A = Opus 5.5, B = Fable 5.2; match A. Main merged in (a row conflict, kept both). Retitled without `[ev]`.
+  - **Next:** merge on green, then dispatch the build of the three P1s as one unit.
