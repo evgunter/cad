@@ -520,6 +520,12 @@ impl<T: Decide> Curve3<T> {
     /// polished from `near` clamped into the interval, each iterate held
     /// to it. The foot is no farther from `q` than the interval's own
     /// ends: an end nearer than the polish reached is polished in turn.
+    /// A periodic cubic's ([`Curve3::Periodic`]) is held to the interval
+    /// like any other spline's
+    /// (`rows::a_periodic_cubics_foot_over_a_span_is_held_to_it`); its
+    /// whole-carrier foot ([`Self::foot`]) is free, held to nothing, since
+    /// the loop runs on past its base turn
+    /// (`rows::a_periodic_cubics_whole_carrier_foot_runs_on_past_its_turn`).
     /// No sample is read: a poor foot costs an escalation, never a
     /// verdict, since `On` rests on its gap and `Off` on a lower bound on
     /// the distance from the whole carrier.

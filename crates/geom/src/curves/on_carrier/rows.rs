@@ -514,7 +514,7 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
     const READERS: &[(&str, usize, &str)] = &[
         (
             "geom/src/curves/on_carrier/rows.rs",
-            5,
+            9,
             "the foot's own rows",
         ),
         (
@@ -810,5 +810,63 @@ fn a_foot_over_an_interval_is_no_farther_than_its_ends() {
         foot.gap(),
         ends[0],
         ends[1]
+    );
+}
+
+/// A periodic cubic through 23 points of a closed space curve, and its
+/// base turn `(u₀, u₀ + T)`.
+fn periodic_loop() -> (Curve3<f64>, (f64, f64)) {
+    let points: Vec<Point3<f64>> = (0..23)
+        .map(|i| {
+            let a = core::f64::consts::TAU * f64::from(i) / 23.0;
+            Point3::new(
+                2.0 * a.cos(),
+                a.sin() + 0.3 * (2.0 * a).cos(),
+                0.5 * (3.0 * a).sin(),
+            )
+        })
+        .collect();
+    let net = crate::PeriodicNurbs3::interpolate(&points).unwrap();
+    let turn = net.base_span();
+    (Curve3::Periodic(std::sync::Arc::new(net)), turn)
+}
+
+/// **A periodic cubic's whole-carrier foot is free** (module docs, "The
+/// foot"; [`Curve3::foot_within`]): the loop runs on past its base turn,
+/// so the foot of its point a tenth of a turn past the turn's end, seeded
+/// there, is found there, on the carrier. Red where the whole carrier's
+/// foot is held to the base turn: held at its end, its gap is a tenth of
+/// a turn's chord.
+#[test]
+fn a_periodic_cubics_whole_carrier_foot_runs_on_past_its_turn() {
+    let (c, (u0, u1)) = periodic_loop();
+    let t = u1 + 0.1 * (u1 - u0);
+    let foot = c.foot(c.eval(t), t);
+    assert!(
+        foot.gap() < ZERO,
+        "on the carrier past the turn: {:e}",
+        foot.gap()
+    );
+    assert!(
+        (foot.seed() - t).abs() < 1e-9,
+        "the foot runs on: {} against {t}",
+        foot.seed()
+    );
+}
+
+/// **A periodic cubic's foot over a span is held to it** ([`Curve3::foot_within`]):
+/// over the span a tenth to three tenths into the base turn, the foot of
+/// the carrier's point six tenths in stays in the span, as a clamped
+/// spline's does. Red where a periodic cubic's foot is free over a span
+/// too: it polishes to the point's own parameter.
+#[test]
+fn a_periodic_cubics_foot_over_a_span_is_held_to_it() {
+    let (c, (u0, u1)) = periodic_loop();
+    let at = |f: f64| u0 + f * (u1 - u0);
+    let span = (at(0.1), at(0.3));
+    let t = c.foot_within(c.eval(at(0.6)), span, at(0.2)).seed();
+    assert!(
+        (span.0..=span.1).contains(&t),
+        "the foot is held to the span: {t} in {span:?}"
     );
 }
