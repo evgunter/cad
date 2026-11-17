@@ -2986,7 +2986,9 @@ impl<T: Decide> CarriedComponent<T> {
                 continue;
             }
             let (r0, r1) = (T::from_computed(r.run.0), T::from_computed(r.run.1));
-            let at = self.carrier.foot_within(p, (r0, r1), geom::mid_param(r0, r1));
+            let at = self
+                .carrier
+                .foot_within(p, (r0, r1), geom::mid_param(r0, r1));
             foot = Some(foot.map_or(at, |f| f.least(at)));
         }
         let foot = foot.unwrap_or_else(|| self.carrier.foot(p, self.span.0));
@@ -3814,7 +3816,11 @@ mod wiring {
                     hi[i] = hi[i].max(x + 1e-3);
                 }
             }
-            super::TubeRun { lo, hi, run: (r0, r1) }
+            super::TubeRun {
+                lo,
+                hi,
+                run: (r0, r1),
+            }
         };
         let (near, far) = (piece((0.0, 0.3)), piece((0.7, 1.0)));
         let component = super::CarriedComponent {
@@ -3833,7 +3839,10 @@ mod wiring {
         };
         let p = carrier.eval(0.92);
         let lies_in = |r: &super::TubeRun| r.holds(p, band().escalate()).unwrap();
-        assert!(lies_in(&far) && !lies_in(&near), "the site lies in the far piece alone");
+        assert!(
+            lies_in(&far) && !lies_in(&near),
+            "the site lies in the far piece alone"
+        );
         let got = component.reads(p, band());
         assert!(
             matches!(got, Ok(Some(t)) if (t - 0.92).abs() < 1e-6),

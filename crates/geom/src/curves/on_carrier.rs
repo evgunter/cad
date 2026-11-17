@@ -204,9 +204,11 @@ impl<'c, T: Decide> Foot<'c, T> {
         let clear = match self.carrier.clearance(self.q) {
             Some(lower) => decide_reported("curve_carrier_clear", Margin::of(lower), band),
             None => {
-                match self.carrier.walk_kept(self.q, self.carrier.domain(), band, |mid| {
-                    self.restart(mid, band)
-                })? {
+                match self
+                    .carrier
+                    .walk_kept(self.q, self.carrier.domain(), band, |mid| {
+                        self.restart(mid, band)
+                    })? {
                     (Clearance::Clear, _) => return Ok(OnCarrier::Off),
                     (_, Some(Some(on))) => return Ok(on),
                     (Clearance::Near(near), _) => near,
@@ -534,7 +536,9 @@ impl<T: Decide> Curve3<T> {
     /// clamped into it.
     fn foot_held(&self, q: Point3<T>, hold: Option<(T, T)>, near: T) -> Foot<'_, T> {
         let into = |t: T, (lo, hi): (T, T)| {
-            self.branch_near(t, crate::mid_param(lo, hi)).max(lo).min(hi)
+            self.branch_near(t, crate::mid_param(lo, hi))
+                .max(lo)
+                .min(hi)
         };
         if let Some(net) = self.whole_net() {
             let hold = hold.or_else(|| {

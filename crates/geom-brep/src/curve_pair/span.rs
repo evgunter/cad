@@ -537,9 +537,8 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return None;
         }
-        let at = |end: T| {
-            k_stats::param_order("curve_pair_span_held_end", t, end) == Ok(Sign::Zero)
-        };
+        let at =
+            |end: T| k_stats::param_order("curve_pair_span_held_end", t, end) == Ok(Sign::Zero);
         if at(self.t0) {
             Some(SpanEnd::Start)
         } else if at(self.t1) {
@@ -640,8 +639,11 @@ impl<'a, T: Decide> Span<'a, T> {
         band: Band,
     ) -> Result<[Result<Decided, Indeterminate>; 2], (SpanEnd, Decided)> {
         let chord = |which: SpanEnd| {
-            let read =
-                decide_reported("curve_pair_span_end_chord", Margin::norm3(q - self.end(which).1), band);
+            let read = decide_reported(
+                "curve_pair_span_end_chord",
+                Margin::norm3(q - self.end(which).1),
+                band,
+            );
             match read {
                 Ok(
                     chord @ Decided {

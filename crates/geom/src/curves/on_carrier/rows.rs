@@ -251,10 +251,7 @@ fn a_closed_splines_point_reads_on_from_any_seed() {
             }
         }
     }
-    assert_eq!(
-        miss, 0,
-        "{miss} points on a closed spline not read on"
-    );
+    assert_eq!(miss, 0, "{miss} points on a closed spline not read on");
 }
 
 /// A cubic hairpin with branches `h` apart, and the point on its near
@@ -326,7 +323,11 @@ fn a_tie_across_a_hairpins_branches_is_the_certificates_to_read() {
             .iter()
             .filter(|e| e.predicate().starts_with("curve_carrier_piece"))
             .count();
-        assert_eq!(name(read), "escalated", "±{r}: the near piece escalates: {read:?} walk {walk}");
+        assert_eq!(
+            name(read),
+            "escalated",
+            "±{r}: the near piece escalates: {read:?} walk {walk}"
+        );
         assert!(
             walk <= 64,
             "±{r}: the walk stops at its first near piece, one escalation a level: {walk}"

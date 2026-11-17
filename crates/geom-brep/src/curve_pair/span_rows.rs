@@ -313,7 +313,10 @@ fn a_foot_held_at_an_end_reads_past_by_its_chord_and_walk() {
     let span = Span::new(&c, (0.0, 1.0));
     let q = c.eval(2.5);
     let foot = span.foot(q, 0.5).seed();
-    assert!(foot == 0.0 || foot == 1.0, "the foot is held at an end: {foot}");
+    assert!(
+        foot == 0.0 || foot == 1.0,
+        "the foot is held at an end: {foot}"
+    );
     assert_eq!(place(span.place(q, 0.5, band())), "past");
     assert_eq!(read(&span, q, 0.5), "none");
 }
