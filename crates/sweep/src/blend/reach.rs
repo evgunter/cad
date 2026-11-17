@@ -1526,28 +1526,40 @@ fn mixed_cuts<T: Real>(
 ) -> Result<Vec<MixedCut<T>>, BlendError> {
     let mut cuts = Vec::new();
     for t in turns {
-        let off = |what| disagrees(EntityId::Vertex(t.vertex), what);
         let link = |e: EdgeKey| {
             all.iter()
                 .map(|(_, l)| *l)
                 .find(|l| l.edge == e)
-                .ok_or_else(|| off("a turn's requested edge is not a link of the request"))
+                .ok_or_else(|| {
+                    disagrees(
+                        EntityId::Vertex(t.vertex),
+                        "a turn's requested edge is not a link of the request",
+                    )
+                })
         };
         let pair = [link(t.requested[0])?, link(t.requested[1])?];
         if pair[0].convexity == pair[1].convexity {
             continue;
         }
         let TurnRunOut::Overrun(o) = &t.run_out else {
-            return Err(off("a mixed turn whose feet on its third edge meet"));
+            return Err(disagrees(
+                EntityId::Vertex(t.vertex),
+                "a mixed turn whose feet on its third edge meet",
+            ));
         };
-        let Surface::Plane { origin, normal, .. } = pair[o.far].blend.surface else {
-            return Err(off("a mixed turn's far band is not a chamfer strip"));
+        // The far strip's plane, through its two trimlines.
+        let far = &pair[o.far].blend;
+        let (Some(a), Some(b)) = (far.trim_a.0.as_line(), far.trim_b.0.as_line()) else {
+            return Err(disagrees(
+                EntityId::Vertex(t.vertex),
+                "a mixed turn's far band is not a chamfer strip",
+            ));
         };
         cuts.push(MixedCut {
             vertex: t.vertex,
             near: pair[o.near()].edge,
-            origin,
-            normal,
+            origin: a.origin,
+            normal: a.dir.cross(b.origin - a.origin),
         });
     }
     Ok(cuts)
@@ -1790,36 +1802,27 @@ fn mixed_corner_reach<T: Decide + Bounds>(
     let v = m.vertex;
     let (arcs, feet, surface) =
         mixed_corner_geometry((v, m), links, faces, (pv, normals), size, kind)?;
-    let off = |what| disagrees(EntityId::Vertex(v), what);
     let slot = |f: FaceKey| {
-        faces
-            .iter()
-            .position(|g| *g == f)
-            .ok_or_else(|| off("a mixed corner's link stands on a face the corner lacks"))
+        faces.iter().position(|g| *g == f).ok_or_else(|| {
+            disagrees(
+                EntityId::Vertex(v),
+                "a mixed corner's link stands on a face the corner lacks",
+            )
+        })
     };
     let n_e = normals[slot(m.host)?];
-    let odd = links
-        .iter()
-        .find(|l| l.edge == m.odd)
-        .ok_or_else(|| off("a mixed corner's links do not hold its odd edge"))?;
     let pair: Vec<&Link<T>> = links.iter().copied().filter(|l| l.edge != m.odd).collect();
     let mut bounds = Vec::new();
     let mut ends = Vec::new();
     let (lo, hi, width) = match kind {
         BlendKind::Fillet => {
-            let Surface::Torus {
-                center: q,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            } = surface
-            else {
-                return Err(off("a mixed corner's fillet patch is not a torus"));
-            };
-            let rests = arcs
-                .mixed_rests()
-                .ok_or_else(|| off("a mixed corner's fillet patch has no rests"))?;
+            let (rests, odd, major_radius) = arcs.mixed_link().ok_or_else(|| {
+                disagrees(
+                    EntityId::Vertex(v),
+                    "a mixed corner's fillet patch has no link",
+                )
+            })?;
+            let (q, axis, minor_radius) = (odd.centre, odd.normal, odd.radius);
             let p_e = q + n_e * (pv - q).dot(n_e);
             let spine = geom::Line {
                 origin: q,
@@ -1873,17 +1876,6 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             (q - e, q + e, minor_radius)
         }
         BlendKind::Chamfer => {
-            let Surface::Plane {
-                origin: po,
-                normal: np,
-                ..
-            } = surface
-            else {
-                return Err(off("a mixed corner's chamfer patch is not a plane"));
-            };
-            let Surface::Plane { normal: n_s, .. } = odd.blend.surface else {
-                return Err(off("a mixed corner's odd chamfer strip is not a plane"));
-            };
             // Per pair band: its crossing on the odd edge's face, its
             // host foot on `E`, and the crossing's foot on `E`, which
             // lies on the pair edge's line.
@@ -1897,7 +1889,10 @@ fn mixed_corner_reach<T: Decide + Bounds>(
                 let wall = feet[slot(face)?].of(l.edge);
                 let foot = feet[slot(m.host)?].of(l.edge);
                 let (Some(wall), Some(foot)) = (wall, foot) else {
-                    return Err(off("a mixed corner's pair band has no feet"));
+                    return Err(disagrees(
+                        EntityId::Vertex(v),
+                        "a mixed corner's pair band has no feet",
+                    ));
                 };
                 let corner = wall - n_e * (wall - pv).dot(n_e);
                 mitres.push((l.edge, corner, wall, foot));
@@ -1907,10 +1902,18 @@ fn mixed_corner_reach<T: Decide + Bounds>(
                 .flat_map(|(_, c, w, f)| [*c, *w, *f])
                 .collect();
             let inside = centroid(&points);
-            let wall = mitres.first().map_or(pv, |(_, _, w, _)| *w);
+            let [(_, c, w, f), (_, _, w1, _)] = mitres[..] else {
+                return Err(disagrees(
+                    EntityId::Vertex(v),
+                    "a mixed corner's pair is not two bands",
+                ));
+            };
+            // The odd strip's plane holds both crossings and their feet on
+            // `E`; the patch's both crossings and the host feet.
+            let across = w1 - w;
             bounds.push((Role::Side(m.host), half_space(pv, n_e, inside)));
-            bounds.push((Role::Other, half_space(wall, n_s, inside)));
-            bounds.push((Role::Band, half_space(po, np, inside)));
+            bounds.push((Role::Other, half_space(w, across.cross(c - w), inside)));
+            bounds.push((Role::Band, half_space(w, across.cross(f - w), inside)));
             for (_, c, w, f) in &mitres {
                 bounds.push((
                     Role::Other,

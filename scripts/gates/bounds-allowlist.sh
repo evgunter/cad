@@ -920,7 +920,10 @@ BOUNDS_ALLOWLIST=(
   # 13 -> 14: `misses` reads a sheet rectangle's widths against
   # `escalate` (`sure`), the meter's own question as `Least::read`
   # reads a cell's, and grants nothing but "nothing here to meter".
-  'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 14 -> 15: `mixed_corner_reach` builds a mixed corner's bounds with
+  # the same constructors (`half_space`, `canonical_axis`) and reads no
+  # bracket of its own.
+  'crates/sweep/src/blend/reach.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
   # the plane–plane band took it too — the sliver meter's two

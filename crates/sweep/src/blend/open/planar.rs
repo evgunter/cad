@@ -129,14 +129,22 @@ pub(in crate::blend) enum CornerArcs<T: Real> {
 }
 
 impl<T: Real> CornerArcs<T> {
-    /// A mixed fillet's two pair rests: each pair edge with its ball's
-    /// centre where its band meets the link. `None` at any other corner.
-    pub(in crate::blend) fn mixed_rests(&self) -> Option<[(EdgeKey, Point3<T>); 2]> {
+    /// A mixed fillet's link: each pair edge with its ball's centre
+    /// where its band meets the link, the odd band's section (the
+    /// torus's centre, the odd band's axis, the ball's radius), and the
+    /// radius its arc on `E` turns at. `None` at any other corner.
+    pub(in crate::blend) fn mixed_link(
+        &self,
+    ) -> Option<([(EdgeKey, Point3<T>); 2], BallSection<T>, T)> {
         match self {
-            Self::Mixed { sections, .. } => Some([
-                (sections[0].0, sections[0].1.centre),
-                (sections[1].0, sections[1].1.centre),
-            ]),
+            Self::Mixed { sections, host } => Some((
+                [
+                    (sections[0].0, sections[0].1.centre),
+                    (sections[1].0, sections[1].1.centre),
+                ],
+                sections[2].1,
+                host.1,
+            )),
             Self::Ball(..) | Self::Chords => None,
         }
     }
