@@ -24,28 +24,34 @@ fn with(text: &str, old: &str, new: &str) -> String {
     text.replace(old, new)
 }
 
-/// A surface placement's axis stated as a ratio vector twice unit: the
-/// frame is built by `build_axes` (the cylinder imports on a unit axis),
-/// and the move is reported keyed by the `AXIS2_PLACEMENT_3D`.
+/// A surface placement's reference stated leaning toward its axis: the
+/// frame is built by `build_axes` (the cylinder imports on a unit axis
+/// and a perpendicular reference), and the move is reported keyed by the
+/// `AXIS2_PLACEMENT_3D`. Its axis stated twice unit is a ratio vector,
+/// whose normalizing is its meaning: no report.
 #[test]
-fn a_surface_placement_stated_off_unit_is_built_and_reported() {
-    let text = with(
+fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
+    let reports = |text: &str| -> (StepImport, Vec<(u64, f64)>) {
+        let imported = import(text).unwrap_or_else(|e| panic!("imports: {}", e.render()));
+        let moved = imported
+            .normalizations()
+            .iter()
+            .filter_map(|n| match n.kind {
+                NormalizationKind::PlacementReMinted {
+                    transform,
+                    moved_by,
+                } => Some((transform, moved_by)),
+                _ => None,
+            })
+            .collect();
+        (imported, moved)
+    };
+    let leaning = with(
         &freecad_fixture("cylinder"),
-        "#48 = DIRECTION('',(0.,0.,1.));",
-        "#48 = DIRECTION('',(0.,0.,2.));",
+        "#49 = DIRECTION('',(1.,0.,-0.));",
+        "#49 = DIRECTION('',(1.,0.,0.5));",
     );
-    let imported = import(&text).unwrap_or_else(|e| panic!("imports: {}", e.render()));
-    let moved: Vec<(u64, f64)> = imported
-        .normalizations()
-        .iter()
-        .filter_map(|n| match n.kind {
-            NormalizationKind::PlacementReMinted {
-                transform,
-                moved_by,
-            } => Some((transform, moved_by)),
-            _ => None,
-        })
-        .collect();
+    let (imported, moved) = reports(&leaning);
     let [(46, moved_by)] = moved.as_slice() else {
         panic!("one report, keyed by the cylinder's placement #46: {moved:?}");
     };
@@ -53,23 +59,30 @@ fn a_surface_placement_stated_off_unit_is_built_and_reported() {
     let StepImport::Solid { body, .. } = &imported else {
         panic!("a solid")
     };
-    let axis = body
+    let (axis, u_ref) = body
         .surfaces()
         .find_map(|(_, s)| match s {
-            geom::Surface::Cylinder { axis, .. } => Some(*axis),
+            geom::Surface::Cylinder { axis, u_ref, .. } => Some((*axis, *u_ref)),
             _ => None,
         })
         .expect("the cylinder");
     assert!(
-        (axis.norm() - 1.0).abs() < 1e-15,
-        "the built axis is unit: {axis:?}"
+        (axis.norm() - 1.0).abs() < 1e-15 && axis.dot(u_ref).abs() < 1e-15,
+        "the built frame is orthonormal: {axis:?} {u_ref:?}"
     );
-    // The same file stated unit reports nothing.
-    assert!(
-        import(&freecad_fixture("cylinder"))
-            .unwrap()
-            .normalizations()
-            .is_empty(),
+    let stretched = with(
+        &freecad_fixture("cylinder"),
+        "#48 = DIRECTION('',(0.,0.,1.));",
+        "#48 = DIRECTION('',(0.,0.,2.));",
+    );
+    assert_eq!(
+        reports(&stretched).1,
+        vec![],
+        "a ratio vector's length moves nothing"
+    );
+    assert_eq!(
+        reports(&freecad_fixture("cylinder")).1,
+        vec![],
         "a unit placement moves nothing"
     );
 }
@@ -251,7 +264,11 @@ fn a_semi_axis_the_band_cannot_tell_from_zero_is_no_invalid_root() {
         }
         other => panic!("a length the band cannot tell from zero, got {other:?}"),
     }
-    if let Err(StepImportError::Interpretation { id: 24, .. }) = import(&text) {
+    // At the file's own ε_in, where the band it is read at escalates
+    // below the semi-axis, it is a length.
+    if Tol::witness().k() * zero() < 5e-7
+        && let Err(StepImportError::Interpretation { id: 24, .. }) = import(&text)
+    {
         panic!("at the file's own ε_in the semi-axis is a length");
     }
 }

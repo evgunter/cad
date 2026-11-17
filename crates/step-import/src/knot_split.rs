@@ -1362,9 +1362,12 @@ mod tests {
 
     const EPS_IN: f64 = 1e-7;
 
-    /// The chart band an import at `EPS_IN` reads at.
+    /// The file's own band at `EPS_IN`, `(ε_in, K·ε_in)`, unfloored by
+    /// the run's ε: the pass reads ε_in raw beside it
+    /// (`work/importgate/the-c0-knot-split-reads-eps-in-raw-not-at-the-file-band.md`),
+    /// so its rows pin the two at one scale on every run.
     fn band() -> Option<geom_core::Band> {
-        crate::interpret::file_band(EPS_IN, geom_core::Tol::witness())
+        crate::interpret::band_at(EPS_IN, 0.0, geom_core::Tol::witness().k())
     }
 
     /// The flat unit square `z = 0`, degree 1 in `u` with a knot at

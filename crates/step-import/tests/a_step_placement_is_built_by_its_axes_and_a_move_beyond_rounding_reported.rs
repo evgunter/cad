@@ -5,17 +5,18 @@
 //! exported at the origin in a file that declares a coincidence distance
 //! ε_in, is placed by an `ITEM_DEFINED_TRANSFORMATION` turning it about
 //! `z` and standing it at `(700, 700, 0)`, about 990 m out. The
-//! placement's axis direction is off unit, a ratio vector the frame as
-//! the file states it carries unnormalized.
+//! placement's reference direction leans off perpendicular to its axis.
 //!
 //! Every placement frame is minted from its fields by `build_axes` (the
 //! axis normalized, the reference projected and normalized), so the map
 //! the import records and places by is rigid by construction whatever
-//! the fields say. Where the stated frame is rigid within its own
-//! rounding nothing is reported; where it is not, the move `build_axes`
-//! made is reported with the farthest a point of the session box moved.
-//! An axis stated 4% off unit is built the same way, and the
-//! metres-long move its build makes is reported, not hidden
+//! the fields say. A `direction` is a ratio vector, so normalizing one is
+//! what it means and no move: an axis stated twice unit reports nothing.
+//! Projecting a leaning reference is a move, reported with the farthest a
+//! point of the session box moved between the frame of the two
+//! directions normalized and the built one. A reference leaning 4% off
+//! perpendicular is built the same way, and the metres-long move its
+//! build makes is reported, not hidden
 //! (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -70,9 +71,9 @@ fn exported_at(eps_in: f64) -> String {
 }
 
 /// `text`'s representation placed into a fresh root by a turn of 0.3
-/// rad about `z`, the axis direction `1 + stretch` long, standing at
-/// `(700, 700, 0)`.
-fn placed(text: &str, stretch: f64) -> String {
+/// rad about `z`, the axis direction `1 + stretch` long and the
+/// reference leaning `lean` toward it, standing at `(700, 700, 0)`.
+fn placed(text: &str, stretch: f64, lean: f64) -> String {
     let line = text
         .lines()
         .find(|l| l.contains("ADVANCED_BREP_SHAPE_REPRESENTATION"))
@@ -96,7 +97,7 @@ fn placed(text: &str, stretch: f64) -> String {
          #9003 = AXIS2_PLACEMENT_3D('',#9004,#9005,#9006);\n\
          #9004 = CARTESIAN_POINT('',(700.0,700.0,0.0));\n\
          #9005 = DIRECTION('',(0.,0.,{z:.17e}));\n\
-         #9006 = DIRECTION('',({c:.17e},{s:.17e},0.));\n"
+         #9006 = DIRECTION('',({c:.17e},{s:.17e},{lean:.17e}));\n"
     );
     let at = text.rfind("ENDSEC;").unwrap();
     format!("{}{block}{}", &text[..at], &text[at..])
@@ -126,8 +127,8 @@ fn imported(text: &str) -> (StepImport, Vec<(u64, f64)>) {
 
 #[test]
 fn a_placement_beyond_rounding_is_built_by_its_axes_reported_and_imports_its_cylinder() {
-    let stretch = 0.4 * EPS_IN;
-    let (imported, reported) = imported(&placed(&exported(), stretch));
+    let lean = 0.4 * EPS_IN;
+    let (imported, reported) = imported(&placed(&exported(), 0.0, lean));
     let StepImport::Solid { body, .. } = &imported else {
         unreachable!()
     };
@@ -139,17 +140,17 @@ fn a_placement_beyond_rounding_is_built_by_its_axes_reported_and_imports_its_cyl
         (985.0..1000.0).contains(&reach),
         "the cylinder stands about 990 m out: {reach}"
     );
-    // The stated frame's second and third axes are `1 + stretch` long;
-    // built, they are unit. A corner of the box moves by about the
-    // stretch times its distance from the frame's axis line and along it.
+    // The stated reference leans `lean` toward the axis; built, it is
+    // perpendicular. A corner of the box moves by about the lean times
+    // its distance from the frame's origin.
     let [(transform, moved_by)] = reported.as_slice() else {
         panic!("one report for the one placement: {reported:?}");
     };
     assert_eq!(*transform, 9002);
     let e = SESSION_BOX_EXTENT;
     assert!(
-        (0.5 * stretch * e..=4.0 * stretch * e).contains(moved_by),
-        "the move is the stretch at the box's corners: {moved_by:e} for {stretch:e}"
+        (0.5 * lean * e..=4.0 * lean * e).contains(moved_by),
+        "the move is the lean at the box's corners: {moved_by:e} for {lean:e}"
     );
     let applied = imported
         .instances()
@@ -167,7 +168,7 @@ fn a_placement_beyond_rounding_is_built_by_its_axes_reported_and_imports_its_cyl
 
 #[test]
 fn a_placement_within_rounding_reports_nothing() {
-    let (_, reported) = imported(&placed(&exported(), 0.0));
+    let (_, reported) = imported(&placed(&exported(), 0.0, 0.0));
     assert_eq!(
         reported,
         vec![],
@@ -175,14 +176,24 @@ fn a_placement_within_rounding_reports_nothing() {
     );
 }
 
-/// **A file's coincidence distance bounds no move a build makes**: a
-/// placement axis stated 4% off unit is a ratio vector like any other,
-/// and `build_axes` moves the box's corners by tens of metres, whatever
-/// the file declares — reported, so the move is in the import's own
-/// record.
+/// **A ratio vector's length is its meaning, not a move**: an axis stated
+/// twice unit, or 4% off unit, is normalized and reports nothing.
 #[test]
-fn a_files_slack_axis_is_built_and_its_metres_long_move_reported() {
-    let (_, reported) = imported(&placed(&exported(), 0.04));
+fn a_placement_axis_off_unit_is_normalized_and_reports_nothing() {
+    for stretch in [1.0, 0.04] {
+        let (_, reported) = imported(&placed(&exported(), stretch, 0.0));
+        assert_eq!(reported, vec![], "an axis {stretch} off unit moves nothing");
+    }
+}
+
+/// **A file's coincidence distance bounds no move a build makes**: a
+/// placement reference leaning 4% off perpendicular to its axis is
+/// projected by `build_axes`, which moves the box's corners by tens of
+/// metres, whatever the file declares — reported, so the move is in the
+/// import's own record.
+#[test]
+fn a_files_leaning_reference_is_built_and_its_metres_long_move_reported() {
+    let (_, reported) = imported(&placed(&exported(), 0.0, 0.04));
     let [(9002, moved_by)] = reported.as_slice() else {
         panic!("one report naming the transform: {reported:?}");
     };

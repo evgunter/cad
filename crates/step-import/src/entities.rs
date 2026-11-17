@@ -519,8 +519,7 @@ impl<'a> Resolver<'a> {
             axis,
             u_ref: reference,
         };
-        let stated_map = stated_affine(stated);
-        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_map) {
+        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_affine(stated)) {
             return Ok((stated, rigid, None));
         }
         let built = geom_core::RigidMotion::from_axis_and_reference(
@@ -537,11 +536,21 @@ impl<'a> Resolver<'a> {
                        parallel pair states no frame)",
         })?;
         let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
-        Ok((
-            frame,
-            built,
-            Some(in_box_displacement(&built.to_affine(), &stated_map)),
-        ))
+        // A `direction` is a ratio vector, so dividing one by its length
+        // is what it means, not a move: the move is measured from the
+        // frame of the two directions normalized, and is none where that
+        // frame is rigid within its rounding (a reference the build only
+        // scaled).
+        let unit = |v: Vec3<f64>| v.checked_direction().map_or(v, |(u, _)| u);
+        let normalized = stated_affine(geom::Frame {
+            origin,
+            axis: unit(axis),
+            u_ref: unit(reference),
+        });
+        let moved = geom_core::RigidMotion::check_rigid(&normalized)
+            .is_err()
+            .then(|| in_box_displacement(&built.to_affine(), &normalized));
+        Ok((frame, built, moved))
     }
 
     /// Records a placement move ([`NormalizationKind::PlacementReMinted`])
@@ -2464,22 +2473,21 @@ impl Resolver<'_> {
                  its placements stand too far from the origin to compose",
             )
         })?;
-        if da.is_some() || db.is_some() {
-            self.report_placement(id, da.unwrap_or(0.0) + db.unwrap_or(0.0));
-        }
         // **Whether the pair places anything** — a lane choice: the
         // farthest a point of the session box moves under the motion,
         // read at the file's band. Zero takes the identity (no motion),
-        // and the snap is reported where it moves a point beyond
-        // rounding; in band and apart take the motion itself.
+        // in band and apart the motion itself. The pair's one ledger
+        // entry bounds every move its interpretation made: the frames'
+        // builds, and the snap to the identity where it moves any point.
         let displacement = in_box_displacement(&motion.to_affine(), &Affine3::identity());
-        if self.budget.read(STEP_PLACEMENT_IDENTITY, displacement) == interpret::Read::Zero {
-            if displacement > geom_core::tolerance::ADMISSION_FLOOR {
-                self.report_placement(id, displacement);
-            }
-            return Ok(None);
+        let identity =
+            self.budget.read(STEP_PLACEMENT_IDENTITY, displacement) == interpret::Read::Zero;
+        let snap = (identity && displacement != 0.0).then_some(displacement);
+        let moves = [da, db, snap];
+        if moves.iter().any(Option::is_some) {
+            self.report_placement(id, moves.iter().flatten().sum());
         }
-        Ok(Some(motion))
+        Ok((!identity).then_some(motion))
     }
 }
 

@@ -122,14 +122,14 @@ fn the_span_route_argument_assumes_k_above_two_pi() {
 }
 
 /// The import door cannot admit a body carrying a junction inside the
-/// pole band — every fixture refuses at every ambient band. The
-/// default-band ParamSpan shape is additionally pinned by name when
-/// the live K covers both twins' margins (2ρ = 1.8ε and 2πρ = 5.65ε
-/// need K > 5.7 to land in the band rather than clear it).
+/// pole band — every fixture refuses at every ambient band. At the
+/// default band and finer, the twins' circle of radius 0.9ε (the 1e-9
+/// twins' declared 1e-10, read at the run's floor) refuses at
+/// interpretation, its radius no length at the file's band.
 #[test]
 fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
     let tol = Tol::witness().get();
-    let (eps, k) = (tol.eps, tol.k);
+    let eps = tol.eps;
     for name in ["polefrustum.step", "poleband.step", "poleband_eps12.step"] {
         let out = import_step(&fixture(name), &ImportOptions::default(), Tol::witness());
         let Err(e) = out else {
@@ -141,11 +141,14 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
         };
         let shape = format!("{e:?}");
         #[allow(clippy::float_cmp)]
-        if eps == 1e-9 && k >= 6.0 && name != "poleband_eps12.step" {
+        // Each twin's sub-band feature is a circle of radius 0.9ε whose
+        // radius the band the file is read at cannot tell from zero:
+        // refused where it is read, before any span is certified.
+        if name != "poleband_eps12.step" && eps <= 1e-9 {
             assert!(
-                shape.contains("ParamSpan"),
-                "{name}: at the default band the sub-band feature's span certification \
-                 refuses (interval_span_forward indeterminate); got {shape}"
+                shape.contains("LengthUnread"),
+                "{name}: the sub-band circle's radius is no length at the file's band; got \
+                 {shape}"
             );
         }
     }
