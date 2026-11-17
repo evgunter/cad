@@ -824,6 +824,15 @@ struct Crossing {
     from: Side,
 }
 
+/// An edge read off the knot line: its meetings with the line inside
+/// it, each `(t, point, w)` by its parameter, and the side of each piece
+/// between them.
+struct Cut {
+    edge: u64,
+    inner: Vec<(f64, Point3<f64>, f64)>,
+    sides: Vec<Side>,
+}
+
 /// What one split did to a face: the faces below the line (the first
 /// at the face's own index) and those above it.
 struct Parted {
@@ -963,9 +972,7 @@ fn split_face_once(
     let mut stand: BTreeMap<u64, Stand> = BTreeMap::new();
     let mut touches: Vec<f64> = Vec::new();
     let mut alongs: Vec<(f64, f64)> = Vec::new();
-    // Each edge the line crosses inside it: the meetings `(t, point, w)`
-    // and the side of each piece between them.
-    let mut cuts: Vec<(u64, Vec<(f64, Point3<f64>, f64)>, Vec<Side>)> = Vec::new();
+    let mut cuts: Vec<Cut> = Vec::new();
     for (&e, &n) in &uses_of {
         let spec = &solid.edges[&e];
         let (pa, pb) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
@@ -1050,11 +1057,15 @@ fn split_face_once(
                 "a boundary edge's piece between its meetings with the knot's iso line did \
                  not read a side of it",
             ))?;
-        cuts.push((e, inner, sides));
+        cuts.push(Cut {
+            edge: e,
+            inner,
+            sides,
+        });
     }
     // Split each edge where its side changes.
-    for (e, inner, sides) in cuts {
-        let mut rest = e;
+    for Cut { edge, inner, sides } in cuts {
+        let mut rest = edge;
         for (j, &(t, q, w)) in inner.iter().enumerate() {
             if sides[j] == sides[j + 1] {
                 touches.push(w);
@@ -1297,7 +1308,7 @@ fn split_face_once(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::sync::Arc;
