@@ -190,9 +190,27 @@ cross-section between the supports, the sector the ball's arc subtends
 and the ball (the chamfer's triangle), run along a straight spine over
 the edge's window and closed by the plane of the face each end runs
 into (at a mitre the other band's support, which the band's section
-passes no later than the mitre's plane of symmetry), or revolved
-over the whole turn of a circular one; per corner patch, the three
-supports, the three band-end planes and the ball. The faces are pruned
+passes no later than the mitre's plane of symmetry; at a mixed turn,
+the odd edge with one pair edge, the pair band's in the odd strip's
+plane), or revolved over the whole turn of a circular one; per uniform
+corner patch, the three supports, the three band-end planes and the
+ball. A mixed corner's patch changes material on both sides of its
+reflex dihedral, so no support but `E` bounds it: the fillet's reach
+is the section the torus leaves between `E` and the odd band's
+cylinder, revolved over the wedge between the pair's two rests (on the
+torus centre's side of `E` and `E`'s side of the plane through the
+centre, between the odd band's radius and twice it about its axis,
+outside the torus's tube); the chamfer's is the mitred strip's prism,
+the convex hull of its two mitres' section triangles. Each is the
+material the patch changes and no more, so a feature that enters it by
+`100ε` refuses and one `100ε` clear builds. Each link at a corner
+runs its window to where its band meets the patch (at a mixed corner,
+a pair band's rest or mitre and the odd band's `E`) and is its band's
+own material past the patch: from the vertex at a uniform corner, and
+at a mixed corner past the rest, the mitre's far end, or the torus
+centre's or the crossings' station along the odd edge. A patch's
+support is replaced where it lies in the patch's region, its own side
+read out. The faces are pruned
 by their certified boxes (`topo::FaceBoxes`); a face on a surface of
 revolution about a circular band's axis is metered in the band's
 meridian sheet over its own extent along its trace (read off its
@@ -673,14 +691,16 @@ junction's are (`junction::feet_clear`): a pair edge too short for the
 corner's feet and a turn's at its far end refuses there. An odd edge
 shorter than the size is refused before that by the support screen
 (`FaceClearanceUncertified`), the pair's trimlines standing `r` up the
-faces it lies in. The reach meters the corner as a uniform corner's
-(`reach::corner_reach`), so a short edge or a face near the corner
-refuses `FaceClearance` where the corner would clear: a chamfer of `0.1`
-with its odd edge `0.25` long, the bracket's fillet from `r = 0.149`
-(`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`).
-The bracket of the row, a plate with a boss flush with one side,
-fillets all round, and without its bore chamfers all round, each at its
-closed form (`band_mixed_corner`). Naming: the patch is `CornerFace { vertex }`,
+faces it lies in. The reach meters the corner by its own patch
+(`reach::mixed_corner_reach`, the reach section above), so an odd edge
+`0.25` long, a pair edge `0.2` long, an arm `0.15` thick or an inset
+boss `0.25` tall chamfers and fillets at `0.1`, and a feature entering
+the patch by `100ε` refuses while one `100ε` clear of it builds
+(`band_mixed_corner_reach`). The bracket of the row, a plate with a
+boss flush with one side, fillets all round, and without its bore
+chamfers all round, each at its closed form (`band_mixed_corner`), up
+to `0.249`; from `0.25` the plate's top and bottom bands cross on its
+`0.5` sides. Naming: the patch is `CornerFace { vertex }`,
 the three sections `EndArc { vertex, edge }`, the feet on the odd
 edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
 `E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
@@ -704,6 +724,10 @@ two of the corner's three edges bound its curved face, so the request
 names one of them, and a pair naming the third refuses
 `ChamferArmUnsupported`, the curved link with the straight one
 `ChainNotG1`, the two meeting at an angle. The pair band's
+reach ends in the odd strip's plane, where its material does, not in
+the third face's plane as a uniform turn's does
+(`band_mixed_corner_reach::the_odd_plus_one_turn_meters_its_pair_strip_from_the_odd_strips_plane`).
+The pair band's
 foot on `E` stands `s(1 + t)` along the pair edge, past its crossing on
 the shared face, so its trimline there is metered in order against the
 far end's (`junction::feet_clear`, which reads a turn's foot as a

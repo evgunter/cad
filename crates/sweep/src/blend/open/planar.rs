@@ -113,7 +113,7 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
 }
 
 /// **What a corner patch's bounding edges are.**
-enum CornerArcs<T: Real> {
+pub(in crate::blend) enum CornerArcs<T: Real> {
     /// A chamfer's: straight chords.
     Chords,
     /// A uniform fillet's: every arc about the ball's rest centre, at
@@ -126,6 +126,20 @@ enum CornerArcs<T: Real> {
         sections: [(EdgeKey, BallSection<T>); 3],
         host: (Point3<T>, T),
     },
+}
+
+impl<T: Real> CornerArcs<T> {
+    /// A mixed fillet's two pair rests: each pair edge with its ball's
+    /// centre where its band meets the link. `None` at any other corner.
+    pub(in crate::blend) fn mixed_rests(&self) -> Option<[(EdgeKey, Point3<T>); 2]> {
+        match self {
+            Self::Mixed { sections, .. } => Some([
+                (sections[0].0, sections[0].1.centre),
+                (sections[1].0, sections[1].1.centre),
+            ]),
+            Self::Ball(..) | Self::Chords => None,
+        }
+    }
 }
 
 /// The corner patch at one fully-requested trivalent vertex: its
@@ -267,16 +281,51 @@ fn mixed_corner_plan<'a, T: Real>(
     links: CornerLinks<'a, T>,
     faces: CornerFaces,
     mixed: MixedVertex,
-    (p, normals): (Point3<T>, [Vec3<T>; 3]),
+    at: (Point3<T>, [Vec3<T>; 3]),
     radius: T,
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
     let vertex = links.vertex();
     let (seed, others) = links.sorted();
-    let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) = core::iter::once(&seed)
+    let all: Vec<&Link<T>> = core::iter::once(&seed)
         .chain(&others)
         .map(AdmittedOpen::link)
-        .partition(|l| l.edge == mixed.odd);
+        .collect();
+    let (arcs, feet, surface) =
+        mixed_corner_geometry((vertex, mixed), &all, faces.as_slice(), at, radius, kind)?;
+    let convexity = all
+        .iter()
+        .find(|l| l.edge != mixed.odd)
+        .map_or(seed.convexity(), |l| l.convexity);
+    Ok(Corner {
+        links,
+        faces,
+        feet,
+        arcs,
+        surface,
+        convexity,
+        mixed: Some(mixed),
+    })
+}
+
+/// A mixed corner's patch: its bounding arcs, its feet, its surface.
+pub(in crate::blend) type MixedGeometry<T> = (CornerArcs<T>, [Foot<T>; 3], Surface<T>);
+
+/// **The mixed corner's geometry** ([`mixed_corner_plan`]), from its
+/// three links, its faces and its vertex's point and outward normals:
+/// the patch's bounding arcs, its feet on each of `faces` in that order,
+/// and its surface. The plan carves it, and the band's reach meters it
+/// (`reach::mixed_corner_reach`).
+pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
+    (vertex, mixed): (VertexKey, MixedVertex),
+    links: &[&Link<T>],
+    faces: &[FaceKey],
+    (p, normals): (Point3<T>, [Vec3<T>; 3]),
+    radius: T,
+    kind: BlendKind,
+) -> Result<MixedGeometry<T>, BlendError> {
+    let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) =
+        links.iter().copied().partition(|l| l.edge == mixed.odd);
     let ([odd], [p1, p2]) = (&odd[..], &pair[..]) else {
         return Err(disagrees(
             EntityId::Vertex(vertex),
@@ -286,16 +335,12 @@ fn mixed_corner_plan<'a, T: Real>(
     let (odd, p1, p2) = (*odd, *p1, *p2);
     let host = mixed.host;
     let slot = |f: FaceKey| {
-        faces
-            .as_slice()
-            .iter()
-            .position(|g| *g == f)
-            .ok_or_else(|| {
-                disagrees(
-                    EntityId::Vertex(vertex),
-                    "a mixed corner's link stands on a face the corner lacks",
-                )
-            })
+        faces.iter().position(|g| *g == f).ok_or_else(|| {
+            disagrees(
+                EntityId::Vertex(vertex),
+                "a mixed corner's link stands on a face the corner lacks",
+            )
+        })
     };
     let other = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
     let n_e = normals[slot(host)?];
@@ -402,15 +447,7 @@ fn mixed_corner_plan<'a, T: Real>(
             )
         }
     };
-    Ok(Corner {
-        links,
-        faces,
-        feet,
-        arcs,
-        surface,
-        convexity: p1.convexity,
-        mixed: Some(mixed),
-    })
+    Ok((arcs, feet, surface))
 }
 
 /// The chamfer's three feet at one corner: on each support, where the

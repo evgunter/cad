@@ -805,7 +805,14 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // exact meters above, which judge a support's own rings and edges
     // where both would refuse; the end-face meter's three-way readings
     // and the reach's make one verdict (`reach::Unclear`).
-    let consumed = super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
+    let consumed = super::reach::band_reach(
+        source,
+        (&verdict.chains, &verdict.mixed, &verdict.turns),
+        radius,
+        kind,
+        band,
+        unclear,
+    )?;
     // ---- A request whose verdict is inside takes each feature wholly
     // inside a straight band's material, whole, or refuses
     // (`consume::plan`). ----

@@ -2,10 +2,12 @@
 id: the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges
 kind: issue
 title: The face clearance reach meters an all-three mixed corner as a uniform one, so short edges and close faces refuse FaceClearance where the corner clears
-status: open
+status: closed
 opened: 2026-11-13
+closed: 2026-11-17
 priority: P1
 cost: M
+branch: band/mixed-corner-reach
 ---
 
 
@@ -26,3 +28,7 @@ All are pinned as typed refusals in `band_mixed_corner.rs` (`a_mixed_corner_reac
 **What the fix needs.** A corner reach of the mixed corner's own: its real anchors (the feet on the odd edge's faces and the two host feet on `E`, as `open::planar::mixed_corner_plan` derives them), a bound on the torus piece or the mitred strip, and side bounds that hold at a reflex corner (the region is not the intersection of the three faces' half-spaces there). Its `replaces` must stay exact, since other chains' supports are cleared through it. That is a reach of a new shape, not a local fix, so the fix pass filed it.
 
 P1: the bracket builds at its natural sizes (`r = 0.05` pinned), and the refusal is typed, but a chamfer of `0.14` on a 0.5 plate is an ordinary request.
+
+**Closed** (lane `band-reach`). The reach meters a mixed corner by its own patch (`reach::mixed_corner_reach`, from `open::planar::mixed_corner_geometry`, which the plan now shares): the fillet's torus section between `E` and the odd band over the wedge between the pair's rests, the chamfer's mitred strip between its two mitres, each exactly the material the patch changes, `E` the one support side. Each link's window and core at the corner end where its band meets the patch, so a pair's strip is no longer claimed replaced on `E` past its rest. Every witness above builds at its closed form, f64 and Interval (`band_mixed_corner_reach`). Two corrections to the row: the bracket's fillet and chamfer build up to `0.249` at their closed forms, which hold only while no two bands overlap; the real limit is `1/4`, where the plate's top and bottom bands cross on its `0.5` sides, not `1/6`. And the uniform reading was unsound as well as tight: a void inside the fillet's real patch passed the reach, and the carve's body then failed to finish (`ShellWinding`); it now refuses `FaceClearance`.
+
+The odd-plus-one chamfer's turn was read as a uniform turn: the pair strip's reach and core ran to the third face's plane, past the odd strip's plane where its material ends, so a void between the two read as crossing the band's material. The near band of a mixed turn now ends in the far strip's plane (`reach::MixedCut`).
