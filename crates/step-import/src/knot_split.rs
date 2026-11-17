@@ -841,8 +841,16 @@ enum Parted {
 /// `c` over `[lo, hi]` of its domain, on its own parameter.
 fn sub_curve(c: &NurbsCurve3<f64>, lo: f64, hi: f64) -> Option<NurbsCurve3<f64>> {
     let (a, b) = c.knot_values().domain();
-    let upper = if hi < b { c.split_at(hi).ok()?.0 } else { c.clone() };
-    Some(if lo > a { upper.split_at(lo).ok()?.1 } else { upper })
+    let upper = if hi < b {
+        c.split_at(hi).ok()?.0
+    } else {
+        c.clone()
+    };
+    Some(if lo > a {
+        upper.split_at(lo).ok()?.1
+    } else {
+        upper
+    })
 }
 
 /// Splits face `fi` along the iso line of its crease knot `knot` (along
@@ -1011,7 +1019,9 @@ fn split_face_once(
                 )
             })?;
         if met.shared.is_some() {
-            return Err(refuse("a boundary edge shares a run with the knot's iso line"));
+            return Err(refuse(
+                "a boundary edge shares a run with the knot's iso line",
+            ));
         }
         let mut inner = Vec::new();
         for m in &met.points {
@@ -1101,14 +1111,10 @@ fn split_face_once(
     let key = |c: &Crossing| if up_is_low { c.w } else { -c.w };
     crossings.sort_by(|a, b| key(a).total_cmp(&key(b)));
     let alternates = crossings.len() % 2 == 0
-        && crossings.iter().enumerate().all(|(j, c)| {
-            c.from
-                == if j % 2 == 0 {
-                    Side::Low
-                } else {
-                    Side::High
-                }
-        })
+        && crossings
+            .iter()
+            .enumerate()
+            .all(|(j, c)| c.from == if j % 2 == 0 { Side::Low } else { Side::High })
         && crossings.windows(2).all(|p| key(&p[0]) < key(&p[1]));
     if !alternates {
         return Err(refuse(
@@ -1137,8 +1143,9 @@ fn split_face_once(
                 "the trim touches the knot's iso line, or runs along it, inside the face",
             ));
         }
-        let carrier = sub_curve(&iso, w_lo, w_hi)
-            .ok_or(refuse("the knot's iso curve refused its split at a crossing"))?;
+        let carrier = sub_curve(&iso, w_lo, w_hi).ok_or(refuse(
+            "the knot's iso curve refused its split at a crossing",
+        ))?;
         let e = mint();
         solid.edges.insert(
             e,
@@ -1232,12 +1239,15 @@ fn split_face_once(
                     id: face_id,
                     surface: Surface::Nurbs(Arc::clone(&net)),
                     sense,
-                    loops: std::iter::once(LoopSpec { outer: true, uses: outer })
-                        .chain(rings.iter().map(|r| LoopSpec {
-                            outer: false,
-                            uses: r.clone(),
-                        }))
-                        .collect(),
+                    loops: std::iter::once(LoopSpec {
+                        outer: true,
+                        uses: outer,
+                    })
+                    .chain(rings.iter().map(|r| LoopSpec {
+                        outer: false,
+                        uses: r.clone(),
+                    }))
+                    .collect(),
                     band: false,
                 })
                 .collect::<Vec<_>>(),
