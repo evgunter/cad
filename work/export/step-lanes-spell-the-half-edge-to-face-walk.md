@@ -2,10 +2,12 @@
 id: step-lanes-spell-the-half-edge-to-face-walk
 kind: issue
 title: step-import/src and step-export's example spell the half-edge to face walk
-status: open
+status: review
 opened: 2026-09-19
 priority: P1
 cost: E
+branch: export/walks-and-zeros
+pr: 7067
 ---
 
 

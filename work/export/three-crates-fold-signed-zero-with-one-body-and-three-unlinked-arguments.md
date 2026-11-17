@@ -2,10 +2,12 @@
 id: three-crates-fold-signed-zero-with-one-body-and-three-unlinked-arguments
 kind: issue
 title: One signed-zero fold body in three crates, each with its own paragraph of argument, none naming the others
-status: open
+status: review
 opened: 2026-09-15
 priority: P1
 cost: D
+branch: export/walks-and-zeros
+pr: 7067
 ---
 
 
