@@ -362,7 +362,7 @@ pub(super) fn curved_interiors_meet<T: Decide>(
 
 /// **An edge's span as these lanes read it**: its certified curve over
 /// its span, with no ends where it is closed on a conventional vertex
-/// ([`span`]). The ray's edge read (`boolean::solid_contain`) reads a
+/// ([`span`]). The ray's edge read (`solid_contain`) reads a
 /// point against an edge through it, so the census and the ray read one
 /// span.
 pub(crate) struct EdgeSpan<T: Real> {

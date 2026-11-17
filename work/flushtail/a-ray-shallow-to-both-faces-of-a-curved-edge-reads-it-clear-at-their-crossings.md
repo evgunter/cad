@@ -14,7 +14,7 @@ Filed by the curved edge-meeting ray
 (`a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim`, PR 5697),
 and rewritten on its fix pass.
 
-**What is read.** `boolean::solid_contain::curved_edges::passes` reads an
+**What is read.** `solid_contain::curved_edges::passes` reads an
 edge from each carrier crossing of its two faces. A crossing definitely
 off the edge's carrier (`Curve3::clearance` past the band) reads the edge
 clear there; only one that is not is carried to the ray's closest

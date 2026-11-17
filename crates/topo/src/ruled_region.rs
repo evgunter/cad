@@ -1,9 +1,9 @@
 //! **A cylinder or cone face's region, read from its boundary edges** —
 //! the one reading both point doors take of such a face: the ray lane's
-//! hit test and boundary pre-pass ([`super::solid_contain`]) and the
+//! hit test and boundary pre-pass ([`crate::solid_contain`]) and the
 //! pierce arm's landing test
-//! ([`super::contain::curved_face_containment`]). It is
-//! [`super::torus_region`]'s method on the two ruled quadrics, and their
+//! ([`crate::contain::curved_face_containment`]). It is
+//! [`crate::torus_region`]'s method on the two ruled quadrics, and their
 //! easy case: every edge of such a face is a line, a circle or a planar
 //! section, so it lies in a plane.
 //!
@@ -58,7 +58,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`super::region::circle_edge_hit`] for a circle or an ellipse,
+//! ([`crate::region::circle_edge_hit`] for a circle or an ellipse,
 //! [`crate::ray_walk::on_segment`] for a line): on an edge, or within the
 //! band of one of its ends, is the point on the boundary ([`None`]); in
 //! the band of one refuses.
@@ -114,15 +114,15 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
-use super::region::{
-    self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, in_band, targets,
-};
-use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault, SegmentRows};
+use crate::region::{
+    self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, in_band, targets,
+};
+use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
 

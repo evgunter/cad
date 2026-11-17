@@ -2,7 +2,8 @@
 id: main-red-since-pr-7052-the-recourse-roster-and-a-close-rings-pin
 kind: issue
 title: Main red since PR 7052: geom-brep's recourse_roster lists two certify.rs sites that went and misses two that came, and close_rings_carry_counted's 1e-6 pin names a chain of 206 boxes where the periodic fit has 208
-status: review
+status: closed
+closed: 2026-11-17
 opened: 2026-11-17
 priority: P1
 cost: E
@@ -25,3 +26,7 @@ List the roster's sites as they are now, with what each forwards, and re-pin `cl
 
 - The roster half was fixed first on main by PR 7055 (`184e484ed2`), with the same two entries (`certify.rs: of: spec`, `certify.rs: turn: spec`). PR 7057 carries the identical lines, and they merge as no change. The census keys an indirect site by its bare enclosing `fn` name (`test_utils::source::predicate_census`, its `enclosing` closure), so `of` and `turn` are not unique within `certify.rs`. That gap is filed as `work/onecopy/the-census-keys-an-indirect-site-by-its-bare-fn-name.md`.
 - PR 7057 re-pins `close_rings_carry_counted` at 1e-6 to `boxes: 208`, and the row passes at the default ε, 1e-6 and 1e-12.
+
+## Closed (PR 7057, 2026-11-17)
+
+Fixed by PR 7057, merged at `35570b0552`.

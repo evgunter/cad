@@ -2209,8 +2209,8 @@ def _src_path_mounts(root: str) -> dict[str, str]:
 
     `_suite_term`'s `src/` arm assumes THE MODULE PATH IS THE FILE PATH, and
     that is false for a `#[cfg(test)]` module mounted from a sibling with
-    `#[path]`: `crates/topo/src/boolean/r1_probes.rs` is
-    `boolean::solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
+    `#[path]`: `crates/topo/src/r1_probes.rs` is
+    `solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
     built from the file path would match no test at all — and a term matching
     nothing EXCLUDES nothing, so the suite runs on every pull request while
     reading, in the file, as a gate. It is also the one direction

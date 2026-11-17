@@ -8,7 +8,7 @@ priority: P4
 cost: C
 ---
 
-Found by a designer weighing `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`
+Found by a designer weighing `work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts`
 (2026-11-02); filed by the VSEAM orchestrator.
 
 `docs/PATHS-DESIGN.md` §2 says `Start` "is legal wherever a … position

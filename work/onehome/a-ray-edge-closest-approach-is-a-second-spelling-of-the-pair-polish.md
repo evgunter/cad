@@ -11,7 +11,7 @@ cost: M
 Found by the walk-stop fork's designers (2026-11-16); checked against main
 `2c17deabf`.
 
-`passes` (`crates/topo/src/boolean/solid_contain/curved_edges.rs:338`)
+`passes` (`crates/topo/src/solid_contain/curved_edges.rs:338`)
 carries a seed near the edge's carrier to the ray's closest approach by
 alternating feet, `FEET = 8` rounds (`curved_edges.rs:66`, `:361-364`):
 

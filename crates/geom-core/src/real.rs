@@ -1140,6 +1140,15 @@ pub fn is_exact_zero<T: Real>(x: T) -> bool {
     !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
 }
 
+/// `x` with a zero of either sign stated as `+0.0`; every other value,
+/// NaN included, unchanged. It moves no value (`-0.0 == 0.0`) and fixes
+/// the bit pattern, for a reader that would tell the two zeros apart: a
+/// hash paired with IEEE equality, a bitwise comparison, a printer.
+#[must_use]
+pub fn fold_signed_zero(x: f64) -> f64 {
+    if x == 0.0 { 0.0 } else { x }
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///

@@ -13,7 +13,7 @@ Found in the review of PR 5269 (`restread/torus-region`), 2026-10-18.
 
 ## What
 
-`boolean::torus_region`'s `found` (`crates/topo/src/boolean/torus_region.rs`)
+`torus_region`'s `found` (`crates/topo/src/torus_region.rs`)
 maps every `RootRefusal::Unsettled` to `RayFault::Graze`, the meter's
 `Unsettled::Meter` included, and the sphere's region does the same
 (`sphere_region::SphereFaceRegion::ray`). A `Meter` refusal does not say

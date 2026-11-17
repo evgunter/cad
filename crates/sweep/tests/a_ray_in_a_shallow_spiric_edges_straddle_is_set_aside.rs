@@ -1,7 +1,7 @@
 //! **A ray in the straddle of a shallow spiric edge is set aside: a
 //! read lost at `f64`, with the reader's side and point containment as
 //! they were** (`topo`'s curved edge reading,
-//! `boolean::solid_contain::curved_edges`).
+//! `solid_contain::curved_edges`).
 //!
 //! A torus about `y` (major 2, minor 0.5) cut by the plane
 //! `x = 1.5 − 10⁻³`, a millimetre inside its inner equator, through the

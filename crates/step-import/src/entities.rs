@@ -324,7 +324,7 @@ fn as_real(id: u64, value: &Value, expected: &'static str) -> Result<f64, StepIm
     match value {
         Value::Number(raw) => raw
             .parse::<f64>()
-            .map(signed_zero::plus_zero_scalar)
+            .map(signed_zero::fold_signed_zero)
             .map_err(|_| StepImportError::MalformedReal {
                 id,
                 token: raw.clone(),
