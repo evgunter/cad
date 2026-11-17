@@ -2,10 +2,13 @@
 id: injective-spells-the-chart-winding-rule-by-hand
 kind: issue
 title: injective.rs spells the polygon-orientation rule by hand six times (the quarter-turns, face_side and two left_is_above comparisons); its home is geom_brep::PolygonOrientation
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: E
+closed: 2026-11-17
+pr: 7071
+branch: embed/winding-rule
 ---
 
 

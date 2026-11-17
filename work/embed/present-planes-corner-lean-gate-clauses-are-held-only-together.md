@@ -4,7 +4,7 @@ kind: issue
 title: present_plane's two-line corner gate has two lean clauses that differ only in band, and no row holds either alone
 status: open
 opened: 2026-11-17
-priority: P4
+priority: P3
 cost: E
 ---
 
