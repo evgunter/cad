@@ -533,7 +533,7 @@ geom_core::row_registry! {
         },
     };
 
-    /// `topo`'s ray × torus quartic rows (`topo::boolean::solid_contain`).
+    /// `topo`'s ray × torus quartic rows (`topo::solid_contain`).
     pub const RAY_TORUS: QuarticRows = QuarticRows {
         disc: "bool_ray_torus_disc",
         shape: "bool_ray_torus_shape",

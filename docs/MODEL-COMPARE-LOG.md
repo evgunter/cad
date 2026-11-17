@@ -37,3 +37,13 @@ readouts' rulings and the close.
   actually ran (protocol rule 4); an analysis must check it rather
   than assume it, keep any row whose agent reports another version
   (or "unknown") apart, and report each model version separately.
+- **Protocol change (Ev, in-chat, 2026-11-17): a Fable outage records
+  no rows.** When the account's Fable usage limit stops a Fable agent
+  from running, the orchestrator asks Ev whether to proceed on Opus or
+  pause. If the work proceeds, in flight and new, it runs on Opus with
+  no draws, and no row is recorded for a unit with an agent dispatched
+  during the outage, since every such row would be an unmatched Opus
+  row (rule 12). Before this change, a half re-dispatched on the other
+  model was recorded and excluded from the counts (rule 8). The first
+  instance prompted it: EXPORT's sitting of 2026-11-17, while the limit
+  was exhausted until 2026-11-21 15:00 UTC. Ev said to proceed there.

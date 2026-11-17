@@ -9,7 +9,7 @@
 //!
 //! - **Face containment on a cone face** answered nothing. It now reads
 //!   the double-cone carrier first, then the face's OWN region, read from
-//!   its boundary edges (`topo::boolean::ruled_region`), never its
+//!   its boundary edges (`topo::ruled_region`), never its
 //!   surface group's — and the rows hold what a wrong
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the

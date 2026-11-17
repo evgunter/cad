@@ -49,7 +49,7 @@ re-posing that empties a file lowers or drops its row in the same change.
   `rounding_charge(|p₀| + len·|t|)`, a world-origin term that grows with
   the edge's distance from the origin rather than with what it sums
   (PR 6638's review).
-- `topo::boolean::solid_contain`: the ray–plane crossing's `slack`, over
+- `topo::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
 - `topo::boolean::conic_quadric::mod`, `ellipse_torus`, `circle_torus`,

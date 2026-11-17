@@ -25,7 +25,7 @@ that refusal is the more accurate word (`MassPropsError` / "volume
 uncomputable").
 
 The at-infinity probe used the same mapping
-(`boolean::solid_contain::at_infinity_side`'s `undecided`). RESTREAD's
+(`solid_contain::at_infinity_side`'s `undecided`). RESTREAD's
 `restread/at-infinity-probe` branch splits it there with
 `RoleUnread::zero_at_both_ends`, so that `ZeroVolumeBody` is minted only
 where both ends read zero. The shell-role side is TALLY's ground and is
@@ -48,7 +48,7 @@ certified reading's ends where a certificate was taken
 only where none was taken. `CertifiedSliver` stays a zero volume. So
 `RoleUnread` now has two classifications of the same ends that disagree:
 `reads_zero` for the at-infinity probe
-(`boolean::solid_contain::unread_refusal`), and `shell_role_refusal` for
+(`solid_contain::unread_refusal`), and `shell_role_refusal` for
 check 10 and the shell classification. The fix here is to route
 `shell_role_refusal`'s `ZeroVolume` arm through `reads_zero` as well, and
 to give the remaining non-zero, non-straddle case its own arm or fold it

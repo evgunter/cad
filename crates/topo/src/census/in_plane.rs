@@ -68,8 +68,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::boxes::sweep_pad;
+use crate::contain::{CurvedPlacement, FaceContainment, face_placement};
 use crate::cover::{edge_cover, edge_end_point};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};

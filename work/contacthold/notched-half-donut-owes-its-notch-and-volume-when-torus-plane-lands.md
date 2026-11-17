@@ -46,7 +46,7 @@ re-parked on that containment arm,
 
 `restread/torus-region` closed the containment arm this row is parked
 on (`point-in-solid-refuses-an-l-shaped-torus-face`): a torus face is
-read from its boundary edges (`boolean::torus_region`).
+read from its boundary edges (`torus_region`).
 `contact11_torus_chart_l.rs` `a_notched_half_donut_answers_its_volume`
 now asserts `Out` at the notch `(√2, 0.25, −√2)`, `In` under it and on
 the other quarter's top, `Out` past the half turn, and the analytic

@@ -24,7 +24,7 @@ at every step:
 - `curve_pair_walk_foot_clear` and `curve_pair_walk_foot_piece`
   (`crates/geom-brep/src/curve_pair/walk.rs`, `near_pieces` and
   `stops`);
-- `bool_spline_region_carrier` (`crates/topo/src/boolean/spline_region.rs`,
+- `bool_spline_region_carrier` (`crates/topo/src/spline_region.rs`,
   `carrier_walk`).
 
 `_foot_piece`'s in-band rows at 1e-6 are a pure ×2 ladder. Its values

@@ -2,7 +2,8 @@
 id: a-closed-spline-walls-projection-stops-at-its-seam
 kind: issue
 title: A closed spline wall's projection stops at its seam: a point just below it has no foot, and no ring-lane path
-status: open
+status: parked
+blocked_on: [a-node-arcs-chord-misses-its-at-rest-chart-image]
 opened: 2026-11-13
 priority: P3
 cost: M
@@ -30,3 +31,12 @@ The curve half has the same stop:
 `work/nurbs/a-closed-splines-projection-stops-at-its-start-short-of-the-seam.md`.
 A ring lane whose every outer reference stands just below a seam would
 refuse `RingIslandUnread`; no boolean reaches that today.
+
+## Parked (2026-11-17, SECTARMS orchestrator)
+
+Ev's decision on PR 7032 makes the image of a carrier on a spline wall
+one function whose projection follows the carrier continuously from its
+start vertex's stored chart point, across a closed wall's seam. The
+build of that decision (`a-node-arcs-chord-misses-its-at-rest-chart-image`
+and its two siblings) is briefed to say which projection defects it
+fixes. Re-read this row when that item closes.

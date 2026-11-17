@@ -117,12 +117,12 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 2 | `validate.rs:5691` | `material_arm_error` | `MaterialArmOutcome::Split`: the stations disagree on pairing or end | P(s) | DEFECT. Whether the geometry can reach a split is on RESTFRONT's `ring-contact-and-sliver-split-endings-want-their-decisions` |
 
 2026-11-03 (ONEDOOR wedge fold, PR 6443): row 2 is retired, not routed. The split is now `geom_brep::WedgeVerdict::Mixed(MixedStations::Pairing | MixedStations::End)`, naming the two stations that disagree; `topo::validate::wedge_reading` raises it as `ValidationError::MixedDihedral`, which ends DEFECT, and no margin is minted. `material_arm_error` and `MaterialArmOutcome` are gone. Row 1's mint went the same way earlier (the end read decides through `decide_nonzero` in `geom_brep::edge_wedge`), and row 5 is now `RimRouting::SplineFace`.
-| 3 | `boolean/rim_wedge.rs:498` | `contains` (`seam_cover_unread`) | Missing face or surface, curved read `None`, **and every non-`Escalated` `ContainError`** (`Curved(PointInSolidError)`, `RayExhausted`, `Uncrossable`, …) lifted via `_ => unread` | U — throws away a typed refusal; it is not a sign verdict | D10 (seam / tangent-rim declaration verify only). Settled by carrying the `ContainError` |
+| 3 | `rim_wedge.rs:498` | `contains` (`seam_cover_unread`) | Missing face or surface, curved read `None`, **and every non-`Escalated` `ContainError`** (`Curved(PointInSolidError)`, `RayExhausted`, `Uncrossable`, …) lifted via `_ => unread` | U — throws away a typed refusal; it is not a sign verdict | D10 (seam / tangent-rim declaration verify only). Settled by carrying the `ContainError` |
 | 4 | `rim_wedge.rs:562` | `reach` | `seam_traversal_unread`: `decide` gives `Zero` on a cos that `rides` already makes ±1 | P(c) | D10 |
 | 5 | `rim_wedge.rs:1005` | `classify_shared_rim` | Spline chart on either side: the question cannot be posed | P(k) | D10. The caller swallows it (`Err(_) => claim.unsupported()`) |
 | 6 | `rim_wedge.rs:1033` | `classify_shared_rim` | Transverse at one station, Smooth at another | P(s) | D10, swallowed the same way |
 | 7 | `rim_wedge.rs:1068` | `classify_shared_rim` | Material fold `Split` | P(s) | D10, swallowed |
-| 8 | `boolean/solid_contain.rs:1286` | `wall_outline` | `bool_wall_trim_period`: `narrower_than_period` decided the window **definitely ≥ one period** (Zero or Negative) | **D** | `PointInSolidError::Escalated` renders "too close to call at this tolerance … declare/move". Wrong for a decided full-period window |
+| 8 | `solid_contain.rs:1286` | `wall_outline` | `bool_wall_trim_period`: `narrower_than_period` decided the window **definitely ≥ one period** (Zero or Negative) | **D** | `PointInSolidError::Escalated` renders "too close to call at this tolerance … declare/move". Wrong for a decided full-period window |
 | 9 | `solid_contain.rs:2983` | `chart_azimuth_margin` | Same verdict as #8, a second caller of `narrower_than_period` | **D** | Same |
 | 10a | `solid_contain.rs:1934` (mint `:1919`) | `cone_nappe` | `bool_cone_trim_nappe` decided Negative: the window spans the apex | **D** | Same ending. PRED `cone-nappe-is-decided-in-five-places` overlaps |
 | 10b | `solid_contain.rs:1939` | `cone_nappe` | `bool_cone_trim_side` decided Zero | **D** | Same |
@@ -155,9 +155,9 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 29 | `rules.rs:500` | `wall_bend_order2` | Sectors disagree | P(c) | Same |
 | 30 | `geom-brep/src/curve_face/plane_crossing.rs` (`conic_plane_candidates`) | `plane_crossing_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
 | 31 | `census.rs:2583` | `material_wedge_side` | `classify_dihedral` gives a definite **Transverse** after the edge screen | P(c) | `CensusEscalated` → `too_close` poison arm "check the inputs, then declare/move". The declare arm is not followable for a contradiction. On CLEAVE's parked row |
-| 32 | `boolean/sphere_region.rs:384` | (retired) | `CircleRoots::CountDisagrees` | P(c) | Retired (PR 4607): the variant is gone; the first-harmonic doors answer `FirstHarmonicRoots` |
+| 32 | `sphere_region.rs:384` | (retired) | `CircleRoots::CountDisagrees` | P(c) | Retired (PR 4607): the variant is gone; the first-harmonic doors answer `FirstHarmonicRoots` |
 | 33 | `solid_contain.rs:5401` | (retired) | `TorusRoots::CountDisagrees` | P(c) | Retired (PR 4607): `PointInSolidError::RootCountDisagrees`, blocking the ray; the cause (rung 1's uncharged `Δ` rounding) is INSIDE's `ray-torus-count-certifies-on-an-uncharged-discriminant` |
-| 34 | `boolean/contain.rs:607` | `END_VERTEX` | Every end decided against every vertex, yet the point is still in the band of the end | P(c)/U | `Escalation::Decided` |
+| 34 | `contain.rs:607` | `END_VERTEX` | Every end decided against every vertex, yet the point is still in the band of the end | P(c)/U | `Escalation::Decided` |
 | 35 | `chord_join.rs:905` | `agreed_section` | Two section readings of different classes | P(s) | `SectionError::Escalated`. Open PRs 4399 and 4394 touch the file |
 
 ### The funnel-gate case the row names

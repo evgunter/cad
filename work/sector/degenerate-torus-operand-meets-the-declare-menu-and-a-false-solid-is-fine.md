@@ -31,8 +31,8 @@ the hole and a bar across the tube):
   from that face's edges, and the Boolean cannot yet settle where or
   whether it passes through. Recourse: declare the coincidence, move the
   geometry, or lower the tolerance". The route:
-  `boolean::contain::torus_face_containment` →
-  `boolean::solid_contain::point_on_torus_in_face`, whose
+  `contain::torus_face_containment` →
+  `solid_contain::point_on_torus_in_face`, whose
   `geom::require_ring_torus` gate refuses (or `torus_face_windows`
   does), and `boolean::reduce::wall_crossing` keeps the frontier door
   (`SpanVerdict::Unsettled`).
@@ -63,7 +63,7 @@ Half of the title is gone. `CurvedPierceUnsupported`'s recourse is now
 `geom_core::COINCIDENCE_RECOURSE`, "move the geometry"
 (`crates/topo/src/boolean/mod.rs:4335-4343`), so no declare menu is
 offered. The other half stands: `PartialTorusFace` still says "The
-solid itself is fine" (`crates/topo/src/boolean/solid_contain.rs:609-615`).
+solid itself is fine" (`crates/topo/src/solid_contain.rs:609-615`).
 The route has moved. The containment trim is `torus_region.rs`, whose
 ring gate is `geom::require_ring_torus` at `torus_region.rs:318`, and
 `point_on_torus_in_face` and `torus_face_windows` are gone. The repair

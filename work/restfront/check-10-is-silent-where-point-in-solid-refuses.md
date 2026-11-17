@@ -25,7 +25,7 @@ false-refusal direction), so its residue is exactly where they do not:
   closed form) through the closed form, where a shell with a face that
   needs the quadrature has no role. Silent where the sign stays in band,
   where the schedule runs out first, and where the walk refuses.
-- **The walk**: `boolean::solid_contain::point_in_solid_faces` over a
+- **The walk**: `solid_contain::point_in_solid_faces` over a
   per-shell selection (`SolidFaces::of_shell`). Silent on
   `KindUnsupported` (NURBS and `Approx` faces), on
   `PartialSphereFace` / `PartialConeFace` / `PartialTorusFace`, on an

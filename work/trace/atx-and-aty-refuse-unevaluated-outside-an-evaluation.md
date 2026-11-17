@@ -8,7 +8,7 @@ priority: P3
 cost: E
 ---
 
-Found by a designer weighing `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`
+Found by a designer weighing `work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts`
 (2026-11-02); filed by the VSEAM orchestrator.
 
 `trace::resolve_chain` (`crates/editor-core/src/trace.rs`) refuses

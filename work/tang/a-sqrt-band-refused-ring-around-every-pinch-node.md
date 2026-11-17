@@ -25,7 +25,7 @@ Cause: the crossing sweep reads such an edge against the partner wall
 through the full quadric. Near a node the edge is nearly tangent to the
 partner wall, so its two real crossings, δ apart, show a discriminant
 margin of order δ², and `line_wall_roots` reads Zero as
-`WallRoots::Tangent` (`crates/topo/src/boolean/solid_contain.rs:4491`,
+`WallRoots::Tangent` (`crates/topo/src/solid_contain.rs:4491`,
 reached from `crates/topo/src/boolean/reduce.rs:3598` and `:3641`). Node
 placement decides at δ and the sweep at δ², so between band and √band
 the two disagree. U1's rows avoid the ring by posing their seams at

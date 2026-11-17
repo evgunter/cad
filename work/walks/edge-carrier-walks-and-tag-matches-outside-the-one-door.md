@@ -61,7 +61,7 @@ false. Two groups:
   straight" the new door's doc offers:
   `crates/topo/src/validate.rs` (`all_lines`),
   `crates/topo/src/merge_faces.rs` (`straight`),
-  `crates/topo/src/boolean/surface_group.rs` (the circle skip),
+  `crates/topo/src/surface_group.rs` (the circle skip),
   `crates/mesh/src/trimmed.rs` (the `Ellipse | Nurbs` test — a
   `CurveKindSet` comparand, and `mesh` is not this program's).
 - **Already holds the carrier for other reasons**, so reading its tag
