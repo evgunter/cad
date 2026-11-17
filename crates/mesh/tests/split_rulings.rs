@@ -251,41 +251,46 @@ fn a_split_side_adds_one_triangle_per_point() {
     assert_eq!(cells, 330, "the cells this row reads");
 }
 
-/// **A ruling split a hair from its end meshes.** A cone of half-angle
-/// 20° through its apex, revolved `2π − 0.3`, its line edge 1 split
-/// `3·10⁻⁷` of its range from its start and placed obliquely, at δ 0.1,
-/// 0.01 and 0.001: the count relation ([`holds_the_count_relation`]).
-/// The split's point and the ruling's end are two corners of one thin
-/// triangle the walk fans from the rim point beside them.
+/// **A ruling split a hair from its end meshes.** Cones through their
+/// apex, revolved `2π − 0.3`, line edge 1 split a hair from its start and
+/// placed obliquely, at δ 0.1, 0.01 and 0.001, hold the count relation
+/// ([`holds_the_count_relation`]): half-angle 20° split `3·10⁻⁷` of its
+/// range from its start, and 5° split `10⁻⁹`. The split's point
+/// and the ruling's end are two corners of one thin triangle the walk
+/// fans from the rim point beside them.
 ///
-/// **By ε.** The same at `10⁻¹²`; at `10⁻⁶` `split_edge` reads the split
-/// as no split, and the row asserts that instead.
+/// **By ε.** `split_edge` builds the 20° cone's split at the default ε
+/// and `10⁻¹²`, the 5° cone's at `10⁻¹²` only, and the row counts the
+/// bodies each ε builds. (A 1° cone's `10⁻⁹` split builds at none of the
+/// three: its certification escalates at `10⁻¹²`.)
 #[test]
 fn a_ruling_split_a_hair_from_its_end_meshes() {
-    let body = turned(
-        &[(0.0, 0.0), (f64::tan(20f64.to_radians()), 0.0), (0.0, 1.0)],
-        Revolution::Partial(core::f64::consts::TAU - 0.3),
-    );
-    let ruling = rulings(&body)[1];
-    if let Err(e) = body
-        .clone()
-        .split_edge(ruling, at(&body, ruling, 3e-7), tol())
-    {
-        assert!(
-            tol().eps() != geom_core::tolerance::DEFAULT_EPS,
-            "the split is interior at the default ε: {e:?}"
+    let mut meshed = 0usize;
+    for (half_angle, frac) in [(20.0f64, 3e-7), (5.0, 1e-9)] {
+        let body = turned(
+            &[(0.0, 0.0), (half_angle.to_radians().tan(), 0.0), (0.0, 1.0)],
+            Revolution::Partial(core::f64::consts::TAU - 0.3),
         );
-        eprintln!(
-            "ε {:e}: `split_edge` reads a split 3e-7 from the end as no split ({e:?})",
-            tol().eps()
-        );
-        return;
+        let ruling = rulings(&body)[1];
+        let what = format!("a {half_angle}° cone's ruling split {frac:e} from its start");
+        if let Err(e) = body
+            .clone()
+            .split_edge(ruling, at(&body, ruling, frac), tol())
+        {
+            eprintln!("{what}: no split at ε {:e}: {e:?}", tol().eps());
+            continue;
+        }
+        let split = split_and_placed(&body, &[ruling], &[frac]);
+        let solid = split_and_placed(&body, &[], &[]);
+        holds_everywhere(&what, &split, &solid, &[0.1, 0.01, 0.001]);
+        meshed += 1;
     }
-    let split = split_and_placed(&body, &[ruling], &[3e-7]);
-    let solid = split_and_placed(&body, &[], &[]);
-    for delta in [0.1, 0.01, 0.001] {
-        holds_the_count_relation("a ruling split 3e-7 from its end", &split, &solid, delta);
-    }
+    let want = match tol().eps() {
+        e if e <= 1e-12 => 2,
+        e if e <= geom_core::tolerance::DEFAULT_EPS => 1,
+        _ => 0,
+    };
+    assert_eq!(meshed, want, "the bodies this ε builds");
 }
 
 /// The parameter `frac` of the way along edge `ek`'s range.

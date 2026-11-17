@@ -64,3 +64,15 @@ Its cure is specified in
 `work/tesslane/a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation.md`.
 The strip unit (`a-ruled-face-is-meshed-as-a-strip`, parked on Ev's
 answer) would take these faces out of the development altogether.
+
+## The rectangle faces leave the development (2026-11-17, unit 4c, `tesslane/ruled-density`)
+
+Every body this row measured is a cylinder or cone face with a split side
+and no other trim, which the chart lane now walks (`trimmed::walked`,
+`crate::ruled_walk`) in its chart: nothing rounds its slant radii, and each
+meshes. The two pins above became meshing rows,
+`split_rulings::a_ruling_split_within_two_to_the_minus_27_of_its_slant_meshes`.
+What stays in the development, and so on this row, is a cone face with a
+ruling split within the bin that the walk does not take: one with a ring or
+a trim carrier, or one whose sides pass through its apex onto the other
+nappe.

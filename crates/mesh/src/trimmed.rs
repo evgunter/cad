@@ -417,7 +417,11 @@ pub(crate) fn face_target(
 /// or cone face with no ring and no trim carrier, here because a straight
 /// side holds a point (`walk::splits_a_straight_side`), whose loop is a
 /// cycle of rims and lines in one of the walk's two shapes
-/// (`ruled_walk::rim_runs`). Such a face's triangles span one rim chord
+/// (`ruled_walk::rim_runs`): two runs of rims with no vertex at a cone's
+/// apex, or one run whose sides meet at the apex. A face whose sides pass
+/// through the apex onto the other nappe is neither, and keeps the CDT
+/// (which refuses it, `singular_row_shape`), as does one whose apex vertex
+/// the band cannot decide. Such a face's triangles span one rim chord
 /// each in angle, the theorem the step functions state, so it sizes at δ
 /// ([`face_target`]).
 pub(crate) fn walked(
@@ -435,15 +439,36 @@ pub(crate) fn walked(
     {
         return Ok(false);
     }
-    let mut line = Vec::new();
-    for (_, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
+    let (mut line, mut apexes) = (Vec::new(), 0usize);
+    for (hek, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
         match edge_carrier(body, ek)? {
             Curve3::Line(..) => line.push(true),
             Curve3::Circle(..) => line.push(false),
             _ => return Ok(false),
         }
+        if let Surface::Cone { apex, .. } = *surface {
+            let start = body
+                .get_half_edge(hek)
+                .and_then(|he| body.get_vertex(he.start))
+                .and_then(|v| body.get_point(v.point))
+                .ok_or(TessellateError::MissingEntity {
+                    what: "vertex position",
+                })?;
+            match geom_brep::chart_singularity::vertex_at_singular_point(*start, apex, band) {
+                Ok(true) => apexes += 1,
+                Ok(false) => {}
+                // Undecided: today's path refuses it typed.
+                Err(_) => return Ok(false),
+            }
+        }
     }
-    Ok(matches!(crate::ruled_walk::rim_runs(&line), 1 | 2))
+    // One run of rims closes at the apex; two runs hold none between them
+    // (a face through the apex onto the other nappe is no two rows).
+    Ok(match crate::ruled_walk::rim_runs(&line) {
+        1 => apexes > 0,
+        2 => apexes == 0,
+        _ => false,
+    })
 }
 
 /// The carrier of edge `ek`.
