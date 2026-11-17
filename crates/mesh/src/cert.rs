@@ -54,36 +54,42 @@
 use crate::sizing::Eps;
 use geom_core::{Point3, Vec3};
 
-/// **The distance from `p` to the triangle `abc`, for every triangle**:
-/// one of no area included, where it is the distance to the nearest
-/// side. It is a function of the three corners as a set (they are put in
-/// one order first), so no corner order answers differently.
+/// **The distance from `p` to the triangle `abc`**, the same to the bit
+/// in every order of the corners (they are put in one order first).
 ///
-/// The nearest point of a triangle is the foot of `p` on its plane where
-/// that lies inside, and on a side otherwise. With `s` the distance to
-/// the nearest side and `ρ = 2·area / perimeter` the inradius, the
-/// distance is in `[s − ρ, s]` either way, since no point of a triangle
-/// is further than `ρ` from its sides, and the foot's distance is read
-/// inside that bracket. So a normal that rounding has left no direction
-/// (a triangle thin against the rounding of its own corners) cannot move
-/// the answer by more than the triangle's own width, and a triangle of no
-/// area answers `s` exactly. The normal is the cross product of the two
-/// shorter sides, each a difference of stored corners: on a needle those
-/// are near square to each other, and the product is exact to its own
-/// rounding.
+/// What it answers, with `s` the distance to the nearest side and `ρ`
+/// the inradius (the nearest point of a triangle is the foot of `p` on
+/// its plane where that lies inside, and on a side otherwise, and no
+/// point of a triangle is further than `ρ` from its sides, so the
+/// distance is in `[s − ρ, s]` either way):
 ///
-/// What rounding leaves of the foot's distance is the plane's tilt, the
-/// rounding of the cross product over the sine of the angle between
-/// those two sides, times the triangle's length: its own rounding unless
-/// the two are near parallel, a sliver with one corner close to the
-/// opposite side, where the bracket still holds it within the inradius.
-/// Corners on a sphere about `p` never make that case, nor does the
-/// shadow of corners on a cylinder about the line: the foot is then the
-/// circumcentre, inside only a triangle with no angle past a right one,
-/// whose two shorter sides meet at sixty degrees or more.
+/// - **`s`, to its own rounding,** where the foot is outside, and for a
+///   triangle of no area (three corners in line, or two at one point),
+///   which has no inside;
+/// - **the foot's distance, to its own rounding,** where the foot is
+///   inside a triangle whose two shorter sides are not near parallel, a
+///   needle included: the normal is the cross product of two sides, each
+///   a difference of stored corners, and the corners' one order is what
+///   keeps a needle's digits in it (where it is computed). Corners on a
+///   sphere about `p`, and the
+///   shadow of corners on a cylinder about its axis
+///   ([`dist_line_triangle`]), are always this case or the one above:
+///   the foot is then the circumcentre, inside only a triangle with no
+///   angle past a right one, whose two shorter sides meet at sixty
+///   degrees or more;
+/// - **a value within `ρ` of the distance, in `[s − ρ, s]`,** where the
+///   foot is inside a sliver, one corner close to the opposite side. The
+///   sides are then all near parallel, any two's cross product has lost
+///   the plane's tilt to rounding (by the rounding of the product over
+///   the sine of their angle, times the triangle's length), and the
+///   foot's distance is read inside the bracket and no further.
 ///
-/// A coordinate that is not finite, or corners so far from `p` that the
-/// fourth power of that distance is past `f64`'s range, answers NaN.
+/// The corners are read at the scale of the furthest one from `p`, a
+/// power of two, so no size of triangle overflows or underflows on the
+/// way; a feature smaller than `10⁻⁷⁷` of that scale can underflow, and
+/// is within the bracket by its own size. A coordinate that is not
+/// finite, or two of the four points whose difference is not, answers
+/// NaN.
 pub fn dist_point_triangle(p: Point3<f64>, a: Point3<f64>, b: Point3<f64>, c: Point3<f64>) -> f64 {
     let mut corners = [a, b, c];
     corners.sort_by(|s, t| {
@@ -92,35 +98,53 @@ pub fn dist_point_triangle(p: Point3<f64>, a: Point3<f64>, b: Point3<f64>, c: Po
             .then(s.z.total_cmp(&t.z))
     });
     let [a, b, c] = corners;
-    let (u, v, w) = (a - p, b - p, c - p);
-    // Every product below is at most `192·m⁴`, `m` the largest
-    // coordinate of a corner from `p`.
-    let reach = u.dot(u) + v.dot(v) + w.dot(w);
-    if !(16.0 * reach).powi(2).is_finite() {
+    let from_p = [a - p, b - p, c - p];
+    let sides = [b - a, c - b, a - c];
+    let coordinates = || from_p.iter().chain(&sides).flat_map(|v| [v.x, v.y, v.z]);
+    if !all_finite(coordinates()) {
         return f64::NAN;
     }
-    let (ab, bc, ca) = (b - a, c - b, a - c);
-    let sides = dist_origin_segment(u, v, ab)
+    let unit = binade(
+        from_p
+            .iter()
+            .flat_map(|v| [v.x, v.y, v.z])
+            .fold(0.0, |m: f64, x| m.max(x.abs())),
+    );
+    let [u, v, w] = from_p.map(|x| x * (1.0 / unit));
+    let [ab, bc, ca] = sides.map(|x| x * (1.0 / unit));
+    unit * dist_origin_triangle([u, v, w], [ab, bc, ca])
+}
+
+/// [`dist_point_triangle`] from the origin, at unit scale: corners `u, v,
+/// w` with the furthest coordinate in `[1, 2)` (or all zero), and the
+/// sides `v − u`, `w − v`, `u − w`.
+fn dist_origin_triangle([u, v, w]: [Vec3<f64>; 3], [ab, bc, ca]: [Vec3<f64>; 3]) -> f64 {
+    let nearest_side = dist_origin_segment(u, v, ab)
         .min(dist_origin_segment(v, w, bc))
         .min(dist_origin_segment(w, u, ca));
-    let (lab, lbc, lca) = (ab.dot(ab), bc.dot(bc), ca.dot(ca));
-    let n = if lab >= lbc && lab >= lca {
-        bc.cross(ca)
-    } else if lbc >= lca {
-        ca.cross(ab)
-    } else {
-        ab.cross(bc)
-    };
+    // Where these two are the long sides of a needle, the corners' one
+    // order has put the far corner between the close two along `x`, so
+    // the needle lies across `x` to within its own width. The one
+    // component of the product that cancels is then `x`'s, and its
+    // rounding tilts the plane about the needle's own length, which the
+    // foot is within a width of.
+    let n = ab.cross(bc);
     // The foot's barycentric weights, each times `|n|²`.
     let inside = n.dot(v.cross(bc)) > 0.0 && n.dot(w.cross(ca)) > 0.0 && n.dot(u.cross(ab)) > 0.0;
-    if !inside {
-        return sides;
-    }
     let area2 = n.norm();
-    let inradius = area2 / (lab.sqrt() + lbc.sqrt() + lca.sqrt());
-    // `f64::max` drops a NaN: a foot that underflow left `0/0` reads the
-    // bracket's floor.
-    (u.dot(n).abs() / area2).max(sides - inradius).min(sides)
+    // A normal whose length underflowed is a triangle of no width.
+    if !inside || area2 == 0.0 {
+        return nearest_side;
+    }
+    let floor = nearest_side - area2 / (ab.norm() + bc.norm() + ca.norm());
+    let foot = u.dot(n).abs() / area2;
+    if foot < floor {
+        floor
+    } else if foot > nearest_side {
+        nearest_side
+    } else {
+        foot
+    }
 }
 
 /// The distance from the origin to the segment from `u` to `v`, with
@@ -137,12 +161,31 @@ fn dist_origin_segment(u: Vec3<f64>, v: Vec3<f64>, e: Vec3<f64>) -> f64 {
     }
 }
 
+/// The largest power of two not above `|x|`, for a finite `x`; the
+/// smallest normal number for zero and below it. Dividing by it is exact.
+fn binade(x: f64) -> f64 {
+    f64::from_bits(x.to_bits() & 0x7ff0_0000_0000_0000).max(f64::MIN_POSITIVE)
+}
+
+/// **The one rule for an input that is not finite: the certificate
+/// answers NaN**, which [`verdict`] reads as exceeded and [`worse`]
+/// keeps. Each certificate asks this of everything it is handed before
+/// it computes, since `f64::max`, `f64::min` and a comparison each read a
+/// NaN as a number. (`+∞` is a different answer: finite corners that are
+/// no triangle of the surface, [`cert_cone`]'s two nappes and
+/// [`cert_spindle`]'s two apexes.)
+fn all_finite(values: impl IntoIterator<Item = f64>) -> bool {
+    values.into_iter().all(f64::is_finite)
+}
+
 /// The distance from the line through `o` along `d` to the triangle
 /// `abc`: the triangle's shadow on the plane across the line is a
 /// triangle, or a segment where a side is along `d` or the triangle is
 /// seen edge-on, and the line is one point of that plane, so it is a
 /// point–triangle distance ([`dist_point_triangle`], which takes a
-/// shadow of no area). `d` need not be unit; a zero `d` answers NaN.
+/// shadow of no area). `d` is any nonzero direction of any finite
+/// length: it is read at its own scale. NaN for a zero `d`, a coordinate
+/// that is not finite, or a corner whose offset from `o` is not.
 pub fn dist_line_triangle(
     o: Point3<f64>,
     d: Vec3<f64>,
@@ -150,33 +193,37 @@ pub fn dist_line_triangle(
     b: Point3<f64>,
     c: Point3<f64>,
 ) -> f64 {
-    let shadow = |p: Point3<f64>| -> Point3<f64> {
-        Point3::origin() + geom::Line { origin: o, dir: d }.offset(p)
+    let unit = binade(d.x.abs().max(d.y.abs()).max(d.z.abs()));
+    let line = geom::Line {
+        origin: o,
+        dir: d * (1.0 / unit),
     };
+    let shadow = |p: Point3<f64>| Point3::origin() + line.offset(p);
     dist_point_triangle(Point3::origin(), shadow(a), shadow(b), shadow(c))
 }
 
 /// Cylinder certificate: `r − dist(axis, T)`, at least 0 (a corner
 /// outside the cylinder by its carrier residual reads a distance past
-/// `r`). NaN where the distance or `r` is not finite.
+/// `r`). NaN for an input that is not finite ([`all_finite`]).
 pub fn cert_cylinder(origin: Point3<f64>, axis: Vec3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    inside_bound(r, dist_line_triangle(origin, axis, tri[0], tri[1], tri[2]))
+    let points = tri.iter().chain([&origin]).flat_map(|p| [p.x, p.y, p.z]);
+    if !all_finite(points.chain([axis.x, axis.y, axis.z, r])) {
+        return f64::NAN;
+    }
+    worse(
+        r - dist_line_triangle(origin, axis, tri[0], tri[1], tri[2]),
+        0.0,
+    )
 }
 
 /// Sphere certificate: `r − dist(center, T)`, at least 0 and NaN as
 /// [`cert_cylinder`]'s.
 pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
-    inside_bound(r, dist_point_triangle(center, tri[0], tri[1], tri[2]))
-}
-
-/// `r − dist`, at least 0, and NaN unless both are finite: `f64::max`
-/// would read a NaN as the 0.
-fn inside_bound(r: f64, dist: f64) -> f64 {
-    if r.is_finite() && dist.is_finite() {
-        (r - dist).max(0.0)
-    } else {
-        f64::NAN
+    let points = tri.iter().chain([&center]).flat_map(|p| [p.x, p.y, p.z]);
+    if !all_finite(points.chain([r])) {
+        return f64::NAN;
     }
+    worse(r - dist_point_triangle(center, tri[0], tri[1], tri[2]), 0.0)
 }
 
 /// **Cone certificate: the deviation of a flat triangle with its corners
@@ -251,7 +298,7 @@ fn inside_bound(r: f64, dist: f64) -> f64 {
 /// nappe, and certify nothing (`+∞`). An input that is not finite, or
 /// slants whose product is past `f64`'s range, answers NaN.
 pub fn cert_cone(half_angle: f64, uv: [[f64; 2]; 3], pole: [bool; 3]) -> f64 {
-    if !half_angle.is_finite() || uv.iter().flatten().any(|x| !x.is_finite()) {
+    if !all_finite(uv.iter().flatten().copied().chain([half_angle])) {
         return f64::NAN;
     }
     let off = |i: usize| !pole[i];
@@ -336,10 +383,9 @@ pub(crate) fn cone_chord_sag(k: f64, va: f64, vb: f64, du: f64) -> f64 {
 /// `crate::sizing::torus_grid_steps`'). Total for every `R, r > 0`:
 /// `A` is `max |R + r·cos φ|`, so a spindle torus's window across
 /// `R + r·cos φ = 0` reads the larger lobe rather than a signed value.
-/// NaN-sticky: a poisoned corner poisons the certificate rather than
-/// being dropped by a `max`.
+/// NaN for an input that is not finite ([`all_finite`]).
 pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
-    if uv.iter().flatten().any(|x| x.is_nan()) {
+    if !all_finite(uv.iter().flatten().copied().chain([major, minor])) {
         return f64::NAN;
     }
     let (mut u0, mut u1, mut v0, mut v1) = (
@@ -372,6 +418,10 @@ pub fn cert_torus(major: f64, minor: f64, uv: [[f64; 2]; 3]) -> f64 {
 /// the apex. A triangle with fewer than two corners off an apex is no
 /// fan triangle, and certifies nothing (+∞).
 pub fn cert_spindle(major: f64, minor: f64, uv: [[f64; 2]; 3], apex: [bool; 3]) -> f64 {
+    // An apex corner's `u` included, though it is not read below.
+    if !all_finite(uv.iter().flatten().copied().chain([major, minor])) {
+        return f64::NAN;
+    }
     let Some(u) = (0..3).find(|&i| !apex[i]).map(|i| uv[i][0]) else {
         return f64::INFINITY;
     };
@@ -1310,17 +1360,18 @@ mod tests {
         );
     }
 
-    /// **An input that is not finite poisons a certificate.** The cone's:
-    /// a NaN or an infinity in the half-angle or in any corner, an apex
-    /// corner's unread azimuth included, answers NaN, and slants whose
-    /// product is past `f64`'s range answer NaN too; the verdict reads NaN
-    /// as exceeded. The torus's and the spindle's answer NaN or `+∞`. A
-    /// face's worst bound keeps a NaN once met ([`worse`]). The
-    /// cylinder's and the sphere's answer NaN for a corner, anchor, axis
-    /// or radius that is not finite, for a zero axis, and for corners
-    /// past the range their distance holds products in
-    /// ([`dist_point_triangle`]); a clamp `(r − dist).max(0.0)` alone
-    /// reads each of those as 0 and reds here.
+    /// **An input that is not finite poisons every certificate: NaN, one
+    /// answer for all five** ([`all_finite`]), which the verdict reads as
+    /// exceeded and a face's worst bound keeps ([`worse`]). A NaN or an
+    /// infinity in any corner, an apex corner's unread azimuth included,
+    /// in the cone's half-angle, the torus's and spindle's radii, the
+    /// cylinder's and sphere's anchor, axis and radius. And what is past
+    /// `f64`'s range on the way: the cone's slant product, a zero axis,
+    /// and two points whose difference overflows.
+    ///
+    /// A clamp `(r − dist).max(0.0)` alone reads the cylinder's and the
+    /// sphere's as 0, and a guard on NaN alone lets the torus's infinity
+    /// through as `+∞`; each reds here.
     #[test]
     fn the_certificates_poison_on_an_input_that_is_not_finite() {
         let (inf, nan) = (f64::INFINITY, f64::NAN);
@@ -1347,12 +1398,17 @@ mod tests {
                 [true, false, false],
             ),
         ];
-        for (alpha, uv, pole) in cases {
-            let cert = cert_cone(alpha, uv, pole);
-            assert!(cert.is_nan(), "α {alpha} uv {uv:?} apex {pole:?}: {cert}");
+        let poisoned = |cert: f64, what: &str| {
+            assert!(cert.is_nan(), "{what}: {cert}");
             assert_eq!(
                 verdict(cert, 1.0, 1.0, Eps::exactly(1e-9)),
                 Verdict::Exceeded
+            );
+        };
+        for (alpha, uv, pole) in cases {
+            poisoned(
+                cert_cone(alpha, uv, pole),
+                &format!("cone, α {alpha} uv {uv:?} apex {pole:?}"),
             );
         }
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -1362,14 +1418,8 @@ mod tests {
             Point3::new(1.0, 0.0, 0.0),
             Point3::new(0.0, 0.0, 1.0),
         ];
-        let poisoned = |cert: f64, what: &str| {
-            assert!(cert.is_nan(), "{what}: {cert}");
-            assert_eq!(
-                verdict(cert, 1.0, 1.0, Eps::exactly(1e-9)),
-                Verdict::Exceeded
-            );
-        };
-        for bad in [nan, inf, -inf, 1e80, -1e200] {
+        let flat = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
+        for bad in [nan, inf, -inf] {
             for slot in 0..3 {
                 for axis in 0..3 {
                     let mut tri = on;
@@ -1380,10 +1430,22 @@ mod tests {
                     }
                     let what = format!("corner {slot}, coordinate {axis} = {bad}");
                     poisoned(cert_sphere(o, 1.0, tri), &what);
-                    // A height past the range does not reach the shadow.
-                    if axis != 1 || !bad.is_finite() {
-                        poisoned(cert_cylinder(o, y, 1.0, tri), &what);
-                    }
+                    poisoned(cert_cylinder(o, y, 1.0, tri), &what);
+                }
+                for axis in 0..2 {
+                    let mut uv = flat;
+                    uv[slot][axis] = bad;
+                    poisoned(cert_torus(1.0, 0.2, uv), &format!("torus, {uv:?}"));
+                    poisoned(
+                        cert_spindle(0.2, 1.0, uv, [false; 3]),
+                        &format!("spindle, {uv:?}"),
+                    );
+                    let mut apex = [false; 3];
+                    apex[slot] = true;
+                    poisoned(
+                        cert_spindle(0.2, 1.0, uv, apex),
+                        &format!("spindle, {uv:?} with that corner an apex"),
+                    );
                 }
             }
             poisoned(cert_sphere(Point3::new(bad, 0.0, 0.0), 1.0, on), "centre");
@@ -1391,31 +1453,30 @@ mod tests {
                 cert_cylinder(Point3::new(bad, 0.0, 0.0), y, 1.0, on),
                 "anchor",
             );
-        }
-        for bad in [nan, inf, -inf] {
             poisoned(cert_sphere(o, bad, on), "sphere radius");
             poisoned(cert_cylinder(o, y, bad, on), "cylinder radius");
             poisoned(cert_cylinder(o, Vec3::new(0.0, bad, 0.0), 1.0, on), "axis");
+            poisoned(cert_torus(bad, 0.2, flat), "torus, R");
+            poisoned(cert_torus(1.0, bad, flat), "torus, r");
+            poisoned(cert_spindle(bad, 1.0, flat, [false; 3]), "spindle, R");
+            poisoned(cert_spindle(0.2, bad, flat, [false; 3]), "spindle, r");
         }
         poisoned(
             cert_cylinder(o, Vec3::new(0.0, 0.0, 0.0), 1.0, on),
             "a zero axis",
         );
-        // The torus's and the spindle's answer no finite bound either.
-        let flat = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1]];
-        for bad in [nan, inf, -inf] {
-            for slot in 0..2 {
-                let mut uv = flat;
-                uv[1][slot] = bad;
-                assert!(!cert_torus(1.0, 0.2, uv).is_finite(), "torus, {uv:?}");
-                assert!(
-                    !cert_spindle(0.2, 1.0, uv, [false; 3]).is_finite(),
-                    "spindle, {uv:?}"
-                );
-            }
-            assert!(!cert_torus(bad, 0.2, flat).is_finite(), "torus, R = {bad}");
-            assert!(!cert_torus(1.0, bad, flat).is_finite(), "torus, r = {bad}");
-        }
+        // Finite points whose difference is not.
+        let far = Point3::new(-1.5e308, 0.0, 0.0);
+        let mut tri = on;
+        tri[0].x = 1.5e308;
+        poisoned(
+            cert_sphere(far, 1.0, tri),
+            "a corner past the range from the centre",
+        );
+        poisoned(
+            cert_cylinder(far, y, 1.0, tri),
+            "a corner past the range from the anchor",
+        );
         // A face's worst bound keeps a NaN whichever side it comes from.
         assert!(worse(f64::NAN, 1.0).is_nan() && worse(1.0, f64::NAN).is_nan());
         assert!(worse(worse(0.0, f64::NAN), 0.5).is_nan());
@@ -1439,12 +1500,14 @@ mod tests {
     }
 
     /// **A triangle whose shadow has no area certifies at its true
-    /// deviation, bit for bit the same in every corner order.** On a
-    /// cylinder of radius 1 about `y`, columns a twelfth of a turn apart:
+    /// deviation in every corner order**, each to `10⁻¹⁵`. (That the
+    /// orders agree to the bit is the distance fuzz's to hold: no row of
+    /// this table moves a bit by its order.) On a cylinder of radius 1
+    /// about `y`, columns a twelfth of a turn apart:
     ///
     /// - both halves of a lattice cell, each with a side on a ruling (the
     ///   shadow is the column's chord): the chord's sagitta
-    ///   `1 − cos(π/12)`, and the two halves agree to the bit;
+    ///   `1 − cos(π/12)`;
     /// - three corners on one ruling (the shadow is a point): 0;
     /// - a side on a ruling and a corner across the axis (the shadow is a
     ///   diameter): the radius;
@@ -1469,31 +1532,27 @@ mod tests {
         let sagitta = 1.0 - (PI / 12.0).cos();
         let every_order =
             |cert: &dyn Fn([Point3<f64>; 3]) -> f64, tri, expected: f64, what: &str| {
-                let first = cert(tri);
-                assert!(
-                    (first - expected).abs() <= 1e-15,
-                    "{what}: {first:e}, not {expected:e}"
-                );
                 for order in orders(tri) {
                     let got = cert(order);
-                    assert_eq!(got.to_bits(), first.to_bits(), "{what}, {order:?}: {got:e}");
+                    assert!(
+                        (got - expected).abs() <= 1e-15,
+                        "{what}, {order:?}: {got:e}, not {expected:e}"
+                    );
                 }
-                first
             };
         let cylinder = |tri: [Point3<f64>; 3]| cert_cylinder(o, y, 1.0, tri);
-        let lower = every_order(
+        every_order(
             &cylinder,
             [p(1.0, 1.0, 0.0), p(1.0, 0.0, 0.0), p(c, 0.0, s)],
             sagitta,
             "the cell's lower half",
         );
-        let upper = every_order(
+        every_order(
             &cylinder,
             [p(1.0, 1.0, 0.0), p(c, 0.0, s), p(c, 1.0, s)],
             sagitta,
             "the cell's upper half",
         );
-        assert_eq!(lower.to_bits(), upper.to_bits(), "a cell's two halves");
         let rows: [([Point3<f64>; 3], f64, &str); 5] = [
             (
                 [p(1.0, 0.0, 0.0), p(1.0, 1.0, 0.0), p(1.0, 3.0, 0.0)],
@@ -1563,6 +1622,36 @@ mod tests {
         }
     }
 
+    /// **A needle's plane keeps its digits in every corner order.** A
+    /// needle `10⁻⁸` as wide as it is long, at no special pose, and a
+    /// point half a length off a point inside it: the answer is that half
+    /// to the verdict's allowance, whichever order the corners come in.
+    /// The cross product of its two long sides cancels to the needle's
+    /// width, and read in the order the corners came in (close, far,
+    /// close) it is `8·10⁻¹⁰` off here: putting the corners in one order
+    /// first is what [`dist_origin_triangle`]'s normal stands on.
+    #[test]
+    fn a_needles_plane_keeps_its_digits_in_every_corner_order() {
+        let along = Vec3::new(0.48, 0.6, 0.64);
+        let across = Vec3::new(0.8, 0.0, -0.6);
+        let normal = Vec3::new(0.36, -0.8, 0.48);
+        let width = 1e-8;
+        let a = Point3::new(0.3, -0.2, 0.7);
+        let c = a + across * width;
+        let b = a + along + across * (0.5 * width);
+        let inside = a + (b - a) * 0.5 + (c - a) * 0.25;
+        let p = inside + normal * 0.5;
+        let allowance = rounding_allowance(position_scale(p, [a, b, c]));
+        for [a, b, c] in orders([a, b, c]) {
+            let got = dist_point_triangle(p, a, b, c);
+            assert!(
+                (got - 0.5).abs() <= allowance,
+                "{got:e} is {:e} off, past {allowance:e}",
+                got - 0.5
+            );
+        }
+    }
+
     /// A point and three orthonormal directions.
     struct Frame {
         o: Point3<f64>,
@@ -1626,16 +1715,28 @@ mod tests {
     /// corners round. For the line the triangle is the shadow, its
     /// corners at any heights, and the direction is not unit.
     ///
-    /// The answer is held to eight of the verdict's allowances
-    /// ([`rounding_allowance`]) at the pose's largest coordinate, which
-    /// covers the rounding of the pose itself, plus what the foot's plane
-    /// is uncertain by where the two shorter sides are near parallel
-    /// (their length over the sine of their angle, in the same
-    /// allowances), never more than the inradius.
+    /// What it pins, with the verdict's allowance ([`rounding_allowance`])
+    /// at the pose's largest coordinate as the unit:
+    ///
+    /// - **eight allowances** (which cover the pose's own rounding) where
+    ///   the nearest point is on a side or at a corner, on every shape,
+    ///   and where it is inside a triangle that is not thin;
+    /// - **the inradius** where it is inside a sliver or a needle thinner
+    ///   than its own plane's rounding: there the tolerance is the
+    ///   distance's own stated width, so the row pins that the answer
+    ///   stays in the bracket and nothing tighter;
+    /// - between the two, a term for the plane's tilt: eight allowances of
+    ///   the longest side over the sine of the angle between the two
+    ///   shorter ones;
+    /// - **the six corner orders to the bit**, on every draw;
+    /// - **the size**: the same triangle `2⁴⁰⁰` and `2⁹⁰⁰` times larger and
+    ///   smaller answers the same to the bit, scaled, and the line's
+    ///   direction `2⁻⁹⁰⁰` to `2⁹⁰⁰` times as long changes nothing.
     ///
     /// Reading the foot's distance outside the bracket reds this row on
     /// the slivers; a fixed side for a triangle of no area reds it on the
-    /// corners in line.
+    /// corners in line; corners not put in one order, and corners or a
+    /// direction not read at their own scale, red it on any shape.
     #[test]
     fn the_two_distances_are_the_distance_on_triangles_built_to_be_degenerate() {
         let mut rng = test_utils::fuzz::start("dist_triangle_degenerate");
@@ -1803,6 +1904,19 @@ mod tests {
                 );
             }
 
+            // At another size the answer is the same, scaled, to the bit.
+            let size = 2f64.powi([-900, -400, 400, 900][rng.below(4)]);
+            let sized = |x: Point3<f64>| Point3::origin() + (x - Point3::origin()) * size;
+            let at_size =
+                dist_point_triangle(sized(p), sized(flat[0]), sized(flat[1]), sized(flat[2]));
+            assert_eq!(
+                at_size.to_bits(),
+                (got * size).to_bits(),
+                "point: {flat:?} from {p:?} answers {got:e}, and {at_size:e} at {size:e} times \
+                 the size ({})",
+                test_utils::fuzz::replay()
+            );
+
             let lifted = tri.map(|x| frame.at(x[0], x[1], l * rng.range(-10.0, 10.0)));
             let o = frame.at(from[0], from[1], l * rng.range(-10.0, 10.0));
             let d = frame.e[2] * rng.log_uniform(0.1, 10.0);
@@ -1824,6 +1938,21 @@ mod tests {
                     test_utils::fuzz::replay()
                 );
             }
+            let long = 2f64.powi([-900, -531, 515, 900][rng.below(4)]);
+            let at_size = dist_line_triangle(
+                sized(o),
+                d * long,
+                sized(lifted[0]),
+                sized(lifted[1]),
+                sized(lifted[2]),
+            );
+            assert_eq!(
+                at_size.to_bits(),
+                (got * size).to_bits(),
+                "line: {lifted:?} from {o:?} along {d:?} answers {got:e}, and {at_size:e} at \
+                 {size:e} times the size along {long:e} times the direction ({})",
+                test_utils::fuzz::replay()
+            );
         }
         assert!(
             kept.iter().all(|&n| n > draws / 12),
