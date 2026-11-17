@@ -1674,7 +1674,7 @@ fn donut() -> AtRestBody<f64> {
 /// whose edge sits at `(0.5·s, h − 1.5·s, 0)`: at `s = 0.6` the
 /// `cone_join_lane` pose, smaller `s` moving the box's cut toward the
 /// apex.
-pub(super) fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
+fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
     let height = 1.2 / FRAC_PI_6.tan();
     let cone = posed(
         "the cone",

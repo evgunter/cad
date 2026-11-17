@@ -333,6 +333,7 @@ mod nurbs_cert;
 #[cfg(test)]
 mod nurbs_cert_fuzz;
 mod planar;
+mod ruled_walk;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate
@@ -341,9 +342,6 @@ mod planar;
 // `unreachable_pub` paragraph records as false for this workspace.
 // `--document-private-items` keeps the module's prose in the rendered
 // docs.
-#[doc(hidden)]
-#[allow(missing_docs, clippy::missing_docs_in_private_items)]
-pub mod ruled_probe;
 mod sizing;
 mod tessellate;
 mod trimmed;

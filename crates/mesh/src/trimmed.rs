@@ -295,7 +295,7 @@ use std::collections::{HashMap, HashSet};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
-use geom_core::Point3;
+use geom_core::{Band, Point3};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
@@ -389,7 +389,7 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 
 /// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
 /// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), δ for every other face. The one statement those arms size
+/// chart) and does not walk ([`walked`]), δ for every other face. The one statement those arms size
 /// their lattices at and the chord pass chords the face's boundary at
 /// (`chords::edge_target`).
 pub(crate) fn face_target(
@@ -401,12 +401,54 @@ pub(crate) fn face_target(
     let headroom = surface.spline_chart().is_none()
         && crate::tessellate::lane_of(body, fk, surface, tol.band)?
             == crate::tessellate::Lane::Trimmed
-        && !(crate::ruled_probe::cure() != 0 && probe_routed(body, fk, surface, tol)?);
+        && !walked(body, fk, surface, tol.band)?;
     Ok(if headroom {
         tol.delta * UNPROVED_HEADROOM
     } else {
         tol.delta
     })
+}
+
+/// **Whether this lane walks the face** (`crate::ruled_walk`): a cylinder
+/// or cone face with no ring and no trim carrier, here because a straight
+/// side holds a point (`walk::splits_a_straight_side`), whose loop is a
+/// cycle of rims and lines in one of the walk's two shapes
+/// (`ruled_walk::rim_runs`). Such a face's triangles span one rim chord
+/// each in angle, the theorem the step functions state, so it sizes at δ
+/// ([`face_target`]).
+pub(crate) fn walked(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    band: Band,
+) -> Result<bool, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    if !face.rings.is_empty()
+        || has_trim_carrier(body, fk)?
+        || !crate::walk::splits_a_straight_side(body, fk, surface, band)?
+    {
+        return Ok(false);
+    }
+    let mut line = Vec::new();
+    for (_, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
+        match edge_carrier(body, ek)? {
+            Curve3::Line(..) => line.push(true),
+            Curve3::Circle(..) => line.push(false),
+            _ => return Ok(false),
+        }
+    }
+    Ok(matches!(crate::ruled_walk::rim_runs(&line), 1 | 2))
+}
+
+/// The carrier of edge `ek`.
+fn edge_carrier(body: &Body<f64>, ek: EdgeKey) -> Result<&Curve3<f64>, TessellateError> {
+    body.get_edge(ek)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(|g| g.certified())
+        .map(|c| c.carrier())
+        .ok_or(TessellateError::MissingEntity { what: "edge curve" })
 }
 
 /// Does this face's outer loop carry a circle tilted against the face's
@@ -542,28 +584,12 @@ pub(crate) fn tessellate_trimmed(
         });
     }
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
-    let cure = crate::ruled_probe::cure();
-    let routed = matches!(row, ChartRow::Analytic(_)) && probe_routed(body, fk, surface, tol)?;
-    let ruled = cure != 0 && routed;
-    let rows_of = if ruled {
-        Some(ruled_rows(body, &polygon, &singular).ok_or(TessellateError::MissingEntity {
-            what: "probe: no two rows",
-        })?)
-    } else {
-        None
-    };
-    if let (Some(r), 3) = (&rows_of, cure) {
-        let out = walk_rows(fk, &row, &polygon, &singular, r, orientation, shared, tol);
-        crate::ruled_probe::note(crate::ruled_probe::FaceStat {
-            face: fk,
-            cure,
-            passes: 1,
-            worst: out.as_ref().map_or(f64::NAN, |(_, w)| *w),
-            triangles: out.as_ref().map_or(0, |(p, _)| p.triangles.len()),
-            interior: 0,
-            refused: out.as_ref().err().map(|e| format!("{e:?}")),
-        });
-        return out.map(|(p, _)| p);
+    if let ChartRow::Analytic(ref a) = row
+        && walked(body, fk, surface, tol.band)?
+    {
+        return walk_face(
+            body, fk, face.sense, surface, a, &polygon, &singular, chords, shared, tol,
+        );
     }
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -602,11 +628,7 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol)?);
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            let rows = if ruled {
-                Vec::new()
-            } else {
-                a.lattice_rows((v0, v1), (hu, hv))?
-            };
+            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column
             // between two boundary entries that share a mesh vertex,
@@ -641,12 +663,9 @@ pub(crate) fn tessellate_trimmed(
                 // The cone's CDT runs in its development and reads no
                 // metric; every other arm's rows are uniform, one fewer
                 // than their gaps.
-                match (a.development(), a.kind()) {
-                    (Some(_), _) => 1.0,
-                    (None, Analytic::Cylinder { radius }) if ruled && cure == 4 => {
-                        crate::nurbs_cert::lattice_metric(std::iter::once(1.0 / radius))
-                    }
-                    (None, _) => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
+                match a.development() {
+                    Some(_) => 1.0,
+                    None => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
                 },
             )
         }
@@ -717,29 +736,8 @@ pub(crate) fn tessellate_trimmed(
         tol,
         across: across.as_ref(),
         clearance,
-        last: if ruled && matches!(cure, 1 | 4) {
-            crate::ruled_probe::PASS_BUDGET
-        } else {
-            last_attempt()
-        },
-        refine_ruled: ruled && matches!(cure, 1 | 4),
-        held: match (&rows_of, cure) {
-            (Some(r), 2) => r.held(),
-            _ => Vec::new(),
-        },
     };
     if let Some(i) = developed_merge(trimmed.plane(), &polygon.points, &singular) {
-        if routed {
-            crate::ruled_probe::note(crate::ruled_probe::FaceStat {
-                face: fk,
-                cure,
-                passes: 0,
-                worst: f64::NAN,
-                triangles: 0,
-                interior: 0,
-                refused: Some("DevelopedMerge".into()),
-            });
-        }
         return Err(TessellateError::SphereTrimShape {
             face: fk,
             edge: polygon.edges[i],
@@ -750,9 +748,7 @@ pub(crate) fn tessellate_trimmed(
     // (`TrimmedFace::lay`), decided once, here. The retry loop appends
     // ear and refinement points, each strictly inside a kept triangle.
     let mut candidates = trimmed.lay(&lattice);
-    let mut passes = 0;
-    for attempt in 0..=trimmed.last {
-        passes = attempt + 1;
+    for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -833,18 +829,6 @@ pub(crate) fn tessellate_trimmed(
             worst_dev_cert: measure.worst_dev_cert,
             worst_ratio: falsification.worst_ratio,
             dev_samples: measure.dev_samples,
-        });
-    }
-    if routed {
-        let o = outcome.as_ref();
-        crate::ruled_probe::note(crate::ruled_probe::FaceStat {
-            face: fk,
-            cure,
-            passes,
-            worst: measure.worst,
-            triangles: o.and_then(|r| r.as_ref().ok()).map_or(0, |p| p.triangles.len()),
-            interior: o.and_then(|r| r.as_ref().ok()).map_or(0, |p| p.interior.len()),
-            refused: o.and_then(|r| r.as_ref().err()).map(|e| format!("{e:?}")),
         });
     }
     outcome.unwrap_or_else(|| {
@@ -939,12 +923,6 @@ struct TrimmedFace<'a> {
     /// reads ([`Self::attempt`]); `None` on every other arm, which reads
     /// the ear.
     across: Option<&'a HashMap<u32, Vec<FaceKey>>>,
-    /// PROBE: the last attempt.
-    last: usize,
-    /// PROBE: refine on the certificate on this analytic face.
-    refine_ruled: bool,
-    /// PROBE: held edges, polygon index pairs.
-    held: Vec<(usize, usize)>,
 }
 
 /// One attempt's triangulation, between inserting its points and
@@ -1094,18 +1072,6 @@ impl TrimmedFace<'_> {
         let fk = self.fk;
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
-        for &(i, j) in &self.held {
-            let (a, b) = (at.handles[i], at.handles[j]);
-            if a == b {
-                continue;
-            }
-            let realised = at.cdt.try_add_constraint(a, b);
-            if realised.len() != 1 {
-                return Err(TessellateError::MissingEntity {
-                    what: "probe: held edge not one CDT edge",
-                });
-            }
-        }
         self.chain_crease_lines(&mut at)?;
         let Emitted {
             interior,
@@ -1137,7 +1103,7 @@ impl TrimmedFace<'_> {
         // A triangle the retry budget does not clear refuses typed
         // (`work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
         if !ears.is_empty() {
-            if attempt == self.last {
+            if attempt == last_attempt() {
                 return Err(TessellateError::BoundaryEar { face: fk });
             }
             candidates.extend(ears);
@@ -1153,7 +1119,7 @@ impl TrimmedFace<'_> {
         match folded {
             (_, true) => return Err(TessellateError::FoldedTriangle { face: fk }),
             (grid, false) if !grid.is_empty() => {
-                if attempt == self.last {
+                if attempt == last_attempt() {
                     return Err(TessellateError::FoldedTriangle { face: fk });
                 }
                 dropped.extend(grid);
@@ -1172,7 +1138,7 @@ impl TrimmedFace<'_> {
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        if !refine.is_empty() && !measure.worst.is_nan() && attempt < self.last {
+        if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
@@ -1487,7 +1453,7 @@ impl TrimmedFace<'_> {
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.row, ChartRow::Spline { .. }) || self.refine_ruled;
+        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the ear test below.
@@ -1574,7 +1540,7 @@ impl TrimmedFace<'_> {
             // that one other face holds both of; on the other analytic
             // arms an ear, three corners at consecutive places of one
             // loop of the polygon (cyclically).
-            if !matches!(self.row, ChartRow::Spline { .. }) && n_poly >= 3 {
+            if !refine_lane && n_poly >= 3 {
                 let on = vs.map(|vtx| places.get(&vtx.fix().index()));
                 let next = |i| self.polygon.next(i);
                 let shared_side = |across: &HashMap<u32, Vec<FaceKey>>| {
@@ -5306,9 +5272,6 @@ pub(super) mod tests {
                 tol: &tol,
                 across: None,
                 clearance: super::BOUNDARY_CLEARANCE,
-                last: super::last_attempt(),
-                refine_ruled: false,
-                held: Vec::new(),
             };
             let bits = |p: SpadePoint<f64>| (p.x.to_bits(), p.y.to_bits());
             for c in [dust, -dust] {
@@ -5430,9 +5393,6 @@ pub(super) mod tests {
                 tol: &tol,
                 across: None,
                 clearance: super::super::BOUNDARY_CLEARANCE,
-                last: super::super::last_attempt(),
-                refine_ruled: false,
-                held: Vec::new(),
             };
             let wedge = super::super::TrimPolygon::of_loops(
                 &[(0.2, 0.0, 1), (0.9, 0.0, 1), (0.9, 1.0, 3), (0.2, 1.0, 2)],
@@ -5586,180 +5546,135 @@ pub(super) mod tests {
     }
 }
 
-/// PROBE: a ruled face's two rows and its sides, by polygon index: `a`
-/// and `b` in one direction of `u`, `start` the side points (polygon
-/// order) from `b[0]` to `a[0]`, `end` those from `a[last]` to
-/// `b[last]`. A row of the apex is `b = [apex]`.
-pub(crate) struct RuledRows {
-    a: Vec<usize>,
-    b: Vec<usize>,
-    start: Vec<usize>,
-    end: Vec<usize>,
-}
-
-impl RuledRows {
-    /// Cure 2's held edges: per split side, the first rim points off it.
-    fn held(&self) -> Vec<(usize, usize)> {
-        let (n, m) = (self.a.len() - 1, self.b.len() - 1);
-        let mut out = Vec::new();
-        if !self.start.is_empty() {
-            out.push((self.a[1.min(n)], self.b[1.min(m)]));
-        }
-        if !self.end.is_empty() {
-            out.push((self.a[n.saturating_sub(1)], self.b[m.saturating_sub(1)]));
-        }
-        out
-    }
-}
-
-/// PROBE: [`RuledRows`] of a one-loop polygon whose traversals are rims
-/// (circles) and sides (lines).
-fn ruled_rows(
+/// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
+/// rows, with a triangle a neighbouring face may also make a side of split
+/// at a point of the surface inside it, then each triangle read as every
+/// triangle of this lane is: its winding resolved and outward, its
+/// certificate within δ.
+///
+/// **The shared side.** A walked triangle's sides are boundary segments,
+/// edges between the two rows, and fan edges from a side's point to the
+/// corner opposite the side. A side joining two points of the polygon
+/// that are not neighbours on it is an edge another face's triangulation
+/// can make too where that face holds both points (a planar face holding
+/// both of this face's straight sides, the rims one chord each), and the
+/// edge would then bound four triangles. So such a triangle is replaced
+/// by the three joining its sides to the surface point at its chart
+/// centroid, the apex's arbitrary `u` left out: that point lies between
+/// the same two rulings, so the three keep the walk's bound.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] where the polygon does not read as
+/// the two rows [`walked`] found in the loop (a cone face of one run of
+/// rims with no apex between its sides); and the lane's per-triangle
+/// refusals: [`TessellateError::UnresolvedWinding`],
+/// [`TessellateError::FoldedTriangle`],
+/// [`TessellateError::CertificateExceeded`],
+/// [`TessellateError::RoundingUnresolved`].
+#[allow(clippy::too_many_arguments)] // the face, its domain, and what the run shares
+fn walk_face(
     body: &Body<f64>,
-    polygon: &TrimPolygon,
-    singular: &HashSet<u32>,
-) -> Option<RuledRows> {
-    if polygon.ends.len() != 1 {
-        return None;
-    }
-    let pts = &polygon.points;
-    let n = pts.len();
-    let line: Vec<bool> = polygon
-        .edges
-        .iter()
-        .map(|&ek| {
-            body.get_edge(ek)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), Curve3::Line(..)))
-        })
-        .collect();
-    let starts: Vec<usize> = (0..n)
-        .filter(|&i| !line[i] && line[(i + n - 1) % n])
-        .collect();
-    let run = |i: usize| {
-        let mut v = vec![i];
-        let mut k = i;
-        while !line[k] {
-            k = (k + 1) % n;
-            v.push(k);
-        }
-        v
-    };
-    let between = |from: usize, to: usize| {
-        let mut v = Vec::new();
-        let mut k = (from + 1) % n;
-        while k != to {
-            v.push(k);
-            k = (k + 1) % n;
-        }
-        v
-    };
-    match starts.len() {
-        2 => {
-            let (r1, r2) = (run(starts[0]), run(starts[1]));
-            let end = between(*r1.last()?, r2[0]);
-            let start = between(*r2.last()?, r1[0]);
-            let mut b = r2;
-            b.reverse();
-            Some(RuledRows {
-                a: r1,
-                b,
-                start,
-                end,
-            })
-        }
-        1 => {
-            let r1 = run(starts[0]);
-            let side = between(*r1.last()?, r1[0]);
-            let p = side.iter().position(|&k| singular.contains(&pts[k].2))?;
-            let q = side.iter().rposition(|&k| singular.contains(&pts[k].2))?;
-            Some(RuledRows {
-                a: r1,
-                b: vec![side[p]],
-                end: side[..p].to_vec(),
-                start: side[q + 1..].to_vec(),
-            })
-        }
-        _ => None,
-    }
-}
-
-/// PROBE: cure 3, the walk of the face's two rows in order of `u`, each
-/// split side fanned from the corner opposite it; certified per triangle.
-#[allow(clippy::too_many_arguments)]
-fn walk_rows(
     fk: FaceKey,
-    row: &ChartRow<'_>,
+    sense: bool,
+    surface: &Surface<f64>,
+    row: &AnalyticRow<'_>,
     polygon: &TrimPolygon,
     singular: &HashSet<u32>,
-    r: &RuledRows,
-    _orientation: PolygonOrientation,
+    chords: &ChordPass,
     shared: &[Point3<f64>],
     tol: &SizingTols,
-) -> Result<(Patch, f64), TessellateError> {
-    let pts = &polygon.points;
-    let (a, b) = (&r.a, &r.b);
-    let (n, m) = (a.len() - 1, b.len() - 1);
-    let dir = if pts[a[n]].0 >= pts[a[0]].0 { 1.0 } else { -1.0 };
-    let s = |k: usize| dir * pts[k].0;
-    let mut tris: Vec<[usize; 3]> = Vec::new();
-    let (mut i, mut j) = (0, 0);
-    while i < n || j < m {
-        if i < n && (j == m || s(a[i + 1]) <= s(b[j + 1])) {
-            tris.push([a[i], a[i + 1], b[j]]);
-            i += 1;
-        } else {
-            tris.push([b[j + 1], b[j], a[i]]);
-            j += 1;
-        }
+) -> Result<Patch, TessellateError> {
+    let points = &polygon.points;
+    let line = polygon
+        .edges
+        .iter()
+        .map(|&ek| Ok(matches!(edge_carrier(body, ek)?, Curve3::Line(..))))
+        .collect::<Result<Vec<bool>, TessellateError>>()?;
+    let rows = (polygon.ends.len() == 1)
+        .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
+        .flatten()
+        .ok_or(TessellateError::MissingEntity {
+            what: "a walked face's two rows",
+        })?;
+    let across = faces_across(body, fk, chords)?;
+    // Neighbours on the polygon, by mesh id: the apex's copies are one
+    // point, and so are a seam's two ends.
+    let mut beside: HashSet<(u32, u32)> = HashSet::new();
+    for i in 0..points.len() {
+        let (p, q) = (points[i].2, points[polygon.next(i)].2);
+        beside.insert((p.min(q), p.max(q)));
     }
-    let probe_err = TessellateError::MissingEntity {
-        what: "probe: walk side triangle",
+    let shares = |p: usize, q: usize| {
+        let (ip, iq) = (points[p].2, points[q].2);
+        !beside.contains(&(ip.min(iq), ip.max(iq)))
+            && across.get(&ip).is_some_and(|fp| {
+                across
+                    .get(&iq)
+                    .is_some_and(|fq| fp.iter().any(|f| fq.contains(f)))
+            })
     };
-    for (e1, chain, e2) in [(b[0], &r.start, a[0]), (a[n], &r.end, b[m])] {
-        if chain.is_empty() {
+    let mut interior: Vec<Point3<f64>> = Vec::new();
+    // Each corner: its mesh vertex, chart point, and whether it is the
+    // apex.
+    let mut triangles: Vec<[(PatchVertex, [f64; 2], bool); 3]> = Vec::new();
+    for t in rows.walk(points) {
+        let corner = |k: usize| {
+            let (u, v, id) = points[k];
+            (PatchVertex::Shared(id), [u, v], singular.contains(&id))
+        };
+        let tri = t.map(corner);
+        if !(shares(t[0], t[1]) || shares(t[1], t[2]) || shares(t[2], t[0])) {
+            triangles.push(tri);
             continue;
         }
-        let (pos, q) = tris
-            .iter()
-            .enumerate()
-            .find_map(|(t, tri)| {
-                (0..3)
-                    .find(|&q| tri[q] == e1 && tri[(q + 1) % 3] == e2)
-                    .map(|q| (t, q))
-            })
-            .ok_or(probe_err.clone())?;
-        let t = tris.remove(pos);
-        let o = t[(q + 2) % 3];
-        let mut seq = vec![e1];
-        seq.extend(chain.iter().copied());
-        seq.push(e2);
-        for w in seq.windows(2) {
-            tris.push([o, w[0], w[1]]);
+        let off_apex: Vec<f64> = tri.iter().filter(|c| !c.2).map(|c| c.1[0]).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let u = off_apex.iter().sum::<f64>() / off_apex.len() as f64;
+        let v = tri.iter().map(|c| c.1[1]).sum::<f64>() / 3.0;
+        #[allow(clippy::cast_possible_truncation)]
+        let centre = (PatchVertex::Local(interior.len() as u32), [u, v], false);
+        interior.push(surface.eval(u, v));
+        for q in 0..3 {
+            triangles.push([centre, tri[q], tri[(q + 1) % 3]]);
         }
     }
-    let mut worst = 0.0f64;
-    let (mut exceeded, mut unresolved) = (false, None::<f64>);
-    let mut triangles = Vec::with_capacity(tris.len());
-    for t in tris {
-        let ids = t.map(|k| pts[k].2);
+    let mut out = Vec::with_capacity(triangles.len());
+    let (mut worst, mut exceeded, mut unresolved) = (0.0f64, false, None::<f64>);
+    for corners in triangles {
+        let ids = corners.map(|c| c.0);
+        // A full turn's seam corners are one mesh vertex at two chart
+        // points; a triangle on both is no triangle in 3-D.
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue;
         }
-        let tri = ids.map(|id| shared[id as usize]);
-        let uv = t.map(|k| [pts[k].0, pts[k].1]);
-        let sing = ids.map(|id| singular.contains(&id));
-        let (bound, scale) = row.cert(tri, uv, sing);
+        let tri = ids.map(|id| id.position(shared, &interior));
+        let normal = crate::validate::resolved_normal(tri).map_err(|unresolved| {
+            TessellateError::UnresolvedWinding {
+                face: fk,
+                unresolved: Box::new(unresolved),
+            }
+        })?;
+        let centroid = Point3::new(
+            (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+            (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+            (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+        );
+        if normal.dot(row.outward(sense, centroid).vec()).partial_cmp(&0.0)
+            != Some(core::cmp::Ordering::Greater)
+        {
+            return Err(TessellateError::FoldedTriangle { face: fk });
+        }
+        let (bound, scale) = row.cert(tri, corners.map(|c| c.1), corners.map(|c| c.2));
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
             cert::Verdict::Certified => {}
             cert::Verdict::Exceeded => exceeded = true,
             cert::Verdict::Unresolved { allowance } => {
-                unresolved = Some(unresolved.map_or(allowance, |x: f64| x.max(allowance)));
+                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
             }
         }
         worst = cert::worse(worst, bound);
-        triangles.push(ids.map(PatchVertex::Shared));
+        out.push(ids);
     }
     if exceeded {
         return Err(TessellateError::CertificateExceeded {
@@ -5776,27 +5691,8 @@ fn walk_rows(
             allowance,
         });
     }
-    Ok((
-        Patch {
-            interior: Vec::new(),
-            triangles,
-        },
-        worst,
-    ))
-}
-
-/// PROBE: the face is the chart lane's for a split straight side alone
-/// (`tessellate::lane_of`'s last arm).
-fn probe_routed(
-    body: &Body<f64>,
-    fk: FaceKey,
-    surface: &Surface<f64>,
-    tol: &SizingTols,
-) -> Result<bool, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    Ok(face.rings.is_empty()
-        && !has_trim_carrier(body, fk)?
-        && crate::walk::splits_a_straight_side(body, fk, surface, tol.band)?)
+    Ok(Patch {
+        interior,
+        triangles: out,
+    })
 }
