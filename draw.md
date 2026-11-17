@@ -21,3 +21,13 @@ Both corrected the brief: the records an op writes are in hand at the Boolean's 
 Harness token counts (first report):
 - A (Fable): 286,489
 - B (Opus): 162,184
+
+## Round 2 (2026-11-17)
+
+Each designer was shown the other's round-1 report. Both moved, toward each other:
+- **A** took B's lead principle (the gate asks the pairs whose meeting the building door decided) and added what it had left as "possible": two solids of one deciding door's result that the door decided are certified apart or recorded at that door's finish, and refused otherwise. Its reader is the census, with the engine's two-body question as the census's curved lane. A did not take "every deciding door is one arrival": two solids carried from one operand were decided beneath the door, so the partition is by lineage, and the shell of an overlapping assembly must still finish. A names the question beneath: does `finish` confirm the records it reads? A recommends it does.
+- **B** dropped the arrival as the certificate's scope (it is the census's `group`, and asking those pairs with the certificate would be a second reader of the census's fact) and moved to per solid; took A's reading of an in-solid record as a confirmed meeting place, not a face-pair exclusion; kept that the solids of one deciding door's result must not cross undetected, through the census grouped by who decided the meeting, run inside the gate. B names the question beneath: what a finished body promises about the relation between its solids, and which reader decides it at the gate.
+
+The positions nearly meet: per solid for the certificate; the finished body holds its records; the gate confirms a record before the certificate steps around its cells; between solids the census is the one reader, refusing at the door that decided the meeting and reporting at a `⊔`. What is left is whether "decided by this door" is read off the door (every solid of a deciding door's result) or off lineage (only pairs descending from different operands, or cut from one solid). Round 3 shows each the other's round-2 report.
+
+Totals after round 2: A 308,738; B 172,659.
