@@ -30,27 +30,48 @@ certify by the graph separator. The band meets the top plane
 tangentially along that circle. At `f64` the line is one value, no such
 cell arises, and the drum holds.
 
-## Three causes offered, not yet told apart
+## Traced: three changes, each of which closes it
 
-The fork's three designers read the same numbers three ways. A trace
-decides between them (asked of the measurement lane, the row's section
-9):
+The fork's three designers read the numbers three ways. The
+measurement lane ran each as a variant on its own, on top of the
+refusing configuration (the sliver row's `## Measured`, section 9).
+**All three hold the drum at `Interval`:**
 
-- **The line's placement.** The band's chart line on the shared circle
-  is an enclosure at `Interval` where the construction fixes it at
-  exactly π/2. Placed from the construction, the far-side cell does not
-  arise. The same mechanism refused the drum's wall rim until
+| variant | verdict | pairs |
+|---|---|---:|
+| as measured (sliver refused, margin un-scaled) | refuses | 15,200 |
+| **the line placed as a point**: the band's chart line on the shared circle given its `f64` value `[x, x]` in `placed` | holds | 559 |
+| **the separator's direction from the chart's derivative across the zero side**, not from the rectangle's middle (`heading`, side and past-side zeros) | holds | 683 |
+| **a separator across the seam**: the cylinder through the shared circle about its axis, tried before the graph | holds | 665 |
+
+For scale: the drum at `Interval` on main, with the sliver, takes 567
+pairs, and at `f64` 150.
+
+- **With the line a point the far-side cell does not arise**: no
+  sliver decision is taken at all, and the touch reads the cell
+  outside, as at `f64`. The line's enclosure, 2.1e-14 rad where the
+  construction fixes π/2, is where the refusal starts. The same
+  mechanism refused the drum's wall rim until
   `a-fillet-band-rim-phase-outruns-the-touch-concession-at-interval`'s
   fix placed that rim from the sketch frame.
-- **The separator's direction.** `graph_of` and `planes_through` take
-  their direction through `heading`, read at the middle of each
-  rectangle. A rectangle with no width has its middle on the edge, so
-  the direction is noise and both rates straddle.
-- **No separator crosses a tangent seam.** Against either face's own
-  carrier the rate is zero on a seam where the faces meet smoothly. A
-  separator through the edge normal to the faces' common tangent plane
-  (here the cylinder through the circle about the drum's axis) would
-  read both at first order.
+- **With the heading or the seam cylinder the thin rectangle is still
+  presented, and is read**: 124 and 110 sliver-width rectangles arise,
+  and the pairs certify (by the graph separator, or by the seam
+  cylinder) or split and certify below.
+- **What separates the 321 visits the graph certified from the 11,512
+  it did not** is the graph separator's rate alone: decided on both
+  faces where it certified (enclosures centred about 2.4 half-widths
+  from zero), and under a tenth of a half-width from zero where it
+  split. The cells, their widths and their place against the seam are
+  the same in both groups. The trace did not record the direction
+  itself; the heading variant holding is the evidence that the
+  direction is what differs.
+
+So this is not one missing reading but two places to act: where the
+line is placed (it removes the cell), and how a rectangle without
+width is read (it reads the cell). The first acts where the refusal
+starts. The second is what any family whose line is honestly an
+enclosure will need.
 
 ## What closing it takes
 
