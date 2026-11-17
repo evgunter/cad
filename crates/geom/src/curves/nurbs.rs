@@ -1842,36 +1842,42 @@ macro_rules! nurbs_curve {
 
             /// **[`Self::ders1`] from one side of `t`**: the point and
             /// first derivative of the one nonempty span that `t` ends
-            /// (`below`, the span `(uᵢ, uᵢ₊₁]` holding `t`) or starts
-            /// (the span `[uᵢ, uᵢ₊₁)` holding it), evaluated at `t`
-            /// (the span window's `ders1_in_span`). At a knot where the curve is
+            /// (`below`) or starts, evaluated at `t` through the span
+            /// window's `ders1_in_span`. At a knot where the curve is
             /// only `C⁰` (a crease) this is the one-sided derivative a
             /// reader standing in that span sees, where [`Self::ders1`]
-            /// reads one side's for both. Away from a knot it is
-            /// [`Self::ders1`]'s span. The span is located on the middle
-            /// of each bracket; where no span holds `t` on that side (a
-            /// domain end read from outside, or poison) it is
-            /// [`Self::ders1`].
+            /// reads the span above for both sides.
+            ///
+            /// The span is [`Self::ders1`]'s own: the one `t` locates in
+            /// ([`Knots::locate`]), stepped down to the nonempty span
+            /// below where `t` is exactly that span's first knot and the
+            /// reading is from below. Where `t` may lie in more than one
+            /// span (an enclosure astride a knot, or a knot wider than a
+            /// point), no one side holds every member, and it reads
+            /// [`Self::ders1`]'s hull over all of them, which encloses
+            /// each side's derivative; so it does at a domain end read
+            /// from outside, where no span lies on that side.
             pub fn ders1_from(&self, t: T, below: bool) -> ($Point<T>, $Vector<T>) {
-                let at = |x: T| x.structure_bracket().map(geom_core::bracket_mid);
-                let Some(tm) = at(t) else {
+                let Some((first, last)) = self.knots.locate(t) else {
                     return self.ders1(t);
                 };
-                let values = self.knots.values();
-                let kv = self.knots.structure();
-                let window = (kv.first_span()..=kv.last_span())
-                    .filter_map(|i| self.span(i).map(|w| (i, w)))
-                    .find(|&(i, _)| {
-                        match (at(values[i]), at(values[i + 1])) {
-                            (Some(lo), Some(hi)) if below => lo < tm && tm <= hi,
-                            (Some(lo), Some(hi)) => lo <= tm && tm < hi,
-                            _ => false,
-                        }
-                    });
-                match window {
-                    Some((_, w)) => w.ders1_in_span(t),
-                    None => self.ders1(t),
+                let index = first.span().index();
+                if index != last.span().index() {
+                    return self.ders1(t);
                 }
+                let point = |x: T| x.structure_bracket().filter(|(lo, hi)| lo == hi).map(|(lo, _)| lo);
+                let at_start = matches!(
+                    (point(t), point(self.knots.values()[index])),
+                    (Some(x), Some(k)) if x == k
+                );
+                if !(below && at_start) {
+                    return self.window_of(first).ders1_in_span(t);
+                }
+                let kv = self.knots.structure();
+                (kv.first_span()..index)
+                    .rev()
+                    .find_map(|j| self.span(j))
+                    .map_or_else(|| self.ders1(t), |w| w.ders1_in_span(t))
             }
 
             /// **The first derivative at `at`, read through the
