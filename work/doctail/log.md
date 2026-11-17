@@ -75,3 +75,4 @@ body has the reasons):
   - N1's "Undrawn pieces" example is stale since PR 6682;
   - `[topology]` has a garbled sentence on main ("The join never removes a cut either / exception requires.");
   - the swept-order asymmetry is reachable from raw loop tables.
+- 2026-11-17 — **Friction: disk.** This cloud session's writable allowance is about 38 GB, and one editor-core lane's target reaches 14–20 GB once it builds both a debug and a release tree (the tour's `die-corpus` regeneration builds release). Two building lanes therefore filled the disk to 0 MB once, during a workspace clippy run, around 20:30 UTC. Rule of thumb for this box: at most two building lanes, one cargo profile each, and delete a target the moment the lane's local loop ends. A third building lane goes to its own cloud session.
