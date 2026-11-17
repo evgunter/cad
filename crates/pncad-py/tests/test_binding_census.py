@@ -3957,6 +3957,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
