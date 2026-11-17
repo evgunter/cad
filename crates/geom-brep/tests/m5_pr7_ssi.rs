@@ -4734,7 +4734,7 @@ fn a_curved_domes_level_loop_certifies_at_every_eps() {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
         assert_eq!(branch.end, BranchEnd::Closed, "{at}: a loop");
-        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        let n = marched_samples(&branch.carrier);
         assert!(
             samples.contains(&n),
             "{at}: {n} samples, against {samples:?} at the carrier's curvature"
@@ -4789,7 +4789,7 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
         "{at}: an arc between two crossings: {:?}",
         branch.end
     );
-    let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    let n = marched_samples(&branch.carrier);
     assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
@@ -4817,8 +4817,17 @@ fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
         let [branch] = out.branches.as_slice() else {
             panic!("d = {d}: expected one branch, got {}", out.branches.len());
         };
-        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        let n = marched_samples(&branch.carrier);
         assert!(samples.contains(&n), "d = {d}: {n} samples");
+    }
+}
+
+/// The samples a marched carrier was fitted through: its net's control
+/// points, one per sample.
+fn marched_samples(carrier: &geom::Curve3<f64>) -> usize {
+    match carrier {
+        geom::Curve3::Nurbs(net) => net.control().len(),
+        _ => 0,
     }
 }
 
@@ -5169,7 +5178,7 @@ fn a_straight_marched_branch_takes_the_fits_four_samples() {
     let [first, second] = out.branches.as_slice() else {
         panic!("{at}: expected two branches, got {}", out.branches.len());
     };
-    let n = first.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    let n = marched_samples(&first.carrier);
     assert_eq!(n, 4, "{at}: the marched metre's samples");
     assert!(one_cubic_span(&at, second), "{at}: the second branch");
 }
@@ -5424,7 +5433,7 @@ fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
         let n: Vec<usize> = out
             .branches
             .iter()
-            .map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len()))
+            .map(|b| marched_samples(&b.carrier))
             .collect();
         let [a, b] = n[..] else {
             panic!("{at}: expected two branches, got {n:?}");

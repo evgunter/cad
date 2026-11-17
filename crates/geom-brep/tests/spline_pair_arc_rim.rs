@@ -164,21 +164,21 @@ fn flat(h: f64) -> NurbsSurface<f64> {
 
 /// **A chart with no exact image falls back to its fitted image.** The
 /// cylinder holds the rim as its row; the flat chart holds it inside, so
-/// no candidate holds it there, and its fitted image's chord misses it
-/// (1.8e-4 m at ε 1e-9, measured 2026-10-28). The lane refuses on that
-/// chart's fitted limb, carrying that no image held, in both orders.
+/// no candidate holds it there, and its fitted image follows the rim's
+/// arc: limbs 1 and 2 clear on both charts, in both orders, and the lane
+/// stops where a rim along a chart's boundary row does, at the tube.
 #[test]
 fn the_chart_with_no_exact_image_reads_its_fitted_one() {
     let (carrier, params) = (rim(1.0), (0.0, TURN));
     let (wall, plane) = (cylinder(1, TURN), flat(0.0));
-    for (what, a, b) in [
-        ("cylinder × flat", &wall, &plane),
-        ("flat × cylinder", &plane, &wall),
+    for (what, a, b, row) in [
+        ("cylinder × flat", &wall, &plane, 0),
+        ("flat × cylinder", &plane, &wall, 1),
     ] {
         let got = limbs(&carrier, params, a, b);
         assert!(
-            matches!(fell_back(&got), Some((None, _))),
-            "{what}: the flat chart's fitted image refuses: {got:?}"
+            tube_along_row(&got, row),
+            "{what}: the flat chart's fitted image clears limbs 1 and 2: {got:?}"
         );
     }
 }
@@ -424,8 +424,8 @@ fn an_in_band_closed_form_gives_way_to_the_measured_row_at_interval() {
 /// The whole turn in four sub-arcs, the `u` boundaries one ruling. A rim
 /// clear of the seam reads its row over the branch the edge lies on, and
 /// clears limbs 1 and 2; one across the seam lies on no single arc of
-/// the row, so no image holds it, and the fitted image, whose feet jump
-/// across the chart at the seam, refuses.
+/// the row, so no image holds it, and the fitted image, whose foot path
+/// stops at the seam it cannot cross, refuses on its own miss.
 #[test]
 fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
     let tau = core::f64::consts::TAU;
@@ -443,7 +443,13 @@ fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
     );
     let across = limbs(&carrier, (-0.2, 0.4), &a, &b);
     assert!(
-        matches!(fell_back(&across), Some((None, _))),
+        matches!(
+            across,
+            Err(PlaneNurbsRefusal::Limb {
+                limb: geom_brep::SsiLimb::ImageMiss,
+                ..
+            })
+        ),
         "a rim across the seam reads no single arc of the row: {across:?}"
     );
 }
