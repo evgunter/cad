@@ -390,8 +390,10 @@ pub fn dump(mesh: &Mesh) -> String {
 pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f64)>) -> Mesh {
     let mesh = tessellate(body, delta, Tol::witness()).unwrap();
 
-    // (i) watertight, manifold, consistently wound.
+    // (i) watertight, manifold, consistently wound, and every winding
+    // resolved above the rounding of its own positions.
     assert_eq!(check_mesh(&mesh), Ok(()));
+    assert_eq!(mesh::validate::check_winding(&mesh), Ok(()));
 
     // (ii) orientation: positive signed volume, within the implied band.
     let v = signed_volume(&mesh);

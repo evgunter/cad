@@ -499,7 +499,15 @@ fn tessellate_impl(
                         // coordinate domain.
                         let run = || match &route {
                             Route::Trimmed(lift) => crate::trimmed::tessellate_trimmed(
-                                body, fk, surface, &chords, shared, &tol, &bounds, lift,
+                                body,
+                                fk,
+                                surface,
+                                &chords,
+                                shared,
+                                &tol,
+                                &bounds,
+                                lift,
+                                crate::trimmed::BOUNDARY_CLEARANCE,
                             ),
                             Route::Planar => tessellate_planar(body, fk, &chords.ids, shared),
                             Route::Curved => {
@@ -571,10 +579,27 @@ fn tessellate_impl(
         match face.place {
             // Each face's interior takes the arena as it stands at that
             // face's turn, in face-arena order (D9).
-            Ok(placement) => patches.push(FacePatch {
-                face: face.face,
-                triangles: placement.place(&mut positions),
-            }),
+            //
+            // THE JOIN, where `[mesh.winding]` is read: every triangle of
+            // every face, whichever lane made it and whether the patch is
+            // the lane's or the memo's, against the positions it has in
+            // the mesh. A face with a triangle f64 cannot wind refuses.
+            Ok(placement) => {
+                let triangles = placement.place(&mut positions);
+                if let Some((_, unresolved)) =
+                    crate::validate::first_unresolved(&positions, &triangles)
+                {
+                    refusal = Some(TessellateError::UnresolvedWinding {
+                        face: face.face,
+                        unresolved: Box::new(unresolved),
+                    });
+                    break;
+                }
+                patches.push(FacePatch {
+                    face: face.face,
+                    triangles,
+                });
+            }
             // The first refusal in arena order. Its own memo work and
             // meter rows are already in hand — the serial loop counted
             // and recorded them before it ran the lane — and no later
