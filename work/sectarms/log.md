@@ -892,3 +892,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - What (B) buys: an arc's pad is a function of the arc alone, and lone arcs get tight pads, which tightens the section certificate's witness placement.
   - What (A) wins: reach, cost on lone arcs, and not resting on (B)'s rung-apart premise.
   - If Ev does not value the independence, it is (A), with its two conditions. Waiting on Ev.
+- 2026-11-17 — **The periodic-carrier implementer (Fable) handed back [PR 7052](https://github.com/evgunter/cad/pull/7052)** at `ce33e72ce3`, CI green, not merged.
+  - **Built:** `Curve3::Periodic` with clamped views by knot insertion; the ℝ³ lane fits closed traces periodic and certifies once on the base opening; seating by span with the seat machinery deleted; closed-loop chords as spans; `EdgeCurve` holds loop + span, with `carrier()` the clamped view and `stored_carrier()` the loop (flagged unsure); the join rejoins one loop's arcs (cylinder ∩ ball, four edges → one).
+  - **Not delivered:** cylinder × cylinder meshes, but the other three pairs stop at TESSLANE's `chords::chart_image` gate (its parked trimmed-arm items), so the item's done-when is unmet from the section's ground.
+  - **Regression:** a sliver pose that carried at ε = 1e-6 on main refuses `TubeStraddles`; filed P1.
+  - **Filed:** a design item for a clamped view ending within three ulps of a knot (a snap-to-knot was built, measured and removed, since it names the unit roundoff outside `geom-core`).
+  - **Trailers:** the lane's commits carry Co-Authored-By naming the model, against the brief (it followed the harness); noted in the PR body, history not rewritten.
+- **Dual review dispatched** on the frozen head `ce33e72ce3`, concurrent. Slot byte 103 (odd): R1 = Fable, R2 = Opus. Brief `review-7052.md`.
