@@ -971,3 +971,4 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
     - The roster keys are not unique.
     - Several docs are stale.
 - **Fix pass dispatched** to the implementer's agent (Opus), continued: a boundary pair at 0.99/1.01 × cap, a σ ≠ 1 fixture, the mutants re-run, main merged, the body corrected, the CI slow-set-at-extra-ε gap filed, and the docs fixed.
+- **Image-function build** (the three rest-image P1s as one unit, `sectarms/one-image-function`): **letter H, tier dual.** The trace, the mint and rest all move onto one function, and projection changes. Brief `impl-restimage.md`. Implementer byte drawn after this entry, once PR 7032 merges.
